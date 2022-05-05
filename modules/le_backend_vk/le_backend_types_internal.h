@@ -21,10 +21,10 @@ constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color 
 #define LE_WRAP_ENUM_IN_STRUCT( enum_name, struct_name ) \
 	struct struct_name {                                 \
 		enum_name data;                                  \
-		          operator const enum_name &() const {   \
+		          operator const enum_name&() const {    \
             return data;                       \
 		}                                                \
-		operator enum_name &() {                         \
+		operator enum_name&() {                          \
 			return data;                                 \
 		}                                                \
 	}
@@ -33,7 +33,7 @@ constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color 
 // Utility methods
 //
 template <typename T>
-static constexpr typename std::underlying_type<T>::type enumToNum( const T &enumVal ) {
+static constexpr typename std::underlying_type<T>::type enumToNum( const T& enumVal ) {
 	return static_cast<typename std::underlying_type<T>::type>( enumVal );
 };
 
@@ -99,13 +99,13 @@ struct le_shader_binding_info {
 	static_assert( sizeof( type ) == sizeof( uint32_t ), "type: vk::DescriptorType must be 32bit of size." );
 
 	bool
-	operator<( le_shader_binding_info const &lhs ) const noexcept {
+	operator<( le_shader_binding_info const& lhs ) const noexcept {
 		return setIndex == lhs.setIndex
 		           ? binding < lhs.binding
 		           : setIndex < lhs.setIndex;
 	}
 
-	bool operator==( le_shader_binding_info const &lhs ) const noexcept {
+	bool operator==( le_shader_binding_info const& lhs ) const noexcept {
 		return setIndex == lhs.setIndex &&
 		       binding == lhs.binding &&
 		       count == lhs.count &&
@@ -161,7 +161,7 @@ struct DescriptorData {
 		uint64_t                  data[ 3 ];
 	};
 
-	bool operator==( DescriptorData const &rhs ) const noexcept {
+	bool operator==( DescriptorData const& rhs ) const noexcept {
 		return type == rhs.type &&
 		       bindingNumber == rhs.bindingNumber &&
 		       arrayIndex == rhs.arrayIndex &&
@@ -224,7 +224,7 @@ struct LeRenderPass {
 	vk::SampleCountFlagBits sampleCount;    // We store this with renderpass, as sampleCount must be same for all color/depth attachments
 	uint64_t                renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
-	struct le_command_buffer_encoder_o *encoder;
+	struct le_command_buffer_encoder_o* encoder;
 
 	struct ExplicitSyncOp {
 		le_resource_handle resource;                  // image used as texture, or buffer resource used in this pass

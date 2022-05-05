@@ -60,41 +60,41 @@ LE_MODULE_LOAD_DEFAULT( le_bspline );
 #ifdef __cplusplus
 
 namespace le_bspline {
-static const auto &api          = le_bspline_api_i;
-static const auto &le_bspline_i = api -> le_bspline_i;
+static const auto& api          = le_bspline_api_i;
+static const auto& le_bspline_i = api -> le_bspline_i;
 
 } // namespace le_bspline
 
 class LeBspline : NoCopy, NoMove {
 
-	le_bspline_o *self;
+	le_bspline_o* self;
 
   public:
 	LeBspline()
 	    : self( le_bspline::le_bspline_i.create() ) {
 	}
 
-	LeBspline &setDegree( uint32_t const &degree ) {
+	LeBspline& setDegree( uint32_t const& degree ) {
 		le_bspline::le_bspline_i.set_degree( self, degree );
 		return *this;
 	}
 
-	LeBspline &setClosed( bool closed ) {
+	LeBspline& setClosed( bool closed ) {
 		le_bspline::le_bspline_i.set_closed( self, closed );
 		return *this;
 	}
 
-	LeBspline &setPoints( le_bspline_api::Vertex const *points, size_t numPoints ) {
+	LeBspline& setPoints( le_bspline_api::Vertex const* points, size_t numPoints ) {
 		le_bspline::le_bspline_i.set_points( self, points, numPoints );
 		return *this;
 	}
 
-	LeBspline &setKnots( float const *knots, size_t numKnots ) {
+	LeBspline& setKnots( float const* knots, size_t numKnots ) {
 		le_bspline::le_bspline_i.set_knots( self, knots, numKnots );
 		return *this;
 	}
 
-	LeBspline &setWeights( float const *weights, size_t numWeights ) {
+	LeBspline& setWeights( float const* weights, size_t numWeights ) {
 		le_bspline::le_bspline_i.set_weights( self, weights, numWeights );
 		return *this;
 	}
@@ -103,7 +103,7 @@ class LeBspline : NoCopy, NoMove {
 		return le_bspline::le_bspline_i.trace( self, resolution );
 	}
 
-	LeBspline &getVerticesForPolyline( le_bspline_api::Vertex const **pVertices, size_t *numVertices ) {
+	LeBspline& getVerticesForPolyline( le_bspline_api::Vertex const** pVertices, size_t* numVertices ) {
 		le_bspline::le_bspline_i.get_vertices_for_polyline( self, pVertices, numVertices );
 		return *this;
 	}

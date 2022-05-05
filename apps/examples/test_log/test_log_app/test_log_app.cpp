@@ -6,7 +6,7 @@
 
 struct test_log_app_o {
 	uint64_t          frame_counter = 0;
-	le_log_channel_o *logger;
+	le_log_channel_o* logger;
 };
 
 typedef test_log_app_o app_o;
@@ -21,7 +21,7 @@ static void app_terminate(){};
 
 // ----------------------------------------------------------------------
 
-static test_log_app_o *test_log_app_create() {
+static test_log_app_o* test_log_app_create() {
 	auto app = new ( test_log_app_o );
 
 	app->logger = le_log_api_i->get_channel( "app_logger" );
@@ -31,7 +31,7 @@ static test_log_app_o *test_log_app_create() {
 
 // ----------------------------------------------------------------------
 
-static bool test_log_app_update( test_log_app_o *self ) {
+static bool test_log_app_update( test_log_app_o* self ) {
 
 	auto logger_2 = LeLog( "logger_2" );
 	logger_2.set_level( LeLog::Level::eInfo );
@@ -57,7 +57,7 @@ static bool test_log_app_update( test_log_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void test_log_app_destroy( test_log_app_o *self ) {
+static void test_log_app_destroy( test_log_app_o* self ) {
 
 	delete ( self ); // deletes camera
 }
@@ -66,8 +66,8 @@ static void test_log_app_destroy( test_log_app_o *self ) {
 
 LE_MODULE_REGISTER_IMPL( test_log_app, api ) {
 
-	auto  test_log_app_api_i = static_cast<test_log_app_api *>( api );
-	auto &test_log_app_i     = test_log_app_api_i->test_log_app_i;
+	auto  test_log_app_api_i = static_cast<test_log_app_api*>( api );
+	auto& test_log_app_i     = test_log_app_api_i->test_log_app_i;
 
 	test_log_app_i.initialize = app_initialize;
 	test_log_app_i.terminate  = app_terminate;

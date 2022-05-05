@@ -28,43 +28,43 @@ struct le_bspline_o {
 
 // ----------------------------------------------------------------------
 
-static le_bspline_o *le_bspline_create() {
+static le_bspline_o* le_bspline_create() {
 	auto self = new le_bspline_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_bspline_destroy( le_bspline_o *self ) {
+static void le_bspline_destroy( le_bspline_o* self ) {
 	delete self;
 }
 // ----------------------------------------------------------------------
 
-static void le_bspline_set_degree( le_bspline_o *self, uint32_t degree ) {
+static void le_bspline_set_degree( le_bspline_o* self, uint32_t degree ) {
 	self->degree = degree;
 }
 
 // ----------------------------------------------------------------------
-static void le_bspline_set_closed( le_bspline_o *self, bool closed ) {
+static void le_bspline_set_closed( le_bspline_o* self, bool closed ) {
 	self->closed = closed;
 }
 // ----------------------------------------------------------------------
-static void le_bspline_set_points( le_bspline_o *self, Vertex const *points, size_t const num_points ) {
+static void le_bspline_set_points( le_bspline_o* self, Vertex const* points, size_t const num_points ) {
 	self->points = { points, points + num_points };
 }
 
 // ----------------------------------------------------------------------
-static void le_bspline_set_knots( le_bspline_o *self, float const *knots, size_t const num_knots ) {
+static void le_bspline_set_knots( le_bspline_o* self, float const* knots, size_t const num_knots ) {
 	self->knots = { knots, knots + num_knots };
 }
 
 // ----------------------------------------------------------------------
-static void le_bspline_set_weights( le_bspline_o *self, float const *weights, size_t const num_weights ) {
+static void le_bspline_set_weights( le_bspline_o* self, float const* weights, size_t const num_weights ) {
 	self->weight = { weights, weights + num_weights };
 }
 
 // ----------------------------------------------------------------------
-static bool le_bspline_trace( le_bspline_o *self, size_t resolution ) {
+static bool le_bspline_trace( le_bspline_o* self, size_t resolution ) {
 
 	assert( resolution > 1 ); // resolution must be at least 2, otherwise we cannot cover at least start and endpoint.
 
@@ -136,8 +136,8 @@ static bool le_bspline_trace( le_bspline_o *self, size_t resolution ) {
 
 			v.reserve( numIterations );
 			for ( size_t i = 0; i != numIterations; ++i ) {
-				auto &p = self->points[ i % numPoints ];
-				auto &w = self->weight[ i % numPoints ];
+				auto& p = self->points[ i % numPoints ];
+				auto& w = self->weight[ i % numPoints ];
 				v.emplace_back( p.x * w, p.y * w, w );
 			}
 		}
@@ -173,7 +173,7 @@ static bool le_bspline_trace( le_bspline_o *self, size_t resolution ) {
 
 // ----------------------------------------------------------------------
 
-static void le_bspline_get_vertices_for_polyline( le_bspline_o *self, Vertex const **vertices, size_t *num_vertices ) {
+static void le_bspline_get_vertices_for_polyline( le_bspline_o* self, Vertex const** vertices, size_t* num_vertices ) {
 	*vertices     = self->polyline.data();
 	*num_vertices = self->polyline.size();
 };
@@ -181,7 +181,7 @@ static void le_bspline_get_vertices_for_polyline( le_bspline_o *self, Vertex con
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_bspline, api ) {
-	auto &le_bspline_i = static_cast<le_bspline_api *>( api )->le_bspline_i;
+	auto& le_bspline_i = static_cast<le_bspline_api*>( api )->le_bspline_i;
 
 	le_bspline_i.create                    = le_bspline_create;
 	le_bspline_i.destroy                   = le_bspline_destroy;

@@ -46,39 +46,39 @@ struct le_rtx_pipeline_builder_o {
 
 // ----------------------------------------------------------------------
 
-static le_rtx_pipeline_builder_o *le_rtx_pipeline_builder_create() {
+static le_rtx_pipeline_builder_o* le_rtx_pipeline_builder_create() {
 	auto self = new le_rtx_pipeline_builder_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o *self ) {
+static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o* self ) {
 	delete self;
 }
 
 /*
- *  
+ *
  * Set parameters for builder - so that builder can build pipeline.
  * create_acceleration_structure()
- * 
+ *
  * -- tells backend to build acceleration structure
  * -- data ownership must transfer to backend. it must stay available
  *    until upload complete / until build complete:
- * 
- * An acceleration structure is-a resource: memory for it must be allocated, 
+ *
+ * An acceleration structure is-a resource: memory for it must be allocated,
  * it needs to be created, and destroyed, and its life-time managed by the backend.
- * 
+ *
  * Acceleration structures are built from existing buffers - we can tell
- * the backend to build acceleration structures using buffer_handles, and 
- * the backend needs to then patch the buffer. 
- * 
+ * the backend to build acceleration structures using buffer_handles, and
+ * the backend needs to then patch the buffer.
+ *
  * Buffers need to be uploaded first, then we can create acceleration structures.
- * 
+ *
  * Steps: upload vertex data, remember keep resource ids for buffer.
- * 
+ *
  * backend: build vk_geometries using le_rtx_geometry, patch resource ids to actual vkBuffers
- * 
+ *
  * allocate space for allocation structure before transfer pass
  * populate allocation structure in transfer pass (will need read access to buffer)
  *
@@ -86,21 +86,21 @@ static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o *self ) {
 
 */
 
-//static void le_rtx_pipeline_builder_set_from_stage(le_rtx_pipeline_builder_o* self, le_stage_o* stage){
+// static void le_rtx_pipeline_builder_set_from_stage(le_rtx_pipeline_builder_o* self, le_stage_o* stage){
 
 //}
 
 // This gets passed into a command buffer - a command buffer for a transfer pass, so that we can keep track
 // of the resource.
 
-static void build_blas( le_rtx_geometry_t *geom, uint32_t geometry_count ) {
+static void build_blas( le_rtx_geometry_t* geom, uint32_t geometry_count ) {
 
 	// for each mesh: get primitives and record their buffer, and vertex offset and count information.
 }
 
 // ----------------------------------------------------------------------
 
-static le_rtx_pso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o *self ) {
+static le_rtx_pso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o* self ) {
 	// do something with self
 
 	uint64_t value{};
@@ -112,7 +112,7 @@ static le_rtx_pso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_rtx_pipeline_builder, api ) {
-	auto &le_rtx_pipeline_builder_i = static_cast<le_rtx_pipeline_builder_api *>( api )->le_rtx_pipeline_builder_i;
+	auto& le_rtx_pipeline_builder_i = static_cast<le_rtx_pipeline_builder_api*>( api )->le_rtx_pipeline_builder_i;
 
 	le_rtx_pipeline_builder_i.create  = le_rtx_pipeline_builder_create;
 	le_rtx_pipeline_builder_i.destroy = le_rtx_pipeline_builder_destroy;

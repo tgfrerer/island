@@ -48,14 +48,14 @@ How to use this library:
 
 struct le_gltf_o {
 	cgltf_options         options = {};
-	cgltf_data *          data    = nullptr;
+	cgltf_data*           data    = nullptr;
 	cgltf_result          result  = {};
 	std::filesystem::path gltf_file_path; // owning
 };
 
 // ----------------------------------------------------------------------
 
-static void le_gltf_destroy( le_gltf_o *self ) {
+static void le_gltf_destroy( le_gltf_o* self ) {
 	if ( self ) {
 		if ( self->data ) {
 			cgltf_free( self->data );
@@ -66,7 +66,7 @@ static void le_gltf_destroy( le_gltf_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_gltf_o *le_gltf_create( char const *path ) {
+static le_gltf_o* le_gltf_create( char const* path ) {
 
 	assert( path && "valid path must be set" );
 
@@ -97,7 +97,7 @@ static le_gltf_o *le_gltf_create( char const *path ) {
 	return self;
 }
 
-static le_buffer_view_type get_le_buffer_view_type_from_cgltf( cgltf_buffer_view_type const &tp ) {
+static le_buffer_view_type get_le_buffer_view_type_from_cgltf( cgltf_buffer_view_type const& tp ) {
 
 	// clang-format off
 	switch ( tp ) {
@@ -108,12 +108,12 @@ static le_buffer_view_type get_le_buffer_view_type_from_cgltf( cgltf_buffer_view
 	// clang-format on
 
 	assert( false );
-	return le_buffer_view_type::eUndefined; //unreachable
+	return le_buffer_view_type::eUndefined; // unreachable
 }
 
 // ----------------------------------------------------------------------
 
-static le_compound_num_type get_compound_num_type_from_cgltf( cgltf_type const &tp ) {
+static le_compound_num_type get_compound_num_type_from_cgltf( cgltf_type const& tp ) {
 
 	// clang-format off
 	switch ( tp ) {
@@ -129,10 +129,10 @@ static le_compound_num_type get_compound_num_type_from_cgltf( cgltf_type const &
 	// clang-format on
 
 	assert( false );
-	return le_compound_num_type::eUndefined; //unreachable
+	return le_compound_num_type::eUndefined; // unreachable
 }
 
-static le_num_type get_num_type_from_cgltf( cgltf_component_type const &tp ) {
+static le_num_type get_num_type_from_cgltf( cgltf_component_type const& tp ) {
 
 	// clang-format off
 	switch ( tp ) {
@@ -147,10 +147,10 @@ static le_num_type get_num_type_from_cgltf( cgltf_component_type const &tp ) {
 	// clang-format on
 
 	assert( false );
-	return le_num_type::eUndefined; //unreachable
+	return le_num_type::eUndefined; // unreachable
 }
 
-static le_primitive_attribute_info::Type get_primitive_attribute_type_from_cgltf( cgltf_attribute_type const &tp ) {
+static le_primitive_attribute_info::Type get_primitive_attribute_type_from_cgltf( cgltf_attribute_type const& tp ) {
 
 	// clang-format off
 	switch ( tp ) {
@@ -170,7 +170,7 @@ static le_primitive_attribute_info::Type get_primitive_attribute_type_from_cgltf
 }
 
 // ----------------------------------------------------------------------
-static le::SamplerMipmapMode cgltf_to_le_sampler_mipmap_mode( cgltf_int const &v ) {
+static le::SamplerMipmapMode cgltf_to_le_sampler_mipmap_mode( cgltf_int const& v ) {
 	// clang-format off
 	switch(v){
 		case 9728: return le::SamplerMipmapMode::eLinear; // No mipmap mode specified, use default: Linear.
@@ -185,7 +185,7 @@ static le::SamplerMipmapMode cgltf_to_le_sampler_mipmap_mode( cgltf_int const &v
 };
 
 // ----------------------------------------------------------------------
-static le::Filter cgltf_to_le_filter( cgltf_int const &v ) {
+static le::Filter cgltf_to_le_filter( cgltf_int const& v ) {
 	// clang-format off
 	switch(v){
 		case 9728: return le::Filter::eNearest;
@@ -199,7 +199,7 @@ static le::Filter cgltf_to_le_filter( cgltf_int const &v ) {
 	// clang-format on
 };
 
-static le::SamplerAddressMode cgltf_to_le_sampler_address_mode( cgltf_int const &v ) {
+static le::SamplerAddressMode cgltf_to_le_sampler_address_mode( cgltf_int const& v ) {
 	// clang-format off
     switch(v){
 		case 33071: return le::SamplerAddressMode::eClampToEdge;
@@ -210,7 +210,7 @@ static le::SamplerAddressMode cgltf_to_le_sampler_address_mode( cgltf_int const 
 	// clang-format on
 };
 
-static le_animation_sampler_info::InterpolationType cgltf_to_le_interpolation_type( uint32_t const &t ) {
+static le_animation_sampler_info::InterpolationType cgltf_to_le_interpolation_type( uint32_t const& t ) {
 
 	// clang-format off
 	switch ( t ) {
@@ -223,7 +223,7 @@ static le_animation_sampler_info::InterpolationType cgltf_to_le_interpolation_ty
 	return le_animation_sampler_info::InterpolationType::eLinear;
 }
 
-static LeAnimationTargetType cgltf_to_le_animation_target_type( uint32_t const &t ) {
+static LeAnimationTargetType cgltf_to_le_animation_target_type( uint32_t const& t ) {
 	// clang-format off
 	switch ( t ) {
 		case cgltf_animation_path_type_invalid     : return LeAnimationTargetType::eUndefined;
@@ -238,28 +238,28 @@ static LeAnimationTargetType cgltf_to_le_animation_target_type( uint32_t const &
 
 // ----------------------------------------------------------------------
 
-static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
+static bool le_gltf_import( le_gltf_o* self, le_stage_o* stage ) {
 
 	if ( nullptr == self ) {
 		// TODO: warn that object was not valid
 		return false;
 	}
 
-	std::unordered_map<cgltf_texture const *, uint32_t>           textures_map;
-	std::unordered_map<cgltf_sampler const *, uint32_t>           samplers_map;
-	std::unordered_map<cgltf_image const *, uint32_t>             images_map;
-	std::unordered_map<cgltf_buffer const *, uint32_t>            buffer_map;
-	std::unordered_map<cgltf_buffer_view const *, uint32_t>       buffer_view_map;
-	std::unordered_map<cgltf_accessor const *, uint32_t>          accessor_map;
-	std::unordered_map<cgltf_material const *, uint32_t>          materials_map;
-	std::unordered_map<cgltf_mesh const *, uint32_t>              mesh_map;
-	std::unordered_map<cgltf_camera const *, uint32_t>            camera_map;
-	std::unordered_map<cgltf_light const *, uint32_t>             lights_map;
-	std::unordered_map<cgltf_node const *, uint32_t>              nodes_map;
-	std::unordered_map<cgltf_scene const *, uint32_t>             scenes_map;
-	std::unordered_map<cgltf_animation_sampler const *, uint32_t> animation_samplers_map;
-	std::unordered_map<cgltf_animation const *, uint32_t>         animations_map;
-	std::unordered_map<cgltf_skin const *, uint32_t>              skins_map;
+	std::unordered_map<cgltf_texture const*, uint32_t>           textures_map;
+	std::unordered_map<cgltf_sampler const*, uint32_t>           samplers_map;
+	std::unordered_map<cgltf_image const*, uint32_t>             images_map;
+	std::unordered_map<cgltf_buffer const*, uint32_t>            buffer_map;
+	std::unordered_map<cgltf_buffer_view const*, uint32_t>       buffer_view_map;
+	std::unordered_map<cgltf_accessor const*, uint32_t>          accessor_map;
+	std::unordered_map<cgltf_material const*, uint32_t>          materials_map;
+	std::unordered_map<cgltf_mesh const*, uint32_t>              mesh_map;
+	std::unordered_map<cgltf_camera const*, uint32_t>            camera_map;
+	std::unordered_map<cgltf_light const*, uint32_t>             lights_map;
+	std::unordered_map<cgltf_node const*, uint32_t>              nodes_map;
+	std::unordered_map<cgltf_scene const*, uint32_t>             scenes_map;
+	std::unordered_map<cgltf_animation_sampler const*, uint32_t> animation_samplers_map;
+	std::unordered_map<cgltf_animation const*, uint32_t>         animations_map;
+	std::unordered_map<cgltf_skin const*, uint32_t>              skins_map;
 
 	uint32_t default_sampler_idx = 0; // id for default sampler, in case texture does not specify sampler.
 
@@ -275,7 +275,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		// We must copy because we cannot otherwise guarantee that the image data will still be available when stage
 		// uploads it to the gpu, as the upload step happens in another method than the import step.
 
-		cgltf_image const *images_begin = self->data->images;
+		cgltf_image const* images_begin = self->data->images;
 		auto               images_end   = images_begin + self->data->images_count;
 
 		for ( auto img = images_begin; img != images_end; img++ ) {
@@ -298,7 +298,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			} else if ( img->buffer_view && img->buffer_view->buffer && img->buffer_view->buffer->data ) {
 
-				unsigned char const *data = static_cast<unsigned char const *>( img->buffer_view->buffer->data );
+				unsigned char const* data = static_cast<unsigned char const*>( img->buffer_view->buffer->data );
 				data += img->buffer_view->offset;
 				size_t data_sz = img->buffer_view->size;
 				stage_idx      = le_stage_i.create_image_from_memory( stage, data, uint32_t( data_sz ), img->name ? img->name : img->uri, 0 );
@@ -325,7 +325,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 		// Upload sampler information
 
-		cgltf_sampler *samplers_begin = self->data->samplers;
+		cgltf_sampler* samplers_begin = self->data->samplers;
 		auto           samplers_end   = samplers_begin + self->data->samplers_count;
 
 		for ( auto s = samplers_begin; s != samplers_end; s++ ) {
@@ -350,7 +350,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// Upload texture information
 
-		cgltf_texture *textures_begin = self->data->textures;
+		cgltf_texture* textures_begin = self->data->textures;
 		auto           textures_end   = textures_begin + self->data->textures_count;
 
 		for ( auto t = textures_begin; t != textures_end; t++ ) {
@@ -372,7 +372,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// Upload buffers
 
-		cgltf_buffer const *buffers_begin = self->data->buffers;
+		cgltf_buffer const* buffers_begin = self->data->buffers;
 		auto                buffers_end   = self->data->buffers + self->data->buffers_count;
 
 		char debug_name[ 32 ];
@@ -387,7 +387,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// Upload buffer_views
 
-		cgltf_buffer_view const *buffer_views_begin = self->data->buffer_views;
+		cgltf_buffer_view const* buffer_views_begin = self->data->buffer_views;
 		auto                     buffer_views_end   = buffer_views_begin + self->data->buffer_views_count;
 
 		for ( auto bv = buffer_views_begin; bv != buffer_views_end; bv++ ) {
@@ -405,7 +405,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// Upload accessors
 
-		cgltf_accessor const *accessors_begin = self->data->accessors;
+		cgltf_accessor const* accessors_begin = self->data->accessors;
 		auto                  accessors_end   = accessors_begin + self->data->accessors_count;
 
 		for ( auto a = accessors_begin; a != accessors_end; a++ ) {
@@ -428,7 +428,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			info.is_sparse     = a->is_sparse;
 
 			if ( a->is_sparse ) {
-				auto &sparse                   = info.sparse_accessor;
+				auto& sparse                   = info.sparse_accessor;
 				sparse.count                   = uint32_t( a->sparse.count );
 				sparse.values_byte_offset      = uint32_t( a->sparse.values_byte_offset );
 				sparse.indices_byte_offset     = uint32_t( a->sparse.indices_byte_offset );
@@ -445,15 +445,15 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// Upload material info
 
-		cgltf_material const *materials_begin = self->data->materials;
+		cgltf_material const* materials_begin = self->data->materials;
 		auto                  materials_end   = materials_begin + self->data->materials_count;
 
-		std::vector<le_texture_transform_info *>      texture_transforms;
-		std::vector<le_texture_view_info *>           texture_view_infos;
-		std::vector<le_pbr_metallic_roughness_info *> metallic_roughness_infos;
-		std::vector<le_pbr_metallic_roughness_info *> specular_glossiness_infos;
+		std::vector<le_texture_transform_info*>      texture_transforms;
+		std::vector<le_texture_view_info*>           texture_view_infos;
+		std::vector<le_pbr_metallic_roughness_info*> metallic_roughness_infos;
+		std::vector<le_pbr_metallic_roughness_info*> specular_glossiness_infos;
 
-		auto create_texture_view_info = [ & ]( const cgltf_texture_view &tv ) -> le_texture_view_info * {
+		auto create_texture_view_info = [ & ]( const cgltf_texture_view& tv ) -> le_texture_view_info* {
 			auto tex_view_info = new le_texture_view_info{};
 			texture_view_infos.push_back( tex_view_info );
 
@@ -483,7 +483,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				auto mr_info = new le_pbr_metallic_roughness_info{};
 				metallic_roughness_infos.push_back( mr_info ); // so that we can cleanup after api call.
 
-				auto const &mr_src = m->pbr_metallic_roughness;
+				auto const& mr_src = m->pbr_metallic_roughness;
 
 				if ( m->pbr_metallic_roughness.base_color_texture.texture ) {
 					mr_info->base_color_texture_view =
@@ -529,19 +529,19 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 		// Cleanup temporary objects
 
-		for ( auto &i : metallic_roughness_infos ) {
+		for ( auto& i : metallic_roughness_infos ) {
 			delete i;
 		}
 
-		for ( auto &i : specular_glossiness_infos ) {
+		for ( auto& i : specular_glossiness_infos ) {
 			delete i;
 		}
 
-		for ( auto &i : texture_view_infos ) {
+		for ( auto& i : texture_view_infos ) {
 			delete i;
 		}
 
-		for ( auto &i : texture_transforms ) {
+		for ( auto& i : texture_transforms ) {
 			delete i;
 		}
 	}
@@ -549,7 +549,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// Upload meshes
 
-		cgltf_mesh const *mesh_begin = self->data->meshes;
+		cgltf_mesh const* mesh_begin = self->data->meshes;
 		auto              mesh_end   = mesh_begin + self->data->meshes_count;
 
 		for ( auto msh = mesh_begin; msh != mesh_end; msh++ ) {
@@ -563,10 +563,10 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				std::vector<le_morph_target_info_t>                   morph_target_infos; // {pointer,count} for each morph target
 			};
 
-			std::vector<le_primitive_info>      primitive_infos;
-			std::vector<per_primitive_data_t *> per_primitive_data;
+			std::vector<le_primitive_info>     primitive_infos;
+			std::vector<per_primitive_data_t*> per_primitive_data;
 
-			cgltf_primitive const *primitives_begin = msh->primitives;
+			cgltf_primitive const* primitives_begin = msh->primitives;
 			auto                   primitives_end   = primitives_begin + msh->primitives_count;
 
 			for ( auto prim = primitives_begin; prim != primitives_end; prim++ ) {
@@ -575,7 +575,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				// NOTE: We allocate prim_data explicitly on the heap, so that it
 				// can't get moved, and its address remains valid until we explicitly
 				// delete prim_data after the call to le_stage.
-				per_primitive_data_t *prim_data = new per_primitive_data_t{};
+				per_primitive_data_t* prim_data = new per_primitive_data_t{};
 				per_primitive_data.push_back( prim_data ); // pushing info vec so it may be cleaned up
 
 				if ( prim->material ) {
@@ -588,7 +588,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 					prim_info.indices_accessor_idx = accessor_map.at( prim->indices );
 				}
 
-				cgltf_attribute const *attributes_begin = prim->attributes;
+				cgltf_attribute const* attributes_begin = prim->attributes;
 				auto                   attributes_end   = attributes_begin + prim->attributes_count;
 
 				for ( auto attr = attributes_begin; attr != attributes_end; attr++ ) {
@@ -608,7 +608,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				// -- Parse morph target data and keep it in memory until per-primitive data
 				// is explicitly deleted after the call to le_stage has been completed.
 
-				cgltf_morph_target const *morph_targets_begin = prim->targets;
+				cgltf_morph_target const* morph_targets_begin = prim->targets;
 				auto const                morph_targets_end   = morph_targets_begin + prim->targets_count;
 
 				for ( auto mt = morph_targets_begin; mt != morph_targets_end; mt++ ) {
@@ -619,7 +619,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 					morph_attributes.reserve( mt->attributes_count );
 
-					cgltf_attribute const *attributes_begin = mt->attributes;
+					cgltf_attribute const* attributes_begin = mt->attributes;
 					auto                   attributes_end   = attributes_begin + mt->attributes_count;
 
 					for ( auto attr = attributes_begin; attr != attributes_end; attr++ ) {
@@ -639,7 +639,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				// Create infos over morph targets, which means harvesting pointer addresses,
 				// and array sizes.
 
-				for ( auto &morph_target_data : prim_data->morph_targets_data ) {
+				for ( auto& morph_target_data : prim_data->morph_targets_data ) {
 					le_morph_target_info_t info{};
 					info.attributes       = morph_target_data.data();
 					info.attributes_count = uint32_t( morph_target_data.size() );
@@ -660,7 +660,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			// Manual cleanup of per-primitive data because raw pointer.
 
-			for ( auto &d : per_primitive_data ) {
+			for ( auto& d : per_primitive_data ) {
 				delete ( d );
 			}
 		}
@@ -673,7 +673,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 		camera_infos.reserve( self->data->cameras_count );
 
-		cgltf_camera const *cameras_begin = self->data->cameras;
+		cgltf_camera const* cameras_begin = self->data->cameras;
 		auto                cameras_end   = cameras_begin + self->data->cameras_count;
 
 		for ( auto c = cameras_begin; c != cameras_end; c++ ) {
@@ -683,7 +683,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			switch ( c->type ) {
 			case ( cgltf_camera_type_perspective ): {
 				info.type        = le_camera_settings_info::Type::ePerspective;
-				auto &cam        = info.data.as_perspective;
+				auto& cam        = info.data.as_perspective;
 				cam.fov_y_rad    = c->data.perspective.yfov;
 				cam.aspect_ratio = c->data.perspective.aspect_ratio;
 				cam.z_far        = c->data.perspective.zfar;
@@ -692,7 +692,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			}
 			case ( cgltf_camera_type_orthographic ): {
 				info.type  = le_camera_settings_info::Type::eOrthographic;
-				auto &cam  = info.data.as_orthographic;
+				auto& cam  = info.data.as_orthographic;
 				cam.x_mag  = c->data.orthographic.xmag;
 				cam.y_mag  = c->data.orthographic.ymag;
 				cam.z_far  = c->data.orthographic.zfar;
@@ -723,7 +723,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// Upload Lights
 
-		cgltf_light const *lights_begin = self->data->lights;
+		cgltf_light const* lights_begin = self->data->lights;
 		auto               lights_end   = lights_begin + self->data->lights_count;
 		for ( auto l = lights_begin; l != lights_end; l++ ) {
 			le_light_info info{};
@@ -766,7 +766,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		std::vector<le_node_info> node_infos;
 		node_infos.reserve( self->data->nodes_count );
 
-		cgltf_node const *nodes_begin = self->data->nodes;
+		cgltf_node const* nodes_begin = self->data->nodes;
 		auto              nodes_end   = nodes_begin + self->data->nodes_count;
 
 		{
@@ -812,9 +812,9 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			if ( false == n->has_matrix ) {
 
-				info.local_scale->data       = n->has_scale ? reinterpret_cast<glm::vec3 const &>( n->scale ) : glm::vec3( 1 );
-				info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const &>( n->rotation ) : glm::identity<glm::quat>();
-				info.local_translation->data = n->has_translation ? reinterpret_cast<glm::vec3 const &>( n->translation ) : glm::vec3( 0 );
+				info.local_scale->data       = n->has_scale ? reinterpret_cast<glm::vec3 const&>( n->scale ) : glm::vec3( 1 );
+				info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const&>( n->rotation ) : glm::identity<glm::quat>();
+				info.local_translation->data = n->has_translation ? reinterpret_cast<glm::vec3 const&>( n->translation ) : glm::vec3( 0 );
 
 				m = glm::translate( glm::mat4( 1.f ), info.local_translation->data ) * // translate
 				    glm::mat4_cast( info.local_rotation->data ) *                      // rotate
@@ -822,7 +822,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			} else {
 
-				m = reinterpret_cast<glm::mat4 const &>( n->matrix );
+				m = reinterpret_cast<glm::mat4 const&>( n->matrix );
 
 				glm::vec3 skew;
 				glm::vec4 perspective;
@@ -831,9 +831,9 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				glm::quat orientation;
 
 				if ( glm::decompose( m, scale, orientation, translation, skew, perspective ) ) {
-					info.local_scale->data       = n->has_scale ? reinterpret_cast<glm::vec3 const &>( n->scale ) : scale;
-					info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const &>( n->rotation ) : orientation;
-					info.local_translation->data = n->has_translation ? reinterpret_cast<glm::vec3 const &>( n->translation ) : translation;
+					info.local_scale->data       = n->has_scale ? reinterpret_cast<glm::vec3 const&>( n->scale ) : scale;
+					info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const&>( n->rotation ) : orientation;
+					info.local_translation->data = n->has_translation ? reinterpret_cast<glm::vec3 const&>( n->translation ) : translation;
 				} else {
 					assert( false && "could not decompose matrix" );
 				}
@@ -847,14 +847,14 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 				// -- prepare an array for children indices for each node, so that these may be looked up
 				// when re-creating the tree.
-				uint32_t *child_indices = static_cast<uint32_t *>( malloc( sizeof( uint32_t ) * n->children_count ) );
+				uint32_t* child_indices = static_cast<uint32_t*>( malloc( sizeof( uint32_t ) * n->children_count ) );
 
 				// We store the pointer to child_indices now,
 				// before it ceases to be the pointer to element [0] of the children array,
 				// as it will get incremented after we assign each child index element.
 				info.child_indices = child_indices;
 
-				cgltf_node const *const *children_begin = n->children;
+				cgltf_node const* const* children_begin = n->children;
 				auto                     children_end   = children_begin + n->children_count;
 				for ( auto c = children_begin; c != children_end; c++ ) {
 					( *child_indices ) = nodes_map.at( *c ); // fetch index for child node.
@@ -869,7 +869,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 		le_stage_i.create_nodes( stage, node_infos.data(), node_infos.size() );
 
-		for ( auto &n : node_infos ) {
+		for ( auto& n : node_infos ) {
 
 			// N.b.: we must manually free node child indices becasue these were allocated via malloc.
 			//
@@ -893,8 +893,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 	{ // -- upload skin info
 
-		cgltf_skin const *      skins_begin = self->data->skins;
-		cgltf_skin const *const skins_end   = skins_begin + self->data->skins_count;
+		cgltf_skin const*       skins_begin = self->data->skins;
+		cgltf_skin const* const skins_end   = skins_begin + self->data->skins_count;
 
 		for ( auto skin = skins_begin; skin != skins_end; skin++ ) {
 
@@ -910,8 +910,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				info.inverse_bind_matrices_accessor_idx     = accessor_map.at( skin->inverse_bind_matrices );
 			}
 
-			cgltf_node const *const *joints_begin = skin->joints;
-			cgltf_node const *const *joints_end   = skin->joints + skin->joints_count;
+			cgltf_node const* const* joints_begin = skin->joints;
+			cgltf_node const* const* joints_end   = skin->joints + skin->joints_count;
 
 			std::vector<uint32_t> joints_indices;
 			joints_indices.reserve( skin->joints_count );
@@ -934,7 +934,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		// skins themselves refer to nodes, and we can only refer to nodes which we have
 		// already created in stage.
 
-		cgltf_node const *nodes_begin = self->data->nodes;
+		cgltf_node const* nodes_begin = self->data->nodes;
 		auto              nodes_end   = nodes_begin + self->data->nodes_count;
 
 		for ( auto n = nodes_begin; n != nodes_end; n++ ) {
@@ -948,7 +948,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		// upload animations
 		// for each animation:
 
-		cgltf_animation const *const animations_begin = self->data->animations;
+		cgltf_animation const* const animations_begin = self->data->animations;
 		auto                         animations_end   = animations_begin + self->data->animations_count;
 
 		// For each animation:
@@ -967,7 +967,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			// fill in animation samplers for this animation
 
-			cgltf_animation_sampler const *const animation_samplers_begin = a->samplers;
+			cgltf_animation_sampler const* const animation_samplers_begin = a->samplers;
 			auto                                 animation_samplers_end   = animation_samplers_begin + a->samplers_count;
 
 			for ( auto s = animation_samplers_begin; s != animation_samplers_end; s++ ) {
@@ -983,9 +983,9 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			// Find animation index in array of animation_samplers.
 			// Behaves like any find method, will return index of element past last element if not found
 			auto find_animation_sampler_idx =
-			    []( cgltf_animation_sampler const *const needle,
-			        cgltf_animation_sampler const *const samplers_begin,
-			        cgltf_animation_sampler const *const samplers_end ) -> uint32_t {
+			    []( cgltf_animation_sampler const* const needle,
+			        cgltf_animation_sampler const* const samplers_begin,
+			        cgltf_animation_sampler const* const samplers_end ) -> uint32_t {
 				uint32_t result = 0;
 				for ( auto s = samplers_begin; s != samplers_end; s++, result++ ) {
 					if ( needle == s ) {
@@ -997,7 +997,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			// Fill in animation channels for this animation
 
-			cgltf_animation_channel const *const animation_channels_begin = a->channels;
+			cgltf_animation_channel const* const animation_channels_begin = a->channels;
 			auto                                 animation_channels_end   = animation_channels_begin + a->channels_count;
 
 			animation_channel_infos.reserve( a->channels_count );
@@ -1031,14 +1031,14 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// -- Upload scene
 
-		cgltf_scene const *scenes_begin = self->data->scenes;
+		cgltf_scene const* scenes_begin = self->data->scenes;
 		auto               scenes_end   = scenes_begin + self->data->scenes_count;
 
 		for ( auto s = scenes_begin; s != scenes_end; s++ ) {
 			std::vector<uint32_t> nodes_info;
 			nodes_info.reserve( s->nodes_count );
 
-			cgltf_node const *const *nodes_begin = s->nodes;
+			cgltf_node const* const* nodes_begin = s->nodes;
 			auto                     nodes_end   = nodes_begin + s->nodes_count;
 
 			for ( auto n = nodes_begin; n != nodes_end; n++ ) {
@@ -1056,7 +1056,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_gltf, api ) {
-	auto &le_gltf_i = static_cast<le_gltf_api *>( api )->le_gltf_i;
+	auto& le_gltf_i = static_cast<le_gltf_api*>( api )->le_gltf_i;
 
 	le_gltf_i.create  = le_gltf_create;
 	le_gltf_i.destroy = le_gltf_destroy;

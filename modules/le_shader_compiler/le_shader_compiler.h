@@ -44,8 +44,8 @@ LE_MODULE_LOAD_DEFAULT( le_shader_compiler );
 #ifdef __cplusplus
 
 namespace le_shader_compiler {
-static const auto &api        = le_shader_compiler_api_i;
-static const auto &compiler_i = api -> compiler_i;
+static const auto& api        = le_shader_compiler_api_i;
+static const auto& compiler_i = api -> compiler_i;
 } // namespace le_shader_compiler
 
 #endif

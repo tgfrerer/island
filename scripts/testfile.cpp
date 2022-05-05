@@ -10,10 +10,10 @@
 #define LE_WRAP_ENUM_IN_STRUCT( enum_name, struct_name ) \
 	struct struct_name {                                 \
 		enum_name data;                                  \
-		operator const enum_name &() const {             \
-			return data;                                 \
+		          operator const enum_name&() const {    \
+            return data;                       \
 		}                                                \
-		operator enum_name &() {                         \
+		operator enum_name&() {                          \
 			return data;                                 \
 		}                                                \
 	}
@@ -70,15 +70,15 @@ struct le_resource_handle_t {
 	}
 };
 
-static inline bool operator==( le_resource_handle_t const &lhs, le_resource_handle_t const &rhs ) noexcept {
+static inline bool operator==( le_resource_handle_t const& lhs, le_resource_handle_t const& rhs ) noexcept {
 	return lhs.handle_data == rhs.handle_data;
 }
 
-static inline bool operator!=( le_resource_handle_t const &lhs, le_resource_handle_t const &rhs ) noexcept {
+static inline bool operator!=( le_resource_handle_t const& lhs, le_resource_handle_t const& rhs ) noexcept {
 	return !( lhs == rhs );
 }
 
-constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResourceType tp ) noexcept {
+constexpr le_resource_handle_t LE_RESOURCE( const char* const str, const LeResourceType tp ) noexcept {
 	le_resource_handle_t handle{};
 	handle.name_hash = hash_32_fnv1a_const( str );
 	handle.meta.type = tp;
@@ -98,20 +98,20 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
 #endif
 
 struct LeResourceHandleIdentity {
-	inline uint64_t operator()( const le_resource_handle_t &key_ ) const noexcept {
+	inline uint64_t operator()( const le_resource_handle_t& key_ ) const noexcept {
 		return key_.handle_data;
 	}
 };
 
-constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *const str ) noexcept {
+constexpr le_resource_handle_t LE_IMG_RESOURCE( const char* const str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eImage );
 }
 
-constexpr le_resource_handle_t LE_TEX_RESOURCE( const char *const str ) noexcept {
+constexpr le_resource_handle_t LE_TEX_RESOURCE( const char* const str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eTexture );
 }
 
-constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *const str ) noexcept {
+constexpr le_resource_handle_t LE_BUF_RESOURCE( const char* const str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eBuffer );
 }
 
@@ -211,7 +211,7 @@ enum class ImageType : uint32_t {
 };
 // Codegen </VkImageType>
 
-static const char *to_str( const AttachmentStoreOp &lhs ) {
+static const char* to_str( const AttachmentStoreOp& lhs ) {
 	switch ( lhs ) {
 	case AttachmentStoreOp::eStore:
 		return "Store";
@@ -221,7 +221,7 @@ static const char *to_str( const AttachmentStoreOp &lhs ) {
 	return "";
 }
 
-static const char *to_str( const AttachmentLoadOp &lhs ) {
+static const char* to_str( const AttachmentLoadOp& lhs ) {
 	switch ( lhs ) {
 	case AttachmentLoadOp::eLoad:
 		return "Load";
@@ -233,7 +233,7 @@ static const char *to_str( const AttachmentLoadOp &lhs ) {
 	return "";
 }
 
-static const char *to_str( const ImageType &lhs ) {
+static const char* to_str( const ImageType& lhs ) {
 	switch ( lhs ) {
 	case ImageType::e1D:
 		return "1D";
@@ -560,11 +560,11 @@ struct Extent3D {
 	uint32_t depth;
 };
 
-static inline constexpr bool operator==( const Extent3D &lhs, const Extent3D &rhs ) noexcept {
+static inline constexpr bool operator==( const Extent3D& lhs, const Extent3D& rhs ) noexcept {
 	return ( lhs.width == rhs.width && lhs.height == rhs.height && lhs.depth == rhs.depth );
 }
 
-static inline constexpr bool operator!=( const Extent3D &lhs, const Extent3D &rhs ) noexcept {
+static inline constexpr bool operator!=( const Extent3D& lhs, const Extent3D& rhs ) noexcept {
 	return !( lhs == rhs );
 }
 
@@ -807,8 +807,8 @@ struct CommandBindVertexBuffers {
 	struct {
 		uint32_t              firstBinding;
 		uint32_t              bindingCount;
-		le_resource_handle_t *pBuffers;
-		uint64_t *            pOffsets;
+		le_resource_handle_t* pBuffers;
+		uint64_t*             pOffsets;
 	} info;
 };
 

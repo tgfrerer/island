@@ -61,18 +61,18 @@ LE_MODULE_LOAD_DEFAULT( le_jobs );
 #ifdef __cplusplus
 
 namespace le_jobs {
-static const auto &api = le_jobs_api_i;
+static const auto& api = le_jobs_api_i;
 
 using counter_t = le_jobs_api::counter_t;
 using job_t     = le_jobs_api::le_job_o;
 
-static const auto &initialize                = api -> initialize;
-static const auto &terminate                 = api -> terminate;
-static const auto &run_jobs                  = api -> run_jobs;
-static const auto &wait_for_counter_and_free = api -> wait_for_counter_and_free;
+static const auto& initialize                = api -> initialize;
+static const auto& terminate                 = api -> terminate;
+static const auto& run_jobs                  = api -> run_jobs;
+static const auto& wait_for_counter_and_free = api -> wait_for_counter_and_free;
 
-static const auto &yield                 = api -> yield;
-static const auto &get_current_worker_id = api -> get_current_worker_id;
+static const auto& yield                 = api -> yield;
+static const auto& get_current_worker_id = api -> get_current_worker_id;
 
 } // namespace le_jobs
 

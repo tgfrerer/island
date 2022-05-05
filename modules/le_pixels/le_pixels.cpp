@@ -8,7 +8,7 @@
 
 struct le_pixels_o {
 	// members
-	void *         image_data = nullptr;
+	void*          image_data = nullptr;
 	le_pixels_info info{};
 };
 
@@ -24,11 +24,11 @@ struct image_source_info_t {
 
 	union {
 		struct {
-			unsigned char const *buffer;
+			unsigned char const* buffer;
 			size_t               buffer_num_bytes;
 		} as_buffer;
 		struct {
-			char const *file_path;
+			char const* file_path;
 		} as_file;
 	} data;
 
@@ -39,7 +39,7 @@ struct image_source_info_t {
 
 // ----------------------------------------------------------------------
 
-static void le_pixels_destroy( le_pixels_o *self ) {
+static void le_pixels_destroy( le_pixels_o* self ) {
 
 	if ( self && self->image_data ) {
 		stbi_image_free( self->image_data );
@@ -51,13 +51,13 @@ static void le_pixels_destroy( le_pixels_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static inline uint32_t get_num_bytes_for_type( le_pixels_info::Type const &type ) {
+static inline uint32_t get_num_bytes_for_type( le_pixels_info::Type const& type ) {
 	return ( 1 << ( type & 0b11 ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_pixels_o *le_pixels_create( image_source_info_t const &info ) {
+static le_pixels_o* le_pixels_create( image_source_info_t const& info ) {
 	auto self = new le_pixels_o{};
 
 	int width;
@@ -136,7 +136,7 @@ static le_pixels_o *le_pixels_create( image_source_info_t const &info ) {
 
 // ----------------------------------------------------------------------
 
-static le_pixels_o *le_pixels_create_from_file( char const *file_path, int num_channels_requested = 0, le_pixels_info::Type type = le_pixels_info::Type::eUInt8 ) {
+static le_pixels_o* le_pixels_create_from_file( char const* file_path, int num_channels_requested = 0, le_pixels_info::Type type = le_pixels_info::Type::eUInt8 ) {
 
 	image_source_info_t info{};
 
@@ -150,7 +150,7 @@ static le_pixels_o *le_pixels_create_from_file( char const *file_path, int num_c
 
 // ----------------------------------------------------------------------
 
-static le_pixels_o *le_pixels_create_from_memory( unsigned char const *buffer, size_t buffer_byte_count, int num_channels_requested = 0, le_pixels_info::Type type = le_pixels_info::Type::eUInt8 ) {
+static le_pixels_o* le_pixels_create_from_memory( unsigned char const* buffer, size_t buffer_byte_count, int num_channels_requested = 0, le_pixels_info::Type type = le_pixels_info::Type::eUInt8 ) {
 
 	image_source_info_t info{};
 
@@ -165,19 +165,19 @@ static le_pixels_o *le_pixels_create_from_memory( unsigned char const *buffer, s
 
 // ----------------------------------------------------------------------
 
-static le_pixels_info le_pixels_get_info( le_pixels_o *self ) {
+static le_pixels_info le_pixels_get_info( le_pixels_o* self ) {
 	return self->info;
 }
 
 // ----------------------------------------------------------------------
 
-static void *le_pixels_get_data( le_pixels_o *self ) {
+static void* le_pixels_get_data( le_pixels_o* self ) {
 	return self->image_data;
 }
 
 // ----------------------------------------------------------------------
 
-static bool le_pixels_get_info_from_source( image_source_info_t const &source, le_pixels_info *info ) {
+static bool le_pixels_get_info_from_source( image_source_info_t const& source, le_pixels_info* info ) {
 
 	if ( info == nullptr ) {
 		return false;
@@ -250,7 +250,7 @@ static bool le_pixels_get_info_from_source( image_source_info_t const &source, l
 
 // ----------------------------------------------------------------------
 
-static bool le_pixels_get_info_from_file( char const *file_path, le_pixels_info *info ) {
+static bool le_pixels_get_info_from_file( char const* file_path, le_pixels_info* info ) {
 	image_source_info_t source{};
 	source.type                   = image_source_info_t::Type::eFile;
 	source.data.as_file.file_path = file_path;
@@ -259,7 +259,7 @@ static bool le_pixels_get_info_from_file( char const *file_path, le_pixels_info 
 
 // ----------------------------------------------------------------------
 
-static bool le_pixels_get_info_from_memory( unsigned char const *buffer, size_t buffer_byte_count, le_pixels_info *info ) {
+static bool le_pixels_get_info_from_memory( unsigned char const* buffer, size_t buffer_byte_count, le_pixels_info* info ) {
 	image_source_info_t source{};
 	source.type                            = image_source_info_t::Type::eBuffer;
 	source.data.as_buffer.buffer           = buffer;
@@ -270,7 +270,7 @@ static bool le_pixels_get_info_from_memory( unsigned char const *buffer, size_t 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
-	auto &le_pixels_i = static_cast<le_pixels_api *>( api )->le_pixels_i;
+	auto& le_pixels_i = static_cast<le_pixels_api*>( api )->le_pixels_i;
 
 	le_pixels_i.create             = le_pixels_create_from_file;
 	le_pixels_i.create_from_memory = le_pixels_create_from_memory;

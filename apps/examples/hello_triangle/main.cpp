@@ -18,7 +18,7 @@ flag) we're additionally checking if any modules need to be reloaded.
 
 // ----------------------------------------------------------------------
 
-int main( int argc, char const *argv[] ) {
+int main( int argc, char const* argv[] ) {
 
 	HelloTriangleApp::initialize();
 

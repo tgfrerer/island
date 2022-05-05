@@ -40,7 +40,7 @@ struct compute_example_app_o {
 	uint32_t anim_frame    = 0;
 	int32_t  anim_speed    = 1;
 
-	GpuMeshData *gpu_mesh     = nullptr; // owning
+	GpuMeshData* gpu_mesh     = nullptr; // owning
 	bool         meshUploaded = false;
 
 	LeCamera           camera;
@@ -59,11 +59,11 @@ static void app_terminate() {
 	le::Window::terminate();
 };
 
-static void reset_camera( compute_example_app_o *self ); // ffdecl.
+static void reset_camera( compute_example_app_o* self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
-static compute_example_app_o *compute_example_app_create() {
+static compute_example_app_o* compute_example_app_create() {
 	auto app = new ( compute_example_app_o );
 
 	le::Window::Settings settings;
@@ -95,7 +95,7 @@ static compute_example_app_o *compute_example_app_create() {
 
 // ----------------------------------------------------------------------
 
-static void reset_camera( compute_example_app_o *self ) {
+static void reset_camera( compute_example_app_o* self ) {
 	le::Extent2D extents{};
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
 	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
@@ -110,9 +110,9 @@ static void reset_camera( compute_example_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool pass_initialise_setup( le_renderpass_o *pRp, void *user_data ) {
+static bool pass_initialise_setup( le_renderpass_o* pRp, void* user_data ) {
 
-	auto app = static_cast<compute_example_app_o *>( user_data );
+	auto app = static_cast<compute_example_app_o*>( user_data );
 
 	// --------| invariant: particle buffer handle exists
 
@@ -132,9 +132,9 @@ static bool pass_initialise_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_initialise_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 
-	auto        app = static_cast<compute_example_app_o *>( user_data );
+	auto        app = static_cast<compute_example_app_o*>( user_data );
 	le::Encoder encoder( encoder_ );
 
 	LeMesh mesh;
@@ -145,14 +145,14 @@ static void pass_initialise_exec( le_command_buffer_encoder_o *encoder_, void *u
 		// This is really annoying - we must use vec4 instead of vec3 for vertex position
 		// as ssbo alignment only allows us vec4 - we can't have that packed tightly
 
-		float const *vertData = nullptr;
+		float const* vertData = nullptr;
 		size_t       numVerts = 0;
 
 		std::vector<float> tmp_vertices;
 		tmp_vertices.reserve( ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) );
 
 		mesh.getVertices( numVerts, &vertData );
-		float const *v     = vertData;
+		float const* v     = vertData;
 		auto const   end_v = vertData + ( numVerts * 3 );
 
 		for ( ; v != end_v; ) {
@@ -165,7 +165,7 @@ static void pass_initialise_exec( le_command_buffer_encoder_o *encoder_, void *u
 		encoder.writeToBuffer( app->gpu_mesh->vertex_handle, 0, tmp_vertices.data(), tmp_vertices.size() * sizeof( float ) );
 	}
 	{
-		uint16_t const *indexData  = nullptr;
+		uint16_t const* indexData  = nullptr;
 		size_t          numIndices = 0;
 
 		mesh.getIndices( numIndices, &indexData );
@@ -175,8 +175,8 @@ static void pass_initialise_exec( le_command_buffer_encoder_o *encoder_, void *u
 
 // ----------------------------------------------------------------------
 
-static bool pass_compute_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto           app = static_cast<compute_example_app_o *>( user_data );
+static bool pass_compute_setup( le_renderpass_o* pRp, void* user_data ) {
+	auto           app = static_cast<compute_example_app_o*>( user_data );
 	le::RenderPass rp( pRp );
 	rp
 	    .useBufferResource( app->gpu_mesh->vertex_handle, { LE_BUFFER_USAGE_STORAGE_BUFFER_BIT } );
@@ -186,8 +186,8 @@ static bool pass_compute_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_compute_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<compute_example_app_o *>( user_data );
+static void pass_compute_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<compute_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	// Compute pipelines are delightfully simple to set up - they only need to
@@ -215,9 +215,9 @@ static void pass_compute_exec( le_command_buffer_encoder_o *encoder_, void *user
 
 // ----------------------------------------------------------------------
 
-static bool pass_draw_setup( le_renderpass_o *pRp, void *user_data ) {
+static bool pass_draw_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto rp  = le::RenderPass{ pRp };
-	auto app = static_cast<compute_example_app_o *>( user_data );
+	auto app = static_cast<compute_example_app_o*>( user_data );
 
 	auto attachment_info =
 	    le::ImageAttachmentInfoBuilder()
@@ -235,8 +235,8 @@ static bool pass_draw_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_draw_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<compute_example_app_o *>( user_data );
+static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<compute_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
@@ -294,10 +294,10 @@ static void pass_draw_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 // ----------------------------------------------------------------------
 
-static void compute_example_app_process_ui_events( compute_example_app_o *self ) {
+static void compute_example_app_process_ui_events( compute_example_app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
-	LeUiEvent const *pEvents;
+	LeUiEvent const* pEvents;
 
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
@@ -306,10 +306,10 @@ static void compute_example_app_process_ui_events( compute_example_app_o *self )
 	bool wantsToggle = false;
 
 	for ( auto pEv = pEvents; pEv != events_end; pEv++ ) {
-		auto &event = *pEv;
+		auto& event = *pEv;
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eKey ): {
-			auto &e = event.key;
+			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
 					wantsToggle ^= true;
@@ -361,7 +361,7 @@ static void compute_example_app_process_ui_events( compute_example_app_o *self )
 
 // ----------------------------------------------------------------------
 
-static bool compute_example_app_update( compute_example_app_o *self ) {
+static bool compute_example_app_update( compute_example_app_o* self ) {
 
 	// Polls events for all windows
 	le::Window::pollEvents();
@@ -417,7 +417,7 @@ static bool compute_example_app_update( compute_example_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void compute_example_app_destroy( compute_example_app_o *self ) {
+static void compute_example_app_destroy( compute_example_app_o* self ) {
 	if ( self->gpu_mesh ) {
 		delete self->gpu_mesh;
 	}
@@ -427,8 +427,8 @@ static void compute_example_app_destroy( compute_example_app_o *self ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( compute_example_app, api ) {
-	auto  compute_example_app_api_i = static_cast<compute_example_app_api *>( api );
-	auto &compute_example_app_i     = compute_example_app_api_i->compute_example_app_i;
+	auto  compute_example_app_api_i = static_cast<compute_example_app_api*>( api );
+	auto& compute_example_app_i     = compute_example_app_api_i->compute_example_app_i;
 
 	compute_example_app_i.initialize = app_initialize;
 	compute_example_app_i.terminate  = app_terminate;

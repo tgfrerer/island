@@ -36,8 +36,8 @@ LE_MODULE_LOAD_DEFAULT( le_mesh_generator );
 #ifdef __cplusplus
 
 namespace le_mesh_generator {
-static const auto &api                 = le_mesh_generator_api_i;
-static const auto &le_mesh_generator_i = api -> le_mesh_generator_i;
+static const auto& api                 = le_mesh_generator_api_i;
+static const auto& le_mesh_generator_i = api -> le_mesh_generator_i;
 } // namespace le_mesh_generator
 
 class LeMeshGenerator : NoCopy, NoMove {
@@ -47,7 +47,7 @@ class LeMeshGenerator : NoCopy, NoMove {
 	static constexpr float PI = 3.14159265358979323846f;
 
   public:
-	static void generateSphere( le_mesh_o *mesh,
+	static void generateSphere( le_mesh_o* mesh,
 	                            float      radius         = 1.f,
 	                            uint32_t   widthSegments  = 3,
 	                            uint32_t   heightSegments = 2,
@@ -59,7 +59,7 @@ class LeMeshGenerator : NoCopy, NoMove {
 		this_i.generate_sphere( mesh, radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength );
 	}
 
-	static void generatePlane( le_mesh_o *mesh, float width, float height, uint32_t widthSegments = 2, uint32_t heightSegments = 2 ) {
+	static void generatePlane( le_mesh_o* mesh, float width, float height, uint32_t widthSegments = 2, uint32_t heightSegments = 2 ) {
 		this_i.generate_plane( mesh, width, height, widthSegments, heightSegments );
 	}
 #		undef this_i

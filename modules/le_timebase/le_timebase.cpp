@@ -13,7 +13,7 @@ struct le_timebase_o {
 	Tick     ticks_before_previous_update; // number of total ticks passed up until previous update
 };
 
-static void le_timebase_reset( le_timebase_o *self ) {
+static void le_timebase_reset( le_timebase_o* self ) {
 
 	self->ticks_before_update          = {}; // should reset to zero
 	self->ticks_before_previous_update = {}; // should reset to zero
@@ -25,7 +25,7 @@ static void le_timebase_reset( le_timebase_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_timebase_o *le_timebase_create() {
+static le_timebase_o* le_timebase_create() {
 	auto self = new le_timebase_o();
 	le_timebase_reset( self );
 	return self;
@@ -33,13 +33,13 @@ static le_timebase_o *le_timebase_create() {
 
 // ----------------------------------------------------------------------
 
-static void le_timebase_destroy( le_timebase_o *self ) {
+static void le_timebase_destroy( le_timebase_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_timebase_update( le_timebase_o *self, uint64_t fixed_interval ) {
+static void le_timebase_update( le_timebase_o* self, uint64_t fixed_interval ) {
 
 	self->ticks_before_previous_update = self->ticks_before_update;
 
@@ -54,20 +54,20 @@ static void le_timebase_update( le_timebase_o *self, uint64_t fixed_interval ) {
 
 // ----------------------------------------------------------------------
 
-static uint64_t le_timebase_get_current_ticks( le_timebase_o *self ) {
+static uint64_t le_timebase_get_current_ticks( le_timebase_o* self ) {
 	return self->ticks_before_update.count();
 }
 
 // ----------------------------------------------------------------------
 
-static uint64_t le_timebase_get_ticks_since_last_frame( le_timebase_o *self ) {
+static uint64_t le_timebase_get_ticks_since_last_frame( le_timebase_o* self ) {
 	return ( self->ticks_before_update - self->ticks_before_previous_update ).count();
 }
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_timebase, api ) {
-	auto &le_timebase_i                      = static_cast<le_timebase_api *>( api )->le_timebase_i;
+	auto& le_timebase_i                      = static_cast<le_timebase_api*>( api )->le_timebase_i;
 	le_timebase_i.get_current_ticks          = le_timebase_get_current_ticks;
 	le_timebase_i.get_ticks_since_last_frame = le_timebase_get_ticks_since_last_frame;
 	le_timebase_i.reset                      = le_timebase_reset;

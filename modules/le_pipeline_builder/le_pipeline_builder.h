@@ -201,21 +201,21 @@ LE_MODULE_LOAD_DEFAULT( le_pipeline_builder );
 // ----------------------------------------------------------------------
 
 namespace le_pipeline_builder {
-static const auto &api                            = le_pipeline_builder_api_i;
-static const auto &le_graphics_pipeline_builder_i = api -> le_graphics_pipeline_builder_i;
-static const auto &le_compute_pipeline_builder_i  = api -> le_compute_pipeline_builder_i;
-static const auto &le_rtx_pipeline_builder_i      = api -> le_rtx_pipeline_builder_i;
-static const auto &le_shader_module_builder_i     = api -> le_shader_module_builder_i;
+static const auto& api                            = le_pipeline_builder_api_i;
+static const auto& le_graphics_pipeline_builder_i = api -> le_graphics_pipeline_builder_i;
+static const auto& le_compute_pipeline_builder_i  = api -> le_compute_pipeline_builder_i;
+static const auto& le_rtx_pipeline_builder_i      = api -> le_rtx_pipeline_builder_i;
+static const auto& le_shader_module_builder_i     = api -> le_shader_module_builder_i;
 } // namespace le_pipeline_builder
 
 // ----------------------------------------------------------------------
 
 class LeShaderModuleBuilder : NoCopy, NoMove {
 
-	le_shader_module_builder_o *self;
+	le_shader_module_builder_o* self;
 
   public:
-	LeShaderModuleBuilder( le_pipeline_manager_o *pipelineCache )
+	LeShaderModuleBuilder( le_pipeline_manager_o* pipelineCache )
 	    : self( le_pipeline_builder::le_shader_module_builder_i.create( pipelineCache ) ) {
 	}
 
@@ -223,42 +223,42 @@ class LeShaderModuleBuilder : NoCopy, NoMove {
 		le_pipeline_builder::le_shader_module_builder_i.destroy( self );
 	}
 
-	le_shader_module_handle_t *build() {
+	le_shader_module_handle_t* build() {
 		return le_pipeline_builder::le_shader_module_builder_i.build( self );
 	}
 
-	LeShaderModuleBuilder &setSourceFilePath( char const *source_file_path ) {
+	LeShaderModuleBuilder& setSourceFilePath( char const* source_file_path ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_source_file_path( self, source_file_path );
 		return *this;
 	}
 
-	LeShaderModuleBuilder &setSourceDefinesString( char const *source_defines_string ) {
+	LeShaderModuleBuilder& setSourceDefinesString( char const* source_defines_string ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_source_defines_string( self, source_defines_string );
 		return *this;
 	}
 
-	LeShaderModuleBuilder &setShaderStage( le::ShaderStage const &shaderStage ) {
+	LeShaderModuleBuilder& setShaderStage( le::ShaderStage const& shaderStage ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_shader_stage( self, shaderStage );
 		return *this;
 	}
 
-	LeShaderModuleBuilder &setSourceLanguage( le::ShaderSourceLanguage const &shader_source_language ) {
+	LeShaderModuleBuilder& setSourceLanguage( le::ShaderSourceLanguage const& shader_source_language ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_source_language( self, shader_source_language );
 		return *this;
 	}
 
 	template <typename T>
-	LeShaderModuleBuilder &setSpecializationConstant( uint32_t constant_id, T const &value ) {
+	LeShaderModuleBuilder& setSpecializationConstant( uint32_t constant_id, T const& value ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_specialization_constant( self, constant_id, &value, 4 );
 		return *this;
 	}
 	template <bool>
-	LeShaderModuleBuilder &setSpecializationConstant( uint32_t constant_id, bool const &value ) {
+	LeShaderModuleBuilder& setSpecializationConstant( uint32_t constant_id, bool const& value ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_specialization_constant( self, constant_id, &value, 4 );
 		return *this;
 	}
 
-	LeShaderModuleBuilder &setHandle( le_shader_module_handle previous_handle ) {
+	LeShaderModuleBuilder& setHandle( le_shader_module_handle previous_handle ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_handle( self, previous_handle );
 		return *this;
 	}
@@ -267,10 +267,10 @@ class LeShaderModuleBuilder : NoCopy, NoMove {
 
 class LeComputePipelineBuilder : NoCopy, NoMove {
 
-	le_compute_pipeline_builder_o *self;
+	le_compute_pipeline_builder_o* self;
 
   public:
-	LeComputePipelineBuilder( le_pipeline_manager_o *pipelineCache )
+	LeComputePipelineBuilder( le_pipeline_manager_o* pipelineCache )
 	    : self( le_pipeline_builder::le_compute_pipeline_builder_i.create( pipelineCache ) ) {
 	}
 
@@ -278,11 +278,11 @@ class LeComputePipelineBuilder : NoCopy, NoMove {
 		le_pipeline_builder::le_compute_pipeline_builder_i.destroy( self );
 	}
 
-	le_cpso_handle_t *build() {
+	le_cpso_handle_t* build() {
 		return le_pipeline_builder::le_compute_pipeline_builder_i.build( self );
 	}
 
-	LeComputePipelineBuilder &setShaderStage( le_shader_module_handle shaderModule ) {
+	LeComputePipelineBuilder& setShaderStage( le_shader_module_handle shaderModule ) {
 		le_pipeline_builder::le_compute_pipeline_builder_i.set_shader_stage( self, shaderModule );
 		return *this;
 	}
@@ -292,10 +292,10 @@ class LeComputePipelineBuilder : NoCopy, NoMove {
 
 class LeRtxPipelineBuilder : NoCopy, NoMove {
 
-	le_rtx_pipeline_builder_o *self;
+	le_rtx_pipeline_builder_o* self;
 
   public:
-	LeRtxPipelineBuilder( le_pipeline_manager_o *pipelineCache )
+	LeRtxPipelineBuilder( le_pipeline_manager_o* pipelineCache )
 	    : self( le_pipeline_builder::le_rtx_pipeline_builder_i.create( pipelineCache ) ) {
 	}
 
@@ -307,24 +307,24 @@ class LeRtxPipelineBuilder : NoCopy, NoMove {
 		return le_pipeline_builder::le_rtx_pipeline_builder_i.build( self );
 	}
 
-	LeRtxPipelineBuilder &setShaderGroupRayGen( le_shader_module_handle raygen_shader ) {
+	LeRtxPipelineBuilder& setShaderGroupRayGen( le_shader_module_handle raygen_shader ) {
 		le_pipeline_builder::le_rtx_pipeline_builder_i.set_shader_group_ray_gen( self, raygen_shader );
 		return *this;
 	}
-	LeRtxPipelineBuilder &addShaderGroupMiss( le_shader_module_handle miss_shader ) {
+	LeRtxPipelineBuilder& addShaderGroupMiss( le_shader_module_handle miss_shader ) {
 		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_group_miss( self, miss_shader );
 		return *this;
 	}
-	LeRtxPipelineBuilder &addShaderGroupCallable( le_shader_module_handle callable_shader ) {
+	LeRtxPipelineBuilder& addShaderGroupCallable( le_shader_module_handle callable_shader ) {
 		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_group_callable( self, callable_shader );
 		return *this;
 	}
 
-	LeRtxPipelineBuilder &addShaderGroupTriangleHit( le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
+	LeRtxPipelineBuilder& addShaderGroupTriangleHit( le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
 		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_group_triangle_hit( self, maybe_closest_hit_shader, maybe_any_hit_shader );
 		return *this;
 	}
-	LeRtxPipelineBuilder &addShaderGroupProceduralHit( le_shader_module_handle intersection_shader, le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
+	LeRtxPipelineBuilder& addShaderGroupProceduralHit( le_shader_module_handle intersection_shader, le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
 		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_group_procedural_hit( self, intersection_shader, maybe_closest_hit_shader, maybe_any_hit_shader );
 		return *this;
 	}
@@ -336,10 +336,10 @@ class LeGraphicsPipelineBuilder;
 
 class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
-	le_graphics_pipeline_builder_o *self;
+	le_graphics_pipeline_builder_o* self;
 
 	class AttributeBindingState {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 		uint8_t                    mBindingNumber{ 0 };
 		uint8_t                    mNextBindingNumber{ 0 };
 		uint8_t                    mLocation{ 0 };
@@ -348,79 +348,79 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		friend class Attribute;
 
 	  public:
-		AttributeBindingState( LeGraphicsPipelineBuilder &parent_ )
+		AttributeBindingState( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
 		class BindingState {
-			AttributeBindingState &parent;
-			uint8_t &              mBindingNumber;
-			uint8_t &              mLocation;
-			uint8_t &              mNextLocation;
+			AttributeBindingState& parent;
+			uint8_t&               mBindingNumber;
+			uint8_t&               mLocation;
+			uint8_t&               mNextLocation;
 
 		  public:
-			BindingState( AttributeBindingState &parent_, uint8_t &binding_number, uint8_t &location, uint8_t &next_location )
+			BindingState( AttributeBindingState& parent_, uint8_t& binding_number, uint8_t& location, uint8_t& next_location )
 			    : parent( parent_ )
 			    , mBindingNumber( binding_number )
 			    , mLocation( location )
 			    , mNextLocation( next_location ) {
 			}
 
-			BindingState &setStride( uint16_t stride ) {
+			BindingState& setStride( uint16_t stride ) {
 				using namespace le_pipeline_builder;
 				le_graphics_pipeline_builder_i.attribute_binding_state_i.set_binding_stride( parent.parent.self, mBindingNumber, stride );
 				return *this;
 			}
 
-			BindingState &setInputRate( const le_vertex_input_rate &input_rate ) {
+			BindingState& setInputRate( const le_vertex_input_rate& input_rate ) {
 				using namespace le_pipeline_builder;
 				le_graphics_pipeline_builder_i.attribute_binding_state_i.set_binding_input_rate( parent.parent.self, mBindingNumber, input_rate );
 				return *this;
 			}
 
 			class AttributeDescriptor {
-				BindingState &parent;
-				uint8_t &     mLocation;
+				BindingState& parent;
+				uint8_t&      mLocation;
 
 			  public:
-				AttributeDescriptor( BindingState &parent_, uint8_t &location )
+				AttributeDescriptor( BindingState& parent_, uint8_t& location )
 				    : parent( parent_ )
 				    , mLocation( location ) {
 				}
 
-				AttributeDescriptor &setOffset( uint16_t offset ) {
+				AttributeDescriptor& setOffset( uint16_t offset ) {
 					using namespace le_pipeline_builder;
 					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_offset( parent.parent.parent.self, mLocation, offset );
 					return *this;
 				}
-				AttributeDescriptor &setType( const le_num_type &attribute_type ) {
+				AttributeDescriptor& setType( const le_num_type& attribute_type ) {
 					using namespace le_pipeline_builder;
 					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_type( parent.parent.parent.self, mLocation, attribute_type );
 					return *this;
 				}
-				AttributeDescriptor &setVecSize( uint8_t vec_size ) {
+				AttributeDescriptor& setVecSize( uint8_t vec_size ) {
 					using namespace le_pipeline_builder;
 					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_vec_size( parent.parent.parent.self, mLocation, vec_size );
 					return *this;
 				}
-				AttributeDescriptor &setIsNormalized( bool is_normalized ) {
+				AttributeDescriptor& setIsNormalized( bool is_normalized ) {
 					using namespace le_pipeline_builder;
 					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_is_normalized( parent.parent.parent.self, mLocation, is_normalized );
 					return *this;
 				}
 
-				BindingState &end() {
+				BindingState& end() {
 					return parent;
 				}
 			};
 
 			AttributeDescriptor mAttributeState{ *this, mLocation };
 
-			AttributeBindingState &end() {
+			AttributeBindingState& end() {
 				return parent;
 			}
 
-			AttributeDescriptor &addAttribute() {
+			AttributeDescriptor& addAttribute() {
 				// locations increase with every call to addAttribute
 				mLocation = mNextLocation++;
 				using namespace le_pipeline_builder;
@@ -428,7 +428,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 				return mAttributeState;
 			}
 
-			BindingState &addAttribute( uint16_t offset, const le_num_type &attribute_type, uint8_t vec_size, bool is_normalized = false ) {
+			BindingState& addAttribute( uint16_t offset, const le_num_type& attribute_type, uint8_t vec_size, bool is_normalized = false ) {
 				return addAttribute()
 				    .setOffset( offset )
 				    .setType( attribute_type )
@@ -440,14 +440,14 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 		BindingState mBindingState{ *this, mBindingNumber, mLocation, mNextLocation };
 
-		BindingState &addBinding() {
+		BindingState& addBinding() {
 			mBindingNumber = mNextBindingNumber++;
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.attribute_binding_state_i.add_binding( parent.self, mBindingNumber );
 			return mBindingState;
 		}
 
-		BindingState &addBinding( uint16_t stride ) {
+		BindingState& addBinding( uint16_t stride ) {
 			mBindingNumber = mNextBindingNumber++;
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.attribute_binding_state_i.add_binding( parent.self, mBindingNumber );
@@ -455,7 +455,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			return mBindingState;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			// todo: implement check binding
 			return parent;
 		}
@@ -464,26 +464,26 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	AttributeBindingState mAttributeBindingState{ *this };
 
 	class InputAssemblyState {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 
 	  public:
-		InputAssemblyState( LeGraphicsPipelineBuilder &parent_ )
+		InputAssemblyState( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		InputAssemblyState &setPrimitiveRestartEnable( uint32_t const &primitiveRestartEnable ) {
+		InputAssemblyState& setPrimitiveRestartEnable( uint32_t const& primitiveRestartEnable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.input_assembly_state_i.set_primitive_restart_enable( parent.self, primitiveRestartEnable );
 			return *this;
 		}
 
-		InputAssemblyState &setTopology( le::PrimitiveTopology const &topology ) {
+		InputAssemblyState& setTopology( le::PrimitiveTopology const& topology ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.input_assembly_state_i.set_topology( parent.self, topology );
 			return *this;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			return parent;
 		}
 	};
@@ -491,56 +491,56 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	InputAssemblyState mInputAssembly{ *this };
 
 	class DepthStencilState {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 
 	  public:
-		DepthStencilState( LeGraphicsPipelineBuilder &parent_ )
+		DepthStencilState( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		DepthStencilState &setDepthTestEnable( bool const &enable ) {
+		DepthStencilState& setDepthTestEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_depth_test_enable( parent.self, enable );
 			return *this;
 		}
 
-		DepthStencilState &setDepthWriteEnable( bool const &enable ) {
+		DepthStencilState& setDepthWriteEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_depth_write_enable( parent.self, enable );
 			return *this;
 		}
 
-		DepthStencilState &setDepthCompareOp( le::CompareOp const &compare_op ) {
+		DepthStencilState& setDepthCompareOp( le::CompareOp const& compare_op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_depth_compare_op( parent.self, compare_op );
 			return *this;
 		}
 
-		DepthStencilState &setDepthBoundsTestEnable( bool const &enable ) {
+		DepthStencilState& setDepthBoundsTestEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_depth_bounds_test_enable( parent.self, enable );
 			return *this;
 		}
 
-		DepthStencilState &setStencilTestEnable( bool const &enable ) {
+		DepthStencilState& setStencilTestEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_stencil_test_enable( parent.self, enable );
 			return *this;
 		}
 
-		DepthStencilState &setMinDepthBounds( float const &min_bounds ) {
+		DepthStencilState& setMinDepthBounds( float const& min_bounds ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_min_depth_bounds( parent.self, min_bounds );
 			return *this;
 		}
 
-		DepthStencilState &setMaxDepthBounds( float const &max_bounds ) {
+		DepthStencilState& setMaxDepthBounds( float const& max_bounds ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_max_depth_bounds( parent.self, max_bounds );
 			return *this;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			return parent;
 		}
 	};
@@ -548,56 +548,56 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	DepthStencilState mDepthStencilState{ *this };
 
 	class DepthStencilOpFront {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 
 	  public:
-		DepthStencilOpFront( LeGraphicsPipelineBuilder &parent_ )
+		DepthStencilOpFront( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		DepthStencilOpFront &setFailOp( le::StencilOp const &op ) {
+		DepthStencilOpFront& setFailOp( le::StencilOp const& op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_fail_op( parent.self, op );
 			return *this;
 		}
 
-		DepthStencilOpFront &setPassOp( le::StencilOp const &op ) {
+		DepthStencilOpFront& setPassOp( le::StencilOp const& op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_pass_op( parent.self, op );
 			return *this;
 		}
 
-		DepthStencilOpFront &setDepthFailOp( le::StencilOp const &op ) {
+		DepthStencilOpFront& setDepthFailOp( le::StencilOp const& op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_depth_fail_op( parent.self, op );
 			return *this;
 		}
 
-		DepthStencilOpFront &setCompareOp( le::CompareOp const &op ) {
+		DepthStencilOpFront& setCompareOp( le::CompareOp const& op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_compare_op( parent.self, op );
 			return *this;
 		}
 
-		DepthStencilOpFront &setCompareMask( uint32_t const &mask ) {
+		DepthStencilOpFront& setCompareMask( uint32_t const& mask ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_compare_mask( parent.self, mask );
 			return *this;
 		}
 
-		DepthStencilOpFront &setWriteMask( uint32_t const &mask ) {
+		DepthStencilOpFront& setWriteMask( uint32_t const& mask ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_write_mask( parent.self, mask );
 			return *this;
 		}
 
-		DepthStencilOpFront &setReference( uint32_t const &reference ) {
+		DepthStencilOpFront& setReference( uint32_t const& reference ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_reference( parent.self, reference );
 			return *this;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			return parent;
 		}
 	};
@@ -605,56 +605,56 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	DepthStencilOpFront mDepthStencilOpFront{ *this };
 
 	class DepthStencilOpBack {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 
 	  public:
-		DepthStencilOpBack( LeGraphicsPipelineBuilder &parent_ )
+		DepthStencilOpBack( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		DepthStencilOpBack &setFailOp( le::StencilOp const &op ) {
+		DepthStencilOpBack& setFailOp( le::StencilOp const& op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_fail_op( parent.self, op );
 			return *this;
 		}
 
-		DepthStencilOpBack &setPassOp( le::StencilOp const &op ) {
+		DepthStencilOpBack& setPassOp( le::StencilOp const& op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_pass_op( parent.self, op );
 			return *this;
 		}
 
-		DepthStencilOpBack &setDepthFailOp( le::StencilOp const &op ) {
+		DepthStencilOpBack& setDepthFailOp( le::StencilOp const& op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_depth_fail_op( parent.self, op );
 			return *this;
 		}
 
-		DepthStencilOpBack &setCompareOp( le::CompareOp const &op ) {
+		DepthStencilOpBack& setCompareOp( le::CompareOp const& op ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_compare_op( parent.self, op );
 			return *this;
 		}
 
-		DepthStencilOpBack &setCompareMask( uint32_t const &mask ) {
+		DepthStencilOpBack& setCompareMask( uint32_t const& mask ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_compare_mask( parent.self, mask );
 			return *this;
 		}
 
-		DepthStencilOpBack &setWriteMask( uint32_t const &mask ) {
+		DepthStencilOpBack& setWriteMask( uint32_t const& mask ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_write_mask( parent.self, mask );
 			return *this;
 		}
 
-		DepthStencilOpBack &setReference( uint32_t const &reference ) {
+		DepthStencilOpBack& setReference( uint32_t const& reference ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_reference( parent.self, reference );
 			return *this;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			return parent;
 		}
 	};
@@ -662,44 +662,44 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	DepthStencilOpBack mDepthStencilOpBack{ *this };
 
 	class MultiSampleState {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 
 	  public:
-		MultiSampleState( LeGraphicsPipelineBuilder &parent_ )
+		MultiSampleState( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		MultiSampleState &setRasterizationSamples( le::SampleCountFlagBits const &num_samples ) {
+		MultiSampleState& setRasterizationSamples( le::SampleCountFlagBits const& num_samples ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.multisample_state_i.set_rasterization_samples( parent.self, num_samples );
 			return *this;
 		}
 
-		MultiSampleState &setSampleShadingEnable( bool const &enable ) {
+		MultiSampleState& setSampleShadingEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.multisample_state_i.set_sample_shading_enable( parent.self, enable );
 			return *this;
 		}
 
-		MultiSampleState &setMinSampleShading( float const &min_sample_shading ) {
+		MultiSampleState& setMinSampleShading( float const& min_sample_shading ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.multisample_state_i.set_min_sample_shading( parent.self, min_sample_shading );
 			return *this;
 		}
 
-		MultiSampleState &setAlphaToCoverageEnable( bool const &enable ) {
+		MultiSampleState& setAlphaToCoverageEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.multisample_state_i.set_alpha_to_coverage_enable( parent.self, enable );
 			return *this;
 		}
 
-		MultiSampleState &setAlphaToOneEnable( bool const &enable ) {
+		MultiSampleState& setAlphaToOneEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.multisample_state_i.set_alpha_to_one_enable( parent.self, enable );
 			return *this;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			return parent;
 		}
 	};
@@ -707,20 +707,20 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	MultiSampleState mMultiSampleState{ *this };
 
 	class TessellationState {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 
 	  public:
-		TessellationState( LeGraphicsPipelineBuilder &parent_ )
+		TessellationState( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		TessellationState &setPatchControlPoints( uint32_t const &count ) {
+		TessellationState& setPatchControlPoints( uint32_t const& count ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.tessellation_state_i.set_patch_control_points( parent.self, count );
 			return *this;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			return parent;
 		}
 	};
@@ -728,74 +728,74 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	TessellationState mTessellationState{ *this };
 
 	class RasterizationState {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 
 	  public:
-		RasterizationState( LeGraphicsPipelineBuilder &parent_ )
+		RasterizationState( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		RasterizationState &setDepthClampEnable( bool const &enable ) {
+		RasterizationState& setDepthClampEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_clamp_enable( parent.self, enable );
 			return *this;
 		}
 
-		RasterizationState &setRasterizerDiscardEnable( bool const &enable ) {
+		RasterizationState& setRasterizerDiscardEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_rasterizer_discard_enable( parent.self, enable );
 			return *this;
 		}
 
-		RasterizationState &setPolygonMode( le::PolygonMode const &mode ) {
+		RasterizationState& setPolygonMode( le::PolygonMode const& mode ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_polygon_mode( parent.self, mode );
 			return *this;
 		}
 
-		RasterizationState &setCullMode( le::CullModeFlagBits const &mode ) {
+		RasterizationState& setCullMode( le::CullModeFlagBits const& mode ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_cull_mode( parent.self, mode );
 			return *this;
 		}
 
-		RasterizationState &setFrontFace( le::FrontFace const &frontFace ) {
+		RasterizationState& setFrontFace( le::FrontFace const& frontFace ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_front_face( parent.self, frontFace );
 			return *this;
 		}
 
-		RasterizationState &setDepthBiasEnable( bool const &enable ) {
+		RasterizationState& setDepthBiasEnable( bool const& enable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_bias_enable( parent.self, enable );
 			return *this;
 		}
 
-		RasterizationState &setDepthBiasConstantFactor( float const &factor ) {
+		RasterizationState& setDepthBiasConstantFactor( float const& factor ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_bias_constant_factor( parent.self, factor );
 			return *this;
 		}
 
-		RasterizationState &setDepthBiasClamp( float const &clamp ) {
+		RasterizationState& setDepthBiasClamp( float const& clamp ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_bias_clamp( parent.self, clamp );
 			return *this;
 		}
 
-		RasterizationState &setDepthBiasSlopeFactor( float const &factor ) {
+		RasterizationState& setDepthBiasSlopeFactor( float const& factor ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_bias_slope_factor( parent.self, factor );
 			return *this;
 		}
 
-		RasterizationState &setLineWidth( float const &lineWidth ) {
+		RasterizationState& setLineWidth( float const& lineWidth ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_line_width( parent.self, lineWidth );
 			return *this;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			return parent;
 		}
 	};
@@ -803,69 +803,69 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	RasterizationState mRasterizationState{ *this };
 
 	class AttachmentBlendState {
-		LeGraphicsPipelineBuilder &parent;
+		LeGraphicsPipelineBuilder& parent;
 		size_t                     index;
 
 	  public:
-		AttachmentBlendState( LeGraphicsPipelineBuilder &parent_ )
+		AttachmentBlendState( LeGraphicsPipelineBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		AttachmentBlendState &setBlendEnable( bool blendEnable ) {
+		AttachmentBlendState& setBlendEnable( bool blendEnable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_blend_enable( parent.self, index, blendEnable );
 			return *this;
 		}
 
-		AttachmentBlendState &setColorBlendOp( const le::BlendOp &blendOp ) {
+		AttachmentBlendState& setColorBlendOp( const le::BlendOp& blendOp ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_color_blend_op( parent.self, index, blendOp );
 			return *this;
 		}
 
-		AttachmentBlendState &setAlphaBlendOp( const le::BlendOp &blendOp ) {
+		AttachmentBlendState& setAlphaBlendOp( const le::BlendOp& blendOp ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_alpha_blend_op( parent.self, index, blendOp );
 			return *this;
 		}
 
-		AttachmentBlendState &setSrcColorBlendFactor( const le::BlendFactor &blendFactor ) {
+		AttachmentBlendState& setSrcColorBlendFactor( const le::BlendFactor& blendFactor ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_src_color_blend_factor( parent.self, index, blendFactor );
 			return *this;
 		}
 
-		AttachmentBlendState &setDstColorBlendFactor( const le::BlendFactor &blendFactor ) {
+		AttachmentBlendState& setDstColorBlendFactor( const le::BlendFactor& blendFactor ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_dst_color_blend_factor( parent.self, index, blendFactor );
 			return *this;
 		}
 
-		AttachmentBlendState &setSrcAlphaBlendFactor( const le::BlendFactor &blendFactor ) {
+		AttachmentBlendState& setSrcAlphaBlendFactor( const le::BlendFactor& blendFactor ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_src_alpha_blend_factor( parent.self, index, blendFactor );
 			return *this;
 		}
 
-		AttachmentBlendState &setDstAlphaBlendFactor( const le::BlendFactor &blendFactor ) {
+		AttachmentBlendState& setDstAlphaBlendFactor( const le::BlendFactor& blendFactor ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_dst_alpha_blend_factor( parent.self, index, blendFactor );
 			return *this;
 		}
 
-		AttachmentBlendState &setColorWriteMask( const LeColorComponentFlags &write_mask ) {
+		AttachmentBlendState& setColorWriteMask( const LeColorComponentFlags& write_mask ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_color_write_mask( parent.self, index, write_mask );
 			return *this;
 		}
 
-		AttachmentBlendState &usePreset( const le::AttachmentBlendPreset &preset ) {
+		AttachmentBlendState& usePreset( const le::AttachmentBlendPreset& preset ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.use_preset( parent.self, index, preset );
 			return *this;
 		}
 
-		LeGraphicsPipelineBuilder &end() {
+		LeGraphicsPipelineBuilder& end() {
 			return parent;
 		}
 
@@ -875,7 +875,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	AttachmentBlendState mAttachmentBlendState{ *this };
 
   public:
-	LeGraphicsPipelineBuilder( le_pipeline_manager_o *pipelineCache )
+	LeGraphicsPipelineBuilder( le_pipeline_manager_o* pipelineCache )
 	    : self( le_pipeline_builder::le_graphics_pipeline_builder_i.create( pipelineCache ) ) {
 	}
 
@@ -883,68 +883,68 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.destroy( self );
 	}
 
-	le_gpso_handle_t *build() {
+	le_gpso_handle_t* build() {
 		return le_pipeline_builder::le_graphics_pipeline_builder_i.build( self );
 	}
 
-	LeGraphicsPipelineBuilder &addShaderStage( le_shader_module_handle shaderModule ) {
+	LeGraphicsPipelineBuilder& addShaderStage( le_shader_module_handle shaderModule ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.add_shader_stage( self, shaderModule );
 		return *this;
 	}
 
-	LeGraphicsPipelineBuilder &setVertexInputAttributeDescriptions( le_vertex_input_attribute_description *pDescr, size_t count ) {
+	LeGraphicsPipelineBuilder& setVertexInputAttributeDescriptions( le_vertex_input_attribute_description* pDescr, size_t count ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_vertex_input_attribute_descriptions( self, pDescr, count );
 		return *this;
 	}
 
-	LeGraphicsPipelineBuilder &setVertexInputBindingDescriptions( le_vertex_input_binding_description *pDescr, size_t count ) {
+	LeGraphicsPipelineBuilder& setVertexInputBindingDescriptions( le_vertex_input_binding_description* pDescr, size_t count ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_vertex_input_binding_descriptions( self, pDescr, count );
 		return *this;
 	}
 
-	LeGraphicsPipelineBuilder &setMultisampleInfo( const VkPipelineMultisampleStateCreateInfo &info ) {
+	LeGraphicsPipelineBuilder& setMultisampleInfo( const VkPipelineMultisampleStateCreateInfo& info ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_multisample_info( self, info );
 		return *this;
 	}
 
-	LeGraphicsPipelineBuilder &setDepthStencilInfo( const VkPipelineDepthStencilStateCreateInfo &info ) {
+	LeGraphicsPipelineBuilder& setDepthStencilInfo( const VkPipelineDepthStencilStateCreateInfo& info ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_depth_stencil_info( self, info );
 		return *this;
 	}
 
-	AttributeBindingState &withAttributeBindingState() {
+	AttributeBindingState& withAttributeBindingState() {
 		return mAttributeBindingState;
 	}
 
-	InputAssemblyState &withInputAssemblyState() {
+	InputAssemblyState& withInputAssemblyState() {
 		return mInputAssembly;
 	}
 
-	RasterizationState &withRasterizationState() {
+	RasterizationState& withRasterizationState() {
 		return mRasterizationState;
 	}
 
-	TessellationState &withTessellationState() {
+	TessellationState& withTessellationState() {
 		return mTessellationState;
 	}
 
-	MultiSampleState &withMultiSampleState() {
+	MultiSampleState& withMultiSampleState() {
 		return mMultiSampleState;
 	}
 
-	DepthStencilState &withDepthStencilState() {
+	DepthStencilState& withDepthStencilState() {
 		return mDepthStencilState;
 	}
 
-	DepthStencilOpBack &withDepthStencilOpBack() {
+	DepthStencilOpBack& withDepthStencilOpBack() {
 		return mDepthStencilOpBack;
 	}
 
-	DepthStencilOpFront &withDepthStencilOpFront() {
+	DepthStencilOpFront& withDepthStencilOpFront() {
 		return mDepthStencilOpFront;
 	}
 
-	AttachmentBlendState &withAttachmentBlendState( uint32_t attachmentIndex = 0 ) {
+	AttachmentBlendState& withAttachmentBlendState( uint32_t attachmentIndex = 0 ) {
 		mAttachmentBlendState.index = attachmentIndex;
 		return mAttachmentBlendState;
 	}

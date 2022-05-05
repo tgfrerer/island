@@ -61,7 +61,7 @@ struct FrameData {
 
 	State state = State::eInitial;
 
-	le_rendergraph_o *rendergraph = nullptr;
+	le_rendergraph_o* rendergraph = nullptr;
 
 	size_t frameNumber = size_t( ~0 );
 	Meta   meta;
@@ -81,13 +81,13 @@ struct le_resource_handle_store_t {
 	std::mutex                                                                                             mtx;
 };
 
-static le_texture_handle_store_t *get_texture_handle_library( bool erase = false ) {
+static le_texture_handle_store_t* get_texture_handle_library( bool erase = false ) {
 
-	static le_texture_handle_store_t *texture_handle_library = nullptr;
+	static le_texture_handle_store_t* texture_handle_library = nullptr;
 
 	if ( erase ) {
 		delete texture_handle_library;
-		void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
+		void** texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
 		*texture_handle_library_ptr       = nullptr; // null pointer stored in global store
 		texture_handle_library            = nullptr; // null pointer stored local store
 		return nullptr;                              // return nullptr
@@ -98,11 +98,11 @@ static le_texture_handle_store_t *get_texture_handle_library( bool erase = false
 	}
 
 	// ----------| Invariant: not yet in local store
-	void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
+	void** texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
 
 	if ( *texture_handle_library_ptr ) {
 		// Found in global store
-		texture_handle_library = static_cast<le_texture_handle_store_t *>( *texture_handle_library_ptr );
+		texture_handle_library = static_cast<le_texture_handle_store_t*>( *texture_handle_library_ptr );
 	} else {
 		// Not yet available in global store - create & make available
 		texture_handle_library      = new le_texture_handle_store_t{};
@@ -112,12 +112,12 @@ static le_texture_handle_store_t *get_texture_handle_library( bool erase = false
 	return texture_handle_library;
 }
 
-static le_resource_handle_store_t *get_resource_handle_library( bool erase = false ) {
-	static le_resource_handle_store_t *resource_handle_library = nullptr;
+static le_resource_handle_store_t* get_resource_handle_library( bool erase = false ) {
+	static le_resource_handle_store_t* resource_handle_library = nullptr;
 
 	if ( erase ) {
 		delete resource_handle_library;
-		void **resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
+		void** resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
 		*resource_handle_library_ptr       = nullptr; // null pointer stored in global store
 		resource_handle_library            = nullptr; // null pointer stored in local store
 		return nullptr;                               // return nullptr
@@ -128,11 +128,11 @@ static le_resource_handle_store_t *get_resource_handle_library( bool erase = fal
 	}
 
 	// ----------| Invariant: not yet in local store
-	void **resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
+	void** resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
 
 	if ( *resource_handle_library_ptr ) {
 		// Found in global store
-		resource_handle_library = static_cast<le_resource_handle_store_t *>( *resource_handle_library_ptr );
+		resource_handle_library = static_cast<le_resource_handle_store_t*>( *resource_handle_library_ptr );
 	} else {
 		// Not yet available in global store - create & make available.
 		resource_handle_library      = new le_resource_handle_store_t();
@@ -146,7 +146,7 @@ static le_resource_handle_store_t *get_resource_handle_library( bool erase = fal
 
 struct le_renderer_o {
 	uint64_t      swapchainDirty = false;
-	le_backend_o *backend        = nullptr; // Owned, created in setup
+	le_backend_o* backend        = nullptr; // Owned, created in setup
 
 	std::vector<FrameData> frames;
 	size_t                 numSwapchainImages = 0;
@@ -154,11 +154,11 @@ struct le_renderer_o {
 	le_renderer_settings_t settings;
 };
 
-static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // ffdecl
+static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ); // ffdecl
 
 // ----------------------------------------------------------------------
 
-static le_renderer_o *renderer_create() {
+static le_renderer_o* renderer_create() {
 	auto obj = new le_renderer_o();
 
 #if ( LE_MT > 0 )
@@ -171,10 +171,10 @@ static le_renderer_o *renderer_create() {
 // ----------------------------------------------------------------------
 
 // creates a new handle if no name was given, or given name was not found in list of current handles.
-static le_texture_handle renderer_produce_texture_handle( char const *maybe_name ) {
+static le_texture_handle renderer_produce_texture_handle( char const* maybe_name ) {
 
 	// lock handle library for reading/writing
-	static le_texture_handle_store_t *texture_handle_library = get_texture_handle_library();
+	static le_texture_handle_store_t* texture_handle_library = get_texture_handle_library();
 	std::scoped_lock                  lock( texture_handle_library->mtx );
 
 	le_texture_handle handle;
@@ -206,7 +206,7 @@ static le_texture_handle renderer_produce_texture_handle( char const *maybe_name
 
 // ----------------------------------------------------------------------
 
-static char const *texture_handle_get_name( le_texture_handle texture ) {
+static char const* texture_handle_get_name( le_texture_handle texture ) {
 	if ( texture && !texture->debug_name.empty() ) {
 		return texture->debug_name.c_str();
 	} else {
@@ -216,20 +216,20 @@ static char const *texture_handle_get_name( le_texture_handle texture ) {
 
 // creates a new resource if no name was given, or given name was not found in list of current handles.
 le_resource_handle renderer_produce_resource_handle(
-    char const *          maybe_name,
-    LeResourceType const &resource_type,
+    char const*           maybe_name,
+    LeResourceType const& resource_type,
     uint8_t               num_samples      = 0,
     uint8_t               flags            = 0,
     uint16_t              index            = 0,
     le_resource_handle    reference_handle = nullptr ) {
 
-	static le_resource_handle_store_t *resource_handle_library = get_resource_handle_library();
+	static le_resource_handle_store_t* resource_handle_library = get_resource_handle_library();
 	// lock handle library for reading/writing
 	std::scoped_lock lock( resource_handle_library->mtx );
 
 	le_resource_handle handle;
 
-	le_resource_handle_data_t *p_data = new le_resource_handle_data_t{};
+	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
 	p_data->flags                     = flags;
 	p_data->num_samples               = num_samples;
 	p_data->reference_handle          = reference_handle;
@@ -263,31 +263,31 @@ le_resource_handle renderer_produce_resource_handle(
 	return handle;
 }
 
-static le_img_resource_handle renderer_produce_img_resource_handle( char const *maybe_name, uint8_t num_samples,
+static le_img_resource_handle renderer_produce_img_resource_handle( char const* maybe_name, uint8_t num_samples,
                                                                     le_img_resource_handle reference_handle, uint8_t flags ) {
 	return static_cast<le_img_resource_handle>(
 	    renderer_produce_resource_handle( maybe_name, LeResourceType::eImage, num_samples, flags, 0,
 	                                      static_cast<le_resource_handle>( reference_handle ) ) );
 }
 
-static le_buf_resource_handle renderer_produce_buf_resource_handle( char const *maybe_name, uint8_t flags, uint16_t index ) {
+static le_buf_resource_handle renderer_produce_buf_resource_handle( char const* maybe_name, uint8_t flags, uint16_t index ) {
 	return static_cast<le_buf_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
 }
 
-static le_tlas_resource_handle renderer_produce_tlas_resource_handle( char const *maybe_name ) {
+static le_tlas_resource_handle renderer_produce_tlas_resource_handle( char const* maybe_name ) {
 	return static_cast<le_tlas_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eRtxTlas ) );
 }
 
-static le_blas_resource_handle renderer_produce_blas_resource_handle( char const *maybe_name ) {
+static le_blas_resource_handle renderer_produce_blas_resource_handle( char const* maybe_name ) {
 	return static_cast<le_blas_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eRtxBlas ) );
 }
 // ----------------------------------------------------------------------
 
-static void renderer_destroy( le_renderer_o *self ) {
+static void renderer_destroy( le_renderer_o* self ) {
 
 	using namespace le_renderer; // for rendergraph_i
 
-	const auto &lastIndex = self->currentFrameNumber;
+	const auto& lastIndex = self->currentFrameNumber;
 
 	for ( size_t i = 0; i != self->frames.size(); ++i ) {
 		auto index = ( lastIndex + i ) % self->frames.size();
@@ -303,10 +303,10 @@ static void renderer_destroy( le_renderer_o *self ) {
 	get_texture_handle_library( false );
 
 	{
-		le_resource_handle_store_t *resource_handle_library = get_resource_handle_library();
+		le_resource_handle_store_t* resource_handle_library = get_resource_handle_library();
 		if ( resource_handle_library ) {
 			// we must deallocate manually allocated data for resource handles
-			for ( auto &e : resource_handle_library->resource_handles ) {
+			for ( auto& e : resource_handle_library->resource_handles ) {
 				delete ( e.second.data );
 			}
 			// Delete static pointer to resource handle library
@@ -330,34 +330,34 @@ static void renderer_destroy( le_renderer_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o *self, le_rtx_geometry_t *geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const *flags ) {
+static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const* flags ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.create_rtx_blas_info( self->backend, geometries, geometries_count, flags );
 }
 
 // ----------------------------------------------------------------------
 
-static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o *self, uint32_t instances_count, LeBuildAccelerationStructureFlags const *flags ) {
+static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const* flags ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.create_rtx_tlas_info( self->backend, instances_count, flags );
 }
 
 // ----------------------------------------------------------------------
 
-static le_backend_o *renderer_get_backend( le_renderer_o *self ) {
+static le_backend_o* renderer_get_backend( le_renderer_o* self ) {
 	return self->backend;
 }
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_manager_o *renderer_get_pipeline_manager( le_renderer_o *self ) {
+static le_pipeline_manager_o* renderer_get_pipeline_manager( le_renderer_o* self ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.get_pipeline_cache( self->backend );
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &settings ) {
+static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& settings ) {
 
 	// We store swapchain settings with the renderer so that we can pass
 	// backend a permanent pointer to it.
@@ -402,15 +402,15 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 
 // ----------------------------------------------------------------------
 
-static le_renderer_settings_t const *renderer_get_settings( le_renderer_o *self ) {
+static le_renderer_settings_t const* renderer_get_settings( le_renderer_o* self ) {
 	return &self->settings;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
+static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ) {
 
-	auto &frame = self->frames[ frameIndex ];
+	auto& frame = self->frames[ frameIndex ];
 
 	using namespace le_backend_vk; // for vk_bakend_i
 	using namespace le_renderer;   // for rendergraph_i
@@ -451,14 +451,14 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_render_module_o *module_, size_t frameNumber ) {
+static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_render_module_o* module_, size_t frameNumber ) {
 
 	// High-level
 	// - resolve rendergraph: which render passes do contribute?
 	// - consolidate resources, synchronisation for resources
 	// - For each render pass, call renderpass' render method, build intermediary command lists
 
-	auto &frame       = self->frames[ frameIndex ];
+	auto& frame       = self->frames[ frameIndex ];
 	frame.frameNumber = frameNumber;
 
 	if ( frame.state != FrameData::State::eCleared && frame.state != FrameData::State::eInitial ) {
@@ -497,14 +497,14 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 
 // ----------------------------------------------------------------------
 
-static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o *self, size_t frameIndex ) {
+static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o* self, size_t frameIndex ) {
 
 	using namespace le_backend_vk; // for vk_bakend_i
 	using namespace le_renderer;   // for rendergraph_i
 
 	// ---------| invariant: There are frames to process.
 
-	auto &frame = self->frames[ frameIndex ];
+	auto& frame = self->frames[ frameIndex ];
 
 	frame.meta.time_acquire_frame_start = std::chrono::high_resolution_clock::now();
 
@@ -514,13 +514,13 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 	// ----------| invariant: frame is either initial, or cleared.
 
-	le_renderpass_o **passes          = nullptr;
+	le_renderpass_o** passes          = nullptr;
 	size_t            numRenderPasses = 0;
 
 	rendergraph_i.get_passes( frame.rendergraph, &passes, &numRenderPasses );
 
-	le_resource_handle const *declared_resources;
-	le_resource_info_t const *declared_resources_infos;
+	le_resource_handle const* declared_resources;
+	le_resource_info_t const* declared_resources_infos;
 	size_t                    declared_resources_count = 0;
 
 	rendergraph_i.get_declared_resources(
@@ -559,11 +559,11 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 // ----------------------------------------------------------------------
 
-static const FrameData::State &renderer_process_frame( le_renderer_o *self, size_t frameIndex ) {
+static const FrameData::State& renderer_process_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	using namespace le_backend_vk; // for vk_bakend_i
 
-	auto &frame = self->frames[ frameIndex ];
+	auto& frame = self->frames[ frameIndex ];
 
 	if ( frame.state != FrameData::State::eAcquired ) {
 		return frame.state;
@@ -577,7 +577,7 @@ static const FrameData::State &renderer_process_frame( le_renderer_o *self, size
 	vk_backend_i.process_frame( self->backend, frameIndex );
 
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
-	//std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
+	// std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
 
 	//	std::cout << "PROCE FRAME " << frameIndex << std::endl
 	//	          << std::flush;
@@ -588,10 +588,10 @@ static const FrameData::State &renderer_process_frame( le_renderer_o *self, size
 
 // ----------------------------------------------------------------------
 
-static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
+static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	using namespace le_backend_vk; // for vk_backend_i
-	auto &frame = self->frames[ frameIndex ];
+	auto& frame = self->frames[ frameIndex ];
 
 	if ( frame.state != FrameData::State::eProcessed ) {
 		return;
@@ -628,45 +628,45 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static uint32_t renderer_get_swapchain_count( le_renderer_o *self ) {
+static uint32_t renderer_get_swapchain_count( le_renderer_o* self ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_count( self->backend );
 }
 
 // ----------------------------------------------------------------------
 
-static le_img_resource_handle renderer_get_swapchain_resource( le_renderer_o *self, uint32_t index ) {
+static le_img_resource_handle renderer_get_swapchain_resource( le_renderer_o* self, uint32_t index ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_resource( self->backend, index );
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_get_swapchain_extent( le_renderer_o *self, uint32_t index, uint32_t *p_width, uint32_t *p_height ) {
+static void renderer_get_swapchain_extent( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height ) {
 	using namespace le_backend_vk;
 	vk_backend_i.get_swapchain_extent( self->backend, index, p_width, p_height );
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) {
+static void renderer_update( le_renderer_o* self, le_render_module_o* module_ ) {
 
 	using namespace le_backend_vk;
 
-	const auto &index     = self->currentFrameNumber;
-	const auto &numFrames = self->frames.size();
+	const auto& index     = self->currentFrameNumber;
+	const auto& numFrames = self->frames.size();
 
 	// If necessary, recompile and reload shader modules
 	// - this must be complete before the record_frame step
 
 #if ( LE_MT > 0 )
 
-	auto update_shader_modules_fun = []( void *backend ) {
-		vk_backend_i.update_shader_modules( static_cast<le_backend_o *>( backend ) );
+	auto update_shader_modules_fun = []( void* backend ) {
+		vk_backend_i.update_shader_modules( static_cast<le_backend_o*>( backend ) );
 	};
 
 	le_jobs::job_t      j{ update_shader_modules_fun, self->backend };
-	le_jobs::counter_t *shader_counter;
+	le_jobs::counter_t* shader_counter;
 
 	le_jobs::run_jobs( &j, 1, &shader_counter );
 
@@ -679,28 +679,28 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		// use task system (experimental)
 
 		struct frame_params_t {
-			le_renderer_o *renderer;
+			le_renderer_o* renderer;
 			size_t         frame_index;
 		};
 
 		struct record_params_t {
-			le_renderer_o *     renderer;
+			le_renderer_o*      renderer;
 			size_t              frame_index;
-			le_render_module_o *module;
+			le_render_module_o* module;
 			size_t              current_frame_number;
-			le_jobs::counter_t *shader_counter;
+			le_jobs::counter_t* shader_counter;
 		};
 
-		auto record_frame_fun = []( void *param_ ) {
-			auto p = static_cast<record_params_t *>( param_ );
+		auto record_frame_fun = []( void* param_ ) {
+			auto p = static_cast<record_params_t*>( param_ );
 			// generate an intermediary, api-agnostic, representation of the frame
 
 			le_jobs::wait_for_counter_and_free( p->shader_counter, 0 );
 			renderer_record_frame( p->renderer, p->frame_index, p->module, p->current_frame_number );
 		};
 
-		auto process_frame_fun = []( void *param_ ) {
-			auto p = static_cast<frame_params_t *>( param_ );
+		auto process_frame_fun = []( void* param_ ) {
+			auto p = static_cast<frame_params_t*>( param_ );
 			// acquire external backend resources such as swapchain
 			// and create any temporary resources
 			renderer_acquire_backend_resources( p->renderer, p->frame_index );
@@ -710,8 +710,8 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			renderer_dispatch_frame( p->renderer, p->frame_index );
 		};
 
-		auto clear_frame_fun = []( void *param_ ) {
-			auto p = static_cast<frame_params_t *>( param_ );
+		auto clear_frame_fun = []( void* param_ ) {
+			auto p = static_cast<frame_params_t*>( param_ );
 			renderer_clear_frame( p->renderer, p->frame_index );
 		};
 
@@ -736,7 +736,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		jobs[ 1 ] = { clear_frame_fun, &clear_frame_params };
 		jobs[ 2 ] = { record_frame_fun, &record_frame_params };
 
-		le_jobs::counter_t *counter;
+		le_jobs::counter_t* counter;
 
 		assert( self->backend );
 
@@ -797,7 +797,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 
 	res.type = LeResourceType::eImage;
 	{
-		auto &img                   = res.image;
+		auto& img                   = res.image;
 		img                         = {};
 		img.flags                   = 0;
 		img.format                  = le::Format::eUndefined;
@@ -829,14 +829,14 @@ static le_resource_info_t get_default_resource_info_for_buffer() {
 	return res;
 }
 
-extern void register_le_rendergraph_api( void *api );            // in le_rendergraph.cpp
-extern void register_le_command_buffer_encoder_api( void *api ); // in le_command_buffer_encoder.cpp
+extern void register_le_rendergraph_api( void* api );            // in le_rendergraph.cpp
+extern void register_le_command_buffer_encoder_api( void* api ); // in le_command_buffer_encoder.cpp
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
-	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api );
-	auto &le_renderer_i     = le_renderer_api_i->le_renderer_i;
+	auto  le_renderer_api_i = static_cast<le_renderer_api*>( api );
+	auto& le_renderer_i     = le_renderer_api_i->le_renderer_i;
 
 	le_renderer_i.create                 = renderer_create;
 	le_renderer_i.destroy                = renderer_destroy;
@@ -855,7 +855,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.create_rtx_blas_info = renderer_create_rtx_blas_info_handle;
 	le_renderer_i.create_rtx_tlas_info = renderer_create_rtx_tlas_info_handle;
 
-	auto &helpers_i = le_renderer_api_i->helpers_i;
+	auto& helpers_i = le_renderer_api_i->helpers_i;
 
 	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
 	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;

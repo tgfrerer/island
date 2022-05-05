@@ -69,12 +69,12 @@ LE_MODULE_LOAD_DEFAULT( le_log );
 
 namespace le_log {
 
-static const auto &api              = le_log_api_i;
-static const auto &le_log_channel_i = api -> le_log_channel_i;
+static const auto& api              = le_log_api_i;
+static const auto& le_log_channel_i = api -> le_log_channel_i;
 } // namespace le_log
 
 class LeLog {
-	le_log_channel_o *channel;
+	le_log_channel_o* channel;
 
   public:
 	using Level = le_log_api::Level;
@@ -82,77 +82,77 @@ class LeLog {
 	    : channel( le_log::api->get_channel( nullptr ) ) {
 	}
 
-	LeLog( le_log_channel_o *channel_ )
+	LeLog( le_log_channel_o* channel_ )
 	    : channel( channel_ ) {
 	}
 
-	LeLog( char const *channel_name )
+	LeLog( char const* channel_name )
 	    : channel( le_log::api->get_channel( channel_name ) ) {
 	}
 
-	inline void set_level( const Level &level ) {
+	inline void set_level( const Level& level ) {
 		le_log::le_log_channel_i.set_level( channel, level );
 	}
 
 	template <class... Args>
-	inline void debug( const char *msg, Args &&...args ) {
+	inline void debug( const char* msg, Args&&... args ) {
 #	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_DEBUG
-		le_log::le_log_channel_i.debug( channel, msg, static_cast<Args &&>( args )... );
+		le_log::le_log_channel_i.debug( channel, msg, static_cast<Args&&>( args )... );
 #	endif
 	}
 
 	template <class... Args>
-	inline void info( const char *msg, Args &&...args ) {
+	inline void info( const char* msg, Args&&... args ) {
 #	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_INFO
-		le_log::le_log_channel_i.info( channel, msg, static_cast<Args &&>( args )... );
+		le_log::le_log_channel_i.info( channel, msg, static_cast<Args&&>( args )... );
 #	endif
 	}
 
 	template <class... Args>
-	inline void warn( const char *msg, Args &&...args ) {
+	inline void warn( const char* msg, Args&&... args ) {
 #	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_WARN
-		le_log::le_log_channel_i.warn( channel, msg, static_cast<Args &&>( args )... );
+		le_log::le_log_channel_i.warn( channel, msg, static_cast<Args&&>( args )... );
 #	endif
 	}
 
 	template <class... Args>
-	inline void error( const char *msg, Args &&...args ) {
+	inline void error( const char* msg, Args&&... args ) {
 #	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_ERROR
-		le_log::le_log_channel_i.error( channel, msg, static_cast<Args &&>( args )... );
+		le_log::le_log_channel_i.error( channel, msg, static_cast<Args&&>( args )... );
 #	endif
 	}
 };
 // ----------------------------------------------------------------------
 
-static inline void le_log_set_level( const LeLog::Level &level ) {
+static inline void le_log_set_level( const LeLog::Level& level ) {
 	le_log::le_log_channel_i.set_level( nullptr, level );
 }
 
 template <typename... Args>
-static inline void le_log_debug( const char *msg, Args &&...args ) {
+static inline void le_log_debug( const char* msg, Args&&... args ) {
 #	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_DEBUG
-	le_log::le_log_channel_i.debug( nullptr, msg, static_cast<Args &&>( args )... );
+	le_log::le_log_channel_i.debug( nullptr, msg, static_cast<Args&&>( args )... );
 #	endif
 }
 
 template <typename... Args>
-static inline void le_log_info( const char *msg, Args &&...args ) {
+static inline void le_log_info( const char* msg, Args&&... args ) {
 #	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_INFO
-	le_log::le_log_channel_i.info( nullptr, msg, static_cast<Args &&>( args )... );
+	le_log::le_log_channel_i.info( nullptr, msg, static_cast<Args&&>( args )... );
 #	endif
 }
 
 template <typename... Args>
-static inline void le_log_warn( const char *msg, Args &&...args ) {
+static inline void le_log_warn( const char* msg, Args&&... args ) {
 #	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_WARN
-	le_log::le_log_channel_i.warn( nullptr, msg, static_cast<Args &&>( args )... );
+	le_log::le_log_channel_i.warn( nullptr, msg, static_cast<Args&&>( args )... );
 #	endif
 }
 
 template <typename... Args>
-static inline void le_log_error( const char *msg, Args &&...args ) {
+static inline void le_log_error( const char* msg, Args&&... args ) {
 #	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_ERROR
-	le_log::le_log_channel_i.error( nullptr, msg, static_cast<Args &&>( args )... );
+	le_log::le_log_channel_i.error( nullptr, msg, static_cast<Args&&>( args )... );
 #	endif
 }
 

@@ -50,11 +50,11 @@ static void app_terminate() {
 	le::Window::terminate();
 };
 
-static void reset_camera( multi_window_example_app_o *self ); // ffdecl.
+static void reset_camera( multi_window_example_app_o* self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
-static multi_window_example_app_o *app_create() {
+static multi_window_example_app_o* app_create() {
 	auto app = new ( multi_window_example_app_o );
 
 	le::Window::Settings settings_0;
@@ -95,7 +95,7 @@ static multi_window_example_app_o *app_create() {
 
 // ----------------------------------------------------------------------
 
-static void reset_camera( multi_window_example_app_o *self ) {
+static void reset_camera( multi_window_example_app_o* self ) {
 	uint32_t screenWidth{};
 	uint32_t screenHeight{};
 	self->renderer.getSwapchainExtent( &screenWidth, &screenHeight );
@@ -103,14 +103,14 @@ static void reset_camera( multi_window_example_app_o *self ) {
 	self->camera.setViewport( { 0, float( screenHeight ), float( screenWidth ), -float( screenHeight ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
-	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+	self->camera.setViewMatrix( reinterpret_cast<float const*>( &camMatrix ) );
 	self->camera.setClipDistances( 10, 10000 );
 }
 
 // ----------------------------------------------------------------------
 
-static void pass_to_window_0( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<multi_window_example_app_o *>( user_data );
+static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<multi_window_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	uint32_t screenWidth, screenHeight;
@@ -176,11 +176,11 @@ static void pass_to_window_0( le_command_buffer_encoder_o *encoder_, void *user_
 	        .end()
 	        .build();
 
-	uint16_t const *meshIndices  = nullptr;
-	float const *   meshVertices = nullptr;
-	float const *   meshColours  = nullptr;
-	float const *   meshNormals  = nullptr;
-	float const *   meshUvs      = nullptr;
+	uint16_t const* meshIndices  = nullptr;
+	float const*    meshVertices = nullptr;
+	float const*    meshColours  = nullptr;
+	float const*    meshNormals  = nullptr;
+	float const*    meshUvs      = nullptr;
 	size_t          numVertices  = 0;
 	size_t          numIndices   = 0;
 	app->mesh.getData( numVertices, numIndices, &meshVertices, &meshNormals, &meshUvs, &meshColours, &meshIndices );
@@ -210,8 +210,8 @@ static void pass_to_window_0( le_command_buffer_encoder_o *encoder_, void *user_
 
 // ----------------------------------------------------------------------
 
-static void pass_to_window_1( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<multi_window_example_app_o *>( user_data );
+static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<multi_window_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	uint32_t screenWidth, screenHeight;
@@ -276,11 +276,11 @@ static void pass_to_window_1( le_command_buffer_encoder_o *encoder_, void *user_
 	        .end()
 	        .build();
 
-	uint16_t const *meshIndices  = nullptr;
-	float const *   meshVertices = nullptr;
-	float const *   meshColours  = nullptr;
-	float const *   meshNormals  = nullptr;
-	float const *   meshUvs      = nullptr;
+	uint16_t const* meshIndices  = nullptr;
+	float const*    meshVertices = nullptr;
+	float const*    meshColours  = nullptr;
+	float const*    meshNormals  = nullptr;
+	float const*    meshUvs      = nullptr;
 	size_t          numVertices  = 0;
 	size_t          numIndices   = 0;
 	app->mesh.getData( numVertices, numIndices, &meshVertices, &meshNormals, &meshUvs, &meshColours, &meshIndices );
@@ -309,10 +309,10 @@ static void pass_to_window_1( le_command_buffer_encoder_o *encoder_, void *user_
 }
 
 // ----------------------------------------------------------------------
-static void app_process_ui_events( app_o *self ) {
+static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
-	LeUiEvent const *pEvents;
+	LeUiEvent const* pEvents;
 
 	// Process keyboard events - but only on window 0
 	// You could repeat this to process events on window 1
@@ -323,10 +323,10 @@ static void app_process_ui_events( app_o *self ) {
 
 	bool wantsToggle = false;
 
-	for ( auto &event : events ) {
+	for ( auto& event : events ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eKey ): {
-			auto &e = event.key;
+			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
 					wantsToggle ^= true;
@@ -377,7 +377,7 @@ static void app_process_ui_events( app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool app_update( multi_window_example_app_o *self ) {
+static bool app_update( multi_window_example_app_o* self ) {
 
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
@@ -455,7 +455,7 @@ static bool app_update( multi_window_example_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void app_destroy( multi_window_example_app_o *self ) {
+static void app_destroy( multi_window_example_app_o* self ) {
 
 	delete ( self ); // deletes camera
 }
@@ -463,8 +463,8 @@ static void app_destroy( multi_window_example_app_o *self ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( multi_window_example_app, api ) {
-	auto  multi_window_example_app_api_i = static_cast<multi_window_example_app_api *>( api );
-	auto &multi_window_example_app_i     = multi_window_example_app_api_i->multi_window_example_app_i;
+	auto  multi_window_example_app_api_i = static_cast<multi_window_example_app_api*>( api );
+	auto& multi_window_example_app_i     = multi_window_example_app_api_i->multi_window_example_app_i;
 
 	multi_window_example_app_i.initialize = app_initialize;
 	multi_window_example_app_i.terminate  = app_terminate;

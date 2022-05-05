@@ -103,12 +103,12 @@ static glm::vec4 lensflareData[] = {
 
 // ----------------------------------------------------------------------
 
-static void hello_world_app_process_ui_events( hello_world_app_o *self ); // ffdecl
-static void reset_camera( hello_world_app_o *self );                      // ffdecl
+static void hello_world_app_process_ui_events( hello_world_app_o* self ); // ffdecl
+static void reset_camera( hello_world_app_o* self );                      // ffdecl
 
 // ----------------------------------------------------------------------
 
-static hello_world_app_o *hello_world_app_create() {
+static hello_world_app_o* hello_world_app_create() {
 	auto app = new ( hello_world_app_o );
 
 	le::Window::Settings settings;
@@ -163,7 +163,7 @@ static hello_world_app_o *hello_world_app_create() {
 
 	// load pixels for earth albedo
 
-	const char *image_paths[] = {
+	const char* image_paths[] = {
 	    "./local_resources/images/world_winter.jpg",
 	    "./local_resources/images/earth_city_lights_8192_rs.png",
 	    "./local_resources/images/storm_clouds_8k.jpg",
@@ -189,16 +189,16 @@ static hello_world_app_o *hello_world_app_create() {
 
 // ----------------------------------------------------------------------
 
-static void reset_camera( hello_world_app_o *self ) {
+static void reset_camera( hello_world_app_o* self ) {
 	le::Extent2D swapchainExtent{};
 	self->renderer.getSwapchainExtent( &swapchainExtent.width, &swapchainExtent.height );
 	self->camera.setViewport( { 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ), 0.f, 1.f } );
 	self->camera.setClipDistances( 100.f, 150000.f );
 	self->camera.setFovRadians( glm::radians( 25.f ) ); // glm::radians converts degrees to radians
 
-	//glm::mat4 camMatrix = glm::lookAt( glm::vec3{30000, -10000, 20000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	// glm::mat4 camMatrix = glm::lookAt( glm::vec3{30000, -10000, 20000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	glm::mat4 camMatrix = glm::mat4{ { 0.585995, 0.191119, 0.787454, -0.000000 }, { -0.049265, 0.978394, -0.200800, 0.000000 }, { -0.808816, 0.078874, 0.582749, -0.000000 }, { 3039.844482, 3673.605225, -15533.671875, 1.000000 } };
-	//glm::mat4 camMatrix = glm::mat4{{-0.254149, 0.880418, 0.400359, -0.000000}, {0.633864, 0.464280, -0.618607, 0.000000}, {-0.730506, 0.096555, -0.676056, 0.000000}, {-792.769653, 1875.776367, -15593.370117, 1.000000}};
+	// glm::mat4 camMatrix = glm::mat4{{-0.254149, 0.880418, 0.400359, -0.000000}, {0.633864, 0.464280, -0.618607, 0.000000}, {-0.730506, 0.096555, -0.676056, 0.000000}, {-792.769653, 1875.776367, -15593.370117, 1.000000}};
 	self->camera.setViewMatrixGlm( camMatrix );
 }
 
@@ -206,7 +206,7 @@ static void reset_camera( hello_world_app_o *self ) {
 
 // Returns whether a ray from the sun is obscured by earth,
 // If false, tells us the closest distance ray / earth centre
-static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o *self, float &howClose ) {
+static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o* self, float& howClose ) {
 
 	// We're following the recipe from
 	// "Real-Time Rendering", by Akenine-Moeller et al., 3rd. ed. pp. 740
@@ -262,11 +262,11 @@ static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o *self, 
 
 // ----------------------------------------------------------------------
 
-typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
+typedef bool ( *renderpass_setup )( le_renderpass_o* pRp, void* user_data );
 
-static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
+static bool pass_resource_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto rp  = le::RenderPass{ pRp };
-	auto app = static_cast<hello_world_app_o *>( user_data );
+	auto app = static_cast<hello_world_app_o*>( user_data );
 
 	rp
 	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } )
@@ -278,22 +278,22 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<hello_world_app_o *>( user_data );
+static void pass_resource_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<hello_world_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	if ( false == app->worldGeometry.wasLoaded ) {
 
 		// fetch sphere geometry
-		auto &geom = app->worldGeometry;
+		auto& geom = app->worldGeometry;
 
-		uint16_t const *sphereIndices{};
-		float const *   sphereVertices{};
-		float const *   sphereNormals{};
-		float const *   sphereUvs{};
+		uint16_t const* sphereIndices{};
+		float const*    sphereVertices{};
+		float const*    sphereNormals{};
+		float const*    sphereUvs{};
 		size_t          numVertices{};
 		size_t          numIndices{};
-		float const *   sphereTangents{};
+		float const*    sphereTangents{};
 		app->sphereMesh.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, nullptr, &sphereIndices );
 		size_t numTangents;
 		app->sphereMesh.getTangents( numTangents, &sphereTangents );
@@ -328,9 +328,9 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 
 // ----------------------------------------------------------------------
 
-static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
+static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto rp  = le::RenderPass{ pRp };
-	auto app = static_cast<hello_world_app_o *>( user_data );
+	auto app = static_cast<hello_world_app_o*>( user_data );
 
 	auto texInfoAlbedo =
 	    le::ImageSamplerInfoBuilder()
@@ -397,8 +397,8 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<hello_world_app_o *>( user_data );
+static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<hello_world_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	le::Extent2D passExtent = encoder.getRenderpassExtent();
@@ -624,7 +624,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 // ----------------------------------------------------------------------
 
-static bool hello_world_app_update( hello_world_app_o *self ) {
+static bool hello_world_app_update( hello_world_app_o* self ) {
 
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
@@ -695,20 +695,20 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
+static void hello_world_app_process_ui_events( hello_world_app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
-	LeUiEvent const *pEvents;
+	LeUiEvent const* pEvents;
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
 	bool wantsToggle = false;
 
-	for ( auto &event : events ) {
+	for ( auto& event : events ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eKey ): {
-			auto &e = event.key;
+			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
 					wantsToggle ^= true;
@@ -748,7 +748,7 @@ static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void hello_world_app_destroy( hello_world_app_o *self ) {
+static void hello_world_app_destroy( hello_world_app_o* self ) {
 
 	delete ( self ); // deletes camera
 }
@@ -768,8 +768,8 @@ static void app_terminate() {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( hello_world_app, api ) {
-	auto  hello_world_app_api_i = static_cast<hello_world_app_api *>( api );
-	auto &hello_world_app_i     = hello_world_app_api_i->hello_world_app_i;
+	auto  hello_world_app_api_i = static_cast<hello_world_app_api*>( api );
+	auto& hello_world_app_i     = hello_world_app_api_i->hello_world_app_i;
 
 	hello_world_app_i.initialize = app_initialize;
 	hello_world_app_i.terminate  = app_terminate;

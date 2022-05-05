@@ -44,7 +44,7 @@ struct bitonic_merge_sort_example_app_o {
 	le::Renderer   renderer;
 	uint64_t       frame_counter = 0;
 	glm::vec2      mouse_pos;
-	pixels_data_t *pixels_data;
+	pixels_data_t* pixels_data;
 	std::string    dropped_image_path;
 	slow_mo_t      slow_mo;
 	DataSourceType data_source_type; // whether data should come from random noise, or a loaded image.
@@ -67,7 +67,7 @@ static void app_terminate() {
 
 // ----------------------------------------------------------------------
 
-static bitonic_merge_sort_example_app_o *bitonic_merge_sort_example_app_create() {
+static bitonic_merge_sort_example_app_o* bitonic_merge_sort_example_app_create() {
 	auto app = new ( bitonic_merge_sort_example_app_o );
 
 	le::Window::Settings settings;
@@ -102,17 +102,17 @@ static bitonic_merge_sort_example_app_o *bitonic_merge_sort_example_app_create()
 
 // ----------------------------------------------------------------------
 
-static void bitonic_merge_sort_example_app_destroy( bitonic_merge_sort_example_app_o *self ) {
+static void bitonic_merge_sort_example_app_destroy( bitonic_merge_sort_example_app_o* self ) {
 	delete self->pixels_data;
 	delete ( self ); // deletes camera
 }
 
 // ----------------------------------------------------------------------
 
-static void app_process_ui_events( app_o *self ) {
+static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
-	LeUiEvent const *pEvents;
+	LeUiEvent const* pEvents;
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
 	LeLog logger( "app" );
@@ -121,10 +121,10 @@ static void app_process_ui_events( app_o *self ) {
 
 	bool wantsToggle = false;
 
-	for ( auto &event : events ) {
+	for ( auto& event : events ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eKey ): {
-			auto &e = event.key;
+			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
 					wantsToggle ^= true;
@@ -146,12 +146,12 @@ static void app_process_ui_events( app_o *self ) {
 			}
 		} break;
 		case ( LeUiEvent::Type::eCursorPosition ): {
-			auto &e         = event.cursorPosition;
+			auto& e         = event.cursorPosition;
 			self->mouse_pos = glm::vec2{ e.x, e.y };
 			break;
 		}
 		case ( LeUiEvent::Type::eDrop ): {
-			auto &e = event.drop;
+			auto& e = event.drop;
 			if ( e.paths_count ) {
 				// only take the first path
 				self->dropped_image_path      = e.paths_utf8[ 0 ];
@@ -174,9 +174,9 @@ static void app_process_ui_events( app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool pass_noise_setup( le_renderpass_o *renderpass_, void *user_data ) {
+static bool pass_noise_setup( le_renderpass_o* renderpass_, void* user_data ) {
 	le::RenderPass rp{ renderpass_ };
-	auto           app = static_cast<app_o *>( user_data );
+	auto           app = static_cast<app_o*>( user_data );
 
 	if ( app->source_dirty && app->data_source_type == DataSourceType::eNoise ) {
 		rp.useBufferResource( app->pixels_data->handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } );
@@ -191,9 +191,9 @@ static bool pass_noise_setup( le_renderpass_o *renderpass_, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static bool pass_upload_image_setup( le_renderpass_o *rp_, void *user_data ) {
+static bool pass_upload_image_setup( le_renderpass_o* rp_, void* user_data ) {
 	le::RenderPass rp{ rp_ };
-	auto           app = static_cast<app_o *>( user_data );
+	auto           app = static_cast<app_o*>( user_data );
 
 	if ( app->source_dirty && app->data_source_type == DataSourceType::eImage && !app->dropped_image_path.empty() ) {
 		rp.useBufferResource( app->pixels_data->handle, { LE_BUFFER_USAGE_STORAGE_BUFFER_BIT } );
@@ -208,8 +208,8 @@ static bool pass_upload_image_setup( le_renderpass_o *rp_, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static bool pass_sort_setup( le_renderpass_o *rp_, void *user_data ) {
-	auto           app = static_cast<app_o *>( user_data );
+static bool pass_sort_setup( le_renderpass_o* rp_, void* user_data ) {
+	auto           app = static_cast<app_o*>( user_data );
 	le::RenderPass rp{ rp_ };
 
 	if ( app->pixels_data->unsorted == true ) {
@@ -221,9 +221,9 @@ static bool pass_sort_setup( le_renderpass_o *rp_, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_noise_execute( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+static void pass_noise_execute( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	le::Encoder encoder{ encoder_ };
-	auto        app = static_cast<app_o *>( user_data );
+	auto        app = static_cast<app_o*>( user_data );
 
 	std::vector<uint32_t> buffer_initial_data;
 	buffer_initial_data.reserve( app->pixels_data->w * app->pixels_data->h * app->pixels_data->num_channels );
@@ -248,8 +248,8 @@ static void pass_noise_execute( le_command_buffer_encoder_o *encoder_, void *use
 
 // ----------------------------------------------------------------------
 
-static void pass_upload_image_execute( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto         app = static_cast<app_o *>( user_data );
+static void pass_upload_image_execute( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto         app = static_cast<app_o*>( user_data );
 	static LeLog log( "app" );
 
 	// we must load image from disk
@@ -293,14 +293,14 @@ static void pass_upload_image_execute( le_command_buffer_encoder_o *encoder_, vo
 
 //----------------------------------------------------------------------
 
-static void pass_sort_execute( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 
 	LeLog log( "app" );
 
 	log.info( "running compute pass..." );
 
 	le::Encoder encoder{ encoder_ };
-	auto        app = static_cast<app_o *>( user_data );
+	auto        app = static_cast<app_o*>( user_data );
 
 	size_t n = app->pixels_data->w * app->pixels_data->h;
 
@@ -449,13 +449,13 @@ static void pass_sort_execute( le_command_buffer_encoder_o *encoder_, void *user
 
 // ----------------------------------------------------------------------
 // Draw contents of buffer to screen
-static void pass_draw_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<bitonic_merge_sort_example_app_o *>( user_data );
+static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<bitonic_merge_sort_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	// Draw main scene
 
-	static std::string defines_str = []( app_o *app ) -> std::string {
+	static std::string defines_str = []( app_o* app ) -> std::string {
 		std::ostringstream os;
 		os << "BUF_W=" << app->pixels_data->w << ",BUF_H=" << app->pixels_data->h;
 		return os.str();
@@ -484,7 +484,7 @@ static void pass_draw_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 // ----------------------------------------------------------------------
 
-static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_app_o *self ) {
+static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_app_o* self ) {
 
 	// Polls events for all windows
 	// Use `self->window.getUIEventQueue()` to fetch events.
@@ -552,8 +552,8 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 
 LE_MODULE_REGISTER_IMPL( bitonic_merge_sort_example_app, api ) {
 
-	auto  bitonic_merge_sort_example_app_api_i = static_cast<bitonic_merge_sort_example_app_api *>( api );
-	auto &bitonic_merge_sort_example_app_i     = bitonic_merge_sort_example_app_api_i->bitonic_merge_sort_example_app_i;
+	auto  bitonic_merge_sort_example_app_api_i = static_cast<bitonic_merge_sort_example_app_api*>( api );
+	auto& bitonic_merge_sort_example_app_i     = bitonic_merge_sort_example_app_api_i->bitonic_merge_sort_example_app_i;
 
 	bitonic_merge_sort_example_app_i.initialize = app_initialize;
 	bitonic_merge_sort_example_app_i.terminate  = app_terminate;

@@ -23,7 +23,7 @@ if (${PLUGINS_DYNAMIC})
     add_dynamic_linker_flags()
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 else()
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
+    add_static_lib(${TARGET})
     add_library(${TARGET} STATIC ${SOURCES})
 endif()
 

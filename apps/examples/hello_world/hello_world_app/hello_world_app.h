@@ -29,13 +29,13 @@ LE_MODULE_LOAD_DEFAULT( hello_world_app );
 #ifdef __cplusplus
 
 namespace hello_world_app {
-static const auto &api               = hello_world_app_api_i;
-static const auto &hello_world_app_i = api -> hello_world_app_i;
+static const auto& api               = hello_world_app_api_i;
+static const auto& hello_world_app_i = api -> hello_world_app_i;
 } // namespace hello_world_app
 
 class HelloWorldApp : NoCopy, NoMove {
 
-	hello_world_app_o *self;
+	hello_world_app_o* self;
 
   public:
 	HelloWorldApp()

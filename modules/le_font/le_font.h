@@ -61,9 +61,9 @@ LE_MODULE_LOAD_DEFAULT( le_font );
 #ifdef __cplusplus
 
 namespace le_font {
-static const auto &api              = le_font_api_i;
-static const auto &le_font_i        = api -> le_font_i;
-static const auto &le_utf8_iterator = api -> le_utf8_iterator;
+static const auto& api              = le_font_api_i;
+static const auto& le_font_i        = api -> le_font_i;
+static const auto& le_utf8_iterator = api -> le_utf8_iterator;
 
 } // namespace le_font
 
@@ -71,10 +71,10 @@ namespace le {
 
 class Font : NoCopy, NoMove {
 
-	le_font_o *self;
+	le_font_o* self;
 
   public:
-	Font( char const *font_filename, float font_size = 24.f )
+	Font( char const* font_filename, float font_size = 24.f )
 	    : self( le_font::le_font_i.create( font_filename, font_size ) ) {
 	}
 
@@ -82,7 +82,7 @@ class Font : NoCopy, NoMove {
 		return le_font::le_font_i.create_atlas( self );
 	}
 
-	bool getAtlas( uint8_t const **pixels, uint32_t &width, uint32_t &height, uint32_t &pix_stride_in_bytes ) {
+	bool getAtlas( uint8_t const** pixels, uint32_t& width, uint32_t& height, uint32_t& pix_stride_in_bytes ) {
 		return le_font::le_font_i.get_atlas( self, pixels, &width, &height, &pix_stride_in_bytes );
 	}
 

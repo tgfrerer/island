@@ -37,7 +37,7 @@ struct SurfaceProperties {
 
 struct swp_direct_data_o {
 	le_swapchain_settings_t mSettings                      = {};
-	le_backend_o *          backend                        = nullptr;
+	le_backend_o*           backend                        = nullptr;
 	uint32_t                mImagecount                    = 0;
 	uint32_t                mImageIndex                    = uint32_t( ~0 ); // current image index
 	vk::SwapchainKHR        swapchainKHR                   = nullptr;
@@ -53,7 +53,7 @@ struct swp_direct_data_o {
 #ifdef _MSC_VER
 
 #else
-	Display *x11_display = nullptr;
+	Display* x11_display = nullptr;
 #endif
 
 	vk::DisplayKHR                            display                 = nullptr;
@@ -63,13 +63,13 @@ struct swp_direct_data_o {
 
 // ----------------------------------------------------------------------
 
-static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
+static inline vk::Format le_format_to_vk( const le::Format& format ) noexcept {
 	return vk::Format( format );
 }
 
 // ----------------------------------------------------------------------
 
-static inline void vk_result_assert_success( vk::Result const &&result ) {
+static inline void vk_result_assert_success( vk::Result const&& result ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( result != vk::Result::eSuccess ) {
@@ -79,15 +79,15 @@ static inline void vk_result_assert_success( vk::Result const &&result ) {
 }
 // ----------------------------------------------------------------------
 
-static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
+static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 
 	// we need to find out if the current physical device supports PRESENT
 
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
 	using namespace le_backend_vk;
 
-	auto &surfaceProperties = self->mSurfaceProperties;
+	auto& surfaceProperties = self->mSurfaceProperties;
 
 	vk_result_assert_success(
 	    self->physicalDevice.getSurfaceSupportKHR(
@@ -147,7 +147,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 
 // ----------------------------------------------------------------------
 
-static vk::PresentModeKHR get_direct_presentmode( const le_swapchain_settings_t::khr_settings_t::Presentmode &presentmode_hint_ ) {
+static vk::PresentModeKHR get_direct_presentmode( const le_swapchain_settings_t::khr_settings_t::Presentmode& presentmode_hint_ ) {
 	using PresentMode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 	switch ( presentmode_hint_ ) {
 	case ( PresentMode::eDefault ):
@@ -171,8 +171,8 @@ static vk::PresentModeKHR get_direct_presentmode( const le_swapchain_settings_t:
 
 // ----------------------------------------------------------------------
 
-static void swapchain_attach_images( le_swapchain_o *base ) {
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+static void swapchain_attach_images( le_swapchain_o* base ) {
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
 	auto result = self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, nullptr );
 	ASSERT_VK_SUCCESS( result );
@@ -186,16 +186,16 @@ static void swapchain_attach_images( le_swapchain_o *base ) {
 // ----------------------------------------------------------------------
 
 template <typename T>
-static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
+static inline auto clamp( const T& val_, const T& min_, const T& max_ ) {
 	return std::max( min_, ( std::min( val_, max_ ) ) );
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_settings_t *settings_ ) {
+static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_settings_t* settings_ ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
@@ -214,8 +214,8 @@ static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_set
 
 	vk::SwapchainKHR oldSwapchain = self->swapchainKHR;
 
-	const vk::SurfaceCapabilitiesKHR &       surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities;
-	const std::vector<::vk::PresentModeKHR> &presentModes        = self->mSurfaceProperties.presentmodes;
+	const vk::SurfaceCapabilitiesKHR&        surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities;
+	const std::vector<::vk::PresentModeKHR>& presentModes        = self->mSurfaceProperties.presentmodes;
 
 	// Either set or get the swapchain surface extents
 
@@ -229,7 +229,7 @@ static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_set
 
 	auto presentModeHint = get_direct_presentmode( self->mSettings.khr_settings.presentmode_hint );
 
-	for ( auto &p : presentModes ) {
+	for ( auto& p : presentModes ) {
 		if ( p == presentModeHint ) {
 			self->mPresentMode = p;
 			break;
@@ -293,13 +293,13 @@ static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_set
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_settings_t *settings ) {
+static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapchain_interface_t& interface, le_backend_o* backend, const le_swapchain_settings_t* settings ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto base  = new le_swapchain_o( interface );
 	base->data = new swp_direct_data_o{};
-	auto self  = static_cast<swp_direct_data_o *>( base->data );
+	auto self  = static_cast<swp_direct_data_o*>( base->data );
 
 	self->backend = backend;
 
@@ -381,9 +381,9 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 // ----------------------------------------------------------------------
 
-static void swapchain_direct_destroy( le_swapchain_o *base ) {
+static void swapchain_direct_destroy( le_swapchain_o* base ) {
 
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
 	vk::Device device = self->device;
 
@@ -407,9 +407,9 @@ static void swapchain_direct_destroy( le_swapchain_o *base ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_direct_acquire_next_image( le_swapchain_o *base, VkSemaphore semaphorePresentComplete_, uint32_t &imageIndex_ ) {
+static bool swapchain_direct_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete_, uint32_t& imageIndex_ ) {
 
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
@@ -433,9 +433,9 @@ static bool swapchain_direct_acquire_next_image( le_swapchain_o *base, VkSemapho
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_direct_present( le_swapchain_o *base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
+static bool swapchain_direct_present( le_swapchain_o* base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t* pImageIndex ) {
 
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
 	vk::PresentInfoKHR presentInfo;
 
@@ -449,7 +449,7 @@ static bool swapchain_direct_present( le_swapchain_o *base, VkQueue queue_, VkSe
 	    .setPImageIndices( pImageIndex )
 	    .setPResults( nullptr );
 
-	auto result = vkQueuePresentKHR( queue_, reinterpret_cast<VkPresentInfoKHR *>( &presentInfo ) );
+	auto result = vkQueuePresentKHR( queue_, reinterpret_cast<VkPresentInfoKHR*>( &presentInfo ) );
 
 	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
 		return false;
@@ -460,9 +460,9 @@ static bool swapchain_direct_present( le_swapchain_o *base, VkQueue queue_, VkSe
 
 // ----------------------------------------------------------------------
 
-static VkImage swapchain_direct_get_image( le_swapchain_o *base, uint32_t index ) {
+static VkImage swapchain_direct_get_image( le_swapchain_o* base, uint32_t index ) {
 
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
 #ifndef NDEBUG
 	assert( index < self->mImageRefs.size() );
@@ -472,37 +472,37 @@ static VkImage swapchain_direct_get_image( le_swapchain_o *base, uint32_t index 
 
 // ----------------------------------------------------------------------
 
-static VkSurfaceFormatKHR *swapchain_direct_get_surface_format( le_swapchain_o *base ) {
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
-	return &reinterpret_cast<VkSurfaceFormatKHR &>( self->mSurfaceProperties.windowSurfaceFormat );
+static VkSurfaceFormatKHR* swapchain_direct_get_surface_format( le_swapchain_o* base ) {
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
+	return &reinterpret_cast<VkSurfaceFormatKHR&>( self->mSurfaceProperties.windowSurfaceFormat );
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_direct_get_image_width( le_swapchain_o *base ) {
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+static uint32_t swapchain_direct_get_image_width( le_swapchain_o* base ) {
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 	return self->mSwapchainExtent.width;
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_direct_get_image_height( le_swapchain_o *base ) {
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+static uint32_t swapchain_direct_get_image_height( le_swapchain_o* base ) {
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 	return self->mSwapchainExtent.height;
 }
 
 // ----------------------------------------------------------------------
 
-static size_t swapchain_direct_get_swapchain_images_count( le_swapchain_o *base ) {
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
+static size_t swapchain_direct_get_swapchain_images_count( le_swapchain_o* base ) {
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 	return self->mImagecount;
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t *, char const ***exts, size_t *num_exts ) {
+static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
 
-	static std::array<char const *, 6> extensions = {
+	static std::array<char const*, 6> extensions = {
 	    VK_KHR_DISPLAY_EXTENSION_NAME,
 	    "VK_EXT_direct_mode_display",
 	    "VK_KHR_xlib_surface",
@@ -517,9 +517,9 @@ static void swapchain_get_required_vk_instance_extensions( const le_swapchain_se
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t *, char const ***exts, size_t *num_exts ) {
+static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
 
-	static std::array<char const *, 2> extensions = {
+	static std::array<char const*, 2> extensions = {
 	    "VK_EXT_display_control",
 	    "VK_KHR_swapchain",
 	};
@@ -530,9 +530,9 @@ static void swapchain_get_required_vk_device_extensions( const le_swapchain_sett
 
 // ----------------------------------------------------------------------
 
-void register_le_swapchain_direct_api( void *api_ ) {
-	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
-	auto &swapchain_i = api->swapchain_direct_i;
+void register_le_swapchain_direct_api( void* api_ ) {
+	auto  api         = static_cast<le_swapchain_vk_api*>( api_ );
+	auto& swapchain_i = api->swapchain_direct_i;
 
 	swapchain_i.create                              = swapchain_direct_create;
 	swapchain_i.destroy                             = swapchain_direct_destroy;

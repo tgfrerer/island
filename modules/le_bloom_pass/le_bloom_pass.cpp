@@ -14,15 +14,15 @@
 
 static void
 le_render_module_add_blit_pass(
-    le_render_module_o *          module,
-    le_img_resource_handle const &input,
-    le_img_resource_handle const &output ) {
+    le_render_module_o*           module,
+    le_img_resource_handle const& input,
+    le_img_resource_handle const& output ) {
 
 	static auto SRC_TEX_UNIT_0 = le::Renderer::produceTextureHandle( "src_tex_unit_0" );
 
-	auto pass_blit_exec = []( le_command_buffer_encoder_o *encoder_, void * ) {
+	auto pass_blit_exec = []( le_command_buffer_encoder_o* encoder_, void* ) {
 		le::Encoder encoder{ encoder_ };
-		auto *      pm = encoder.getPipelineManager();
+		auto*       pm = encoder.getPipelineManager();
 
 		static auto quadVert = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
 		static auto blitFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/fullscreenQuad.frag" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_frag" ) ).build();
@@ -55,12 +55,12 @@ le_render_module_add_blit_pass(
 
 static void
 le_render_module_add_bloom_pass(
-    le_render_module_o *          module,
-    le_img_resource_handle const &input,
-    le_img_resource_handle const &output,
-    uint32_t const &              width,
-    uint32_t const &              height,
-    le_bloom_pass_api::params_t * params ) {
+    le_render_module_o*           module,
+    le_img_resource_handle const& input,
+    le_img_resource_handle const& output,
+    uint32_t const&               width,
+    uint32_t const&               height,
+    le_bloom_pass_api::params_t*  params ) {
 
 	// we must introduce all transient resources
 
@@ -134,17 +134,17 @@ le_render_module_add_bloom_pass(
 	        .setLoadOp( le::AttachmentLoadOp::eLoad )
 	        .build();
 
-	auto luminosity_high_pass_fun = []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	auto luminosity_high_pass_fun = []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 		le::Encoder encoder{ encoder_ };
 
 		static le_bloom_pass_api::params_t fallback_params{};
-		le_bloom_pass_api::params_t *      params = &fallback_params;
+		le_bloom_pass_api::params_t*       params = &fallback_params;
 
 		if ( user_data ) {
-			params = static_cast<le_bloom_pass_api::params_t *>( user_data );
+			params = static_cast<le_bloom_pass_api::params_t*>( user_data );
 		}
 
-		auto *pm = encoder.getPipelineManager();
+		auto* pm = encoder.getPipelineManager();
 
 		static auto quadVert     = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
 		static auto highPassFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/luminosity_high_pass.frag" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_luminosity_high_pass_frag" ) ).build();
@@ -165,15 +165,15 @@ le_render_module_add_bloom_pass(
 		    .draw( 4 );
 	};
 
-	auto blur_render_fun = []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	auto blur_render_fun = []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 		le::Encoder encoder{ encoder_ };
-		auto        settings = static_cast<BlurSettings *>( user_data );
+		auto        settings = static_cast<BlurSettings*>( user_data );
 
 		auto extent = encoder.getRenderpassExtent();
 
-		auto *pm = encoder.getPipelineManager();
+		auto* pm = encoder.getPipelineManager();
 
-		static char const *BLUR_KERNEL_DEFINES[] = {
+		static char const* BLUR_KERNEL_DEFINES[] = {
 		    "KERNEL_RADIUS=3",
 		    "KERNEL_RADIUS=5",
 		    "KERNEL_RADIUS=7",
@@ -211,17 +211,17 @@ le_render_module_add_bloom_pass(
 		    .draw( 4 );
 	};
 
-	auto combine_render_fun = []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	auto combine_render_fun = []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 		le::Encoder encoder{ encoder_ };
 
 		static le_bloom_pass_api::params_t fallback_params{};
-		le_bloom_pass_api::params_t *      params = &fallback_params;
+		le_bloom_pass_api::params_t*       params = &fallback_params;
 
 		if ( user_data ) {
-			params = static_cast<le_bloom_pass_api::params_t *>( user_data );
+			params = static_cast<le_bloom_pass_api::params_t*>( user_data );
 		}
 
-		auto *      pm              = encoder.getPipelineManager();
+		auto*       pm              = encoder.getPipelineManager();
 		static auto quadVert        = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
 		static auto quadCombineFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/ue_bloom_combine.frag" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_ue_bloom_combine_frag" ) ).build();
 
@@ -316,7 +316,7 @@ le_render_module_add_bloom_pass(
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_bloom_pass, api ) {
-	auto &api_i = static_cast<le_bloom_pass_api *>( api )->le_bloom_pass_i;
+	auto& api_i = static_cast<le_bloom_pass_api*>( api )->le_bloom_pass_i;
 
 	api_i.le_render_module_add_bloom_pass = le_render_module_add_bloom_pass;
 	api_i.le_render_module_add_blit_pass  = le_render_module_add_blit_pass;

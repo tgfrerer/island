@@ -54,8 +54,8 @@ LE_MODULE_LOAD_DEFAULT( le_font_renderer );
 #ifdef __cplusplus
 
 namespace le_font_renderer {
-static const auto &api                = le_font_renderer_api_i;
-static const auto &le_font_renderer_i = api -> le_font_renderer_i;
+static const auto& api                = le_font_renderer_api_i;
+static const auto& le_font_renderer_i = api -> le_font_renderer_i;
 using draw_string_info_t              = le_font_renderer_api::draw_string_info_t;
 } // namespace le_font_renderer
 

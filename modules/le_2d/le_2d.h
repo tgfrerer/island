@@ -2,9 +2,9 @@
 #define GUARD_le_2d_H
 
 /* Le2D is a 2D drawing context with the aim of making drawing in 2d simple, and intuitive.
- * 
- * Drawing is stateless - each draw command needs their attributes explicitly set. 
- * 
+ *
+ * Drawing is stateless - each draw command needs their attributes explicitly set.
+ *
  */
 
 #include "le_core.h"
@@ -111,9 +111,9 @@ LE_MODULE_LOAD_DEFAULT( le_2d );
 #ifdef __cplusplus
 
 namespace le_2d {
-static const auto &api          = le_2d_api_i;
-static const auto &le_2d_i      = api -> le_2d_i;
-static const auto &le_2d_prim_i = api -> le_2d_primitive_i;
+static const auto& api          = le_2d_api_i;
+static const auto& le_2d_i      = api -> le_2d_i;
+static const auto& le_2d_prim_i = api -> le_2d_primitive_i;
 
 } // namespace le_2d
 
@@ -123,20 +123,20 @@ class Le2D : NoCopy, NoMove {
 	using StrokeCapType  = le_2d_api::StrokeCapType;
 
 #	define BUILDER_IMPLEMENT_VEC( builder_type, obj_name, field_type, field_name ) \
-		builder_type &set_##field_name( field_type field_name ) {                   \
+		builder_type& set_##field_name( field_type field_name ) {                   \
 			le_2d::le_2d_prim_i.obj_name##_set_##field_name( self, &field_name );   \
 			return *this;                                                           \
 		}
 #	define BUILDER_IMPLEMENT( builder_type, obj_name, field_type, field_name )  \
-		builder_type &set_##field_name( field_type field_name ) {                \
+		builder_type& set_##field_name( field_type field_name ) {                \
 			le_2d::le_2d_prim_i.obj_name##_set_##field_name( self, field_name ); \
 			return *this;                                                        \
 		}
 
-	le_2d_o *self;
+	le_2d_o* self;
 
   public:
-	Le2D( le_command_buffer_encoder_o *encoder_ )
+	Le2D( le_command_buffer_encoder_o* encoder_ )
 	    : self( le_2d::le_2d_i.create( encoder_ ) ) {
 	}
 
@@ -147,15 +147,15 @@ class Le2D : NoCopy, NoMove {
 	// ---
 
 	class CircleBuilder {
-		Le2D &             parent;
-		le_2d_primitive_o *self;
+		Le2D&              parent;
+		le_2d_primitive_o* self;
 
 	  public:
-		CircleBuilder( Le2D &parent_ )
+		CircleBuilder( Le2D& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		CircleBuilder &create() {
+		CircleBuilder& create() {
 			self = le_2d::le_2d_prim_i.create_circle( parent.self );
 			return *this;
 		}
@@ -163,322 +163,322 @@ class Le2D : NoCopy, NoMove {
 		BUILDER_IMPLEMENT( CircleBuilder, circle, float, radius )
 		BUILDER_IMPLEMENT( CircleBuilder, circle, float, tolerance )
 
-		CircleBuilder &set_node_position( glm::vec2 const &pos ) {
+		CircleBuilder& set_node_position( glm::vec2 const& pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
 			return *this;
 		}
 
-		CircleBuilder &set_filled( bool filled ) {
+		CircleBuilder& set_filled( bool filled ) {
 			le_2d::le_2d_prim_i.set_filled( self, filled );
 			return *this;
 		}
 
-		CircleBuilder &set_stroke_weight( float weight ) {
+		CircleBuilder& set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
 			return *this;
 		}
 
-		CircleBuilder &set_color( uint32_t r8g8b8a8_color ) {
+		CircleBuilder& set_color( uint32_t r8g8b8a8_color ) {
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		CircleBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+		CircleBuilder& set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
 			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		Le2D &draw() {
+		Le2D& draw() {
 			return parent;
 		}
 	};
 
 	CircleBuilder mCircleBuilder{ *this };
 
-	CircleBuilder &circle() {
+	CircleBuilder& circle() {
 		return mCircleBuilder.create();
 	}
 
 	// ---
 
 	class EllipseBuilder {
-		Le2D &             parent;
-		le_2d_primitive_o *self;
+		Le2D&              parent;
+		le_2d_primitive_o* self;
 
 	  public:
-		EllipseBuilder( Le2D &parent_ )
+		EllipseBuilder( Le2D& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		EllipseBuilder &create() {
+		EllipseBuilder& create() {
 			self = le_2d::le_2d_prim_i.create_ellipse( parent.self );
 			return *this;
 		}
 
-		BUILDER_IMPLEMENT_VEC( EllipseBuilder, ellipse, glm::vec2 const &, radii )
+		BUILDER_IMPLEMENT_VEC( EllipseBuilder, ellipse, glm::vec2 const&, radii )
 		BUILDER_IMPLEMENT( EllipseBuilder, ellipse, float, tolerance )
 
-		EllipseBuilder &set_node_position( glm::vec2 const &pos ) {
+		EllipseBuilder& set_node_position( glm::vec2 const& pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
 			return *this;
 		}
 
-		EllipseBuilder &set_filled( bool filled ) {
+		EllipseBuilder& set_filled( bool filled ) {
 			le_2d::le_2d_prim_i.set_filled( self, filled );
 			return *this;
 		}
 
-		EllipseBuilder &set_stroke_weight( float weight ) {
+		EllipseBuilder& set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
 			return *this;
 		}
 
-		EllipseBuilder &set_color( uint32_t r8g8b8a8_color ) {
+		EllipseBuilder& set_color( uint32_t r8g8b8a8_color ) {
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		EllipseBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+		EllipseBuilder& set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
 			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		Le2D &draw() {
+		Le2D& draw() {
 			return parent;
 		}
 	};
 
 	EllipseBuilder mEllipseBuilder{ *this };
 
-	EllipseBuilder &ellipse() {
+	EllipseBuilder& ellipse() {
 		return mEllipseBuilder.create();
 	}
 
 	// ---
 
 	class ArcBuilder {
-		Le2D &             parent;
-		le_2d_primitive_o *self;
+		Le2D&              parent;
+		le_2d_primitive_o* self;
 
 	  public:
-		ArcBuilder( Le2D &parent_ )
+		ArcBuilder( Le2D& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		ArcBuilder &create() {
+		ArcBuilder& create() {
 			self = le_2d::le_2d_prim_i.create_arc( parent.self );
 			return *this;
 		}
 
-		BUILDER_IMPLEMENT_VEC( ArcBuilder, arc, glm::vec2 const &, radii )
+		BUILDER_IMPLEMENT_VEC( ArcBuilder, arc, glm::vec2 const&, radii )
 		BUILDER_IMPLEMENT( ArcBuilder, arc, float, tolerance )
 		BUILDER_IMPLEMENT( ArcBuilder, arc, float, angle_start_rad )
 		BUILDER_IMPLEMENT( ArcBuilder, arc, float, angle_end_rad )
 
-		ArcBuilder &set_node_position( glm::vec2 const &pos ) {
+		ArcBuilder& set_node_position( glm::vec2 const& pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
 			return *this;
 		}
 
-		ArcBuilder &set_filled( bool filled ) {
+		ArcBuilder& set_filled( bool filled ) {
 			le_2d::le_2d_prim_i.set_filled( self, filled );
 			return *this;
 		}
 
-		ArcBuilder &set_stroke_weight( float weight ) {
+		ArcBuilder& set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
 			return *this;
 		}
 
-		ArcBuilder &set_color( uint32_t r8g8b8a8_color ) {
+		ArcBuilder& set_color( uint32_t r8g8b8a8_color ) {
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		ArcBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+		ArcBuilder& set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
 			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		Le2D &draw() {
+		Le2D& draw() {
 			return parent;
 		}
 	};
 
 	ArcBuilder mArcBuilder{ *this };
 
-	ArcBuilder &arc() {
+	ArcBuilder& arc() {
 		return mArcBuilder.create();
 	}
 
 	// ---
 
 	class LineBuilder {
-		Le2D &             parent;
-		le_2d_primitive_o *self;
+		Le2D&              parent;
+		le_2d_primitive_o* self;
 
 	  public:
-		LineBuilder( Le2D &parent_ )
+		LineBuilder( Le2D& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		LineBuilder &create() {
+		LineBuilder& create() {
 			self = le_2d::le_2d_prim_i.create_line( parent.self );
 			return *this;
 		}
 
-		BUILDER_IMPLEMENT_VEC( LineBuilder, line, glm::vec2 const &, p0 )
-		BUILDER_IMPLEMENT_VEC( LineBuilder, line, glm::vec2 const &, p1 )
+		BUILDER_IMPLEMENT_VEC( LineBuilder, line, glm::vec2 const&, p0 )
+		BUILDER_IMPLEMENT_VEC( LineBuilder, line, glm::vec2 const&, p1 )
 
-		LineBuilder &set_node_position( glm::vec2 const &pos ) {
+		LineBuilder& set_node_position( glm::vec2 const& pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
 			return *this;
 		}
 
-		LineBuilder &set_stroke_weight( float weight ) {
+		LineBuilder& set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
 			return *this;
 		}
 
-		LineBuilder &set_color( uint32_t r8g8b8a8_color ) {
+		LineBuilder& set_color( uint32_t r8g8b8a8_color ) {
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		LineBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+		LineBuilder& set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
 			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		Le2D &draw() {
+		Le2D& draw() {
 			return parent;
 		}
 	};
 
 	LineBuilder mLineBuilder{ *this };
 
-	LineBuilder &line() {
+	LineBuilder& line() {
 		return mLineBuilder.create();
 	}
 
 	// ---
 
 	class PathBuilder {
-		Le2D &             parent;
-		le_2d_primitive_o *self;
+		Le2D&              parent;
+		le_2d_primitive_o* self;
 
 	  public:
-		PathBuilder( Le2D &parent_ )
+		PathBuilder( Le2D& parent_ )
 		    : parent( parent_ ) {
 		}
 
-		PathBuilder &create() {
+		PathBuilder& create() {
 			self = le_2d::le_2d_prim_i.create_path( parent.self );
 			return *this;
 		}
 
-		PathBuilder &move_to( glm::vec2 const &pos ) {
+		PathBuilder& move_to( glm::vec2 const& pos ) {
 			le_2d::le_2d_prim_i.path_move_to( self, &pos );
 			return *this;
 		}
 
-		PathBuilder &line_to( glm::vec2 const &pos ) {
+		PathBuilder& line_to( glm::vec2 const& pos ) {
 			le_2d::le_2d_prim_i.path_line_to( self, &pos );
 			return *this;
 		}
 
-		PathBuilder &close() {
+		PathBuilder& close() {
 			le_2d::le_2d_prim_i.path_close( self );
 			return *this;
 		}
 
-		PathBuilder &hobby() {
+		PathBuilder& hobby() {
 			le_2d::le_2d_prim_i.path_hobby( self );
 			return *this;
 		}
 
-		PathBuilder &quad_bezier_to( glm::vec2 const &p, glm::vec2 const &c1 ) {
+		PathBuilder& quad_bezier_to( glm::vec2 const& p, glm::vec2 const& c1 ) {
 			le_2d::le_2d_prim_i.path_quad_bezier_to( self, &p, &c1 );
 			return *this;
 		}
 
-		PathBuilder &cubic_bezier_to( glm::vec2 const &p, glm::vec2 const &c1, glm::vec2 const &c2 ) {
+		PathBuilder& cubic_bezier_to( glm::vec2 const& p, glm::vec2 const& c1, glm::vec2 const& c2 ) {
 			le_2d::le_2d_prim_i.path_cubic_bezier_to( self, &p, &c1, &c2 );
 			return *this;
 		}
 
-		PathBuilder &arc_to( glm::vec2 const &p, glm::vec2 const &radii, float phi, bool large_arc, bool sweep_cw ) {
+		PathBuilder& arc_to( glm::vec2 const& p, glm::vec2 const& radii, float phi, bool large_arc, bool sweep_cw ) {
 			le_2d::le_2d_prim_i.path_arc_to( self, &p, &radii, phi, large_arc, sweep_cw );
 			return *this;
 		}
 
-		PathBuilder &ellipse( glm::vec2 const &centre, float r_x, float r_y ) {
+		PathBuilder& ellipse( glm::vec2 const& centre, float r_x, float r_y ) {
 			le_2d::le_2d_prim_i.path_ellipse( self, &centre, r_x, r_y );
 			return *this;
 		}
 
-		PathBuilder &circle( glm::vec2 const &centre, float r ) {
+		PathBuilder& circle( glm::vec2 const& centre, float r ) {
 			le_2d::le_2d_prim_i.path_ellipse( self, &centre, r, r );
 			return *this;
 		}
 
-		PathBuilder &add_from_simplified_svg( char const *svg ) {
+		PathBuilder& add_from_simplified_svg( char const* svg ) {
 			le_2d::le_2d_prim_i.path_add_from_simplified_svg( self, svg );
 			return *this;
 		}
 
-		PathBuilder &set_tolerance( float tolerance ) {
+		PathBuilder& set_tolerance( float tolerance ) {
 			le_2d::le_2d_prim_i.path_set_tolerance( self, tolerance );
 			return *this;
 		}
 
-		PathBuilder &set_node_position( glm::vec2 const &pos ) {
+		PathBuilder& set_node_position( glm::vec2 const& pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
 			return *this;
 		}
 
-		PathBuilder &set_stroke_weight( float weight ) {
+		PathBuilder& set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
 			return *this;
 		}
 
-		PathBuilder &set_stroke_join_type( StrokeJoinType join_type ) {
+		PathBuilder& set_stroke_join_type( StrokeJoinType join_type ) {
 			le_2d::le_2d_prim_i.set_stroke_join_type( self, join_type );
 			return *this;
 		}
 
-		PathBuilder &set_stroke_cap_type( StrokeCapType cap_type ) {
+		PathBuilder& set_stroke_cap_type( StrokeCapType cap_type ) {
 			le_2d::le_2d_prim_i.set_stroke_cap_type( self, cap_type );
 			return *this;
 		}
-		PathBuilder &set_filled( bool filled ) {
+		PathBuilder& set_filled( bool filled ) {
 			le_2d::le_2d_prim_i.set_filled( self, filled );
 			return *this;
 		}
 
-		PathBuilder &set_color( uint32_t r8g8b8a8_color ) {
+		PathBuilder& set_color( uint32_t r8g8b8a8_color ) {
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		PathBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+		PathBuilder& set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
 			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
-		Le2D &draw() {
+		Le2D& draw() {
 			return parent;
 		}
 	};
 
 	PathBuilder mPathBuilder{ *this };
 
-	PathBuilder &path() {
+	PathBuilder& path() {
 		return mPathBuilder.create();
 	}
 #	undef BUILDER_IMPLEMENT

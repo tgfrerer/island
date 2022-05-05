@@ -29,13 +29,13 @@ LE_MODULE_LOAD_DEFAULT( hello_triangle_app );
 #ifdef __cplusplus
 
 namespace hello_triangle_app {
-static const auto &api            = hello_triangle_app_api_i;
-static const auto &hello_triangle_app_i = api -> hello_triangle_app_i;
+static const auto& api                  = hello_triangle_app_api_i;
+static const auto& hello_triangle_app_i = api -> hello_triangle_app_i;
 } // namespace hello_triangle_app
 
 class HelloTriangleApp : NoCopy, NoMove {
 
-	hello_triangle_app_o *self;
+	hello_triangle_app_o* self;
 
   public:
 	HelloTriangleApp()

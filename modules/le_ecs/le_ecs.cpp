@@ -9,26 +9,26 @@
 #include <algorithm>
 
 /* Note
- * 
+ *
  * Because we don't use sparse storage for our component data, we must iterate
  * over all entities previous to the entity which we want to access (seek).
- * 
- * Generally, this is not all too bad, as systems will iterate over entities in sequence. 
- * 
- * But removing entities becomes rather costly, as each entity removal operation means 
+ *
+ * Generally, this is not all too bad, as systems will iterate over entities in sequence.
+ *
+ * But removing entities becomes rather costly, as each entity removal operation means
  * a seek for each component data type affected, plus one or more vector erase operations.
  *
- * 
+ *
  * CAVEAT:
- * 
+ *
  * Do not add or remove components from within systems, as this will invalidate arrays.
- * This effectively means: Do not access the le_ecs_i interface from within a system 
- * callback. 
- * 
+ * This effectively means: Do not access the le_ecs_i interface from within a system
+ * callback.
+ *
  * this is a common limitation of ECS and a strategy around this is to record any changes
- * which you may want to apply from iniside the system, and apply these changes from the 
- * main (controlling) thread. This works similar to a command buffer. 
- *  
+ * which you may want to apply from iniside the system, and apply these changes from the
+ * main (controlling) thread. This works similar to a command buffer.
+ *
  */
 
 struct ComponentStorage {
@@ -43,7 +43,7 @@ using ComponentFilter = std::bitset<MAX_COMPONENT_TYPES>; // each bit correspond
 // if bit is set this means that entity has-a component of this type
 
 struct Entity {
-	uint64_t        id; //unique id
+	uint64_t        id; // unique id
 	ComponentFilter filter;
 };
 
@@ -67,26 +67,26 @@ struct le_ecs_o {
 
 // ----------------------------------------------------------------------
 
-static le_ecs_o *le_ecs_create() {
+static le_ecs_o* le_ecs_create() {
 	auto self = new le_ecs_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_ecs_destroy( le_ecs_o *self ) {
+static void le_ecs_destroy( le_ecs_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static inline size_t get_index_from_entity_id( le_ecs_o const *self, EntityId id ) {
+static inline size_t get_index_from_entity_id( le_ecs_o const* self, EntityId id ) {
 	Entity search_entity;
 	search_entity.id = reinterpret_cast<size_t>( id );
 
 	auto found_element = std::lower_bound(
 	    self->entities.begin(), self->entities.end(), search_entity,
-	    []( Entity const &lhs, Entity const &rhs )
+	    []( Entity const& lhs, Entity const& rhs )
 	        -> bool { return lhs.id < rhs.id; } );
 
 	// index is pointer diff found_element - start
@@ -96,7 +96,7 @@ static inline size_t get_index_from_entity_id( le_ecs_o const *self, EntityId id
 
 // ----------------------------------------------------------------------
 
-static inline EntityId entity_get_entity_id( Entity const &e ) {
+static inline EntityId entity_get_entity_id( Entity const& e ) {
 	return reinterpret_cast<EntityId>( e.id );
 }
 
@@ -110,7 +110,7 @@ static LeEcsSystemId get_system_id_from_index( size_t idx ) {
 	return reinterpret_cast<LeEcsSystemId>( idx );
 }
 
-size_t le_ecs_find_component_type_index( le_ecs_o const *self, ComponentType const &component_type ) {
+size_t le_ecs_find_component_type_index( le_ecs_o const* self, ComponentType const& component_type ) {
 	// Find component storage index
 	size_t     storage_index       = 0;
 	auto const component_types_end = self->component_types.data() + self->component_types.size();
@@ -124,7 +124,7 @@ size_t le_ecs_find_component_type_index( le_ecs_o const *self, ComponentType con
 
 // ----------------------------------------------------------------------
 // Iterate over all entities, accumulating offset for component at storage_index
-inline uint32_t seek_offset( std::vector<Entity> const &entities, size_t e_idx, size_t storage_index, uint32_t stride ) {
+inline uint32_t seek_offset( std::vector<Entity> const& entities, size_t e_idx, size_t storage_index, uint32_t stride ) {
 
 	uint32_t offset = 0;
 
@@ -139,7 +139,7 @@ inline uint32_t seek_offset( std::vector<Entity> const &entities, size_t e_idx, 
 
 // ----------------------------------------------------------------------
 
-static size_t le_ecs_produce_component_type_index( le_ecs_o *self, ComponentType const &component_type ) {
+static size_t le_ecs_produce_component_type_index( le_ecs_o* self, ComponentType const& component_type ) {
 
 	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
 
@@ -161,7 +161,7 @@ static size_t le_ecs_produce_component_type_index( le_ecs_o *self, ComponentType
 // access component storage for entity based on component type
 // if entity doesn't yet have storage for given component type, storage is created.
 // if component type is not yet known to ecs the component type is added to list of known component types.
-static void *le_ecs_entity_component_at( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
+static void* le_ecs_entity_component_at( le_ecs_o* self, EntityId entity_id, ComponentType const& component_type ) {
 
 	// Find if entity exists
 	size_t e_idx = get_index_from_entity_id( self, entity_id );
@@ -171,7 +171,7 @@ static void *le_ecs_entity_component_at( le_ecs_o *self, EntityId entity_id, Com
 		return nullptr;
 	}
 
-	auto &entity = self->entities.at( e_idx );
+	auto& entity = self->entities.at( e_idx );
 
 	// -- Does component of this type already exist in component storage?
 	size_t component_type_index = le_ecs_produce_component_type_index( self, component_type );
@@ -207,7 +207,7 @@ static void *le_ecs_entity_component_at( le_ecs_o *self, EntityId entity_id, Com
 		needs_search = false;
 	}
 
-	auto &component_storage = self->component_storage[ component_type_index ].storage;
+	auto& component_storage = self->component_storage[ component_type_index ].storage;
 
 	if ( needs_search == false ) {
 		offset = uint32_t( component_storage.size() );
@@ -224,7 +224,7 @@ static void *le_ecs_entity_component_at( le_ecs_o *self, EntityId entity_id, Com
 
 // ----------------------------------------------------------------------
 
-static void entity_at_index_remove_component( le_ecs_o *self, size_t e_idx, ComponentType const &component_type ) {
+static void entity_at_index_remove_component( le_ecs_o* self, size_t e_idx, ComponentType const& component_type ) {
 	// Find component storage index
 	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
 
@@ -233,7 +233,7 @@ static void entity_at_index_remove_component( le_ecs_o *self, size_t e_idx, Comp
 		return;
 	}
 
-	auto &entity = self->entities.at( e_idx );
+	auto& entity = self->entities.at( e_idx );
 
 	if ( false == entity.filter[ storage_index ] ) {
 		return;
@@ -251,7 +251,7 @@ static void entity_at_index_remove_component( le_ecs_o *self, size_t e_idx, Comp
 
 		uint32_t offset = seek_offset( self->entities, e_idx, storage_index, stride );
 
-		auto &storage = self->component_storage[ storage_index ].storage;
+		auto& storage = self->component_storage[ storage_index ].storage;
 		storage.erase( storage.begin() + offset, storage.begin() + offset + stride );
 	}
 
@@ -261,7 +261,7 @@ static void entity_at_index_remove_component( le_ecs_o *self, size_t e_idx, Comp
 
 // ----------------------------------------------------------------------
 // removes component from entity.
-static void le_ecs_entity_remove_component( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
+static void le_ecs_entity_remove_component( le_ecs_o* self, EntityId entity_id, ComponentType const& component_type ) {
 
 	// Find if entity exists
 	size_t e_idx = get_index_from_entity_id( self, entity_id );
@@ -276,7 +276,7 @@ static void le_ecs_entity_remove_component( le_ecs_o *self, EntityId entity_id, 
 
 // ----------------------------------------------------------------------
 // create a new, empty entity
-static EntityId le_ecs_entity_create( le_ecs_o *self ) {
+static EntityId le_ecs_entity_create( le_ecs_o* self ) {
 	size_t this_entity_id = self->next_entity_id;
 	self->next_entity_id++;
 	Entity new_entity{};
@@ -288,7 +288,7 @@ static EntityId le_ecs_entity_create( le_ecs_o *self ) {
 // ----------------------------------------------------------------------
 // Remove entity from ecs.
 // this first removes any components, then the entity entry.
-static void le_ecs_entity_remove( le_ecs_o *self, EntityId entity_id ) {
+static void le_ecs_entity_remove( le_ecs_o* self, EntityId entity_id ) {
 	// Find if entity exists
 	size_t e_idx = get_index_from_entity_id( self, entity_id );
 
@@ -297,7 +297,7 @@ static void le_ecs_entity_remove( le_ecs_o *self, EntityId entity_id ) {
 		return;
 	}
 
-	auto const &entity = self->entities.at( e_idx );
+	auto const& entity = self->entities.at( e_idx );
 
 	// -- iterate to correct position at all components which use this entity
 
@@ -317,7 +317,7 @@ static void le_ecs_entity_remove( le_ecs_o *self, EntityId entity_id ) {
 
 // ----------------------------------------------------------------------
 
-static LeEcsSystemId le_ecs_system_create( le_ecs_o *self ) {
+static LeEcsSystemId le_ecs_system_create( le_ecs_o* self ) {
 	self->systems.push_back( {
 	    0,
 	    0,
@@ -330,7 +330,7 @@ static LeEcsSystemId le_ecs_system_create( le_ecs_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_ecs_system_set_method( le_ecs_o *self, LeEcsSystemId system_id, system_fn fn ) {
+static void le_ecs_system_set_method( le_ecs_o* self, LeEcsSystemId system_id, system_fn fn ) {
 
 	size_t system_index = get_index_from_sytem_id( system_id );
 
@@ -338,7 +338,7 @@ static void le_ecs_system_set_method( le_ecs_o *self, LeEcsSystemId system_id, s
 
 	// --------| invariant: system with this index exists.
 
-	auto &system = self->systems[ system_index ];
+	auto& system = self->systems[ system_index ];
 
 	system.fn = fn;
 }
@@ -346,7 +346,7 @@ static void le_ecs_system_set_method( le_ecs_o *self, LeEcsSystemId system_id, s
 // ----------------------------------------------------------------------
 
 // adds a component type as a read parameter to system
-static bool le_ecs_system_add_read_component( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type ) {
+static bool le_ecs_system_add_read_component( le_ecs_o* self, LeEcsSystemId system_id, ComponentType const& component_type ) {
 
 	// check if component type exists as a type in ecs - we do this by finding it's index.
 
@@ -362,7 +362,7 @@ static bool le_ecs_system_add_read_component( le_ecs_o *self, LeEcsSystemId syst
 
 	// --------| invariant: system with this index exists.
 
-	auto &system = self->systems[ system_index ];
+	auto& system = self->systems[ system_index ];
 
 	// we mark the the component to be used.
 
@@ -375,7 +375,7 @@ static bool le_ecs_system_add_read_component( le_ecs_o *self, LeEcsSystemId syst
 // ----------------------------------------------------------------------
 
 // adds a component type as a write parameter to system
-static bool le_ecs_system_add_write_component( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type ) {
+static bool le_ecs_system_add_write_component( le_ecs_o* self, LeEcsSystemId system_id, ComponentType const& component_type ) {
 
 	// check if component type exists as a type in ecs - we do this by finding it's index.
 
@@ -391,7 +391,7 @@ static bool le_ecs_system_add_write_component( le_ecs_o *self, LeEcsSystemId sys
 
 	// --------| invariant: system with this index exists.
 
-	auto &system = self->systems[ system_index ];
+	auto& system = self->systems[ system_index ];
 
 	// we mark the the component to be used.
 
@@ -403,7 +403,7 @@ static bool le_ecs_system_add_write_component( le_ecs_o *self, LeEcsSystemId sys
 
 // ----------------------------------------------------------------------
 
-static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id, void *user_data = nullptr ) {
+static void le_ecs_execute_system( le_ecs_o* self, LeEcsSystemId system_id, void* user_data = nullptr ) {
 
 	// Filter all entities - we only want those which provide all the component types which our system
 	// cares about.
@@ -411,7 +411,7 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id, void
 	// The System's function is called on matching components which together form part of an entity.
 	// Function call happens repeatedly over all matching entities.
 
-	auto &system = self->systems.at( get_index_from_sytem_id( system_id ) );
+	auto& system = self->systems.at( get_index_from_sytem_id( system_id ) );
 
 	if ( system.fn == nullptr ) {
 		// if system does not define callable function there is
@@ -427,15 +427,15 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id, void
 
 	// Find indices for required components
 
-	std::array<size_t, MAX_COMPONENT_TYPES>       component_iterators; // current offset as object counts into component storage at index
-	std::array<void const *, MAX_COMPONENT_TYPES> read_containers;
-	std::array<void *, MAX_COMPONENT_TYPES>       write_containers;
+	std::array<size_t, MAX_COMPONENT_TYPES>      component_iterators; // current offset as object counts into component storage at index
+	std::array<void const*, MAX_COMPONENT_TYPES> read_containers;
+	std::array<void*, MAX_COMPONENT_TYPES>       write_containers;
 
 	component_iterators.fill( 0 );
 	read_containers.fill( nullptr );
 	write_containers.fill( nullptr );
 
-	for ( auto &e : self->entities ) {
+	for ( auto& e : self->entities ) {
 
 		// We must test if all required components are present in current entity.
 
@@ -473,13 +473,13 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id, void
 		size_t read_containter_count  = 0;
 		size_t write_containter_count = 0;
 
-		for ( auto &read_component : system.read_component_indices ) {
+		for ( auto& read_component : system.read_component_indices ) {
 			read_containers[ read_containter_count++ ] =
 			    ( self->component_storage[ read_component ].storage.data() +
 			      self->component_types[ read_component ].num_bytes *
 			          component_iterators[ read_component ] );
 		}
-		for ( auto &write_component : system.write_component_indices ) {
+		for ( auto& write_component : system.write_component_indices ) {
 			write_containers[ write_containter_count++ ] =
 			    ( self->component_storage[ write_component ].storage.data() +
 			      self->component_types[ write_component ].num_bytes *
@@ -503,7 +503,7 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id, void
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_ecs, api ) {
-	auto &le_ecs_i = static_cast<le_ecs_api *>( api )->le_ecs_i;
+	auto& le_ecs_i = static_cast<le_ecs_api*>( api )->le_ecs_i;
 
 	le_ecs_i.create  = le_ecs_create;
 	le_ecs_i.destroy = le_ecs_destroy;

@@ -17,18 +17,18 @@ struct le_log_channel_o {
 };
 
 struct le_log_context_o {
-	le_log_channel_o                                    channel_default;
-	std::unordered_map<std::string, le_log_channel_o *> channels;
-	std::mutex                                          mtx;
+	le_log_channel_o                                   channel_default;
+	std::unordered_map<std::string, le_log_channel_o*> channels;
+	std::mutex                                         mtx;
 };
 
-static le_log_context_o *ctx;
+static le_log_context_o* ctx;
 
-static le_log_channel_o *le_log_channel_default() {
+static le_log_channel_o* le_log_channel_default() {
 	return &ctx->channel_default;
 }
 
-static le_log_channel_o *le_log_get_module( const char *name ) {
+static le_log_channel_o* le_log_get_module( const char* name ) {
 	if ( !name || !name[ 0 ] ) {
 		return le_log_channel_default();
 	}
@@ -43,14 +43,14 @@ static le_log_channel_o *le_log_get_module( const char *name ) {
 	return ctx->channels[ name ];
 }
 
-static void le_log_set_level( le_log_channel_o *channel, LeLog::Level level ) {
+static void le_log_set_level( le_log_channel_o* channel, LeLog::Level level ) {
 	if ( !channel ) {
 		channel = le_log_channel_default();
 	}
 	channel->log_level = static_cast<std::underlying_type<LeLog::Level>::type>( level );
 }
 
-static const char *le_log_level_name( LeLog::Level level ) {
+static const char* le_log_level_name( LeLog::Level level ) {
 	switch ( level ) {
 	case LeLog::Level::eDebug:
 		return "DEBUG";
@@ -64,7 +64,7 @@ static const char *le_log_level_name( LeLog::Level level ) {
 	return "";
 }
 
-static void le_log_printf( const le_log_channel_o *channel, LeLog::Level level, const char *msg, va_list args ) {
+static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, const char* msg, va_list args ) {
 
 	if ( !channel ) {
 		channel = le_log_channel_default();
@@ -89,7 +89,7 @@ static void le_log_printf( const le_log_channel_o *channel, LeLog::Level level, 
 }
 
 template <LeLog::Level level>
-static void le_log_implementation( const le_log_channel_o *channel, const char *msg, ... ) {
+static void le_log_implementation( const le_log_channel_o* channel, const char* msg, ... ) {
 	va_list arglist;
 	va_start( arglist, msg );
 	le_log_printf( channel, level, msg, arglist );
@@ -99,10 +99,10 @@ static void le_log_implementation( const le_log_channel_o *channel, const char *
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_log, api ) {
-	auto le_api         = static_cast<le_log_api *>( api );
+	auto le_api         = static_cast<le_log_api*>( api );
 	le_api->get_channel = le_log_get_module;
 
-	auto &le_api_channel_i     = le_api->le_log_channel_i;
+	auto& le_api_channel_i     = le_api->le_log_channel_i;
 	le_api_channel_i.debug     = le_log_implementation<LeLog::Level::eDebug>;
 	le_api_channel_i.info      = le_log_implementation<LeLog::Level::eInfo>;
 	le_api_channel_i.warn      = le_log_implementation<LeLog::Level::eWarn>;
@@ -115,5 +115,5 @@ LE_MODULE_REGISTER_IMPL( le_log, api ) {
 		*fallback_context_addr = new le_log_context_o();
 	}
 
-	ctx = static_cast<le_log_context_o *>( *fallback_context_addr );
+	ctx = static_cast<le_log_context_o*>( *fallback_context_addr );
 }

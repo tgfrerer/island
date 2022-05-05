@@ -76,69 +76,69 @@ LE_MODULE_LOAD_DEFAULT( le_parameter_store );
 #ifdef __cplusplus
 
 namespace le_parameter_store {
-static const auto &api                  = le_parameter_store_api_i;
-static const auto &le_parameter_store_i = api -> le_parameter_store_i;
-static const auto &le_parameter_i       = api -> le_parameter_i;
+static const auto& api                  = le_parameter_store_api_i;
+static const auto& le_parameter_store_i = api -> le_parameter_store_i;
+static const auto& le_parameter_i       = api -> le_parameter_i;
 } // namespace le_parameter_store
 
 class LeParameter {
-	le_parameter_o *self;
+	le_parameter_o* self;
 
   public:
-	LeParameter( le_parameter_o *param_ )
+	LeParameter( le_parameter_o* param_ )
 	    : self( param_ ){};
 	LeParameter()  = delete;
 	~LeParameter() = default;
 	// There we go: rule of 5
-	LeParameter( LeParameter const &other )
+	LeParameter( LeParameter const& other )
 	    : self( other.self ){};
-	LeParameter( LeParameter &&other )
+	LeParameter( LeParameter&& other )
 	    : self( other.self ) {
 	}
-	LeParameter &operator=( LeParameter const &other ) {
+	LeParameter& operator=( LeParameter const& other ) {
 		self = other.self;
 		return *this;
 	}
-	LeParameter &operator=( LeParameter const &&other ) {
+	LeParameter& operator=( LeParameter const&& other ) {
 		self = other.self;
 		return *this;
 	}
 
-	float *setFloat( float const &&val, float const &&val_min = 0.f, float const &&val_max = 1.f ) {
+	float* setFloat( float const&& val, float const&& val_min = 0.f, float const&& val_max = 1.f ) {
 		return le_parameter_store::le_parameter_i
 		    .set_float( self,
-		                static_cast<float const &&>( val ),
-		                static_cast<float const &&>( val_min ),
-		                static_cast<float const &&>( val_max ) );
+		                static_cast<float const&&>( val ),
+		                static_cast<float const&&>( val_min ),
+		                static_cast<float const&&>( val_max ) );
 	}
-	int32_t *setI32( int32_t const &&val, int32_t const &&val_min = INT32_MIN, int32_t const &&val_max = INT32_MAX ) {
+	int32_t* setI32( int32_t const&& val, int32_t const&& val_min = INT32_MIN, int32_t const&& val_max = INT32_MAX ) {
 		return le_parameter_store::le_parameter_i
 		    .set_i32( self,
-		              static_cast<int32_t const &&>( val ),
-		              static_cast<int32_t const &&>( val_min ),
-		              static_cast<int32_t const &&>( val_max ) );
+		              static_cast<int32_t const&&>( val ),
+		              static_cast<int32_t const&&>( val_min ),
+		              static_cast<int32_t const&&>( val_max ) );
 	}
-	uint32_t *setU32( uint32_t const &&val, uint32_t const &&val_min = 0, uint32_t const &&val_max = UINT32_MAX ) {
+	uint32_t* setU32( uint32_t const&& val, uint32_t const&& val_min = 0, uint32_t const&& val_max = UINT32_MAX ) {
 		return le_parameter_store::le_parameter_i
 		    .set_u32( self,
-		              static_cast<uint32_t const &&>( val ),
-		              static_cast<uint32_t const &&>( val_min ),
-		              static_cast<uint32_t const &&>( val_max ) );
+		              static_cast<uint32_t const&&>( val ),
+		              static_cast<uint32_t const&&>( val_min ),
+		              static_cast<uint32_t const&&>( val_max ) );
 	}
-	bool *setBool( bool const &&val ) {
-		return le_parameter_store::le_parameter_i.set_bool( self, static_cast<bool const &&>( val ) );
+	bool* setBool( bool const&& val ) {
+		return le_parameter_store::le_parameter_i.set_bool( self, static_cast<bool const&&>( val ) );
 	}
 	// ----
-	float *asFloat() {
+	float* asFloat() {
 		return le_parameter_store::le_parameter_i.as_float( self );
 	}
-	int32_t *asI32() {
+	int32_t* asI32() {
 		return le_parameter_store::le_parameter_i.as_i32( self );
 	}
-	uint32_t *asU32() {
+	uint32_t* asU32() {
 		return le_parameter_store::le_parameter_i.as_u32( self );
 	}
-	bool *asBool() {
+	bool* asBool() {
 		return le_parameter_store::le_parameter_i.as_bool( self );
 	}
 
@@ -157,7 +157,7 @@ class LeParameter {
 
 class LeParameterStore : NoCopy, NoMove {
 
-	le_parameter_store_o *self;
+	le_parameter_store_o* self;
 
   public:
 	LeParameterStore()
@@ -168,23 +168,23 @@ class LeParameterStore : NoCopy, NoMove {
 		le_parameter_store::le_parameter_store_i.destroy( self );
 	}
 
-	le_parameter_o *getParameter( char const *name ) {
+	le_parameter_o* getParameter( char const* name ) {
 		return le_parameter_store::le_parameter_store_i.get_parameter( self, name );
 	}
 
-	le_parameter_o *addParameter( char const *name ) {
+	le_parameter_o* addParameter( char const* name ) {
 		return le_parameter_store::le_parameter_store_i.add_parameter( self, name );
 	}
 
-	char const *getName( le_parameter_o *param ) {
+	char const* getName( le_parameter_o* param ) {
 		return le_parameter_store::le_parameter_store_i.get_name( self, param );
 	}
 
-	bool saveToFile( char const *file_path ) {
+	bool saveToFile( char const* file_path ) {
 		return le_parameter_store::le_parameter_store_i.save_to_file( self, file_path );
 	}
 
-	bool loadFromFile( char const *file_path ) {
+	bool loadFromFile( char const* file_path ) {
 		return le_parameter_store::le_parameter_store_i.load_from_file( self, file_path );
 	}
 

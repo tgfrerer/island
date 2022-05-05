@@ -15,8 +15,8 @@ struct le_fiber_o;
 struct le_worker_thread_o;
 
 extern "C" void asm_call_fiber_exit( void );
-extern "C" int  asm_switch( le_fiber_o *to, le_fiber_o *from, int switch_to_guest );
-extern "C" void asm_fetch_default_control_words( uint64_t * );
+extern "C" int  asm_switch( le_fiber_o* to, le_fiber_o* from, int switch_to_guest );
+extern "C" void asm_fetch_default_control_words( uint64_t* );
 
 struct le_jobs_api::counter_t {
 	std::atomic<uint32_t> data{ 0 };
@@ -26,16 +26,16 @@ using counter_t = le_jobs_api::counter_t;
 using le_job_o  = le_jobs_api::le_job_o;
 
 /* NOTE - consider appropriate stack size.
- * 
+ *
  * Make sure to set the per-fiber stack size to a value large enough, or jobs will write
  * across their stack boundaries, effectively overwriting heap memory which they don't own.
  *
- * This can lead to some really hard to debug errors, which you can only realistically 
+ * This can lead to some really hard to debug errors, which you can only realistically
  * trace using data-breakpoints. If heap memory is magically overwritten by another thread
  * - without you wanting it - this is a symptom of stack spill.
- * 
- * We keep the stack size at 8 MB, which seems to be standard on linux. Don't worry about the 
- * potentially large size, memory overcommitting makes sure that physical memory only gets 
+ *
+ * We keep the stack size at 8 MB, which seems to be standard on linux. Don't worry about the
+ * potentially large size, memory overcommitting makes sure that physical memory only gets
  * allocated if you really need it.
  *
  */
@@ -51,58 +51,58 @@ enum class FIBER_STATUS : uint64_t {
 
 /* A Fiber is an execution context, in which a job can execute.
  * For this it provides the job with a stack.
- * 
+ *
  * A fiber can only have one job going at the same time.
- * 
- * Once a fiber yields or returns, control returns to the worker 
- * thread which dispatches the next fiber. 
- * 
+ *
+ * Once a fiber yields or returns, control returns to the worker
+ * thread which dispatches the next fiber.
+ *
  * A fiber is guaranteed by le_jobs to stay on the same worker
  * thread for as long as it takes until a job completes. This means
- * that jobs resume on the same worker thread on which they did 
+ * that jobs resume on the same worker thread on which they did
  * yield.
- * 
+ *
  */
 struct le_fiber_o {
-	void **                   stack                = nullptr;             // pointer to address of current stack
-	void *                    job_param            = nullptr;             // parameter pointer for job
-	void *                    stack_bottom         = nullptr;             // allocation address so that it may be freed
-	counter_t *               fiber_await_counter  = nullptr;             // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
-	counter_t *               job_complete_counter = nullptr;             // owned by le_job_manager
+	void**                    stack                = nullptr;             // pointer to address of current stack
+	void*                     job_param            = nullptr;             // parameter pointer for job
+	void*                     stack_bottom         = nullptr;             // allocation address so that it may be freed
+	counter_t*                fiber_await_counter  = nullptr;             // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
+	counter_t*                job_complete_counter = nullptr;             // owned by le_job_manager
 	uint64_t                  job_complete         = 0;                   // flag whether job was completed.
 	std::atomic<FIBER_STATUS> fiber_status         = FIBER_STATUS::eIdle; // flag whether fiber is currently active
-	le_fiber_o *              list_prev            = nullptr;             // intrusive list
-	le_fiber_o *              list_next            = nullptr;             // intrusive list
+	le_fiber_o*               list_prev            = nullptr;             // intrusive list
+	le_fiber_o*               list_next            = nullptr;             // intrusive list
 	constexpr static size_t   NUM_REGISTERS        = 6;                   // must save RBX, RBP, and R12..R15
 };
 
 struct le_job_manager_o {
-	std::mutex                     counters_mtx;                // mutex protecting counters list
-	std::forward_list<counter_t *> counters;                    // storage for counters, list.
-	le_fiber_o *                   fibers[ FIBER_POOL_SIZE ]{}; // pool of available fibers
-	lockfree_ring_buffer_t *       job_queue;                   // queue onto which to push jobs
-	size_t                         worker_thread_count = 0;     // actual number of initialised worker threads
+	std::mutex                    counters_mtx;                // mutex protecting counters list
+	std::forward_list<counter_t*> counters;                    // storage for counters, list.
+	le_fiber_o*                   fibers[ FIBER_POOL_SIZE ]{}; // pool of available fibers
+	lockfree_ring_buffer_t*       job_queue;                   // queue onto which to push jobs
+	size_t                        worker_thread_count = 0;     // actual number of initialised worker threads
 };
 
 struct le_fiber_list_t {
-	le_fiber_o *begin = nullptr;
-	le_fiber_o *end   = nullptr;
+	le_fiber_o* begin = nullptr;
+	le_fiber_o* end   = nullptr;
 };
 
-/* 
+/*
  * A worker thread is the motor providing execution power for fibers.
- * 
- * Worker threads are pinned to CPUs. 
- * 
- * Worker threads pull in fibers so that that they can execute jobs. 
+ *
+ * Worker threads are pinned to CPUs.
+ *
+ * Worker threads pull in fibers so that that they can execute jobs.
  * If a fiber yields within a worker thread,
- * it is put on the worker thread's wait_list. If a fiber is ready to 
- * resume, it is taken from the wait_list and put on the ready_list. 
- * 
+ * it is put on the worker thread's wait_list. If a fiber is ready to
+ * resume, it is taken from the wait_list and put on the ready_list.
+ *
  */
 struct le_worker_thread_o {
 	le_fiber_o      host_fiber{};          // Host context which does the switching
-	le_fiber_o *    guest_fiber = nullptr; // current fiber executing inside this worker thread
+	le_fiber_o*     guest_fiber = nullptr; // current fiber executing inside this worker thread
 	std::thread     thread      = {};      //
 	std::thread::id thread_id   = {};      //
 	le_fiber_list_t wait_list   = {};      // list of fibers which need checking their condition
@@ -110,13 +110,13 @@ struct le_worker_thread_o {
 	uint64_t        stop_thread = 0;       // flag, value `1` tells worker to join
 };
 
-static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
-static le_job_manager_o *  job_manager = nullptr; ///< job manager singleton, must be initialised via initialise(), and terminated via terminate().
+static le_worker_thread_o* static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
+static le_job_manager_o*   job_manager = nullptr; ///< job manager singleton, must be initialised via initialise(), and terminated via terminate().
 
 static uint64_t DEFAULT_CONTROL_WORDS = 0; // storage for default control words (must be 8 byte, == 2 words)
 
 // ----------------------------------------------------------------------
-void fiber_list_push_back( le_fiber_list_t *list, le_fiber_o *element ) {
+void fiber_list_push_back( le_fiber_list_t* list, le_fiber_o* element ) {
 
 	if ( nullptr == list->begin ) {
 		list->begin        = element;
@@ -132,7 +132,7 @@ void fiber_list_push_back( le_fiber_list_t *list, le_fiber_o *element ) {
 }
 
 // ----------------------------------------------------------------------
-void fiber_list_remove_element( le_fiber_list_t *list, le_fiber_o *element ) {
+void fiber_list_remove_element( le_fiber_list_t* list, le_fiber_o* element ) {
 	// check if element is either start or end element
 	// if it is, we must update in list.
 
@@ -175,9 +175,9 @@ void fiber_list_remove_element( le_fiber_list_t *list, le_fiber_o *element ) {
 
 // ----------------------------------------------------------------------
 // Creates a fiber object, and allocates memory for this fiber
-static le_fiber_o *le_fiber_create() {
+static le_fiber_o* le_fiber_create() {
 
-	le_fiber_o *fiber = new le_fiber_o();
+	le_fiber_o* fiber = new le_fiber_o();
 
 	/* Create a 16-byte aligned stack */
 	static_assert( FIBER_STACK_SIZE % 16 == 0, "stack size must be 16 byte-aligned." );
@@ -192,30 +192,30 @@ static le_fiber_o *le_fiber_create() {
 
 // ----------------------------------------------------------------------
 
-static void le_fiber_destroy( le_fiber_o *fiber ) {
+static void le_fiber_destroy( le_fiber_o* fiber ) {
 	free( fiber->stack_bottom );
 	delete ( fiber );
 }
 
 // ----------------------------------------------------------------------
 // Associate a fiber with a job
-static void le_fiber_load_job( le_fiber_o *fiber, le_fiber_o *host_fiber, le_job_o *job ) {
+static void le_fiber_load_job( le_fiber_o* fiber, le_fiber_o* host_fiber, le_job_o* job ) {
 
-	fiber->stack = reinterpret_cast<void **>( static_cast<char *>( fiber->stack_bottom ) + FIBER_STACK_SIZE );
+	fiber->stack = reinterpret_cast<void**>( static_cast<char*>( fiber->stack_bottom ) + FIBER_STACK_SIZE );
 	//
 	// We push host_fiber and guest_fiber (==fiber) onto the stack so
 	// that fiber_exit method can retrieve this information via popping
 	// the stack.
 	//
-	*( --fiber->stack ) = reinterpret_cast<void *>( fiber );
-	*( --fiber->stack ) = reinterpret_cast<void *>( host_fiber );
+	*( --fiber->stack ) = reinterpret_cast<void*>( fiber );
+	*( --fiber->stack ) = reinterpret_cast<void*>( host_fiber );
 
 	// 4 bytes below 16-byte alignment: mac os x wants return address here
 	// so this points to a call instruction.
-	*( --fiber->stack ) = reinterpret_cast<void *>( &asm_call_fiber_exit );
+	*( --fiber->stack ) = reinterpret_cast<void*>( &asm_call_fiber_exit );
 
 	// 8 bytes below 16-byte alignment: will "return" to start this function
-	*( --fiber->stack ) = reinterpret_cast<void *>( job->fun_ptr );
+	*( --fiber->stack ) = reinterpret_cast<void*>( job->fun_ptr );
 
 	// push NULL words to initialize the registers loaded by asm_switch
 	for ( size_t i = 0; i < le_fiber_o::NUM_REGISTERS; ++i ) {
@@ -223,7 +223,7 @@ static void le_fiber_load_job( le_fiber_o *fiber, le_fiber_o *host_fiber, le_job
 	}
 
 	// push 8 bytes (=2x 4 bytes) -> these are to store the fpu control words
-	*( --fiber->stack ) = reinterpret_cast<void *>( DEFAULT_CONTROL_WORDS );
+	*( --fiber->stack ) = reinterpret_cast<void*>( DEFAULT_CONTROL_WORDS );
 
 	fiber->job_param            = job->fun_param;
 	fiber->job_complete         = 0;
@@ -238,7 +238,7 @@ static inline int32_t get_current_worker_thread_id() {
 	auto    this_thread_id = std::this_thread::get_id();
 
 	int i = 0;
-	for ( le_worker_thread_o **t = static_worker_threads; *t != nullptr; ++t, ++i ) {
+	for ( le_worker_thread_o** t = static_worker_threads; *t != nullptr; ++t, ++i ) {
 		if ( this_thread_id == ( *t )->thread_id ) {
 			return i;
 		}
@@ -250,7 +250,7 @@ static inline int32_t get_current_worker_thread_id() {
 // ----------------------------------------------------------------------
 // return pointer to current worker thread providing context,
 // or nullptr if no current worker thread could be found.
-static le_worker_thread_o *get_current_thread() {
+static le_worker_thread_o* get_current_thread() {
 	int32_t worker_thread_id = get_current_worker_thread_id();
 	return ( worker_thread_id == -1 ) ? nullptr : static_worker_threads[ worker_thread_id ];
 }
@@ -266,7 +266,7 @@ static void le_fiber_yield() {
 	// We do this by comparing the yielding thread's id
 	// with the stored worker thread ids.
 	//
-	le_worker_thread_o *yielding_thread = get_current_thread();
+	le_worker_thread_o* yielding_thread = get_current_thread();
 
 	assert( yielding_thread ); // must be one of our worker threads. Can't yield from the main thread.
 
@@ -287,7 +287,7 @@ static void le_fiber_yield() {
 #	define ATTR_NO_RETURN __attribute__( ( __noreturn__ ) )
 #endif // _MSC_VER
 
-extern "C" void ATTR_NO_RETURN fiber_exit( le_fiber_o *host_fiber, le_fiber_o *guest_fiber ) {
+extern "C" void ATTR_NO_RETURN fiber_exit( le_fiber_o* host_fiber, le_fiber_o* guest_fiber ) {
 
 	if ( guest_fiber->job_complete_counter ) {
 		--guest_fiber->job_complete_counter->data;
@@ -304,14 +304,14 @@ extern "C" void ATTR_NO_RETURN fiber_exit( le_fiber_o *host_fiber, le_fiber_o *g
 
 // ----------------------------------------------------------------------
 
-static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
+static void le_worker_thread_dispatch( le_worker_thread_o* self ) {
 
 	// -- Check all fibers on the wait list, and add them to the ready list
 	// should their condition have become true.
 	//
 	for ( auto it_f = self->wait_list.begin; it_f != nullptr; ) {
 
-		le_fiber_o *f = it_f;            // We must capture f here,
+		le_fiber_o* f = it_f;            // We must capture f here,
 		it_f          = it_f->list_next; // and increase iterator, since it_f may be invalidated because of remove op
 
 		if ( nullptr == f->fiber_await_counter || 0 == f->fiber_await_counter->data ) {
@@ -348,7 +348,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		// Pop the job which has been waiting the longest off the job queue
 
-		le_job_o *job = static_cast<le_job_o *>( lockfree_ring_buffer_trypop( job_manager->job_queue ) );
+		le_job_o* job = static_cast<le_job_o*>( lockfree_ring_buffer_trypop( job_manager->job_queue ) );
 
 		if ( nullptr == job ) {
 			// We couldn't get another job from the queue - this could mean that the queue is empty.
@@ -409,7 +409,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 // ----------------------------------------------------------------------
 // Main loop for each worker thread
 //
-static void le_worker_thread_loop( le_worker_thread_o *self ) {
+static void le_worker_thread_loop( le_worker_thread_o* self ) {
 
 	self->thread_id = std::this_thread::get_id();
 
@@ -441,7 +441,7 @@ static void le_job_manager_initialize( size_t num_threads ) {
 	// Create a number of worker threads to host fibers in
 	for ( size_t i = 0; i != num_threads; ++i ) {
 
-		le_worker_thread_o *w = new le_worker_thread_o();
+		le_worker_thread_o* w = new le_worker_thread_o();
 
 		w->thread = std::thread( le_worker_thread_loop, w );
 
@@ -470,13 +470,13 @@ static void le_job_manager_terminate() {
 
 	// - Send termination signal to all threads.
 
-	for ( le_worker_thread_o **t = &static_worker_threads[ 0 ]; *t != nullptr; ++t ) {
+	for ( le_worker_thread_o** t = &static_worker_threads[ 0 ]; *t != nullptr; ++t ) {
 		( *t )->stop_thread = 1;
 	}
 
 	// - Join all worker threads
 
-	for ( le_worker_thread_o **t = &static_worker_threads[ 0 ]; *t != nullptr; ++t ) {
+	for ( le_worker_thread_o** t = &static_worker_threads[ 0 ]; *t != nullptr; ++t ) {
 		( *t )->thread.join();
 		delete ( *t );
 		( *t ) = nullptr;
@@ -488,9 +488,9 @@ static void le_job_manager_terminate() {
 	}
 
 	// attempt to delete any leftover jobs on the job queue.
-	void *ret;
+	void* ret;
 	while ( ( ret = lockfree_ring_buffer_trypop( job_manager->job_queue ) ) ) {
-		delete ( static_cast<le_job_o *>( ret ) );
+		delete ( static_cast<le_job_o*>( ret ) );
 	}
 
 	lockfree_ring_buffer_destroy( job_manager->job_queue );
@@ -498,7 +498,7 @@ static void le_job_manager_terminate() {
 	{
 		std::scoped_lock lock( job_manager->counters_mtx );
 		// free all leftover counters.
-		for ( auto &c : job_manager->counters ) {
+		for ( auto& c : job_manager->counters ) {
 			delete c;
 		}
 
@@ -513,7 +513,7 @@ static void le_job_manager_terminate() {
 
 // ----------------------------------------------------------------------
 // polls counter, and will not return until counter == target_value
-static void le_job_manager_wait_for_counter_and_free( counter_t *counter, uint32_t target_value ) {
+static void le_job_manager_wait_for_counter_and_free( counter_t* counter, uint32_t target_value ) {
 
 	auto current_worker = get_current_thread();
 
@@ -550,7 +550,7 @@ static void le_job_manager_wait_for_counter_and_free( counter_t *counter, uint32
 
 // ----------------------------------------------------------------------
 // copies jobs into job queue
-static void le_job_manager_run_jobs( le_job_o *jobs, uint32_t num_jobs, counter_t **p_counter ) {
+static void le_job_manager_run_jobs( le_job_o* jobs, uint32_t num_jobs, counter_t** p_counter ) {
 
 	auto counter  = new counter_t();
 	counter->data = num_jobs;
@@ -560,8 +560,8 @@ static void le_job_manager_run_jobs( le_job_o *jobs, uint32_t num_jobs, counter_
 		job_manager->counters.emplace_front( counter );
 	}
 
-	le_job_o *      j        = jobs;
-	le_job_o *const jobs_end = jobs + num_jobs;
+	le_job_o*       j        = jobs;
+	le_job_o* const jobs_end = jobs + num_jobs;
 
 	for ( ; j != jobs_end; j++ ) {
 		// Note that we must store a pointer to counter with each job,
@@ -580,12 +580,12 @@ static void le_job_manager_run_jobs( le_job_o *jobs, uint32_t num_jobs, counter_
 
 LE_MODULE_REGISTER_IMPL( le_jobs, api ) {
 
-	static_cast<le_jobs_api *>( api )->yield                     = le_fiber_yield;
-	static_cast<le_jobs_api *>( api )->get_current_worker_id     = get_current_worker_thread_id;
-	static_cast<le_jobs_api *>( api )->run_jobs                  = le_job_manager_run_jobs;
-	static_cast<le_jobs_api *>( api )->initialize                = le_job_manager_initialize;
-	static_cast<le_jobs_api *>( api )->terminate                 = le_job_manager_terminate;
-	static_cast<le_jobs_api *>( api )->wait_for_counter_and_free = le_job_manager_wait_for_counter_and_free;
+	static_cast<le_jobs_api*>( api )->yield                     = le_fiber_yield;
+	static_cast<le_jobs_api*>( api )->get_current_worker_id     = get_current_worker_thread_id;
+	static_cast<le_jobs_api*>( api )->run_jobs                  = le_job_manager_run_jobs;
+	static_cast<le_jobs_api*>( api )->initialize                = le_job_manager_initialize;
+	static_cast<le_jobs_api*>( api )->terminate                 = le_job_manager_terminate;
+	static_cast<le_jobs_api*>( api )->wait_for_counter_and_free = le_job_manager_wait_for_counter_and_free;
 
 	//	le_core_load_library_persistently( "libpthread.so" );
 }
@@ -600,11 +600,11 @@ LE_MODULE_REGISTER_IMPL( le_jobs, api ) {
 // ;
 
 /* Arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, switch_to_guest==edx )
- * 
+ *
  * Save registers on the stack: rbx rbp r12 r13 r14 r15,
- * 
+ *
  * Additionally save mxcsr control bits, and x87 status bits on the stack.
- * 
+ *
  * Store MXCSR control bits (4byte): `stmxcsr`, load MXCSR control bits: `ldmxcsr`
  * Store x87 status bits (4 byte)  : `fnstcw`, load x87 status bits: `fldcw`
  * Store value of rsp into current fiber,
@@ -696,7 +696,7 @@ static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at cor
 
 #else
 //#	error must implement asm_switch for your cpu architecture.
-extern "C" int asm_switch( le_fiber_o *to, le_fiber_o *from, int switch_to_guest ) {
+extern "C" int asm_switch( le_fiber_o* to, le_fiber_o* from, int switch_to_guest ) {
 	return 0;
 }
 #endif
@@ -752,6 +752,6 @@ asm_fetch_default_control_words:
 )ASM" );
 #else
 //#	error must implement asm_fetch_default_control_words for your cpu architecture.
-extern "C" void asm_fetch_default_control_words( uint64_t * ) {
+extern "C" void asm_fetch_default_control_words( uint64_t* ) {
 }
 #endif

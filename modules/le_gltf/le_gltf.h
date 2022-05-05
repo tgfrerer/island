@@ -28,20 +28,20 @@ LE_MODULE_LOAD_DEFAULT( le_gltf );
 #ifdef __cplusplus
 
 namespace le_gltf {
-static const auto &api       = le_gltf_api_i;
-static const auto &le_gltf_i = api -> le_gltf_i;
+static const auto& api       = le_gltf_api_i;
+static const auto& le_gltf_i = api -> le_gltf_i;
 } // namespace le_gltf
 
 class LeGltf : NoCopy, NoMove {
 
-	le_gltf_o *self;
+	le_gltf_o* self;
 
   public:
-	LeGltf( char const *path )
+	LeGltf( char const* path )
 	    : self( le_gltf::le_gltf_i.create( path ) ) {
 	}
 
-	bool import( le_stage_o *stage ) {
+	bool import( le_stage_o* stage ) {
 		return le_gltf::le_gltf_i.import( self, stage );
 	}
 

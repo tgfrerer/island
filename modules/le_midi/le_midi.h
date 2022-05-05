@@ -15,7 +15,7 @@ The idea is that you do the following:
 
     app->midi_io.open_midi_in( "Midi Fighter Twister" ); // set up midi input
 
-// in update: 
+// in update:
     app->midi_io.swap()
     app->midi_io.get_messages()
 
@@ -62,13 +62,13 @@ LE_MODULE_LOAD_DEFAULT( le_midi );
 #ifdef __cplusplus
 
 namespace le_midi {
-static const auto &api       = le_midi_api_i;
-static const auto &le_midi_i = api -> le_midi_i;
+static const auto& api       = le_midi_api_i;
+static const auto& le_midi_i = api -> le_midi_i;
 } // namespace le_midi
 
 class LeMidi : NoCopy, NoMove {
 
-	le_midi_o *self;
+	le_midi_o* self;
 
   public:
 	LeMidi()
@@ -83,23 +83,23 @@ class LeMidi : NoCopy, NoMove {
 		le_midi::le_midi_i.swap( self );
 	}
 
-	void get_messages( le_midi_api::le_midi_iterator_cb callback, void *user_data ) {
+	void get_messages( le_midi_api::le_midi_iterator_cb callback, void* user_data ) {
 		le_midi::le_midi_i.get_messages( self, callback, user_data );
 	}
 
-	void get_messages( void *p_std_function ) {
+	void get_messages( void* p_std_function ) {
 		le_midi::le_midi_i.get_messages_functional( self, p_std_function );
 	}
 
-	bool open_midi_in( char const *selected_port_name ) {
+	bool open_midi_in( char const* selected_port_name ) {
 		return le_midi::le_midi_i.open_midi_in( self, selected_port_name );
 	}
 
-	bool open_midi_out( char const *selected_port_name ) {
+	bool open_midi_out( char const* selected_port_name ) {
 		return le_midi::le_midi_i.open_midi_out( self, selected_port_name );
 	}
 
-	bool send_message( uint8_t const *message, size_t msg_size ) {
+	bool send_message( uint8_t const* message, size_t msg_size ) {
 		return le_midi::le_midi_i.send_message( self, message, msg_size );
 	}
 

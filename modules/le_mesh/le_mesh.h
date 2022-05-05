@@ -38,14 +38,14 @@ LE_MODULE_LOAD_DEFAULT( le_mesh );
 
 namespace le_mesh {
 const auto         api       = le_mesh_api_i;
-static const auto &le_mesh_i = api -> le_mesh_i;
+static const auto& le_mesh_i = api -> le_mesh_i;
 } // namespace le_mesh
 
 class LeMesh : NoCopy, NoMove {
 #	ifndef this_i
 #		define this_i le_mesh::le_mesh_i
 
-	le_mesh_o *self;
+	le_mesh_o* self;
 
   public:
 	LeMesh()
@@ -60,35 +60,35 @@ class LeMesh : NoCopy, NoMove {
 		this_i.clear( self );
 	}
 
-	void getVertices( size_t &count, float const **pVertices = nullptr ) {
+	void getVertices( size_t& count, float const** pVertices = nullptr ) {
 		this_i.get_vertices( self, count, pVertices );
 	}
 
-	void getTangents( size_t &count, float const **pTangents = nullptr ) {
+	void getTangents( size_t& count, float const** pTangents = nullptr ) {
 		this_i.get_tangents( self, count, pTangents );
 	}
 
-	void getColours( size_t &count, float const **pColours = nullptr ) {
+	void getColours( size_t& count, float const** pColours = nullptr ) {
 		this_i.get_colours( self, count, pColours );
 	}
 
-	void getNormals( size_t &count, float const **pNormals = nullptr ) {
+	void getNormals( size_t& count, float const** pNormals = nullptr ) {
 		this_i.get_vertices( self, count, pNormals );
 	}
 
-	void getUvs( size_t &count, float const **pUvs = nullptr ) {
+	void getUvs( size_t& count, float const** pUvs = nullptr ) {
 		this_i.get_uvs( self, count, pUvs );
 	}
 
-	void getIndices( size_t &count, uint16_t const **pIndices = nullptr ) {
+	void getIndices( size_t& count, uint16_t const** pIndices = nullptr ) {
 		this_i.get_indices( self, count, pIndices );
 	}
 
-	void getData( size_t &numVertices, size_t &numIndices, float const **pVertices = nullptr, float const **pNormals = nullptr, float const **pUvs = nullptr, float const **pColours = nullptr, uint16_t const **pIndices = nullptr ) {
+	void getData( size_t& numVertices, size_t& numIndices, float const** pVertices = nullptr, float const** pNormals = nullptr, float const** pUvs = nullptr, float const** pColours = nullptr, uint16_t const** pIndices = nullptr ) {
 		this_i.get_data( self, numVertices, numIndices, pVertices, pNormals, pUvs, pColours, pIndices );
 	}
 
-	bool loadFromPlyFile( char const *file_path ) {
+	bool loadFromPlyFile( char const* file_path ) {
 		return this_i.load_from_ply_file( self, file_path );
 	}
 

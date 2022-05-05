@@ -15,13 +15,13 @@ namespace util {
 
 template <>
 struct nth<0, Point> {
-	inline static auto get( const Point &p ) noexcept {
+	inline static auto get( const Point& p ) noexcept {
 		return p.x;
 	}
 };
 template <>
 struct nth<1, Point> {
-	inline static auto get( const Point &p ) noexcept {
+	inline static auto get( const Point& p ) noexcept {
 		return p.y;
 	}
 };
@@ -38,20 +38,20 @@ struct le_tessellator_o {
 
 // ----------------------------------------------------------------------
 
-static le_tessellator_o *le_tessellator_create() {
+static le_tessellator_o* le_tessellator_create() {
 	auto self = new le_tessellator_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_tessellator_destroy( le_tessellator_o *self ) {
+static void le_tessellator_destroy( le_tessellator_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_tessellator_add_polyline( le_tessellator_o *self, Point const *const pPoints, size_t const &pointCount ) {
+static void le_tessellator_add_polyline( le_tessellator_o* self, Point const* const pPoints, size_t const& pointCount ) {
 	// Add new contour
 	self->contours.insert( self->contours.end(), { pPoints, pPoints + pointCount } );
 
@@ -61,7 +61,7 @@ static void le_tessellator_add_polyline( le_tessellator_o *self, Point const *co
 
 // ----------------------------------------------------------------------
 
-static bool le_tessellator_tessellate( le_tessellator_o *self ) {
+static bool le_tessellator_tessellate( le_tessellator_o* self ) {
 
 	// Run tessellation
 	if ( self->options & le_tessellator::Options::bitUseEarcutTessellator ) {
@@ -69,7 +69,7 @@ static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 		self->indices = mapbox::earcut<IndexType>( self->contours );
 	} else {
 		// Use libtess
-		TESStesselator *tess;
+		TESStesselator* tess;
 		tess = tessNewTess( nullptr );
 
 		tessSetOption( tess, TessOption::TESS_CONSTRAINED_DELAUNAY_TRIANGULATION,
@@ -78,7 +78,7 @@ static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 		tessSetOption( tess, TessOption::TESS_REVERSE_CONTOURS,
 		               self->options & le_tessellator::Options::bitReverseContours );
 
-		for ( auto const &contour : self->contours ) {
+		for ( auto const& contour : self->contours ) {
 			tessAddContour( tess, Point::type::length(), contour.data(), sizeof( Point ), int( contour.size() ) );
 		}
 
@@ -100,8 +100,8 @@ static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 		size_t numIndices = size_t( tessGetElementCount( tess ) ) * 3; // each element has 3 vertices, as we requested triangles when tessellating
 		self->indices.reserve( numIndices );
 
-		TESSindex const *      pIndex     = tessGetElements( tess );
-		TESSindex const *const pIndex_end = pIndex + numIndices;
+		TESSindex const*       pIndex     = tessGetElements( tess );
+		TESSindex const* const pIndex_end = pIndex + numIndices;
 
 		// we must copy manually since indices are int, but we want uint16_t
 
@@ -117,21 +117,21 @@ static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_tessellator_get_indices( le_tessellator_o *self, IndexType const **pIndices, size_t *indexCount ) {
+static void le_tessellator_get_indices( le_tessellator_o* self, IndexType const** pIndices, size_t* indexCount ) {
 	*pIndices   = self->indices.data();
 	*indexCount = self->indices.size();
 }
 
 // ----------------------------------------------------------------------
 
-static void le_tessellator_get_vertices( le_tessellator_o *self, Point const **pVertices, size_t *vertexCount ) {
+static void le_tessellator_get_vertices( le_tessellator_o* self, Point const** pVertices, size_t* vertexCount ) {
 	*pVertices   = self->vertices.data();
 	*vertexCount = self->vertices.size();
 }
 
 // ----------------------------------------------------------------------
 
-static void le_tessellator_reset( le_tessellator_o *self ) {
+static void le_tessellator_reset( le_tessellator_o* self ) {
 	self->contours.clear();
 	self->indices.clear();
 	self->vertices.clear();
@@ -139,14 +139,14 @@ static void le_tessellator_reset( le_tessellator_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_tessellator_set_options( le_tessellator_o *self, uint64_t options ) {
+static void le_tessellator_set_options( le_tessellator_o* self, uint64_t options ) {
 	self->options = options;
 }
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_tessellator, api ) {
-	auto &le_tessellator_i = static_cast<le_tessellator_api *>( api )->le_tessellator_i;
+	auto& le_tessellator_i = static_cast<le_tessellator_api*>( api )->le_tessellator_i;
 
 	le_tessellator_i.create       = le_tessellator_create;
 	le_tessellator_i.destroy      = le_tessellator_destroy;

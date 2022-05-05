@@ -177,12 +177,12 @@ struct LeUiEvent {
 		double x_offset;
 		double y_offset;
 	};
-	
-	struct DropEvent{
-		char const * * paths_utf8;
-		uint64_t paths_count;
+
+	struct DropEvent {
+		char const** paths_utf8;
+		uint64_t     paths_count;
 	};
-	
+
 	Type event;
 
 	union {
@@ -192,7 +192,7 @@ struct LeUiEvent {
 		CursorEnterEvent    cursorEnter;
 		MouseButtonEvent    mouseButton;
 		ScrollEvent         scroll;
-		DropEvent drop;
+		DropEvent           drop;
 	};
 };
 

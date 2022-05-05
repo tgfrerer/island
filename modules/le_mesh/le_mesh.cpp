@@ -13,26 +13,26 @@
 #include "le_mesh_types.h" //
 
 #ifdef _WIN32
-	# define __PRETTY_FUNCTION__ __FUNCSIG__
-	# define strtok_r strtok_s
-#endif// 
+#	define __PRETTY_FUNCTION__ __FUNCSIG__
+#	define strtok_r strtok_s
+#endif //
 
 // ----------------------------------------------------------------------
 
-static le_mesh_o *le_mesh_create() {
+static le_mesh_o* le_mesh_create() {
 	auto self = new le_mesh_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_destroy( le_mesh_o *self ) {
+static void le_mesh_destroy( le_mesh_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_clear( le_mesh_o *self ) {
+static void le_mesh_clear( le_mesh_o* self ) {
 	self->vertices.clear();
 	self->normals.clear();
 	self->uvs.clear();
@@ -43,25 +43,25 @@ static void le_mesh_clear( le_mesh_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_vertices( le_mesh_o *self, size_t &count, float const **vertices ) {
+static void le_mesh_get_vertices( le_mesh_o* self, size_t& count, float const** vertices ) {
 	count = self->vertices.size();
 	if ( vertices ) {
-		*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
+		*vertices = static_cast<float*>( &self->vertices[ 0 ].x );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_tangents( le_mesh_o *self, size_t &count, float const **tangents ) {
+static void le_mesh_get_tangents( le_mesh_o* self, size_t& count, float const** tangents ) {
 	count = self->tangents.size();
 	if ( tangents ) {
-		*tangents = static_cast<float *>( &self->tangents[ 0 ].x );
+		*tangents = static_cast<float*>( &self->tangents[ 0 ].x );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_indices( le_mesh_o *self, size_t &count, uint16_t const **indices ) {
+static void le_mesh_get_indices( le_mesh_o* self, size_t& count, uint16_t const** indices ) {
 	count = self->indices.size();
 	if ( indices ) {
 		*indices = self->indices.data();
@@ -70,51 +70,51 @@ static void le_mesh_get_indices( le_mesh_o *self, size_t &count, uint16_t const 
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_normals( le_mesh_o *self, size_t &count, float const **normals ) {
+static void le_mesh_get_normals( le_mesh_o* self, size_t& count, float const** normals ) {
 	count = self->normals.size();
 	if ( normals ) {
-		*normals = static_cast<float *>( &self->normals[ 0 ].x );
+		*normals = static_cast<float*>( &self->normals[ 0 ].x );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_colours( le_mesh_o *self, size_t &count, float const **colours ) {
+static void le_mesh_get_colours( le_mesh_o* self, size_t& count, float const** colours ) {
 	count = self->colours.size();
 	if ( colours ) {
-		*colours = static_cast<float *>( &self->colours[ 0 ].x );
+		*colours = static_cast<float*>( &self->colours[ 0 ].x );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_uvs( le_mesh_o *self, size_t &count, float const **uvs ) {
+static void le_mesh_get_uvs( le_mesh_o* self, size_t& count, float const** uvs ) {
 	count = self->normals.size();
 	if ( uvs ) {
-		*uvs = static_cast<float *>( &self->uvs[ 0 ].x );
+		*uvs = static_cast<float*>( &self->uvs[ 0 ].x );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_data( le_mesh_o *self, size_t &numVertices, size_t &numIndices, float const **vertices, float const **normals, float const **uvs, float const **colours, uint16_t const **indices ) {
+static void le_mesh_get_data( le_mesh_o* self, size_t& numVertices, size_t& numIndices, float const** vertices, float const** normals, float const** uvs, float const** colours, uint16_t const** indices ) {
 	numVertices = self->vertices.size();
 	numIndices  = self->indices.size();
 
 	if ( vertices ) {
-		*vertices = self->vertices.empty() ? nullptr : static_cast<float const *>( &self->vertices[ 0 ].x );
+		*vertices = self->vertices.empty() ? nullptr : static_cast<float const*>( &self->vertices[ 0 ].x );
 	}
 
 	if ( colours ) {
-		*colours = self->colours.empty() ? nullptr : static_cast<float const *>( &self->colours[ 0 ].x );
+		*colours = self->colours.empty() ? nullptr : static_cast<float const*>( &self->colours[ 0 ].x );
 	}
 
 	if ( normals ) {
-		*normals = self->normals.empty() ? nullptr : static_cast<float const *>( &self->normals[ 0 ].x );
+		*normals = self->normals.empty() ? nullptr : static_cast<float const*>( &self->normals[ 0 ].x );
 	}
 
 	if ( uvs ) {
-		*uvs = self->uvs.empty() ? nullptr : static_cast<float const *>( &self->uvs[ 0 ].x );
+		*uvs = self->uvs.empty() ? nullptr : static_cast<float const*>( &self->uvs[ 0 ].x );
 	}
 
 	if ( indices ) {
@@ -126,7 +126,7 @@ static void le_mesh_get_data( le_mesh_o *self, size_t &numVertices, size_t &numI
 /// \brief   file loader utility method
 /// \details loads file given by filepath and returns a vector of chars if successful
 /// \note    returns an empty vector if not successful
-static std::vector<char> load_file( const std::filesystem::path &file_path, bool *success ) {
+static std::vector<char> load_file( const std::filesystem::path& file_path, bool* success ) {
 
 	std::vector<char> contents;
 
@@ -167,7 +167,7 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 
 // ----------------------------------------------------------------------
 
-inline int does_start_with( char const *haystack, char const *needle, size_t &needle_len ) {
+inline int does_start_with( char const* haystack, char const* needle, size_t& needle_len ) {
 	needle_len = strlen( needle );
 	return 0 == strncmp( haystack, needle, needle_len );
 };
@@ -176,7 +176,7 @@ inline int does_start_with( char const *haystack, char const *needle, size_t &ne
 /// \brief loads mesh from ply file
 /// \note any contents of mesh will be cleared before loading
 /// \return true upon success, false otherwise.
-static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ ) {
+static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ ) {
 
 	// - Make sure file exists
 
@@ -193,7 +193,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 
 	/*
 	 * element vertex structure: attribute index tells us where to store data which we parse
-	*/
+	 */
 
 	struct Property {
 
@@ -227,7 +227,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 		AttributeType attribute_type    = AttributeType::eUnknown; // only used for attributes - not lists.
 		Type          list_size_type    = Type::eUnknown;          // only used for lists
 		Type          list_content_type = Type::eUnknown;          // only used for lists
-		char const *  name              = nullptr;
+		char const*   name              = nullptr;
 		uint8_t       name_len          = 0; ///< number of chars for name (does not include \0)
 	};
 
@@ -238,7 +238,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			eVertex,
 			eFace,
 		};
-		char const *          name;
+		char const*           name;
 		Type                  type;
 		uint8_t               name_len; ///< number of chars for name (does not include \0)
 		uint32_t              num_elements;
@@ -257,11 +257,11 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 	}
 
 	static auto DELIMS{ "\r\n\0" };
-	char *      c_save_ptr; //< we use the re-entrant version of strtok, for which state is stored in here
+	char*       c_save_ptr; //< we use the re-entrant version of strtok, for which state is stored in here
 
 	// --------| invariant: file was loaded.
 
-	char *c = strtok_r( file_data.data(), DELIMS, &c_save_ptr );
+	char* c = strtok_r( file_data.data(), DELIMS, &c_save_ptr );
 
 	if ( 0 != strcmp( c, "ply" ) ) {
 		std::cerr << "Invalid file header: '" << file_path << "'";
@@ -293,9 +293,9 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			Element element;
 
 			// Note: This method replaces spaces between in-element tokens with \0 characters.
-			auto parse_element_line = []( char *c, Element &element ) -> bool {
+			auto parse_element_line = []( char* c, Element& element ) -> bool {
 				element.name = c;
-				char *c_next = strchr( c, ' ' );
+				char* c_next = strchr( c, ' ' );
 				if ( c_next == nullptr ) {
 					// There must be a space character
 					assert( false );
@@ -330,7 +330,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			Property property;
 
 			// Note: this replaces spaces between in-element tokens with \0 characters.
-			auto parse_property_line = []( char *c, Property &property ) -> bool {
+			auto parse_property_line = []( char* c, Property& property ) -> bool {
 				size_t last_search_string_len = 0;
 
 				// now, we expect either list or [float|uchar] as property type
@@ -470,7 +470,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 
 	// - Load file data
 
-	Element const *element_archetype     = elements.data();
+	Element const* element_archetype     = elements.data();
 	auto const     element_archetype_end = elements.data() + elements.size();
 
 	// What follows now is a list of elements, one element per line.
@@ -487,7 +487,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 
 			// - Make space over all attributes for number of elements.
 
-			for ( auto const &p : element_archetype->properties ) {
+			for ( auto const& p : element_archetype->properties ) {
 				switch ( p.attribute_type ) {
 				case ( Property::AttributeType::eVX ): // intentional fall-through
 				case ( Property::AttributeType::eVY ): // intentional fall-through
@@ -516,14 +516,14 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			}
 
 			for ( uint32_t i = 0; i != element_archetype->num_elements && c != nullptr; ++i, c = strtok_r( nullptr, DELIMS, &c_save_ptr ) ) {
-				char *s = c;
+				char* s = c;
 
-				auto *v_data  = self->vertices.empty() ? nullptr : &self->vertices[ i ];
-				auto *n_data  = self->normals.empty() ? nullptr : &self->normals[ i ];
-				auto *uv_data = self->uvs.empty() ? nullptr : &self->uvs[ i ];
-				auto *c_data  = self->colours.empty() ? nullptr : &self->colours[ i ];
+				auto* v_data  = self->vertices.empty() ? nullptr : &self->vertices[ i ];
+				auto* n_data  = self->normals.empty() ? nullptr : &self->normals[ i ];
+				auto* uv_data = self->uvs.empty() ? nullptr : &self->uvs[ i ];
+				auto* c_data  = self->colours.empty() ? nullptr : &self->colours[ i ];
 
-				for ( auto const &p : element_archetype->properties ) {
+				for ( auto const& p : element_archetype->properties ) {
 
 					// clang-format off
 					switch ( p.attribute_type ) {
@@ -557,15 +557,15 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			// must be 3 indices per face - because our meshes can only be built from triangles, not quads or anything else.
 			self->indices.resize( element_archetype->num_elements * 3, {} );
 
-			auto *      current_index = self->indices.data();
-			auto *const indices_end   = self->indices.data() + self->indices.size();
+			auto*       current_index = self->indices.data();
+			auto* const indices_end   = self->indices.data() + self->indices.size();
 
 			// this goes through line-by line.
 			for ( size_t line_num = 0;
 			      ( line_num != element_archetype->num_elements ) && ( current_index < indices_end ) && ( c != nullptr );
 			      ++line_num ) {
 
-				char *s = c;
+				char* s = c;
 
 				auto three = strtoul( s, &s, 0 );
 				assert( three == 3 ); // first element must be three
@@ -582,7 +582,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 		if ( element_archetype->type == Element::Type::eUnknown ) {
 			// Not implemented yet.
 
-			auto skip_lines = [ & ]( char const *c, Element const *archetype ) {
+			auto skip_lines = [ & ]( char const* c, Element const* archetype ) {
 				for ( uint32_t i = 0; i != archetype->num_elements && c != nullptr; ++i ) {
 					c = strtok_r( nullptr, DELIMS, &c_save_ptr );
 				}
@@ -600,7 +600,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
-	auto &le_mesh_i = static_cast<le_mesh_api *>( api )->le_mesh_i;
+	auto& le_mesh_i = static_cast<le_mesh_api*>( api )->le_mesh_i;
 
 	le_mesh_i.get_vertices = le_mesh_get_vertices;
 	le_mesh_i.get_indices  = le_mesh_get_indices;

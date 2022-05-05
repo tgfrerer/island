@@ -47,8 +47,8 @@ LE_MODULE_LOAD_DEFAULT( le_pixels );
 #ifdef __cplusplus
 
 namespace le_pixels {
-static const auto &api         = le_pixels_api_i;
-static const auto &le_pixels_i = api -> le_pixels_i;
+static const auto& api         = le_pixels_api_i;
+static const auto& le_pixels_i = api -> le_pixels_i;
 
 } // namespace le_pixels
 
@@ -56,10 +56,10 @@ namespace le {
 
 class Pixels : NoCopy, NoMove {
 
-	le_pixels_o *self;
+	le_pixels_o* self;
 
   public:
-	Pixels( char const *path, int const &numChannelsRequested = 0, le_pixels_info::Type const &type = le_pixels_info::eUInt8 )
+	Pixels( char const* path, int const& numChannelsRequested = 0, le_pixels_info::Type const& type = le_pixels_info::eUInt8 )
 	    : self( le_pixels::le_pixels_i.create( path, numChannelsRequested, type ) ) {
 	}
 
@@ -79,7 +79,7 @@ class Pixels : NoCopy, NoMove {
 		return ( self );
 	}
 };
-} //end namespace le
+} // end namespace le
 
 #endif // __cplusplus
 

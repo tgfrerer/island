@@ -7,15 +7,15 @@
 
 // Wraps a type (also may also be an enum) in a struct with `struct_name` so
 // that it can be opaquely passed around, then unwrapped.
-#define LE_WRAP_TYPE_IN_STRUCT( type_name, struct_name )               \
-	struct struct_name {                                               \
-		type_name        data;                                         \
-		inline constexpr operator const type_name &() const noexcept { \
-			return data;                                               \
-		}                                                              \
-		inline constexpr operator type_name &() noexcept {             \
-			return data;                                               \
-		}                                                              \
+#define LE_WRAP_TYPE_IN_STRUCT( type_name, struct_name )              \
+	struct struct_name {                                              \
+		type_name        data;                                        \
+		inline constexpr operator const type_name&() const noexcept { \
+			return data;                                              \
+		}                                                             \
+		inline constexpr operator type_name&() noexcept {             \
+			return data;                                              \
+		}                                                             \
 	}
 
 LE_OPAQUE_HANDLE( le_texture_handle );
@@ -35,7 +35,7 @@ LE_OPAQUE_HANDLE( le_blas_resource_handle );
 LE_OPAQUE_HANDLE( le_tlas_resource_handle );
 
 struct le_resource_handle_t {
-	struct le_resource_handle_data_t *data;
+	struct le_resource_handle_data_t* data;
 };
 
 struct le_img_resource_handle_t : le_resource_handle_t {
@@ -557,7 +557,7 @@ enum class ImageType : uint32_t {
 };
 // Codegen </VkImageType>
 
-static const char *to_str( const AttachmentStoreOp &lhs ) {
+static const char* to_str( const AttachmentStoreOp& lhs ) {
 	switch ( lhs ) {
 	case AttachmentStoreOp::eStore:
 		return "Store";
@@ -569,7 +569,7 @@ static const char *to_str( const AttachmentStoreOp &lhs ) {
 	return "";
 }
 
-static const char *to_str( const AttachmentLoadOp &lhs ) {
+static const char* to_str( const AttachmentLoadOp& lhs ) {
 	switch ( lhs ) {
 	case AttachmentLoadOp::eLoad:
 		return "Load";
@@ -581,7 +581,7 @@ static const char *to_str( const AttachmentLoadOp &lhs ) {
 	return "";
 }
 
-static const char *to_str( const ImageType &lhs ) {
+static const char* to_str( const ImageType& lhs ) {
 	switch ( lhs ) {
 	case ImageType::e1D:
 		return "1D";
@@ -910,11 +910,11 @@ struct Extent3D {
 	uint32_t depth;
 };
 
-static inline constexpr bool operator==( const Extent3D &lhs, const Extent3D &rhs ) noexcept {
+static inline constexpr bool operator==( const Extent3D& lhs, const Extent3D& rhs ) noexcept {
 	return ( lhs.width == rhs.width && lhs.height == rhs.height && lhs.depth == rhs.depth );
 }
 
-static inline constexpr bool operator!=( const Extent3D &lhs, const Extent3D &rhs ) noexcept {
+static inline constexpr bool operator!=( const Extent3D& lhs, const Extent3D& rhs ) noexcept {
 	return !( lhs == rhs );
 }
 
@@ -1013,11 +1013,11 @@ struct le_swapchain_settings_t {
 			eSharedContinuousRefresh,
 		};
 		Presentmode            presentmode_hint = Presentmode::eFifo;
-		struct VkSurfaceKHR_T *vk_surface;
-		struct le_window_o *   window;
+		struct VkSurfaceKHR_T* vk_surface;
+		struct le_window_o*    window;
 	};
 	struct img_settings_t {
-		char const *pipe_cmd; // command used to save images - will receive stream of images via stdin
+		char const* pipe_cmd; // command used to save images - will receive stream of images via stdin
 	};
 
 	Type       type            = LE_KHR_SWAPCHAIN;
@@ -1033,7 +1033,7 @@ struct le_swapchain_settings_t {
 };
 
 struct le_renderer_settings_t {
-	char const **           requested_device_extensions       = nullptr; // optional
+	char const**            requested_device_extensions       = nullptr; // optional
 	uint32_t                requested_device_extensions_count = 0;       //
 	le_swapchain_settings_t swapchain_settings[ 16 ]          = {};
 	size_t                  num_swapchain_settings            = 1;
@@ -1056,23 +1056,23 @@ namespace le {
 using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 
 #define BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
-	constexpr builder &method_name( param_type param default_value ) {              \
+	constexpr builder& method_name( param_type param default_value ) {              \
 		self.param = param;                                                         \
 		return *this;                                                               \
 	}
 
 #define P_BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
-	constexpr builder &method_name( param_type param default_value ) {                \
+	constexpr builder& method_name( param_type param default_value ) {                \
 		self->param = param;                                                          \
 		return *this;                                                                 \
 	}
 class RendererInfoBuilder {
 	le_renderer_settings_t   info{};
-	le_renderer_settings_t & self               = info;
-	le_swapchain_settings_t *swapchain_settings = nullptr;
+	le_renderer_settings_t&  self               = info;
+	le_swapchain_settings_t* swapchain_settings = nullptr;
 
   public:
-	RendererInfoBuilder( le_window_o *window = nullptr, char const **requested_device_extensions = nullptr, uint32_t requested_device_extensions_count = 0 )
+	RendererInfoBuilder( le_window_o* window = nullptr, char const** requested_device_extensions = nullptr, uint32_t requested_device_extensions_count = 0 )
 	    : swapchain_settings( info.swapchain_settings ) {
 		if ( window != nullptr ) {
 			info.swapchain_settings->khr_settings.window = window;
@@ -1083,11 +1083,11 @@ class RendererInfoBuilder {
 	}
 
 	class SwapchainInfoBuilder {
-		RendererInfoBuilder &     parent;
-		le_swapchain_settings_t *&self;
+		RendererInfoBuilder&      parent;
+		le_swapchain_settings_t*& self;
 
 	  public:
-		SwapchainInfoBuilder( RendererInfoBuilder &parent_ )
+		SwapchainInfoBuilder( RendererInfoBuilder& parent_ )
 		    : parent( parent_ )
 		    , self( parent.swapchain_settings ) {
 		}
@@ -1098,64 +1098,64 @@ class RendererInfoBuilder {
 		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
 
 		class KhrSwapchainInfoBuilder {
-			SwapchainInfoBuilder &parent;
+			SwapchainInfoBuilder& parent;
 
 		  public:
-			KhrSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
+			KhrSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
 			    : parent( parent_ ) {
 			}
 
-			KhrSwapchainInfoBuilder &setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
+			KhrSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
 				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
 				return *this;
 			}
 
-			KhrSwapchainInfoBuilder &setWindow( le_window_o *window = nullptr ) {
+			KhrSwapchainInfoBuilder& setWindow( le_window_o* window = nullptr ) {
 				this->parent.parent.swapchain_settings->khr_settings.window = window;
 				return *this;
 			}
 
-			SwapchainInfoBuilder &end() {
+			SwapchainInfoBuilder& end() {
 				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
 				return parent;
 			}
 		};
 
 		class DirectSwapchainInfoBuilder {
-			SwapchainInfoBuilder &parent;
+			SwapchainInfoBuilder& parent;
 
 		  public:
-			DirectSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
+			DirectSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
 			    : parent( parent_ ) {
 			}
 
-			DirectSwapchainInfoBuilder &setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
+			DirectSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
 				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
 				return *this;
 			}
 
-			SwapchainInfoBuilder &end() {
+			SwapchainInfoBuilder& end() {
 				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
 				return parent;
 			}
 		};
 
 		class ImgSwapchainInfoBuilder {
-			SwapchainInfoBuilder &parent;
+			SwapchainInfoBuilder& parent;
 
 			static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
 
 		  public:
-			ImgSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
+			ImgSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
 			    : parent( parent_ ) {
 			}
 
-			ImgSwapchainInfoBuilder &setPipeCmd( char const *pipe_cmd = default_pipe_cmd ) {
+			ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
 				parent.parent.swapchain_settings->img_settings.pipe_cmd = pipe_cmd;
 				return *this;
 			}
 
-			SwapchainInfoBuilder &end() {
+			SwapchainInfoBuilder& end() {
 				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
 				return parent;
 			}
@@ -1165,20 +1165,20 @@ class RendererInfoBuilder {
 		ImgSwapchainInfoBuilder    mImgSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
 		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
 
-		KhrSwapchainInfoBuilder &asWindowSwapchain() {
+		KhrSwapchainInfoBuilder& asWindowSwapchain() {
 			return mKhrSwapchainInfoBuilder;
 		}
 
-		ImgSwapchainInfoBuilder &asImgSwapchain() {
+		ImgSwapchainInfoBuilder& asImgSwapchain() {
 			mImgSwapchainInfoBuilder.setPipeCmd();
 			return mImgSwapchainInfoBuilder;
 		}
 
-		DirectSwapchainInfoBuilder &asDirectSwapchain() {
+		DirectSwapchainInfoBuilder& asDirectSwapchain() {
 			return mDirectSwapchainInfoBuilder;
 		}
 
-		RendererInfoBuilder &end() {
+		RendererInfoBuilder& end() {
 			if ( parent.swapchain_settings != &parent.info.swapchain_settings[ 0 ] ) {
 				parent.info.num_swapchain_settings++;
 			}
@@ -1189,11 +1189,11 @@ class RendererInfoBuilder {
 
 	SwapchainInfoBuilder mSwapchainInfoBuilder{ *this };
 
-	SwapchainInfoBuilder &addSwapchain() {
+	SwapchainInfoBuilder& addSwapchain() {
 		return mSwapchainInfoBuilder;
 	}
 
-	le_renderer_settings_t const &build() {
+	le_renderer_settings_t const& build() {
 
 		// Do some checks:
 		// + If no window was specified, then force image swapchain as a fallback.
@@ -1214,11 +1214,11 @@ class ImageSamplerInfoBuilder {
 	le_image_sampler_info_t info{};
 
 	class SamplerInfoBuilder {
-		ImageSamplerInfoBuilder &parent;
-		le_sampler_info_t &      self = parent.info.sampler;
+		ImageSamplerInfoBuilder& parent;
+		le_sampler_info_t&       self = parent.info.sampler;
 
 	  public:
-		SamplerInfoBuilder( ImageSamplerInfoBuilder &parent_ )
+		SamplerInfoBuilder( ImageSamplerInfoBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
@@ -1238,17 +1238,17 @@ class ImageSamplerInfoBuilder {
 		BUILDER_IMPLEMENT( SamplerInfoBuilder, setBorderColor, le::BorderColor, borderColor, = le::BorderColor::eFloatTransparentBlack )
 		BUILDER_IMPLEMENT( SamplerInfoBuilder, setUnnormalizedCoordinates, bool, unnormalizedCoordinates, = false )
 
-		ImageSamplerInfoBuilder &end() {
+		ImageSamplerInfoBuilder& end() {
 			return parent;
 		}
 	};
 
 	class ImageViewInfoBuilder {
-		ImageSamplerInfoBuilder &                      parent;
-		le_image_sampler_info_t::le_image_view_info_t &self = parent.info.imageView;
+		ImageSamplerInfoBuilder&                       parent;
+		le_image_sampler_info_t::le_image_view_info_t& self = parent.info.imageView;
 
 	  public:
-		ImageViewInfoBuilder( ImageSamplerInfoBuilder &parent_ )
+		ImageViewInfoBuilder( ImageSamplerInfoBuilder& parent_ )
 		    : parent( parent_ ) {
 		}
 
@@ -1258,7 +1258,7 @@ class ImageSamplerInfoBuilder {
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setBaseArrayLayer, uint32_t, base_array_layer, = 0 )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setLayerCount, uint32_t, layer_count, = 1 )
 
-		ImageSamplerInfoBuilder &end() {
+		ImageSamplerInfoBuilder& end() {
 			return parent;
 		}
 	};
@@ -1270,23 +1270,23 @@ class ImageSamplerInfoBuilder {
 	ImageSamplerInfoBuilder()  = default;
 	~ImageSamplerInfoBuilder() = default;
 
-	ImageSamplerInfoBuilder( le_image_sampler_info_t const &info_ )
+	ImageSamplerInfoBuilder( le_image_sampler_info_t const& info_ )
 	    : info( info_ ) {
 	}
 
-	ImageSamplerInfoBuilder( le_img_resource_handle const &image_resource ) {
+	ImageSamplerInfoBuilder( le_img_resource_handle const& image_resource ) {
 		info.imageView.imageId = image_resource;
 	}
 
-	ImageViewInfoBuilder &withImageViewInfo() {
+	ImageViewInfoBuilder& withImageViewInfo() {
 		return mImageViewInfoBuilder;
 	}
 
-	SamplerInfoBuilder &withSamplerInfo() {
+	SamplerInfoBuilder& withSamplerInfo() {
 		return mSamplerInfoBuilder;
 	}
 
-	le_image_sampler_info_t const &build() {
+	le_image_sampler_info_t const& build() {
 		return info;
 	}
 };
@@ -1300,7 +1300,7 @@ class ImageAttachmentInfoBuilder {
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setColorClearValue, LeClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueColor )
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setDepthStencilClearValue, LeClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueDepthStencil )
 
-	le_image_attachment_info_t const &build() {
+	le_image_attachment_info_t const& build() {
 		return self;
 	}
 };
@@ -1321,7 +1321,7 @@ class WriteToImageSettingsBuilder {
 	BUILDER_IMPLEMENT( WriteToImageSettingsBuilder, setDstMiplevel, uint32_t, dst_miplevel, = 0 )
 	BUILDER_IMPLEMENT( WriteToImageSettingsBuilder, setNumMiplevels, uint32_t, num_miplevels, = 1 )
 
-	constexpr le_write_to_image_settings_t const &build() const {
+	constexpr le_write_to_image_settings_t const& build() const {
 		return self;
 	}
 };
@@ -1457,7 +1457,7 @@ enum class le_compound_num_type : uint8_t {
 	eQuat4     = ( 8 << 4 ) | 4, // quaternion is stored as vec4, but interpolated as slerp rather than lerp
 };
 
-constexpr uint8_t get_num_components( le_compound_num_type const &tp ) {
+constexpr uint8_t get_num_components( le_compound_num_type const& tp ) {
 	return ( uint8_t( tp ) & 0xF );
 }
 
@@ -1492,7 +1492,7 @@ enum class le_num_type : uint8_t {
 };
 
 // returns number of bytes needed to store given num_type
-constexpr uint32_t size_of( le_num_type const &tp ) {
+constexpr uint32_t size_of( le_num_type const& tp ) {
 	return ( 1 << ( uint8_t( tp ) & 0b11 ) );
 }
 
@@ -1532,7 +1532,7 @@ struct LeShaderGroupDataHeader {
 	uint32_t rtx_shader_group_handle_size;    // given in bytes
 	uint32_t rtx_shader_group_base_alignment; // given in bytes
 	uint32_t rtx_shader_group_handles_count;  // number of handles in payload, must equal data_byte_count / rtx_shader_group_handle_size
-	void *   pipeline_obj;                    // opaque pipeline object
+	void*    pipeline_obj;                    // opaque pipeline object
 };
 
 namespace le {
@@ -1657,7 +1657,7 @@ struct CommandBuildRtxTlas {
 		uint32_t                geometry_instances_count;     // number of geometry instances for this tlas
 		uint32_t                staging_buffer_offset;        // offset into staging buffer for geometry instance data
 		le_buf_resource_handle  staging_buffer_id;            // staging buffer which stores geometry instance data
-		void *                  staging_buffer_mapped_memory; // address of mapped area on staging buffer.
+		void*                   staging_buffer_mapped_memory; // address of mapped area on staging buffer.
 	} info;
 };
 
@@ -1728,8 +1728,8 @@ struct CommandBindVertexBuffers {
 	struct {
 		uint32_t                firstBinding;
 		uint32_t                bindingCount;
-		le_buf_resource_handle *pBuffers;
-		uint64_t *              pOffsets;
+		le_buf_resource_handle* pBuffers;
+		uint64_t*               pOffsets;
 	} info;
 };
 
@@ -1761,7 +1761,7 @@ struct CommandBindRtxPipeline {
 	CommandHeader header = { { { CommandType::eBindRtxPipeline, sizeof( CommandBindRtxPipeline ) } } };
 	struct {
 
-		void *   pipeline_native_handle; // handle to native pipeline object, most likely VkPipeline
+		void*    pipeline_native_handle; // handle to native pipeline object, most likely VkPipeline
 		uint64_t pipeline_layout_key;
 		uint64_t descriptor_set_layout_keys[ 8 ];
 		uint64_t descriptor_set_layout_count;

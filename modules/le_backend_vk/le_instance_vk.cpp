@@ -33,19 +33,19 @@ struct le_backend_vk_instance_o {
 /*
  * Specify which validation layers to enable within Khronos validation
  * layer. (The following are otherwise disabled by default)
- * 
+ *
  */
-//static const vk::ValidationFeatureEnableEXT enabledValidationFeatures[] = {
-// vk::ValidationFeatureEnableEXT::eGpuAssisted,
-// vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
-// vk::ValidationFeatureEnableEXT::eBestPractices,
-// vk::ValidationFeatureEnableEXT::eDebugPrintf,
-//};
+// static const vk::ValidationFeatureEnableEXT enabledValidationFeatures[] = {
+//  vk::ValidationFeatureEnableEXT::eGpuAssisted,
+//  vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
+//  vk::ValidationFeatureEnableEXT::eBestPractices,
+//  vk::ValidationFeatureEnableEXT::eDebugPrintf,
+// };
 
-/* 
+/*
  * Specify which validation layers to disable within Khronos validation
  * layer. (The following are otherwise enabled by default)
- * 
+ *
  */
 static const vk::ValidationFeatureDisableEXT disabledValidationFeatures[] = {
     // vk::ValidationFeatureDisableEXT::eAll,
@@ -59,7 +59,7 @@ static const vk::ValidationFeatureDisableEXT disabledValidationFeatures[] = {
 
 // ----------------------------------------------------------------------
 
-static bool instance_is_extension_available( le_backend_vk_instance_o *self, char const *extension_name ); //ffdecl
+static bool instance_is_extension_available( le_backend_vk_instance_o* self, char const* extension_name ); // ffdecl
 
 // ----------------------------------------------------------------------
 
@@ -81,7 +81,7 @@ DECLARE_EXT_PFN( vkSetDebugUtilsObjectNameEXT );
 
 // device extensions - for ray tracing
 #ifdef LE_FEATURE_RTX
-//DECLARE_EXT_PFN( vkGetBufferDeviceAddress );
+// DECLARE_EXT_PFN( vkGetBufferDeviceAddress );
 DECLARE_EXT_PFN( vkCreateAccelerationStructureKHR );
 DECLARE_EXT_PFN( vkCmdBuildAccelerationStructuresKHR );
 DECLARE_EXT_PFN( vkDestroyAccelerationStructureKHR );
@@ -105,7 +105,7 @@ DECLARE_EXT_PFN( vkCmdDrawMeshTasksIndirectCountNV );
 
 // ----------------------------------------------------------------------
 
-static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
+static void patchExtProcAddrs( le_backend_vk_instance_o* obj ) {
 
 	// Note that we get proc addresses via the instance for instance extensions as
 	// well as for device extensions. If a device extension gets called via an instance,
@@ -177,30 +177,30 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 
 VkResult vkSetDebugUtilsObjectNameEXT(
     VkDevice                             device,
-    const VkDebugUtilsObjectNameInfoEXT *pNameInfo ) {
+    const VkDebugUtilsObjectNameInfoEXT* pNameInfo ) {
 	return pfn_vkSetDebugUtilsObjectNameEXT( device, pNameInfo );
 }
 VkResult vkSetDebugUtilsObjectTagEXT(
     VkDevice                            device,
-    const VkDebugUtilsObjectTagInfoEXT *pTagInfo ) {
+    const VkDebugUtilsObjectTagInfoEXT* pTagInfo ) {
 	return pfn_vkSetDebugUtilsObjectTagEXT( device, pTagInfo );
 }
 VkResult vkCreateDebugUtilsMessengerEXT(
     VkInstance                                instance,
-    const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-    const VkAllocationCallbacks *             pAllocator,
-    VkDebugUtilsMessengerEXT *                pMessenger ) {
+    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+    const VkAllocationCallbacks*              pAllocator,
+    VkDebugUtilsMessengerEXT*                 pMessenger ) {
 	return pfn_vkCreateDebugUtilsMessengerEXT( instance, pCreateInfo, pAllocator, pMessenger );
 }
 void vkDestroyDebugUtilsMessengerEXT(
     VkInstance                   instance,
     VkDebugUtilsMessengerEXT     messenger,
-    const VkAllocationCallbacks *pAllocator ) {
+    const VkAllocationCallbacks* pAllocator ) {
 	pfn_vkDestroyDebugUtilsMessengerEXT( instance, messenger, pAllocator );
 }
 void vkQueueBeginDebugUtilsLabelEXT(
     VkQueue                     queue,
-    const VkDebugUtilsLabelEXT *pLabelInfo ) {
+    const VkDebugUtilsLabelEXT* pLabelInfo ) {
 	pfn_vkQueueBeginDebugUtilsLabelEXT( queue, pLabelInfo );
 }
 void vkQueueEndDebugUtilsLabelEXT(
@@ -209,12 +209,12 @@ void vkQueueEndDebugUtilsLabelEXT(
 }
 void vkQueueInsertDebugUtilsLabelEXT(
     VkQueue                     queue,
-    const VkDebugUtilsLabelEXT *pLabelInfo ) {
+    const VkDebugUtilsLabelEXT* pLabelInfo ) {
 	pfn_vkQueueInsertDebugUtilsLabelEXT( queue, pLabelInfo );
 }
 void vkCmdBeginDebugUtilsLabelEXT(
     VkCommandBuffer             commandBuffer,
-    const VkDebugUtilsLabelEXT *pLabelInfo ) {
+    const VkDebugUtilsLabelEXT* pLabelInfo ) {
 	pfn_vkCmdBeginDebugUtilsLabelEXT( commandBuffer, pLabelInfo );
 }
 void vkCmdEndDebugUtilsLabelEXT(
@@ -223,52 +223,52 @@ void vkCmdEndDebugUtilsLabelEXT(
 }
 void vkCmdInsertDebugUtilsLabelEXT(
     VkCommandBuffer             commandBuffer,
-    const VkDebugUtilsLabelEXT *pLabelInfo ) {
+    const VkDebugUtilsLabelEXT* pLabelInfo ) {
 	pfn_vkCmdInsertDebugUtilsLabelEXT( commandBuffer, pLabelInfo );
 }
 #ifdef LE_FEATURE_RTX
 
-//VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetBufferDeviceAddress(
-//    VkDevice                         device,
-//    const VkBufferDeviceAddressInfo *pInfo ) {
+// VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetBufferDeviceAddress(
+//     VkDevice                         device,
+//     const VkBufferDeviceAddressInfo *pInfo ) {
 //	return pfn_vkGetBufferDeviceAddress( device, pInfo );
-//}
+// }
 
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateAccelerationStructureKHR(
     VkDevice                                    device,
-    const VkAccelerationStructureCreateInfoKHR *pCreateInfo,
-    const VkAllocationCallbacks *               pAllocator,
-    VkAccelerationStructureKHR *                pAccelerationStructure ) {
+    const VkAccelerationStructureCreateInfoKHR* pCreateInfo,
+    const VkAllocationCallbacks*                pAllocator,
+    VkAccelerationStructureKHR*                 pAccelerationStructure ) {
 	return pfn_vkCreateAccelerationStructureKHR( device, pCreateInfo, pAllocator, pAccelerationStructure );
 };
 
 VKAPI_ATTR void VKAPI_CALL vkDestroyAccelerationStructureKHR(
     VkDevice                     device,
     VkAccelerationStructureKHR   accelerationStructure,
-    const VkAllocationCallbacks *pAllocator ) {
+    const VkAllocationCallbacks* pAllocator ) {
 	pfn_vkDestroyAccelerationStructureKHR( device, accelerationStructure, pAllocator );
 };
 
 VKAPI_ATTR void VKAPI_CALL vkCmdBuildAccelerationStructuresKHR(
     VkCommandBuffer                                        commandBuffer,
     uint32_t                                               infoCount,
-    const VkAccelerationStructureBuildGeometryInfoKHR *    pInfos,
-    const VkAccelerationStructureBuildRangeInfoKHR *const *ppBuildRangeInfos ) {
+    const VkAccelerationStructureBuildGeometryInfoKHR*     pInfos,
+    const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos ) {
 	return pfn_vkCmdBuildAccelerationStructuresKHR( commandBuffer, infoCount, pInfos, ppBuildRangeInfos );
 }
 
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetAccelerationStructureDeviceAddressKHR(
     VkDevice                                           device,
-    const VkAccelerationStructureDeviceAddressInfoKHR *pInfo ) {
+    const VkAccelerationStructureDeviceAddressInfoKHR* pInfo ) {
 	return pfn_vkGetAccelerationStructureDeviceAddressKHR( device, pInfo );
 }
 
 VKAPI_ATTR void VKAPI_CALL vkGetAccelerationStructureBuildSizesKHR(
     VkDevice                                           device,
     VkAccelerationStructureBuildTypeKHR                buildType,
-    const VkAccelerationStructureBuildGeometryInfoKHR *pBuildInfo,
-    const uint32_t *                                   pMaxPrimitiveCounts,
-    VkAccelerationStructureBuildSizesInfoKHR *         pSizeInfo ) {
+    const VkAccelerationStructureBuildGeometryInfoKHR* pBuildInfo,
+    const uint32_t*                                    pMaxPrimitiveCounts,
+    VkAccelerationStructureBuildSizesInfoKHR*          pSizeInfo ) {
 	return pfn_vkGetAccelerationStructureBuildSizesKHR( device, buildType, pBuildInfo, pMaxPrimitiveCounts, pSizeInfo );
 }
 
@@ -277,9 +277,9 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateRayTracingPipelinesKHR(
     VkDeferredOperationKHR                   deferredOperation,
     VkPipelineCache                          pipelineCache,
     uint32_t                                 createInfoCount,
-    const VkRayTracingPipelineCreateInfoKHR *pCreateInfos,
-    const VkAllocationCallbacks *            pAllocator,
-    VkPipeline *                             pPipelines ) {
+    const VkRayTracingPipelineCreateInfoKHR* pCreateInfos,
+    const VkAllocationCallbacks*             pAllocator,
+    VkPipeline*                              pPipelines ) {
 	return pfn_vkCreateRayTracingPipelinesKHR( device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 }
 
@@ -289,16 +289,16 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesKHR(
     uint32_t   firstGroup,
     uint32_t   groupCount,
     size_t     dataSize,
-    void *     pData ) {
+    void*      pData ) {
 	return pfn_vkGetRayTracingShaderGroupHandlesKHR( device, pipeline, firstGroup, groupCount, dataSize, pData );
 }
 
 VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysKHR(
     VkCommandBuffer                        commandBuffer,
-    const VkStridedDeviceAddressRegionKHR *pRaygenShaderBindingTable,
-    const VkStridedDeviceAddressRegionKHR *pMissShaderBindingTable,
-    const VkStridedDeviceAddressRegionKHR *pHitShaderBindingTable,
-    const VkStridedDeviceAddressRegionKHR *pCallableShaderBindingTable,
+    const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable,
+    const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable,
+    const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable,
+    const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable,
     uint32_t                               width,
     uint32_t                               height,
     uint32_t                               depth ) {
@@ -337,14 +337,14 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountNV(
 #endif
 // ----------------------------------------------------------------------
 
-//static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
-//static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ); // ffdecl.
+// static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
+// static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ); // ffdecl.
 
 static VkBool32 debugUtilsMessengerCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT             messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-    void * ) {
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* ) {
 
 	bool shouldBailout = VK_FALSE;
 
@@ -394,7 +394,7 @@ static VkBool32 debugUtilsMessengerCallback(
 }
 // ----------------------------------------------------------------------
 
-static void create_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
+static void create_debug_messenger_callback( le_backend_vk_instance_o* obj ) {
 
 	if ( false == SHOULD_USE_VALIDATION_LAYERS ) {
 		return;
@@ -418,7 +418,7 @@ static void create_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
+static void destroy_debug_messenger_callback( le_backend_vk_instance_o* obj ) {
 
 	if ( false == SHOULD_USE_VALIDATION_LAYERS ) {
 		return;
@@ -435,7 +435,7 @@ static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
+le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, uint32_t numExtensionNames_ ) {
 
 	static_assert( VK_HEADER_VERSION >= 162, "Wrong VK_HEADER_VERSION!" );
 
@@ -461,15 +461,15 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 		self->instanceExtensionSet.insert( extensionNamesArray_[ i ] );
 	}
 
-	std::vector<const char *> instanceExtensionCstr{};
+	std::vector<const char*> instanceExtensionCstr{};
 
-	for ( auto &e : self->instanceExtensionSet ) {
+	for ( auto& e : self->instanceExtensionSet ) {
 		instanceExtensionCstr.push_back( e.c_str() );
 	}
 
 	// -- Create a vector of requested instance layers
 
-	std::vector<const char *> instanceLayerNames = {};
+	std::vector<const char*> instanceLayerNames = {};
 
 	if ( true == SHOULD_USE_VALIDATION_LAYERS ) {
 		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
@@ -511,7 +511,7 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 // ----------------------------------------------------------------------
 
-static void instance_destroy( le_backend_vk_instance_o *obj ) {
+static void instance_destroy( le_backend_vk_instance_o* obj ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	destroy_debug_messenger_callback( obj );
 	obj->vkInstance.destroy();
@@ -521,19 +521,19 @@ static void instance_destroy( le_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-static VkInstance_T *instance_get_vk_instance( le_backend_vk_instance_o *obj ) {
-	return ( reinterpret_cast<VkInstance &>( obj->vkInstance ) );
+static VkInstance_T* instance_get_vk_instance( le_backend_vk_instance_o* obj ) {
+	return ( reinterpret_cast<VkInstance&>( obj->vkInstance ) );
 }
 
 // ----------------------------------------------------------------------
 
-static bool instance_is_extension_available( le_backend_vk_instance_o *self, char const *extension_name ) {
+static bool instance_is_extension_available( le_backend_vk_instance_o* self, char const* extension_name ) {
 	return self->instanceExtensionSet.find( extension_name ) != self->instanceExtensionSet.end();
 }
 
 // ----------------------------------------------------------------------
 
-static void instance_post_reload_hook( le_backend_vk_instance_o *obj ) {
+static void instance_post_reload_hook( le_backend_vk_instance_o* obj ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	logger.debug( "post reload hook triggered." );
 	patchExtProcAddrs( obj );
@@ -545,9 +545,9 @@ static void instance_post_reload_hook( le_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-void register_le_instance_vk_api( void *api_ ) {
-	auto  api_i      = static_cast<le_backend_vk_api *>( api_ );
-	auto &instance_i = api_i->vk_instance_i;
+void register_le_instance_vk_api( void* api_ ) {
+	auto  api_i      = static_cast<le_backend_vk_api*>( api_ );
+	auto& instance_i = api_i->vk_instance_i;
 
 	instance_i.create                 = instance_create;
 	instance_i.destroy                = instance_destroy;

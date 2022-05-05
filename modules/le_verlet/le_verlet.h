@@ -37,7 +37,7 @@ struct le_verlet_api {
 		uint32_t anchor;   // Anchor point, index into particle system
 		uint32_t bCCW;     // Bool
 		float    distance; // Distance between point a, b
-		FollowConstraint( uint32_t const &a, uint32_t const &b, uint32_t const &anchor, uint32_t const &ccw )
+		FollowConstraint( uint32_t const& a, uint32_t const& b, uint32_t const& anchor, uint32_t const& ccw )
 		    : a( a )
 		    , b( b )
 		    , anchor( anchor )
@@ -50,7 +50,7 @@ struct le_verlet_api {
 		uint32_t a;        // index into particle system
 		uint32_t b;        // index into particle system
 		float    distance; // resting distance
-		SpringConstraint( uint32_t const &a, uint32_t const &b )
+		SpringConstraint( uint32_t const& a, uint32_t const& b )
 		    : a( a )
 		    , b( b )
 		    , distance( 0 ) {
@@ -68,11 +68,11 @@ struct le_verlet_api {
 			FollowConstraint follow;
 			SpringConstraint spring;
 		};
-		Constraint( FollowConstraint const &follow )
+		Constraint( FollowConstraint const& follow )
 		    : type( eFollow )
 		    , follow( follow ) {
 		}
-		Constraint( SpringConstraint const &spring )
+		Constraint( SpringConstraint const& spring )
 		    : type( eSpring )
 		    , spring( spring ) {
 		}
@@ -99,8 +99,8 @@ LE_MODULE_LOAD_DEFAULT( le_verlet );
 
 #ifdef __cplusplus
 namespace le_verlet {
-static const auto &api         = le_verlet_api_i;
-static const auto &le_verlet_i = api -> le_verlet_i;
+static const auto& api         = le_verlet_api_i;
+static const auto& le_verlet_i = api -> le_verlet_i;
 } // namespace le_verlet
 #endif // __cplusplus
 

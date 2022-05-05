@@ -40,12 +40,12 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 
 // Helper macro to convert le:: enums to vk:: enums
 #define LE_ENUM_TO_VK( enum_name, fun_name )                                    \
-	static inline vk::enum_name fun_name( le::enum_name const &rhs ) noexcept { \
+	static inline vk::enum_name fun_name( le::enum_name const& rhs ) noexcept { \
 		return vk::enum_name( rhs );                                            \
 	}
 
 #define LE_C_ENUM_TO_VK( enum_name, fun_name, c_enum_name )                   \
-	static inline vk::enum_name fun_name( c_enum_name const &rhs ) noexcept { \
+	static inline vk::enum_name fun_name( c_enum_name const& rhs ) noexcept { \
 		return vk::enum_name( rhs );                                          \
 	}
 
@@ -95,7 +95,7 @@ struct ResourceCreateInfo {
 	// FIXME: the comparison of pQueueFamilyIndices is fraught with peril,
 	// as we must really compare the contents of the memory pointed at
 	// rather than the pointer, and the pointer has no guarantee to be alife.
-	bool operator==( const ResourceCreateInfo &rhs ) const {
+	bool operator==( const ResourceCreateInfo& rhs ) const {
 
 		if ( type != rhs.type ) {
 			return false;
@@ -149,7 +149,7 @@ struct ResourceCreateInfo {
 	// based on the currently allocated version of a resource.
 	//
 	// Note that we are only fuzzy where it is safe to be so - which is flags.
-	bool operator>=( const ResourceCreateInfo &rhs ) const {
+	bool operator>=( const ResourceCreateInfo& rhs ) const {
 
 		if ( type != rhs.type ) {
 			return false;
@@ -189,7 +189,7 @@ struct ResourceCreateInfo {
 			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
 			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
 			         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-			         ( void * )imageInfo.pQueueFamilyIndices == ( void * )rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+			         ( void* )imageInfo.pQueueFamilyIndices == ( void* )rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
 			);
 		} else if ( isBlas() ) {
 			// NOTE: we don't compare scratch_buffer_sz, as scratch buffer sz is only available
@@ -206,7 +206,7 @@ struct ResourceCreateInfo {
 		return false; // unreachable
 	}
 
-	bool operator!=( const ResourceCreateInfo &rhs ) const {
+	bool operator!=( const ResourceCreateInfo& rhs ) const {
 		return !operator==( rhs );
 	}
 
@@ -225,7 +225,7 @@ struct ResourceCreateInfo {
 		return type == LeResourceType::eRtxTlas;
 	}
 
-	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyindexCount );
+	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t& info, uint32_t* pQueueFamilyIndices, uint32_t queueFamilyindexCount );
 };
 
 // ----------------------------------------------------------------------
@@ -246,17 +246,17 @@ struct le_rtx_tlas_info_o {
 
 template <typename T>
 class KillList : NoCopy, NoMove {
-	std::mutex       mtx;
-	std::vector<T *> infos;
+	std::mutex      mtx;
+	std::vector<T*> infos;
 
   public:
 	~KillList() {
 		auto lck = std::scoped_lock( mtx );
-		for ( auto &el : infos ) {
+		for ( auto& el : infos ) {
 			delete el;
 		}
 	}
-	void add_element( T *el ) {
+	void add_element( T* el ) {
 		auto lck = std::scoped_lock( mtx );
 		infos.push_back( el );
 	}
@@ -264,14 +264,14 @@ class KillList : NoCopy, NoMove {
 
 // ----------------------------------------------------------------------
 
-static inline const vk::ClearValue &le_clear_value_to_vk( const LeClearValue &lhs ) {
+static inline const vk::ClearValue& le_clear_value_to_vk( const LeClearValue& lhs ) {
 	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "Clear value type size must be equal between Le and Vk" );
-	return reinterpret_cast<const vk::ClearValue &>( lhs );
+	return reinterpret_cast<const vk::ClearValue&>( lhs );
 }
 
 // ----------------------------------------------------------------------
 
-static inline constexpr le::Format vk_format_to_le( const vk::Format &format ) noexcept {
+static inline constexpr le::Format vk_format_to_le( const vk::Format& format ) noexcept {
 	return le::Format( format );
 }
 
@@ -316,7 +316,7 @@ vk::SampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 
 
 // returns log2 of number of samples, so that number of samples can be
 // calculated as `num_samples = 1 << log2_num_samples`
-inline uint16_t get_sample_count_log_2( uint32_t const &sample_count ) {
+inline uint16_t get_sample_count_log_2( uint32_t const& sample_count ) {
 #if defined( _MSC_VER )
 	auto lz = __lzcnt( sample_count );
 #else
@@ -327,39 +327,43 @@ inline uint16_t get_sample_count_log_2( uint32_t const &sample_count ) {
 
 // ----------------------------------------------------------------------
 
-ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyIndexCount ) {
+ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t& info, uint32_t* pQueueFamilyIndices, uint32_t queueFamilyIndexCount ) {
 	ResourceCreateInfo res{};
 
 	res.type = info.type;
 
 	switch ( info.type ) {
 	case ( LeResourceType::eBuffer ): {
-		res.bufferInfo = vk::BufferCreateInfo()
-		                     .setFlags( {} )
-		                     .setSize( info.buffer.size )
-		                     .setUsage( vk::BufferUsageFlags{ info.buffer.usage } ) // FIXME: we need to call an explicit le -> vk conversion
-		                     .setSharingMode( vk::SharingMode::eExclusive )
-		                     .setQueueFamilyIndexCount( queueFamilyIndexCount )
-		                     .setPQueueFamilyIndices( pQueueFamilyIndices );
+		res.bufferInfo =
+		    static_cast<VkBufferCreateInfo&>(
+		        ( vk::BufferCreateInfo()
+		              .setFlags( {} )
+		              .setSize( info.buffer.size )
+		              .setUsage( vk::BufferUsageFlags{ info.buffer.usage } ) // FIXME: we need to call an explicit le -> vk conversion
+		              .setSharingMode( vk::SharingMode::eExclusive )
+		              .setQueueFamilyIndexCount( queueFamilyIndexCount )
+		              .setPQueueFamilyIndices( pQueueFamilyIndices ) ) );
 
 	} break;
 	case ( LeResourceType::eImage ): {
-		auto const &img = info.image;
-		res.imageInfo   = vk::ImageCreateInfo()
-		                    .setFlags( le_image_create_flags_to_vk( img.flags ) )                   //
-		                    .setImageType( le_image_type_to_vk( img.imageType ) )                   //
-		                    .setFormat( le_format_to_vk( img.format ) )                             //
-		                    .setExtent( { img.extent.width, img.extent.height, img.extent.depth } ) //
-		                    .setMipLevels( img.mipLevels )                                          //
-		                    .setArrayLayers( img.arrayLayers )                                      //
-		                    .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )     //
-		                    .setTiling( le_image_tiling_to_vk( img.tiling ) )                       //
-		                    .setUsage( le_image_usage_flags_to_vk( img.usage ) )                    //
-		                    .setSharingMode( vk::SharingMode::eExclusive )                          // hardcoded to Exclusive - no sharing between queues
-		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                      //
-		                    .setPQueueFamilyIndices( pQueueFamilyIndices )                          //
-		                    .setInitialLayout( vk::ImageLayout::eUndefined )                        // must be either pre-initialised, or undefined (most likely)
-		    ;
+		auto const& img = info.image;
+		res.imageInfo =
+		    static_cast<VkImageCreateInfo&>(
+		        vk::ImageCreateInfo()
+		            .setFlags( le_image_create_flags_to_vk( img.flags ) )                   //
+		            .setImageType( le_image_type_to_vk( img.imageType ) )                   //
+		            .setFormat( le_format_to_vk( img.format ) )                             //
+		            .setExtent( { img.extent.width, img.extent.height, img.extent.depth } ) //
+		            .setMipLevels( img.mipLevels )                                          //
+		            .setArrayLayers( img.arrayLayers )                                      //
+		            .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )     //
+		            .setTiling( le_image_tiling_to_vk( img.tiling ) )                       //
+		            .setUsage( le_image_usage_flags_to_vk( img.usage ) )                    //
+		            .setSharingMode( vk::SharingMode::eExclusive )                          // hardcoded to Exclusive - no sharing between queues
+		            .setQueueFamilyIndexCount( queueFamilyIndexCount )                      //
+		            .setPQueueFamilyIndices( pQueueFamilyIndices )                          //
+		            .setInitialLayout( vk::ImageLayout::eUndefined )                        // must be either pre-initialised, or undefined (most likely)
+		    );
 
 	} break;
 	case ( LeResourceType::eRtxBlas ): {
@@ -388,13 +392,13 @@ struct ResourceState {
 	vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
 	vk::ImageLayout        layout;         // current layout (for images)
 
-	bool operator==( const ResourceState &rhs ) const {
+	bool operator==( const ResourceState& rhs ) const {
 		return visible_access == rhs.visible_access &&
 		       write_stage == rhs.write_stage &&
 		       layout == rhs.layout;
 	}
 
-	bool operator!=( const ResourceState &rhs ) const {
+	bool operator!=( const ResourceState& rhs ) const {
 		return !operator==( rhs );
 	}
 };
@@ -502,12 +506,12 @@ struct BackendFrameData {
 
 	VmaPool allocationPool; // pool from which allocations for this frame come from
 
-	std::vector<le_allocator_o *>  allocators;       // owning; typically one per `le_worker_thread`.
+	std::vector<le_allocator_o*>   allocators;       // owning; typically one per `le_worker_thread`.
 	std::vector<vk::Buffer>        allocatorBuffers; // per allocator: one vkBuffer
 	std::vector<VmaAllocation>     allocations;      // per allocator: one allocation
 	std::vector<VmaAllocationInfo> allocationInfos;  // per allocator: one allocationInfo
 
-	le_staging_allocator_o *stagingAllocator; // owning: allocator for large objects to GPU memory
+	le_staging_allocator_o* stagingAllocator; // owning: allocator for large objects to GPU memory
 };
 
 static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
@@ -523,10 +527,10 @@ static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
 /// \brief backend data object
 struct le_backend_o {
 
-	le_backend_vk_instance_o *  instance;
+	le_backend_vk_instance_o*   instance;
 	std::unique_ptr<le::Device> device;
 
-	std::vector<le_swapchain_o *> swapchains; // Owning.
+	std::vector<le_swapchain_o*> swapchains; // Owning.
 
 	std::vector<vk::SurfaceKHR> windowSurfaces; // owning. one per window swapchain.
 
@@ -546,7 +550,7 @@ struct le_backend_o {
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
 
-	le_pipeline_manager_o *pipelineCache = nullptr;
+	le_pipeline_manager_o* pipelineCache = nullptr;
 
 	VmaAllocator mAllocator = nullptr;
 
@@ -582,7 +586,7 @@ struct DescriptorSetState {
 
 // ----------------------------------------------------------------------
 
-static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isDepth, bool &isStencil ) {
+static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool& isDepth, bool& isStencil ) {
 
 	switch ( format_ ) {
 	case vk::Format::eD16Unorm:         // fall-through
@@ -610,28 +614,28 @@ static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isD
 }
 
 // ----------------------------------------------------------------------
-static inline vk::ImageViewType le_to_vk( le::ImageViewType const &t ) {
+static inline vk::ImageViewType le_to_vk( le::ImageViewType const& t ) {
 	return vk::ImageViewType( t );
 }
 
 // ----------------------------------------------------------------------
-static inline VkFormat le_to_vk( le::Format const &f ) {
+static inline VkFormat le_to_vk( le::Format const& f ) {
 	// this may change - but for now, we can map vk and le formats directly,
 	// mostly because codegen guarantees that they stay in sync.
 	return VkFormat( f );
 }
 
-static inline vk::PipelineStageFlags le_to_vk( LePipelineStageFlags const &f ) {
+static inline vk::PipelineStageFlags le_to_vk( LePipelineStageFlags const& f ) {
 	return vk::PipelineStageFlags( f );
 }
 
-static inline vk::AccessFlags le_to_vk( LeAccessFlags const &f ) {
+static inline vk::AccessFlags le_to_vk( LeAccessFlags const& f ) {
 	return vk::AccessFlags( f );
 }
 
 // ----------------------------------------------------------------------
 
-static void backend_create_window_surface( le_backend_o *self, le_swapchain_settings_t *settings ) {
+static void backend_create_window_surface( le_backend_o* self, le_swapchain_settings_t* settings ) {
 
 	assert( settings->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN );
 	assert( settings->khr_settings.window );
@@ -647,10 +651,10 @@ static void backend_create_window_surface( le_backend_o *self, le_swapchain_sett
 
 // ----------------------------------------------------------------------
 
-static void backend_destroy_window_surfaces( le_backend_o *self ) {
+static void backend_destroy_window_surfaces( le_backend_o* self ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	for ( auto &surface : self->windowSurfaces ) {
+	for ( auto& surface : self->windowSurfaces ) {
 		vk::Instance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
 		instance.destroySurfaceKHR( surface );
 		logger.debug( "Surface destroyed" );
@@ -660,14 +664,14 @@ static void backend_destroy_window_surfaces( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_backend_o *backend_create() {
+static le_backend_o* backend_create() {
 	auto self = new le_backend_o;
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void backend_destroy( le_backend_o *self ) {
+static void backend_destroy( le_backend_o* self ) {
 
 	if ( self->pipelineCache ) {
 		using namespace le_backend_vk;
@@ -682,13 +686,13 @@ static void backend_destroy( le_backend_o *self ) {
 	// and the allocator must still be alive for the swapchain to free objects
 	// alloacted through it.
 
-	for ( auto &s : self->swapchains ) {
+	for ( auto& s : self->swapchains ) {
 		using namespace le_swapchain_vk;
 		swapchain_i.destroy( s );
 	}
 	self->swapchains.clear();
 
-	for ( auto &frameData : self->mFrames ) {
+	for ( auto& frameData : self->mFrames ) {
 
 		using namespace le_backend_vk;
 
@@ -696,7 +700,7 @@ static void backend_destroy( le_backend_o *self ) {
 
 		device.destroyFence( frameData.frameFence );
 
-		for ( auto &swapchain_state : frameData.swapchain_state ) {
+		for ( auto& swapchain_state : frameData.swapchain_state ) {
 			device.destroySemaphore( swapchain_state.presentComplete );
 			device.destroySemaphore( swapchain_state.renderComplete );
 		}
@@ -704,7 +708,7 @@ static void backend_destroy( le_backend_o *self ) {
 
 		device.destroyCommandPool( frameData.commandPool );
 
-		for ( auto &d : frameData.descriptorPools ) {
+		for ( auto& d : frameData.descriptorPools ) {
 			device.destroyDescriptorPool( d );
 		}
 
@@ -714,8 +718,8 @@ static void backend_destroy( le_backend_o *self ) {
 			        frameData.allocatorBuffers.size() == frameData.allocations.size() &&
 			        frameData.allocatorBuffers.size() == frameData.allocationInfos.size() );
 
-			vk::Buffer *   buffer     = frameData.allocatorBuffers.data();
-			VmaAllocation *allocation = frameData.allocations.data();
+			vk::Buffer*    buffer     = frameData.allocatorBuffers.data();
+			VmaAllocation* allocation = frameData.allocations.data();
 
 			for ( auto allocator = frameData.allocators.begin(); allocator != frameData.allocators.end(); allocator++, buffer++, allocation++ ) {
 				le_allocator_linear_i.destroy( *allocator );
@@ -734,7 +738,7 @@ static void backend_destroy( le_backend_o *self ) {
 		le_staging_allocator_i.destroy( frameData.stagingAllocator );
 
 		// remove any binned resources
-		for ( auto &a : frameData.binnedResources ) {
+		for ( auto& a : frameData.binnedResources ) {
 
 			if ( a.second.info.isBuffer() ) {
 				device.destroyBuffer( a.second.as.buffer );
@@ -761,7 +765,7 @@ static void backend_destroy( le_backend_o *self ) {
 	// Remove any resources still alive in the backend.
 	// At this point we're running single-threaded, so we can ignore the
 	// ownership claim on allocatedResources.
-	for ( auto &a : self->only_backend_allocate_resources_may_access.allocatedResources ) {
+	for ( auto& a : self->only_backend_allocate_resources_may_access.allocatedResources ) {
 
 		switch ( a.second.info.type ) {
 		case LeResourceType::eImage:
@@ -809,14 +813,14 @@ static void backend_destroy( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_create_swapchains( le_backend_o *self, uint32_t num_settings, le_swapchain_settings_t *settings ) {
+static void backend_create_swapchains( le_backend_o* self, uint32_t num_settings, le_swapchain_settings_t* settings ) {
 
 	using namespace le_swapchain_vk;
 
 	assert( num_settings && "num_settings must not be zero" );
 
 	for ( size_t i = 0; i != num_settings; i++, settings++ ) {
-		le_swapchain_o *swapchain = nullptr;
+		le_swapchain_o* swapchain = nullptr;
 
 		switch ( settings->type ) {
 
@@ -846,7 +850,7 @@ static void backend_create_swapchains( le_backend_o *self, uint32_t num_settings
 
 // ----------------------------------------------------------------------
 
-static size_t backend_get_num_swapchain_images( le_backend_o *self ) {
+static size_t backend_get_num_swapchain_images( le_backend_o* self ) {
 	assert( !self->swapchains.empty() );
 	using namespace le_swapchain_vk;
 	return swapchain_i.get_images_count( self->swapchains[ 0 ] );
@@ -855,14 +859,14 @@ static size_t backend_get_num_swapchain_images( le_backend_o *self ) {
 // ----------------------------------------------------------------------
 // Returns the current swapchain width and height.
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
-static void backend_get_swapchain_extent( le_backend_o *self, uint32_t index, uint32_t *p_width, uint32_t *p_height ) {
+static void backend_get_swapchain_extent( le_backend_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height ) {
 	*p_width  = self->swapchainWidth[ index ];
 	*p_height = self->swapchainHeight[ index ];
 }
 
 // ----------------------------------------------------------------------
 
-bool backend_get_swapchain_info( le_backend_o *self, uint32_t *count, uint32_t *p_width, uint32_t *p_height, le_img_resource_handle *p_handle ) {
+bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
 	if ( *count < self->swapchain_resources.size() ) {
 		*count = self->swapchain_resources.size();
@@ -881,19 +885,19 @@ bool backend_get_swapchain_info( le_backend_o *self, uint32_t *count, uint32_t *
 }
 // ----------------------------------------------------------------------
 
-static le_img_resource_handle backend_get_swapchain_resource( le_backend_o *self, uint32_t index ) {
+static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self, uint32_t index ) {
 	return self->swapchain_resources[ index ];
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t backend_get_swapchain_count( le_backend_o *self ) {
+static uint32_t backend_get_swapchain_count( le_backend_o* self ) {
 	return self->swapchain_resources.size();
 }
 
 // ----------------------------------------------------------------------
 
-static void backend_reset_swapchain( le_backend_o *self, uint32_t index ) {
+static void backend_reset_swapchain( le_backend_o* self, uint32_t index ) {
 	using namespace le_swapchain_vk;
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -912,11 +916,11 @@ static void backend_reset_swapchain( le_backend_o *self, uint32_t index ) {
 // ----------------------------------------------------------------------
 /// \brief reset any swapchains for which at least one swapchain_state
 /// did not present successfully
-static void backend_reset_failed_swapchains( le_backend_o *self ) {
+static void backend_reset_failed_swapchains( le_backend_o* self ) {
 	using namespace le_swapchain_vk;
 
 	for ( uint32_t i = 0; i != self->swapchains.size(); ++i ) {
-		for ( auto const &f : self->mFrames ) {
+		for ( auto const& f : self->mFrames ) {
 			if ( false == f.swapchain_state[ i ].present_successful ||
 			     false == f.swapchain_state[ i ].acquire_successful ) {
 				backend_reset_swapchain( self, i );
@@ -942,35 +946,35 @@ static le_buf_resource_handle declare_resource_virtual_buffer( uint8_t index ) {
 
 // ----------------------------------------------------------------------
 
-static VkDevice backend_get_vk_device( le_backend_o const *self ) {
+static VkDevice backend_get_vk_device( le_backend_o const* self ) {
 	return self->device->getVkDevice();
 };
 
 // ----------------------------------------------------------------------
 
-static VkPhysicalDevice backend_get_vk_physical_device( le_backend_o const *self ) {
+static VkPhysicalDevice backend_get_vk_physical_device( le_backend_o const* self ) {
 	return self->device->getVkPhysicalDevice();
 };
 
 // ----------------------------------------------------------------------
 
-static le_device_o *backend_get_le_device( le_backend_o *self ) {
+static le_device_o* backend_get_le_device( le_backend_o* self ) {
 	return *self->device;
 }
 
 // ----------------------------------------------------------------------
 
-static le_backend_vk_instance_o *backend_get_instance( le_backend_o *self ) {
+static le_backend_vk_instance_o* backend_get_instance( le_backend_o* self ) {
 	return self->instance;
 }
 
 // ----------------------------------------------------------------------
 // ffdecl.
-static le_allocator_o **backend_create_transient_allocators( le_backend_o *self, size_t frameIndex, size_t numAllocators );
+static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators );
 
 // ----------------------------------------------------------------------
 
-static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator const &allocator, uint32_t queueFamilyGraphics ) {
+static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator const& allocator, uint32_t queueFamilyGraphics ) {
 
 	// Find memory index for scratch buffer - we do this by pretending to create
 	// an allocation.
@@ -989,11 +993,11 @@ static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator cons
 	allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
 	uint32_t memIndexScratchBufferGraphics = 0;
-	vmaFindMemoryTypeIndexForBufferInfo( allocator, &reinterpret_cast<VkBufferCreateInfo &>( bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
+	vmaFindMemoryTypeIndexForBufferInfo( allocator, &reinterpret_cast<VkBufferCreateInfo&>( bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
 	return memIndexScratchBufferGraphics;
 }
 
-static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator const &allocator, uint32_t queueFamilyGraphics ) {
+static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator const& allocator, uint32_t queueFamilyGraphics ) {
 
 	// Find memory index for staging buffer - we do this by pretending to create
 	// an allocation.
@@ -1012,27 +1016,27 @@ static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator cons
 	allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
 	uint32_t memIndexStagingBufferGraphics = 0;
-	vmaFindMemoryTypeIndexForBufferInfo( allocator, &reinterpret_cast<VkBufferCreateInfo &>( bufferInfo ), &allocInfo, &memIndexStagingBufferGraphics );
+	vmaFindMemoryTypeIndexForBufferInfo( allocator, &reinterpret_cast<VkBufferCreateInfo&>( bufferInfo ), &allocInfo, &memIndexStagingBufferGraphics );
 	return memIndexStagingBufferGraphics;
 }
 
 // ----------------------------------------------------------------------
 
-typedef void ( *pfn_get_required_vk_extensions )( const le_swapchain_settings_t *settings, char const ***exts, size_t *num_exts );
+typedef void ( *pfn_get_required_vk_extensions )( const le_swapchain_settings_t* settings, char const*** exts, size_t* num_exts );
 
 // ----------------------------------------------------------------------
 
 static void collect_requested_swapchain_extensions(
-    le_swapchain_settings_t *      swapchain_settings,
+    le_swapchain_settings_t*       swapchain_settings,
     uint32_t                       swapchain_settings_count,
     pfn_get_required_vk_extensions get_extensions_func,
-    std::vector<char const *> &    requested_extensions ) {
+    std::vector<char const*>&      requested_extensions ) {
 
 	auto const swapchain_settings_end = swapchain_settings + swapchain_settings_count;
 
 	for ( auto settings = swapchain_settings; settings != swapchain_settings_end; settings++ ) {
 
-		char const **exts;
+		char const** exts;
 		size_t       num_exts;
 		get_extensions_func( settings, &exts, &num_exts );
 
@@ -1044,8 +1048,8 @@ static void collect_requested_swapchain_extensions(
 
 // ----------------------------------------------------------------------
 
-static std::vector<char const *> collect_requested_instance_extensions( le_backend_vk_settings_t const *settings ) {
-	std::vector<char const *> requestedInstanceExtensions;
+static std::vector<char const*> collect_requested_instance_extensions( le_backend_vk_settings_t const* settings ) {
+	std::vector<char const*> requestedInstanceExtensions;
 
 	// -- insert extensions necessary for glfw window
 
@@ -1066,8 +1070,8 @@ static std::vector<char const *> collect_requested_instance_extensions( le_backe
 
 // ----------------------------------------------------------------------
 
-static std::vector<char const *> collect_requested_device_extensions( le_backend_vk_settings_t const *settings ) {
-	std::vector<char const *> requestedDeviceExtensions;
+static std::vector<char const*> collect_requested_device_extensions( le_backend_vk_settings_t const* settings ) {
+	std::vector<char const*> requestedDeviceExtensions;
 
 	// -- insert device extensions requested via renderer.settings
 
@@ -1096,7 +1100,7 @@ static std::vector<char const *> collect_requested_device_extensions( le_backend
 
 // ----------------------------------------------------------------------
 
-static void backend_initialise( le_backend_o *self, std::vector<char const *> requested_instance_extensions, std::vector<char const *> requested_device_extensions ) {
+static void backend_initialise( le_backend_o* self, std::vector<char const*> requested_instance_extensions, std::vector<char const*> requested_device_extensions ) {
 	using namespace le_backend_vk;
 	self->instance      = vk_instance_i.create( requested_instance_extensions.data(), uint32_t( requested_instance_extensions.size() ) );
 	self->device        = std::make_unique<le::Device>( self->instance, requested_device_extensions.data(), uint32_t( requested_device_extensions.size() ) );
@@ -1104,7 +1108,7 @@ static void backend_initialise( le_backend_o *self, std::vector<char const *> re
 }
 // ----------------------------------------------------------------------
 
-static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VmaAllocator *allocator ) {
+static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VmaAllocator* allocator ) {
 	VmaAllocatorCreateInfo createInfo{};
 	createInfo.flags = {
 #ifdef LE_FEATURE_RTX
@@ -1123,7 +1127,7 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 
 // ----------------------------------------------------------------------
 
-static void backend_setup( le_backend_o *self, le_backend_vk_settings_t const *settings ) {
+static void backend_setup( le_backend_o* self, le_backend_vk_settings_t const* settings ) {
 
 	using namespace le_backend_vk;
 
@@ -1143,7 +1147,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t const *s
 	vk::Instance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
 
 	// -- query rtx properties, and store them with backend
-	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR &>( self->ray_tracing_props ) );
+	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR&>( self->ray_tracing_props ) );
 
 	// -- Create allocator for backend vulkan memory
 	// we do this here, because swapchain might want to already use the allocator.
@@ -1191,7 +1195,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t const *s
 		frameData.swapchain_state.resize( self->swapchains.size() );
 
 		{
-			for ( auto &state : frameData.swapchain_state ) {
+			for ( auto& state : frameData.swapchain_state ) {
 				state.presentComplete = vkDevice.createSemaphore( {} );
 				state.renderComplete  = vkDevice.createSemaphore( {} );
 			}
@@ -1251,7 +1255,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t const *s
 // ----------------------------------------------------------------------
 // Add image attachments to leRenderPass
 // Update syncchain for images affected.
-static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRenderPass &currentPass, BackendFrameData &frame, le::SampleCountFlagBits const &sampleCount ) {
+static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRenderPass& currentPass, BackendFrameData& frame, le::SampleCountFlagBits const& sampleCount ) {
 
 	using namespace le_renderer;
 
@@ -1260,14 +1264,14 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 
 	auto numSamplesLog2 = get_sample_count_log_2( uint32_t( sampleCount ) );
 
-	le_image_attachment_info_t const *pImageAttachments   = nullptr;
-	le_img_resource_handle const *    pResources          = nullptr;
+	le_image_attachment_info_t const* pImageAttachments   = nullptr;
+	le_img_resource_handle const*     pResources          = nullptr;
 	size_t                            numImageAttachments = 0;
 
 	renderpass_i.get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 	for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
-		auto const &image_attachment_info = pImageAttachments[ i ];
+		auto const& image_attachment_info = pImageAttachments[ i ];
 
 		le_img_resource_handle img_resource = pResources[ i ];
 
@@ -1282,7 +1286,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 			    img_resource->data->debug_name, numSamplesLog2, img_resource, 0 );
 		}
 
-		auto &syncChain = frame.syncChainTable[ img_resource ];
+		auto& syncChain = frame.syncChainTable[ img_resource ];
 
 		assert( !syncChain.empty() && "SyncChain must not be empty" );
 
@@ -1292,7 +1296,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
 		bool isDepthStencil = isDepth || isStencil;
 
-		AttachmentInfo *currentAttachment =
+		AttachmentInfo* currentAttachment =
 		    currentPass.attachments +
 		    currentPass.numColorAttachments +
 		    currentPass.numDepthStencilAttachments +
@@ -1316,7 +1320,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		{
 			// track resource state before entering a subpass
 
-			auto &previousSyncState = syncChain.back();
+			auto& previousSyncState = syncChain.back();
 			auto  beforeFirstUse{ previousSyncState };
 
 			if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eLoad ) {
@@ -1345,7 +1349,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		{
 			// track resource state before subpass
 
-			auto &previousSyncState = syncChain.back();
+			auto& previousSyncState = syncChain.back();
 			auto  beforeSubpass{ previousSyncState };
 
 			if ( image_attachment_info.loadOp == le::AttachmentLoadOp::eLoad ) {
@@ -1407,10 +1411,10 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 
 	for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
-		auto const &image_attachment_info = pImageAttachments[ i ];
+		auto const& image_attachment_info = pImageAttachments[ i ];
 
 		le_img_resource_handle img_resource = pResources[ i ];
-		auto &                 syncChain    = frame.syncChainTable[ img_resource ];
+		auto&                  syncChain    = frame.syncChainTable[ img_resource ];
 
 		vk::Format attachmentFormat = vk::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
 
@@ -1418,7 +1422,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
 		bool isDepthStencil = isDepth || isStencil;
 
-		AttachmentInfo *currentAttachment = currentPass.attachments +
+		AttachmentInfo* currentAttachment = currentPass.attachments +
 		                                    currentPass.numColorAttachments +
 		                                    currentPass.numDepthStencilAttachments +
 		                                    currentPass.numResolveAttachments;
@@ -1437,7 +1441,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		{
 			// track resource state before entering a subpass
 
-			auto &previousSyncState = syncChain.back();
+			auto& previousSyncState = syncChain.back();
 			auto  beforeFirstUse{ previousSyncState };
 
 			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
@@ -1448,7 +1452,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		{
 			// track resource state before subpass
 
-			auto &previousSyncState = syncChain.back();
+			auto& previousSyncState = syncChain.back();
 			auto  beforeSubpass{ previousSyncState };
 
 			{
@@ -1484,7 +1488,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
 // resource sync state for images used as renderpass attachments is chosen so that they
 // can be implicitly synced using subpass dependencies.
-static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const std::vector<le_img_resource_handle> &backbufferImageHandles ) {
+static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o** ppPasses, size_t numRenderPasses, const std::vector<le_img_resource_handle>& backbufferImageHandles ) {
 
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
 	//
@@ -1510,9 +1514,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	//- NOTE texture image resources *must* be explicitly synchronised:
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	auto &syncChainTable = frame.syncChainTable;
+	auto& syncChainTable = frame.syncChainTable;
 
-	for ( auto &swapchain_image : backbufferImageHandles ) {
+	for ( auto& swapchain_image : backbufferImageHandles ) {
 
 		// -- backbuffer has their sync state changed outside of our frame graph
 		// because submitting to the swapchain changes its sync state.
@@ -1522,7 +1526,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		auto backbufferIt = syncChainTable.find( backbuffer );
 		if ( backbufferIt != syncChainTable.end() ) {
-			auto &backbufferState          = backbufferIt->second.front();
+			auto& backbufferState          = backbufferIt->second.front();
 			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
 			backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
 		} else {
@@ -1532,7 +1536,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	using namespace le_renderer;
 
-	auto get_stage_flags_based_on_renderpass_type = []( LeRenderPassType const &rp_type ) -> vk::PipelineStageFlags {
+	auto get_stage_flags_based_on_renderpass_type = []( LeRenderPassType const& rp_type ) -> vk::PipelineStageFlags {
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
 		case LE_RENDER_PASS_TYPE_TRANSFER:
@@ -1565,16 +1569,16 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// attachments.
 		//
 		{
-			le_resource_handle const *  resources       = nullptr;
-			LeResourceUsageFlags const *resources_usage = nullptr;
+			le_resource_handle const*   resources       = nullptr;
+			LeResourceUsageFlags const* resources_usage = nullptr;
 			size_t                      resources_count = 0;
 			renderpass_i.get_used_resources( *pass, &resources, &resources_usage, &resources_count );
 
 			for ( size_t i = 0; i != resources_count; ++i ) {
-				auto const &resource = resources[ i ];
-				auto const &usage    = resources_usage[ i ];
+				auto const& resource = resources[ i ];
+				auto const& usage    = resources_usage[ i ];
 
-				auto &syncChain = syncChainTable[ resource ];
+				auto& syncChain = syncChainTable[ resource ];
 				assert( !syncChain.empty() ); // must not be empty - this resource must exist, and have an initial sync state
 
 				LeRenderPass::ExplicitSyncOp syncOp{};
@@ -1639,7 +1643,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		}
 
 		// Iterate over all image attachments
-		auto const &sampleCount = renderpass_i.get_sample_count( *pass );
+		auto const& sampleCount = renderpass_i.get_sample_count( *pass );
 		le_renderpass_add_attachments( *pass, currentPass, frame, sampleCount );
 
 		// Note that we "steal" the encoder from the renderer pass -
@@ -1649,9 +1653,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		frame.passes.emplace_back( std::move( currentPass ) );
 	} // end for all passes
 
-	for ( auto &syncChainPair : syncChainTable ) {
-		const auto &id        = syncChainPair.first;
-		auto &      syncChain = syncChainPair.second;
+	for ( auto& syncChainPair : syncChainTable ) {
+		const auto& id        = syncChainPair.first;
+		auto&       syncChain = syncChainPair.second;
 
 		auto finalState{ syncChain.back() };
 
@@ -1684,13 +1688,13 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	SyncChainMap max_sync_index;
 
-	auto insert_if_greater = [ &max_sync_index ]( le_resource_handle const &key, uint32_t value ) {
+	auto insert_if_greater = [ &max_sync_index ]( le_resource_handle const& key, uint32_t value ) {
 		// Updates map entry to highest value
-		auto &element = max_sync_index[ key ];
+		auto& element = max_sync_index[ key ];
 		element       = std::max( element, value );
 	};
 
-	for ( auto &p : frame.passes ) {
+	for ( auto& p : frame.passes ) {
 
 		// Check barrier sync chain index against current sync index.
 		//
@@ -1698,7 +1702,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// barrier must be removed, as subpass dependency already takes care
 		// of synchronisation implicitly.
 
-		for ( auto &op : p.explicit_sync_ops ) {
+		for ( auto& op : p.explicit_sync_ops ) {
 
 			if ( op.resource->data->type != LeResourceType::eImage ) {
 				continue;
@@ -1731,7 +1735,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		                              p.numResolveAttachments;
 
 		for ( size_t a = 0; a != numAttachments; a++ ) {
-			auto const &attachmentInfo = p.attachments[ a ];
+			auto const& attachmentInfo = p.attachments[ a ];
 			insert_if_greater( attachmentInfo.resource, attachmentInfo.finalStateOffset );
 		}
 	}
@@ -1740,8 +1744,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 // ----------------------------------------------------------------------
 
 /// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
-static bool backend_poll_frame_fence( le_backend_o *self, size_t frameIndex ) {
-	auto &     frame  = self->mFrames[ frameIndex ];
+static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
+	auto&      frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
 
 	// Non-blocking, polling
@@ -1760,13 +1764,13 @@ static bool backend_poll_frame_fence( le_backend_o *self, size_t frameIndex ) {
 // ----------------------------------------------------------------------
 /// \brief: Frees all frame local resources
 /// \preliminary: frame fence must have been crossed.
-static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
+static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	using namespace le_backend_vk;
 
-	auto &     frame  = self->mFrames[ frameIndex ];
+	auto&      frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
 
 	//	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
@@ -1781,7 +1785,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	device.resetFences( { frame.frameFence } );
 
 	// -- reset all frame-local sub-allocators
-	for ( auto &alloc : frame.allocators ) {
+	for ( auto& alloc : frame.allocators ) {
 		le_allocator_linear_i.reset( alloc );
 	}
 
@@ -1797,13 +1801,13 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	// -- remove any frame-local copy of allocated resources
 	frame.availableResources.clear();
 
-	for ( auto &d : frame.descriptorPools ) {
+	for ( auto& d : frame.descriptorPools ) {
 		device.resetDescriptorPool( d );
 	}
 
 	{ // clear resources owned exclusively by this frame
 
-		for ( auto &r : frame.ownedResources ) {
+		for ( auto& r : frame.ownedResources ) {
 			switch ( r.type ) {
 			case AbstractPhysicalResource::eBuffer:
 				device.destroyBuffer( r.asBuffer );
@@ -1838,7 +1842,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	frame.physicalResources.clear();
 	frame.syncChainTable.clear();
 
-	for ( auto &f : frame.passes ) {
+	for ( auto& f : frame.passes ) {
 		if ( f.encoder ) {
 			using namespace le_renderer;
 			encoder_i.destroy( f.encoder );
@@ -1854,7 +1858,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &device ) {
+static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& device ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	// NOTE: we might be able to simplify this along the lines of
@@ -1862,7 +1866,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 	// <https://github.com/gwihlidal/vk-sync-rs>
 
 	// create renderpasses
-	const auto &syncChainTable = frame.syncChainTable;
+	const auto& syncChainTable = frame.syncChainTable;
 
 	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
 	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits::eColorAttachmentWrite |
@@ -1880,7 +1884,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 	// for each attachment, we want to keep track of its last used sync state
 	// so that we may know whether to issue a barrier or not.
 
-	for ( auto &pass : frame.passes ) {
+	for ( auto& pass : frame.passes ) {
 
 		// The rest of this loop only concerns draw passes
 		//
@@ -1919,13 +1923,13 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		                             pass.numDepthStencilAttachments +
 		                             pass.numResolveAttachments;
 
-		for ( AttachmentInfo const *attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
+		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
 
-			auto &syncChain = syncChainTable.at( attachment->resource );
+			auto& syncChain = syncChainTable.at( attachment->resource );
 
-			const auto &syncInitial = syncChain.at( attachment->initialStateOffset );
-			const auto &syncSubpass = syncChain.at( attachment->initialStateOffset + 1 );
-			const auto &syncFinal   = syncChain.at( attachment->finalStateOffset );
+			const auto& syncInitial = syncChain.at( attachment->initialStateOffset );
+			const auto& syncSubpass = syncChain.at( attachment->initialStateOffset + 1 );
+			const auto& syncFinal   = syncChain.at( attachment->finalStateOffset );
 
 			bool isDepth   = false;
 			bool isStencil = false;
@@ -2061,7 +2065,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 				uint64_t rp_hash = 0;
 
 				// -- hash attachments
-				for ( const auto &a : attachments ) {
+				for ( const auto& a : attachments ) {
 					// We use offsetof so that we can get everything from flags to the start of the
 					// attachmentdescription to (but not including) loadOp. We assume that struct is tightly packed.
 
@@ -2075,7 +2079,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 				}
 
 				// -- Hash subpasses
-				for ( const auto &s : subpasses ) {
+				for ( const auto& s : subpasses ) {
 
 					// Note: Attachment references are not that straightforward to hash either, as they contain a layout
 					// field, which we want to ignore, since it makes no difference for render pass compatibility.
@@ -2087,12 +2091,12 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 					rp_hash = SpookyHash::Hash64( &s.preserveAttachmentCount, sizeof( s.preserveAttachmentCount ), rp_hash );
 
 					// We define this as a pure function lambda, and hope for it to be inlined
-					auto calc_hash_for_attachment_references = []( vk::AttachmentReference const *pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
+					auto calc_hash_for_attachment_references = []( vk::AttachmentReference const* pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
 						if ( pAttachmentRefs == nullptr ) {
 							return seed;
 						}
 						// ----------| invariant: pAttachmentRefs is valid
-						for ( auto const *pAr = pAttachmentRefs; pAr != pAttachmentRefs + count; pAr++ ) {
+						for ( auto const* pAr = pAttachmentRefs; pAr != pAttachmentRefs + count; pAr++ ) {
 							seed = SpookyHash::Hash64( pAr, sizeof( vk::AttachmentReference::attachment ), seed );
 						}
 						return seed;
@@ -2151,7 +2155,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 /// - allocatorBuffers[index] if transient,
 /// - stagingAllocator.buffers[index] if staging,
 /// otherwise, fetch from frame available resources based on an id lookup.
-static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const le_buf_resource_handle &buffer ) {
+static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData& frame, const le_buf_resource_handle& buffer ) {
 
 	if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsVirtual ) ) {
 		return frame.allocatorBuffers[ buffer->data->index ];
@@ -2163,24 +2167,24 @@ static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const Backen
 }
 
 // ----------------------------------------------------------------------
-static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData &frame, const le_img_resource_handle &img ) {
+static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData& frame, const le_img_resource_handle& img ) {
 	return frame.availableResources.at( img ).as.image;
 }
 
 // ----------------------------------------------------------------------
-static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const &frame, const le_img_resource_handle &img ) {
+static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const& frame, const le_img_resource_handle& img ) {
 	return frame.availableResources.at( img ).info.imageInfo.format;
 }
 
 // ----------------------------------------------------------------------
 
-static inline AllocatedResourceVk const &frame_data_get_allocated_resource_from_resource_id( BackendFrameData &frame, const le_resource_handle &rsp ) {
+static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData& frame, const le_resource_handle& rsp ) {
 	return frame.availableResources.at( rsp );
 }
 
 // ----------------------------------------------------------------------
 // if specific format for texture was not specified, return format of referenced image
-static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const &frame, le_image_sampler_info_t const &texInfo ) {
+static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const& frame, le_image_sampler_info_t const& texInfo ) {
 	if ( texInfo.imageView.format == le::Format::eUndefined ) {
 		return ( frame_data_get_image_format_from_resource_id( frame, texInfo.imageView.imageId ) );
 	} else {
@@ -2190,7 +2194,7 @@ static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFra
 
 // ----------------------------------------------------------------------
 
-vk::ImageAspectFlags get_aspect_flags_from_format( vk::Format const &format ) {
+vk::ImageAspectFlags get_aspect_flags_from_format( vk::Format const& format ) {
 	vk::ImageAspectFlags aspectFlags{};
 
 	bool isDepth   = false;
@@ -2214,9 +2218,9 @@ vk::ImageAspectFlags get_aspect_flags_from_format( vk::Format const &format ) {
 // ----------------------------------------------------------------------
 // input: Pass
 // output: framebuffer, append newly created imageViews to retained resources list.
-static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &device ) {
+static void backend_create_frame_buffers( BackendFrameData& frame, vk::Device& device ) {
 
-	for ( auto &pass : frame.passes ) {
+	for ( auto& pass : frame.passes ) {
 
 		if ( pass.type != LE_RENDER_PASS_TYPE_DRAW ) {
 			continue;
@@ -2230,7 +2234,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 		framebufferAttachments.reserve( attachmentCount );
 
 		auto const attachment_end = pass.attachments + attachmentCount;
-		for ( AttachmentInfo const *attachment = pass.attachments; attachment != attachment_end; attachment++ ) {
+		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachment_end; attachment++ ) {
 
 			vk::ImageSubresourceRange subresourceRange;
 			subresourceRange
@@ -2291,7 +2295,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 
 // ----------------------------------------------------------------------
 
-static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device &device, size_t numRenderPasses ) {
+static void backend_create_descriptor_pools( BackendFrameData& frame, vk::Device& device, size_t numRenderPasses ) {
 
 	// Make sure that there is one descriptorpool for every renderpass.
 	// descriptor pools which were created previously will be re-used,
@@ -2348,7 +2352,7 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 // ----------------------------------------------------------------------
 // Returns a VkFormat which will match a given set of LeImageUsageFlags.
 // If a matching format cannot be inferred, this method
-le::Format infer_image_format_from_le_image_usage_flags( le_backend_o *self, LeImageUsageFlags flags ) {
+le::Format infer_image_format_from_le_image_usage_flags( le_backend_o* self, LeImageUsageFlags flags ) {
 	le::Format format{};
 	if ( flags & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ) ) {
 		// set to default color format
@@ -2366,12 +2370,12 @@ le::Format infer_image_format_from_le_image_usage_flags( le_backend_o *self, LeI
 }
 // ----------------------------------------------------------------------
 
-static int32_t backend_allocate_image( le_backend_o *                 self,
-                                       VkImageCreateInfo const *      pImageCreateInfo,
-                                       VmaAllocationCreateInfo const *pAllocationCreateInfo,
-                                       VkImage *                      pImage,
-                                       VmaAllocation *                pAllocation,
-                                       VmaAllocationInfo *            pAllocationInfo ) {
+static int32_t backend_allocate_image( le_backend_o*                  self,
+                                       VkImageCreateInfo const*       pImageCreateInfo,
+                                       VmaAllocationCreateInfo const* pAllocationCreateInfo,
+                                       VkImage*                       pImage,
+                                       VmaAllocation*                 pAllocation,
+                                       VmaAllocationInfo*             pAllocationInfo ) {
 
 	auto result = vmaCreateImage( self->mAllocator,
 	                              pImageCreateInfo,
@@ -2384,32 +2388,32 @@ static int32_t backend_allocate_image( le_backend_o *                 self,
 
 // ----------------------------------------------------------------------
 
-static void backend_destroy_image( le_backend_o *self, VkImage image, VmaAllocation allocation ) {
+static void backend_destroy_image( le_backend_o* self, VkImage image, VmaAllocation allocation ) {
 	vmaDestroyImage( self->mAllocator, image, allocation );
 }
 
 // ----------------------------------------------------------------------
 
-static int32_t backend_allocate_buffer( le_backend_o *                 self,
-                                        VkBufferCreateInfo const *     pBufferCreateInfo,
-                                        VmaAllocationCreateInfo const *pAllocationCreateInfo,
-                                        VkBuffer *                     pBuffer,
-                                        VmaAllocation *                pAllocation,
-                                        VmaAllocationInfo *            pAllocationInfo ) {
+static int32_t backend_allocate_buffer( le_backend_o*                  self,
+                                        VkBufferCreateInfo const*      pBufferCreateInfo,
+                                        VmaAllocationCreateInfo const* pAllocationCreateInfo,
+                                        VkBuffer*                      pBuffer,
+                                        VmaAllocation*                 pAllocation,
+                                        VmaAllocationInfo*             pAllocationInfo ) {
 	auto result = vmaCreateBuffer( self->mAllocator, pBufferCreateInfo, pAllocationCreateInfo, pBuffer, pAllocation, pAllocationInfo );
 	return result;
 }
 
 // ----------------------------------------------------------------------
 
-static void backend_destroy_buffer( le_backend_o *self, VkBuffer buffer, VmaAllocation allocation ) {
+static void backend_destroy_buffer( le_backend_o* self, VkBuffer buffer, VmaAllocation allocation ) {
 	vmaDestroyBuffer( self->mAllocator, buffer, allocation );
 }
 
 // ----------------------------------------------------------------------
 // Allocates and creates a physical vulkan resource using vmaAlloc given an allocator
 // Returns an AllocatedResourceVk, currently does not do any error checking.
-static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo, VkDevice vk_device = nullptr ) {
+static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& alloc, const ResourceCreateInfo& resourceInfo, VkDevice vk_device = nullptr ) {
 	static auto         logger = LeLog( LOGGER_LABEL );
 	AllocatedResourceVk res{};
 	res.info = resourceInfo;
@@ -2448,7 +2452,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		assert( vk_device && "blas allocation needs device" );
 		vk::Device device( vk_device );
 
-		auto const blas = reinterpret_cast<le_rtx_blas_info_o *>( resourceInfo.blasInfo.handle );
+		auto const blas = reinterpret_cast<le_rtx_blas_info_o*>( resourceInfo.blasInfo.handle );
 
 		std::vector<vk::AccelerationStructureGeometryKHR> geometries;
 		std::vector<uint32_t>                             primitive_counts;
@@ -2456,7 +2460,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		geometries.reserve( blas->geometries.size() );
 		primitive_counts.reserve( geometries.size() );
 
-		for ( auto const &g : blas->geometries ) {
+		for ( auto const& g : blas->geometries ) {
 
 			vk::AccelerationStructureGeometryTrianglesDataKHR t_data{};
 			t_data
@@ -2502,7 +2506,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 			result =
 			    vmaCreateBuffer(
 			        alloc,
-			        &static_cast<VkBufferCreateInfo &>( bufferInfo ),
+			        &static_cast<VkBufferCreateInfo&>( bufferInfo ),
 			        &allocationCreateInfo,
 			        &res.info.blasInfo.buffer,
 			        &res.allocation,
@@ -2549,7 +2553,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		assert( vk_device && "tlas allocation needs device" );
 		vk::Device device( vk_device );
 
-		auto const tlas = reinterpret_cast<le_rtx_tlas_info_o *>( resourceInfo.tlasInfo.handle );
+		auto const tlas = reinterpret_cast<le_rtx_tlas_info_o*>( resourceInfo.tlasInfo.handle );
 
 		assert( tlas && "tlas must be valid." );
 
@@ -2587,7 +2591,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 			result =
 			    vmaCreateBuffer(
 			        alloc,
-			        &static_cast<VkBufferCreateInfo &>( bufferInfo ),
+			        &static_cast<VkBufferCreateInfo&>( bufferInfo ),
 			        &allocationCreateInfo,
 			        &res.info.tlasInfo.buffer,
 			        &res.allocation,
@@ -2627,7 +2631,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 
 // Creates a new staging allocator
 // Typically, there is one staging allocator associated to each frame.
-static le_staging_allocator_o *staging_allocator_create( VmaAllocator const vmaAlloc, VkDevice const device ) {
+static le_staging_allocator_o* staging_allocator_create( VmaAllocator const vmaAlloc, VkDevice const device ) {
 	auto self       = new le_staging_allocator_o{};
 	self->allocator = vmaAlloc;
 	self->device    = device;
@@ -2648,7 +2652,7 @@ static le_staging_allocator_o *staging_allocator_create( VmaAllocator const vmaA
 // TRANSFER_SRC are set for usage flags.
 //
 // Staging memory is typically cache coherent, ie. does not need to be flushed.
-static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numBytes, void **pData, le_buf_resource_handle *resource_handle ) {
+static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numBytes, void** pData, le_buf_resource_handle* resource_handle ) {
 
 	auto lock = std::scoped_lock( self->mtx );
 
@@ -2657,10 +2661,11 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 	VmaAllocationInfo allocationInfo;
 
 	VkBufferCreateInfo bufferCreateInfo =
-	    vk::BufferCreateInfo()
-	        .setSize( numBytes )
-	        .setSharingMode( vk::SharingMode::eExclusive )
-	        .setUsage( vk::BufferUsageFlagBits::eTransferSrc );
+	    static_cast<VkBufferCreateInfo&>(
+	        vk::BufferCreateInfo()
+	            .setSize( numBytes )
+	            .setSharingMode( vk::SharingMode::eExclusive )
+	            .setUsage( vk::BufferUsageFlagBits::eTransferSrc ) );
 
 	VmaAllocationCreateInfo allocationCreateInfo{};
 	allocationCreateInfo.flags          = VMA_ALLOCATION_CREATE_MAPPED_BIT;
@@ -2725,7 +2730,7 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 // ----------------------------------------------------------------------
 
 /// Frees all allocations held by the staging allocator given in `self`
-static void staging_allocator_reset( le_staging_allocator_o *self ) {
+static void staging_allocator_reset( le_staging_allocator_o* self ) {
 	auto lock   = std::scoped_lock( self->mtx );
 	auto device = vk::Device{ self->device };
 
@@ -2750,7 +2755,7 @@ static void staging_allocator_reset( le_staging_allocator_o *self ) {
 // ----------------------------------------------------------------------
 
 // Destroys a staging allocator (and implicitly all of its derived objects)
-static void staging_allocator_destroy( le_staging_allocator_o *self ) {
+static void staging_allocator_destroy( le_staging_allocator_o* self ) {
 
 	// Reset the object first so that dependent objects (vmaAllocations, vulkan objects) are cleaned up.
 	staging_allocator_reset( self );
@@ -2761,8 +2766,8 @@ static void staging_allocator_destroy( le_staging_allocator_o *self ) {
 // ----------------------------------------------------------------------
 
 // Frees any resources which are marked for being recycled in the current frame.
-inline void frame_release_binned_resources( BackendFrameData &frame, VmaAllocator &allocator ) {
-	for ( auto &a : frame.binnedResources ) {
+inline void frame_release_binned_resources( BackendFrameData& frame, VmaAllocator& allocator ) {
+	for ( auto& a : frame.binnedResources ) {
 		if ( a.second.info.isBuffer() ) {
 			vmaDestroyBuffer( allocator, a.second.as.buffer, a.second.allocation );
 		} else {
@@ -2775,12 +2780,12 @@ inline void frame_release_binned_resources( BackendFrameData &frame, VmaAllocato
 // ----------------------------------------------------------------------
 //
 static void collect_resource_infos_per_resource(
-    le_renderpass_o const *const *                passes,
+    le_renderpass_o const* const*                 passes,
     size_t                                        numRenderPasses,
-    std::vector<le_resource_handle> const &       frame_declared_resources_id,   // | pre-declared resources (declared via module)
-    std::vector<le_resource_info_t> const &       frame_declared_resources_info, // | info for each pre-declared resource
-    std::vector<le_resource_handle> &             usedResources,
-    std::vector<std::vector<le_resource_info_t>> &usedResourcesInfos ) {
+    std::vector<le_resource_handle> const&        frame_declared_resources_id,   // | pre-declared resources (declared via module)
+    std::vector<le_resource_info_t> const&        frame_declared_resources_info, // | info for each pre-declared resource
+    std::vector<le_resource_handle>&              usedResources,
+    std::vector<std::vector<le_resource_info_t>>& usedResourcesInfos ) {
 
 	using namespace le_renderer;
 
@@ -2790,16 +2795,16 @@ static void collect_resource_infos_per_resource(
 		auto pass_height           = renderpass_i.get_height( *rp );
 		auto pass_num_samples_log2 = get_sample_count_log_2( uint32_t( renderpass_i.get_sample_count( *rp ) ) );
 
-		le_resource_handle const *  p_resources             = nullptr;
-		LeResourceUsageFlags const *p_resources_usage_flags = nullptr;
+		le_resource_handle const*   p_resources             = nullptr;
+		LeResourceUsageFlags const* p_resources_usage_flags = nullptr;
 		size_t                      resources_count         = 0;
 
 		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_usage_flags, &resources_count );
 
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
-			le_resource_handle const &  resource             = p_resources[ i ];             // Resource handle
-			LeResourceUsageFlags const &resource_usage_flags = p_resources_usage_flags[ i ]; // Resource usage flags
+			le_resource_handle const&   resource             = p_resources[ i ];             // Resource handle
+			LeResourceUsageFlags const& resource_usage_flags = p_resources_usage_flags[ i ]; // Resource usage flags
 
 			assert( resource_usage_flags.type == resource->data->type ); // Resource Usage Flags must be for matching resource type.
 
@@ -2826,7 +2831,7 @@ static void collect_resource_infos_per_resource(
 
 				size_t found_resource_index = 0;
 				// search for resource id in vector of declared resources.
-				for ( auto const &id : frame_declared_resources_id ) {
+				for ( auto const& id : frame_declared_resources_id ) {
 					if ( id == resource ) {
 						// resource found, let's use this declared_resource_index.
 						break;
@@ -2859,8 +2864,8 @@ static void collect_resource_infos_per_resource(
 
 				resourceInfo.image.usage = resource_usage_flags.as.image_usage_flags;
 
-				auto &imgInfo   = resourceInfo.image;
-				auto &imgExtent = imgInfo.extent;
+				auto& imgInfo   = resourceInfo.image;
+				auto& imgExtent = imgInfo.extent;
 
 				imgInfo.extent_from_pass = { pass_width, pass_height, 1 };
 
@@ -2899,7 +2904,7 @@ static void collect_resource_infos_per_resource(
 // ----------------------------------------------------------------------
 
 static void patch_renderpass_extents(
-    le_renderpass_o **passes,
+    le_renderpass_o** passes,
     size_t            numRenderPasses,
     uint32_t          swapchainWidth,
     uint32_t          swapchainHeight ) {
@@ -2932,20 +2937,20 @@ static void patch_renderpass_extents(
 // per resource, combine resource_infos so that first element in resource infos
 // contains superset of all resource_infos available for this particular resource
 static void consolidate_resource_infos(
-    std::vector<le_resource_info_t> &resourceInfoVersions ) {
+    std::vector<le_resource_info_t>& resourceInfoVersions ) {
 
 	if ( resourceInfoVersions.empty() )
 		return;
 
 	// ---------| invariant: there is at least a first element.
 
-	le_resource_info_t *const       first_info = resourceInfoVersions.data();
-	le_resource_info_t const *const info_end   = first_info + resourceInfoVersions.size();
+	le_resource_info_t* const       first_info = resourceInfoVersions.data();
+	le_resource_info_t const* const info_end   = first_info + resourceInfoVersions.size();
 
 	switch ( first_info->type ) {
 	case LeResourceType::eBuffer: {
 		// Consolidate into first_info, beginning with the second element
-		for ( auto *info = first_info + 1; info != info_end; info++ ) {
+		for ( auto* info = first_info + 1; info != info_end; info++ ) {
 			first_info->buffer.usage |= info->buffer.usage;
 
 			// Make sure buffer can hold maximum of requested number of bytes.
@@ -2966,7 +2971,7 @@ static void consolidate_resource_infos(
 		first_info->image.samplesFlags |= uint32_t( 1 << first_info->image.sample_count_log2 );
 
 		// Consolidate into first_info, beginning with the second element
-		for ( auto *info = first_info + 1; info != info_end; info++ ) {
+		for ( auto* info = first_info + 1; info != info_end; info++ ) {
 
 			// TODO (tim): check how we can enforce correct number of array layers and mip levels
 
@@ -3032,13 +3037,13 @@ static void consolidate_resource_infos(
 
 	} break;
 	case LeResourceType::eRtxBlas: {
-		for ( auto *info = first_info + 1; info != info_end; info++ ) {
+		for ( auto* info = first_info + 1; info != info_end; info++ ) {
 			first_info->blas.usage |= info->blas.usage;
 		}
 		break;
 	}
 	case LeResourceType::eRtxTlas: {
-		for ( auto *info = first_info + 1; info != info_end; info++ ) {
+		for ( auto* info = first_info + 1; info != info_end; info++ ) {
 			first_info->tlas.usage |= info->tlas.usage;
 		}
 		break;
@@ -3052,8 +3057,8 @@ static void consolidate_resource_infos(
 // ----------------------------------------------------------------------
 
 static void insert_msaa_versions(
-    std::vector<le_resource_handle> &             usedResources,
-    std::vector<std::vector<le_resource_info_t>> &usedResourcesInfos ) {
+    std::vector<le_resource_handle>&              usedResources,
+    std::vector<std::vector<le_resource_info_t>>& usedResourcesInfos ) {
 	// For each image resource which is specified with versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
@@ -3065,12 +3070,12 @@ static void insert_msaa_versions(
 
 	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
 
-		le_resource_handle &resource = usedResources[ i ];
+		le_resource_handle& resource = usedResources[ i ];
 
 		if ( resource->data->type != LeResourceType::eImage ) {
 			continue;
 		}
-		le_resource_info_t &resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+		le_resource_info_t& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
 		// --------| invariant: resource is image
 
@@ -3106,7 +3111,7 @@ static void insert_msaa_versions(
 
 // ----------------------------------------------------------------------
 
-static void printResourceInfo( le_resource_handle const &handle, ResourceCreateInfo const &info ) {
+static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	if ( info.isBuffer() ) {
 		logger.info( "% 32s : %11d : %30s : %30s", handle->data->debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
@@ -3141,7 +3146,7 @@ static void printResourceInfo( le_resource_handle const &handle, ResourceCreateI
 
 // ----------------------------------------------------------------------
 
-static bool inferImageFormat( le_backend_o *self, le_img_resource_handle const &resource, LeImageUsageFlags const &usageFlags, ResourceCreateInfo *createInfo ) {
+static bool inferImageFormat( le_backend_o* self, le_img_resource_handle const& resource, LeImageUsageFlags const& usageFlags, ResourceCreateInfo* createInfo ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -3165,7 +3170,7 @@ static bool inferImageFormat( le_backend_o *self, le_img_resource_handle const &
 
 // ----------------------------------------------------------------------
 // If image has mip levels, we implicitly add usage: "transfer_src", so that mip maps may be created by blitting.
-static void patchImageUsageForMipLevels( ResourceCreateInfo *createInfo ) {
+static void patchImageUsageForMipLevels( ResourceCreateInfo* createInfo ) {
 	if ( createInfo->imageInfo.mipLevels > 1 ) {
 		createInfo->imageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	}
@@ -3173,7 +3178,7 @@ static void patchImageUsageForMipLevels( ResourceCreateInfo *createInfo ) {
 
 // ----------------------------------------------------------------------
 
-static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance, VkDevice device_, BackendFrameData::ResourceMap_T &resources ) {
+static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance, VkDevice device_, BackendFrameData::ResourceMap_T& resources ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	// We capture the check for extension as a static, as this is not expected to
@@ -3188,14 +3193,14 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 
 	// --------| invariant utuls extension is available
 
-	auto vk_result_assert_success = []( vk::Result const &&result ) {
+	auto vk_result_assert_success = []( vk::Result const&& result ) {
 		if ( result != vk::Result::eSuccess ) {
 			logger.error( "Vulkan operation returned: '%s', but we expected vk::Result::eSuccess.", vk::to_string( result ).c_str() );
 		}
 		assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
 	};
 
-	for ( auto const &r : resources ) {
+	for ( auto const& r : resources ) {
 
 		auto device = vk::Device( device_ );
 
@@ -3248,7 +3253,7 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 // We are currently not checking for "orphaned" resources (resources which are available in the
 // backend, but not used by the frame) - these could possibly be recycled, too.
 
-static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
+static void backend_allocate_resources( le_backend_o* self, BackendFrameData& frame, le_renderpass_o** passes, size_t numRenderPasses ) {
 
 	/*
 	- Frame is only ever allowed to reference frame-local resources.
@@ -3289,7 +3294,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// For each resource, consolidate infos so that the first element in the vector of
 	// resourceInfos for a resource covers all intended usages of a resource.
 	//
-	for ( auto &versions : usedResourcesInfos ) {
+	for ( auto& versions : usedResourcesInfos ) {
 		consolidate_resource_infos( versions );
 	}
 
@@ -3301,13 +3306,13 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// Check if all resources declared in this frame are already available in backend.
 	// If a resource is not available yet, this resource must be allocated.
 
-	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
+	auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
 	const size_t usedResourcesCount = usedResources.size();
 	for ( size_t i = 0; i != usedResourcesCount; ++i ) {
 
-		le_resource_handle const &resource     = usedResources[ i ];
-		le_resource_info_t const &resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+		le_resource_handle const& resource     = usedResources[ i ];
+		le_resource_info_t const& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
 		// See if a resource with this id is already available to the frame
 		// This may be the case with a swapchain image resource for example,
@@ -3360,7 +3365,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			// If an existing resource has been found, we must check that it
 			// was allocated with the same properties as the resource we require
 
-			auto &foundResourceCreateInfo = foundIt->second.info;
+			auto& foundResourceCreateInfo = foundIt->second.info;
 
 			// Note that we use the greater-than operator, which means
 			// that if our foundResource is equal to *or a superset of*
@@ -3427,16 +3432,16 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		const size_t usedResourcesCount = usedResources.size();
 		for ( size_t i = 0; i != usedResourcesCount; ++i ) {
 
-			le_resource_handle const &resourceId   = usedResources[ i ];
-			le_resource_info_t const &resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+			le_resource_handle const& resourceId   = usedResources[ i ];
+			le_resource_info_t const& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
 			if ( resourceInfo.type == LeResourceType::eRtxBlas &&
 			     ( resourceInfo.blas.usage & LE_RTX_BLAS_BUILD_BIT ) ) {
-				auto const &frame_resource = frame.availableResources.at( resourceId );
+				auto const& frame_resource = frame.availableResources.at( resourceId );
 				scratchbuffer_max_size     = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.blasInfo.scratch_buffer_size );
 			} else if ( resourceInfo.type == LeResourceType::eRtxTlas &&
 			            ( resourceInfo.tlas.usage & LE_RTX_TLAS_BUILD_BIT ) ) {
-				auto const &frame_resource = frame.availableResources.at( resourceId );
+				auto const& frame_resource = frame.availableResources.at( resourceId );
 				scratchbuffer_max_size     = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.tlasInfo.scratch_buffer_size );
 			}
 		}
@@ -3463,7 +3468,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	if ( PRINT_DEBUG_MESSAGES ) {
 		logger.info( "Available Resources" );
 		logger.info( "%10s : %38s : %30s", "Type", "debugName", "Vk Handle" );
-		for ( auto const &r : frame.availableResources ) {
+		for ( auto const& r : frame.availableResources ) {
 			if ( r.second.info.isBuffer() ) {
 				logger.info( "%10s : %37s : %30p",
 				             "Buffer",
@@ -3488,7 +3493,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 // Allocates ImageViews, Samplers and Textures requested by individual passes
 // these are tied to the lifetime of the frame, and will be re-created
-static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Device const &device, le_renderpass_o **passes, size_t numRenderPasses ) {
+static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Device const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
 
 	using namespace le_renderer;
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -3503,18 +3508,18 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 			continue;
 		}
 
-		const le_resource_handle *  resources      = nullptr;
-		const LeResourceUsageFlags *resource_usage = nullptr;
+		const le_resource_handle*   resources      = nullptr;
+		const LeResourceUsageFlags* resource_usage = nullptr;
 		size_t                      resource_count = 0;
 
 		renderpass_i.get_used_resources( *p, &resources, &resource_usage, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
-			auto const &r_usage_flags = resource_usage[ i ];
+			auto const& r_usage_flags = resource_usage[ i ];
 
 			if ( r_usage_flags.type == LeResourceType::eImage &&
 			     ( r_usage_flags.as.image_usage_flags & ( LE_IMAGE_USAGE_SAMPLED_BIT | LE_IMAGE_USAGE_STORAGE_BIT ) ) ) {
-				auto const &r = static_cast<le_img_resource_handle>( resources[ i ] );
+				auto const& r = static_cast<le_img_resource_handle>( resources[ i ] );
 
 				// We create a default image view for this image and store it with the frame. If no explicit image view
 				// for a particular operation has been specified, this default image view is used.
@@ -3530,7 +3535,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 				// to set the format to whatever was inferred when the image was allocated and placed
 				// in available resources.
 
-				AllocatedResourceVk const &vk_resource_info = frame_data_get_allocated_resource_from_resource_id( frame, r );
+				AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( frame, r );
 
 				vk::Format imageFormat = vk::Format( vk_resource_info.info.imageInfo.format );
 
@@ -3579,14 +3584,14 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 	//
 	for ( size_t pass_idx = 0; pass_idx != numRenderPasses; ++pass_idx ) {
 
-		auto &p = passes[ pass_idx ];
+		auto& p = passes[ pass_idx ];
 
 		// Get all texture names for this pass
-		const le_texture_handle *textureIds     = nullptr;
+		const le_texture_handle* textureIds     = nullptr;
 		size_t                   textureIdCount = 0;
 		renderpass_i.get_texture_ids( p, &textureIds, &textureIdCount );
 
-		const le_image_sampler_info_t *textureInfos     = nullptr;
+		const le_image_sampler_info_t* textureInfos     = nullptr;
 		size_t                         textureInfoCount = 0;
 		renderpass_i.get_texture_infos( p, &textureInfos, &textureInfoCount );
 
@@ -3602,7 +3607,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 			if ( frame.textures_per_pass[ pass_idx ].find( textureId ) == frame.textures_per_pass[ pass_idx ].end() ) {
 				// -- we need to allocate a new texture
 
-				auto &texInfo = textureInfos[ i ];
+				auto& texInfo = textureInfos[ i ];
 
 				vk::ImageView imageView{};
 				{
@@ -3694,15 +3699,15 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 // This is one of the most important methods of backend -
 // where we associate virtual with physical resources, allocate physical
 // resources as needed, and keep track of sync state of physical resources.
-static bool backend_acquire_physical_resources( le_backend_o *            self,
+static bool backend_acquire_physical_resources( le_backend_o*             self,
                                                 size_t                    frameIndex,
-                                                le_renderpass_o **        passes,
+                                                le_renderpass_o**         passes,
                                                 size_t                    numRenderPasses,
-                                                le_resource_handle const *declared_resources,
-                                                le_resource_info_t const *declared_resources_infos,
-                                                size_t const &            declared_resources_count ) {
+                                                le_resource_handle const* declared_resources,
+                                                le_resource_info_t const* declared_resources_infos,
+                                                size_t const&             declared_resources_count ) {
 
-	auto &frame = self->mFrames[ frameIndex ];
+	auto& frame = self->mFrames[ frameIndex ];
 
 	// We try to acquire all images, even if one of the acquisitions fails.
 	//
@@ -3742,13 +3747,13 @@ static bool backend_acquire_physical_resources( le_backend_o *            self,
 		// TODO: we should be able to query swapchain image info so that we can mark the
 		// swapchain image as a frame available resource.
 
-		auto const &img_resource_handle = self->swapchain_resources[ i ];
+		auto const& img_resource_handle = self->swapchain_resources[ i ];
 
 		frame.availableResources[ img_resource_handle ].as.image = swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
 		{
-			auto &backbufferInfo       = frame.availableResources[ img_resource_handle ].info.imageInfo;
-			backbufferInfo             = vk::ImageCreateInfo{};
-			backbufferInfo.extent      = vk::Extent3D( frame.swapchain_state[ i ].surface_width, frame.swapchain_state[ i ].surface_height, 1 );
+			auto& backbufferInfo       = frame.availableResources[ img_resource_handle ].info.imageInfo;
+			backbufferInfo             = static_cast<VkImageCreateInfo&>( vk::ImageCreateInfo{} );
+			backbufferInfo.extent      = static_cast<VkExtent3D&>( vk::Extent3D( frame.swapchain_state[ i ].surface_width, frame.swapchain_state[ i ].surface_height, 1 ) );
 			backbufferInfo.format      = VkFormat( self->swapchainImageFormat[ i ] );
 			backbufferInfo.usage       = VkImageUsageFlags( vk::ImageUsageFlagBits::eColorAttachment );
 			backbufferInfo.mipLevels   = 1;
@@ -3779,7 +3784,7 @@ static bool backend_acquire_physical_resources( le_backend_o *            self,
 	// Initialise sync chain table - each resource receives initial state
 	// from current entry in frame.availableResources resource map.
 	frame.syncChainTable.clear();
-	for ( auto const &res : frame.availableResources ) {
+	for ( auto const& res : frame.availableResources ) {
 		frame.syncChainTable.insert( { res.first, { res.second.state } } );
 	}
 
@@ -3794,10 +3799,10 @@ static bool backend_acquire_physical_resources( le_backend_o *            self,
 
 		static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 		// Update final sync state for each pre-existing backend resource.
-		auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
-		for ( auto const &tbl : frame.syncChainTable ) {
-			auto &resId       = tbl.first;
-			auto &resSyncList = tbl.second;
+		auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
+		for ( auto const& tbl : frame.syncChainTable ) {
+			auto& resId       = tbl.first;
+			auto& resSyncList = tbl.second;
 
 			assert( !resSyncList.empty() ); // sync list must have entries
 
@@ -3846,16 +3851,16 @@ static bool backend_acquire_physical_resources( le_backend_o *            self,
 };
 
 // ----------------------------------------------------------------------
-static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, size_t frameIndex ) {
+static le_allocator_o** backend_get_transient_allocators( le_backend_o* self, size_t frameIndex ) {
 	return self->mFrames[ frameIndex ].allocators.data();
 }
 
 // ----------------------------------------------------------------------
-static le_allocator_o **backend_create_transient_allocators( le_backend_o *self, size_t frameIndex, size_t numAllocators ) {
+static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators ) {
 
 	using namespace le_backend_vk;
 
-	auto &frame = self->mFrames[ frameIndex ];
+	auto& frame = self->mFrames[ frameIndex ];
 
 	for ( size_t i = frame.allocators.size(); i != numAllocators; ++i ) {
 
@@ -3884,7 +3889,7 @@ static le_allocator_o **backend_create_transient_allocators( le_backend_o *self,
 			    .setSharingMode( vk::SharingMode::eExclusive )
 			    .setQueueFamilyIndexCount( 1 )
 			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics ); // TODO: use compute queue for compute passes, or transfer for transfer passes
-			bufferCreateInfo = bufferInfoProxy;
+			bufferCreateInfo = static_cast<VkBufferCreateInfo&>( bufferInfoProxy );
 		}
 
 		auto result = vmaCreateBuffer( self->mAllocator, &bufferCreateInfo, &createInfo, &buffer, &allocation, &allocationInfo );
@@ -3892,7 +3897,7 @@ static le_allocator_o **backend_create_transient_allocators( le_backend_o *self,
 		assert( result == VK_SUCCESS ); // todo: deal with failed allocation
 
 		// Create a new allocator - note that we assume an alignment of 256 bytes
-		le_allocator_o *allocator = le_allocator_linear_i.create( &allocationInfo, 256 );
+		le_allocator_o* allocator = le_allocator_linear_i.create( &allocationInfo, 256 );
 
 		frame.allocators.emplace_back( allocator );
 		frame.allocatorBuffers.emplace_back( std::move( buffer ) );
@@ -3905,11 +3910,11 @@ static le_allocator_o **backend_create_transient_allocators( le_backend_o *self,
 
 // ----------------------------------------------------------------------
 
-static le_staging_allocator_o *backend_get_staging_allocator( le_backend_o *self, size_t frameIndex ) {
+static le_staging_allocator_o* backend_get_staging_allocator( le_backend_o* self, size_t frameIndex ) {
 	return self->mFrames[ frameIndex ].stagingAllocator;
 }
 
-void debug_print_le_pipeline_layout_info( le_pipeline_layout_info *info ) {
+void debug_print_le_pipeline_layout_info( le_pipeline_layout_info* info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	logger.debug( "pipeline layout: %x", info->pipeline_layout_key );
 	for ( size_t i = 0; i != info->set_layout_count; i++ ) {
@@ -3917,18 +3922,18 @@ void debug_print_le_pipeline_layout_info( le_pipeline_layout_info *info ) {
 	}
 }
 
-static bool is_equal( le_pipeline_and_layout_info_t const &lhs, le_pipeline_and_layout_info_t const &rhs ) {
+static bool is_equal( le_pipeline_and_layout_info_t const& lhs, le_pipeline_and_layout_info_t const& rhs ) {
 	return lhs.pipeline == rhs.pipeline &&
 	       lhs.layout_info.set_layout_count == rhs.layout_info.set_layout_count &&
 	       0 == memcmp( lhs.layout_info.set_layout_keys, rhs.layout_info.set_layout_keys, sizeof( uint64_t ) * lhs.layout_info.set_layout_count ) &&
 	       lhs.layout_info.active_vk_shader_stages == rhs.layout_info.active_vk_shader_stages;
 }
 
-static bool updateArguments( const vk::Device &                 device,
-                             const vk::DescriptorPool &         descriptorPool_,
-                             const ArgumentState &              argumentState,
-                             std::array<DescriptorSetState, 8> &previousSetData,
-                             vk::DescriptorSet *                descriptorSets ) {
+static bool updateArguments( const vk::Device&                  device,
+                             const vk::DescriptorPool&          descriptorPool_,
+                             const ArgumentState&               argumentState,
+                             std::array<DescriptorSetState, 8>& previousSetData,
+                             vk::DescriptorSet*                 descriptorSets ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	// -- allocate descriptors from descriptorpool based on set layout info
@@ -3941,8 +3946,8 @@ static bool updateArguments( const vk::Device &                 device,
 
 	bool argumentsOk = true;
 
-	auto get_argument_name = [ &argumentState ]( size_t set_id, uint32_t binding_number ) -> char const * {
-		for ( auto const &b : argumentState.binding_infos ) {
+	auto get_argument_name = [ &argumentState ]( size_t set_id, uint32_t binding_number ) -> char const* {
+		for ( auto const& b : argumentState.binding_infos ) {
 			if ( b.binding == binding_number && b.setIndex == set_id ) {
 				return le_get_argument_name_from_hash( b.name_hash );
 			}
@@ -3962,14 +3967,18 @@ static bool updateArguments( const vk::Device &                 device,
 		// The most common case for this bug is not providing any data for a uniform used in the shader,
 		// we check for this and skip any argumentStates which have invalid data...
 
-		for ( auto &a : argumentState.setData[ setId ] ) {
+		static constexpr auto NULL_VK_BUFFER                     = vk::Buffer( nullptr );
+		static constexpr auto NULL_VK_IMAGE_VIEW                 = vk::ImageView( nullptr );
+		static constexpr auto NULL_VK_ACCELERATION_STRUCTURE_KHR = vk::AccelerationStructureKHR( nullptr );
+
+		for ( auto& a : argumentState.setData[ setId ] ) {
 
 			switch ( a.type ) {
 			case vk::DescriptorType::eStorageBufferDynamic: //
 			case vk::DescriptorType::eUniformBuffer:        //
 			case vk::DescriptorType::eUniformBufferDynamic: //
 			case vk::DescriptorType::eStorageBuffer:        // fall-through
-				if ( nullptr == a.bufferInfo.buffer ) {
+				if ( NULL_VK_BUFFER == a.bufferInfo.buffer ) {
 					// if buffer must have valid buffer bound
 					logger.error( "Buffer argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
 					              get_argument_name( setId, a.bindingNumber ),
@@ -3982,8 +3991,8 @@ static bool updateArguments( const vk::Device &                 device,
 			case vk::DescriptorType::eCombinedImageSampler:
 			case vk::DescriptorType::eSampledImage:
 			case vk::DescriptorType::eStorageImage:
-				argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
-				if ( nullptr == a.imageInfo.imageView ) {
+				argumentsOk &= ( NULL_VK_IMAGE_VIEW != a.imageInfo.imageView ); // if sampler, must have valid image view
+				if ( NULL_VK_IMAGE_VIEW == a.imageInfo.imageView ) {
 					// if image - must have valid imageview bound
 					logger.error( "Image argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
 					              get_argument_name( setId, a.bindingNumber ),
@@ -3994,8 +4003,8 @@ static bool updateArguments( const vk::Device &                 device,
 				}
 				break;
 			case vk::DescriptorType::eAccelerationStructureKHR:
-				argumentsOk &= ( nullptr != a.accelerationStructureInfo.accelerationStructure );
-				if ( nullptr == a.accelerationStructureInfo.accelerationStructure ) {
+				argumentsOk &= ( NULL_VK_ACCELERATION_STRUCTURE_KHR != a.accelerationStructureInfo.accelerationStructure );
+				if ( NULL_VK_ACCELERATION_STRUCTURE_KHR == a.accelerationStructureInfo.accelerationStructure ) {
 					// if image - must have valid acceleration structure bound
 					logger.error( "Acceleration Structure argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
 					              get_argument_name( setId, a.bindingNumber ),
@@ -4061,11 +4070,11 @@ static bool updateArguments( const vk::Device &                 device,
 					// This means that we can hand out copies of pointers from this vector without fear from
 					// within the current scope, but also that we must clean up the contents of the vector
 					// manually before leaving the current scope or else we will leak these objects.
-					std::vector<vk::WriteDescriptorSetAccelerationStructureKHR *> write_acceleration_structures;
+					std::vector<vk::WriteDescriptorSetAccelerationStructureKHR*> write_acceleration_structures;
 
 					write_descriptor_sets.reserve( argumentState.setData[ setId ].size() );
 
-					for ( auto &a : argumentState.setData[ setId ] ) {
+					for ( auto& a : argumentState.setData[ setId ] ) {
 						vk::WriteDescriptorSet w{};
 
 						w
@@ -4082,17 +4091,17 @@ static bool updateArguments( const vk::Device &                 device,
 						case vk::DescriptorType::eSampledImage:
 						case vk::DescriptorType::eStorageImage:
 						case vk::DescriptorType::eInputAttachment:
-							w.setPImageInfo( reinterpret_cast<vk::DescriptorImageInfo const *>( &a.imageInfo ) );
+							w.setPImageInfo( reinterpret_cast<vk::DescriptorImageInfo const*>( &a.imageInfo ) );
 							break;
 						case vk::DescriptorType::eUniformTexelBuffer:
 						case vk::DescriptorType::eStorageTexelBuffer:
-							w.setPTexelBufferView( reinterpret_cast<vk::BufferView const *>( &a.texelBufferInfo ) );
+							w.setPTexelBufferView( reinterpret_cast<vk::BufferView const*>( &a.texelBufferInfo ) );
 							break;
 						case vk::DescriptorType::eUniformBuffer:
 						case vk::DescriptorType::eStorageBuffer:
 						case vk::DescriptorType::eUniformBufferDynamic:
 						case vk::DescriptorType::eStorageBufferDynamic:
-							w.setPBufferInfo( reinterpret_cast<vk::DescriptorBufferInfo const *>( &a.bufferInfo ) );
+							w.setPBufferInfo( reinterpret_cast<vk::DescriptorBufferInfo const*>( &a.bufferInfo ) );
 							break;
 						case vk::DescriptorType::eInlineUniformBlockEXT:
 							assert( false && "inline uniform blocks are not yet supported" );
@@ -4115,7 +4124,7 @@ static bool updateArguments( const vk::Device &                 device,
 					device.updateDescriptorSets( uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
 
 					// We must manually delete any WriteDescriptorSetAccelerationStructureKHR objects
-					for ( auto &w : write_acceleration_structures ) {
+					for ( auto& w : write_acceleration_structures ) {
 						delete ( w );
 					}
 				}
@@ -4133,12 +4142,12 @@ static bool updateArguments( const vk::Device &                 device,
 
 // ----------------------------------------------------------------------
 
-static void debug_print_command( void *&cmd ) {
+static void debug_print_command( void*& cmd ) {
 	static auto        logger = LeLog( LOGGER_LABEL );
 	std::ostringstream os;
 	os << "cmd: ";
 
-	auto cmd_header = static_cast<le::CommandHeader *>( cmd );
+	auto cmd_header = static_cast<le::CommandHeader*>( cmd );
 
 	// clang-format off
 			switch (cmd_header->info.type){
@@ -4169,7 +4178,7 @@ static void debug_print_command( void *&cmd ) {
 	// clang-format on
 
 	if ( cmd_header->info.type == le::CommandType::eBindGraphicsPipeline ) {
-		auto le_cmd = static_cast<le::CommandBindGraphicsPipeline *>( cmd );
+		auto le_cmd = static_cast<le::CommandBindGraphicsPipeline*>( cmd );
 		os << " [" << std::hex << le_cmd->info.gpsoHandle << "]";
 	}
 
@@ -4177,7 +4186,7 @@ static void debug_print_command( void *&cmd ) {
 };
 
 // convert 0xrrggbbaa color to float color
-constexpr static std::array<float, 4> hex_rgba_to_float_colour( uint32_t const &hex ) {
+constexpr static std::array<float, 4> hex_rgba_to_float_colour( uint32_t const& hex ) {
 	std::array<float, 4> result{
 	    ( hex >> 24 ) / 255.f,
 	    ( ( hex >> 16 ) & 0xff ) / 255.f,
@@ -4190,7 +4199,7 @@ constexpr static std::array<float, 4> hex_rgba_to_float_colour( uint32_t const &
 // ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
-static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
+static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -4206,7 +4215,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 #else
 	bool should_insert_debug_labels = true; // whether we want to insert debug labels into the command stream (useful for renderdoc)
 #endif
-	auto &frame = self->mFrames[ frameIndex ];
+	auto& frame = self->mFrames[ frameIndex ];
 
 	vk::Device device = self->device->getVkDevice();
 
@@ -4227,9 +4236,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	// mutex-controlled when processing happens concurrently.
 	for ( size_t passIndex = 0; passIndex != frame.passes.size(); ++passIndex ) {
 
-		auto &pass           = frame.passes[ passIndex ];
-		auto &cmd            = cmdBufs[ passIndex ];
-		auto &descriptorPool = frame.descriptorPools[ passIndex ];
+		auto& pass           = frame.passes[ passIndex ];
+		auto& cmd            = cmdBufs[ passIndex ];
+		auto& descriptorPool = frame.descriptorPools[ passIndex ];
 
 		// create frame buffer, based on swapchain and renderpass
 
@@ -4272,7 +4281,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			// We must to this here, as the spec requires barriers to happen
 			// before renderpass begin.
 			//
-			for ( auto const &op : pass.explicit_sync_ops ) {
+			for ( auto const& op : pass.explicit_sync_ops ) {
 				// fill in sync op
 
 				if ( op.active == false ) {
@@ -4281,10 +4290,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				// ---------| invariant: barrier is active.
 
-				auto const &syncChain = frame.syncChainTable[ op.resource ];
+				auto const& syncChain = frame.syncChainTable[ op.resource ];
 
-				auto const &stateInitial = syncChain[ op.sync_chain_offset_initial ];
-				auto const &stateFinal   = syncChain[ op.sync_chain_offset_final ];
+				auto const& stateInitial = syncChain[ op.sync_chain_offset_initial ];
+				auto const& stateFinal   = syncChain[ op.sync_chain_offset_final ];
 
 				if ( stateInitial != stateFinal ) {
 					// we must issue an image barrier
@@ -4297,10 +4306,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
 						logger.debug( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
 
-						auto const &syncChain = frame.syncChainTable.at( op.resource );
+						auto const& syncChain = frame.syncChainTable.at( op.resource );
 
 						for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
-							auto const &s = syncChain[ i ];
+							auto const& s = syncChain[ i ];
 							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i,
 							              to_string( s.visible_access ).c_str(),
 							              to_string( s.write_stage ).c_str(),
@@ -4361,7 +4370,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		// -- Translate intermediary command stream data to api-native instructions
 
-		void *   commandStream = nullptr;
+		void*    commandStream = nullptr;
 		size_t   dataSize      = 0;
 		size_t   numCommands   = 0;
 		size_t   commandIndex  = 0;
@@ -4408,15 +4417,15 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
 
-			le_pipeline_manager_o *pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
+			le_pipeline_manager_o* pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
 
 			std::vector<vk::Buffer>       vertexInputBindings( maxVertexInputBindings, nullptr );
-			void *                        dataIt = commandStream;
+			void*                         dataIt = commandStream;
 			le_pipeline_and_layout_info_t currentPipeline{};
 
 			while ( commandIndex != numCommands ) {
 
-				auto header = static_cast<le::CommandHeader *>( dataIt );
+				auto header = static_cast<le::CommandHeader*>( dataIt );
 
 				if ( /* DISABLES CODE */ ( false ) ) {
 					// Print the command stream to stdout.
@@ -4426,7 +4435,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				switch ( header->info.type ) {
 
 				case le::CommandType::eBindGraphicsPipeline: {
-					auto *le_cmd = static_cast<le::CommandBindGraphicsPipeline *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandBindGraphicsPipeline*>( dataIt );
 
 					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
 						// at this point, a valid renderpass must be bound
@@ -4460,11 +4469,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
 
 								// look up set layout info via set layout key
-								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+								auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
 								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
-								auto &setData = argumentState.setData[ setId ];
+								auto& setData = argumentState.setData[ setId ];
 
 								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
 								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
@@ -4528,7 +4537,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 
 				case le::CommandType::eBindComputePipeline: {
-					auto *le_cmd = static_cast<le::CommandBindComputePipeline *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandBindComputePipeline*>( dataIt );
 					if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
 						// at this point, a valid renderpass must be bound
 
@@ -4552,11 +4561,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
 
 								// look up set layout info via set layout key
-								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+								auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
 								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
-								auto &setData = argumentState.setData[ setId ];
+								auto& setData = argumentState.setData[ setId ];
 
 								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
 								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
@@ -4613,7 +4622,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 
 				case le::CommandType::eBindRtxPipeline: {
-					auto *le_cmd = static_cast<le::CommandBindRtxPipeline *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandBindRtxPipeline*>( dataIt );
 					if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
 						// at this point, a valid renderpass must be bound
 
@@ -4648,11 +4657,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
 
 								// look up set layout info via set layout key
-								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+								auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
 								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
-								auto &setData = argumentState.setData[ setId ];
+								auto& setData = argumentState.setData[ setId ];
 
 								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
 								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
@@ -4731,7 +4740,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 #ifdef LE_FEATURE_RTX
 				case le::CommandType::eTraceRays: {
-					auto *le_cmd = static_cast<le::CommandTraceRays *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandTraceRays*>( dataIt );
 
 					// -- update descriptorsets via template if tainted
 					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
@@ -4781,7 +4790,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 #endif
 				case le::CommandType::eDispatch: {
-					auto *le_cmd = static_cast<le::CommandDispatch *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandDispatch*>( dataIt );
 
 					// -- update descriptorsets via template if tainted
 					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
@@ -4808,7 +4817,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				} break;
 				case le::CommandType::eBufferMemoryBarrier: {
-					auto *                  le_cmd = static_cast<le::CommandBufferMemoryBarrier *>( dataIt );
+					auto*                   le_cmd = static_cast<le::CommandBufferMemoryBarrier*>( dataIt );
 					vk::BufferMemoryBarrier bufferMemoryBarrier{};
 					bufferMemoryBarrier
 					    .setBuffer( frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ) )
@@ -4824,7 +4833,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				} break;
 				case le::CommandType::eDraw: {
-					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandDraw*>( dataIt );
 
 					// -- update descriptorsets via template if tainted
 					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
@@ -4850,7 +4859,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 
 				case le::CommandType::eDrawIndexed: {
-					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandDrawIndexed*>( dataIt );
 
 					// -- update descriptorsets via template if tainted
 					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
@@ -4876,7 +4885,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 
 				case le::CommandType::eDrawMeshTasks: {
-					auto *le_cmd = static_cast<le::CommandDrawMeshTasks *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandDrawMeshTasks*>( dataIt );
 
 					// -- update descriptorsets via template if tainted
 					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
@@ -4906,27 +4915,27 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 
 				case le::CommandType::eSetLineWidth: {
-					auto *le_cmd = static_cast<le::CommandSetLineWidth *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandSetLineWidth*>( dataIt );
 					cmd.setLineWidth( le_cmd->info.width );
 				} break;
 
 				case le::CommandType::eSetViewport: {
-					auto *le_cmd = static_cast<le::CommandSetViewport *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandSetViewport*>( dataIt );
 					// Since data for viewports *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
-					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd + 1 ) );
+					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport*>( le_cmd + 1 ) );
 				} break;
 
 				case le::CommandType::eSetScissor: {
-					auto *le_cmd = static_cast<le::CommandSetScissor *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandSetScissor*>( dataIt );
 					// Since data for scissors *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
-					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ) );
+					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D*>( le_cmd + 1 ) );
 				} break;
 
 				case le::CommandType::eSetPushConstantData: {
 					if ( currentPipelineLayout ) {
-						auto *               le_cmd               = static_cast<le::CommandSetPushConstantData *>( dataIt );
+						auto*                le_cmd               = static_cast<le::CommandSetPushConstantData*>( dataIt );
 						vk::ShaderStageFlags active_shader_stages = vk::ShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
 						cmd.pushConstants( currentPipelineLayout, active_shader_stages, 0, le_cmd->info.num_bytes, ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
 					}
@@ -4936,14 +4945,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				case le::CommandType::eBindArgumentBuffer: {
 					// we need to store the data for the dynamic binding which was set as an argument to the ubo
 					// this alters our internal state
-					auto *le_cmd = static_cast<le::CommandBindArgumentBuffer *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandBindArgumentBuffer*>( dataIt );
 
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 					// find binding info with name referenced in command
 
 					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(),
-					                       [ &argument_name_id ]( const le_shader_binding_info &e ) -> bool {
+					                       [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
 						                       return e.name_hash == argument_name_id;
 					                       } );
 
@@ -4963,7 +4972,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto setIndex = b->setIndex;
 					auto binding  = b->binding;
 
-					auto &bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
+					auto& bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
 
 					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
 					bindingData.range  = le_cmd->info.range;
@@ -4990,11 +4999,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 
 				case le::CommandType::eSetArgumentTexture: {
-					auto *   le_cmd           = static_cast<le::CommandSetArgumentTexture *>( dataIt );
+					auto*    le_cmd           = static_cast<le::CommandSetArgumentTexture*>( dataIt );
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info &e ) -> bool {
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
 						return e.name_hash == argument_name_id;
 					} );
 
@@ -5052,11 +5061,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 
 				case le::CommandType::eSetArgumentImage: {
-					auto *   le_cmd           = static_cast<le::CommandSetArgumentImage *>( dataIt );
+					auto*    le_cmd           = static_cast<le::CommandSetArgumentImage*>( dataIt );
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info &e ) -> bool {
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
 						return e.name_hash == argument_name_id;
 					} );
 
@@ -5069,7 +5078,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto setIndex = b->setIndex;
 					auto binding  = b->binding;
 
-					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+					auto& bindingData = argumentState.setData[ setIndex ][ binding ];
 
 					// fetch texture information based on texture id from command
 
@@ -5092,11 +5101,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 #ifdef LE_FEATURE_RTX
 				case le::CommandType::eSetArgumentTlas: {
-					auto *   le_cmd           = static_cast<le::CommandSetArgumentTlas *>( dataIt );
+					auto*    le_cmd           = static_cast<le::CommandSetArgumentTlas*>( dataIt );
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info &e ) -> bool {
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
 						return e.name_hash == argument_name_id;
 					} );
 
@@ -5109,7 +5118,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto setIndex = b->setIndex;
 					auto binding  = b->binding;
 
-					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+					auto& bindingData = argumentState.setData[ setIndex ][ binding ];
 
 					// fetch texture information based on texture id from command
 
@@ -5128,13 +5137,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				} break;
 #endif
 				case le::CommandType::eBindIndexBuffer: {
-					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandBindIndexBuffer*>( dataIt );
 					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
 					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, le_index_type_to_vk( le_cmd->info.indexType ) );
 				} break;
 
 				case le::CommandType::eBindVertexBuffers: {
-					auto *le_cmd = static_cast<le::CommandBindVertexBuffers *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandBindVertexBuffers*>( dataIt );
 
 					uint32_t firstBinding = le_cmd->info.firstBinding;
 					uint32_t numBuffers   = le_cmd->info.bindingCount;
@@ -5167,7 +5176,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// Enqueue copy buffer command
 					// TODO: we must sync this before the next read.
-					auto *le_cmd = static_cast<le::CommandWriteToBuffer *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandWriteToBuffer*>( dataIt );
 
 					vk::BufferCopy region( le_cmd->info.src_offset, le_cmd->info.dst_offset, le_cmd->info.numBytes );
 
@@ -5184,7 +5193,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// TODO: Use sync chain to sync
 					// TODO: we can only write to linear images - we must find a way to make our image tiled
 
-					auto *le_cmd = static_cast<le::CommandWriteToImage *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandWriteToImage*>( dataIt );
 
 					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
 					auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
@@ -5390,10 +5399,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				}
 #ifdef LE_FEATURE_RTX
 				case le::CommandType::eBuildRtxBlas: {
-					auto *le_cmd = static_cast<le::CommandBuildRtxBlas *>( dataIt );
+					auto* le_cmd = static_cast<le::CommandBuildRtxBlas*>( dataIt );
 
 					size_t     num_blas_handles  = le_cmd->info.blas_handles_count;
-					auto const blas_handle_begin = reinterpret_cast<le_resource_handle *>( le_cmd + 1 );
+					auto const blas_handle_begin = reinterpret_cast<le_resource_handle*>( le_cmd + 1 );
 
 					auto const blas_end = blas_handle_begin + num_blas_handles;
 
@@ -5401,9 +5410,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					for ( auto blas_handle = blas_handle_begin; blas_handle != blas_end; blas_handle++ ) {
 
-						auto const &               allocated_resource        = frame.availableResources.at( *blas_handle );
+						auto const&                allocated_resource        = frame.availableResources.at( *blas_handle );
 						VkAccelerationStructureKHR vk_acceleration_structure = allocated_resource.as.blas;
-						auto                       blas_info                 = reinterpret_cast<le_rtx_blas_info_o *>( allocated_resource.info.blasInfo.handle );
+						auto                       blas_info                 = reinterpret_cast<le_rtx_blas_info_o*>( allocated_resource.info.blasInfo.handle );
 
 						// Translate geometry info from internal format to vk::geometryKHR format.
 						// We do this for each blas, which in turn may have an array of geometries.
@@ -5414,7 +5423,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						std::vector<vk::AccelerationStructureBuildRangeInfoKHR> build_ranges;
 						build_ranges.reserve( blas_info->geometries.size() );
 
-						for ( auto const &g : blas_info->geometries ) {
+						for ( auto const& g : blas_info->geometries ) {
 
 							// TODO: we may want to cache this - so that we don't have to lookup addresses more than once
 
@@ -5467,7 +5476,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							build_ranges.emplace_back( build_range );
 						}
 
-						vk::AccelerationStructureBuildRangeInfoKHR const *pBuildRangeInfos = build_ranges.data();
+						vk::AccelerationStructureBuildRangeInfoKHR const* pBuildRangeInfos = build_ranges.data();
 
 						vk::DeviceOrHostAddressKHR scratchData;
 						//  We get the device address by querying from the buffer.
@@ -5501,11 +5510,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					break;
 				}
 				case le::CommandType::eBuildRtxTlas: {
-					auto *                      le_cmd              = static_cast<le::CommandBuildRtxTlas *>( dataIt );
-					void *                      payload_addr        = le_cmd + 1;
-					le_resource_handle const *  resources           = static_cast<le_resource_handle *>( payload_addr );
-					void *                      scratch_memory_addr = le_cmd->info.staging_buffer_mapped_memory;
-					le_rtx_geometry_instance_t *instances           = static_cast<le_rtx_geometry_instance_t *>( scratch_memory_addr );
+					auto*                       le_cmd              = static_cast<le::CommandBuildRtxTlas*>( dataIt );
+					void*                       payload_addr        = le_cmd + 1;
+					le_resource_handle const*   resources           = static_cast<le_resource_handle*>( payload_addr );
+					void*                       scratch_memory_addr = le_cmd->info.staging_buffer_mapped_memory;
+					le_rtx_geometry_instance_t* instances           = static_cast<le_rtx_geometry_instance_t*>( scratch_memory_addr );
 
 					// Foreach resource, we must patch the corresponding instance
 
@@ -5524,9 +5533,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// Invariant: all instances should be patched right now, we can use the buffer at offset as
 					// instance data to build tlas.
-					auto const &               allocated_resource        = frame.availableResources.at( le_cmd->info.tlas_handle );
+					auto const&                allocated_resource        = frame.availableResources.at( le_cmd->info.tlas_handle );
 					VkAccelerationStructureKHR vk_acceleration_structure = allocated_resource.as.tlas;
-					auto                       tlas_info                 = reinterpret_cast<le_rtx_tlas_info_o *>( allocated_resource.info.tlasInfo.handle );
+					auto                       tlas_info                 = reinterpret_cast<le_rtx_tlas_info_o*>( allocated_resource.info.tlasInfo.handle );
 
 					// Issue barrier to make sure that transfer to instances buffer is complete
 					// before building top-level acceleration structure
@@ -5590,7 +5599,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				// Move iterator by size of current le_command so that it points
 				// to the next command in the list.
-				dataIt = static_cast<char *>( dataIt ) + header->info.size;
+				dataIt = static_cast<char*>( dataIt ) + header->info.size;
 
 				++commandIndex;
 			}
@@ -5609,7 +5618,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	}
 
 	// place command buffer in frame store so that it can be submitted.
-	for ( auto &&c : cmdBufs ) {
+	for ( auto&& c : cmdBufs ) {
 		frame.commandBuffers.emplace_back( c );
 	}
 }
@@ -5617,22 +5626,22 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 // ----------------------------------------------------------------------
 // This method gets called once per frame (via renderer.update()) in order
 // to poll shader modules for updates
-static void backend_update_shader_modules( le_backend_o *self ) {
+static void backend_update_shader_modules( le_backend_o* self ) {
 	using namespace le_backend_vk;
 	le_pipeline_manager_i.update_shader_modules( self->pipelineCache );
 }
 
 // ----------------------------------------------------------------------
 static le_shader_module_handle backend_create_shader_module(
-    le_backend_o *                    self,
-    char const *                      path,
-    const LeShaderSourceLanguageEnum &shader_source_language,
-    const LeShaderStageEnum &         moduleType,
-    char const *                      macro_definitions,
+    le_backend_o*                     self,
+    char const*                       path,
+    const LeShaderSourceLanguageEnum& shader_source_language,
+    const LeShaderStageEnum&          moduleType,
+    char const*                       macro_definitions,
     le_shader_module_handle           handle,
-    VkSpecializationMapEntry const *  specialization_map_entries,
+    VkSpecializationMapEntry const*   specialization_map_entries,
     uint32_t                          specialization_map_entries_count,
-    void *                            specialization_map_data,
+    void*                             specialization_map_data,
     uint32_t                          specialization_map_data_num_bytes ) {
 
 	using namespace le_backend_vk;
@@ -5651,15 +5660,15 @@ static le_shader_module_handle backend_create_shader_module(
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_manager_o *backend_get_pipeline_cache( le_backend_o *self ) {
+static le_pipeline_manager_o* backend_get_pipeline_cache( le_backend_o* self ) {
 	return self->pipelineCache;
 }
 
 // ----------------------------------------------------------------------
 
-static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
+static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
-	auto &frame = self->mFrames[ frameIndex ];
+	auto& frame = self->mFrames[ frameIndex ];
 
 	std::vector<::vk::PipelineStageFlags> wait_dst_stage_mask(
 	    frame.swapchain_state.size(), { vk::PipelineStageFlagBits::eColorAttachmentOutput } );
@@ -5670,7 +5679,7 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 	std::vector<vk::Semaphore> render_complete_semaphores;
 	render_complete_semaphores.reserve( frame.swapchain_state.size() );
 
-	for ( auto const &swp : frame.swapchain_state ) {
+	for ( auto const& swp : frame.swapchain_state ) {
 		present_complete_semaphores.push_back( swp.presentComplete );
 		render_complete_semaphores.push_back( swp.renderComplete );
 	}
@@ -5712,9 +5721,9 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o *self, le_rtx_geometry_t const *geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const *flags ) {
+le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const* flags ) {
 
-	auto *blas_info = new le_rtx_blas_info_o{};
+	auto* blas_info = new le_rtx_blas_info_o{};
 
 	// Copy geometry information
 	blas_info->geometries.insert( blas_info->geometries.end(), geometries, geometries + geometries_count );
@@ -5731,9 +5740,9 @@ le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o *self, le_rtx
 
 // ----------------------------------------------------------------------
 
-le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o *self, uint32_t instances_count, LeBuildAccelerationStructureFlags const *flags ) {
+le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const* flags ) {
 
-	auto *tlas_info = new le_rtx_tlas_info_o{};
+	auto* tlas_info = new le_rtx_tlas_info_o{};
 
 	// Copy geometry information
 	tlas_info->instances_count = instances_count;
@@ -5752,15 +5761,15 @@ le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o *self, uint32
 };
 // ----------------------------------------------------------------------
 
-extern void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
-extern void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
-extern void register_le_device_vk_api( void *api );         // for le_device_vk.cpp
-extern void register_le_pipeline_vk_api( void *api );       // for le_pipeline_vk.cpp
+extern void register_le_instance_vk_api( void* api );       // for le_instance_vk.cpp
+extern void register_le_allocator_linear_api( void* api_ ); // for le_allocator.cpp
+extern void register_le_device_vk_api( void* api );         // for le_device_vk.cpp
+extern void register_le_pipeline_vk_api( void* api );       // for le_pipeline_vk.cpp
 
 // ----------------------------------------------------------------------
 LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
-	auto  api_i        = static_cast<le_backend_vk_api *>( api_ );
-	auto &vk_backend_i = api_i->vk_backend_i;
+	auto  api_i        = static_cast<le_backend_vk_api*>( api_ );
+	auto& vk_backend_i = api_i->vk_backend_i;
 
 	vk_backend_i.create                     = backend_create;
 	vk_backend_i.destroy                    = backend_destroy;
@@ -5788,7 +5797,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
 
-	auto &private_backend_i                  = api_i->private_backend_vk_i;
+	auto& private_backend_i                  = api_i->private_backend_vk_i;
 	private_backend_i.get_vk_device          = backend_get_vk_device;
 	private_backend_i.get_vk_physical_device = backend_get_vk_physical_device;
 	private_backend_i.get_le_device          = backend_get_le_device;
@@ -5798,7 +5807,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.allocate_buffer        = backend_allocate_buffer;
 	private_backend_i.destroy_buffer         = backend_destroy_buffer;
 
-	auto &staging_allocator_i   = api_i->le_staging_allocator_i;
+	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;
 	staging_allocator_i.destroy = staging_allocator_destroy;
 	staging_allocator_i.map     = staging_allocator_map;
@@ -5811,13 +5820,13 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	register_le_allocator_linear_api( api_ );
 	register_le_pipeline_vk_api( api_ );
 
-	auto &le_instance_vk_i = api_i->vk_instance_i;
+	auto& le_instance_vk_i = api_i->vk_instance_i;
 
 	//
 	auto unique_instance = *le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_instance_o" ) );
 
 	if ( unique_instance ) {
-		le_instance_vk_i.post_reload_hook( static_cast<le_backend_vk_instance_o *>( unique_instance ) );
+		le_instance_vk_i.post_reload_hook( static_cast<le_backend_vk_instance_o*>( unique_instance ) );
 	}
 
 #ifdef PLUGINS_DYNAMIC

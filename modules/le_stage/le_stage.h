@@ -28,21 +28,21 @@ LE_OPAQUE_HANDLE( le_img_resource_handle );
 struct le_sampler_info_t; // from le_renderer
 
 /* le_stage provides a scene graph, and playback capability for animations.
- * 
+ *
  * Create elements inside the stage by calling the le_stage.create* methods.
- * 
+ *
  * Setup pipeline resources once elements have been added by calling:
- * 		
+ *
  * 		le_stage.setup_pipelines()
- * 
- * To render a scene graph the following methods must be called once per 
+ *
+ * To render a scene graph the following methods must be called once per
  * frame, in the correct order:
- * 
+ *
  * 		le_stage.update()
  * 		le_stage.update_rendermodule()
  * 		le_stage.draw_into_module()
- * 
- * Note that `draw_into_module()` requires a parameter object with the same 
+ *
+ * Note that `draw_into_module()` requires a parameter object with the same
  * lifetime as the module used to draw.
  *
  */
@@ -99,16 +99,16 @@ LE_MODULE_LOAD_DEFAULT( le_stage );
 #ifdef __cplusplus
 
 namespace le_stage {
-static const auto &api        = le_stage_api_i;
-static const auto &le_stage_i = api -> le_stage_i;
+static const auto& api        = le_stage_api_i;
+static const auto& le_stage_i = api -> le_stage_i;
 } // namespace le_stage
 
 class LeStage : NoCopy, NoMove {
 
-	le_stage_o *self;
+	le_stage_o* self;
 
   public:
-	LeStage( le_renderer_o *renderer, le_timebase_o *timebase = nullptr )
+	LeStage( le_renderer_o* renderer, le_timebase_o* timebase = nullptr )
 	    : self( le_stage::le_stage_i.create( renderer, timebase ) ) {
 	}
 

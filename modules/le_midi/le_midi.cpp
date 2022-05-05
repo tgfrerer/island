@@ -25,8 +25,8 @@ struct le_midi_message_buffer_t {
 
 struct le_midi_o {
 	// members
-	RtMidiIn *                 midi_in  = nullptr;
-	RtMidiOut *                midi_out = nullptr;
+	RtMidiIn*                  midi_in  = nullptr;
+	RtMidiOut*                 midi_out = nullptr;
 	le_midi_message_buffer_t   buffers[ 2 ];
 	uint32_t                   front_buffer = 0;
 	uint32_t                   back_buffer  = 1;
@@ -35,7 +35,7 @@ struct le_midi_o {
 
 // ----------------------------------------------------------------------
 
-static inline void buffer_reset( le_midi_message_buffer_t *buffer, size_t resize_value = 0 ) {
+static inline void buffer_reset( le_midi_message_buffer_t* buffer, size_t resize_value = 0 ) {
 	// reset buffer - we do this instead of clearing - this is so that we don't have any re-allocations.
 	// effectively, we use each buffer as an arena, and the front buffer remains valid until swapped.
 	buffer->size = 0;
@@ -51,20 +51,20 @@ static inline void buffer_reset( le_midi_message_buffer_t *buffer, size_t resize
 
 // ----------------------------------------------------------------------
 
-static le_midi_o *le_midi_create() {
+static le_midi_o* le_midi_create() {
 	auto self = new le_midi_o();
 
 	try {
 		// Duh, I hate exceptions.
 		self->midi_in = new RtMidiIn( RtMidi::Api::UNSPECIFIED, "Island MIDI input client", 400 );
-	} catch ( RtMidiError &error ) {
+	} catch ( RtMidiError& error ) {
 		error.printMessage();
 	}
 
 	try {
 		// Duh, I hate exceptions.
 		self->midi_out = new RtMidiOut( RtMidi::Api::UNSPECIFIED, "Island MIDI input client" );
-	} catch ( RtMidiError &error ) {
+	} catch ( RtMidiError& error ) {
 		error.printMessage();
 	}
 
@@ -78,7 +78,7 @@ static le_midi_o *le_midi_create() {
 
 // ----------------------------------------------------------------------
 
-static bool le_midi_open_midi_out( le_midi_o *self, char const *selected_port_name ) {
+static bool le_midi_open_midi_out( le_midi_o* self, char const* selected_port_name ) {
 	if ( nullptr == self->midi_out ) {
 		return false;
 	}
@@ -99,7 +99,7 @@ static bool le_midi_open_midi_out( le_midi_o *self, char const *selected_port_na
 				return true;
 			}
 		}
-	} catch ( RtMidiError &error ) {
+	} catch ( RtMidiError& error ) {
 		return false;
 	}
 	// Not found
@@ -108,7 +108,7 @@ static bool le_midi_open_midi_out( le_midi_o *self, char const *selected_port_na
 
 // ----------------------------------------------------------------------
 
-static bool le_midi_open_midi_in( le_midi_o *self, char const *selected_port_name ) {
+static bool le_midi_open_midi_in( le_midi_o* self, char const* selected_port_name ) {
 	if ( nullptr == self->midi_in ) {
 		return false;
 	}
@@ -133,7 +133,7 @@ static bool le_midi_open_midi_in( le_midi_o *self, char const *selected_port_nam
 				return true;
 			}
 		}
-	} catch ( RtMidiError &error ) {
+	} catch ( RtMidiError& error ) {
 		return false;
 	}
 	// not found
@@ -143,7 +143,7 @@ static bool le_midi_open_midi_in( le_midi_o *self, char const *selected_port_nam
 
 // ----------------------------------------------------------------------
 
-static void le_midi_destroy( le_midi_o *self ) {
+static void le_midi_destroy( le_midi_o* self ) {
 	delete ( self->midi_out );
 	delete ( self->midi_in );
 	self->midi_in = nullptr;
@@ -152,13 +152,13 @@ static void le_midi_destroy( le_midi_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_midi_swap( le_midi_o *self ) {
+static void le_midi_swap( le_midi_o* self ) {
 	// do something with self
 
 	std::swap( self->front_buffer, self->back_buffer );
 
 	// Store messages into our message backbuffer.
-	auto &buffer = self->buffers[ self->back_buffer ];
+	auto& buffer = self->buffers[ self->back_buffer ];
 
 	buffer_reset( &buffer );
 
@@ -198,19 +198,19 @@ static void le_midi_swap( le_midi_o *self ) {
 // ----------------------------------------------------------------------
 
 // This is an iterator method - this is publicly available.
-void le_midi_get_messages( le_midi_o *self, le_midi_api::le_midi_iterator_cb callback, void *user_data ) {
+void le_midi_get_messages( le_midi_o* self, le_midi_api::le_midi_iterator_cb callback, void* user_data ) {
 
-	auto &buffer = self->buffers[ self->front_buffer ];
+	auto& buffer = self->buffers[ self->front_buffer ];
 	if ( buffer.size == 0 || buffer.data.size() == 0 ) {
 		return;
 	}
 	// ---------| invariant: buffer.size is not null
 	// iterate over all data
 
-	unsigned char *b = buffer.data.data();
+	unsigned char* b = buffer.data.data();
 
 	while ( *b != 0 ) {
-		auto msg = reinterpret_cast<le_midi_message_blob const *>( b );
+		auto msg = reinterpret_cast<le_midi_message_blob const*>( b );
 		callback( msg->time_delta, msg->buffer_data, msg->size - sizeof( le_midi_message_blob ), user_data );
 		b += msg->size;
 	}
@@ -220,20 +220,20 @@ void le_midi_get_messages( le_midi_o *self, le_midi_api::le_midi_iterator_cb cal
 // This is an iterator method - this is publicly available
 // note that this version passes a pointer to a std::function
 //
-void le_midi_get_messages_functional( le_midi_o *self, void *p_std_function ) {
+void le_midi_get_messages_functional( le_midi_o* self, void* p_std_function ) {
 
-	auto &buffer = self->buffers[ self->front_buffer ];
+	auto& buffer = self->buffers[ self->front_buffer ];
 	if ( buffer.size == 0 || buffer.data.size() == 0 ) {
 		return;
 	}
 	// ---------| invariant: buffer.size is not null
 	// iterate over all data
 
-	unsigned char *b = buffer.data.data();
+	unsigned char* b = buffer.data.data();
 
 	while ( *b != 0 ) {
-		auto msg      = reinterpret_cast<le_midi_message_blob const *>( b );
-		auto callback = *static_cast<std::function<void( double delta_t, unsigned char const *message, size_t num_message_bytes )> *>( p_std_function );
+		auto msg      = reinterpret_cast<le_midi_message_blob const*>( b );
+		auto callback = *static_cast<std::function<void( double delta_t, unsigned char const* message, size_t num_message_bytes )>*>( p_std_function );
 		callback( msg->time_delta, msg->buffer_data, msg->size - sizeof( le_midi_message_blob ) );
 		b += msg->size;
 	}
@@ -241,7 +241,7 @@ void le_midi_get_messages_functional( le_midi_o *self, void *p_std_function ) {
 
 // ----------------------------------------------------------------------
 
-bool le_midi_send_message( le_midi_o *self, uint8_t const *message, size_t msg_size ) {
+bool le_midi_send_message( le_midi_o* self, uint8_t const* message, size_t msg_size ) {
 
 	if ( nullptr == self->midi_out ) {
 		std::cout << "midi out not found - cannot send midi message" << std::endl;
@@ -261,7 +261,7 @@ bool le_midi_send_message( le_midi_o *self, uint8_t const *message, size_t msg_s
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_midi, api ) {
-	auto &le_midi_i                   = static_cast<le_midi_api *>( api )->le_midi_i;
+	auto& le_midi_i                   = static_cast<le_midi_api*>( api )->le_midi_i;
 	le_midi_i.create                  = le_midi_create;
 	le_midi_i.destroy                 = le_midi_destroy;
 	le_midi_i.swap                    = le_midi_swap;

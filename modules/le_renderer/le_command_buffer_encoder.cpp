@@ -38,9 +38,9 @@ static inline int fetch_allocator_index() {
 #endif
 }
 
-static inline le_allocator_o *fetch_allocator( le_allocator_o **ppAlloc ) {
+static inline le_allocator_o* fetch_allocator( le_allocator_o** ppAlloc ) {
 	int             index  = fetch_allocator_index();
-	le_allocator_o *result = *( ppAlloc + index );
+	le_allocator_o* result = *( ppAlloc + index );
 	assert( result );
 	return result;
 }
@@ -71,25 +71,25 @@ struct le_shader_binding_table_o {
 	bool                       has_ray_gen;
 
 	// stateful, used so that we can add parameters to the last shader_record
-	shader_record *last_shader_record = nullptr;
+	shader_record* last_shader_record = nullptr;
 };
 
 // ----------------------------------------------------------------------
 
 struct le_command_buffer_encoder_o {
-	char                                     mCommandStream[ 4096 * 512 ]; // 512 pages of memory = 2MB
-	size_t                                   mCommandStreamSize = 0;
-	size_t                                   mCommandCount      = 0;
-	le_allocator_o **                        ppAllocator        = nullptr; // allocator list is owned by backend, externally
-	le_pipeline_manager_o *                  pipelineManager    = nullptr; // non-owning: owned by backend.
-	le_staging_allocator_o *                 stagingAllocator   = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
-	le::Extent2D                             extent             = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
-	std::vector<le_shader_binding_table_o *> shader_binding_tables;        // owning
+	char                                    mCommandStream[ 4096 * 512 ]; // 512 pages of memory = 2MB
+	size_t                                  mCommandStreamSize = 0;
+	size_t                                  mCommandCount      = 0;
+	le_allocator_o**                        ppAllocator        = nullptr; // allocator list is owned by backend, externally
+	le_pipeline_manager_o*                  pipelineManager    = nullptr; // non-owning: owned by backend.
+	le_staging_allocator_o*                 stagingAllocator   = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
+	le::Extent2D                            extent             = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
+	std::vector<le_shader_binding_table_o*> shader_binding_tables;        // owning
 };
 
 // ----------------------------------------------------------------------
 
-static le_command_buffer_encoder_o *cbe_create( le_allocator_o **allocator, le_pipeline_manager_o *pipelineManager, le_staging_allocator_o *stagingAllocator, le::Extent2D const &extent = {} ) {
+static le_command_buffer_encoder_o* cbe_create( le_allocator_o** allocator, le_pipeline_manager_o* pipelineManager, le_staging_allocator_o* stagingAllocator, le::Extent2D const& extent = {} ) {
 	auto self              = new le_command_buffer_encoder_o;
 	self->ppAllocator      = allocator;
 	self->pipelineManager  = pipelineManager;
@@ -100,7 +100,7 @@ static le_command_buffer_encoder_o *cbe_create( le_allocator_o **allocator, le_p
 
 // ----------------------------------------------------------------------
 
-static void cbe_destroy( le_command_buffer_encoder_o *self ) {
+static void cbe_destroy( le_command_buffer_encoder_o* self ) {
 	for ( auto sbt : self->shader_binding_tables ) {
 		delete ( sbt );
 	}
@@ -110,13 +110,13 @@ static void cbe_destroy( le_command_buffer_encoder_o *self ) {
 
 // ----------------------------------------------------------------------
 // Returns extent to which this encoder has been set up to
-static le::Extent2D const &cbe_get_extent( le_command_buffer_encoder_o *self ) {
+static le::Extent2D const& cbe_get_extent( le_command_buffer_encoder_o* self ) {
 	return self->extent;
 }
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_line_width( le_command_buffer_encoder_o *self, float lineWidth ) {
+static void cbe_set_line_width( le_command_buffer_encoder_o* self, float lineWidth ) {
 
 	auto cmd        = EMPLACE_CMD( le::CommandSetLineWidth ); // placement new into data array
 	cmd->info.width = lineWidth;
@@ -127,7 +127,7 @@ static void cbe_set_line_width( le_command_buffer_encoder_o *self, float lineWid
 
 // ----------------------------------------------------------------------
 
-static void cbe_dispatch( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ ) {
+static void cbe_dispatch( le_command_buffer_encoder_o* self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ ) {
 
 	auto cmd  = EMPLACE_CMD( le::CommandDispatch ); // placement new!
 	cmd->info = { groupCountX, groupCountY, groupCountZ, 0 };
@@ -136,13 +136,13 @@ static void cbe_dispatch( le_command_buffer_encoder_o *self, uint32_t groupCount
 	self->mCommandCount++;
 }
 
-static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o * self,
-                                       LePipelineStageFlags const &  srcStageMask,
-                                       LePipelineStageFlags const &  dstStageMask,
-                                       LeAccessFlags const &         dstAccessMask,
-                                       le_buf_resource_handle const &buffer,
-                                       uint64_t const &              offset,
-                                       uint64_t const &              range ) {
+static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*  self,
+                                       LePipelineStageFlags const&   srcStageMask,
+                                       LePipelineStageFlags const&   dstStageMask,
+                                       LeAccessFlags const&          dstAccessMask,
+                                       le_buf_resource_handle const& buffer,
+                                       uint64_t const&               offset,
+                                       uint64_t const&               range ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBufferMemoryBarrier ); // placement new!
 
@@ -158,7 +158,7 @@ static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o * self,
 }
 
 // ----------------------------------------------------------------------
-static void cbe_trace_rays( le_command_buffer_encoder_o *self, uint32_t width, uint32_t height, uint32_t depth ) {
+static void cbe_trace_rays( le_command_buffer_encoder_o* self, uint32_t width, uint32_t height, uint32_t depth ) {
 
 	auto cmd  = EMPLACE_CMD( le::CommandTraceRays ); // placement new!
 	cmd->info = { width, height, depth, 0 };
@@ -168,7 +168,7 @@ static void cbe_trace_rays( le_command_buffer_encoder_o *self, uint32_t width, u
 }
 // ----------------------------------------------------------------------
 
-static void cbe_draw( le_command_buffer_encoder_o *self,
+static void cbe_draw( le_command_buffer_encoder_o* self,
                       uint32_t                     vertexCount,
                       uint32_t                     instanceCount,
                       uint32_t                     firstVertex,
@@ -183,7 +183,7 @@ static void cbe_draw( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_draw_indexed( le_command_buffer_encoder_o *self,
+static void cbe_draw_indexed( le_command_buffer_encoder_o* self,
                               uint32_t                     indexCount,
                               uint32_t                     instanceCount,
                               uint32_t                     firstIndex,
@@ -205,7 +205,7 @@ static void cbe_draw_indexed( le_command_buffer_encoder_o *self,
 }
 
 // ----------------------------------------------------------------------
-static void cbe_draw_mesh_tasks( le_command_buffer_encoder_o *self,
+static void cbe_draw_mesh_tasks( le_command_buffer_encoder_o* self,
                                  uint32_t                     taskCount,
                                  uint32_t                     firstTask ) {
 
@@ -217,16 +217,16 @@ static void cbe_draw_mesh_tasks( le_command_buffer_encoder_o *self,
 }
 // ----------------------------------------------------------------------
 
-static void cbe_set_viewport( le_command_buffer_encoder_o *self,
+static void cbe_set_viewport( le_command_buffer_encoder_o* self,
                               uint32_t                     firstViewport,
                               const uint32_t               viewportCount,
-                              const le::Viewport *         pViewports ) {
+                              const le::Viewport*          pViewports ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetViewport ); // placement new!
 
 	// We point data to the next available position in the data stream
 	// so that we can store the data for viewports inline.
-	void * data     = ( cmd + 1 ); // note: this increments a le::CommandSetViewport pointer by one time its object size, then gets the address
+	void*  data     = ( cmd + 1 ); // note: this increments a le::CommandSetViewport pointer by one time its object size, then gets the address
 	size_t dataSize = sizeof( le::Viewport ) * viewportCount;
 
 	cmd->info = { firstViewport, viewportCount };
@@ -246,7 +246,7 @@ static void cbe_set_viewport( le_command_buffer_encoder_o *self,
 		// we would have the Vulkan default, with the Y-axis pointing down.
 
 		auto const    pViewportsEnd   = pViewports + viewportCount;
-		le::Viewport *pTargetViewport = static_cast<le::Viewport *>( data );
+		le::Viewport* pTargetViewport = static_cast<le::Viewport*>( data );
 
 		for ( auto v = pViewports; v != pViewportsEnd; v++, pTargetViewport++ ) {
 			*pTargetViewport = *v;
@@ -261,16 +261,16 @@ static void cbe_set_viewport( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_scissor( le_command_buffer_encoder_o *self,
+static void cbe_set_scissor( le_command_buffer_encoder_o* self,
                              uint32_t                     firstScissor,
                              const uint32_t               scissorCount,
-                             le::Rect2D const *           pScissors ) {
+                             le::Rect2D const*            pScissors ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetScissor ); // placement new!
 
 	// We point to the next available position in the data stream
 	// so that we can store the data for scissors inline.
-	void * data     = ( cmd + 1 );
+	void*  data     = ( cmd + 1 );
 	size_t dataSize = sizeof( le::Rect2D ) * scissorCount;
 
 	cmd->info = { firstScissor, scissorCount };
@@ -284,11 +284,11 @@ static void cbe_set_scissor( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o * self,
+static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*  self,
                                      uint32_t                      firstBinding,
                                      uint32_t                      bindingCount,
-                                     le_buf_resource_handle const *pBuffers,
-                                     uint64_t const *              pOffsets ) {
+                                     le_buf_resource_handle const* pBuffers,
+                                     uint64_t const*               pOffsets ) {
 
 	// NOTE: pBuffers will hold ids for virtual buffers, we must match these
 	// in the backend to actual vulkan buffer ids.
@@ -299,10 +299,10 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o * self,
 	size_t dataBuffersSize = ( sizeof( le_resource_handle ) ) * bindingCount;
 	size_t dataOffsetsSize = ( sizeof( uint64_t ) ) * bindingCount;
 
-	void *dataBuffers = ( cmd + 1 );
-	void *dataOffsets = ( static_cast<char *>( dataBuffers ) + dataBuffersSize ); // start address for offset data
+	void* dataBuffers = ( cmd + 1 );
+	void* dataOffsets = ( static_cast<char*>( dataBuffers ) + dataBuffersSize ); // start address for offset data
 
-	cmd->info = { firstBinding, bindingCount, static_cast<le_buf_resource_handle *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets ) };
+	cmd->info = { firstBinding, bindingCount, static_cast<le_buf_resource_handle*>( dataBuffers ), static_cast<uint64_t*>( dataOffsets ) };
 	cmd->header.info.size += dataBuffersSize + dataOffsetsSize; // we must increase the size of this command by its payload size
 
 	memcpy( dataBuffers, pBuffers, dataBuffersSize );
@@ -313,10 +313,10 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o * self,
 }
 
 // ----------------------------------------------------------------------
-static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
+static void cbe_bind_index_buffer( le_command_buffer_encoder_o* self,
                                    le_buf_resource_handle const buffer,
                                    uint64_t                     offset,
-                                   le::IndexType const &        indexType ) {
+                                   le::IndexType const&         indexType ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBindIndexBuffer );
 
@@ -329,11 +329,11 @@ static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_vertex_data( le_command_buffer_encoder_o *                                               self,
-                                 void const *                                                                data,
+static void cbe_set_vertex_data( le_command_buffer_encoder_o*                                                self,
+                                 void const*                                                                 data,
                                  uint64_t                                                                    numBytes,
                                  uint32_t                                                                    bindingIndex,
-                                 le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *readback ) {
+                                 le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o* readback ) {
 
 	// -- Allocate data on scratch buffer
 	// -- Upload data via scratch allocator
@@ -346,10 +346,10 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *                  
 
 	// --------| invariant: there are some bytes to set
 
-	void *   memAddr      = nullptr;
+	void*    memAddr      = nullptr;
 	uint64_t bufferOffset = 0;
 
-	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
 
 	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset ) ) {
 
@@ -372,11 +372,11 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *                  
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_index_data( le_command_buffer_encoder_o *                                               self,
-                                void const *                                                                data,
+static void cbe_set_index_data( le_command_buffer_encoder_o*                                                self,
+                                void const*                                                                 data,
                                 uint64_t                                                                    numBytes,
-                                le::IndexType const &                                                       indexType,
-                                le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *readback ) {
+                                le::IndexType const&                                                        indexType,
+                                le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o* readback ) {
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 
@@ -385,10 +385,10 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *                   
 
 	// --------| invariant: there are some bytes to set
 
-	void *   memAddr;
+	void*    memAddr;
 	uint64_t bufferOffset = 0;
 
-	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
 
 	// -- Allocate data on scratch buffer
 	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset ) ) {
@@ -414,7 +414,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *                   
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_argument_buffer( le_command_buffer_encoder_o *self, le_buf_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
+static void cbe_bind_argument_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBindArgumentBuffer );
 
@@ -428,9 +428,9 @@ static void cbe_bind_argument_buffer( le_command_buffer_encoder_o *self, le_buf_
 }
 
 // ----------------------------------------------------------------------
-static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
+static void cbe_set_argument_data( le_command_buffer_encoder_o* self,
                                    uint64_t                     argumentNameId, // hash id of argument name
-                                   void const *                 data,
+                                   void const*                  data,
                                    size_t                       numBytes ) {
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
@@ -440,10 +440,10 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
 
 	// --------| invariant: there are some bytes to set
 
-	void *   memAddr;
+	void*    memAddr;
 	uint64_t bufferOffset = 0;
 
-	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
 
 	// -- Allocate memory on scratch buffer for ubo
 	//
@@ -467,7 +467,7 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_texture( le_command_buffer_encoder_o* self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTexture );
 
@@ -481,7 +481,7 @@ static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_text
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_image( le_command_buffer_encoder_o *self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_image( le_command_buffer_encoder_o* self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentImage );
 
@@ -495,7 +495,7 @@ static void cbe_set_argument_image( le_command_buffer_encoder_o *self, le_img_re
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_tlas( le_command_buffer_encoder_o *self, le_tlas_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_tlas( le_command_buffer_encoder_o* self, le_tlas_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTlas );
 
@@ -509,7 +509,7 @@ static void cbe_set_argument_tlas( le_command_buffer_encoder_o *self, le_tlas_re
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o *self, le_gpso_handle gpsoHandle ) {
+static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o* self, le_gpso_handle gpsoHandle ) {
 
 	// -- insert graphics PSO pointer into command stream
 	auto cmd = EMPLACE_CMD( le::CommandBindGraphicsPipeline );
@@ -522,7 +522,7 @@ static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o *self, le_gp
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_binding_table_o *sbt ) {
+static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_binding_table_o* sbt ) {
 
 	// -- insert rtx PSO pointer into command stream
 	auto cmd = EMPLACE_CMD( le::CommandBindRtxPipeline );
@@ -531,7 +531,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 	// -- query pipeline for shader group data
 
-	char *shader_group_data = nullptr;
+	char* shader_group_data = nullptr;
 
 	{
 		// Store pipeline information in command buffer stream, as we don't want create pipeline in
@@ -548,7 +548,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 		cmd->info.descriptor_set_layout_count = pipeline.layout_info.set_layout_count;
 	}
 
-	auto sbt_data_header = reinterpret_cast<LeShaderGroupDataHeader *>( shader_group_data );
+	auto sbt_data_header = reinterpret_cast<LeShaderGroupDataHeader*>( shader_group_data );
 
 	// Calculate memory requirements for buffer
 
@@ -570,8 +570,8 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 	uint32_t callable_shader_max_param_count    = 0;
 
 	// Returns the maximum number of parameters for a given vector of shader records
-	auto max_params_fun = []( const auto &shader_vec ) -> uint32_t {
-		auto compare_fun = []( const auto &lhs, const auto &rhs ) -> bool {
+	auto max_params_fun = []( const auto& shader_vec ) -> uint32_t {
+		auto compare_fun = []( const auto& lhs, const auto& rhs ) -> bool {
 			return lhs.parameters.size() < rhs.parameters.size();
 		};
 		if ( shader_vec.empty() ) {
@@ -641,23 +641,23 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 	// -- allocate buffer from scratch memory
 
-	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
 
-	void *   memAddr          = nullptr;
+	void*    memAddr          = nullptr;
 	uint64_t bufferBaseOffset = 0;
 
 	// Write shader handles and shader instance parameters to memory buffer, based on shader binding data.
-	auto write_to_buffer = []( char *                                    base_addr,
+	auto write_to_buffer = []( char*                                     base_addr,
 	                           uint32_t                                  binding_stride,
 	                           uint32_t                                  handle_size,
-	                           char *                                    group_data,
-	                           le_shader_binding_table_o::shader_record *shader_records,
+	                           char*                                     group_data,
+	                           le_shader_binding_table_o::shader_record* shader_records,
 	                           size_t                                    shader_records_count ) -> bool {
 		for ( size_t i = 0; i != shader_records_count; i++ ) {
 
-			auto &record = shader_records[ i ];
+			auto& record = shader_records[ i ];
 
-			char *record_base_address = base_addr + i * binding_stride;
+			char* record_base_address = base_addr + i * binding_stride;
 			memcpy( record_base_address, group_data + record.handle_idx * handle_size, handle_size );
 
 			assert( handle_size + record.parameters.size() * sizeof( uint32_t ) <= binding_stride );
@@ -672,7 +672,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 	if ( le_allocator_linear_i.allocate( allocator, required_byte_count, &memAddr, &bufferBaseOffset ) ) {
 
-		char *base_addr = static_cast<char *>( memAddr );
+		char* base_addr = static_cast<char*>( memAddr );
 
 		// first we must make sure that bufferOffset is a multiple of base_alignment
 		assert( 0 == ( bufferBaseOffset % base_alignment ) && "buffer offset must be aligned to shader group base alignment" );
@@ -681,7 +681,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 		// NOTE: we increase the sbt_buffer_data to the position one past the header,
 		// which is where the payload for the shader buffer data begins.
-		char *shader_group_data_payload = reinterpret_cast<char *>( sbt_data_header + 1 );
+		char* shader_group_data_payload = reinterpret_cast<char*>( sbt_data_header + 1 );
 
 		write_to_buffer( base_addr + ray_gen_shader_binding_offset, ray_gen_shader_binding_stride, group_handle_size, shader_group_data_payload, &sbt->ray_gen, 1 );
 		write_to_buffer( base_addr + miss_shader_binding_offset, miss_shader_binding_stride, group_handle_size, shader_group_data_payload, sbt->miss.data(), sbt->miss.size() );
@@ -721,7 +721,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o *self, le_cpso_handle cpsoHandle ) {
+static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o* self, le_cpso_handle cpsoHandle ) {
 
 	// -- insert compute PSO pointer into command stream
 	auto cmd = EMPLACE_CMD( le::CommandBindComputePipeline );
@@ -734,12 +734,12 @@ static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o *self, le_cps
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_buf_resource_handle const &dst_buffer, size_t dst_offset, void const *data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
-	void *                 memAddr;
+	void*                  memAddr;
 	le_buf_resource_handle srcResourceId;
 
 	// -- Allocate memory using staging allocator
@@ -770,10 +770,10 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_buf_resou
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
-                                le_img_resource_handle const &      dst_img,
-                                le_write_to_image_settings_t const &writeInfo,
-                                void const *                        data,
+static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
+                                le_img_resource_handle const&       dst_img,
+                                le_write_to_image_settings_t const& writeInfo,
+                                void const*                         data,
                                 size_t                              numBytes ) {
 
 	// ----------| invariant: resource info represents an image
@@ -781,7 +781,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
-	void *                 memAddr;
+	void*                  memAddr;
 	le_buf_resource_handle stagingBufferId;
 
 	// -- Allocate memory using staging allocator
@@ -822,13 +822,13 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
 }
 
 // ----------------------------------------------------------------------
-static void cbe_set_push_constant_data( le_command_buffer_encoder_o *self, void const *src_data, uint64_t num_bytes ) {
+static void cbe_set_push_constant_data( le_command_buffer_encoder_o* self, void const* src_data, uint64_t num_bytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetPushConstantData ); // placement new!
 
 	// We point data to the next available position in the data stream
 	// so that we can store the data for push constants inline.
-	void *data = ( cmd + 1 ); // one after size of command struct
+	void* data = ( cmd + 1 ); // one after size of command struct
 
 	cmd->info = { num_bytes };
 	cmd->header.info.size += num_bytes; // we must increase the size of this command by its payload size
@@ -841,8 +841,8 @@ static void cbe_set_push_constant_data( le_command_buffer_encoder_o *self, void 
 }
 // ----------------------------------------------------------------------
 
-static void cbe_build_rtx_blas( le_command_buffer_encoder_o *        self,
-                                le_blas_resource_handle const *const p_blas_handles,
+static void cbe_build_rtx_blas( le_command_buffer_encoder_o*         self,
+                                le_blas_resource_handle const* const p_blas_handles,
                                 const uint32_t                       handles_count ) {
 
 	if ( handles_count == 0 || nullptr == p_blas_handles ) {
@@ -852,7 +852,7 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o *        self,
 	}
 
 	auto   cmd       = EMPLACE_CMD( le::CommandBuildRtxBlas );
-	void * data      = cmd + 1;
+	void*  data      = cmd + 1;
 	size_t data_size = sizeof( le_resource_handle ) * handles_count;
 
 	cmd->info                    = {};
@@ -867,10 +867,10 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o *        self,
 
 // ----------------------------------------------------------------------
 
-void cbe_build_rtx_tlas( le_command_buffer_encoder_o *     self,
-                         le_tlas_resource_handle const *   tlas_handle,
-                         le_rtx_geometry_instance_t const *instances,
-                         le_blas_resource_handle const *   blas_handles,
+void cbe_build_rtx_tlas( le_command_buffer_encoder_o*      self,
+                         le_tlas_resource_handle const*    tlas_handle,
+                         le_rtx_geometry_instance_t const* instances,
+                         le_blas_resource_handle const*    blas_handles,
                          uint32_t                          instances_count ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBuildRtxTlas );
@@ -892,7 +892,7 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o *     self,
 
 	size_t gpu_memory_bytes_required = sizeof( le_rtx_geometry_instance_t ) * instances_count;
 
-	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
 	uint64_t        offset    = 0;
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
@@ -919,7 +919,7 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o *     self,
 	size_t payload_size = sizeof( le_resource_handle ) * instances_count;
 	cmd->header.info.size += payload_size;
 
-	void *memAddr = cmd + 1; // move to position just after command
+	void* memAddr = cmd + 1; // move to position just after command
 	memcpy( memAddr, blas_handles, payload_size );
 
 	self->mCommandStreamSize += cmd->header.info.size;
@@ -928,10 +928,10 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o *     self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_get_encoded_data( le_command_buffer_encoder_o *self,
-                                  void **                      data,
-                                  size_t *                     numBytes,
-                                  size_t *                     numCommands ) {
+static void cbe_get_encoded_data( le_command_buffer_encoder_o* self,
+                                  void**                       data,
+                                  size_t*                      numBytes,
+                                  size_t*                      numCommands ) {
 
 	*data        = self->mCommandStream;
 	*numBytes    = self->mCommandStreamSize;
@@ -940,47 +940,47 @@ static void cbe_get_encoded_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_manager_o *cbe_get_pipeline_manager( le_command_buffer_encoder_o *self ) {
+static le_pipeline_manager_o* cbe_get_pipeline_manager( le_command_buffer_encoder_o* self ) {
 	return self->pipelineManager;
 }
 
 // ----------------------------------------------------------------------
 
-le_shader_binding_table_o *cbe_build_shader_binding_table( le_command_buffer_encoder_o *self, le_rtxpso_handle pipeline ) {
+le_shader_binding_table_o* cbe_build_shader_binding_table( le_command_buffer_encoder_o* self, le_rtxpso_handle pipeline ) {
 	auto sbt      = new le_shader_binding_table_o{};
 	sbt->pipeline = pipeline;
 	self->shader_binding_tables.emplace_back( sbt );
 	return sbt;
 }
 
-void sbt_set_ray_gen( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
+void sbt_set_ray_gen( le_shader_binding_table_o* sbt, uint32_t shader_group_idx ) {
 	sbt->ray_gen.handle_idx = shader_group_idx;
 	sbt->has_ray_gen        = true;
 	sbt->last_shader_record = &sbt->ray_gen;
 }
-void sbt_add_hit( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
+void sbt_add_hit( le_shader_binding_table_o* sbt, uint32_t shader_group_idx ) {
 	sbt->hit.push_back( { shader_group_idx, {} } );
 	sbt->last_shader_record = &sbt->hit.back();
 }
-void sbt_add_callable( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
+void sbt_add_callable( le_shader_binding_table_o* sbt, uint32_t shader_group_idx ) {
 	sbt->callable.push_back( { shader_group_idx, {} } );
 	sbt->last_shader_record = &sbt->callable.back();
 }
-void sbt_add_miss( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
+void sbt_add_miss( le_shader_binding_table_o* sbt, uint32_t shader_group_idx ) {
 	sbt->miss.push_back( { shader_group_idx, {} } );
 	sbt->last_shader_record = &sbt->miss.back();
 }
-void sbt_add_u32_param( le_shader_binding_table_o *sbt, uint32_t param ) {
+void sbt_add_u32_param( le_shader_binding_table_o* sbt, uint32_t param ) {
 	le_shader_binding_table_o::parameter_t p;
 	p.u32 = param;
 	sbt->last_shader_record->parameters.emplace_back( p );
 }
-void sbt_add_f32_param( le_shader_binding_table_o *sbt, float param ) {
+void sbt_add_f32_param( le_shader_binding_table_o* sbt, float param ) {
 	le_shader_binding_table_o::parameter_t p;
 	p.f32 = param;
 	sbt->last_shader_record->parameters.emplace_back( p );
 }
-le_shader_binding_table_o *sbt_validate( le_shader_binding_table_o *sbt ) {
+le_shader_binding_table_o* sbt_validate( le_shader_binding_table_o* sbt ) {
 
 	assert( sbt && "sbt must be valid handle" );
 	assert( sbt->has_ray_gen && "sbt must have ray_gen shader group" );
@@ -991,9 +991,9 @@ le_shader_binding_table_o *sbt_validate( le_shader_binding_table_o *sbt ) {
 }
 // ----------------------------------------------------------------------
 
-void register_le_command_buffer_encoder_api( void *api_ ) {
+void register_le_command_buffer_encoder_api( void* api_ ) {
 
-	auto &cbe_i = static_cast<le_renderer_api *>( api_ )->le_command_buffer_encoder_i;
+	auto& cbe_i = static_cast<le_renderer_api*>( api_ )->le_command_buffer_encoder_i;
 
 	cbe_i.create                 = cbe_create;
 	cbe_i.destroy                = cbe_destroy;
