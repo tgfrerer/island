@@ -218,14 +218,20 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		self->resources_usage.push_back( usage_flags );
 	} else {
 
-		// Resource already exists.
+		// Resource was already declared - we should aim to consolidate all declarations
+		// unless the declarations are conflicting.
 
-		logger.error( "FATAL: Resource '%s' declared more than once for renderpass : '%s'. "
-		              "There can only be one declaration per resource per renderpass.",
-		              resource_id->data->debug_name,
-		              self->debugName.c_str() );
+		// What would be conflicting declarations?
+		// -> A resource cannot be declared as an image, and then as a buffer, since resource types must match.
 
-		assert( false );
+		if ( usage_flags.type != self->resources_usage[ resource_idx ].type ) {
+			logger.error( "FATAL: Resource '%s' declared with conflicting types: '%d != %d'. "
+			              "There can only be one declaration per resource per renderpass.",
+			              resource_id->data->debug_name,
+			              self->resources_usage[ resource_idx ].type,
+			              usage_flags.type );
+			assert( false );
+		}
 	}
 
 	// Now we check whether there is a read and/or a write operation on
