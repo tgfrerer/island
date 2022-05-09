@@ -323,18 +323,12 @@ void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, size_t 
 	ImGui::SetCurrentContext( self->imguiContext );
 	ImGuiIO& io = ImGui::GetIO();
 
-	bool wantsFullscreenToggle = false; // Accumulate fullscreen toggles to minimize toggles.
-
 	for ( LeUiEvent const* event = events; event != events_end; event++ ) {
 		// Process events in sequence
 
 		switch ( event->event ) {
 		case LeUiEvent::Type::eKey: {
 			auto& e = event->key;
-
-			if ( e.key == LeUiEvent::NamedKey::eF11 && e.action == LeUiEvent::ButtonAction::eRelease ) {
-				wantsFullscreenToggle ^= 1;
-			}
 
 			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
 				io.KeysDown[ uint32_t( e.key ) ] = true;
