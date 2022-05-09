@@ -62,6 +62,8 @@ struct le_window_api {
 	int           ( *init                       ) ();
 	void          ( *terminate                  ) ();
 	void          ( *pollEvents                 ) ();
+	void          ( *set_clipboard_string       ) (char const * str);
+	char const*   ( *get_clipboard_string       ) ();
 
 	const char ** ( *get_required_vk_instance_extensions ) ( uint32_t *count );
 
@@ -80,8 +82,8 @@ LE_MODULE_LOAD_DEFAULT( le_window );
 namespace le_window {
 
 static const auto& api        = le_window_api_i;
-static const auto& window_i   = api -> window_i;
-static const auto& settings_i = api -> window_settings_i;
+static const auto& window_i   = api->window_i;
+static const auto& settings_i = api->window_settings_i;
 
 } // namespace le_window
 

@@ -641,6 +641,18 @@ static void le_terminate() {
 
 // ----------------------------------------------------------------------
 
+static const char* get_clipboard_string() {
+	return glfwGetClipboardString( nullptr );
+}
+
+// ----------------------------------------------------------------------
+
+static void set_clipboard_string( char const* str ) {
+	glfwSetClipboardString( nullptr, str );
+}
+
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	auto windowApi = static_cast<le_window_api*>( api );
 
@@ -648,6 +660,8 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	windowApi->terminate                           = le_terminate;
 	windowApi->pollEvents                          = pollEvents;
 	windowApi->get_required_vk_instance_extensions = get_required_vk_instance_extensions;
+	windowApi->get_clipboard_string                = get_clipboard_string;
+	windowApi->set_clipboard_string                = set_clipboard_string;
 
 	auto& window_i                       = windowApi->window_i;
 	window_i.create                      = window_create;
