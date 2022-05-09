@@ -14,6 +14,7 @@
 
 #include <array>
 #include <vector>
+#include <algorithm>
 
 static le_img_resource_handle IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 
@@ -316,7 +317,7 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 
 // ----------------------------------------------------------------------
 
-void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, size_t numEvents ) {
+void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, uint32_t numEvents ) {
 	// Todo: filter relevant events, update internal state based on events.
 	LeUiEvent const* const events_end = events + numEvents; // end iterator
 
@@ -384,6 +385,45 @@ void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, size_t 
 
 // ----------------------------------------------------------------------
 
+void le_imgui_process_and_filter_events( le_imgui_o* self, LeUiEvent* events, uint32_t* num_events ) {
+	if ( nullptr == num_events || *num_events == 0 ) {
+		return;
+	}
+	// ---------| invariant: num_events > 0
+	le_imgui::le_imgui_i.process_events( self, events, *num_events );
+
+	auto const& io            = ImGui::GetIO();
+	uint32_t    ioFilterFlags = 0;
+
+	if ( io.WantCaptureMouse ) {
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eCursorEnter );
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eCursorPosition );
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eScroll );
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eMouseButton );
+	}
+
+	if ( io.WantCaptureKeyboard ) {
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eKey );
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eCharacter );
+	}
+
+	// Filter out events which have been captured by ImGui as these
+	// should not further propagate to other ui elements.
+	// We do this by copying only events ones which pass our filter in a new
+	// events queue, which we then pass on for further processing.
+	//
+	std::vector<LeUiEvent> ev{};
+	std::copy_if( events, events + *num_events, std::back_inserter( ev ), [ &ioFilterFlags ]( LeUiEvent const& e ) -> bool {
+		// This will only return true if none of the filter flags were found
+		// in the current event type.
+		return !( uint32_t( e.event ) & ioFilterFlags );
+	} );
+	memcpy( events, ev.data(), sizeof( LeUiEvent ) * ev.size() );
+	*num_events = ev.size();
+}
+
+// ----------------------------------------------------------------------
+
 void le_imgui_register_set_clipboard_string_cb( le_imgui_o* self, void* addr ) {
 	ImGui::SetCurrentContext( self->imguiContext );
 	ImGuiIO& io           = ImGui::GetIO();
@@ -408,6 +448,7 @@ LE_MODULE_REGISTER_IMPL( le_imgui, api ) {
 	le_imgui_i.begin_frame                      = le_imgui_begin_frame;
 	le_imgui_i.end_frame                        = le_imgui_end_frame;
 	le_imgui_i.process_events                   = le_imgui_process_events;
+	le_imgui_i.process_and_filter_events        = le_imgui_process_and_filter_events;
 	le_imgui_i.setup_resources                  = le_imgui_setup_gui_resources;
 	le_imgui_i.draw                             = le_imgui_draw_gui;
 	le_imgui_i.register_get_clipboard_string_cb = le_imgui_register_get_clipboard_string_cb;

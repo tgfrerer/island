@@ -24,8 +24,15 @@ struct le_imgui_api {
 		void            ( * draw            )( le_imgui_o* self, le_renderpass_o* renderpass);
 
 
-		void            ( * process_events    ) ( le_imgui_o* self, LeUiEvent const * events, size_t numEvents);
+		void            ( * process_events    ) ( le_imgui_o* self, LeUiEvent const * events, uint32_t num_events);
         
+        /// Process events, and filter out any events which have been captured by imgui
+        /// 
+        /// Call `process_events`, then update `events` so that events which have not been 
+        /// captured by imgui are moved to the front.
+        /// Update `num_events` to count only events which have not been captured by imgui. 
+        /// No re-allocation is going to happen.
+		void	            ( * process_and_filter_events ) (le_imgui_o*self, LeUiEvent *events, uint32_t* num_events);
 
         void (*register_set_clipboard_string_cb)(le_imgui_o* self, void* cb_addr);
         void (*register_get_clipboard_string_cb)(le_imgui_o* self, void* cb_addr);
