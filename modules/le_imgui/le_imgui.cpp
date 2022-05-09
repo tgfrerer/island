@@ -384,16 +384,34 @@ void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, size_t 
 
 // ----------------------------------------------------------------------
 
+void le_imgui_register_set_clipboard_string_cb( le_imgui_o* self, void* addr ) {
+	ImGui::SetCurrentContext( self->imguiContext );
+	ImGuiIO& io           = ImGui::GetIO();
+	io.SetClipboardTextFn = ( void ( * )( void*, char const* ) )addr;
+}
+
+// ----------------------------------------------------------------------
+
+void le_imgui_register_get_clipboard_string_cb( le_imgui_o* self, void* addr ) {
+	ImGui::SetCurrentContext( self->imguiContext );
+	ImGuiIO& io           = ImGui::GetIO();
+	io.GetClipboardTextFn = ( char const* ( * )( void* ))addr;
+}
+
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_imgui, api ) {
 	auto& le_imgui_i = static_cast<le_imgui_api*>( api )->le_imgui_i;
 
-	le_imgui_i.create          = le_imgui_create;
-	le_imgui_i.destroy         = le_imgui_destroy;
-	le_imgui_i.begin_frame     = le_imgui_begin_frame;
-	le_imgui_i.end_frame       = le_imgui_end_frame;
-	le_imgui_i.process_events  = le_imgui_process_events;
-	le_imgui_i.setup_resources = le_imgui_setup_gui_resources;
-	le_imgui_i.draw            = le_imgui_draw_gui;
+	le_imgui_i.create                           = le_imgui_create;
+	le_imgui_i.destroy                          = le_imgui_destroy;
+	le_imgui_i.begin_frame                      = le_imgui_begin_frame;
+	le_imgui_i.end_frame                        = le_imgui_end_frame;
+	le_imgui_i.process_events                   = le_imgui_process_events;
+	le_imgui_i.setup_resources                  = le_imgui_setup_gui_resources;
+	le_imgui_i.draw                             = le_imgui_draw_gui;
+	le_imgui_i.register_get_clipboard_string_cb = le_imgui_register_get_clipboard_string_cb;
+	le_imgui_i.register_set_clipboard_string_cb = le_imgui_register_set_clipboard_string_cb;
 
 #if defined( PLUGINS_DYNAMIC )
 	le_core_load_library_persistently( "libimgui.so" );

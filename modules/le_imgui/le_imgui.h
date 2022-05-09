@@ -23,9 +23,14 @@ struct le_imgui_api {
 		void            ( * setup_resources )( le_imgui_o *self, le_render_module_o *p_render_module, float display_width, float display_height );
 		void            ( * draw            )( le_imgui_o* self, le_renderpass_o* renderpass);
 
-		void            ( * process_events    ) ( le_imgui_o* self, LeUiEvent const * events, size_t numEvents);
 
+		void            ( * process_events    ) ( le_imgui_o* self, LeUiEvent const * events, size_t numEvents);
+        
+
+        void (*register_set_clipboard_string_cb)(le_imgui_o* self, void* cb_addr);
+        void (*register_get_clipboard_string_cb)(le_imgui_o* self, void* cb_addr);
 	};
+
 
 	le_imgui_interface_t       le_imgui_i;
 };
@@ -38,7 +43,7 @@ LE_MODULE_LOAD_DEFAULT( le_imgui );
 
 namespace le_imgui {
 static const auto& api        = le_imgui_api_i;
-static const auto& le_imgui_i = api -> le_imgui_i;
+static const auto& le_imgui_i = api->le_imgui_i;
 
 } // namespace le_imgui
 
