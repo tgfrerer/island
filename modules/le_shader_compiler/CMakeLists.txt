@@ -31,7 +31,7 @@ else()
     add_library(${TARGET} STATIC ${SOURCES})
 
     if (WIN32)
-        set (LINKER_FLAGS  ${LINKER_FLAGS} shaderc_shared )
+        target_link_libraries(${TARGET} PRIVATE shaderc_combined)
     else()
         set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
         include(FindPkgConfig)
