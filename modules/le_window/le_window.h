@@ -172,10 +172,6 @@ class Window : NoMove, NoCopy {
 	static void pollEvents() {
 		le_window::api->pollEvents();
 	}
-
-	static const char** getRequiredVkExtensions( uint32_t* count ) {
-		return le_window::api->get_required_vk_instance_extensions( count );
-	}
 };
 
 } // namespace le

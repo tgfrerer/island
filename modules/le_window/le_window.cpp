@@ -1,6 +1,7 @@
 #include "le_window.h"
 #include "le_ui_event.h"
 #include "le_log.h"
+#include "le_backend_vk.h"
 
 #include "assert.h"
 #include <vector>
@@ -609,17 +610,17 @@ static int init() {
 
 	if ( glfwVulkanSupported() ) {
 		logger.debug( "Vulkan supported." );
+		uint32_t     ext_count = 0;
+		const char** exts      = glfwGetRequiredInstanceExtensions( &ext_count );
+		for ( uint32_t i = 0; i < ext_count; i++ ) {
+			le_backend_vk::settings_i.add_required_instance_extension( exts[ i ] );
+		}
+
 	} else {
 		logger.error( "Vulkan not supported." );
 	}
 
 	return result;
-}
-
-// ----------------------------------------------------------------------
-
-static const char** get_required_vk_instance_extensions( uint32_t* count ) {
-	return glfwGetRequiredInstanceExtensions( count );
 }
 
 // ----------------------------------------------------------------------
@@ -656,12 +657,11 @@ static void set_clipboard_string( char const* str ) {
 LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	auto windowApi = static_cast<le_window_api*>( api );
 
-	windowApi->init                                = init;
-	windowApi->terminate                           = le_terminate;
-	windowApi->pollEvents                          = pollEvents;
-	windowApi->get_required_vk_instance_extensions = get_required_vk_instance_extensions;
-	windowApi->get_clipboard_string                = get_clipboard_string;
-	windowApi->set_clipboard_string                = set_clipboard_string;
+	windowApi->init                 = init;
+	windowApi->terminate            = le_terminate;
+	windowApi->pollEvents           = pollEvents;
+	windowApi->get_clipboard_string = get_clipboard_string;
+	windowApi->set_clipboard_string = set_clipboard_string;
 
 	auto& window_i                       = windowApi->window_i;
 	window_i.create                      = window_create;

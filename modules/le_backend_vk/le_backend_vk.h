@@ -72,15 +72,7 @@ struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_type
 
 struct le_resource_info_t;
 
-struct le_backend_vk_settings_t {
-	const char**             requestedInstanceExtensions    = nullptr;
-	uint32_t                 numRequestedInstanceExtensions = 0;
-	const char**             requestedDeviceExtensions      = nullptr;
-	uint32_t                 numRequestedDeviceExtensions   = 0;
-	uint32_t                 concurrency_count              = 1;       // number of potential worker threads
-	le_swapchain_settings_t* pSwapchain_settings            = nullptr; // non-owning, owned by caller of setup method.
-	uint32_t                 num_swapchain_settings         = 1;       // must be set by caller of setup method - tells us how many pSwapchain_settings to expect.
-};
+struct le_backend_vk_settings_o; // global settings for backend singleton
 
 struct le_pipeline_layout_info {
 	uint64_t pipeline_layout_key     = 0;  // handle to pipeline layout
@@ -96,12 +88,19 @@ struct le_pipeline_and_layout_info_t {
 
 struct le_backend_vk_api {
 
+	struct backend_vk_settings_interface_t // global settings for backend
+	{
+		bool ( *add_required_device_extension )( char const* ext ); // returns true if successfully added, false otherwise
+		bool ( *add_required_instance_extension )( char const* ext );
+		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings ); // will get copied over
+	};
+
 	// clang-format off
 	struct backend_vk_interface_t {
 		le_backend_o *         ( *create                     ) ( );
 		void                   ( *destroy                    ) ( le_backend_o *self );
 
-		void                   ( *setup                      ) ( le_backend_o *self, le_backend_vk_settings_t const *settings );
+		void                   ( *setup                      ) ( le_backend_o *self);
 
 		bool                   ( *poll_frame_fence           ) ( le_backend_o* self, size_t frameIndex);
 		bool                   ( *clear_frame                ) ( le_backend_o *self, size_t frameIndex );
@@ -239,6 +238,8 @@ struct le_backend_vk_api {
 
 	// clang-format on
 
+	le_backend_vk_settings_o*       backend_settings_singleton; // global settings for all backends - readonly after setup.
+	backend_vk_settings_interface_t le_backend_settings_i;
 	allocator_linear_interface_t    le_allocator_linear_i;
 	instance_interface_t            vk_instance_i;
 	device_interface_t              vk_device_i;
@@ -259,14 +260,15 @@ LE_MODULE_LOAD_DEFAULT( le_backend_vk );
 namespace le_backend_vk {
 const auto api = le_backend_vk_api_i;
 
-static const auto& vk_backend_i           = api -> vk_backend_i;
-static const auto& private_backend_vk_i   = api -> private_backend_vk_i;
-static const auto& le_allocator_linear_i  = api -> le_allocator_linear_i;
-static const auto& le_staging_allocator_i = api -> le_staging_allocator_i;
-static const auto& vk_instance_i          = api -> vk_instance_i;
-static const auto& vk_device_i            = api -> vk_device_i;
-static const auto& le_pipeline_manager_i  = api -> le_pipeline_manager_i;
-static const auto& le_shader_module_i     = api -> le_shader_module_i;
+static const auto& settings_i             = api->le_backend_settings_i;
+static const auto& vk_backend_i           = api->vk_backend_i;
+static const auto& private_backend_vk_i   = api->private_backend_vk_i;
+static const auto& le_allocator_linear_i  = api->le_allocator_linear_i;
+static const auto& le_staging_allocator_i = api->le_staging_allocator_i;
+static const auto& vk_instance_i          = api->vk_instance_i;
+static const auto& vk_device_i            = api->vk_device_i;
+static const auto& le_pipeline_manager_i  = api->le_pipeline_manager_i;
+static const auto& le_shader_module_i     = api->le_shader_module_i;
 
 } // namespace le_backend_vk
 
@@ -297,8 +299,8 @@ class Backend : NoCopy, NoMove {
 		}
 	}
 
-	void setup( le_backend_vk_settings_t* settings ) {
-		le_backend_vk::vk_backend_i.setup( self, settings );
+	void setup() {
+		le_backend_vk::vk_backend_i.setup( self );
 	}
 
 	bool clearFrame( size_t frameIndex ) {

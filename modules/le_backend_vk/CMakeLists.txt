@@ -18,6 +18,7 @@ add_compile_definitions(VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST)
 
 set (SOURCES "le_backend_vk.cpp")
 set (SOURCES ${SOURCES} "le_backend_vk.h")
+set (SOURCES ${SOURCES} "le_backend_vk_settings.inl")
 set (SOURCES ${SOURCES} "le_backend_types_internal.h")
 set (SOURCES ${SOURCES} "le_instance_vk.cpp")
 set (SOURCES ${SOURCES} "le_pipeline.cpp")

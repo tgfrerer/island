@@ -369,17 +369,24 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 		using namespace le_backend_vk;
 		self->backend = vk_backend_i.create();
 
-		le_backend_vk_settings_t backend_settings{};
-		backend_settings.pSwapchain_settings          = self->settings.swapchain_settings;
-		backend_settings.num_swapchain_settings       = self->settings.num_swapchain_settings;
-		backend_settings.requestedDeviceExtensions    = settings.requested_device_extensions;
-		backend_settings.numRequestedDeviceExtensions = settings.requested_device_extensions_count;
+		// Todo: we want to remove extensions settings from renderer, as extensions can now be required via global:
+		// `le_backend_vk::le_backend_settings_interface_i.add_required_[device|instance]_extension`
+		//
+		for ( size_t i = 0; i < settings.requested_device_extensions_count; i++ ) {
+			api->le_backend_settings_i.add_required_device_extension( settings.requested_device_extensions[ i ] );
+		}
+
+		for ( size_t i = 0; i < settings.num_swapchain_settings; i++ ) {
+			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( &settings.swapchain_settings[ i ] );
+			le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( &settings.swapchain_settings[ i ] );
+			api->le_backend_settings_i.add_swapchain_setting( &settings.swapchain_settings[ i ] );
+		}
 
 #if ( LE_MT > 0 )
 		backend_settings.concurrency_count = LE_MT;
 #endif
 
-		vk_backend_i.setup( self->backend, &backend_settings );
+		vk_backend_i.setup( self->backend );
 	}
 
 	using namespace le_backend_vk;

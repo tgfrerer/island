@@ -13,6 +13,7 @@ set (TARGET le_window )
 
 depends_on_island_module(le_ui_event)
 depends_on_island_module(le_log)
+depends_on_island_module(le_backend_vk)
 
 add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
 

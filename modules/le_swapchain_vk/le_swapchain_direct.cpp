@@ -500,32 +500,22 @@ static size_t swapchain_direct_get_swapchain_images_count( le_swapchain_o* base 
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
-
-	static std::array<char const*, 6> extensions = {
-	    VK_KHR_DISPLAY_EXTENSION_NAME,
-	    "VK_EXT_direct_mode_display",
-	    "VK_KHR_xlib_surface",
-	    "VK_KHR_surface",
-	    "VK_EXT_acquire_xlib_display",
-	    "VK_EXT_display_surface_counter",
-	};
-
-	*exts     = extensions.data();
-	*num_exts = extensions.size();
+static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* ) {
+	using namespace le_backend_vk;
+	api->le_backend_settings_i.add_required_instance_extension( VK_KHR_DISPLAY_EXTENSION_NAME );
+	api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_direct_mode_display" );
+	api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_xlib_surface" );
+	api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_surface" );
+	api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_acquire_xlib_display" );
+	api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_display_surface_counter" );
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
-
-	static std::array<char const*, 2> extensions = {
-	    "VK_EXT_display_control",
-	    "VK_KHR_swapchain",
-	};
-
-	*exts     = extensions.data();
-	*num_exts = extensions.size();
+static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* ) {
+	using namespace le_backend_vk;
+	api->le_backend_settings_i.add_required_device_extension( "VK_EXT_display_control" );
+	api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" );
 }
 
 // ----------------------------------------------------------------------

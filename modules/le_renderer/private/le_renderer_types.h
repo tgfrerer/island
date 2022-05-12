@@ -1033,8 +1033,8 @@ struct le_swapchain_settings_t {
 };
 
 struct le_renderer_settings_t {
-	char const**            requested_device_extensions       = nullptr; // optional
-	uint32_t                requested_device_extensions_count = 0;       //
+	char const**            requested_device_extensions       = nullptr; /// DEPRECATED, optional
+	uint32_t                requested_device_extensions_count = 0;       /// DEPRECATED
 	le_swapchain_settings_t swapchain_settings[ 16 ]          = {};
 	size_t                  num_swapchain_settings            = 1;
 };

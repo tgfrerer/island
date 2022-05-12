@@ -546,23 +546,13 @@ static size_t swapchain_img_get_swapchain_images_count( le_swapchain_o* base ) {
 	return self->mImagecount;
 }
 
-static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
-	static std::array<char const*, 0> extensions = {};
-
-	*exts     = extensions.data();
-	*num_exts = extensions.size();
+static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* ) {
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
-
-	static std::array<char const*, 0> extensions = {};
-
-	*exts     = extensions.data();
-	*num_exts = extensions.size();
+static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* ) {
 }
-
 // ----------------------------------------------------------------------
 
 void register_le_swapchain_img_api( void* api_ ) {

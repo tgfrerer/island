@@ -409,26 +409,16 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	return true;
 };
 
-static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
-
-	static std::array<char const*, 1> extensions = {
-	    VK_KHR_SURFACE_EXTENSION_NAME,
-	};
-
-	*exts     = extensions.data();
-	*num_exts = extensions.size();
+static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* ) {
+	using namespace le_backend_vk;
+	api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
-
-	static std::array<char const*, 1> extensions = {
-	    "VK_KHR_swapchain",
-	};
-
-	*exts     = extensions.data();
-	*num_exts = extensions.size();
+static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* ) {
+	using namespace le_backend_vk;
+	api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" );
 }
 
 // ----------------------------------------------------------------------

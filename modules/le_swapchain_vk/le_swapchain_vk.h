@@ -32,8 +32,8 @@ struct le_swapchain_vk_api {
 		uint32_t                  ( *get_image_height         ) ( le_swapchain_o* self );
 		size_t                    ( *get_images_count         ) ( le_swapchain_o* self );
 		
-		void                      ( *get_required_vk_instance_extensions )(const le_swapchain_settings_t* settings, char const *** exts, size_t * num_exts);
-		void                      ( *get_required_vk_device_extensions )(const le_swapchain_settings_t* settings, char const *** exts, size_t * num_exts);
+		void                      ( *get_required_vk_instance_extensions )(const le_swapchain_settings_t* settings);
+		void                      ( *get_required_vk_device_extensions )(const le_swapchain_settings_t* settings);
 	};
 
 	// clang-format on
@@ -52,7 +52,7 @@ LE_MODULE_LOAD_DEFAULT( le_swapchain_vk );
 namespace le_swapchain_vk {
 
 static const auto& api         = le_swapchain_vk_api_i;
-static const auto& swapchain_i = api -> swapchain_i;
+static const auto& swapchain_i = api->swapchain_i;
 
 } // namespace le_swapchain_vk
 

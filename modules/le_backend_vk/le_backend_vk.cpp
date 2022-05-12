@@ -19,10 +19,11 @@
 #include <set>
 #include <atomic>
 #include <mutex>
+#include <memory>
 
 static constexpr auto LOGGER_LABEL = "le_backend";
 
-#include <memory>
+#include "le_backend_vk_settings.inl"
 
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
@@ -808,6 +809,12 @@ static void backend_destroy( le_backend_o* self ) {
 	// Instance should be the last vulkan object to go.
 	le_backend_vk::vk_instance_i.destroy( self->instance );
 
+	// Erase backend settings singleton
+	delete ( le_backend_vk::api->backend_settings_singleton );
+
+	// Erase persistent pointer to backend setting singleton
+	*le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) ) = nullptr;
+
 	delete self;
 }
 
@@ -1022,84 +1029,6 @@ static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator cons
 
 // ----------------------------------------------------------------------
 
-typedef void ( *pfn_get_required_vk_extensions )( const le_swapchain_settings_t* settings, char const*** exts, size_t* num_exts );
-
-// ----------------------------------------------------------------------
-
-static void collect_requested_swapchain_extensions(
-    le_swapchain_settings_t*       swapchain_settings,
-    uint32_t                       swapchain_settings_count,
-    pfn_get_required_vk_extensions get_extensions_func,
-    std::vector<char const*>&      requested_extensions ) {
-
-	auto const swapchain_settings_end = swapchain_settings + swapchain_settings_count;
-
-	for ( auto settings = swapchain_settings; settings != swapchain_settings_end; settings++ ) {
-
-		char const** exts;
-		size_t       num_exts;
-		get_extensions_func( settings, &exts, &num_exts );
-
-		if ( num_exts ) {
-			requested_extensions.insert( requested_extensions.end(), exts, exts + num_exts );
-		}
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static std::vector<char const*> collect_requested_instance_extensions( le_backend_vk_settings_t const* settings ) {
-	std::vector<char const*> requestedInstanceExtensions;
-
-	// -- insert extensions necessary for glfw window
-
-	uint32_t extensionCount           = 0;
-	auto     requiredWindowExtensions = le::Window::getRequiredVkExtensions( &extensionCount );
-
-	requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
-	                                    requiredWindowExtensions,
-	                                    requiredWindowExtensions + extensionCount );
-
-	// -- insert any instance extensions requested for swapchains
-	collect_requested_swapchain_extensions(
-	    settings->pSwapchain_settings, settings->num_swapchain_settings,
-	    le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions, requestedInstanceExtensions );
-
-	return requestedInstanceExtensions;
-}
-
-// ----------------------------------------------------------------------
-
-static std::vector<char const*> collect_requested_device_extensions( le_backend_vk_settings_t const* settings ) {
-	std::vector<char const*> requestedDeviceExtensions;
-
-	// -- insert device extensions requested via renderer.settings
-
-	if ( settings->requestedDeviceExtensions && settings->numRequestedDeviceExtensions ) {
-		requestedDeviceExtensions.insert(
-		    requestedDeviceExtensions.end(),
-		    settings->requestedDeviceExtensions,
-		    settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
-	}
-
-	// -- insert any device extensions requested via the swapchain.
-
-	collect_requested_swapchain_extensions(
-	    settings->pSwapchain_settings, settings->num_swapchain_settings,
-	    le_swapchain_vk::swapchain_i.get_required_vk_device_extensions, requestedDeviceExtensions );
-
-	// -- insert any additionally requested extensions
-
-	requestedDeviceExtensions.insert(
-	    requestedDeviceExtensions.end(),
-	    settings->requestedDeviceExtensions,
-	    settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
-
-	return requestedDeviceExtensions;
-}
-
-// ----------------------------------------------------------------------
-
 static void backend_initialise( le_backend_o* self, std::vector<char const*> requested_instance_extensions, std::vector<char const*> requested_device_extensions ) {
 	using namespace le_backend_vk;
 	self->instance      = vk_instance_i.create( requested_instance_extensions.data(), uint32_t( requested_instance_extensions.size() ) );
@@ -1127,20 +1056,25 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 
 // ----------------------------------------------------------------------
 
-static void backend_setup( le_backend_o* self, le_backend_vk_settings_t const* settings ) {
+static void backend_setup( le_backend_o* self ) {
 
 	using namespace le_backend_vk;
+
+	auto settings = api->backend_settings_singleton;
 
 	assert( settings );
 	if ( settings == nullptr ) {
 		std::cerr << "FATAL: Must specify settings for backend." << std::endl
 		          << std::flush;
 		exit( 1 );
+	} else {
+		// Freeze settings, as these will be the settings that apply for the lifetime of the backend.
+		settings->readonly = true;
 	}
 
 	// -- initialise backend
 
-	backend_initialise( self, collect_requested_instance_extensions( settings ), collect_requested_device_extensions( settings ) );
+	backend_initialise( self, settings->required_instance_extensions, settings->required_device_extensions );
 
 	vk::Device         vkDevice         = self->device->getVkDevice();
 	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
@@ -1156,7 +1090,7 @@ static void backend_setup( le_backend_o* self, le_backend_vk_settings_t const* s
 
 	// -- create swapchain if requested
 
-	backend_create_swapchains( self, settings->num_swapchain_settings, settings->pSwapchain_settings );
+	backend_create_swapchains( self, settings->swapchain_settings.size(), settings->swapchain_settings.data() );
 
 	// -- setup backend memory objects
 
@@ -5814,7 +5748,6 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	staging_allocator_i.reset   = staging_allocator_reset;
 
 	// register/update submodules inside this plugin
-
 	register_le_device_vk_api( api_ );
 	register_le_instance_vk_api( api_ );
 	register_le_allocator_linear_api( api_ );
@@ -5828,6 +5761,21 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	if ( unique_instance ) {
 		le_instance_vk_i.post_reload_hook( static_cast<le_backend_vk_instance_o*>( unique_instance ) );
 	}
+
+	// implemented in `le_backend_vk_settings.inl`
+	auto& backend_settings_i                           = api_i->le_backend_settings_i;
+	backend_settings_i.add_required_device_extension   = le_backend_vk_settings_add_required_device_extension;
+	backend_settings_i.add_required_instance_extension = le_backend_vk_settings_add_required_instance_extension;
+	backend_settings_i.add_swapchain_setting           = le_backend_vk_settings_add_swapchain_setting;
+
+	void** p_settings_singleton_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) );
+
+	if ( nullptr == *p_settings_singleton_addr ) {
+		*p_settings_singleton_addr = le_backend_vk_settings_create();
+	}
+
+	// Global settings object for backend - once a backend is initialized, this object is set to readonly.
+	api_i->backend_settings_singleton = static_cast<le_backend_vk_settings_o*>( *p_settings_singleton_addr );
 
 #ifdef PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libvulkan.so" );
