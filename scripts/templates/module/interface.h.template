@@ -1,7 +1,7 @@
 #ifndef GUARD_@module_name@_H
 #define GUARD_@module_name@_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct @module_name@_o;
 
