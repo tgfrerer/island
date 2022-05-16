@@ -88,11 +88,12 @@ struct le_pipeline_and_layout_info_t {
 
 struct le_backend_vk_api {
 
-	struct backend_vk_settings_interface_t // global settings for backend
+	struct backend_vk_settings_interface_t // global settings for backend - must be set before backend setup- after that, settings are read-only.
 	{
-		bool ( *add_required_device_extension )( char const* ext ); // returns true if successfully added, false otherwise
-		bool ( *add_required_instance_extension )( char const* ext );
-		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings ); // will get copied over
+		bool ( *add_required_device_extension )( char const* ext );                 // returns true if successfully added - returns false if setting was already present
+		bool ( *add_required_instance_extension )( char const* ext );               // -"-
+		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings ); // gets cloned
+
 	};
 
 	// clang-format off
