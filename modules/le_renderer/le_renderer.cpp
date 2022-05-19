@@ -330,14 +330,14 @@ static void renderer_destroy( le_renderer_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const* flags ) {
+static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.create_rtx_blas_info( self->backend, geometries, geometries_count, flags );
 }
 
 // ----------------------------------------------------------------------
 
-static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const* flags ) {
+static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.create_rtx_tlas_info( self->backend, instances_count, flags );
 }
@@ -815,7 +815,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		img.extent_from_pass.width  = 0;
 		img.extent_from_pass.height = 0;
 		img.extent_from_pass.depth  = 1;
-		img.usage                   = { LE_IMAGE_USAGE_SAMPLED_BIT };
+		img.usage                   = le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled );
 		img.mipLevels               = 1;
 		img.sample_count_log2       = 0; // 0 means 1, as (1 << 0 == 1)
 		img.imageType               = le::ImageType::e2D;
@@ -832,7 +832,7 @@ static le_resource_info_t get_default_resource_info_for_buffer() {
 	le_resource_info_t res;
 	res.type         = LeResourceType::eBuffer;
 	res.buffer.size  = 0;
-	res.buffer.usage = { LE_BUFFER_USAGE_TRANSFER_DST_BIT };
+	res.buffer.usage = le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst );
 	return res;
 }
 

@@ -19,7 +19,6 @@ struct le_staging_allocator_o;
 struct le_resource_handle_t; // defined in renderer_types
 
 struct le_pipeline_manager_o;
-// struct le_shader_module_o;
 
 struct graphics_pipeline_state_o; // for le_pipeline_builder
 struct compute_pipeline_state_o;  // for le_pipeline_builder
@@ -64,7 +63,11 @@ struct VmaAllocation_T;
 struct VmaAllocationCreateInfo;
 struct VmaAllocationInfo;
 
-struct LeShaderStageEnum;
+namespace le {
+enum class ShaderStageFlagBits : uint32_t;
+using BuildAccelerationStructureFlagsKHR = uint32_t;
+} // namespace le
+
 struct LeShaderSourceLanguageEnum;
 // enum class LeResourceType : uint8_t;
 
@@ -94,6 +97,7 @@ struct le_backend_vk_api {
 		bool ( *add_required_instance_extension )( char const* ext );               // -"-
 		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings ); // gets cloned
 
+		// we could expand this with requests for queues.
 	};
 
 	// clang-format off
@@ -108,25 +112,24 @@ struct le_backend_vk_api {
 		void                   ( *process_frame              ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses, le_resource_handle const * declared_resources, le_resource_info_t const * declared_resources_infos, size_t const & declared_resources_count );
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
-
-		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
-		void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
-		void                   ( *reset_failed_swapchains    ) ( le_backend_o *self );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
-		le_shader_module_handle( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const LeShaderStageEnum& moduleType, char const * macro_definitions, le_shader_module_handle handle, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
+		le_shader_module_handle( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const le::ShaderStageFlagBits& moduleType, char const * macro_definitions, le_shader_module_handle handle, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
 		void                   ( *update_shader_modules      ) ( le_backend_o* self );
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
+		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
+		void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
+		void                   ( *reset_failed_swapchains    ) ( le_backend_o *self );
 		void                   ( *get_swapchain_extent      ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height );
 		le_img_resource_handle ( *get_swapchain_resource    ) ( le_backend_o* self, uint32_t index );
 		uint32_t               ( *get_swapchain_count       ) ( le_backend_o* self );
 		bool                   ( *get_swapchain_info        ) ( le_backend_o* self, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_img_resource_handle * p_handlle );
 
-		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count, struct LeBuildAccelerationStructureFlags const * flags);
-		le_rtx_tlas_info_handle( *create_rtx_tlas_info )(le_backend_o* self,  uint32_t instances_count, struct LeBuildAccelerationStructureFlags const * flags);
+		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count,le::BuildAccelerationStructureFlagsKHR const & flags);
+		le_rtx_tlas_info_handle( *create_rtx_tlas_info )(le_backend_o* self,  uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const & flags);
 	};
 
 	struct private_backend_vk_interface_t {
@@ -205,7 +208,7 @@ struct le_backend_vk_api {
 		le_pipeline_and_layout_info_t            ( *produce_rtx_pipeline              ) ( le_pipeline_manager_o *self, le_rtxpso_handle rtxpsoHandle, char ** shader_group_data);
 		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle cpsoHandle);
 
-		le_shader_module_handle                  ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const LeShaderStageEnum& moduleType, char const *macro_definitions, le_shader_module_handle handle, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
+		le_shader_module_handle                  ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const le::ShaderStageFlagBits& moduleType, char const *macro_definitions, le_shader_module_handle handle, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 
         bool                                     ( *graphics_pipeline_add_shader_stage )(le_pipeline_manager_o* self, le_gpso_handle gpsoHandle, le_shader_module_handle shader_stage);
@@ -230,7 +233,7 @@ struct le_backend_vk_api {
 	};
 
 	struct shader_module_interface_t {
-		LeShaderStageEnum ( * get_stage ) ( le_pipeline_manager_o* manager, le_shader_module_handle module );
+		le::ShaderStageFlagBits ( * get_stage ) ( le_pipeline_manager_o* manager, le_shader_module_handle module );
 	};
 
 	struct private_shader_file_watcher_interface_t {

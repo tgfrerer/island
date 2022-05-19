@@ -152,11 +152,11 @@ static hello_world_app_o* hello_world_app_create() {
 		app->worldGeometry.vertexCount         = vertexCount;
 		app->worldGeometry.indexCount          = indexCount;
 		app->worldGeometry.index_buffer_info   = le::BufferInfoBuilder()
-		                                           .addUsageFlags( { LE_BUFFER_USAGE_INDEX_BUFFER_BIT } )
+		                                           .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer ) )
 		                                           .setSize( uint32_t( indexCount * sizeof( uint16_t ) ) )
 		                                           .build();
 		app->worldGeometry.vertex_buffer_info = le::BufferInfoBuilder()
-		                                            .addUsageFlags( { LE_BUFFER_USAGE_VERTEX_BUFFER_BIT } )
+		                                            .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer ) )
 		                                            .setSize( uint32_t( app->worldGeometry.vertexDataByteCount ) )
 		                                            .build();
 	}
@@ -269,8 +269,8 @@ static bool pass_resource_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto app = static_cast<hello_world_app_o*>( user_data );
 
 	rp
-	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } )
-	    .useBufferResource( app->worldGeometry.index_buffer_handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } ) //
+	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) )
+	    .useBufferResource( app->worldGeometry.index_buffer_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) ) //
 	    ;
 
 	return !app->worldGeometry.wasLoaded;
@@ -389,8 +389,8 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	    .sampleTexture( app->texEarthNight, texInfoNight )
 	    .sampleTexture( app->texEarthNormals, texInfoNormals )
 	    .sampleTexture( app->texEarthClouds, texInfoClouds )
-	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, { LE_BUFFER_USAGE_VERTEX_BUFFER_BIT } )
-	    .useBufferResource( app->worldGeometry.index_buffer_handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT } );
+	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer ) )
+	    .useBufferResource( app->worldGeometry.index_buffer_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer ) );
 
 	return true;
 }

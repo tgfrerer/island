@@ -137,9 +137,9 @@ static void cbe_dispatch( le_command_buffer_encoder_o* self, uint32_t groupCount
 }
 
 static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*  self,
-                                       LePipelineStageFlags const&   srcStageMask,
-                                       LePipelineStageFlags const&   dstStageMask,
-                                       LeAccessFlags const&          dstAccessMask,
+                                       le::PipelineStageFlags const& srcStageMask,
+                                       le::PipelineStageFlags const& dstStageMask,
+                                       le::AccessFlags const&        dstAccessMask,
                                        le_buf_resource_handle const& buffer,
                                        uint64_t const&               offset,
                                        uint64_t const&               range ) {

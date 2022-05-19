@@ -48,52 +48,52 @@ struct le_shader_compilation_result_o {
 
 // ---------------------------------------------------------------
 
-static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage& type ) {
+static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStageFlagBits& type ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	shaderc_shader_kind result{};
 
 	switch ( type ) {
-	case ( le::ShaderStage::eVertex ):
+	case ( le::ShaderStageFlagBits::eVertex ):
 		result = shaderc_glsl_vertex_shader;
 		break;
-	case ( le::ShaderStage::eTessellationControl ):
+	case ( le::ShaderStageFlagBits::eTessellationControl ):
 		result = shaderc_tess_control_shader;
 		break;
-	case ( le::ShaderStage::eTessellationEvaluation ):
+	case ( le::ShaderStageFlagBits::eTessellationEvaluation ):
 		result = shaderc_tess_evaluation_shader;
 		break;
-	case ( le::ShaderStage::eGeometry ):
+	case ( le::ShaderStageFlagBits::eGeometry ):
 		result = shaderc_geometry_shader;
 		break;
-	case ( le::ShaderStage::eFragment ):
+	case ( le::ShaderStageFlagBits::eFragment ):
 		result = shaderc_glsl_fragment_shader;
 		break;
-	case ( le::ShaderStage::eCompute ):
+	case ( le::ShaderStageFlagBits::eCompute ):
 		result = shaderc_glsl_compute_shader;
 		break;
-	case ( le::ShaderStage::eRaygenBitNv ):
+	case ( le::ShaderStageFlagBits::eRaygenBitNv ):
 		result = shaderc_raygen_shader;
 		break;
-	case ( le::ShaderStage::eAnyHitBitNv ):
+	case ( le::ShaderStageFlagBits::eAnyHitBitNv ):
 		result = shaderc_anyhit_shader;
 		break;
-	case ( le::ShaderStage::eClosestHitBitNv ):
+	case ( le::ShaderStageFlagBits::eClosestHitBitNv ):
 		result = shaderc_closesthit_shader;
 		break;
-	case ( le::ShaderStage::eMissBitNv ):
+	case ( le::ShaderStageFlagBits::eMissBitNv ):
 		result = shaderc_miss_shader;
 		break;
-	case ( le::ShaderStage::eIntersectionBitNv ):
+	case ( le::ShaderStageFlagBits::eIntersectionBitNv ):
 		result = shaderc_intersection_shader;
 		break;
-	case ( le::ShaderStage::eCallableBitNv ):
+	case ( le::ShaderStageFlagBits::eCallableBitNv ):
 		result = shaderc_callable_shader;
 		break;
-	case ( le::ShaderStage::eTaskBitNv ):
+	case ( le::ShaderStageFlagBits::eTaskBitNv ):
 		result = shaderc_task_shader;
 		break;
-	case ( le::ShaderStage::eMeshBitNv ):
+	case ( le::ShaderStageFlagBits::eMeshBitNv ):
 		result = shaderc_mesh_shader;
 		break;
 
@@ -507,7 +507,7 @@ static bool le_shader_compiler_compile_source(
     const char*                       sourceFileText,
     size_t                            sourceFileNumBytes,
     const LeShaderSourceLanguageEnum& shader_source_language,
-    const LeShaderStageEnum&          shaderType,
+    const le::ShaderStage&            shaderType,
     const char*                       original_file_path,
     char const*                       macroDefinitionsStr,
     size_t                            macroDefinitionsStrSz,

@@ -475,10 +475,10 @@ static inline uint64_t le_shader_module_get_hash( le_shader_manager_o* manager, 
 }
 
 // Returns the stage for a given shader module
-static LeShaderStageEnum le_shader_module_get_stage( le_pipeline_manager_o* manager, le_shader_module_handle handle ) {
+static le::ShaderStage le_shader_module_get_stage( le_pipeline_manager_o* manager, le_shader_module_handle handle ) {
 	auto module = manager->shaderManager->shaderModules.try_find( handle );
 	assert( module != nullptr );
-	return { module->stage };
+	return module->stage;
 }
 
 // ----------------------------------------------------------------------
@@ -531,7 +531,7 @@ static bool translate_to_spirv_code(
     void*                      raw_data,
     size_t                     numBytes,
     LeShaderSourceLanguageEnum shader_source_language,
-    LeShaderStageEnum          moduleType,
+    le::ShaderStage            moduleType,
     const char*                original_file_name,
     std::vector<uint32_t>&     spirvCode,
     std::set<std::string>&     includesSet,
@@ -1233,7 +1233,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
     le_shader_manager_o*              self,
     char const*                       path,
     const LeShaderSourceLanguageEnum& shader_source_language,
-    const LeShaderStageEnum&          moduleType,
+    const le::ShaderStage&            moduleType,
     char const*                       macro_defines_,
     le_shader_module_handle           handle,
     VkSpecializationMapEntry const*   specialization_map_entries,
@@ -2343,7 +2343,7 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module(
     le_pipeline_manager_o*            self,
     char const*                       path,
     const LeShaderSourceLanguageEnum& shader_source_language,
-    const LeShaderStageEnum&          moduleType,
+    const le::ShaderStage&            moduleType,
     char const*                       macro_definitions,
     le_shader_module_handle           handle,
     VkSpecializationMapEntry const*   specialization_map_entries,

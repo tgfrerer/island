@@ -56,8 +56,8 @@ struct le_renderer_api {
         le_tlas_resource_handle (*produce_tlas_resource_handle)(char const * maybe_name);
         le_blas_resource_handle (*produce_blas_resource_handle)(char const * maybe_name);
 
-		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const * flags);
-		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const * flags);
+		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const & flags);
+		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags);
 	};
 
 
@@ -149,7 +149,7 @@ struct le_renderer_api {
 		void                         ( *draw_mesh_tasks        )( le_command_buffer_encoder_o *self, uint32_t taskCount, uint32_t fistTask);
 
 		void                         (* dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
-		void						    (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, LePipelineStageFlags const &srcStageMask, LePipelineStageFlags const &dstStageMask, LeAccessFlags const & dstAccessMask, le_buf_resource_handle const &buffer, uint64_t const & offset, uint64_t const & range );
+		void                         (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags const &srcStageMask, le::PipelineStageFlags const &dstStageMask, le::AccessFlags const & dstAccessMask, le_buf_resource_handle const &buffer, uint64_t const & offset, uint64_t const & range );
 
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
@@ -219,12 +219,12 @@ LE_MODULE_LOAD_DEFAULT( le_renderer );
 namespace le_renderer {
 static const auto& api = le_renderer_api_i;
 
-static const auto& renderer_i      = api -> le_renderer_i;
-static const auto& renderpass_i    = api -> le_renderpass_i;
-static const auto& render_module_i = api -> le_render_module_i;
-static const auto& rendergraph_i   = api -> le_rendergraph_i;
-static const auto& encoder_i       = api -> le_command_buffer_encoder_i;
-static const auto& helpers_i       = api -> helpers_i;
+static const auto& renderer_i      = api->le_renderer_i;
+static const auto& renderpass_i    = api->le_renderpass_i;
+static const auto& render_module_i = api->le_render_module_i;
+static const auto& rendergraph_i   = api->le_rendergraph_i;
+static const auto& encoder_i       = api->le_command_buffer_encoder_i;
+static const auto& helpers_i       = api->helpers_i;
 
 } // namespace le_renderer
 
@@ -389,13 +389,13 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass& useImageResource( le_img_resource_handle resource_id, const LeImageUsageFlags& usage_flags ) {
-		le_renderer::renderpass_i.use_img_resource( self, resource_id, { LeResourceType::eImage, { { usage_flags } } } );
+	RenderPass& useImageResource( le_img_resource_handle resource_id, le::ImageUsageFlags const& usage_flags ) {
+		le_renderer::renderpass_i.use_img_resource( self, resource_id, { LeResourceType::eImage, { usage_flags } } );
 		return *this;
 	}
 
-	RenderPass& useBufferResource( le_buf_resource_handle resource_id, const LeBufferUsageFlags& usage_flags ) {
-		le_renderer::renderpass_i.use_buf_resource( self, resource_id, { LeResourceType::eBuffer, { { usage_flags } } } );
+	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::BufferUsageFlags const& usage_flags ) {
+		le_renderer::renderpass_i.use_buf_resource( self, resource_id, { LeResourceType::eBuffer, { usage_flags } } );
 		return *this;
 	}
 
@@ -511,13 +511,13 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder& setUsageFlags( LeImageUsageFlags const& usageFlagBits ) {
+	ImageInfoBuilder& setUsageFlags( le::ImageUsageFlags const& usageFlagBits ) {
 		img.usage = usageFlagBits;
 		return *this;
 	}
 
-	ImageInfoBuilder& addUsageFlags( LeImageUsageFlags const& usageFlagBits ) {
-		img.usage |= usageFlagBits;
+	ImageInfoBuilder& addUsageFlags( le::ImageUsageFlagBits const& usageFlagBits ) {
+		img.usage = img.usage | usageFlagBits;
 		return *this;
 	}
 
@@ -561,12 +561,12 @@ class BufferInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	BufferInfoBuilder& setUsageFlags( LeBufferUsageFlags const& usageFlagBits ) {
+	BufferInfoBuilder& setUsageFlags( le::BufferUsageFlags const& usageFlagBits ) {
 		buf.usage = usageFlagBits;
 		return *this;
 	}
 
-	BufferInfoBuilder& addUsageFlags( LeBufferUsageFlags const& usageFlagBits ) {
+	BufferInfoBuilder& addUsageFlags( le::BufferUsageFlags const& usageFlagBits ) {
 		buf.usage |= usageFlagBits;
 		return *this;
 	}
@@ -599,9 +599,9 @@ class Encoder {
 	}
 
 	Encoder& bufferMemoryBarrier(
-	    LePipelineStageFlags const&   srcStageMask,
-	    LePipelineStageFlags const&   dstStageMask,
-	    LeAccessFlags const&          dstAccessMask,
+	    le::PipelineStageFlags const& srcStageMask,
+	    le::PipelineStageFlags const& dstStageMask,
+	    le::AccessFlags const&        dstAccessMask,
 	    le_buf_resource_handle const& buffer,
 	    uint64_t const&               offset = 0,
 	    uint64_t const&               range  = ~( 0ull ) ) {

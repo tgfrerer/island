@@ -6,7 +6,11 @@
 
 struct le_shader_compiler_o;
 struct le_shader_compilation_result_o;
-struct LeShaderStageEnum; // defined in renderer_types.h
+
+namespace le {
+enum class ShaderStageFlagBits : uint32_t; // defined in renderer_types.h
+}
+
 struct LeShaderSourceLanguageEnum;
 
 // clang-format off
@@ -17,7 +21,7 @@ struct le_shader_compiler_api {
 		le_shader_compiler_o*           (* create                ) ( );
 		void                            (* destroy               ) ( le_shader_compiler_o* self );
 
-		bool                            (* compile_source        ) ( le_shader_compiler_o *compiler, const char *sourceText, size_t sourceTextSize, const LeShaderSourceLanguageEnum& shader_source_language, const LeShaderStageEnum& shaderType, const char *original_file_path, char const * macroDefinitionsStr, size_t macroDefinitionsStrSz, le_shader_compilation_result_o* result );
+		bool                            (* compile_source        ) ( le_shader_compiler_o *compiler, const char *sourceText, size_t sourceTextSize, const LeShaderSourceLanguageEnum& shader_source_language, const le::ShaderStageFlagBits& shaderType, const char *original_file_path, char const * macroDefinitionsStr, size_t macroDefinitionsStrSz, le_shader_compilation_result_o* result );
 
         // create a compilation result object - this is needed for compile_source 
 		le_shader_compilation_result_o* (* result_create         ) ( );
@@ -45,7 +49,7 @@ LE_MODULE_LOAD_DEFAULT( le_shader_compiler );
 
 namespace le_shader_compiler {
 static const auto& api        = le_shader_compiler_api_i;
-static const auto& compiler_i = api -> compiler_i;
+static const auto& compiler_i = api->compiler_i;
 } // namespace le_shader_compiler
 
 #endif

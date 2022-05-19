@@ -6,7 +6,6 @@
 #include "le_swapchain_vk.h"
 #include "le_window.h"
 #include "le_renderer.h"
-#include "private/le_renderer_types.h"
 #include "private/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
@@ -272,27 +271,18 @@ static inline const vk::ClearValue& le_clear_value_to_vk( const LeClearValue& lh
 
 // ----------------------------------------------------------------------
 
-static inline constexpr le::Format vk_format_to_le( const vk::Format& format ) noexcept {
-	return le::Format( format );
-}
-
-// ----------------------------------------------------------------------
-
-LE_C_ENUM_TO_VK( BuildAccelerationStructureFlagsKHR, le_build_acceleration_structure_flags_to_vk, LeBuildAccelerationStructureFlags_t );
-LE_C_ENUM_TO_VK( ImageUsageFlagBits, le_image_usage_flags_to_vk, LeImageUsageFlags_t );
-LE_C_ENUM_TO_VK( ImageCreateFlags, le_image_create_flags_to_vk, LeImageCreateFlags );
-LE_ENUM_TO_VK( SampleCountFlagBits, le_sample_count_flag_bits_to_vk );
-LE_ENUM_TO_VK( ImageTiling, le_image_tiling_to_vk );
-LE_ENUM_TO_VK( ImageType, le_image_type_to_vk );
-LE_ENUM_TO_VK( Format, le_format_to_vk );
-LE_ENUM_TO_VK( AttachmentLoadOp, le_attachment_load_op_to_vk );
-LE_ENUM_TO_VK( AttachmentStoreOp, le_attachment_store_op_to_vk );
-LE_ENUM_TO_VK( Filter, le_filter_to_vk );
-LE_ENUM_TO_VK( SamplerMipmapMode, le_sampler_mipmap_mode_to_vk );
-LE_ENUM_TO_VK( SamplerAddressMode, le_sampler_address_mode_to_vk );
-LE_ENUM_TO_VK( CompareOp, le_compare_op_to_vk );
-LE_ENUM_TO_VK( BorderColor, le_border_color_to_vk );
-LE_ENUM_TO_VK( IndexType, le_index_type_to_vk );
+// LE_ENUM_TO_VK( SampleCountFlagBits, le_sample_count_flag_bits_to_vk );
+// LE_ENUM_TO_VK( ImageTiling, le_image_tiling_to_vk );
+// LE_ENUM_TO_VK( ImageType, le_image_type_to_vk );
+// LE_ENUM_TO_VK( Format, le_format_to_vk );
+// LE_ENUM_TO_VK( AttachmentLoadOp, le_attachment_load_op_to_vk );
+// LE_ENUM_TO_VK( AttachmentStoreOp, le_attachment_store_op_to_vk );
+// LE_ENUM_TO_VK( Filter, le_filter_to_vk );
+// LE_ENUM_TO_VK( SamplerMipmapMode, le_sampler_mipmap_mode_to_vk );
+// LE_ENUM_TO_VK( SamplerAddressMode, le_sampler_address_mode_to_vk );
+// LE_ENUM_TO_VK( CompareOp, le_compare_op_to_vk );
+// LE_ENUM_TO_VK( BorderColor, le_border_color_to_vk );
+// LE_ENUM_TO_VK( IndexType, le_index_type_to_vk );
 
 // ----------------------------------------------------------------------
 
@@ -351,15 +341,15 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		res.imageInfo =
 		    static_cast<VkImageCreateInfo&>(
 		        vk::ImageCreateInfo()
-		            .setFlags( le_image_create_flags_to_vk( img.flags ) )                   //
-		            .setImageType( le_image_type_to_vk( img.imageType ) )                   //
-		            .setFormat( le_format_to_vk( img.format ) )                             //
+		            .setFlags( static_cast<vk::ImageCreateFlags>( img.flags ) )             //
+		            .setImageType( static_cast<vk::ImageType>( img.imageType ) )            //
+		            .setFormat( static_cast<vk::Format>( img.format ) )                     //
 		            .setExtent( { img.extent.width, img.extent.height, img.extent.depth } ) //
 		            .setMipLevels( img.mipLevels )                                          //
 		            .setArrayLayers( img.arrayLayers )                                      //
 		            .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )     //
-		            .setTiling( le_image_tiling_to_vk( img.tiling ) )                       //
-		            .setUsage( le_image_usage_flags_to_vk( img.usage ) )                    //
+		            .setTiling( static_cast<vk::ImageTiling>( img.tiling ) )                //
+		            .setUsage( static_cast<vk::ImageUsageFlags>( img.usage ) )              //
 		            .setSharingMode( vk::SharingMode::eExclusive )                          // hardcoded to Exclusive - no sharing between queues
 		            .setQueueFamilyIndexCount( queueFamilyIndexCount )                      //
 		            .setPQueueFamilyIndices( pQueueFamilyIndices )                          //
@@ -612,26 +602,6 @@ static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool& isD
 	}
 
 	return;
-}
-
-// ----------------------------------------------------------------------
-static inline vk::ImageViewType le_to_vk( le::ImageViewType const& t ) {
-	return vk::ImageViewType( t );
-}
-
-// ----------------------------------------------------------------------
-static inline VkFormat le_to_vk( le::Format const& f ) {
-	// this may change - but for now, we can map vk and le formats directly,
-	// mostly because codegen guarantees that they stay in sync.
-	return VkFormat( f );
-}
-
-static inline vk::PipelineStageFlags le_to_vk( LePipelineStageFlags const& f ) {
-	return vk::PipelineStageFlags( f );
-}
-
-static inline vk::AccessFlags le_to_vk( LeAccessFlags const& f ) {
-	return vk::AccessFlags( f );
 }
 
 // ----------------------------------------------------------------------
@@ -1176,8 +1146,8 @@ static void backend_setup( le_backend_o* self ) {
 
 		assert( !self->swapchainImageFormat.empty() && "must have at least one swapchain image format available." );
 
-		self->defaultFormatColorAttachment        = vk_format_to_le( self->swapchainImageFormat[ 0 ] );
-		self->defaultFormatDepthStencilAttachment = vk_format_to_le( vk_device_i.get_default_depth_stencil_format( *self->device ) );
+		self->defaultFormatColorAttachment        = static_cast<le::Format>( self->swapchainImageFormat[ 0 ] );
+		self->defaultFormatDepthStencilAttachment = static_cast<le::Format>( vk::Format( vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
 
 		// We hard-code default format for sampled images, since this is the most likely
 		// format we will encounter bitmaps to be encoded in, and there is no good way
@@ -1246,9 +1216,9 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 
 		currentAttachment->resource   = img_resource;
 		currentAttachment->format     = attachmentFormat;
-		currentAttachment->numSamples = le_sample_count_flag_bits_to_vk( sampleCount );
-		currentAttachment->loadOp     = le_attachment_load_op_to_vk( image_attachment_info.loadOp );
-		currentAttachment->storeOp    = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
+		currentAttachment->numSamples = static_cast<vk::SampleCountFlagBits>( sampleCount );
+		currentAttachment->loadOp     = static_cast<vk::AttachmentLoadOp>( image_attachment_info.loadOp );
+		currentAttachment->storeOp    = static_cast<vk::AttachmentStoreOp>( image_attachment_info.storeOp );
 		currentAttachment->clearValue = le_clear_value_to_vk( image_attachment_info.clearValue );
 
 		{
@@ -1368,7 +1338,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 		currentAttachment->format     = attachmentFormat;
 		currentAttachment->numSamples = vk::SampleCountFlagBits::e1; // this is a requirement for resolve passes.
 		currentAttachment->loadOp     = vk::AttachmentLoadOp::eDontCare;
-		currentAttachment->storeOp    = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
+		currentAttachment->storeOp    = static_cast<vk::AttachmentStoreOp>( image_attachment_info.storeOp );
 		currentAttachment->clearValue = le_clear_value_to_vk( image_attachment_info.clearValue );
 		currentAttachment->type       = AttachmentInfo::Type::eResolveAttachment;
 
@@ -1497,7 +1467,7 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 		currentPass.width       = renderpass_i.get_width( *pass );
 		currentPass.height      = renderpass_i.get_height( *pass );
-		currentPass.sampleCount = le_sample_count_flag_bits_to_vk( renderpass_i.get_sample_count( *pass ) );
+		currentPass.sampleCount = static_cast<vk::SampleCountFlagBits>( renderpass_i.get_sample_count( *pass ) );
 
 		// Find explicit sync ops needed for resources which are not image
 		// attachments.
@@ -1528,19 +1498,19 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 				//
 				if ( usage.type == LeResourceType::eImage ) {
 
-					if ( usage.as.image_usage_flags & LE_IMAGE_USAGE_SAMPLED_BIT ) {
+					if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
 
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
 						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
 						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
 
-					} else if ( usage.as.image_usage_flags & LE_IMAGE_USAGE_STORAGE_BIT ) {
+					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ) {
 
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite;
 						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
 						requestedState.layout         = vk::ImageLayout::eGeneral;
 
-					} else if ( usage.as.image_usage_flags & LE_IMAGE_USAGE_TRANSFER_DST_BIT ) {
+					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) ) {
 						// this is an image write operation.
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
 						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
@@ -2122,7 +2092,7 @@ static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFra
 	if ( texInfo.imageView.format == le::Format::eUndefined ) {
 		return ( frame_data_get_image_format_from_resource_id( frame, texInfo.imageView.imageId ) );
 	} else {
-		return le_to_vk( texInfo.imageView.format );
+		return static_cast<VkFormat>( texInfo.imageView.format );
 	}
 }
 
@@ -2286,15 +2256,15 @@ static void backend_create_descriptor_pools( BackendFrameData& frame, vk::Device
 // ----------------------------------------------------------------------
 // Returns a VkFormat which will match a given set of LeImageUsageFlags.
 // If a matching format cannot be inferred, this method
-le::Format infer_image_format_from_le_image_usage_flags( le_backend_o* self, LeImageUsageFlags flags ) {
+le::Format infer_image_format_from_le_image_usage_flags( le_backend_o* self, le::ImageUsageFlags const& flags ) {
 	le::Format format{};
-	if ( flags & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ) ) {
+	if ( flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) ) {
 		// set to default color format
 		format = self->defaultFormatColorAttachment;
-	} else if ( flags & LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) {
+	} else if ( flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ) {
 		// set to default depth stencil format
 		format = self->defaultFormatDepthStencilAttachment;
-	} else if ( flags & LE_IMAGE_USAGE_SAMPLED_BIT ) {
+	} else if ( flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
 		format = self->defaultFormatSampledImage;
 	} else {
 		// we don't know what to do because we can't infer the intended use of this resource.
@@ -2399,8 +2369,8 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 			vk::AccelerationStructureGeometryTrianglesDataKHR t_data{};
 			t_data
 			    .setMaxVertex( g.vertex_count - 1 ) // highest index of a vertex that will be accessed by build command
-			    .setIndexType( le_index_type_to_vk( g.index_type ) )
-			    .setVertexFormat( le_format_to_vk( g.vertex_format ) );
+			    .setIndexType( static_cast<vk::IndexType>( g.index_type ) )
+			    .setVertexFormat( static_cast<vk::Format>( g.vertex_format ) );
 
 			vk::AccelerationStructureGeometryDataKHR g_data{};
 			g_data
@@ -2803,7 +2773,7 @@ static void collect_resource_infos_per_resource(
 
 				imgInfo.extent_from_pass = { pass_width, pass_height, 1 };
 
-				if ( imgInfo.usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
+				if ( imgInfo.usage & ( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eDepthStencilAttachment ) ) {
 
 					imgInfo.mipLevels         = 1;
 					imgInfo.imageType         = le::ImageType::e2D;
@@ -3080,7 +3050,7 @@ static void printResourceInfo( le_resource_handle const& handle, ResourceCreateI
 
 // ----------------------------------------------------------------------
 
-static bool inferImageFormat( le_backend_o* self, le_img_resource_handle const& resource, LeImageUsageFlags const& usageFlags, ResourceCreateInfo* createInfo ) {
+static bool inferImageFormat( le_backend_o* self, le_img_resource_handle const& resource, le::ImageUsageFlags const& usageFlags, ResourceCreateInfo* createInfo ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -3096,7 +3066,7 @@ static bool inferImageFormat( le_backend_o* self, le_img_resource_handle const& 
 		assert( false ); // we don't have enough information to infer image format.
 		return false;
 	} else {
-		createInfo->imageInfo.format = VkFormat( le_format_to_vk( inferred_format ) );
+		createInfo->imageInfo.format = static_cast<VkFormat>( inferred_format );
 	}
 
 	return true;
@@ -3384,7 +3354,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			// We must allocate a scratch buffer, which needs to be available for exactly one frame.
 			le_resource_info_t resourceInfo{};
 			resourceInfo.buffer.size              = uint32_t( scratchbuffer_max_size );
-			resourceInfo.buffer.usage             = { LE_BUFFER_USAGE_STORAGE_BUFFER_BIT | LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT };
+			resourceInfo.buffer.usage             = le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eShaderDeviceAddress );
 			resourceInfo.type                     = LeResourceType::eBuffer;
 			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
 			auto               resource_id        = LE_RTX_SCRATCH_BUFFER_HANDLE;
@@ -3452,7 +3422,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 			auto const& r_usage_flags = resource_usage[ i ];
 
 			if ( r_usage_flags.type == LeResourceType::eImage &&
-			     ( r_usage_flags.as.image_usage_flags & ( LE_IMAGE_USAGE_SAMPLED_BIT | LE_IMAGE_USAGE_STORAGE_BIT ) ) ) {
+			     ( r_usage_flags.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage ) ) ) {
 				auto const& r = static_cast<le_img_resource_handle>( resources[ i ] );
 
 				// We create a default image view for this image and store it with the frame. If no explicit image view
@@ -3476,7 +3446,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 				// If the format is still undefined at this point, we can only throw our hands up in the air...
 				//
 				if ( imageFormat == vk::Format::eUndefined ) {
-					logger.warn( "Cannot create default view for image: '%s;, as format is unspecified", r->data->debug_name );
+					logger.warn( "Cannot create default view for image: '%s', as format is unspecified", r->data->debug_name );
 					continue;
 				}
 
@@ -3563,7 +3533,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 					imageViewCreateInfo
 					    .setFlags( {} ) // no special flags
 					    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
-					    .setViewType( le_to_vk( texInfo.imageView.image_view_type ) )
+					    .setViewType( static_cast<vk::ImageViewType>( texInfo.imageView.image_view_type ) )
 					    .setFormat( imageFormat ) // we got this earlier via texInfo
 					    .setComponents( {} )      // default component mapping
 					    .setSubresourceRange( subresourceRange );
@@ -3587,20 +3557,20 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 					vk::SamplerCreateInfo samplerCreateInfo{};
 					samplerCreateInfo
 					    .setFlags( {} )
-					    .setMagFilter( le_filter_to_vk( texInfo.sampler.magFilter ) )
-					    .setMinFilter( le_filter_to_vk( texInfo.sampler.minFilter ) )
-					    .setMipmapMode( le_sampler_mipmap_mode_to_vk( texInfo.sampler.mipmapMode ) )
-					    .setAddressModeU( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeU ) )
-					    .setAddressModeV( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeV ) )
-					    .setAddressModeW( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeW ) )
+					    .setMagFilter( static_cast<vk::Filter>( texInfo.sampler.magFilter ) )
+					    .setMinFilter( static_cast<vk::Filter>( texInfo.sampler.minFilter ) )
+					    .setMipmapMode( static_cast<vk::SamplerMipmapMode>( texInfo.sampler.mipmapMode ) )
+					    .setAddressModeU( static_cast<vk::SamplerAddressMode>( texInfo.sampler.addressModeU ) )
+					    .setAddressModeV( static_cast<vk::SamplerAddressMode>( texInfo.sampler.addressModeV ) )
+					    .setAddressModeW( static_cast<vk::SamplerAddressMode>( texInfo.sampler.addressModeW ) )
 					    .setMipLodBias( texInfo.sampler.mipLodBias )
 					    .setAnisotropyEnable( texInfo.sampler.anisotropyEnable )
 					    .setMaxAnisotropy( texInfo.sampler.maxAnisotropy )
 					    .setCompareEnable( texInfo.sampler.compareEnable )
-					    .setCompareOp( le_compare_op_to_vk( texInfo.sampler.compareOp ) )
+					    .setCompareOp( static_cast<vk::CompareOp>( texInfo.sampler.compareOp ) )
 					    .setMinLod( texInfo.sampler.minLod )
 					    .setMaxLod( texInfo.sampler.maxLod )
-					    .setBorderColor( le_border_color_to_vk( texInfo.sampler.borderColor ) )
+					    .setBorderColor( static_cast<vk::BorderColor>( texInfo.sampler.borderColor ) )
 					    .setUnnormalizedCoordinates( texInfo.sampler.unnormalizedCoordinates );
 
 					sampler = device.createSampler( samplerCreateInfo );
@@ -4757,12 +4727,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					    .setBuffer( frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ) )
 					    .setSize( le_cmd->info.range )
 					    .setOffset( le_cmd->info.offset )
-					    .setDstAccessMask( le_to_vk( le_cmd->info.dstAccessMask ) ) //
+					    .setDstAccessMask( static_cast<vk::AccessFlagBits>( le_cmd->info.dstAccessMask ) ) //
 					    ;
 
 					cmd.pipelineBarrier(
-					    le_to_vk( le_cmd->info.srcStageMask ),
-					    le_to_vk( le_cmd->info.dstStageMask ),
+					    static_cast<vk::PipelineStageFlags>( le_cmd->info.srcStageMask ),
+					    static_cast<vk::PipelineStageFlags>( le_cmd->info.dstStageMask ),
 					    {}, {}, { bufferMemoryBarrier }, {} );
 
 				} break;
@@ -5073,7 +5043,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				case le::CommandType::eBindIndexBuffer: {
 					auto* le_cmd = static_cast<le::CommandBindIndexBuffer*>( dataIt );
 					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
-					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, le_index_type_to_vk( le_cmd->info.indexType ) );
+					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, static_cast<vk::IndexType>( le_cmd->info.indexType ) );
 				} break;
 
 				case le::CommandType::eBindVertexBuffers: {
@@ -5374,11 +5344,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							vk::AccelerationStructureGeometryTrianglesDataKHR triangles_data{};
 							triangles_data
-							    .setVertexFormat( le_format_to_vk( g.vertex_format ) )
+							    .setVertexFormat( static_cast<vk::Format>( g.vertex_format ) )
 							    .setVertexData( vertex_addr )
 							    .setMaxVertex( g.vertex_count - 1 ) // highest index of a vertex that will be accessed via build command
 							    .setVertexStride( g.vertex_stride )
-							    .setIndexType( le_index_type_to_vk( g.index_type ) )
+							    .setIndexType( static_cast<vk::IndexType>( g.index_type ) )
 							    .setIndexData( index_addr )
 							    .setTransformData( {} ) // no transform data
 							    ;
@@ -5570,7 +5540,7 @@ static le_shader_module_handle backend_create_shader_module(
     le_backend_o*                     self,
     char const*                       path,
     const LeShaderSourceLanguageEnum& shader_source_language,
-    const LeShaderStageEnum&          moduleType,
+    const le::ShaderStageFlagBits&    moduleType,
     char const*                       macro_definitions,
     le_shader_module_handle           handle,
     VkSpecializationMapEntry const*   specialization_map_entries,
@@ -5655,7 +5625,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const* flags ) {
+le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
 
 	auto* blas_info = new le_rtx_blas_info_o{};
 
@@ -5664,7 +5634,7 @@ le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx
 
 	// Store requested flags, but if no build flags requested, at least set the
 	// allowUpdate flag so that primitive geometry may be updated.
-	blas_info->flags = flags ? le_build_acceleration_structure_flags_to_vk( *flags ) : vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
+	blas_info->flags = flags ? static_cast<vk::BuildAccelerationStructureFlagsKHR>( flags ) : vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
 	self->rtx_blas_info_kill_list.add_element( blas_info );
@@ -5674,7 +5644,7 @@ le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx
 
 // ----------------------------------------------------------------------
 
-le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const* flags ) {
+le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
 
 	auto* tlas_info = new le_rtx_tlas_info_o{};
 
@@ -5685,7 +5655,7 @@ le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32
 	// allowUpdate flag so that instance information such as transforms may be set.
 	tlas_info->flags =
 	    flags
-	        ? le_build_acceleration_structure_flags_to_vk( *flags )
+	        ? static_cast<vk::BuildAccelerationStructureFlagsKHR>( flags )
 	        : vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
