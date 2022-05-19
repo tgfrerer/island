@@ -236,40 +236,40 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 	// Now we check whether there is a read and/or a write operation on
 	// the resource
-	static constexpr uint32_t ALL_IMAGE_WRITE_FLAGS =
-	    LE_IMAGE_USAGE_TRANSFER_DST_BIT |             //
-	    LE_IMAGE_USAGE_STORAGE_BIT |                  //
-	    LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |         //
-	    LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | //
-	    LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT       //
+	static constexpr auto ALL_IMAGE_WRITE_FLAGS =
+	    le::ImageUsageFlagBits::eTransferDst |            //
+	    le::ImageUsageFlagBits::eStorage |                //
+	    le::ImageUsageFlagBits::eColorAttachment |        //
+	    le::ImageUsageFlagBits::eDepthStencilAttachment | //
+	    le::ImageUsageFlagBits::eTransientAttachment      //
 	    ;
 
-	static constexpr uint32_t ALL_IMAGE_READ_FLAGS =
-	    LE_IMAGE_USAGE_TRANSFER_SRC_BIT |             //
-	    LE_IMAGE_USAGE_SAMPLED_BIT |                  //
-	    LE_IMAGE_USAGE_STORAGE_BIT |                  // load, store, atomic
-	    LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |         // assume read_write - but really, if clear, we don't need to read
-	    LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | //
-	    LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |     //
-	    LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT           //
+	static constexpr auto ALL_IMAGE_READ_FLAGS =
+	    le::ImageUsageFlagBits::eTransferSrc |            //
+	    le::ImageUsageFlagBits::eSampled |                //
+	    le::ImageUsageFlagBits::eStorage |                //
+	    le::ImageUsageFlagBits::eColorAttachment |        // assume read+write, although if clear, we wouldn't need read
+	    le::ImageUsageFlagBits::eDepthStencilAttachment | //
+	    le::ImageUsageFlagBits::eTransientAttachment |    //
+	    le::ImageUsageFlagBits::eInputAttachment          //
 	    ;
 
 	static constexpr auto ALL_BUFFER_WRITE_FLAGS =
-	    LE_BUFFER_USAGE_TRANSFER_DST_BIT |         //
-	    LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT | // assume read_write
-	    LE_BUFFER_USAGE_STORAGE_BUFFER_BIT         // assume read_write
+	    le::BufferUsageFlagBits::eTransferDst |        //
+	    le::BufferUsageFlagBits::eStorageTexelBuffer | // assume read+write
+	    le::BufferUsageFlagBits::eStorageBuffer        // assume read+write
 	    ;
 
 	static constexpr auto ALL_BUFFER_READ_FLAGS =
-	    LE_BUFFER_USAGE_TRANSFER_SRC_BIT |            //
-	    LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT |    //
-	    LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT |          //
-	    LE_BUFFER_USAGE_INDEX_BUFFER_BIT |            //
-	    LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |           //
-	    LE_BUFFER_USAGE_STORAGE_BUFFER_BIT |          // assume read_write
-	    LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT |    // assume read_write
-	    LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT |         //
-	    LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT //
+	    le::BufferUsageFlagBits::eTransferSrc |
+	    le::BufferUsageFlagBits::eUniformTexelBuffer |
+	    le::BufferUsageFlagBits::eUniformBuffer |
+	    le::BufferUsageFlagBits::eIndexBuffer |
+	    le::BufferUsageFlagBits::eVertexBuffer |
+	    le::BufferUsageFlagBits::eStorageBuffer |
+	    le::BufferUsageFlagBits::eStorageTexelBuffer |
+	    le::BufferUsageFlagBits::eIndirectBuffer |
+	    le::BufferUsageFlagBits::eConditionalRenderingBitExt //
 	    ;
 
 	bool resourceWillBeWrittenTo = false;
@@ -339,7 +339,7 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 	//	self->textureImageIds.push_back( textureInfo->imageView.imageId );
 	self->textureInfos.push_back( *textureInfo ); // store a copy of info
 
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { { LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT } } };
+	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) } };
 
 	// -- Mark image resource referenced by texture as used for reading
 	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags );
@@ -354,7 +354,7 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resou
 
 	// Make sure that this imgage can be used as a color attachment,
 	// even if user forgot to specify the flag.
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { { LeImageUsageFlagBits::LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT } } };
+	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) } };
 
 	renderpass_use_resource( self, image_id, required_flags );
 }
@@ -368,7 +368,7 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 
 	// Make sure that this image can be used as a depth stencil attachment,
 	// even if user forgot to specify the flag.
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { { LeImageUsageFlagBits::LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT } } };
+	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) } };
 
 	renderpass_use_resource( self, image_id, required_flags );
 }

@@ -56,7 +56,7 @@ static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
 		}
 
 		if ( uses_resource ) {
-			rp.useImageResource( r.image_handle, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } );
+			rp.useImageResource( r.image_handle, le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) );
 			needsTransfer = true;
 		}
 	}

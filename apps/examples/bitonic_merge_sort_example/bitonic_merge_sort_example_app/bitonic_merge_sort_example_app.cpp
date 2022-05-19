@@ -179,7 +179,7 @@ static bool pass_noise_setup( le_renderpass_o* renderpass_, void* user_data ) {
 	auto           app = static_cast<app_o*>( user_data );
 
 	if ( app->source_dirty && app->data_source_type == DataSourceType::eNoise ) {
-		rp.useBufferResource( app->pixels_data->handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } );
+		rp.useBufferResource( app->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) );
 		app->pixels_data->unsorted   = true;
 		app->slow_mo.seen_iterations = 0;
 		app->source_dirty            = false;
@@ -196,7 +196,7 @@ static bool pass_upload_image_setup( le_renderpass_o* rp_, void* user_data ) {
 	auto           app = static_cast<app_o*>( user_data );
 
 	if ( app->source_dirty && app->data_source_type == DataSourceType::eImage && !app->dropped_image_path.empty() ) {
-		rp.useBufferResource( app->pixels_data->handle, { LE_BUFFER_USAGE_STORAGE_BUFFER_BIT } );
+		rp.useBufferResource( app->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) );
 		app->pixels_data->unsorted   = true;
 		app->slow_mo.seen_iterations = 0;
 		app->source_dirty            = false;
@@ -213,7 +213,7 @@ static bool pass_sort_setup( le_renderpass_o* rp_, void* user_data ) {
 	le::RenderPass rp{ rp_ };
 
 	if ( app->pixels_data->unsorted == true ) {
-		rp.useBufferResource( app->pixels_data->handle, { LE_BUFFER_USAGE_STORAGE_BUFFER_BIT } );
+		rp.useBufferResource( app->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) );
 		return true;
 	}
 	return false;
@@ -350,9 +350,9 @@ static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user
 		encoder
 		    .setArgumentData( LE_ARGUMENT_NAME( "Parameters" ), &params, sizeof( params ) )
 		    .dispatch( workgroup_count )
-		    .bufferMemoryBarrier( { LE_PIPELINE_STAGE_COMPUTE_SHADER_BIT },
-		                          { LE_PIPELINE_STAGE_COMPUTE_SHADER_BIT },
-		                          { LE_ACCESS_SHADER_READ_BIT },
+		    .bufferMemoryBarrier( le::PipelineStageFlags( le::PipelineStageFlagBits::eComputeShader ),
+		                          le::PipelineStageFlags( le::PipelineStageFlagBits::eComputeShader ),
+		                          le::AccessFlags( le::AccessFlagBits::eShaderRead ),
 		                          app->pixels_data->handle );
 	};
 
@@ -518,7 +518,7 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 
 		auto pass_draw =
 		    le::RenderPass( "root", LE_RENDER_PASS_TYPE_DRAW )
-		        .useBufferResource( self->pixels_data->handle, { LE_BUFFER_USAGE_STORAGE_BUFFER_BIT } )
+		        .useBufferResource( self->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) )
 		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
 		        .setExecuteCallback( self, pass_draw_exec );
 

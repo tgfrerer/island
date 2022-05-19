@@ -91,7 +91,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_render_module_o* 
 
 		auto fontImgInfo = le::ImageInfoBuilder()
 		                       .setExtent( uint32_t( self->imguiTexture.width ), uint32_t( self->imguiTexture.height ) )
-		                       .setUsageFlags( { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
+		                       .setUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) )
 		                       .setFormat( le::Format::eR8G8B8A8Unorm )
 		                       .build(); // create resource for imgui font texture if it does not yet exist.
 
@@ -113,7 +113,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_render_module_o* 
 	auto fontImgInfo =
 	    le::ImageInfoBuilder()
 	        .setExtent( uint32_t( self->imguiTexture.width ), uint32_t( self->imguiTexture.height ) )
-	        .setUsageFlags( { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
+	        .setUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) )
 	        .setFormat( le::Format::eR8G8B8A8Unorm )
 	        .build(); // create resource for imgui font texture if it does not yet exist.
 
@@ -124,7 +124,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_render_module_o* 
 	le::RenderPass pass{ "imguiSetup", LE_RENDER_PASS_TYPE_TRANSFER };
 
 	pass
-	    .useImageResource( IMGUI_IMG_HANDLE, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
+	    .useImageResource( IMGUI_IMG_HANDLE, le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) )
 	    .setExecuteCallback( self, []( le_command_buffer_encoder_o* p_encoder, void* user_data ) {
 		    auto imgui = static_cast<le_imgui_o*>( user_data );
 

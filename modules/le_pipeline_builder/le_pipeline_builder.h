@@ -23,8 +23,6 @@ struct le_vertex_input_attribute_description;
 struct VkPipelineMultisampleStateCreateInfo;
 struct VkPipelineDepthStencilStateCreateInfo;
 
-struct LeColorComponentFlags;
-
 enum class le_vertex_input_rate : uint8_t;
 enum class le_num_type : uint8_t;
 
@@ -39,8 +37,9 @@ enum class CullModeFlagBits : uint32_t;
 enum class SampleCountFlagBits : uint32_t;
 enum class CompareOp : uint32_t;
 enum class StencilOp : uint32_t;
-enum class ShaderStage : uint32_t;
+enum class ShaderStageFlagBits : uint32_t;
 enum class ShaderSourceLanguage : uint32_t;
+using ColorComponentMask = uint32_t;
 } // namespace le
 
 // clang-format off
@@ -87,7 +86,7 @@ struct le_pipeline_builder_api {
 			void (*set_dst_color_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
 			void (*set_src_alpha_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
 			void (*set_dst_alpha_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
-			void (*set_color_write_mask       )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const LeColorComponentFlags &write_mask );
+			void (*set_color_write_mask       )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::ColorComponentMask &write_mask );
 			void (*use_preset                 )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::AttachmentBlendPreset &preset );
 		};
 
@@ -181,7 +180,7 @@ struct le_pipeline_builder_api {
         void ( *destroy)                        ( le_shader_module_builder_o* self);
         void ( *set_source_file_path )          ( le_shader_module_builder_o* self, char const * source_file_path);
         void ( *set_source_defines_string )     ( le_shader_module_builder_o* self, char const * source_defines_string);
-        void ( *set_shader_stage )              ( le_shader_module_builder_o* self, le::ShaderStage const & shader_stage);
+        void ( *set_shader_stage )              ( le_shader_module_builder_o* self, le::ShaderStageFlagBits const & shader_stage);
         void ( *set_source_language )           ( le_shader_module_builder_o* self, le::ShaderSourceLanguage const & shader_source_language);
         void ( *set_specialization_constant )   ( le_shader_module_builder_o* self, uint32_t id, void const * data, uint32_t size);
         void ( *set_handle )                    ( le_shader_module_builder_o* self, le_shader_module_handle previous_handle);
@@ -202,10 +201,10 @@ LE_MODULE_LOAD_DEFAULT( le_pipeline_builder );
 
 namespace le_pipeline_builder {
 static const auto& api                            = le_pipeline_builder_api_i;
-static const auto& le_graphics_pipeline_builder_i = api -> le_graphics_pipeline_builder_i;
-static const auto& le_compute_pipeline_builder_i  = api -> le_compute_pipeline_builder_i;
-static const auto& le_rtx_pipeline_builder_i      = api -> le_rtx_pipeline_builder_i;
-static const auto& le_shader_module_builder_i     = api -> le_shader_module_builder_i;
+static const auto& le_graphics_pipeline_builder_i = api->le_graphics_pipeline_builder_i;
+static const auto& le_compute_pipeline_builder_i  = api->le_compute_pipeline_builder_i;
+static const auto& le_rtx_pipeline_builder_i      = api->le_rtx_pipeline_builder_i;
+static const auto& le_shader_module_builder_i     = api->le_shader_module_builder_i;
 } // namespace le_pipeline_builder
 
 // ----------------------------------------------------------------------
@@ -237,7 +236,7 @@ class LeShaderModuleBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	LeShaderModuleBuilder& setShaderStage( le::ShaderStage const& shaderStage ) {
+	LeShaderModuleBuilder& setShaderStage( le::ShaderStageFlagBits const& shaderStage ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_shader_stage( self, shaderStage );
 		return *this;
 	}
@@ -853,7 +852,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			return *this;
 		}
 
-		AttachmentBlendState& setColorWriteMask( const LeColorComponentFlags& write_mask ) {
+		AttachmentBlendState& setColorWriteMask( const le::ColorComponentMask& write_mask ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_color_write_mask( parent.self, index, write_mask );
 			return *this;

@@ -476,8 +476,8 @@ static uint32_t le_stage_create_image_from_memory(
 		    le::ImageInfoBuilder()
 		        .setExtent( img->info.width, img->info.height, img->info.depth )
 		        .setFormat( imageFormat )
-		        .setUsageFlags( { LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT |
-		                          LeImageUsageFlagBits::LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
+		        .setUsageFlags( le::ImageUsageFlagBits::eSampled |
+		                        le::ImageUsageFlagBits::eTransferDst )
 		        .setMipLevels( mip_levels )
 		        .build();
 
@@ -620,13 +620,13 @@ static uint32_t le_stage_create_buffer( le_stage_o* stage, void* mem, uint32_t s
 		buffer->resource_info = le::BufferInfoBuilder()
 		                            .setSize( buffer->size )
 		                            .addUsageFlags( {
-		                                LE_BUFFER_USAGE_TRANSFER_DST_BIT |
-		                                LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                                LE_BUFFER_USAGE_VERTEX_BUFFER_BIT
+		                                le::BufferUsageFlagBits::eTransferDst |
+		                                le::BufferUsageFlagBits::eIndexBuffer |
+		                                le::BufferUsageFlagBits::eVertexBuffer
 #ifdef LE_FEATURE_RTX
 		                                |
-		                                LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-		                                LE_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR // we need this so that we can use this buffer to build acceleration structure
+		                                le::BufferUsageFlagBits::eShaderDeviceAddress |
+		                                le::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyBitKhr // we need this so that we can use this buffer to build acceleration structure
 #endif
 		                            } )
 		                            .build();
@@ -981,12 +981,12 @@ static uint32_t le_stage_create_mesh( le_stage_o* self, le_mesh_info const* info
 					geo.index_offset = index_buffer_view.byte_offset + index_accessor.byte_offset;
 				}
 
-				LeBuildAccelerationStructureFlags blas_flags = { LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR |
-				                                                 LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR };
+				le::BuildAccelerationStructureFlagsKHR blas_flags = le::BuildAccelerationStructureFlagBitsKHR::ePreferFastBuildBitKhr |
+				                                                    le::BuildAccelerationStructureFlagBitsKHR::eAllowUpdateBitKhr;
 
 				using namespace le_renderer;
 				auto blas_info =
-				    renderer_i.create_rtx_blas_info( self->renderer, &geo, 1, &blas_flags );
+				    renderer_i.create_rtx_blas_info( self->renderer, &geo, 1, blas_flags );
 
 				le_resource_info_t resource_info{};
 				resource_info.type      = LeResourceType::eRtxBlas;
@@ -1429,14 +1429,14 @@ static bool pass_xfer_setup_resources( le_renderpass_o* pRp, void* user_data ) {
 	for ( auto& b : stage->buffers ) {
 		needsUpload |= !b->was_transferred;
 		if ( !b->was_transferred ) {
-			rp.useBufferResource( b->handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } );
+			rp.useBufferResource( b->handle, { le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) } );
 		}
 	}
 
 	for ( auto& img : stage->images ) {
 		needsUpload |= !img->was_transferred;
 		if ( !img->was_transferred ) {
-			rp.useImageResource( img->handle, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } );
+			rp.useImageResource( img->handle, { le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) } );
 		}
 	}
 
@@ -1540,7 +1540,7 @@ static void le_stage_update_render_module( le_stage_o* stage, le_render_module_o
 		        auto           stage = static_cast<le_stage_o*>( user_data );
 
 		        for ( auto& b : stage->buffers ) {
-			        rp.useBufferResource( b->handle, { LeBufferUsageFlagBits::LE_BUFFER_USAGE_TRANSFER_SRC_BIT } );
+			        rp.useBufferResource( b->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferSrc ) );
 		        }
 
 		        // We don't want to execute this pass by default, but needsUpdate switches to
@@ -2094,12 +2094,13 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 			// -- Signal that we want to use an image to write to.
 
 			rtx_pass
-			    .useImageResource( RTX_IMAGE_TARGET_HANDLE, { LE_IMAGE_USAGE_STORAGE_BIT } ); // write
+			    .useImageResource( RTX_IMAGE_TARGET_HANDLE, le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ); // write
 
 			le_resource_info_t rtx_target_info =
 			    le::ImageInfoBuilder()
 			        .setFormat( le::Format::eR8Unorm ) // 1 byte per cell, 1024x1024 cells
-			        .addUsageFlags( { LE_IMAGE_USAGE_STORAGE_BIT | LE_IMAGE_USAGE_SAMPLED_BIT } )
+			        .addUsageFlags( le::ImageUsageFlagBits::eStorage )
+			        .addUsageFlags( le::ImageUsageFlagBits::eSampled )
 			        .build();
 
 			render_module_i.declare_resource( module, RTX_IMAGE_TARGET_HANDLE, rtx_target_info );
@@ -2139,8 +2140,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 	}
 
 	for ( auto& b : draw_params->stage->buffers ) {
-		stage_draw_pass.useBufferResource( b->handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                                                LE_BUFFER_USAGE_VERTEX_BUFFER_BIT } );
+		stage_draw_pass.useBufferResource( b->handle, le::BufferUsageFlagBits::eIndexBuffer | le::BufferUsageFlagBits::eVertexBuffer );
 	}
 
 	for ( auto& t : draw_params->stage->textures ) {
@@ -2582,14 +2582,14 @@ static void le_stage_setup_pipelines( le_stage_o* stage ) {
 			// -- Create top-level accelerator for this scene
 			stage->scenes[ i ].rtx_tlas_handle = le_renderer::renderer_i.produce_tlas_resource_handle( rtx_tlas_resource_name );
 
-			LeBuildAccelerationStructureFlags tlas_flags =
-			    { LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR |
-			      LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR };
+			le::BuildAccelerationStructureFlagsKHR tlas_flags =
+			    le::BuildAccelerationStructureFlagBitsKHR::eAllowUpdateBitKhr |
+			    le::BuildAccelerationStructureFlagBitsKHR::ePreferFastBuildBitKhr;
 
 			le_resource_info_t resource_info{};
 
 			resource_info.type      = LeResourceType::eRtxTlas;
-			resource_info.tlas.info = renderer_i.create_rtx_tlas_info( stage->renderer, node_count_per_scene[ i ], &tlas_flags );
+			resource_info.tlas.info = renderer_i.create_rtx_tlas_info( stage->renderer, node_count_per_scene[ i ], tlas_flags );
 
 			stage->scenes[ i ].rtx_tlas_info = std::move( resource_info );
 		}
