@@ -185,8 +185,10 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 
 	logger.info( "Selected GPU: %s", self->vkPhysicalDeviceProperties.deviceName.data() );
 
+#ifdef LE_FEATURE_RTX
 	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+#endif
 
 	// let's find out the devices' memory properties
 	self->vkPhysicalDeviceMemoryProperties = self->vkPhysicalDevice.getMemoryProperties();
