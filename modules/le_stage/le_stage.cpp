@@ -2099,8 +2099,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 			le_resource_info_t rtx_target_info =
 			    le::ImageInfoBuilder()
 			        .setFormat( le::Format::eR8Unorm ) // 1 byte per cell, 1024x1024 cells
-			        .addUsageFlags( le::ImageUsageFlagBits::eStorage )
-			        .addUsageFlags( le::ImageUsageFlagBits::eSampled )
+			        .addUsageFlags( le::ImageUsageFlagBits::eStorage | le::ImageUsageFlagBits::eSampled )
 			        .build();
 
 			render_module_i.declare_resource( module, RTX_IMAGE_TARGET_HANDLE, rtx_target_info );

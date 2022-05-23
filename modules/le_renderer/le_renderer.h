@@ -516,8 +516,8 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder& addUsageFlags( le::ImageUsageFlagBits const& usageFlagBits ) {
-		img.usage = img.usage | usageFlagBits;
+	ImageInfoBuilder& addUsageFlags( le::ImageUsageFlags const& usageFlags ) {
+		img.usage = img.usage | usageFlags;
 		return *this;
 	}
 
@@ -566,8 +566,8 @@ class BufferInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	BufferInfoBuilder& addUsageFlags( le::BufferUsageFlags const& usageFlagBits ) {
-		buf.usage |= usageFlagBits;
+	BufferInfoBuilder& addUsageFlags( le::BufferUsageFlags const& usageFlags ) {
+		buf.usage |= usageFlags;
 		return *this;
 	}
 
