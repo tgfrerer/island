@@ -236,7 +236,7 @@ static void pass_noise_execute( le_command_buffer_encoder_o* encoder_, void* use
 		}
 	}
 
-	// We must make sure that there is exactly the number of bytest in the buffer that we expect.
+	// We must make sure that there is exactly the number of bytes in the buffer that we expect.
 	assert( buffer_initial_data.size() ==
 	        app->pixels_data->num_channels *
 	            app->pixels_data->h *
