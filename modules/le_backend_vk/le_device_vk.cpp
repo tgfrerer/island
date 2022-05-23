@@ -256,21 +256,17 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	}
 
 	// Vulkan >= 1.2  has per-version structs
-
+	// We create one big structure chain which contains all the features, by default zero-initialised.
+	// if you need any of these features you must request these here. We could possibly expose this, but
+	// it is probably more sensible to keep this here for now.
 	vk::StructureChain<
 	    vk::PhysicalDeviceFeatures2,
 	    vk::PhysicalDeviceVulkan11Features,
-	    vk::PhysicalDeviceVulkan12Features
-#ifdef LE_FEATURE_RTX
-	    ,
-	    vk::PhysicalDeviceRayTracingPipelineFeaturesKHR, // Optional, based on #define
-	    vk::PhysicalDeviceAccelerationStructureFeaturesKHR
-#endif
-#ifdef LE_FEATURE_RTX
-	    ,
-	    vk::PhysicalDeviceMeshShaderFeaturesNV // Optional, based on #define
-#endif
-	    >
+	    vk::PhysicalDeviceVulkan12Features,
+	    vk::PhysicalDeviceVulkan13Features,
+	    vk::PhysicalDeviceRayTracingPipelineFeaturesKHR,
+	    vk::PhysicalDeviceAccelerationStructureFeaturesKHR,
+	    vk::PhysicalDeviceMeshShaderFeaturesNV>
 	    featuresChain{};
 
 	featuresChain.get<vk::PhysicalDeviceFeatures2>()
@@ -285,6 +281,8 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	                      .setShaderInt16( true )       //
 	                      .setShaderFloat64( true )     //
 	    );
+	featuresChain.get<vk::PhysicalDeviceVulkan11Features>()
+	    .setStorageBuffer16BitAccess( true );
 
 #ifdef LE_FEATURE_RTX
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
@@ -315,12 +313,6 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	    .setShaderFloat16( true ) //
 	    ;
 #endif
-
-	// ms I had to disable this on my nvidia 1070 as it was failing
-	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
-	    //    .setShaderInt8( true )
-	    //    .setShaderFloat16( true )
-	    ;
 
 	vk::DeviceCreateInfo deviceCreateInfo;
 	deviceCreateInfo
