@@ -844,12 +844,12 @@ struct CommandDispatch {
 struct CommandBufferMemoryBarrier {
 	CommandHeader header = { { { CommandType::eBufferMemoryBarrier, sizeof( CommandBufferMemoryBarrier ) } } };
 	struct {
-		le::PipelineStageFlags srcStageMask;
-		le::PipelineStageFlags dstStageMask;
-		le::AccessFlags        dstAccessMask;
-		le_buf_resource_handle buffer;
-		uint64_t               offset;
-		uint64_t               range;
+		le::PipelineStageFlags2 srcStageMask;
+		le::PipelineStageFlags2 dstStageMask;
+		le::AccessFlags         dstAccessMask;
+		le_buf_resource_handle  buffer;
+		uint64_t                offset;
+		uint64_t                range;
 
 	} info;
 };

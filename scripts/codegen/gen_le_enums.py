@@ -48,9 +48,12 @@ def generate_enum_group(original_enum_name, wants_to_string=False, num_bits=32):
 
     enum_name = '%s' % original_enum_name.removeprefix('Vk')
     enum_value_prefix = original_enum_name.split('FlagBits')[0]
+    if original_enum_name.find('FlagBits2') > 0:
+        enum_value_prefix = enum_value_prefix + '2'
     
     group_info = reg.groupdict[original_enum_name]
     enum_type = group_info.elem.get('type')
+    num_bits = int(group_info.elem.get('bitwidth') or 32)
     
     body = ""
    

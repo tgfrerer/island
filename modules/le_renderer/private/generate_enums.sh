@@ -22,7 +22,7 @@ VkImageType, yes
 VkImageUsageFlagBits, yes
 VkImageViewType, yes
 VkIndexType, yes
-VkPipelineStageFlagBits, yes
+VkPipelineStageFlagBits2,
 VkPolygonMode, yes
 VkPrimitiveTopology, yes
 VkSampleCountFlagBits

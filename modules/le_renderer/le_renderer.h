@@ -149,7 +149,7 @@ struct le_renderer_api {
 		void                         ( *draw_mesh_tasks        )( le_command_buffer_encoder_o *self, uint32_t taskCount, uint32_t fistTask);
 
 		void                         (* dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
-		void                         (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags const &srcStageMask, le::PipelineStageFlags const &dstStageMask, le::AccessFlags const & dstAccessMask, le_buf_resource_handle const &buffer, uint64_t const & offset, uint64_t const & range );
+		void                         (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const &srcStageMask, le::PipelineStageFlags2 const &dstStageMask, le::AccessFlags const & dstAccessMask, le_buf_resource_handle const &buffer, uint64_t const & offset, uint64_t const & range );
 
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
@@ -599,12 +599,12 @@ class Encoder {
 	}
 
 	Encoder& bufferMemoryBarrier(
-	    le::PipelineStageFlags const& srcStageMask,
-	    le::PipelineStageFlags const& dstStageMask,
-	    le::AccessFlags const&        dstAccessMask,
-	    le_buf_resource_handle const& buffer,
-	    uint64_t const&               offset = 0,
-	    uint64_t const&               range  = ~( 0ull ) ) {
+	    le::PipelineStageFlags2 const& srcStageMask,
+	    le::PipelineStageFlags2 const& dstStageMask,
+	    le::AccessFlags const&         dstAccessMask,
+	    le_buf_resource_handle const&  buffer,
+	    uint64_t const&                offset = 0,
+	    uint64_t const&                range  = ~( 0ull ) ) {
 		// todo:fill in
 		le_renderer::encoder_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
 		return *this;

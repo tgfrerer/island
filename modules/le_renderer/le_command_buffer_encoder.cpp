@@ -136,13 +136,13 @@ static void cbe_dispatch( le_command_buffer_encoder_o* self, uint32_t groupCount
 	self->mCommandCount++;
 }
 
-static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*  self,
-                                       le::PipelineStageFlags const& srcStageMask,
-                                       le::PipelineStageFlags const& dstStageMask,
-                                       le::AccessFlags const&        dstAccessMask,
-                                       le_buf_resource_handle const& buffer,
-                                       uint64_t const&               offset,
-                                       uint64_t const&               range ) {
+static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*   self,
+                                       le::PipelineStageFlags2 const& srcStageMask,
+                                       le::PipelineStageFlags2 const& dstStageMask,
+                                       le::AccessFlags const&         dstAccessMask,
+                                       le_buf_resource_handle const&  buffer,
+                                       uint64_t const&                offset,
+                                       uint64_t const&                range ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBufferMemoryBarrier ); // placement new!
 

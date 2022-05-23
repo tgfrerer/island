@@ -1357,87 +1357,92 @@ static constexpr char const* to_str( const IndexType& tp ) {
 
 // ----------------------------------------------------------------------
 
-using PipelineStageFlags = uint32_t;
-enum class PipelineStageFlagBits : PipelineStageFlags {
+using PipelineStageFlags2 = uint64_t;
+enum class PipelineStageFlagBits2 : PipelineStageFlags2 {
 	eNone                                = 0,
-	eTopOfPipe                           = 0x00000001, // Before subsequent commands are processed
-	eDrawIndirect                        = 0x00000002, // Draw/DispatchIndirect command fetch
-	eVertexInput                         = 0x00000004, // Vertex/index fetch
-	eVertexShader                        = 0x00000008, // Vertex shading
-	eTessellationControlShader           = 0x00000010, // Tessellation control shading
-	eTessellationEvaluationShader        = 0x00000020, // Tessellation evaluation shading
-	eGeometryShader                      = 0x00000040, // Geometry shading
-	eFragmentShader                      = 0x00000080, // Fragment shading
-	eEarlyFragmentTests                  = 0x00000100, // Early fragment (depth and stencil) tests
-	eLateFragmentTests                   = 0x00000200, // Late fragment (depth and stencil) tests
-	eColorAttachmentOutput               = 0x00000400, // Color attachment writes
-	eComputeShader                       = 0x00000800, // Compute shading
-	eTransfer                            = 0x00001000, // Transfer/copy operations
-	eBottomOfPipe                        = 0x00002000, // After previous commands have completed
-	eHost                                = 0x00004000, // Indicates host (CPU) is a source/sink of the dependency
-	eAllGraphics                         = 0x00008000, // All stages of the graphics pipeline
-	eAllCommands                         = 0x00010000, // All stages supported on the queue
-	eCommandPreprocessBitNv              = 0x00020000,
-	eConditionalRenderingBitExt          = 0x00040000, // A pipeline stage for conditional rendering predicate fetch
-	eTaskShaderBitNv                     = 0x00080000,
-	eMeshShaderBitNv                     = 0x00100000,
-	eRayTracingShaderBitKhr              = 0x00200000,
-	eFragmentShadingRateAttachmentBitKhr = 0x00400000,
-	eFragmentDensityProcessBitExt        = 0x00800000,
-	eTransformFeedbackBitExt             = 0x01000000,
-	eAccelerationStructureBuildBitKhr    = 0x02000000,
+	eTopOfPipe                           = 0x00000001ULL,
+	eDrawIndirect                        = 0x00000002ULL,
+	eVertexInput                         = 0x00000004ULL,
+	eVertexShader                        = 0x00000008ULL,
+	eTessellationControlShader           = 0x00000010ULL,
+	eTessellationEvaluationShader        = 0x00000020ULL,
+	eGeometryShader                      = 0x00000040ULL,
+	eFragmentShader                      = 0x00000080ULL,
+	eEarlyFragmentTests                  = 0x00000100ULL,
+	eLateFragmentTests                   = 0x00000200ULL,
+	eColorAttachmentOutput               = 0x00000400ULL,
+	eComputeShader                       = 0x00000800ULL,
+	eAllTransfer                         = 0x00001000ULL,
+	eBottomOfPipe                        = 0x00002000ULL,
+	eHost                                = 0x00004000ULL,
+	eAllGraphics                         = 0x00008000ULL,
+	eAllCommands                         = 0x00010000ULL,
+	eCommandPreprocessBitNv              = 0x00020000ULL,
+	eConditionalRenderingBitExt          = 0x00040000ULL, // A pipeline stage for conditional rendering predicate fetch
+	eTaskShaderBitNv                     = 0x00080000ULL,
+	eMeshShaderBitNv                     = 0x00100000ULL,
+	eRayTracingShaderBitKhr              = 0x00200000ULL,
+	eFragmentShadingRateAttachmentBitKhr = 0x00400000ULL,
+	eFragmentDensityProcessBitExt        = 0x00800000ULL,
+	eTransformFeedbackBitExt             = 0x01000000ULL,
+	eAccelerationStructureBuildBitKhr    = 0x02000000ULL,
+	eVideoDecodeBitKhr                   = 0x04000000ULL,
+	eVideoEncodeBitKhr                   = 0x08000000ULL,
+	eInvocationMaskBitHuawei             = 0x10000000000ULL,
+	eIndexInput                          = 0x1000000000ULL,
+	eCopy                                = 0x100000000ULL,
+	eReserved387BitKhr                   = 0x10000000ULL,
+	eVertexAttributeInput                = 0x2000000000ULL,
+	eResolve                             = 0x200000000ULL,
+	eReserved29BitNv                     = 0x20000000ULL,
+	ePreRasterizationShaders             = 0x4000000000ULL,
+	eBlit                                = 0x400000000ULL,
+	eReserved30BitNv                     = 0x40000000ULL,
+	eSubpassShadingBitHuawei             = 0x8000000000ULL,
+	eClear                               = 0x800000000ULL,
 	eAccelerationStructureBuildBitNv     = eAccelerationStructureBuildBitKhr,
+	eAllCommandsBitKhr                   = eAllCommands,
+	eAllGraphicsBitKhr                   = eAllGraphics,
+	eAllTransferBitKhr                   = eAllTransfer,
+	eTransferBitKhr                      = eAllTransfer,
+	eTransfer                            = eAllTransferBitKhr,
+	eBlitBitKhr                          = eBlit,
+	eBottomOfPipeBitKhr                  = eBottomOfPipe,
+	eClearBitKhr                         = eClear,
+	eColorAttachmentOutputBitKhr         = eColorAttachmentOutput,
+	eComputeShaderBitKhr                 = eComputeShader,
+	eCopyBitKhr                          = eCopy,
+	eDrawIndirectBitKhr                  = eDrawIndirect,
+	eEarlyFragmentTestsBitKhr            = eEarlyFragmentTests,
+	eFragmentShaderBitKhr                = eFragmentShader,
 	eShadingRateImageBitNv               = eFragmentShadingRateAttachmentBitKhr,
+	eGeometryShaderBitKhr                = eGeometryShader,
+	eHostBitKhr                          = eHost,
+	eIndexInputBitKhr                    = eIndexInput,
+	eLateFragmentTestsBitKhr             = eLateFragmentTests,
 	eNoneKhr                             = eNone,
+	ePreRasterizationShadersBitKhr       = ePreRasterizationShaders,
 	eRayTracingShaderBitNv               = eRayTracingShaderBitKhr,
+	eResolveBitKhr                       = eResolve,
+	eTessellationControlShaderBitKhr     = eTessellationControlShader,
+	eTessellationEvaluationShaderBitKhr  = eTessellationEvaluationShader,
+	eTopOfPipeBitKhr                     = eTopOfPipe,
+	eVertexAttributeInputBitKhr          = eVertexAttributeInput,
+	eVertexInputBitKhr                   = eVertexInput,
+	eVertexShaderBitKhr                  = eVertexShader,
 };
 
-constexpr PipelineStageFlags operator|( PipelineStageFlagBits const& lhs, PipelineStageFlagBits const& rhs ) noexcept {
-	return static_cast<const PipelineStageFlags>( static_cast<PipelineStageFlags>( lhs ) | static_cast<PipelineStageFlags>( rhs ) );
+constexpr PipelineStageFlags2 operator|( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+	return static_cast<const PipelineStageFlags2>( static_cast<PipelineStageFlags2>( lhs ) | static_cast<PipelineStageFlags2>( rhs ) );
 };
 
-constexpr PipelineStageFlags operator|( PipelineStageFlags const& lhs, PipelineStageFlagBits const& rhs ) noexcept {
-	return static_cast<const PipelineStageFlags>( lhs | static_cast<PipelineStageFlags>( rhs ) );
+constexpr PipelineStageFlags2 operator|( PipelineStageFlags2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+	return static_cast<const PipelineStageFlags2>( lhs | static_cast<PipelineStageFlags2>( rhs ) );
 };
 
-constexpr PipelineStageFlags operator&( PipelineStageFlagBits const& lhs, PipelineStageFlagBits const& rhs ) noexcept {
-	return static_cast<const PipelineStageFlags>( static_cast<PipelineStageFlags>( lhs ) & static_cast<PipelineStageFlags>( rhs ) );
+constexpr PipelineStageFlags2 operator&( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+	return static_cast<const PipelineStageFlags2>( static_cast<PipelineStageFlags2>( lhs ) & static_cast<PipelineStageFlags2>( rhs ) );
 };
-
-static constexpr char const* to_str( const PipelineStageFlagBits& tp ) {
-	switch ( static_cast<uint32_t>( tp ) ) {
-		// clang-format off
-		case          0: return "None";
-		case 0x00000001: return "TopOfPipe";
-		case 0x00000002: return "DrawIndirect";
-		case 0x00000004: return "VertexInput";
-		case 0x00000008: return "VertexShader";
-		case 0x00000010: return "TessellationControlShader";
-		case 0x00000020: return "TessellationEvaluationShader";
-		case 0x00000040: return "GeometryShader";
-		case 0x00000080: return "FragmentShader";
-		case 0x00000100: return "EarlyFragmentTests";
-		case 0x00000200: return "LateFragmentTests";
-		case 0x00000400: return "ColorAttachmentOutput";
-		case 0x00000800: return "ComputeShader";
-		case 0x00001000: return "Transfer";
-		case 0x00002000: return "BottomOfPipe";
-		case 0x00004000: return "Host";
-		case 0x00008000: return "AllGraphics";
-		case 0x00010000: return "AllCommands";
-		case 0x00020000: return "CommandPreprocessBitNv";
-		case 0x00040000: return "ConditionalRenderingBitExt";
-		case 0x00080000: return "TaskShaderBitNv";
-		case 0x00100000: return "MeshShaderBitNv";
-		case 0x00200000: return "RayTracingShaderBitKhr";
-		case 0x00400000: return "FragmentShadingRateAttachmentBitKhr";
-		case 0x00800000: return "FragmentDensityProcessBitExt";
-		case 0x01000000: return "TransformFeedbackBitExt";
-		case 0x02000000: return "AccelerationStructureBuildBitKhr";
-		default: return "Unknown";
-		// clang-format on
-	};
-}
 
 // ----------------------------------------------------------------------
 
