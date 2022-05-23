@@ -1099,7 +1099,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet{ { module->filepath.string() } }; // let first element be the original source file path
 
-	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->source_language }, { module->stage }, module->filepath.string().c_str(), spirv_code, includesSet, module->macro_defines );
+	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->source_language },  module->stage , module->filepath.string().c_str(), spirv_code, includesSet, module->macro_defines );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
