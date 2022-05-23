@@ -255,68 +255,11 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 		}
 	}
 
-	// Vulkan >= 1.2  has per-version structs
-	// We create one big structure chain which contains all the features, by default zero-initialised.
-	// if you need any of these features you must request these here. We could possibly expose this, but
-	// it is probably more sensible to keep this here for now.
-	vk::StructureChain<
-	    vk::PhysicalDeviceFeatures2,
-	    vk::PhysicalDeviceVulkan11Features,
-	    vk::PhysicalDeviceVulkan12Features,
-	    vk::PhysicalDeviceVulkan13Features,
-	    vk::PhysicalDeviceRayTracingPipelineFeaturesKHR,
-	    vk::PhysicalDeviceAccelerationStructureFeaturesKHR,
-	    vk::PhysicalDeviceMeshShaderFeaturesNV>
-	    featuresChain{};
-
-	featuresChain.get<vk::PhysicalDeviceFeatures2>()
-	    .setFeatures( vk::PhysicalDeviceFeatures()
-	                      .setFillModeNonSolid( true )    // allow drawing as wireframe
-	                      .setWideLines( true )           // require enable wide lines
-	                      .setRobustBufferAccess( false ) // disable robust buffer access
-	                      .setVertexPipelineStoresAndAtomics( true )
-	                      .setFragmentStoresAndAtomics( true )
-	                      .setSampleRateShading( true ) // enable so that we can use sampleShadingEnable
-	                      .setGeometryShader( true )    // we want geometry shaders
-	                      .setShaderInt16( true )       //
-	                      .setShaderFloat64( true )     //
-	    );
-	featuresChain.get<vk::PhysicalDeviceVulkan11Features>()
-	    .setStorageBuffer16BitAccess( true );
-
-#ifdef LE_FEATURE_RTX
-	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
-	    .setBufferDeviceAddress( true ) // needed for rtx
-	    //	    .setBufferDeviceAddressCaptureReplay( true ) // needed for frame debuggers, when using bufferDeviceAddress
-
-	    ;
-
-	featuresChain.get<vk::PhysicalDeviceRayTracingPipelineFeaturesKHR>()
-	    .setRayTracingPipeline( true );
-
-	featuresChain.get<vk::PhysicalDeviceAccelerationStructureFeaturesKHR>()
-	    .setAccelerationStructure( true );
-
-#endif
-
-#ifdef LE_FEATURE_MESH_SHADER_NV
-
-	featuresChain.get<vk::PhysicalDeviceMeshShaderFeaturesNV>()
-	    .setMeshShader( true )
-	    .setTaskShader( true );
-
-	// We require 8 bit integers, and 16 bit floats for when we use mesh shaders -
-	// because most use cases will want to make use of these.
-
-	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
-	    .setShaderInt8( true )    //
-	    .setShaderFloat16( true ) //
-	    ;
-#endif
+	auto features = le_backend_vk::settings_i.get_requested_physical_device_features_chain();
 
 	vk::DeviceCreateInfo deviceCreateInfo;
 	deviceCreateInfo
-	    .setPNext( &featuresChain.get<vk::PhysicalDeviceFeatures2>() )
+	    .setPNext( features )
 	    .setQueueCreateInfoCount( uint32_t( device_queue_creation_infos.size() ) )
 	    .setPQueueCreateInfos( device_queue_creation_infos.data() )
 	    .setEnabledLayerCount( 0 )

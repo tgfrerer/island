@@ -779,12 +779,6 @@ static void backend_destroy( le_backend_o* self ) {
 	// Instance should be the last vulkan object to go.
 	le_backend_vk::vk_instance_i.destroy( self->instance );
 
-	// Erase backend settings singleton
-	delete ( le_backend_vk::api->backend_settings_singleton );
-
-	// Erase persistent pointer to backend setting singleton
-	*le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) ) = nullptr;
-
 	delete self;
 }
 
@@ -5735,10 +5729,11 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	}
 
 	// implemented in `le_backend_vk_settings.inl`
-	auto& backend_settings_i                           = api_i->le_backend_settings_i;
-	backend_settings_i.add_required_device_extension   = le_backend_vk_settings_add_required_device_extension;
-	backend_settings_i.add_required_instance_extension = le_backend_vk_settings_add_required_instance_extension;
-	backend_settings_i.add_swapchain_setting           = le_backend_vk_settings_add_swapchain_setting;
+	auto& backend_settings_i                                        = api_i->le_backend_settings_i;
+	backend_settings_i.add_required_device_extension                = le_backend_vk_settings_add_required_device_extension;
+	backend_settings_i.add_required_instance_extension              = le_backend_vk_settings_add_required_instance_extension;
+	backend_settings_i.add_swapchain_setting                        = le_backend_vk_settings_add_swapchain_setting;
+	backend_settings_i.get_requested_physical_device_features_chain = le_backend_vk_get_requested_physical_device_features_chain;
 
 	void** p_settings_singleton_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) );
 

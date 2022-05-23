@@ -55,6 +55,7 @@ struct VkBufferCreateInfo;
 struct VkMemoryRequirements;
 struct VkMemoryAllocateInfo;
 struct VkSpecializationMapEntry;
+struct VkPhysicalDeviceFeatures2;
 
 struct LeRenderPass;
 
@@ -93,9 +94,10 @@ struct le_backend_vk_api {
 
 	struct backend_vk_settings_interface_t // global settings for backend - must be set before backend setup- after that, settings are read-only.
 	{
-		bool ( *add_required_device_extension )( char const* ext );                 // returns true if successfully added - returns false if setting was already present
-		bool ( *add_required_instance_extension )( char const* ext );               // -"-
-		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings ); // gets cloned
+		bool ( *add_required_device_extension )( char const* ext );                           // returns true if successfully added - returns false if setting was already present
+		bool ( *add_required_instance_extension )( char const* ext );                         // -"-
+		VkPhysicalDeviceFeatures2 const* ( *get_requested_physical_device_features_chain )(); // readonly
+		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings );           // gets cloned
 
 		// we could expand this with requests for queues.
 	};
