@@ -1050,8 +1050,10 @@ static void backend_setup( le_backend_o* self ) {
 	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
 	vk::Instance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
 
+#ifdef LE_FEATURE_RTX
 	// -- query rtx properties, and store them with backend
 	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR&>( self->ray_tracing_props ) );
+#endif
 
 	// -- Create allocator for backend vulkan memory
 	// we do this here, because swapchain might want to already use the allocator.
