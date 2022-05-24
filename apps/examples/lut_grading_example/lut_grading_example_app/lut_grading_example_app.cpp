@@ -124,10 +124,10 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 
 	app_process_ui_events( self );
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 
 	// resource_manager uploads image data to gpu if image has not yet been uploaded.
-	self->resource_manager.update( mainModule );
+	self->resource_manager.update( renderGraph );
 
 	static auto src_image_texture = le::Renderer::produceTextureHandle( "src_image" );
 	static auto lut_image_texture = le::Renderer::produceTextureHandle( "color_lut_image" );
@@ -196,9 +196,9 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	        } ) //
 	    ;
 
-	mainModule.addRenderPass( renderPassMain );
+	renderGraph.addRenderPass( renderPassMain );
 
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
 

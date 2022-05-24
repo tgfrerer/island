@@ -172,7 +172,7 @@ static bool quad_template_app_update( quad_template_app_o* self ) {
 	// Process user interface events such as mouse, keyboard
 	app_process_ui_events( self );
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 	{
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
@@ -182,10 +182,10 @@ static bool quad_template_app_update( quad_template_app_o* self ) {
 		    .setExecuteCallback( self, pass_main_exec ) //
 		    ;
 
-		mainModule.addRenderPass( renderPassFinal );
+		renderGraph.addRenderPass( renderPassFinal );
 	}
 
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
 

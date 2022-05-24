@@ -659,10 +659,10 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 	self->timeDelta = 1000. / 60.;
 	self->timeStamp = now;
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 	{
 
-		self->resource_manager.update( mainModule );
+		self->resource_manager.update( renderGraph );
 
 		le::RenderPass resourcePass( "resources", LE_RENDER_PASS_TYPE_TRANSFER );
 		resourcePass
@@ -677,17 +677,17 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 		    .setExecuteCallback( self, pass_main_exec ) //
 		    ;
 
-		mainModule
+		renderGraph
 		    .addRenderPass( resourcePass )
 		    .addRenderPass( renderPassFinal );
-		mainModule
+		renderGraph
 		    .declareResource( self->worldGeometry.index_buffer_handle, self->worldGeometry.index_buffer_info )
 		    .declareResource( self->worldGeometry.vertex_buffer_handle, self->worldGeometry.vertex_buffer_info );
 	}
 
 	// Update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
 

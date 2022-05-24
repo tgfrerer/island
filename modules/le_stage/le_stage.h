@@ -8,7 +8,7 @@ struct le_renderer_o; // from le_renderer
 struct le_timebase_o; // from le_timebase
 
 struct le_stage_o;
-struct le_render_module_o;
+struct le_rendergraph_o;
 struct le_buffer_view_info;
 struct le_accessor_info;
 struct le_material_info;
@@ -61,8 +61,8 @@ struct le_stage_api {
 		void            ( * destroy ) ( le_stage_o* self );
 		void            ( * update  ) ( le_stage_o* self );
 		
-		void	        ( * update_rendermodule )(le_stage_o* self, le_render_module_o* module);
-		void            ( * draw_into_module )(draw_params_t* self, le_render_module_o* module, le_img_resource_handle color_attachment_image, le_img_resource_handle depth_stencil_attachment_image );
+		void	        ( * update_rendermodule )(le_stage_o* self, le_rendergraph_o* module);
+		void            ( * draw_into_module )(draw_params_t* self, le_rendergraph_o* module, le_img_resource_handle color_attachment_image, le_img_resource_handle depth_stencil_attachment_image );
 
 		void     (* setup_pipelines)(le_stage_o* self);
 

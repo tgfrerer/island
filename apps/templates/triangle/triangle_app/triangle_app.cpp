@@ -232,7 +232,7 @@ static bool app_update( app_o* self ) {
 	// update interactive camera using mouse data
 	app_process_ui_events( self );
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 	{
 
 		auto renderPassFinal =
@@ -241,10 +241,10 @@ static bool app_update( app_o* self ) {
 		        .setExecuteCallback( self, pass_main_exec ) //
 		    ;
 
-		mainModule.addRenderPass( renderPassFinal );
+		renderGraph.addRenderPass( renderPassFinal );
 	}
 
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
 

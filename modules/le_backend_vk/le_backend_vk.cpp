@@ -3245,7 +3245,6 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 
 			if ( PRINT_DEBUG_MESSAGES || true ) {
-				// logger.info( "Allocated resource: " );
 				printResourceInfo( resource, allocatedResource.info, "ALLOC" );
 			}
 
@@ -3311,7 +3310,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			}
 		}
 	} // end for all used resources
-	if ( PRINT_DEBUG_MESSAGES || true ) {
+	if ( PRINT_DEBUG_MESSAGES ) {
 		logger.info( "" );
 	}
 
@@ -5733,6 +5732,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	backend_settings_i.add_required_instance_extension              = le_backend_vk_settings_add_required_instance_extension;
 	backend_settings_i.add_swapchain_setting                        = le_backend_vk_settings_add_swapchain_setting;
 	backend_settings_i.get_requested_physical_device_features_chain = le_backend_vk_get_requested_physical_device_features_chain;
+	backend_settings_i.set_concurrency_count                        = le_backend_vk_settings_set_concurrency_count;
 
 	void** p_settings_singleton_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) );
 

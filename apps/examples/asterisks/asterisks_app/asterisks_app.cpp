@@ -1279,7 +1279,7 @@ static bool app_update( app_o* self ) {
 
 	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 	{
 
 		auto renderpass_main =
@@ -1289,12 +1289,12 @@ static bool app_update( app_o* self ) {
 		        .setExecuteCallback( self, render_pass_main_exec ) //
 		    ;
 
-		mainModule
+		renderGraph
 		    .addRenderPass( renderpass_main );
 	}
 
 	// Evaluate rendergraph and execute render callbacks for renderpasses
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
 

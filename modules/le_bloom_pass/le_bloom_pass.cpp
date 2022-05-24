@@ -14,7 +14,7 @@
 
 static void
 le_render_module_add_blit_pass(
-    le_render_module_o*           module,
+    le_rendergraph_o*           module,
     le_img_resource_handle const& input,
     le_img_resource_handle const& output ) {
 
@@ -50,12 +50,12 @@ le_render_module_add_blit_pass(
 	    ;
 
 	using namespace le_renderer;
-	render_module_i.add_renderpass( module, passBlit );
+	rendergraph_i.add_renderpass( module, passBlit );
 }
 
 static void
 le_render_module_add_bloom_pass(
-    le_render_module_o*           module,
+    le_rendergraph_o*           module,
     le_img_resource_handle const& input,
     le_img_resource_handle const& output,
     uint32_t const&               width,
@@ -260,7 +260,7 @@ le_render_module_add_bloom_pass(
 	{
 		using namespace le_renderer;
 
-		render_module_i.add_renderpass( module, passHighPass );
+		rendergraph_i.add_renderpass( module, passHighPass );
 
 		uint32_t w = width;
 		uint32_t h = height;
@@ -295,8 +295,8 @@ le_render_module_add_bloom_pass(
 
 			source_info = targets_blur_v[ i ].info;
 
-			render_module_i.add_renderpass( module, passBlurHorizontal );
-			render_module_i.add_renderpass( module, passBlurVertical );
+			rendergraph_i.add_renderpass( module, passBlurHorizontal );
+			rendergraph_i.add_renderpass( module, passBlurVertical );
 		}
 
 		auto passCombine =
@@ -309,7 +309,7 @@ le_render_module_add_bloom_pass(
 		        .addColorAttachment( output, LOAD_LOAD ) // color attachment
 		        .setExecuteCallback( params, combine_render_fun );
 
-		render_module_i.add_renderpass( module, passCombine );
+		rendergraph_i.add_renderpass( module, passCombine );
 	}
 }
 

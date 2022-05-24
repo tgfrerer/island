@@ -74,7 +74,7 @@ when you specify the image info for the resource
 #include "le_core.h"
 
 struct le_resource_manager_o;
-struct le_render_module_o; // ffdecl. (from le_renderer)
+struct le_rendergraph_o; // ffdecl. (from le_renderer)
 struct le_resource_info_t; // ffdecl. (from le_renderer)
 
 LE_OPAQUE_HANDLE( le_img_resource_handle ); // declared in le_renderer.h
@@ -86,7 +86,7 @@ struct le_resource_manager_api {
 
 		le_resource_manager_o *  ( * create    ) ( );
 		void                     ( * destroy   ) ( le_resource_manager_o* self );
-		void                     ( * update    ) ( le_resource_manager_o* self, le_render_module_o* module );
+		void                     ( * update    ) ( le_resource_manager_o* self, le_rendergraph_o* module );
         void                     ( * add_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle, le_resource_info_t const * image_info, char const * const * arr_image_paths);
 
 	};
@@ -118,7 +118,7 @@ class LeResourceManager : NoCopy, NoMove {
 		le_resource_manager::le_resource_manager_i.destroy( self );
 	}
 
-	void update( le_render_module_o* module ) {
+	void update( le_rendergraph_o* module ) {
 		le_resource_manager::le_resource_manager_i.update( self, module );
 	}
 

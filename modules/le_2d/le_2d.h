@@ -16,7 +16,7 @@
 struct le_2d_o;
 
 struct le_renderer_o;
-struct le_render_module_o;
+struct le_rendergraph_o;
 struct le_renderpass_o;
 struct le_rendergraph_o;
 struct le_command_buffer_encoder_o;

@@ -372,7 +372,7 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 
 	compute_example_app_process_ui_events( self );
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 	{
 		// This pass will typically only get executed once - it will upload
 		// buffers .
@@ -390,7 +390,7 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 		        .setExecuteCallback( self, pass_draw_exec )
 		        .setSampleCount( le::SampleCountFlagBits::e8 );
 
-		mainModule
+		renderGraph
 		    .addRenderPass( passInitialise )
 		    .addRenderPass( passCompute )
 		    .addRenderPass( passDraw )
@@ -407,7 +407,7 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 		    ;
 	}
 
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
 	self->anim_frame += self->anim_speed;

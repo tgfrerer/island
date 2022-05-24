@@ -6,7 +6,7 @@
 struct le_font_renderer_o;
 struct le_font_o;
 struct le_renderer_o;
-struct le_render_module_o;
+struct le_rendergraph_o;
 struct le_renderpass_o;
 struct le_command_buffer_encoder_o;
 
@@ -35,7 +35,7 @@ struct le_font_renderer_api {
 
 		void                   (* add_font               )( le_font_renderer_o* self, le_font_o* font );
 
-		bool                   (* setup_resources        )( le_font_renderer_o* self, le_render_module_o* module );
+		bool                   (* setup_resources        )( le_font_renderer_o* self, le_rendergraph_o* module );
 		bool                   (* use_fonts              )( le_font_renderer_o* self, le_font_o**, size_t num_fonts, le_renderpass_o* pass);
 
 		bool (*draw_string)( le_font_renderer_o* self, le_font_o* font, le_command_buffer_encoder_o* encoder, draw_string_info_t  & info );

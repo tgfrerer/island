@@ -79,9 +79,9 @@ static void le_imgui_end_frame( le_imgui_o* self ) {
 /// Setup key mappings
 /// Upload any resources which need uploading
 ///
-static void le_imgui_setup_gui_resources( le_imgui_o* self, le_render_module_o* p_render_module, float display_width, float display_height ) {
+static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* render_graph, float display_width, float display_height ) {
 
-	auto module = le::RenderModule{ p_render_module };
+	auto module = le::RenderGraph{ render_graph };
 
 	if ( self->areResourcesInitialised ) {
 

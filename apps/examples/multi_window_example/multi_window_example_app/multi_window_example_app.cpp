@@ -408,7 +408,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 
 	using namespace le_renderer;
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 	{
 
 		le_image_attachment_info_t attachmentInfo[ 2 ];
@@ -443,12 +443,12 @@ static bool app_update( multi_window_example_app_o* self ) {
 		        .setIsRoot( true ) // IMPORTANT!
 		    ;
 
-		mainModule
+		renderGraph
 		    .addRenderPass( renderPassMain )
 		    .addRenderPass( renderPassSecond );
 	}
 
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	return true; // keep app alive
 }

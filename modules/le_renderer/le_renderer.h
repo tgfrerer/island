@@ -7,7 +7,6 @@
 extern const uint64_t LE_RENDERPASS_MARKER_EXTERNAL; // set in le_renderer.cpp
 
 struct le_renderer_o;
-struct le_render_module_o;
 struct le_renderpass_o;
 struct le_rendergraph_o;
 struct le_command_buffer_encoder_o;
@@ -35,7 +34,7 @@ struct le_renderer_api {
 		le_renderer_o *                ( *create                  )( );
 		void                           ( *destroy                 )( le_renderer_o *obj );
 		void                           ( *setup                   )( le_renderer_o *obj, le_renderer_settings_t const & settings );
-		void                           ( *update                  )( le_renderer_o *obj, le_render_module_o *module );
+		void                           ( *update                  )( le_renderer_o *obj, le_rendergraph_o *rendergraph);
 
         le_renderer_settings_t const * ( *get_settings            )( le_renderer_o* self );
 
@@ -110,26 +109,23 @@ struct le_renderer_api {
 		void                         ( *get_texture_infos     )(le_renderpass_o* obj, le_image_sampler_info_t const ** pInfos, uint64_t* count);
 	};
 
-	struct rendermodule_interface_t {
-		le_render_module_o * ( *create           )();
-		void                 ( *destroy          )( le_render_module_o *self );
-		void                 ( *add_renderpass   )( le_render_module_o *self, le_renderpass_o *rp );
-		void                 ( *setup_passes     )( le_render_module_o *self, le_rendergraph_o *gb );
-		void                 ( *declare_resource )( le_render_module_o *self, le_resource_handle const & resource_id, le_resource_info_t const & info);
+	// Graph builder builds a graph for a rendergraph
+	struct rendergraph_interface_t {
+		le_rendergraph_o *   ( *create           ) ( );
+		void                 ( *destroy          ) ( le_rendergraph_o *self );
+		void                 ( *reset            ) ( le_rendergraph_o *self );
+		void                 ( *add_renderpass   ) ( le_rendergraph_o *self, le_renderpass_o *rp );
+		void                 ( *declare_resource ) ( le_rendergraph_o *self, le_resource_handle const & resource_id, le_resource_info_t const & info);
 	};
 
-	// Graph builder builds a graph for a module
-	struct rendergraph_interface_t {
-		le_rendergraph_o *   ( *create                 ) ();
-		void                 ( *destroy                ) ( le_rendergraph_o *self );
-		void                 ( *reset                  ) ( le_rendergraph_o *self );
-
+	struct rendergraph_private_interface_t {
 		void                 ( *build                  ) ( le_rendergraph_o *self, size_t frameNumber );
 		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
-
+		void                 ( *setup_passes           ) ( le_rendergraph_o *self, le_rendergraph_o *gb );
 		void                 ( *get_passes             ) ( le_rendergraph_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses );
 		void                 ( *get_declared_resources ) ( le_rendergraph_o *self, le_resource_handle const **p_resource_handles, le_resource_info_t const **p_resource_infos, size_t *p_resource_count );
-	};
+
+    };
 
 	struct command_buffer_encoder_interface_t {
 
@@ -202,8 +198,8 @@ struct le_renderer_api {
 
 	renderer_interface_t               le_renderer_i;
 	renderpass_interface_t             le_renderpass_i;
-	rendermodule_interface_t           le_render_module_i;
 	rendergraph_interface_t            le_rendergraph_i;
+	rendergraph_private_interface_t    le_rendergraph_private_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
 	helpers_interface_t                helpers_i;
 };
@@ -217,12 +213,11 @@ LE_MODULE_LOAD_DEFAULT( le_renderer );
 namespace le_renderer {
 static const auto& api = le_renderer_api_i;
 
-static const auto& renderer_i      = api->le_renderer_i;
-static const auto& renderpass_i    = api->le_renderpass_i;
-static const auto& render_module_i = api->le_render_module_i;
-static const auto& rendergraph_i   = api->le_rendergraph_i;
-static const auto& encoder_i       = api->le_command_buffer_encoder_i;
-static const auto& helpers_i       = api->helpers_i;
+static const auto& renderer_i    = api->le_renderer_i;
+static const auto& renderpass_i  = api->le_renderpass_i;
+static const auto& rendergraph_i = api->le_rendergraph_i;
+static const auto& encoder_i     = api->le_command_buffer_encoder_i;
+static const auto& helpers_i     = api->helpers_i;
 
 } // namespace le_renderer
 
@@ -249,8 +244,8 @@ class Renderer {
 		le_renderer::renderer_i.setup( self, le::RendererInfoBuilder( window ).build() );
 	}
 
-	void update( le_render_module_o* module ) {
-		le_renderer::renderer_i.update( self, module );
+	void update( le_rendergraph_o* rendergraph ) {
+		le_renderer::renderer_i.update( self, rendergraph );
 	}
 
 	le_renderer_settings_t const& getSettings() const noexcept {
@@ -437,24 +432,24 @@ class RenderPass {
 
 // ----------------------------------------------------------------------
 
-class RenderModule {
+class RenderGraph {
 
-	le_render_module_o* self;
-	bool                is_reference = false;
+	le_rendergraph_o* self;
+	bool              is_reference = false;
 
   public:
-	RenderModule()
-	    : self( le_renderer::render_module_i.create() ) {
+	RenderGraph()
+	    : self( le_renderer::rendergraph_i.create() ) {
 	}
 
-	RenderModule( le_render_module_o* self_ )
+	RenderGraph( le_rendergraph_o* self_ )
 	    : self( self_ )
 	    , is_reference( true ) {
 	}
 
-	~RenderModule() {
+	~RenderGraph() {
 		if ( !is_reference ) {
-			le_renderer::render_module_i.destroy( self );
+			le_renderer::rendergraph_i.destroy( self );
 		}
 	}
 
@@ -462,13 +457,13 @@ class RenderModule {
 		return self;
 	}
 
-	RenderModule& addRenderPass( le_renderpass_o* renderpass ) {
-		le_renderer::render_module_i.add_renderpass( self, renderpass );
+	RenderGraph& addRenderPass( le_renderpass_o* renderpass ) {
+		le_renderer::rendergraph_i.add_renderpass( self, renderpass );
 		return *this;
 	}
 
-	RenderModule& declareResource( le_resource_handle const& resource_id, le_resource_info_t const& info ) {
-		le_renderer::render_module_i.declare_resource( self, resource_id, info );
+	RenderGraph& declareResource( le_resource_handle const& resource_id, le_resource_info_t const& info ) {
+		le_renderer::rendergraph_i.declare_resource( self, resource_id, info );
 		return *this;
 	}
 };
@@ -492,7 +487,7 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder& setCreateFlags( uint32_t flags = 0 ) {
+	ImageInfoBuilder& setCreateFlags( le::ImageCreateFlags flags = 0 ) {
 		img.flags = flags;
 		return *this;
 	}

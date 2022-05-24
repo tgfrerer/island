@@ -1489,7 +1489,7 @@ static void pass_xfer_resources( le_command_buffer_encoder_o* encoder_, void* us
 /// knows which resources are needed to render the stage.
 /// There are two resource types which potentially need uploading: buffers,
 /// and images.
-static void le_stage_update_render_module( le_stage_o* stage, le_render_module_o* module ) {
+static void le_stage_update_render_module( le_stage_o* stage, le_rendergraph_o* module ) {
 
 	using namespace le_renderer;
 
@@ -1501,30 +1501,30 @@ static void le_stage_update_render_module( le_stage_o* stage, le_render_module_o
 	// declare buffers
 	//
 	for ( auto& b : stage->buffers ) {
-		render_module_i.declare_resource( module, b->handle, b->resource_info );
+		rendergraph_i.declare_resource( module, b->handle, b->resource_info );
 	}
 
 	// declare images
 	//
 	for ( auto& img : stage->images ) {
-		render_module_i.declare_resource( module, img->handle, img->resource_info );
+		rendergraph_i.declare_resource( module, img->handle, img->resource_info );
 	}
 
 	// declare rtx blas resources
 
 	for ( auto& msh : stage->meshes ) {
 		for ( auto& p : msh.primitives ) {
-			render_module_i.declare_resource( module, p.rtx_blas_handle, p.rtx_blas_info );
+			rendergraph_i.declare_resource( module, p.rtx_blas_handle, p.rtx_blas_info );
 		}
 	}
 
 	// declare rtx tlas resources
 
 	for ( auto& s : stage->scenes ) {
-		render_module_i.declare_resource( module, s.rtx_tlas_handle, s.rtx_tlas_info );
+		rendergraph_i.declare_resource( module, s.rtx_tlas_handle, s.rtx_tlas_info );
 	}
 
-	render_module_i
+	rendergraph_i
 	    .add_renderpass( module, rp );
 
 #ifdef LE_FEATURE_RTX
@@ -1647,7 +1647,7 @@ static void le_stage_update_render_module( le_stage_o* stage, le_render_module_o
 		        }
 	        } );
 
-	render_module_i
+	rendergraph_i
 	    .add_renderpass( module, cp );
 #endif
 }
@@ -1972,7 +1972,7 @@ static void pass_draw( le_command_buffer_encoder_o* encoder_, void* user_data ) 
 /// knows which resources are needed to render the stage.
 /// There are two resource types which potentially need uploading: buffers,
 /// and images.
-static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_params, le_render_module_o* module, le_img_resource_handle color_attachment_image, le_img_resource_handle depth_stencil_attachment_image ) {
+static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_params, le_rendergraph_o* module, le_img_resource_handle color_attachment_image, le_img_resource_handle depth_stencil_attachment_image ) {
 
 	using namespace le_renderer;
 
@@ -2102,7 +2102,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 			        .addUsageFlags( le::ImageUsageFlagBits::eStorage | le::ImageUsageFlagBits::eSampled )
 			        .build();
 
-			render_module_i.declare_resource( module, RTX_IMAGE_TARGET_HANDLE, rtx_target_info );
+			rendergraph_i.declare_resource( module, RTX_IMAGE_TARGET_HANDLE, rtx_target_info );
 
 			// -- Signal that we want to read from bottom-level acceleration structures.
 
@@ -2119,7 +2119,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 			}
 		}
 
-		render_module_i.add_renderpass( module, rtx_pass );
+		rendergraph_i.add_renderpass( module, rtx_pass );
 	}
 
 #endif
@@ -2151,7 +2151,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 		                      } );
 	}
 
-	render_module_i.add_renderpass( module, stage_draw_pass );
+	rendergraph_i.add_renderpass( module, stage_draw_pass );
 }
 
 /// \brief initialises pipeline state objects associated with each primitive

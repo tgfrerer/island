@@ -88,14 +88,6 @@ struct le_renderpass_o {
 
 // ----------------------------------------------------------------------
 
-struct le_render_module_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>   passes;
-	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
-};
-
-// ----------------------------------------------------------------------
-
 struct le_rendergraph_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o*>   passes;                  //
 	std::vector<uint32_t>           sortIndices;             // One index for each pass
@@ -492,8 +484,7 @@ static void rendergraph_destroy( le_rendergraph_o* self ) {
 // ----------------------------------------------------------------------
 
 static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o* renderpass ) {
-
-	self->passes.push_back( renderpass ); // Note: We receive ownership of the pass here. We must destroy it.
+	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the pass here. We must destroy it.
 }
 
 /// \brief Tag any tasks which contribute to any root task
@@ -1134,35 +1125,13 @@ static void rendergraph_get_declared_resources( le_rendergraph_o* self, le_resou
 }
 
 // ----------------------------------------------------------------------
-
-static le_render_module_o* render_module_create() {
-	auto obj = new le_render_module_o();
-	return obj;
-}
-
-// ----------------------------------------------------------------------
-
-static void render_module_destroy( le_render_module_o* self ) {
-	delete self;
-}
-
-// ----------------------------------------------------------------------
-
-// TODO: make sure name for each pass is unique per rendermodule.
-static void render_module_add_renderpass( le_render_module_o* self, le_renderpass_o* pass ) {
-	// Note: we clone the pass here, as we can't be sure that the original pass will not fall out of scope
-	// and be destroyed.
-	self->passes.push_back( renderpass_clone( pass ) );
-}
-
-// ----------------------------------------------------------------------
 // Builds rendergraph from render_module, calls `setup` callbacks on each renderpass which provides a
 // `setup` callback.
 // If renderpass provides a setup method, pass is only added to rendergraph if its setup
 // method returns true. Discards contents of render_module at end.
-static void render_module_setup_passes( le_render_module_o* self, le_rendergraph_o* rendergraph_ ) {
+static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rendergraph_o* dst_rendergraph ) {
 
-	for ( auto& pass : self->passes ) {
+	for ( auto& pass : src_rendergraph->passes ) {
 		// Call setup function on all passes, in order of addition to module
 		//
 		// Setup Function must:
@@ -1173,29 +1142,29 @@ static void render_module_setup_passes( le_render_module_o* self, le_rendergraph
 		if ( renderpass_has_setup_callback( pass ) ) {
 			if ( renderpass_run_setup_callback( pass ) ) {
 				// if pass.setup() returns true, this means we shall add this pass to the graph
-				// This means a transfer of ownership for pass: pass moves from module into graph_builder
-				rendergraph_add_renderpass( rendergraph_, pass );
+				// This means a transfer of ownership for pass: pass moves from into graph_builder
+				dst_rendergraph->passes.push_back( pass );
 				pass = nullptr;
 			} else {
 				renderpass_destroy( pass );
 				pass = nullptr;
 			}
 		} else {
-			rendergraph_add_renderpass( rendergraph_, pass );
+			dst_rendergraph->passes.push_back( pass );
 			pass = nullptr;
 		}
 	}
 
 	// Move any resource ids and resource infos from module into rendergraph
-	rendergraph_->declared_resources_id   = std::move( self->declared_resources_id );
-	rendergraph_->declared_resources_info = std::move( self->declared_resources_info );
+	dst_rendergraph->declared_resources_id   = std::move( src_rendergraph->declared_resources_id );
+	dst_rendergraph->declared_resources_info = std::move( src_rendergraph->declared_resources_info );
 
-	self->passes.clear();
+	src_rendergraph->passes.clear();
 };
 
 // ----------------------------------------------------------------------
 
-static void render_module_declare_resource( le_render_module_o* self, le_resource_handle const& resource_id, le_resource_info_t const& info ) {
+static void rendergraph_declare_resource( le_rendergraph_o* self, le_resource_handle const& resource_id, le_resource_info_t const& info ) {
 	self->declared_resources_id.emplace_back( resource_id );
 	self->declared_resources_info.emplace_back( info );
 }
@@ -1206,21 +1175,19 @@ void register_le_rendergraph_api( void* api_ ) {
 
 	auto le_renderer_api_i = static_cast<le_renderer_api*>( api_ );
 
-	auto& le_render_module_i            = le_renderer_api_i->le_render_module_i;
-	le_render_module_i.create           = render_module_create;
-	le_render_module_i.destroy          = render_module_destroy;
-	le_render_module_i.add_renderpass   = render_module_add_renderpass;
-	le_render_module_i.setup_passes     = render_module_setup_passes;
-	le_render_module_i.declare_resource = render_module_declare_resource;
+	auto& le_rendergraph_i            = le_renderer_api_i->le_rendergraph_i;
+	le_rendergraph_i.create           = rendergraph_create;
+	le_rendergraph_i.destroy          = rendergraph_destroy;
+	le_rendergraph_i.reset            = rendergraph_reset;
+	le_rendergraph_i.add_renderpass   = rendergraph_add_renderpass;
+	le_rendergraph_i.declare_resource = rendergraph_declare_resource;
 
-	auto& le_rendergraph_i                  = le_renderer_api_i->le_rendergraph_i;
-	le_rendergraph_i.create                 = rendergraph_create;
-	le_rendergraph_i.destroy                = rendergraph_destroy;
-	le_rendergraph_i.reset                  = rendergraph_reset;
-	le_rendergraph_i.build                  = rendergraph_build;
-	le_rendergraph_i.execute                = rendergraph_execute;
-	le_rendergraph_i.get_passes             = rendergraph_get_passes;
-	le_rendergraph_i.get_declared_resources = rendergraph_get_declared_resources;
+	auto& le_rendergraph_private_i                  = le_renderer_api_i->le_rendergraph_private_i;
+	le_rendergraph_private_i.setup_passes           = rendergraph_setup_passes;
+	le_rendergraph_private_i.build                  = rendergraph_build;
+	le_rendergraph_private_i.execute                = rendergraph_execute;
+	le_rendergraph_private_i.get_passes             = rendergraph_get_passes;
+	le_rendergraph_private_i.get_declared_resources = rendergraph_get_declared_resources;
 
 	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
 	le_renderpass_i.create                       = renderpass_create;

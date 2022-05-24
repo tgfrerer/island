@@ -99,6 +99,7 @@ struct le_backend_vk_api {
 		VkPhysicalDeviceFeatures2 const* ( *get_requested_physical_device_features_chain )(); // readonly
 		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings );           // gets cloned
 
+		void ( *set_concurrency_count )( uint32_t concurrency_count );
 		// we could expand this with requests for queues.
 	};
 

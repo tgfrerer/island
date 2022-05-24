@@ -125,13 +125,13 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 // ----------------------------------------------------------------------
 
-static void le_resource_manager_update( le_resource_manager_o* manager, le_render_module_o* module ) {
+static void le_resource_manager_update( le_resource_manager_o* manager, le_rendergraph_o* module ) {
 	using namespace le_renderer;
 
 	// TODO: reload any images if you detect that their source on disk has changed.
 
 	for ( auto& r : manager->resources ) {
-		render_module_i.declare_resource( module, r.image_handle, r.image_info );
+		rendergraph_i.declare_resource( module, r.image_handle, r.image_info );
 	}
 
 	auto renderPassTransfer =
@@ -140,7 +140,7 @@ static void le_resource_manager_update( le_resource_manager_o* manager, le_rende
 	        .setExecuteCallback( manager, execTransferPass ) //
 	    ;
 
-	render_module_i.add_renderpass( module, renderPassTransfer );
+	rendergraph_i.add_renderpass( module, renderPassTransfer );
 }
 
 // ----------------------------------------------------------------------

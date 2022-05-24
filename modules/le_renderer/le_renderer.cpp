@@ -383,7 +383,7 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 		}
 
 #if ( LE_MT > 0 )
-		backend_settings.concurrency_count = LE_MT;
+		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
 #endif
 
 		vk_backend_i.setup( self->backend );
@@ -458,7 +458,7 @@ static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_render_module_o* module_, size_t frameNumber ) {
+static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_rendergraph_o* graph_, size_t frameNumber ) {
 
 	// High-level
 	// - resolve rendergraph: which render passes do contribute?
@@ -481,17 +481,17 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	// setup passes calls `setup` callback on all passes - this initalises virtual resources,
 	// and stores their descriptors (information needed to allocate physical resources)
 	//
-	using namespace le_renderer; // for render_module_i, rendergraph_i
-	render_module_i.setup_passes( module_, frame.rendergraph );
+	using namespace le_renderer; // for rendergraph_i, rendergraph_i
+	le_renderer::api->le_rendergraph_private_i.setup_passes( graph_, frame.rendergraph );
 
 	// find out which renderpasses contribute, only add contributing render passes to
 	// frameBuilder
-	rendergraph_i.build( frame.rendergraph, frameNumber );
+	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
 	// Execute callbacks into main application for each render pass,
 	// build command lists per render pass in intermediate, api-agnostic representation
 	//
-	rendergraph_i.execute( frame.rendergraph, frameIndex, self->backend );
+	le_renderer::api->le_rendergraph_private_i.execute( frame.rendergraph, frameIndex, self->backend );
 
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -524,13 +524,13 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	le_renderpass_o** passes          = nullptr;
 	size_t            numRenderPasses = 0;
 
-	rendergraph_i.get_passes( frame.rendergraph, &passes, &numRenderPasses );
+	le_renderer::api->le_rendergraph_private_i.get_passes( frame.rendergraph, &passes, &numRenderPasses );
 
 	le_resource_handle const* declared_resources;
 	le_resource_info_t const* declared_resources_infos;
 	size_t                    declared_resources_count = 0;
 
-	rendergraph_i.get_declared_resources(
+	le_renderer::api->le_rendergraph_private_i.get_declared_resources(
 	    frame.rendergraph,
 	    &declared_resources,
 	    &declared_resources_infos,
@@ -656,7 +656,7 @@ static void renderer_get_swapchain_extent( le_renderer_o* self, uint32_t index, 
 
 // ----------------------------------------------------------------------
 
-static void renderer_update( le_renderer_o* self, le_render_module_o* module_ ) {
+static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 
 	using namespace le_backend_vk;
 
@@ -693,7 +693,7 @@ static void renderer_update( le_renderer_o* self, le_render_module_o* module_ ) 
 		struct record_params_t {
 			le_renderer_o*      renderer;
 			size_t              frame_index;
-			le_render_module_o* module;
+			le_rendergraph_o*   rendergraph;
 			size_t              current_frame_number;
 			le_jobs::counter_t* shader_counter;
 		};
@@ -703,7 +703,7 @@ static void renderer_update( le_renderer_o* self, le_render_module_o* module_ ) 
 			// generate an intermediary, api-agnostic, representation of the frame
 
 			le_jobs::wait_for_counter_and_free( p->shader_counter, 0 );
-			renderer_record_frame( p->renderer, p->frame_index, p->module, p->current_frame_number );
+			renderer_record_frame( p->renderer, p->frame_index, p->rendergraph, p->current_frame_number );
 		};
 
 		auto process_frame_fun = []( void* param_ ) {
@@ -727,7 +727,7 @@ static void renderer_update( le_renderer_o* self, le_render_module_o* module_ ) 
 		record_params_t record_frame_params;
 		record_frame_params.renderer             = self;
 		record_frame_params.frame_index          = ( index + 0 ) % numFrames;
-		record_frame_params.module               = module_;
+		record_frame_params.rendergraph          = graph_;
 		record_frame_params.current_frame_number = self->currentFrameNumber;
 		record_frame_params.shader_counter       = shader_counter;
 
@@ -757,7 +757,7 @@ static void renderer_update( le_renderer_o* self, le_render_module_o* module_ ) 
 
 		// render on the main thread
 
-		renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
+		renderer_record_frame( self, ( index + 0 ) % numFrames, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 
 		// acquire external backend resources such as swapchain
 		// and create any temporary resources

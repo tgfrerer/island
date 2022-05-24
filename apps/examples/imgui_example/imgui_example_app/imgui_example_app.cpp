@@ -172,10 +172,10 @@ static bool imgui_example_app_update( imgui_example_app_o* self ) {
 	uint32_t swapchainWidth = 0, swapchainHeight = 0;
 	self->renderer.getSwapchainExtent( &swapchainWidth, &swapchainHeight );
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 	{
 
-		le_imgui::le_imgui_i.setup_resources( self->gui, mainModule, float( swapchainWidth ), float( swapchainHeight ) );
+		le_imgui::le_imgui_i.setup_resources( self->gui, renderGraph, float( swapchainWidth ), float( swapchainHeight ) );
 
 		le::RenderPass passToScreen( "root", LE_RENDER_PASS_TYPE_DRAW );
 
@@ -221,10 +221,10 @@ static bool imgui_example_app_update( imgui_example_app_o* self ) {
 
 		le_imgui::le_imgui_i.draw( self->gui, passToScreen );
 
-		mainModule.addRenderPass( passToScreen );
+		renderGraph.addRenderPass( passToScreen );
 	}
 
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
 

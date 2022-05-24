@@ -1,12 +1,12 @@
 // these includes are only used for code completion
-// #include "le_backend_vk.h"
-// #include "le_hash_util.h"
-// #include "le_log.h"
-// #include <atomic>
-// #include <set>
-// #include <vector>
-// #include <string>
-// #include <vulkan/vulkan.hpp>
+#include "le_backend_vk.h"
+#include "le_hash_util.h"
+#include "le_log.h"
+#include <atomic>
+#include <set>
+#include <vector>
+#include <string>
+#include <vulkan/vulkan.hpp>
 
 struct le_backend_vk_settings_o {
 	std::set<std::string> required_instance_extensions_set; // we use set to give us permanent addresses for char*, and to ensure uniqueness of requested extensions
@@ -96,6 +96,12 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	    .setShaderFloat64( true )                  //
 	    ;
 
+#ifdef LE_FEATURE_VIDEO
+	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_VIDEO_QUEUE_EXTENSION_NAME );
+	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_VIDEO_DECODE_QUEUE_EXTENSION_NAME );
+	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
+#endif
+
 #ifdef LE_FEATURE_RTX
 	self->requested_device_features.get<vk::PhysicalDeviceVulkan12Features>()
 	    .setBufferDeviceAddress( true ) // needed for rtx
@@ -151,6 +157,13 @@ static bool le_backend_vk_settings_add_required_instance_extension( char const* 
 static bool le_backend_vk_settings_add_required_device_extension( char const* ext ) {
 	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
 	return le_backend_vk_settings_add_required_device_extension( self, ext );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_backend_vk_settings_set_concurrency_count( uint32_t concurrency_count ) {
+	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
+	self->concurrency_count        = concurrency_count;
 }
 
 // ----------------------------------------------------------------------

@@ -499,7 +499,7 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 
 	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
 
-	le::RenderModule mainModule{};
+	le::RenderGraph renderGraph{};
 	{
 		auto pass_noise =
 		    le::RenderPass( "initialize", LE_RENDER_PASS_TYPE_TRANSFER )
@@ -522,7 +522,7 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
 		        .setExecuteCallback( self, pass_draw_exec );
 
-		mainModule
+		renderGraph
 		    .addRenderPass( pass_noise )        // initialise buffer with noise data if requested
 		    .addRenderPass( pass_upload_image ) // upload image data to buffer if requested
 		    .addRenderPass( pass_compute )      // sort buffer if needed
@@ -530,7 +530,7 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 
 		// We must make sure that the engine knows how much space to allocate for our
 		// pixels data buffer - this is why we explicitly declare this buffer resource:
-		mainModule
+		renderGraph
 		    .declareResource(
 		        self->pixels_data->handle,
 		        le::BufferInfoBuilder()
@@ -541,7 +541,7 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 		            .build() );
 	}
 
-	self->renderer.update( mainModule );
+	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
 

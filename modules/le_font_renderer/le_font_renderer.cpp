@@ -119,7 +119,7 @@ le_img_resource_handle le_font_renderer_get_font_image( le_font_renderer_o* self
 
 // ----------------------------------------------------------------------
 
-bool le_font_renderer_setup_resources( le_font_renderer_o* self, le_render_module_o* module ) {
+bool le_font_renderer_setup_resources( le_font_renderer_o* self, le_rendergraph_o* module ) {
 
 	auto resource_upload_pass =
 	    le::RenderPass( "uploadImage", LE_RENDER_PASS_TYPE_TRANSFER )
@@ -130,7 +130,7 @@ bool le_font_renderer_setup_resources( le_font_renderer_o* self, le_render_modul
 		        bool needs_upload = false; // If any atlasses need upload this must flip to true.
 
 		        for ( auto& fnt : self->fonts_info ) {
-			        rp.useImageResource( fnt.font_image, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } );
+			        rp.useImageResource( fnt.font_image, le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) );
 			        needs_upload |= !fnt.atlas_uploaded;
 		        }
 
@@ -164,11 +164,11 @@ bool le_font_renderer_setup_resources( le_font_renderer_o* self, le_render_modul
 	using namespace le_renderer;
 
 	// -- upload resources if needed
-	render_module_i.add_renderpass( module, resource_upload_pass );
+	rendergraph_i.add_renderpass( module, resource_upload_pass );
 
 	// -- make resource names visible to rendergraph
 	for ( auto& fnt : self->fonts_info ) {
-		render_module_i.declare_resource( module, fnt.font_image, fnt.font_atlas_info );
+		rendergraph_i.declare_resource( module, fnt.font_image, fnt.font_atlas_info );
 	}
 
 	return true;
