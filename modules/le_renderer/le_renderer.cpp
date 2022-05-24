@@ -5,6 +5,7 @@
 
 #include "le_backend_vk.h"
 #include "le_swapchain_vk.h"
+#include "le_log.h"
 
 #include <iostream>
 #include <iomanip>
@@ -619,8 +620,8 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	} else {
 
-		std::cout << "NOTICE: Present failed on frame: " << std::dec << frame.frameNumber << std::endl
-		          << std::flush;
+		static auto logger = le::Log( "le_renderer" );
+		logger.warn( "Present failed on frame: %d", frame.frameNumber );
 
 		// Present was not successful -
 		//
