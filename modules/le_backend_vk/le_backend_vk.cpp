@@ -1509,16 +1509,8 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) ) {
 						// this is an image write operation.
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
-						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
 						requestedState.write_stage    = vk::PipelineStageFlagBits::eVertexShader;
-
-						//						continue;
-
-						// TODO: implement - and make sure we're still compatible with the barriers inserted
-						// when processing le::CommandType::eWriteToImage.
-						//						requestedState.visible_access = vk::AccessFlagBits::eTransferWrite;
-						//						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
-						//						requestedState.layout         = vk::ImageLayout::eTransferDstOptimal;
+						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
 
 					} else {
 						continue;
@@ -1776,14 +1768,10 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 	                                      vk::AccessFlagBits::eMemoryWrite |
 	                                      vk::AccessFlagBits::eShaderWrite |
 	                                      vk::AccessFlagBits::eTransferWrite |
-	                                      vk::AccessFlagBits::eAccelerationStructureWriteKHR |
-	                                      vk::AccessFlagBits::eAccelerationStructureWriteKHR |
 	                                      vk::AccessFlagBits::eCommandPreprocessWriteNV |
 	                                      vk::AccessFlagBits::eTransformFeedbackCounterWriteEXT );
 
-	// for each attachment, we want to keep track of its last used sync state
-	// so that we may know whether to issue a barrier or not.
-
+	// Note: This should be trivial to parallelize.
 	for ( auto& pass : frame.passes ) {
 
 		// The rest of this loop only concerns draw passes
@@ -1797,9 +1785,9 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 		std::vector<vk::AttachmentDescription> attachments;
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
-		std::vector<vk::AttachmentReference>     colorAttachmentReferences;
-		std::vector<vk::AttachmentReference>     resolveAttachmentReferences;
-		std::unique_ptr<vk::AttachmentReference> dsAttachmentReference;
+		std::vector<vk::AttachmentReference> colorAttachmentReferences;
+		std::vector<vk::AttachmentReference> resolveAttachmentReferences;
+		vk::AttachmentReference*             dsAttachmentReference = nullptr;
 
 		// We must accumulate these flags over all attachments - they are the
 		// union of all flags required by all attachments in a pass.
@@ -1862,7 +1850,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 
 			switch ( attachment->type ) {
 			case AttachmentInfo::Type::eDepthStencilAttachment:
-				dsAttachmentReference = std::make_unique<vk::AttachmentReference>( attachments.size() - 1, syncSubpass.layout );
+				dsAttachmentReference = new vk::AttachmentReference( attachments.size() - 1, syncSubpass.layout ); // cleanup at the end of loop
 				break;
 			case AttachmentInfo::Type::eColorAttachment:
 				colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
@@ -1875,7 +1863,8 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			srcStageFromExternalFlags |= syncInitial.write_stage;
 			dstStageFromExternalFlags |= syncSubpass.write_stage;
 			srcAccessFromExternalFlags |= ( syncInitial.visible_access & ANY_WRITE_ACCESS_FLAGS );
-			dstAccessFromExternalFlags |= syncSubpass.visible_access; // & ~(syncInitial.visible_access ); // this would make only changes in availability operations happen. it should only happen if there are no src write_access_flags. we leave this out so as to give the driver more info
+			dstAccessFromExternalFlags |= syncSubpass.visible_access; // & ~(syncInitial.visible_access );
+			// this would make only changes in availability operations happen. it should only happen if there are no src write_access_flags. we leave this out so as to give the driver more info
 
 			// TODO: deal with other subpasses ...
 
@@ -1893,25 +1882,26 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 		std::vector<vk::SubpassDescription> subpasses;
 		subpasses.reserve( 1 );
 
-		vk::SubpassDescription subpassDescription;
-		subpassDescription
-		    .setFlags( vk::SubpassDescriptionFlags() )
-		    .setPipelineBindPoint( vk::PipelineBindPoint::eGraphics )
-		    .setInputAttachmentCount( 0 )
-		    .setPInputAttachments( nullptr )
-		    .setColorAttachmentCount( uint32_t( colorAttachmentReferences.size() ) )
-		    .setPColorAttachments( colorAttachmentReferences.data() )
-		    .setPResolveAttachments( resolveAttachmentReferences.empty() ? nullptr : resolveAttachmentReferences.data() ) // must be NULL or have same length as colorAttachments
-		    .setPDepthStencilAttachment( dsAttachmentReference.get() )
-		    .setPreserveAttachmentCount( 0 )
-		    .setPPreserveAttachments( nullptr );
-
-		subpasses.emplace_back( subpassDescription );
-
-		std::vector<vk::SubpassDependency> dependencies;
-		dependencies.reserve( 2 );
 		{
-			if ( PRINT_DEBUG_MESSAGES && false ) {
+			vk::SubpassDescription subpassDescription;
+			subpassDescription
+			    .setFlags( vk::SubpassDescriptionFlags() )
+			    .setPipelineBindPoint( vk::PipelineBindPoint::eGraphics )
+			    .setInputAttachmentCount( 0 )
+			    .setPInputAttachments( nullptr )
+			    .setColorAttachmentCount( uint32_t( colorAttachmentReferences.size() ) )
+			    .setPColorAttachments( colorAttachmentReferences.data() )
+			    .setPResolveAttachments( resolveAttachmentReferences.empty() ? nullptr : resolveAttachmentReferences.data() ) // must be NULL or have same length as colorAttachments
+			    .setPDepthStencilAttachment( dsAttachmentReference )
+			    .setPreserveAttachmentCount( 0 )
+			    .setPPreserveAttachments( nullptr );
+
+			subpasses.emplace_back( subpassDescription );
+		}
+
+		std::array<vk::SubpassDependency, 2> dependencies;
+		{
+			if ( PRINT_DEBUG_MESSAGES ) {
 
 				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" );
 				logger.info( "\t srcStage: %s", vk::to_string( srcStageFromExternalFlags ).c_str() );
@@ -1926,8 +1916,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 				logger.info( "\tdstAccess: %s", vk::to_string( dstAccessToExternalFlags ).c_str() );
 			}
 
-			vk::SubpassDependency externalToSubpassDependency;
-			externalToSubpassDependency
+			dependencies[ 0 ]                         // external to subpass
 			    .setSrcSubpass( VK_SUBPASS_EXTERNAL ) // outside of renderpass
 			    .setDstSubpass( 0 )                   // first subpass
 			    .setSrcStageMask( srcStageFromExternalFlags )
@@ -1935,8 +1924,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			    .setSrcAccessMask( srcAccessFromExternalFlags )
 			    .setDstAccessMask( dstAccessFromExternalFlags )
 			    .setDependencyFlags( vk::DependencyFlagBits::eByRegion );
-			vk::SubpassDependency subpassToExternalDependency;
-			subpassToExternalDependency
+			dependencies[ 1 ]                         // subpass to external
 			    .setSrcSubpass( 0 )                   // last subpass
 			    .setDstSubpass( VK_SUBPASS_EXTERNAL ) // outside of renderpass
 			    .setSrcStageMask( srcStageToExternalFlags )
@@ -1944,9 +1932,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			    .setSrcAccessMask( srcAccessToExternalFlags )
 			    .setDstAccessMask( dstAccessToExternalFlags )
 			    .setDependencyFlags( vk::DependencyFlagBits::eByRegion );
-
-			dependencies.emplace_back( std::move( externalToSubpassDependency ) );
-			dependencies.emplace_back( std::move( subpassToExternalDependency ) );
 		}
 
 		{
@@ -2038,6 +2023,10 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			// Create vulkan renderpass object
 			pass.renderPass = device.createRenderPass( renderpassCreateInfo );
 
+			delete dsAttachmentReference; // noo-op if nullptr; we clean up here in case we allocated a
+			                              // depth stencil attachment reference above.
+			                              // Once createRenderPass has consumed the data, we can safely delete.
+
 			AbstractPhysicalResource rp;
 			rp.type         = AbstractPhysicalResource::eRenderPass;
 			rp.asRenderPass = pass.renderPass;
@@ -2046,7 +2035,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			// it can be recycled when not needed anymore.
 			frame.ownedResources.emplace_front( std::move( rp ) );
 		}
-	} // end for all passes
+	} // end for each pass
 }
 
 // ----------------------------------------------------------------------
@@ -5109,6 +5098,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS ); // we want the range to encompass all layers
 
 					{
+
 						vk::BufferMemoryBarrier bufferTransferBarrier;
 						bufferTransferBarrier
 						    .setSrcAccessMask( vk::AccessFlagBits::eHostWrite )    // after host write
