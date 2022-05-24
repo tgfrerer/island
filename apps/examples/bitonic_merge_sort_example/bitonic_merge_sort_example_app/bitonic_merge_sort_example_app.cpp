@@ -350,8 +350,8 @@ static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user
 		encoder
 		    .setArgumentData( LE_ARGUMENT_NAME( "Parameters" ), &params, sizeof( params ) )
 		    .dispatch( workgroup_count )
-		    .bufferMemoryBarrier( le::PipelineStageFlags( le::PipelineStageFlagBits::eComputeShader ),
-		                          le::PipelineStageFlags( le::PipelineStageFlagBits::eComputeShader ),
+		    .bufferMemoryBarrier( le::PipelineStageFlags2( le::PipelineStageFlagBits2::eComputeShader ),
+		                          le::PipelineStageFlags2( le::PipelineStageFlagBits2::eComputeShader ),
 		                          le::AccessFlags( le::AccessFlagBits::eShaderRead ),
 		                          app->pixels_data->handle );
 	};
