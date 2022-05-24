@@ -118,8 +118,8 @@ static bool pass_initialise_setup( le_renderpass_o* pRp, void* user_data ) {
 
 	le::RenderPass rp( pRp );
 	rp
-	    .useBufferResource( app->gpu_mesh->vertex_handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } ) //
-	    .useBufferResource( app->gpu_mesh->index_handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } )  //
+	    .useBufferResource( app->gpu_mesh->vertex_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) ) //
+	    .useBufferResource( app->gpu_mesh->index_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) )  //
 	    ;
 
 	if ( app->meshUploaded ) {
@@ -179,7 +179,7 @@ static bool pass_compute_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto           app = static_cast<compute_example_app_o*>( user_data );
 	le::RenderPass rp( pRp );
 	rp
-	    .useBufferResource( app->gpu_mesh->vertex_handle, { LE_BUFFER_USAGE_STORAGE_BUFFER_BIT } );
+	    .useBufferResource( app->gpu_mesh->vertex_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) );
 
 	return true;
 };
@@ -226,8 +226,8 @@ static bool pass_draw_setup( le_renderpass_o* pRp, void* user_data ) {
 	        .build();
 	rp
 	    .addColorAttachment( app->renderer.getSwapchainResource(), attachment_info ) // color attachment
-	    .useBufferResource( app->gpu_mesh->vertex_handle, { LE_BUFFER_USAGE_VERTEX_BUFFER_BIT } )
-	    .useBufferResource( app->gpu_mesh->index_handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT } ) //
+	    .useBufferResource( app->gpu_mesh->vertex_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer ) )
+	    .useBufferResource( app->gpu_mesh->index_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer ) ) //
 	    ;
 
 	return true;
