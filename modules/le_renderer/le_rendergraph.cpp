@@ -999,16 +999,17 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 		logger.info( "Render graph: " );
 		for ( const auto& pass : self->passes ) {
 
-			logger.info( "renderpass: '%s', sort_key: %x", pass->debugName.c_str(), pass->sort_key );
+			logger.info( "Renderpass: '%s', sort_key: %x", pass->debugName.c_str(), pass->sort_key );
 			le_image_attachment_info_t const* pImageAttachments   = nullptr;
 			le_img_resource_handle const*     pResources          = nullptr;
 			size_t                            numImageAttachments = 0;
 			renderpass_get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 
 			for ( size_t i = 0; i != numImageAttachments; ++i ) {
-				logger.info( "\t Attachment: '%s'", pResources[ i ]->data->debug_name ); //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
-				logger.info( "\t load : %10s", to_str( pImageAttachments[ i ].loadOp ) );
-				logger.info( "\t store: %10s", to_str( pImageAttachments[ i ].storeOp ) );
+				logger.info( "\t Attachment: '%s' [%10s | %10s]",
+				             pResources[ i ]->data->debug_name, //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
+				             to_str( pImageAttachments[ i ].loadOp ),
+				             to_str( pImageAttachments[ i ].storeOp ) );
 			}
 		}
 	}

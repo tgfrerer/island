@@ -1848,8 +1848,8 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			    .setFinalLayout( syncFinal.layout );
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-				logger.info( " %30s (s: %4d) : %30s : %30s : %30s | sync chain indices: %4d : %4d : %4d",
-				             attachment->resource->data->debug_name, attachment->resource->data->num_samples,
+				logger.info( " %38s@%d : %30s → %30s → %30s | sync chain indices: %4d : %4d : %4d",
+				             attachment->resource->data->debug_name, 1 << attachment->resource->data->num_samples,
 				             vk::to_string( syncInitial.layout ).c_str(),
 				             vk::to_string( syncSubpass.layout ).c_str(),
 				             vk::to_string( syncFinal.layout ).c_str(),
@@ -3370,12 +3370,12 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 		logger.info( "%10s : %38s : %30s", "Type", "debugName", "Vk Handle" );
 		for ( auto const& r : frame.availableResources ) {
 			if ( r.second.info.isBuffer() ) {
-				logger.info( "%10s : %37s : %30p",
+				logger.info( "%10s : %38s : %30p",
 				             "Buffer",
 				             r.first->data->debug_name,
 				             r.second.as.buffer );
 			} else {
-				logger.info( "%10s : %30s (s: %2d) : %30p",
+				logger.info( "%10s : %36s@%d : %30p",
 				             "Image",
 				             r.first->data->debug_name,
 				             1 << r.first->data->num_samples,
