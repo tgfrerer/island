@@ -122,6 +122,11 @@ class LeLog {
 #	endif
 	}
 };
+
+namespace le {
+using Log = LeLog;
+}
+
 // ----------------------------------------------------------------------
 
 static inline void le_log_set_level( const LeLog::Level& level ) {
