@@ -976,6 +976,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 #if ( PRINT_DEBUG_MESSAGES )
 		logger.info( "* Consolidated Pass List *" );
 		printPassList();
+		logger.info( "" );
 #endif
 	}
 }
@@ -1012,6 +1013,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 				             to_str( pImageAttachments[ i ].storeOp ) );
 			}
 		}
+		logger.info( "" );
 	}
 
 	using namespace le_renderer;

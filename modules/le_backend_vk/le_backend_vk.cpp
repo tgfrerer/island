@@ -1879,6 +1879,10 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			}
 		}
 
+		if ( PRINT_DEBUG_MESSAGES ) {
+			logger.info( "" );
+		}
+
 		std::vector<vk::SubpassDescription> subpasses;
 		subpasses.reserve( 1 );
 
@@ -1903,17 +1907,18 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 		{
 			if ( PRINT_DEBUG_MESSAGES ) {
 
-				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" );
+				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName.c_str() );
 				logger.info( "\t srcStage: %s", vk::to_string( srcStageFromExternalFlags ).c_str() );
 				logger.info( "\t dstStage: %s", vk::to_string( dstStageFromExternalFlags ).c_str() );
 				logger.info( "\tsrcAccess: %s", vk::to_string( srcAccessFromExternalFlags ).c_str() );
 				logger.info( "\tdstAccess: %s", vk::to_string( dstAccessFromExternalFlags ).c_str() );
 
-				logger.info( "Subpass Dependency: subpass [0] to VK_SUBPASS_EXTERNAL:" );
+				logger.info( "Subpass Dependency: subpass `%s`m to VK_SUBPASS_EXTERNAL:", pass.debugName.c_str() );
 				logger.info( "\t srcStage: %s", vk::to_string( srcStageToExternalFlags ).c_str() );
 				logger.info( "\t dstStage: %s", vk::to_string( dstStageToExternalFlags ).c_str() );
 				logger.info( "\tsrcAccess: %s", vk::to_string( srcAccessToExternalFlags ).c_str() );
 				logger.info( "\tdstAccess: %s", vk::to_string( dstAccessToExternalFlags ).c_str() );
+				logger.info( "" );
 			}
 
 			dependencies[ 0 ]                         // external to subpass
@@ -3000,32 +3005,34 @@ static void insert_msaa_versions(
 
 // ----------------------------------------------------------------------
 
-static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info ) {
+static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info, const char* prefix = "" ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	if ( info.isBuffer() ) {
-		logger.info( "% 32s : %11d : %30s : %30s", handle->data->debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
+		logger.info( "%-15s : %-32s : %11d : %30s : %-30s", prefix, handle->data->debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
 	} else if ( info.isImage() ) {
-		logger.info( "%p, % 32s : %dx%dx%d : %30s : %30s : %5s samples",
-		             handle,
+		logger.info( "%-15s : %-30s@%d : %dx%dx%d : %30s : %-30s",
+		             prefix,
 		             !( handle->data->debug_name[ 0 ] == '\0' )
 		                 ? handle->data->debug_name
 		             : handle->data->reference_handle
 		                 ? handle->data->reference_handle->data->debug_name
 		                 : "unnamed",
+		             uint32( info.imageInfo.samples ),
 		             info.imageInfo.extent.width,
 		             info.imageInfo.extent.height,
 		             info.imageInfo.extent.depth,
 		             to_string( vk::Format( info.imageInfo.format ) ).c_str(),
-		             to_string( vk::ImageUsageFlags( info.imageInfo.usage ) ).c_str(),
-		             to_string( vk::SampleCountFlags( info.imageInfo.samples ) ).c_str() );
+		             to_string( vk::ImageUsageFlags( info.imageInfo.usage ) ).c_str() );
 	} else if ( info.isBlas() ) {
-		logger.info( "% 32s : %11d : (%28d) : %30s",
+		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
+		             prefix,
 		             handle->data->debug_name,
 		             info.blasInfo.buffer_size,
 		             info.blasInfo.scratch_buffer_size,
 		             "-" );
 	} else if ( info.isTlas() ) {
-		logger.info( "% 32s : %11d : (%28d) : %30s",
+		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
+		             prefix,
 		             handle->data->debug_name,
 		             info.tlasInfo.buffer_size,
 		             info.tlasInfo.scratch_buffer_size,
@@ -3238,8 +3245,8 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 
 			if ( PRINT_DEBUG_MESSAGES || true ) {
-				//				logger.info( "Allocated resource: " );
-				printResourceInfo( resource, allocatedResource.info );
+				// logger.info( "Allocated resource: " );
+				printResourceInfo( resource, allocatedResource.info, "ALLOC" );
 			}
 
 			// Add resource to map of available resources for this frame
@@ -3285,8 +3292,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
 				if ( PRINT_DEBUG_MESSAGES || true ) {
-					logger.info( "Re-allocated resource: " );
-					printResourceInfo( resource, allocatedResource.info );
+					printResourceInfo( resource, allocatedResource.info, "RE-ALLOC" );
 				}
 
 				// Add a copy of old resource to recycling bin for this frame, so that
@@ -3305,6 +3311,9 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			}
 		}
 	} // end for all used resources
+	if ( PRINT_DEBUG_MESSAGES || true ) {
+		logger.info( "" );
+	}
 
 #ifdef LE_FEATURE_RTX
 	// -- Create rtx acceleration structure scratch buffer
