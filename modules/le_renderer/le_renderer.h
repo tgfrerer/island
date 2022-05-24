@@ -91,8 +91,6 @@ struct le_renderer_api {
 		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);
-		void                            ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
-		uint64_t                        ( *get_sort_key         )( const le_renderpass_o *obj);
 		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
 		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );

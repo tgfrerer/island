@@ -63,7 +63,6 @@ struct le_renderpass_o {
 	LeRenderPassType        type         = LE_RENDER_PASS_TYPE_UNDEFINED;
 	uint32_t                ref_count    = 0;                           // reference count (we're following an intrusive shared pointer pattern)
 	uint64_t                id           = 0;                           // hash of name
-	uint64_t                sort_key     = 0;                           //
 	uint32_t                width        = 0;                           // < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
@@ -98,8 +97,8 @@ struct le_render_module_o : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>   passes;
-	std::vector<uint32_t>           sortIndices;
+	std::vector<le_renderpass_o*>   passes;                  //
+	std::vector<uint32_t>           sortIndices;             // One index for each pass
 	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
 };
@@ -407,14 +406,6 @@ static void renderpass_set_is_root( le_renderpass_o* self, bool isRoot ) {
 
 static bool renderpass_get_is_root( le_renderpass_o const* self ) {
 	return self->isRoot;
-}
-
-static void renderpass_set_sort_key( le_renderpass_o* self, uint64_t sort_key ) {
-	self->sort_key = sort_key;
-}
-
-static uint64_t renderpass_get_sort_key( le_renderpass_o const* self ) {
-	return self->sort_key;
 }
 
 static LeRenderPassType renderpass_get_type( le_renderpass_o const* self ) {
@@ -1000,7 +991,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 		logger.info( "Render graph: " );
 		for ( const auto& pass : self->passes ) {
 
-			logger.info( "Renderpass: '%s', sort_key: %x", pass->debugName.c_str(), pass->sort_key );
+			logger.info( "Renderpass: '%s'", pass->debugName.c_str() );
 			le_image_attachment_info_t const* pImageAttachments   = nullptr;
 			le_img_resource_handle const*     pResources          = nullptr;
 			size_t                            numImageAttachments = 0;
@@ -1250,8 +1241,6 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.has_execute_callback         = renderpass_has_execute_callback;
 	le_renderpass_i.set_is_root                  = renderpass_set_is_root;
 	le_renderpass_i.get_is_root                  = renderpass_get_is_root;
-	le_renderpass_i.get_sort_key                 = renderpass_get_sort_key;
-	le_renderpass_i.set_sort_key                 = renderpass_set_sort_key;
 	le_renderpass_i.add_color_attachment         = renderpass_add_color_attachment;
 	le_renderpass_i.add_depth_stencil_attachment = renderpass_add_depth_stencil_attachment;
 	le_renderpass_i.get_image_attachments        = renderpass_get_image_attachments;
