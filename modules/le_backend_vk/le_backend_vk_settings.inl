@@ -25,6 +25,7 @@ struct le_backend_vk_settings_o {
 	    vk::PhysicalDeviceRayTracingPipelineFeaturesKHR,
 	    vk::PhysicalDeviceAccelerationStructureFeaturesKHR,
 	    vk::PhysicalDeviceMeshShaderFeaturesNV>
+
 	    requested_device_features = {};
 
 	std::vector<le_swapchain_settings_t> swapchain_settings;
@@ -42,7 +43,7 @@ static bool le_backend_vk_settings_add_required_instance_extension( le_backend_v
 			// elements in vector are unique.
 			self->required_instance_extensions.push_back( result.first->c_str() );
 		}
-		return result.second;
+		return true;
 	} else {
 		static auto logger = LeLog( "le_backend_vk_settings" );
 		logger.error( "Cannot add required instance extension '%s'", ext );
@@ -69,7 +70,7 @@ static bool le_backend_vk_settings_add_required_device_extension( le_backend_vk_
 			    ;
 		}
 
-		return result.second;
+		return true;
 	} else {
 		static auto logger = LeLog( "le_backend_vk_settings" );
 		logger.error( "Cannot add required device extension '%s'", ext );
