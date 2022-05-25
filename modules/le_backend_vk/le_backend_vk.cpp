@@ -379,9 +379,9 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 
 // ResourceState keeps track of the resource stage *before* a barrier
 struct ResourceState {
-	vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
-	vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
-	vk::ImageLayout        layout;         // current layout (for images)
+	vk::AccessFlags2        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
+	vk::PipelineStageFlags2 write_stage;    // current or last stage at which write occurs
+	vk::ImageLayout         layout;         // current layout (for images)
 
 	bool operator==( const ResourceState& rhs ) const {
 		return visible_access == rhs.visible_access &&
@@ -1226,19 +1226,19 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 			if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eLoad ) {
 				// we must now specify which stages need to be visible for which coming memory access
 				if ( isDepthStencil ) {
-					beforeFirstUse.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentRead;
-					beforeFirstUse.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+					beforeFirstUse.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentRead;
+					beforeFirstUse.write_stage    = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
 
 				} else {
 					// we need to make visible the information from color attachment output stage
 					// to anyone using read or write on the color attachment.
-					beforeFirstUse.visible_access = vk::AccessFlagBits::eColorAttachmentRead;
-					beforeFirstUse.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					beforeFirstUse.visible_access = vk::AccessFlagBits2::eColorAttachmentRead;
+					beforeFirstUse.write_stage    = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
 				}
 			} else if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eClear ) {
 				// resource.loadOp must be either CLEAR / or DONT_CARE
-				beforeFirstUse.write_stage    = isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
-				beforeFirstUse.visible_access = vk::AccessFlagBits( 0 );
+				beforeFirstUse.write_stage    = isDepthStencil ? vk::PipelineStageFlagBits2::eEarlyFragmentTests : vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+				beforeFirstUse.visible_access = vk::AccessFlagBits2( 0 );
 			}
 
 			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
@@ -1257,14 +1257,14 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 
 				// we must now specify which stages need to be visible for which coming memory access
 				if ( isDepthStencil ) {
-					beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+					beforeSubpass.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentRead | vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
 					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 				} else {
 					// we need to make visible the information from color attachment output stage
 					// to anyone using read or write on the color attachment.
-					beforeSubpass.visible_access = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
-					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					beforeSubpass.visible_access = vk::AccessFlagBits2::eColorAttachmentWrite | vk::AccessFlagBits2::eColorAttachmentRead;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
 					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
 				}
 
@@ -1273,12 +1273,12 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 				// load op is either CLEAR, or DONT_CARE
 
 				if ( isDepthStencil ) {
-					beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+					beforeSubpass.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
 					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 				} else {
-					beforeSubpass.visible_access = vk::AccessFlagBits::eColorAttachmentWrite;
-					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					beforeSubpass.visible_access = vk::AccessFlagBits2::eColorAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
 					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
 				}
 			}
@@ -1359,12 +1359,12 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 				// load op is either CLEAR, or DONT_CARE
 
 				if ( isDepthStencil ) {
-					beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+					beforeSubpass.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
 					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 				} else {
-					beforeSubpass.visible_access = vk::AccessFlagBits::eColorAttachmentWrite;
-					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					beforeSubpass.visible_access = vk::AccessFlagBits2::eColorAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
 					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
 				}
 			}
@@ -1427,8 +1427,8 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		auto backbufferIt = syncChainTable.find( backbuffer );
 		if ( backbufferIt != syncChainTable.end() ) {
 			auto& backbufferState          = backbufferIt->second.front();
-			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
-			backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
+			backbufferState.write_stage    = vk::PipelineStageFlagBits2::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
+			backbufferState.visible_access = vk::AccessFlagBits2( 0 );                           // semaphore took care of availability - we can assume memory is already available
 		} else {
 			logger.warn( "No reference to backbuffer found in renderpass" );
 		}
@@ -1436,19 +1436,19 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 	using namespace le_renderer;
 
-	auto get_stage_flags_based_on_renderpass_type = []( LeRenderPassType const& rp_type ) -> vk::PipelineStageFlags {
+	auto get_stage_flags_based_on_renderpass_type = []( LeRenderPassType const& rp_type ) -> vk::PipelineStageFlags2 {
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
 		case LE_RENDER_PASS_TYPE_TRANSFER:
-			return vk::PipelineStageFlagBits::eTransfer; // stage for transfer pass
+			return vk::PipelineStageFlagBits2::eTransfer; // stage for transfer pass
 		case LE_RENDER_PASS_TYPE_DRAW:
-			return vk::PipelineStageFlagBits::eVertexShader; // earliest stage for draw pass
+			return vk::PipelineStageFlagBits2::eVertexShader; // earliest stage for draw pass
 		case LE_RENDER_PASS_TYPE_COMPUTE:
-			return vk::PipelineStageFlagBits::eComputeShader; // stage for compute pass
+			return vk::PipelineStageFlagBits2::eComputeShader; // stage for compute pass
 
 		default:
 			assert( false ); // unreachable - we don't know what kind of stage we're in.
-			return vk::PipelineStageFlagBits();
+			return vk::PipelineStageFlagBits2();
 		}
 	};
 
@@ -1496,20 +1496,20 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 					if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
 
-						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
+						requestedState.visible_access = vk::AccessFlagBits2::eShaderRead;
 						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
 						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
 
 					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ) {
 
-						requestedState.visible_access = vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite;
+						requestedState.visible_access = vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eShaderWrite;
 						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
 						requestedState.layout         = vk::ImageLayout::eGeneral;
 
 					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) ) {
 						// this is an image write operation.
-						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
-						requestedState.write_stage    = vk::PipelineStageFlagBits::eVertexShader;
+						requestedState.visible_access = vk::AccessFlagBits2::eShaderRead;
+						requestedState.write_stage    = vk::PipelineStageFlagBits2::eVertexShader;
 						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
 
 					} else {
@@ -1552,14 +1552,14 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		auto finalState{ syncChain.back() };
 
 		if ( std::find( backbufferImageHandles.begin(), backbufferImageHandles.end(), id ) != backbufferImageHandles.end() ) {
-			finalState.write_stage    = vk::PipelineStageFlagBits::eBottomOfPipe;
-			finalState.visible_access = vk::AccessFlagBits::eMemoryRead;
+			finalState.write_stage    = vk::PipelineStageFlagBits2::eBottomOfPipe;
+			finalState.visible_access = vk::AccessFlagBits2::eMemoryRead;
 			finalState.layout         = vk::ImageLayout::ePresentSrcKHR;
 		} else {
 			// we mimick implicit dependency here, which exists for a final subpass
 			// see p.210 vk spec (chapter 7, render pass)
-			finalState.write_stage    = vk::PipelineStageFlagBits::eBottomOfPipe;
-			finalState.visible_access = vk::AccessFlagBits( 0 );
+			finalState.write_stage    = vk::PipelineStageFlagBits2::eBottomOfPipe;
+			finalState.visible_access = vk::AccessFlagBits2( 0 );
 		}
 
 		syncChain.emplace_back( std::move( finalState ) );
@@ -1761,15 +1761,15 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 	const auto& syncChainTable = frame.syncChainTable;
 
 	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
-	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits::eColorAttachmentWrite |
-	                                      vk::AccessFlagBits::eDepthStencilAttachmentWrite |
-	                                      vk::AccessFlagBits::eAccelerationStructureWriteKHR |
-	                                      vk::AccessFlagBits::eHostWrite |
-	                                      vk::AccessFlagBits::eMemoryWrite |
-	                                      vk::AccessFlagBits::eShaderWrite |
-	                                      vk::AccessFlagBits::eTransferWrite |
-	                                      vk::AccessFlagBits::eCommandPreprocessWriteNV |
-	                                      vk::AccessFlagBits::eTransformFeedbackCounterWriteEXT );
+	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits2::eColorAttachmentWrite |
+	                                      vk::AccessFlagBits2::eDepthStencilAttachmentWrite |
+	                                      vk::AccessFlagBits2::eAccelerationStructureWriteKHR |
+	                                      vk::AccessFlagBits2::eHostWrite |
+	                                      vk::AccessFlagBits2::eMemoryWrite |
+	                                      vk::AccessFlagBits2::eShaderWrite |
+	                                      vk::AccessFlagBits2::eTransferWrite |
+	                                      vk::AccessFlagBits2::eCommandPreprocessWriteNV |
+	                                      vk::AccessFlagBits2::eTransformFeedbackCounterWriteEXT );
 
 	// Note: This should be trivial to parallelize.
 	for ( auto& pass : frame.passes ) {
@@ -1782,24 +1782,24 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 
 		// ---------| Invariant: current pass is a draw pass.
 
-		std::vector<vk::AttachmentDescription> attachments;
+		std::vector<vk::AttachmentDescription2> attachments;
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
-		std::vector<vk::AttachmentReference> colorAttachmentReferences;
-		std::vector<vk::AttachmentReference> resolveAttachmentReferences;
-		vk::AttachmentReference*             dsAttachmentReference = nullptr;
+		std::vector<vk::AttachmentReference2> colorAttachmentReferences;
+		std::vector<vk::AttachmentReference2> resolveAttachmentReferences;
+		vk::AttachmentReference2*             dsAttachmentReference = nullptr;
 
 		// We must accumulate these flags over all attachments - they are the
 		// union of all flags required by all attachments in a pass.
-		vk::PipelineStageFlags srcStageFromExternalFlags;
-		vk::PipelineStageFlags dstStageFromExternalFlags;
-		vk::AccessFlags        srcAccessFromExternalFlags;
-		vk::AccessFlags        dstAccessFromExternalFlags;
+		vk::PipelineStageFlags2 srcStageFromExternalFlags;
+		vk::PipelineStageFlags2 dstStageFromExternalFlags;
+		vk::AccessFlags2        srcAccessFromExternalFlags;
+		vk::AccessFlags2        dstAccessFromExternalFlags;
 
-		vk::PipelineStageFlags srcStageToExternalFlags;
-		vk::PipelineStageFlags dstStageToExternalFlags;
-		vk::AccessFlags        srcAccessToExternalFlags;
-		vk::AccessFlags        dstAccessToExternalFlags;
+		vk::PipelineStageFlags2 srcStageToExternalFlags;
+		vk::PipelineStageFlags2 dstStageToExternalFlags;
+		vk::AccessFlags2        srcAccessToExternalFlags;
+		vk::AccessFlags2        dstAccessToExternalFlags;
 
 		if ( PRINT_DEBUG_MESSAGES ) {
 			logger.info( "* Renderpass: '%s'", pass.debugName.c_str() );
@@ -1823,7 +1823,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			bool isStencil = false;
 			vk_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
 
-			vk::AttachmentDescription attachmentDescription{};
+			vk::AttachmentDescription2 attachmentDescription{};
 			attachmentDescription
 			    .setFlags( vk::AttachmentDescriptionFlags() ) // relevant for compatibility
 			    .setFormat( attachment->format )              // relevant for compatibility
@@ -1850,7 +1850,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 
 			switch ( attachment->type ) {
 			case AttachmentInfo::Type::eDepthStencilAttachment:
-				dsAttachmentReference = new vk::AttachmentReference( attachments.size() - 1, syncSubpass.layout ); // cleanup at the end of loop
+				dsAttachmentReference = new vk::AttachmentReference2( attachments.size() - 1, syncSubpass.layout ); // cleanup at the end of loop
 				break;
 			case AttachmentInfo::Type::eColorAttachment:
 				colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
@@ -1873,9 +1873,9 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			srcAccessToExternalFlags |= ( syncChain.at( attachment->finalStateOffset - 1 ).visible_access & ANY_WRITE_ACCESS_FLAGS );
 			dstAccessToExternalFlags |= syncFinal.visible_access;
 
-			if ( 0 == static_cast<unsigned int>( srcStageFromExternalFlags ) ) {
+			if ( 0 == uint64_t( srcStageFromExternalFlags ) ) {
 				// Ensure that the stage mask is valid if no src stage was specified.
-				srcStageFromExternalFlags = vk::PipelineStageFlagBits::eTopOfPipe;
+				srcStageFromExternalFlags = vk::PipelineStageFlagBits2::eTopOfPipe;
 			}
 		}
 
@@ -1883,11 +1883,11 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			logger.info( "" );
 		}
 
-		std::vector<vk::SubpassDescription> subpasses;
+		std::vector<vk::SubpassDescription2> subpasses;
 		subpasses.reserve( 1 );
 
 		{
-			vk::SubpassDescription subpassDescription;
+			vk::SubpassDescription2 subpassDescription;
 			subpassDescription
 			    .setFlags( vk::SubpassDescriptionFlags() )
 			    .setPipelineBindPoint( vk::PipelineBindPoint::eGraphics )
@@ -1903,7 +1903,9 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			subpasses.emplace_back( subpassDescription );
 		}
 
-		std::array<vk::SubpassDependency, 2> dependencies;
+		std::array<vk::SubpassDependency2, 2> dependencies;
+		std::array<vk::MemoryBarrier2, 2>     memoryBarriers;
+
 		{
 			if ( PRINT_DEBUG_MESSAGES ) {
 
@@ -1921,21 +1923,27 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 				logger.info( "" );
 			}
 
-			dependencies[ 0 ]                         // external to subpass
-			    .setSrcSubpass( VK_SUBPASS_EXTERNAL ) // outside of renderpass
-			    .setDstSubpass( 0 )                   // first subpass
+			memoryBarriers[ 0 ]
 			    .setSrcStageMask( srcStageFromExternalFlags )
 			    .setDstStageMask( dstStageFromExternalFlags )
 			    .setSrcAccessMask( srcAccessFromExternalFlags )
-			    .setDstAccessMask( dstAccessFromExternalFlags )
+			    .setDstAccessMask( dstAccessFromExternalFlags );
+			dependencies[ 0 ]                         // external to subpass
+			    .setSrcSubpass( VK_SUBPASS_EXTERNAL ) // outside of renderpass
+			    .setDstSubpass( 0 )                   // first subpass
+			    .setPNext( &memoryBarriers[ 0 ] )
 			    .setDependencyFlags( vk::DependencyFlagBits::eByRegion );
-			dependencies[ 1 ]                         // subpass to external
-			    .setSrcSubpass( 0 )                   // last subpass
-			    .setDstSubpass( VK_SUBPASS_EXTERNAL ) // outside of renderpass
+
+			memoryBarriers[ 1 ]
 			    .setSrcStageMask( srcStageToExternalFlags )
 			    .setDstStageMask( dstStageToExternalFlags )
 			    .setSrcAccessMask( srcAccessToExternalFlags )
-			    .setDstAccessMask( dstAccessToExternalFlags )
+			    .setDstAccessMask( dstAccessToExternalFlags ) //
+			    ;
+			dependencies[ 1 ]                         // subpass to external
+			    .setSrcSubpass( 0 )                   // last subpass
+			    .setDstSubpass( VK_SUBPASS_EXTERNAL ) // outside of renderpass
+			    .setPNext( &memoryBarriers[ 1 ] )
 			    .setDependencyFlags( vk::DependencyFlagBits::eByRegion );
 		}
 
@@ -1981,13 +1989,13 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 					rp_hash = SpookyHash::Hash64( &s.preserveAttachmentCount, sizeof( s.preserveAttachmentCount ), rp_hash );
 
 					// We define this as a pure function lambda, and hope for it to be inlined
-					auto calc_hash_for_attachment_references = []( vk::AttachmentReference const* pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
+					auto calc_hash_for_attachment_references = []( vk::AttachmentReference2 const* pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
 						if ( pAttachmentRefs == nullptr ) {
 							return seed;
 						}
 						// ----------| invariant: pAttachmentRefs is valid
 						for ( auto const* pAr = pAttachmentRefs; pAr != pAttachmentRefs + count; pAr++ ) {
-							seed = SpookyHash::Hash64( pAr, sizeof( vk::AttachmentReference::attachment ), seed );
+							seed = SpookyHash::Hash64( pAr, sizeof( vk::AttachmentReference2::attachment ), seed );
 						}
 						return seed;
 					};
@@ -2016,7 +2024,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 				pass.renderpassHash = rp_hash;
 			}
 
-			vk::RenderPassCreateInfo renderpassCreateInfo;
+			vk::RenderPassCreateInfo2 renderpassCreateInfo;
 			renderpassCreateInfo
 			    .setAttachmentCount( uint32_t( attachments.size() ) )
 			    .setPAttachments( attachments.data() )
@@ -2026,7 +2034,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			    .setPDependencies( dependencies.data() );
 
 			// Create vulkan renderpass object
-			pass.renderPass = device.createRenderPass( renderpassCreateInfo );
+			pass.renderPass = device.createRenderPass2( renderpassCreateInfo );
 
 			delete dsAttachmentReference; // noo-op if nullptr; we clean up here in case we allocated a
 			                              // depth stencil attachment reference above.
@@ -4224,25 +4232,20 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					    .setBaseArrayLayer( 0 )
 					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS );
 
-					vk::ImageMemoryBarrier imageLayoutTransfer;
+					vk::ImageMemoryBarrier2 imageLayoutTransfer;
 					imageLayoutTransfer
-					    .setSrcAccessMask( stateInitial.visible_access ) // no prior access
-					    .setDstAccessMask( stateFinal.visible_access )   // ready image for transferwrite
-					    .setOldLayout( stateInitial.layout )             // from vk::ImageLayout::eUndefined
-					    .setNewLayout( stateFinal.layout )               // to transfer_dst_optimal
+					    .setSrcStageMask( uint64_t( stateInitial.write_stage ) == 0 ? vk::PipelineStageFlagBits2::eTopOfPipe : stateInitial.write_stage ) // wait on this stage
+					    .setSrcAccessMask( stateInitial.visible_access )                                                                                  // no prior access
+					    .setDstStageMask( stateFinal.write_stage )                                                                                        // before doing this stage
+					    .setDstAccessMask( stateFinal.visible_access )                                                                                    // ready image for transferwrite
+					    .setOldLayout( stateInitial.layout )                                                                                              // from vk::ImageLayout::eUndefined
+					    .setNewLayout( stateFinal.layout )                                                                                                // to transfer_dst_optimal
 					    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 					    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 					    .setImage( dstImage )
 					    .setSubresourceRange( rangeAllMiplevels );
 
-					cmd.pipelineBarrier(
-					    uint32_t( stateInitial.write_stage ) == 0 ? vk::PipelineStageFlagBits::eTopOfPipe : stateInitial.write_stage, // srcStage, top of pipe if not set.
-					    stateFinal.write_stage,                                                                                       // dstStage
-					    {},
-					    {},
-					    {},                     // buffer: host write -> transfer read
-					    { imageLayoutTransfer } // image: transfer layout
-					);
+					cmd.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( imageLayoutTransfer ) );
 				}
 			} // end for all explicit sync ops.
 		}
@@ -4714,19 +4717,18 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				} break;
 				case le::CommandType::eBufferMemoryBarrier: {
-					auto*                   le_cmd = static_cast<le::CommandBufferMemoryBarrier*>( dataIt );
-					vk::BufferMemoryBarrier bufferMemoryBarrier{};
+					auto*                    le_cmd = static_cast<le::CommandBufferMemoryBarrier*>( dataIt );
+					vk::BufferMemoryBarrier2 bufferMemoryBarrier{};
 					bufferMemoryBarrier
+					    .setSrcStageMask( static_cast<vk::PipelineStageFlags2>( le_cmd->info.srcStageMask ) )
+					    .setDstStageMask( static_cast<vk::PipelineStageFlags2>( le_cmd->info.dstStageMask ) )
 					    .setBuffer( frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ) )
 					    .setSize( le_cmd->info.range )
 					    .setOffset( le_cmd->info.offset )
-					    .setDstAccessMask( static_cast<vk::AccessFlagBits>( le_cmd->info.dstAccessMask ) ) //
+					    .setDstAccessMask( static_cast<vk::AccessFlagBits2>( le_cmd->info.dstAccessMask ) ) //
 					    ;
 
-					cmd.pipelineBarrier(
-					    static_cast<vk::PipelineStageFlags>( le_cmd->info.srcStageMask ),
-					    static_cast<vk::PipelineStageFlags>( le_cmd->info.dstStageMask ),
-					    {}, {}, { bufferMemoryBarrier }, {} );
+					cmd.pipelineBarrier2( vk::DependencyInfo().setBufferMemoryBarriers( bufferMemoryBarrier ) );
 
 				} break;
 				case le::CommandType::eDraw: {
@@ -5107,35 +5109,36 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					{
 
-						vk::BufferMemoryBarrier bufferTransferBarrier;
-						bufferTransferBarrier
-						    .setSrcAccessMask( vk::AccessFlagBits::eHostWrite )    // after host write
-						    .setDstAccessMask( vk::AccessFlagBits::eTransferRead ) // ready buffer for transfer read
-						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						    .setBuffer( srcBuffer )
-						    .setOffset( 0 ) // we assume a fresh buffer was allocated, so offset must be 0
-						    .setSize( le_cmd->info.numBytes );
+						auto bufferTransferBarrier =
+						    vk::BufferMemoryBarrier2()
+						        .setSrcStageMask( vk::PipelineStageFlagBits2::eHost )
+						        .setDstStageMask( vk::PipelineStageFlagBits2::eTransfer )
+						        .setSrcAccessMask( vk::AccessFlagBits2::eHostWrite )    // after host write
+						        .setDstAccessMask( vk::AccessFlagBits2::eTransferRead ) // ready buffer for transfer read
+						        .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						        .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						        .setBuffer( srcBuffer )
+						        .setOffset( 0 )                   // we assume a fresh buffer was allocated, so offset must be 0
+						        .setSize( le_cmd->info.numBytes ) //
+						    ;
 
-						vk::ImageMemoryBarrier imageLayoutToTransferDstOptimal;
-						imageLayoutToTransferDstOptimal
-						    .setSrcAccessMask( {} )                                 // no prior access
-						    .setDstAccessMask( vk::AccessFlagBits::eTransferWrite ) // ready image for transferwrite
-						    .setOldLayout( {} )                                     // from vk::ImageLayout::eUndefined
-						    .setNewLayout( vk::ImageLayout::eTransferDstOptimal )   // to transfer_dst_optimal
-						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						    .setImage( dstImage )
-						    .setSubresourceRange( rangeAllRemainingMiplevels );
+						auto imageLayoutToTransferDstOptimal =
+						    vk::ImageMemoryBarrier2()
+						        .setSrcStageMask( vk::PipelineStageFlagBits2::eHost )
+						        .setDstStageMask( vk::PipelineStageFlagBits2::eTransfer )
+						        .setSrcAccessMask( {} )                                  // no prior access
+						        .setDstAccessMask( vk::AccessFlagBits2::eTransferWrite ) // ready image for transferwrite
+						        .setOldLayout( {} )                                      // from vk::ImageLayout::eUndefined
+						        .setNewLayout( vk::ImageLayout::eTransferDstOptimal )    // to transfer_dst_optimal
+						        .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						        .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						        .setImage( dstImage )
+						        .setSubresourceRange( rangeAllRemainingMiplevels ) //
+						    ;
 
-						cmd.pipelineBarrier(
-						    vk::PipelineStageFlagBits::eHost,
-						    vk::PipelineStageFlagBits::eTransfer,
-						    {},
-						    {},
-						    { bufferTransferBarrier },          // buffer: host write -> transfer read
-						    { imageLayoutToTransferDstOptimal } // image: prepare for transfer write
-						);
+						cmd.pipelineBarrier2( vk::DependencyInfo()
+						                          .setBufferMemoryBarriers( bufferTransferBarrier )
+						                          .setImageMemoryBarriers( imageLayoutToTransferDstOptimal ) );
 					}
 
 					{
@@ -5178,20 +5181,23 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// The target image subresource is already in layout transfer_dst_optimal, as this is the
 						// layout we applied to the whole mip chain when
 
-						const uint32_t         base_miplevel = le_cmd->info.dst_miplevel;
-						vk::ImageMemoryBarrier prepareBlit;
-						prepareBlit
-						    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite ) // transfer write
-						    .setDstAccessMask( vk::AccessFlagBits::eTransferRead )  // ready image for transfer read
-						    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )   // from transfer dst optimal
-						    .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )   // to shader readonly optimal
-						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						    .setImage( dstImage )
-						    .setSubresourceRange( { vk::ImageAspectFlagBits::eColor, base_miplevel, 1, 0, 1 } );
+						const uint32_t base_miplevel = le_cmd->info.dst_miplevel;
+						{
+							vk::ImageMemoryBarrier2 prepareBlit;
+							prepareBlit
+							    .setDstStageMask( vk::PipelineStageFlagBits2::eTransfer )
+							    .setSrcStageMask( vk::PipelineStageFlagBits2::eTransfer )
+							    .setSrcAccessMask( vk::AccessFlagBits2::eTransferWrite ) // transfer write
+							    .setDstAccessMask( vk::AccessFlagBits2::eTransferRead )  // ready image for transfer read
+							    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )    // from transfer dst optimal
+							    .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )    // to shader readonly optimal
+							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+							    .setImage( dstImage )
+							    .setSubresourceRange( { vk::ImageAspectFlagBits::eColor, base_miplevel, 1, 0, 1 } );
 
-						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, { prepareBlit } );
-
+							cmd.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( prepareBlit ) );
+						}
 						// Now blit from the srcMipLevel to dstMipLevel
 
 						int32_t srcImgWidth  = int32_t( le_cmd->info.image_w );
@@ -5228,18 +5234,22 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							// Now we barrier Read after Write, and transition our freshly blitted subresource to transferSrc,
 							// so that the next iteration may read from it.
 
-							vk::ImageMemoryBarrier finishBlit;
-							finishBlit
-							    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite ) // transfer write
-							    .setDstAccessMask( vk::AccessFlagBits::eTransferRead )  // ready image for shader read
-							    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )   // from transfer dst optimal
-							    .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )   // to shader readonly optimal
-							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-							    .setImage( dstImage )
-							    .setSubresourceRange( rangeDstMipLevel );
+							{
+								vk::ImageMemoryBarrier2 finishBlit;
+								finishBlit
+								    .setDstStageMask( vk::PipelineStageFlagBits2::eTransfer )
+								    .setSrcStageMask( vk::PipelineStageFlagBits2::eTransfer )
+								    .setSrcAccessMask( vk::AccessFlagBits2::eTransferWrite ) // transfer write
+								    .setDstAccessMask( vk::AccessFlagBits2::eTransferRead )  // ready image for shader read
+								    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )    // from transfer dst optimal
+								    .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )    // to shader readonly optimal
+								    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+								    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+								    .setImage( dstImage )
+								    .setSubresourceRange( rangeDstMipLevel );
 
-							cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, { finishBlit } );
+								cmd.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( finishBlit ) );
+							}
 
 							// Store this miplevel image's dimensions for next iteration
 							srcImgHeight = dstImgHeight;
@@ -5251,7 +5261,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					// Transition image from transfer src optimal to shader read only optimal layout
 
 					{
-						vk::ImageMemoryBarrier imageLayoutToShaderReadOptimal;
+						vk::ImageMemoryBarrier2 imageLayoutToShaderReadOptimal;
 
 						if ( le_cmd->info.num_miplevels > 1 ) {
 
@@ -5259,8 +5269,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							// are left in transfer_src layout.
 
 							imageLayoutToShaderReadOptimal
-							    .setSrcAccessMask( {} )                                  // nothing to flush, as previous barriers ensure flush
-							    .setDstAccessMask( vk::AccessFlagBits::eShaderRead )     // ready image for shader read
+							    .setSrcStageMask( vk::PipelineStageFlagBits2::eTransfer )
+							    .setSrcAccessMask( {} ) // nothing to flush, as previous barriers ensure flush
+							    .setDstStageMask( vk::PipelineStageFlagBits2::eFragmentShader )
+							    .setDstAccessMask( vk::AccessFlagBits2::eShaderRead )    // ready image for shader read
 							    .setOldLayout( vk::ImageLayout::eTransferSrcOptimal )    // all subresources are in transfer src optimal
 							    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal ) // to shader readonly optimal
 							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
@@ -5273,8 +5285,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							// transfer_dst layout after pixel data was uploaded to it.
 
 							imageLayoutToShaderReadOptimal
-							    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite )  // no need to flush anything, that's been done by barriers before
-							    .setDstAccessMask( vk::AccessFlagBits::eShaderRead )     // ready image for shader read
+							    .setSrcStageMask( vk::PipelineStageFlagBits2::eTransfer )
+							    .setSrcAccessMask( vk::AccessFlagBits2::eTransferWrite ) // no need to flush anything, that's been done by barriers before
+							    .setDstStageMask( vk::PipelineStageFlagBits2::eFragmentShader )
+							    .setDstAccessMask( vk::AccessFlagBits2::eShaderRead )    // ready image for shader read
 							    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )    // the single one subresource is in transfer dst optimal
 							    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal ) // to shader readonly optimal
 							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
@@ -5283,14 +5297,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .setSubresourceRange( rangeAllRemainingMiplevels );
 						}
 
-						cmd.pipelineBarrier(
-						    vk::PipelineStageFlagBits::eTransfer,
-						    vk::PipelineStageFlagBits::eFragmentShader,
-						    {},
-						    {},
-						    {},                                // buffers: nothing to do
-						    { imageLayoutToShaderReadOptimal } // images: prepare for shader read
-						);
+						cmd.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( imageLayoutToShaderReadOptimal ) ); // images: prepare for shader read
 					}
 
 					break;
@@ -5396,12 +5403,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
 						// is finished before starting the next one
 
-						vk::MemoryBarrier barrier(
-						    vk::AccessFlagBits::eAccelerationStructureWriteKHR,                         // all writes must be visible ...
-						    vk::AccessFlagBits::eAccelerationStructureReadKHR );                        // ... before the next read happens,
-						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR, // and the barrier is limited to the
-						                     vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR, // accelerationStructureBuild stage.
-						                     vk::DependencyFlags(), { barrier }, {}, {} );
+						{
+							vk::MemoryBarrier2 barrier(
+							    vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR, vk::AccessFlagBits2::eAccelerationStructureWriteKHR,  // all writes must be visible ...
+							    vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR, vk::AccessFlagBits2::eAccelerationStructureReadKHR ); // ... before the next read happens,
+
+							cmd.pipelineBarrier2( vk::DependencyInfo().setMemoryBarriers( barrier ) );
+						}
 
 					} // end for each blas element in array
 
@@ -5438,12 +5446,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					// Issue barrier to make sure that transfer to instances buffer is complete
 					// before building top-level acceleration structure
 
-					vk::MemoryBarrier barrier( vk::AccessFlagBits::eTransferWrite,                   // All transfers must be visible ...
-					                           vk::AccessFlagBits::eAccelerationStructureWriteKHR ); // ... before we can write to acceleration structures,
+					{
+						vk::MemoryBarrier2 barrier( vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,                                        //  Writes from transfer ...
+						                            vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR, vk::AccessFlagBits2::eAccelerationStructureWriteKHR ); // must be visible for accelerationStructureBuild stage ... before we can write to acceleration structures,
 
-					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                      // Writes from transfer ...
-					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR, // must be visible for accelerationStructureBuild stage.
-					                     vk::DependencyFlags(), { barrier }, {}, {} );
+						cmd.pipelineBarrier2( vk::DependencyInfo().setMemoryBarriers( barrier ) );
+					}
 
 					// instances information is encoded via buffer, but that buffer is also available as host memory,
 					// because it is held in staging_buffer_mapped_memory...
@@ -5568,33 +5576,53 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	auto& frame = self->mFrames[ frameIndex ];
 
-	std::vector<::vk::PipelineStageFlags> wait_dst_stage_mask(
-	    frame.swapchain_state.size(), { vk::PipelineStageFlagBits::eColorAttachmentOutput } );
+	std::vector<vk::SemaphoreSubmitInfo> present_complete_semaphore_submit_infos;
+	std::vector<vk::SemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
 
-	std::vector<vk::Semaphore> present_complete_semaphores;
-	present_complete_semaphores.reserve( frame.swapchain_state.size() );
-
-	std::vector<vk::Semaphore> render_complete_semaphores;
-	render_complete_semaphores.reserve( frame.swapchain_state.size() );
+	present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
+	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 
 	for ( auto const& swp : frame.swapchain_state ) {
-		present_complete_semaphores.push_back( swp.presentComplete );
-		render_complete_semaphores.push_back( swp.renderComplete );
+		present_complete_semaphore_submit_infos.emplace_back(
+		    vk::SemaphoreSubmitInfo()
+		        .setSemaphore( swp.presentComplete )
+		        .setDeviceIndex( 0 ) // replaces vkDeviceGroupSubmitInfo
+		        .setStageMask( vk::PipelineStageFlagBits2::eColorAttachmentOutput )
+		        .setValue( 1 ) //
+		);
+		render_complete_semaphore_submit_infos.emplace_back(
+		    vk::SemaphoreSubmitInfo()
+		        .setSemaphore( swp.renderComplete )
+		        .setDeviceIndex( 0 ) // replaces vkDeviceGroupSubmitInfo
+		        .setStageMask( vk::PipelineStageFlagBits2::eAllCommands )
+		        .setValue( 2 ) //
+		);
 	}
 
-	vk::SubmitInfo submitInfo;
+	std::vector<vk::CommandBufferSubmitInfo> command_buffer_submit_infos;
+	command_buffer_submit_infos.reserve( frame.commandBuffers.size() );
+
+	for ( auto const& c : frame.commandBuffers ) {
+		command_buffer_submit_infos.emplace_back(
+		    vk::CommandBufferSubmitInfo()
+		        .setCommandBuffer( c )
+		        .setDeviceMask( 0 ) // replaces vkDeviceGroupSubmitInfo
+		);
+	}
+
+	vk::CommandBufferSubmitInfo si;
+	// we need one submit info for each command.
+
+	vk::SubmitInfo2 submitInfo;
 	submitInfo
-	    .setWaitSemaphoreCount( uint32_t( present_complete_semaphores.size() ) )
-	    .setPWaitSemaphores( present_complete_semaphores.data() )
-	    .setPWaitDstStageMask( wait_dst_stage_mask.data() )
-	    .setCommandBufferCount( uint32_t( frame.commandBuffers.size() ) )
-	    .setPCommandBuffers( frame.commandBuffers.data() )
-	    .setSignalSemaphoreCount( uint32( render_complete_semaphores.size() ) )
-	    .setPSignalSemaphores( render_complete_semaphores.data() );
+	    .setWaitSemaphoreInfos( present_complete_semaphore_submit_infos )
+	    .setCommandBufferInfos( command_buffer_submit_infos )
+	    .setSignalSemaphoreInfos( render_complete_semaphore_submit_infos ) //
+	    ;
 
 	auto queue = vk::Queue{ self->device->getDefaultGraphicsQueue() };
 
-	queue.submit( { submitInfo }, frame.frameFence );
+	queue.submit2( { submitInfo }, frame.frameFence );
 
 	using namespace le_swapchain_vk;
 
@@ -5606,7 +5634,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    swapchain_i.present(
 		        self->swapchains[ i ],
 		        self->device->getDefaultGraphicsQueue(),
-		        render_complete_semaphores[ i ],
+		        render_complete_semaphore_submit_infos[ i ].semaphore,
 		        &frame.swapchain_state[ i ].image_idx );
 
 		frame.swapchain_state[ i ].present_successful = result;

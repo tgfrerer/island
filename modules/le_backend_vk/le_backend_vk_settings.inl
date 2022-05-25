@@ -96,10 +96,15 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	    .setShaderFloat64( true )                  //
 	    ;
 
+	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
+
+	self->requested_device_features.get<vk::PhysicalDeviceVulkan13Features>()
+	    .setSynchronization2( true ) // use synchronisation2 by default
+	    ;
+
 #ifdef LE_FEATURE_VIDEO
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_VIDEO_QUEUE_EXTENSION_NAME );
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_VIDEO_DECODE_QUEUE_EXTENSION_NAME );
-	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
 #endif
 
 #ifdef LE_FEATURE_RTX

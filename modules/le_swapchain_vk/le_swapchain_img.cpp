@@ -180,20 +180,25 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 
 			cmdPresent.begin( { ::vk::CommandBufferUsageFlags() } );
 
-			auto imgMemBarrier =
-			    vk::ImageMemoryBarrier()
-			        .setSrcAccessMask( ::vk::AccessFlagBits::eMemoryRead )
-			        .setDstAccessMask( ::vk::AccessFlagBits::eTransferRead )
-			        .setOldLayout( ::vk::ImageLayout::ePresentSrcKHR )
-			        .setNewLayout( ::vk::ImageLayout::eTransferSrcOptimal )
-			        .setSrcQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: graphics -> transfer
-			        .setDstQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: graphics -> transfer
-			        .setImage( frame.image )
-			        .setSubresourceRange( { ::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } );
+			{
+				auto imgMemBarrier =
+				    vk::ImageMemoryBarrier2()
+				        .setSrcStageMask( vk::PipelineStageFlagBits2::eAllCommands )
+				        .setSrcAccessMask( vk::AccessFlagBits2::eMemoryRead )
+				        .setDstAccessMask( vk::AccessFlagBits2::eTransferRead )
+				        .setDstStageMask( vk::PipelineStageFlagBits2::eAllTransfer )
+				        .setOldLayout( vk::ImageLayout::ePresentSrcKHR )
+				        .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )
+				        .setSrcQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: graphics -> transfer
+				        .setDstQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: graphics -> transfer
+				        .setImage( frame.image )
+				        .setSubresourceRange( { ::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } );
 
-			cmdPresent.pipelineBarrier( ::vk::PipelineStageFlagBits::eAllCommands, ::vk::PipelineStageFlagBits::eTransfer, ::vk::DependencyFlags(), {}, {}, { imgMemBarrier } );
+				;
+				cmdPresent.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( imgMemBarrier ) );
+			}
 
-			::vk::ImageSubresourceLayers imgSubResource;
+			vk::ImageSubresourceLayers imgSubResource;
 			imgSubResource
 			    .setAspectMask( ::vk::ImageAspectFlagBits::eColor )
 			    .setMipLevel( 0 )
@@ -220,22 +225,26 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			// Move ownership of image back from transfer -> graphics
 			// Change image layout back to colorattachment
 
-			::vk::CommandBuffer& cmdAcquire = frame.cmdAcquire;
+			vk::CommandBuffer& cmdAcquire = frame.cmdAcquire;
 
-			cmdAcquire.begin( { ::vk::CommandBufferUsageFlags() } );
+			cmdAcquire.begin( { vk::CommandBufferUsageFlags() } );
 
-			auto barrierReadToAcquire =
-			    vk::ImageMemoryBarrier()
-			        .setSrcAccessMask( ::vk::AccessFlagBits::eTransferRead )
-			        .setDstAccessMask( ::vk::AccessFlagBits::eColorAttachmentWrite )
-			        .setOldLayout( ::vk::ImageLayout::eUndefined )
-			        .setNewLayout( ::vk::ImageLayout::eColorAttachmentOptimal )
-			        .setSrcQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: transfer -> graphics
-			        .setDstQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: transfer -> graphics
-			        .setImage( frame.image )
-			        .setSubresourceRange( { ::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } );
+			{
+				auto barrierReadToAcquire =
+				    vk::ImageMemoryBarrier2()
+				        .setSrcStageMask( vk::PipelineStageFlagBits2::eAllCommands )
+				        .setSrcAccessMask( vk::AccessFlagBits2::eTransferRead )
+				        .setDstStageMask( vk::PipelineStageFlagBits2::eColorAttachmentOutput )
+				        .setDstAccessMask( vk::AccessFlagBits2::eColorAttachmentWrite )
+				        .setOldLayout( vk::ImageLayout::eUndefined )
+				        .setNewLayout( vk::ImageLayout::eColorAttachmentOptimal )
+				        .setSrcQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: transfer -> graphics
+				        .setDstQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: transfer -> graphics
+				        .setImage( frame.image )
+				        .setSubresourceRange( { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } );
 
-			cmdAcquire.pipelineBarrier( ::vk::PipelineStageFlagBits::eAllCommands, ::vk::PipelineStageFlagBits::eColorAttachmentOutput, ::vk::DependencyFlags(), {}, {}, { barrierReadToAcquire } );
+				cmdAcquire.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( barrierReadToAcquire ) );
+			}
 
 			cmdAcquire.end();
 		}
