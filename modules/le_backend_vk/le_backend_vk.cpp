@@ -1913,7 +1913,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 				logger.info( "\tsrcAccess: %s", vk::to_string( srcAccessFromExternalFlags ).c_str() );
 				logger.info( "\tdstAccess: %s", vk::to_string( dstAccessFromExternalFlags ).c_str() );
 
-				logger.info( "Subpass Dependency: subpass `%s`m to VK_SUBPASS_EXTERNAL:", pass.debugName.c_str() );
+				logger.info( "Subpass Dependency: subpass `%s` to VK_SUBPASS_EXTERNAL:", pass.debugName.c_str() );
 				logger.info( "\t srcStage: %s", vk::to_string( srcStageToExternalFlags ).c_str() );
 				logger.info( "\t dstStage: %s", vk::to_string( dstStageToExternalFlags ).c_str() );
 				logger.info( "\tsrcAccess: %s", vk::to_string( srcAccessToExternalFlags ).c_str() );
