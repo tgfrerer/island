@@ -47,12 +47,14 @@ struct le_blas_resource_handle_t : le_resource_handle_t {
 struct le_tlas_resource_handle_t : le_resource_handle_t {
 };
 
-enum LeRenderPassType : uint32_t {
-	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
-	LE_RENDER_PASS_TYPE_DRAW      = 1,
-	LE_RENDER_PASS_TYPE_TRANSFER  = 2,
-	LE_RENDER_PASS_TYPE_COMPUTE   = 3,
+namespace le {
+enum RenderPassType : uint32_t {
+	eUndefined = 0,
+	eDraw      = 1,
+	eTransfer  = 2,
+	eCompute   = 3,
 };
+}
 
 // A graphics pipeline handle is an opaque handle to a *pipeline state* object.
 // Note that the pipeline state is different from the actual pipeline, as the
@@ -147,9 +149,7 @@ static inline constexpr bool operator!=( const Extent3D& lhs, const Extent3D& rh
 	return !( lhs == rhs );
 }
 
-} // namespace le
-
-struct LeClearColorValue {
+struct ClearColorValue {
 	union {
 		float    float32[ 4 ];
 		int32_t  int32[ 4 ];
@@ -157,26 +157,27 @@ struct LeClearColorValue {
 	};
 };
 
-struct LeClearDepthStencilValue {
+struct ClearDepthStencilValue {
 	float    depth;
 	uint32_t stencil;
 };
 
-struct LeClearValue {
+struct ClearValue {
 	union {
-		LeClearColorValue        color;
-		LeClearDepthStencilValue depthStencil;
+		ClearColorValue        color;
+		ClearDepthStencilValue depthStencil;
 	};
 };
+} // namespace le
 
 struct le_image_attachment_info_t {
-	static constexpr LeClearValue DefaultClearValueColor        = { { { { { 0.f, 0.f, 0.f, 0.f } } } } };
-	static constexpr LeClearValue DefaultClearValueDepthStencil = { { { { { 1.f, 0 } } } } };
+	static constexpr le::ClearValue DefaultClearValueColor        = { { { { { 0.f, 0.f, 0.f, 0.f } } } } };
+	static constexpr le::ClearValue DefaultClearValueDepthStencil = { { { { { 1.f, 0 } } } } };
 
 	le::AttachmentLoadOp  loadOp  = le::AttachmentLoadOp::eClear;  //
 	le::AttachmentStoreOp storeOp = le::AttachmentStoreOp::eStore; //
 
-	LeClearValue clearValue = DefaultClearValueColor; // only used if loadOp == clear
+	le::ClearValue clearValue = DefaultClearValueColor; // only used if loadOp == clear
 };
 
 static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
@@ -526,8 +527,8 @@ class ImageAttachmentInfoBuilder {
   public:
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setLoadOp, le::AttachmentLoadOp, loadOp, = le::AttachmentLoadOp::eClear )
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setStoreOp, le::AttachmentStoreOp, storeOp, = le::AttachmentStoreOp::eStore )
-	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setColorClearValue, LeClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueColor )
-	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setDepthStencilClearValue, LeClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueDepthStencil )
+	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setColorClearValue, le::ClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueColor )
+	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setDepthStencilClearValue, le::ClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueDepthStencil )
 
 	le_image_attachment_info_t const& build() {
 		return self;

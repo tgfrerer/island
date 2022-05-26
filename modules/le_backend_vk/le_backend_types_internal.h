@@ -102,24 +102,24 @@ struct le_descriptor_set_layout_t {
 
 struct DescriptorData {
 	struct ImageInfo {
-		vk::Sampler     sampler     = nullptr;                                 // |
-		vk::ImageView   imageView   = nullptr;                                 // | > keep in this order, so we can pass address for sampler as descriptorImageInfo
-		vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal; // |
+		VkSampler       sampler     = nullptr;                                 // |
+		VkImageView     imageView   = nullptr;                                 // | > keep in this order, so we can pass address for sampler as descriptorImageInfo
+		le::ImageLayout imageLayout = le::ImageLayout::eShaderReadOnlyOptimal; // |
 	};
 	struct BufferInfo {
-		vk::Buffer     buffer = nullptr;       // |
+		VkBuffer       buffer = nullptr;       // |
 		vk::DeviceSize offset = 0;             // | > keep in this order, as we can cast this to a DescriptorBufferInfo
 		vk::DeviceSize range  = VK_WHOLE_SIZE; // |
 	};
 
 	struct TexelBufferInfo {
-		vk::BufferView bufferView   = nullptr;
-		uint64_t       padding[ 2 ] = {};
+		VkBufferView bufferView   = nullptr;
+		uint64_t     padding[ 2 ] = {};
 	};
 
 	struct AccelerationStructureInfo {
-		vk::AccelerationStructureKHR accelerationStructure = nullptr;
-		uint64_t                     padding[ 2 ]          = {};
+		VkAccelerationStructureKHR accelerationStructure = nullptr;
+		uint64_t                   padding[ 2 ]          = {};
 	};
 
 	vk::DescriptorType type          = vk::DescriptorType::eUniformBufferDynamic; //
@@ -171,11 +171,11 @@ struct AttachmentInfo {
 		eResolveAttachment,
 	};
 	le_img_resource_handle  resource;           ///< which resource to look up for resource state
-	vk::Format              format;             ///
-	vk::AttachmentLoadOp    loadOp;             ///
-	vk::AttachmentStoreOp   storeOp;            ///
-	vk::ClearValue          clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
-	vk::SampleCountFlagBits numSamples;         /// < number of samples, default 1
+	le::Format              format;             ///
+	le::AttachmentLoadOp    loadOp;             ///
+	le::AttachmentStoreOp   storeOp;            ///
+	le::ClearValue          clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
+	le::SampleCountFlagBits numSamples;         /// < number of samples, default 1
 	uint32_t                initialStateOffset; ///< sync state of resource before entering the renderpass (offset is into resource specific sync chain )
 	uint32_t                finalStateOffset;   ///< sync state of resource after exiting the renderpass (offset is into resource specific sync chain )
 	Type                    type;
@@ -188,7 +188,7 @@ struct LeRenderPass {
 	uint16_t       numResolveAttachments;                   // 0..8
 	uint16_t       numDepthStencilAttachments;              // 0..1
 
-	LeRenderPassType type;
+	le::RenderPassType type;
 
 	VkFramebuffer           framebuffer;
 	VkRenderPass            renderPass;

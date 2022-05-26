@@ -70,7 +70,7 @@ struct le_renderer_api {
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
-		le_renderpass_o *               ( *create               )( const char *renderpass_name, const LeRenderPassType &type_ );
+		le_renderpass_o *               ( *create               )( const char *renderpass_name, const le::RenderPassType &type_ );
 		void                            ( *destroy              )( le_renderpass_o *obj );
 		le_renderpass_o *               ( *clone                )( const le_renderpass_o *obj );
         void                            ( *set_setup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_setup_t setup_fun );
@@ -93,7 +93,7 @@ struct le_renderer_api {
 		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
 		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
-		LeRenderPassType                ( *get_type             )( const le_renderpass_o* obj );
+		le::RenderPassType              ( *get_type             )( const le_renderpass_o* obj );
 		le_command_buffer_encoder_o*    ( *steal_encoder        )( le_renderpass_o* obj );
 		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_img_resource_handle ** pResourceIds, size_t* numAttachments);
 
@@ -296,11 +296,11 @@ class RenderPass {
 	le_renderpass_o* self;
 
   public:
-	RenderPass( const char* name_, const LeRenderPassType& type_ = LE_RENDER_PASS_TYPE_DRAW )
+	RenderPass( const char* name_, const le::RenderPassType& type_ = le::RenderPassType::eDraw )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 	}
 
-	RenderPass( const char* name_, const LeRenderPassType& type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void* user_data )
+	RenderPass( const char* name_, const le::RenderPassType& type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void* user_data )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 		le_renderer::renderpass_i.set_setup_callback( self, user_data, fun_setup );
 		le_renderer::renderpass_i.set_execute_callback( self, user_data, fun_exec );

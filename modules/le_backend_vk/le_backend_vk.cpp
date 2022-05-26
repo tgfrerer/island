@@ -266,8 +266,8 @@ class KillList : NoCopy, NoMove {
 
 // ----------------------------------------------------------------------
 
-static inline const vk::ClearValue& le_clear_value_to_vk( const LeClearValue& lhs ) {
-	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "Clear value type size must be equal between Le and Vk" );
+static inline const vk::ClearValue& le_clear_value_to_vk( const le::ClearValue& lhs ) {
+	static_assert( sizeof( vk::ClearValue ) == sizeof( le::ClearValue ), "Clear value type size must be equal between Le and Vk" );
 	return reinterpret_cast<const vk::ClearValue&>( lhs );
 }
 
@@ -587,22 +587,22 @@ struct DescriptorSetState {
 
 // ----------------------------------------------------------------------
 
-static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool& isDepth, bool& isStencil ) {
+static inline void le_format_get_is_depth_stencil( le::Format const& format_, bool& isDepth, bool& isStencil ) {
 
 	switch ( format_ ) {
-	case vk::Format::eD16Unorm:         // fall-through
-	case vk::Format::eX8D24UnormPack32: // fall-through
-	case vk::Format::eD32Sfloat:        // fall-through
+	case le::Format::eD16Unorm:         // fall-through
+	case le::Format::eX8D24UnormPack32: // fall-through
+	case le::Format::eD32Sfloat:        // fall-through
 		isDepth   = true;
 		isStencil = false;
 		break;
-	case vk::Format::eS8Uint:
+	case le::Format::eS8Uint:
 		isDepth   = false;
 		isStencil = true;
 		break;
-	case vk::Format::eD16UnormS8Uint:  // fall-through
-	case vk::Format::eD24UnormS8Uint:  // fall-through
-	case vk::Format::eD32SfloatS8Uint: // fall-through
+	case le::Format::eD16UnormS8Uint:  // fall-through
+	case le::Format::eD24UnormS8Uint:  // fall-through
+	case le::Format::eD32SfloatS8Uint: // fall-through
 		isDepth = isStencil = true;
 		break;
 
@@ -1200,10 +1200,10 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 
 		assert( !syncChain.empty() && "SyncChain must not be empty" );
 
-		vk::Format attachmentFormat = vk::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
+		auto const& attachmentFormat = le::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
 
 		bool isDepth = false, isStencil = false;
-		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
+		le_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
 		bool isDepthStencil = isDepth || isStencil;
 
 		AttachmentInfo* currentAttachment =
@@ -1221,11 +1221,11 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 		}
 
 		currentAttachment->resource   = img_resource;
-		currentAttachment->format     = attachmentFormat;
-		currentAttachment->numSamples = static_cast<vk::SampleCountFlagBits>( sampleCount );
-		currentAttachment->loadOp     = static_cast<vk::AttachmentLoadOp>( image_attachment_info.loadOp );
-		currentAttachment->storeOp    = static_cast<vk::AttachmentStoreOp>( image_attachment_info.storeOp );
-		currentAttachment->clearValue = le_clear_value_to_vk( image_attachment_info.clearValue );
+		currentAttachment->format     = le::Format( attachmentFormat );
+		currentAttachment->numSamples = sampleCount;
+		currentAttachment->loadOp     = image_attachment_info.loadOp;
+		currentAttachment->storeOp    = image_attachment_info.storeOp;
+		currentAttachment->clearValue = image_attachment_info.clearValue;
 
 		{
 			// track resource state before entering a subpass
@@ -1233,7 +1233,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 			auto& previousSyncState = syncChain.back();
 			auto  beforeFirstUse{ previousSyncState };
 
-			if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eLoad ) {
+			if ( currentAttachment->loadOp == le::AttachmentLoadOp::eLoad ) {
 				// we must now specify which stages need to be visible for which coming memory access
 				if ( isDepthStencil ) {
 					beforeFirstUse.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentRead;
@@ -1245,7 +1245,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 					beforeFirstUse.visible_access = vk::AccessFlagBits2::eColorAttachmentRead;
 					beforeFirstUse.stage          = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
 				}
-			} else if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eClear ) {
+			} else if ( currentAttachment->loadOp == le::AttachmentLoadOp::eClear ) {
 				// resource.loadOp must be either CLEAR / or DONT_CARE
 				beforeFirstUse.stage          = isDepthStencil ? vk::PipelineStageFlagBits2::eEarlyFragmentTests : vk::PipelineStageFlagBits2::eColorAttachmentOutput;
 				beforeFirstUse.visible_access = vk::AccessFlagBits2( 0 );
@@ -1326,10 +1326,10 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 		le_img_resource_handle img_resource = pResources[ i ];
 		auto&                  syncChain    = frame.syncChainTable[ img_resource ];
 
-		vk::Format attachmentFormat = vk::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
+		auto const& attachmentFormat = le::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
 
 		bool isDepth = false, isStencil = false;
-		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
+		le_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
 		bool isDepthStencil = isDepth || isStencil;
 
 		AttachmentInfo* currentAttachment = currentPass.attachments +
@@ -1341,11 +1341,11 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 		currentPass.numResolveAttachments++;
 
 		currentAttachment->resource   = img_resource;
-		currentAttachment->format     = attachmentFormat;
-		currentAttachment->numSamples = vk::SampleCountFlagBits::e1; // this is a requirement for resolve passes.
-		currentAttachment->loadOp     = vk::AttachmentLoadOp::eDontCare;
-		currentAttachment->storeOp    = static_cast<vk::AttachmentStoreOp>( image_attachment_info.storeOp );
-		currentAttachment->clearValue = le_clear_value_to_vk( image_attachment_info.clearValue );
+		currentAttachment->format     = le::Format( attachmentFormat );
+		currentAttachment->numSamples = le::SampleCountFlagBits::e1; // this is a requirement for resolve passes.
+		currentAttachment->loadOp     = le::AttachmentLoadOp::eDontCare;
+		currentAttachment->storeOp    = image_attachment_info.storeOp;
+		currentAttachment->clearValue = image_attachment_info.clearValue;
 		currentAttachment->type       = AttachmentInfo::Type::eResolveAttachment;
 
 		{
@@ -1446,14 +1446,14 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 	using namespace le_renderer;
 
-	auto get_stage_flags_based_on_renderpass_type = []( LeRenderPassType const& rp_type ) -> vk::PipelineStageFlags2 {
+	auto get_stage_flags_based_on_renderpass_type = []( le::RenderPassType const& rp_type ) -> vk::PipelineStageFlags2 {
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
-		case LE_RENDER_PASS_TYPE_TRANSFER:
+		case le::RenderPassType::eTransfer:
 			return vk::PipelineStageFlagBits2::eTransfer; // stage for transfer pass
-		case LE_RENDER_PASS_TYPE_DRAW:
+		case le::RenderPassType::eDraw:
 			return vk::PipelineStageFlagBits2::eVertexShader; // earliest stage for draw pass
-		case LE_RENDER_PASS_TYPE_COMPUTE:
+		case le::RenderPassType::eCompute:
 			return vk::PipelineStageFlagBits2::eComputeShader; // stage for compute pass
 
 		default:
@@ -1786,7 +1786,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 
 		// The rest of this loop only concerns draw passes
 		//
-		if ( pass.type != LE_RENDER_PASS_TYPE_DRAW ) {
+		if ( pass.type != le::RenderPassType::eDraw ) {
 			continue;
 		}
 
@@ -1831,17 +1831,17 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 
 			bool isDepth   = false;
 			bool isStencil = false;
-			vk_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
+			le_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
 
 			vk::AttachmentDescription2 attachmentDescription{};
 			attachmentDescription
-			    .setFlags( vk::AttachmentDescriptionFlags() ) // relevant for compatibility
-			    .setFormat( attachment->format )              // relevant for compatibility
-			    .setSamples( attachment->numSamples )         // relevant for compatibility
-			    .setLoadOp( attachment->loadOp )
-			    .setStoreOp( attachment->storeOp )
-			    .setStencilLoadOp( isStencil ? attachment->loadOp : vk::AttachmentLoadOp::eDontCare )
-			    .setStencilStoreOp( isStencil ? attachment->storeOp : vk::AttachmentStoreOp::eDontCare )
+			    .setFlags( vk::AttachmentDescriptionFlags() )                    // relevant for compatibility
+			    .setFormat( vk::Format( attachment->format ) )                   // relevant for compatibility
+			    .setSamples( vk::SampleCountFlagBits( attachment->numSamples ) ) // relevant for compatibility
+			    .setLoadOp( vk::AttachmentLoadOp( attachment->loadOp ) )
+			    .setStoreOp( vk::AttachmentStoreOp( attachment->storeOp ) )
+			    .setStencilLoadOp( isStencil ? vk::AttachmentLoadOp( attachment->loadOp ) : vk::AttachmentLoadOp::eDontCare )
+			    .setStencilStoreOp( isStencil ? vk::AttachmentStoreOp( attachment->storeOp ) : vk::AttachmentStoreOp::eDontCare )
 			    .setInitialLayout( syncInitial.layout )
 			    .setFinalLayout( syncFinal.layout );
 
@@ -2110,12 +2110,12 @@ static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFra
 
 // ----------------------------------------------------------------------
 
-vk::ImageAspectFlags get_aspect_flags_from_format( vk::Format const& format ) {
+vk::ImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
 	vk::ImageAspectFlags aspectFlags{};
 
 	bool isDepth   = false;
 	bool isStencil = false;
-	vk_format_get_is_depth_stencil( format, isDepth, isStencil );
+	le_format_get_is_depth_stencil( format, isDepth, isStencil );
 
 	if ( isDepth || isStencil ) {
 		if ( isDepth ) {
@@ -2138,7 +2138,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, vk::Device& d
 
 	for ( auto& pass : frame.passes ) {
 
-		if ( pass.type != LE_RENDER_PASS_TYPE_DRAW ) {
+		if ( pass.type != le::RenderPassType::eDraw ) {
 			continue;
 		}
 
@@ -2164,7 +2164,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, vk::Device& d
 			imageViewCreateInfo
 			    .setImage( frame_data_get_image_from_le_resource_id( frame, attachment->resource ) )
 			    .setViewType( vk::ImageViewType::e2D )
-			    .setFormat( attachment->format )
+			    .setFormat( vk::Format( attachment->format ) )
 			    .setComponents( {} ) // default-constructor '{}' means identity
 			    .setSubresourceRange( subresourceRange );
 
@@ -3423,7 +3423,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 
-		if ( renderpass_i.get_type( *p ) != LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE ) {
+		if ( renderpass_i.get_type( *p ) != le::RenderPassType::eCompute ) {
 			continue;
 		}
 
@@ -3456,11 +3456,11 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 
 				AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( frame, r );
 
-				vk::Format imageFormat = vk::Format( vk_resource_info.info.imageInfo.format );
+				auto const& imageFormat = le::Format( vk_resource_info.info.imageInfo.format );
 
 				// If the format is still undefined at this point, we can only throw our hands up in the air...
 				//
-				if ( imageFormat == vk::Format::eUndefined ) {
+				if ( imageFormat == le::Format::eUndefined ) {
 					logger.warn( "Cannot create default view for image: '%s', as format is unspecified", r->data->debug_name );
 					continue;
 				}
@@ -3478,7 +3478,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 				    .setFlags( {} )
 				    .setImage( vk_resource_info.as.image )
 				    .setViewType( vk::ImageViewType::e2D )
-				    .setFormat( imageFormat )
+				    .setFormat( vk::Format( imageFormat ) )
 				    .setComponents( {} ) // default component mapping
 				    .setSubresourceRange( subresourceRange );
 
@@ -3532,7 +3532,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 				{
 					// Set or create vkImageview
 
-					auto imageFormat = vk::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) );
+					auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) );
 
 					vk::ImageSubresourceRange subresourceRange;
 					subresourceRange
@@ -3549,8 +3549,8 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 					    .setFlags( {} ) // no special flags
 					    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
 					    .setViewType( static_cast<vk::ImageViewType>( texInfo.imageView.image_view_type ) )
-					    .setFormat( imageFormat ) // we got this earlier via texInfo
-					    .setComponents( {} )      // default component mapping
+					    .setFormat( vk::Format( imageFormat ) ) // we got this earlier via texInfo
+					    .setComponents( {} )                    // default component mapping
 					    .setSubresourceRange( subresourceRange );
 
 					imageView = device.createImageView( imageViewCreateInfo );
@@ -3886,9 +3886,9 @@ static bool updateArguments( const vk::Device&                  device,
 		// The most common case for this bug is not providing any data for a uniform used in the shader,
 		// we check for this and skip any argumentStates which have invalid data...
 
-		static constexpr auto NULL_VK_BUFFER                     = vk::Buffer( nullptr );
-		static constexpr auto NULL_VK_IMAGE_VIEW                 = vk::ImageView( nullptr );
-		static constexpr auto NULL_VK_ACCELERATION_STRUCTURE_KHR = vk::AccelerationStructureKHR( nullptr );
+		static constexpr auto NULL_VK_BUFFER                     = VkBuffer( nullptr );
+		static constexpr auto NULL_VK_IMAGE_VIEW                 = VkImageView( nullptr );
+		static constexpr auto NULL_VK_ACCELERATION_STRUCTURE_KHR = VkAccelerationStructureKHR( nullptr );
 
 		for ( auto& a : argumentState.setData[ setId ] ) {
 
@@ -4031,7 +4031,7 @@ static bool updateArguments( const vk::Device&                  device,
 						case vk::DescriptorType::eAccelerationStructureKHR: {
 							auto wd                        = new vk::WriteDescriptorSetAccelerationStructureKHR{};
 							wd->accelerationStructureCount = 1;
-							wd->pAccelerationStructures    = &a.accelerationStructureInfo.accelerationStructure;
+							wd->pAccelerationStructures    = &reinterpret_cast<vk::AccelerationStructureKHR const&>( a.accelerationStructureInfo.accelerationStructure );
 							w.setPNext( wd );
 						} break;
 						default:
@@ -4173,13 +4173,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			static constexpr auto LE_COLOUR_PALE_PEACH   = hex_rgba_to_float_colour( 0xFFDBA3FF );
 
 			switch ( pass.type ) {
-			case LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE:
+			case le::RenderPassType::eCompute:
 				labelInfo.setColor( LE_COLOUR_LIGHTBLUE );
 				break;
-			case LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW:
+			case le::RenderPassType::eDraw:
 				labelInfo.setColor( LE_COLOUR_GREENY_BLUE );
 				break;
-			case LeRenderPassType::LE_RENDER_PASS_TYPE_TRANSFER:
+			case le::RenderPassType::eTransfer:
 				labelInfo.setColor( LE_COLOUR_BRICK_ORANGE );
 				break;
 			default:
@@ -4265,10 +4265,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 
 		// Draw passes must begin by opening a Renderpass context.
-		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
+		if ( pass.type == le::RenderPassType::eDraw && pass.renderPass ) {
 
 			for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
-				clearValues[ i ] = pass.attachments[ i ].clearValue;
+				clearValues[ i ] = reinterpret_cast<vk::ClearValue&>( pass.attachments[ i ].clearValue );
 			}
 
 			vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -4351,7 +4351,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				case le::CommandType::eBindGraphicsPipeline: {
 					auto* le_cmd = static_cast<le::CommandBindGraphicsPipeline*>( dataIt );
 
-					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
+					if ( pass.type == le::RenderPassType::eDraw ) {
 						// at this point, a valid renderpass must be bound
 
 						using namespace le_backend_vk;
@@ -4452,7 +4452,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				case le::CommandType::eBindComputePipeline: {
 					auto* le_cmd = static_cast<le::CommandBindComputePipeline*>( dataIt );
-					if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
+					if ( pass.type == le::RenderPassType::eCompute ) {
 						// at this point, a valid renderpass must be bound
 
 						using namespace le_backend_vk;
@@ -4537,7 +4537,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				case le::CommandType::eBindRtxPipeline: {
 					auto* le_cmd = static_cast<le::CommandBindRtxPipeline*>( dataIt );
-					if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
+					if ( pass.type == le::RenderPassType::eCompute ) {
 						// at this point, a valid renderpass must be bound
 
 						using namespace le_backend_vk;
@@ -4966,7 +4966,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					// ----------| invariant: texture has been found
 
-					bindingData->imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+					bindingData->imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
 					bindingData->imageInfo.sampler     = foundTex->second.sampler;
 					bindingData->imageInfo.imageView   = foundTex->second.imageView;
 					bindingData->type                  = vk::DescriptorType::eCombinedImageSampler;
@@ -5005,7 +5005,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					// ----------| invariant: image view has been found
 
 					// FIXME: (sync) image layout at this point *must* be general, if we wanted to write to this image.
-					bindingData.imageInfo.imageLayout = vk::ImageLayout::eGeneral;
+					bindingData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
 					bindingData.imageInfo.imageView   = foundImgView->second;
 
 					bindingData.type       = vk::DescriptorType::eStorageImage;
@@ -5523,7 +5523,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 
 		// non-draw passes don't need renderpasses.
-		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
+		if ( pass.type == le::RenderPassType::eDraw && pass.renderPass ) {
 			cmd.endRenderPass();
 		}
 

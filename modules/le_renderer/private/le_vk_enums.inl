@@ -1200,6 +1200,82 @@ constexpr ImageCreateFlags operator&( ImageCreateFlagBits const& lhs, ImageCreat
 
 // ----------------------------------------------------------------------
 
+enum class ImageLayout : uint32_t {
+	eUndefined                                = 0, // Implicit layout an image is when its contents are undefined due to various reasons (e.g. right after creation)
+	eGeneral                                  = 1, // General layout when image can be used for any kind of access
+	eColorAttachmentOptimal                   = 2, // Optimal layout when image is only used for color attachment read/write
+	eDepthStencilAttachmentOptimal            = 3, // Optimal layout when image is only used for depth/stencil attachment read/write
+	eDepthStencilReadOnlyOptimal              = 4, // Optimal layout when image is used for read only depth/stencil attachment and shader access
+	eShaderReadOnlyOptimal                    = 5, // Optimal layout when image is used for read only shader access
+	eTransferSrcOptimal                       = 6, // Optimal layout when image is used only as source of transfer operations
+	eTransferDstOptimal                       = 7, // Optimal layout when image is used only as destination of transfer operations
+	ePreinitialized                           = 8, // Initial layout used when the data is populated by the CPU
+	ePresentSrcKhr                            = 1000001002,
+	eVideoDecodeDstKhr                        = 1000024000,
+	eVideoDecodeSrcKhr                        = 1000024001,
+	eVideoDecodeDpbKhr                        = 1000024002,
+	eSharedPresentKhr                         = 1000111000,
+	eDepthReadOnlyStencilAttachmentOptimal    = 1000117000,
+	eDepthAttachmentStencilReadOnlyOptimal    = 1000117001,
+	eFragmentShadingRateAttachmentOptimalKhr  = 1000164003,
+	eFragmentDensityMapOptimalExt             = 1000218000,
+	eDepthAttachmentOptimal                   = 1000241000,
+	eDepthReadOnlyOptimal                     = 1000241001,
+	eStencilAttachmentOptimal                 = 1000241002,
+	eStencilReadOnlyOptimal                   = 1000241003,
+	eVideoEncodeDstKhr                        = 1000299000,
+	eVideoEncodeSrcKhr                        = 1000299001,
+	eVideoEncodeDpbKhr                        = 1000299002,
+	eReadOnlyOptimal                          = 1000314000,
+	eAttachmentOptimal                        = 1000314001,
+	eAttachmentOptimalKhr                     = eAttachmentOptimal,
+	eDepthAttachmentOptimalKhr                = eDepthAttachmentOptimal,
+	eDepthAttachmentStencilReadOnlyOptimalKhr = eDepthAttachmentStencilReadOnlyOptimal,
+	eDepthReadOnlyOptimalKhr                  = eDepthReadOnlyOptimal,
+	eDepthReadOnlyStencilAttachmentOptimalKhr = eDepthReadOnlyStencilAttachmentOptimal,
+	eShadingRateOptimalNv                     = eFragmentShadingRateAttachmentOptimalKhr,
+	eReadOnlyOptimalKhr                       = eReadOnlyOptimal,
+	eStencilAttachmentOptimalKhr              = eStencilAttachmentOptimal,
+	eStencilReadOnlyOptimalKhr                = eStencilReadOnlyOptimal,
+};
+
+static constexpr char const* to_str( const ImageLayout& tp ) {
+	switch ( static_cast<uint32_t>( tp ) ) {
+		// clang-format off
+		case          0: return "Undefined";
+		case          1: return "General";
+		case          2: return "ColorAttachmentOptimal";
+		case          3: return "DepthStencilAttachmentOptimal";
+		case          4: return "DepthStencilReadOnlyOptimal";
+		case          5: return "ShaderReadOnlyOptimal";
+		case          6: return "TransferSrcOptimal";
+		case          7: return "TransferDstOptimal";
+		case          8: return "Preinitialized";
+		case 1000001002: return "PresentSrcKhr";
+		case 1000024000: return "VideoDecodeDstKhr";
+		case 1000024001: return "VideoDecodeSrcKhr";
+		case 1000024002: return "VideoDecodeDpbKhr";
+		case 1000111000: return "SharedPresentKhr";
+		case 1000117000: return "DepthReadOnlyStencilAttachmentOptimal";
+		case 1000117001: return "DepthAttachmentStencilReadOnlyOptimal";
+		case 1000164003: return "FragmentShadingRateAttachmentOptimalKhr";
+		case 1000218000: return "FragmentDensityMapOptimalExt";
+		case 1000241000: return "DepthAttachmentOptimal";
+		case 1000241001: return "DepthReadOnlyOptimal";
+		case 1000241002: return "StencilAttachmentOptimal";
+		case 1000241003: return "StencilReadOnlyOptimal";
+		case 1000299000: return "VideoEncodeDstKhr";
+		case 1000299001: return "VideoEncodeSrcKhr";
+		case 1000299002: return "VideoEncodeDpbKhr";
+		case 1000314000: return "ReadOnlyOptimal";
+		case 1000314001: return "AttachmentOptimal";
+		default: return "Unknown";
+		// clang-format on
+	};
+}
+
+// ----------------------------------------------------------------------
+
 enum class ImageTiling : uint32_t {
 	eOptimal              = 0,
 	eLinear               = 1,

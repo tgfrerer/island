@@ -17,6 +17,7 @@ VkFilter, yes
 VkFormat, yes
 VkFrontFace, yes
 VkImageCreateFlagBits
+VkImageLayout, yes
 VkImageTiling, yes
 VkImageType, yes
 VkImageUsageFlagBits, yes
