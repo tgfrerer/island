@@ -4240,7 +4240,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					rangeAllMiplevels
 					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 					    .setBaseMipLevel( 0 )
-					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we want all miplevels to be in transferDstOptimal.
+					    .setLevelCount( VK_REMAINING_MIP_LEVELS )
 					    .setBaseArrayLayer( 0 )
 					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS );
 
@@ -4248,8 +4248,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					imageLayoutTransfer
 					    .setSrcStageMask( uint64_t( stateInitial.stage ) == 0 ? vk::PipelineStageFlagBits2::eTopOfPipe : stateInitial.stage ) // Any commands affecting this stage(s)
 					    .setDstStageMask( stateFinal.stage )                                                                                  // Happen-before this stage(s)
-					    .setSrcAccessMask( stateInitial.visible_access )
-					    .setDstAccessMask( stateFinal.visible_access )
+					    .setSrcAccessMask( stateInitial.visible_access )                                                                      // make available
+					    .setDstAccessMask( stateFinal.visible_access )                                                                        // make visible
 					    .setOldLayout( stateInitial.layout )
 					    .setNewLayout( stateFinal.layout )
 					    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
