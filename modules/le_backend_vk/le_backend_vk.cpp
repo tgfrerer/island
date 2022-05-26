@@ -1353,7 +1353,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 			auto  beforeFirstUse{ previousSyncState };
 
 			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
-			syncChain.emplace_back( std::move( beforeFirstUse ) ); // attachment initial state for a renderpass - may be loaded/cleared on first use
+			syncChain.emplace_back( beforeFirstUse ); // attachment initial state for a renderpass - may be loaded/cleared on first use
 			                                                       // * sync state: ready for load/store *
 		}
 
@@ -2247,8 +2247,8 @@ static void backend_create_descriptor_pools( BackendFrameData& frame, vk::Device
 
 		descriptorPoolSizes.reserve( DESCRIPTOR_TYPE_COUNT );
 
-		for ( size_t i = 0; i != DESCRIPTOR_TYPE_COUNT; ++i ) {
-			descriptorPoolSizes.emplace_back( vk::DescriptorType( DESCRIPTOR_TYPES[ i ] ), 1000 ); // 1000 descriptors of each type
+		for (auto i : DESCRIPTOR_TYPES) {
+			descriptorPoolSizes.emplace_back( vk::DescriptorType( i ), 1000 ); // 1000 descriptors of each type
 		}
 
 		::vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo;
@@ -2609,7 +2609,7 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 
 		self->allocations.push_back( allocation );
 		self->allocationInfo.push_back( allocationInfo );
-		self->buffers.push_back( buffer );
+		self->buffers.emplace_back(buffer );
 
 		// Staging resources share the same name, but their allocation index is different.
 		//
