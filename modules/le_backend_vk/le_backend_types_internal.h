@@ -14,8 +14,6 @@ constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color 
 
 // ----------------------------------------------------------------------
 
-// ----------------------------------------------------------------------
-
 struct le_graphics_pipeline_builder_data {
 
 	vk::PipelineRasterizationStateCreateInfo rasterizationInfo{};
@@ -56,7 +54,7 @@ struct le_shader_binding_info {
 	                             //
 	uint32_t count;              // Number of elements
 	                             //
-	vk::DescriptorType type;     // vkDescriptorType descriptor type
+	le::DescriptorType type;     // mirroring vkDescriptorType descriptor type
 	                             //
 	uint32_t dynamic_offset_idx; // Only used when binding pipeline
 	uint32_t range;              // Only used for ubos (sizeof ubo)
@@ -89,14 +87,13 @@ struct le_shader_binding_info {
 		       name_hash == lhs.name_hash;
 	}
 };
-
 // ----------------------------------------------------------------------
 struct le_descriptor_set_layout_t {
 	std::vector<le_shader_binding_info> binding_info;                  // binding info for this set
-	vk::DescriptorSetLayout             vk_descriptor_set_layout;      // vk object
-	vk::DescriptorUpdateTemplate        vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
+	VkDescriptorSetLayout               vk_descriptor_set_layout;      // vk object
+	VkDescriptorUpdateTemplate          vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
 };
-
+// ----------------------------------------------------------------------
 // Everything a possible vulkan descriptor binding might contain.
 // Type of descriptor decides which values will be used.
 
@@ -107,9 +104,9 @@ struct DescriptorData {
 		le::ImageLayout imageLayout = le::ImageLayout::eShaderReadOnlyOptimal; // |
 	};
 	struct BufferInfo {
-		VkBuffer       buffer = nullptr;       // |
-		vk::DeviceSize offset = 0;             // | > keep in this order, as we can cast this to a DescriptorBufferInfo
-		vk::DeviceSize range  = VK_WHOLE_SIZE; // |
+		VkBuffer     buffer = nullptr;       // |
+		VkDeviceSize offset = 0;             // | > keep in this order, as we can cast this to a DescriptorBufferInfo
+		VkDeviceSize range  = VK_WHOLE_SIZE; // |
 	};
 
 	struct TexelBufferInfo {
@@ -122,7 +119,7 @@ struct DescriptorData {
 		uint64_t                   padding[ 2 ]          = {};
 	};
 
-	vk::DescriptorType type          = vk::DescriptorType::eUniformBufferDynamic; //
+	le::DescriptorType type          = le::DescriptorType::eUniformBufferDynamic; //
 	uint32_t           bindingNumber = 0;                                         // <-- may be sparse, may repeat (for arrays of images bound to the same binding), but must increase monotonically (may only repeat or up over the series inside the samplerBindings vector).
 	uint32_t           arrayIndex    = 0;                                         // <-- must be in sequence for array elements of same binding
 

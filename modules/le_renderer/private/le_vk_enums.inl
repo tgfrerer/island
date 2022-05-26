@@ -499,6 +499,27 @@ constexpr CullModeFlags operator&( CullModeFlagBits const& lhs, CullModeFlagBits
 
 // ----------------------------------------------------------------------
 
+enum class DescriptorType : uint32_t {
+	eSampler                  = 0,
+	eCombinedImageSampler     = 1,
+	eSampledImage             = 2,
+	eStorageImage             = 3,
+	eUniformTexelBuffer       = 4,
+	eStorageTexelBuffer       = 5,
+	eUniformBuffer            = 6,
+	eStorageBuffer            = 7,
+	eUniformBufferDynamic     = 8,
+	eStorageBufferDynamic     = 9,
+	eInputAttachment          = 10,
+	eInlineUniformBlock       = 1000138000,
+	eAccelerationStructureKhr = 1000150000,
+	eAccelerationStructureNv  = 1000165000,
+	eMutableValve             = 1000351000,
+	eInlineUniformBlockExt    = eInlineUniformBlock,
+};
+
+// ----------------------------------------------------------------------
+
 enum class Filter : uint32_t {
 	eNearest  = 0,
 	eLinear   = 1,

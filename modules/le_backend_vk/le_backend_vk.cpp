@@ -3893,10 +3893,10 @@ static bool updateArguments( const vk::Device&                  device,
 		for ( auto& a : argumentState.setData[ setId ] ) {
 
 			switch ( a.type ) {
-			case vk::DescriptorType::eStorageBufferDynamic: //
-			case vk::DescriptorType::eUniformBuffer:        //
-			case vk::DescriptorType::eUniformBufferDynamic: //
-			case vk::DescriptorType::eStorageBuffer:        // fall-through
+			case le::DescriptorType::eStorageBufferDynamic: //
+			case le::DescriptorType::eUniformBuffer:        //
+			case le::DescriptorType::eUniformBufferDynamic: //
+			case le::DescriptorType::eStorageBuffer:        // fall-through
 				if ( NULL_VK_BUFFER == a.bufferInfo.buffer ) {
 					// if buffer must have valid buffer bound
 					logger.error( "Buffer argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
@@ -3907,9 +3907,9 @@ static bool updateArguments( const vk::Device&                  device,
 					argumentsOk = false;
 				}
 				break;
-			case vk::DescriptorType::eCombinedImageSampler:
-			case vk::DescriptorType::eSampledImage:
-			case vk::DescriptorType::eStorageImage:
+			case le::DescriptorType::eCombinedImageSampler:
+			case le::DescriptorType::eSampledImage:
+			case le::DescriptorType::eStorageImage:
 				argumentsOk &= ( NULL_VK_IMAGE_VIEW != a.imageInfo.imageView ); // if sampler, must have valid image view
 				if ( NULL_VK_IMAGE_VIEW == a.imageInfo.imageView ) {
 					// if image - must have valid imageview bound
@@ -3921,7 +3921,7 @@ static bool updateArguments( const vk::Device&                  device,
 					argumentsOk = false;
 				}
 				break;
-			case vk::DescriptorType::eAccelerationStructureKHR:
+			case le::DescriptorType::eAccelerationStructureKhr:
 				argumentsOk &= ( NULL_VK_ACCELERATION_STRUCTURE_KHR != a.accelerationStructureInfo.accelerationStructure );
 				if ( NULL_VK_ACCELERATION_STRUCTURE_KHR == a.accelerationStructureInfo.accelerationStructure ) {
 					// if image - must have valid acceleration structure bound
@@ -4001,34 +4001,34 @@ static bool updateArguments( const vk::Device&                  device,
 						    .setDstBinding( a.bindingNumber )
 						    .setDstArrayElement( a.arrayIndex )
 						    .setDescriptorCount( 1 )
-						    .setDescriptorType( a.type ) //
+						    .setDescriptorType( vk::DescriptorType( a.type ) ) //
 						    ;
 
 						switch ( a.type ) {
-						case vk::DescriptorType::eSampler:
-						case vk::DescriptorType::eCombinedImageSampler:
-						case vk::DescriptorType::eSampledImage:
-						case vk::DescriptorType::eStorageImage:
-						case vk::DescriptorType::eInputAttachment:
+						case le::DescriptorType::eSampler:
+						case le::DescriptorType::eCombinedImageSampler:
+						case le::DescriptorType::eSampledImage:
+						case le::DescriptorType::eStorageImage:
+						case le::DescriptorType::eInputAttachment:
 							w.setPImageInfo( reinterpret_cast<vk::DescriptorImageInfo const*>( &a.imageInfo ) );
 							break;
-						case vk::DescriptorType::eUniformTexelBuffer:
-						case vk::DescriptorType::eStorageTexelBuffer:
+						case le::DescriptorType::eUniformTexelBuffer:
+						case le::DescriptorType::eStorageTexelBuffer:
 							w.setPTexelBufferView( reinterpret_cast<vk::BufferView const*>( &a.texelBufferInfo ) );
 							break;
-						case vk::DescriptorType::eUniformBuffer:
-						case vk::DescriptorType::eStorageBuffer:
-						case vk::DescriptorType::eUniformBufferDynamic:
-						case vk::DescriptorType::eStorageBufferDynamic:
+						case le::DescriptorType::eUniformBuffer:
+						case le::DescriptorType::eStorageBuffer:
+						case le::DescriptorType::eUniformBufferDynamic:
+						case le::DescriptorType::eStorageBufferDynamic:
 							w.setPBufferInfo( reinterpret_cast<vk::DescriptorBufferInfo const*>( &a.bufferInfo ) );
 							break;
-						case vk::DescriptorType::eInlineUniformBlockEXT:
+						case le::DescriptorType::eInlineUniformBlockExt:
 							assert( false && "inline uniform blocks are not yet supported" );
 							break;
-						case vk::DescriptorType::eAccelerationStructureNV:
+						case le::DescriptorType::eAccelerationStructureNv:
 							assert( false && "NV acceleration structures are not supported anymore. Use KHR acceleration structures." );
 							break;
-						case vk::DescriptorType::eAccelerationStructureKHR: {
+						case le::DescriptorType::eAccelerationStructureKhr: {
 							auto wd                        = new vk::WriteDescriptorSetAccelerationStructureKHR{};
 							wd->accelerationStructureCount = 1;
 							wd->pAccelerationStructures    = &reinterpret_cast<vk::AccelerationStructureKHR const&>( a.accelerationStructureInfo.accelerationStructure );
@@ -4401,14 +4401,14 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{};
 
-										descriptorData.type          = vk::DescriptorType( b.type );
+										descriptorData.type          = b.type;
 										descriptorData.bindingNumber = uint32_t( b.binding );
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 
-										if ( b.type == vk::DescriptorType::eStorageBuffer ||
-										     b.type == vk::DescriptorType::eUniformBuffer ||
-										     b.type == vk::DescriptorType::eStorageBufferDynamic ||
-										     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
+										if ( b.type == le::DescriptorType::eStorageBuffer ||
+										     b.type == le::DescriptorType::eUniformBuffer ||
+										     b.type == le::DescriptorType::eStorageBufferDynamic ||
+										     b.type == le::DescriptorType::eUniformBufferDynamic ) {
 
 											descriptorData.bufferInfo.range = b.range;
 										}
@@ -4416,8 +4416,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 										setData.emplace_back( descriptorData );
 									}
 
-									if ( b.type == vk::DescriptorType::eStorageBufferDynamic ||
-									     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
+									if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+									     b.type == le::DescriptorType::eUniformBufferDynamic ) {
 										assert( b.count != 0 ); // count cannot be 0
 
 										// store dynamic offset index for this element
@@ -4493,7 +4493,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{};
 
-										descriptorData.type          = vk::DescriptorType( b.type );
+										descriptorData.type          = b.type;
 										descriptorData.bindingNumber = uint32_t( b.binding );
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 
@@ -4502,8 +4502,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 										setData.emplace_back( std::move( descriptorData ) );
 									}
 
-									if ( b.type == vk::DescriptorType::eStorageBufferDynamic ||
-									     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
+									if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+									     b.type == le::DescriptorType::eUniformBufferDynamic ) {
 										assert( b.count != 0 ); // count cannot be 0
 
 										// store dynamic offset index for this element
@@ -4589,14 +4589,14 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{};
 
-										descriptorData.type          = vk::DescriptorType( b.type );
+										descriptorData.type          = le::DescriptorType( b.type );
 										descriptorData.bindingNumber = uint32_t( b.binding );
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 
-										if ( b.type == vk::DescriptorType::eStorageBuffer ||
-										     b.type == vk::DescriptorType::eUniformBuffer ||
-										     b.type == vk::DescriptorType::eStorageBufferDynamic ||
-										     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
+										if ( b.type == le::DescriptorType::eStorageBuffer ||
+										     b.type == le::DescriptorType::eUniformBuffer ||
+										     b.type == le::DescriptorType::eStorageBufferDynamic ||
+										     b.type == le::DescriptorType::eUniformBufferDynamic ) {
 
 											descriptorData.bufferInfo.range = b.range;
 										}
@@ -4604,8 +4604,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 										setData.emplace_back( std::move( descriptorData ) );
 									}
 
-									if ( b.type == vk::DescriptorType::eStorageBufferDynamic ||
-									     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
+									if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+									     b.type == le::DescriptorType::eUniformBufferDynamic ) {
 										assert( b.count != 0 ); // count cannot be 0
 
 										// store dynamic offset index for this element
@@ -4900,8 +4900,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					// If binding is in fact a dynamic binding, set the corresponding dynamic offset
 					// and set the buffer offset to 0.
-					if ( b->type == vk::DescriptorType::eStorageBufferDynamic ||
-					     b->type == vk::DescriptorType::eUniformBufferDynamic ) {
+					if ( b->type == le::DescriptorType::eStorageBufferDynamic ||
+					     b->type == le::DescriptorType::eUniformBufferDynamic ) {
 						auto dynamicOffset                            = b->dynamic_offset_idx;
 						bindingData.offset                            = 0;
 						argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );
@@ -4969,7 +4969,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					bindingData->imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
 					bindingData->imageInfo.sampler     = foundTex->second.sampler;
 					bindingData->imageInfo.imageView   = foundTex->second.imageView;
-					bindingData->type                  = vk::DescriptorType::eCombinedImageSampler;
+					bindingData->type                  = le::DescriptorType::eCombinedImageSampler;
 
 				} break;
 
@@ -5008,7 +5008,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					bindingData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
 					bindingData.imageInfo.imageView   = foundImgView->second;
 
-					bindingData.type       = vk::DescriptorType::eStorageImage;
+					bindingData.type       = le::DescriptorType::eStorageImage;
 					bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
 
 				} break;

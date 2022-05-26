@@ -286,23 +286,23 @@ static uint32_t byte_stride_from_spv_type_description( SpvReflectNumericTraits c
 	return result;
 }
 
-static vk::DescriptorType descriptor_type_from_spv_descriptor_type( SpvReflectDescriptorType const& spv_descriptor_type ) {
+static le::DescriptorType descriptor_type_from_spv_descriptor_type( SpvReflectDescriptorType const& spv_descriptor_type ) {
 	// clang-format off
 	switch(spv_descriptor_type)
 	{
-		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER                    : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_SAMPLER);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE              : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE              : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER       : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER       : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER                    : return le::DescriptorType( VK_DESCRIPTOR_TYPE_SAMPLER);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER     : return le::DescriptorType( VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE              : return le::DescriptorType( VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE              : return le::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER       : return le::DescriptorType( VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER       : return le::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER);
 		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER             : // Deliberate fall-through: we make all uniform buffers dynamic.
-		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC     : return le::DescriptorType( VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC);
 		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER             : // Deliberate fall-through: we make storage buffers dynamic.
-		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT           : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
-        default: assert(false); return vk::DescriptorType();
+		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC     : return le::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT           : return le::DescriptorType( VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR : return le::DescriptorType( VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+        default: assert(false); return le::DescriptorType();
 	}
 	// clang-format on
 }
@@ -867,13 +867,13 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			info.count      = binding->count;
 
 			// Dynamic uniform buffers need to specify a range given in bytes.
-			if ( info.type == vk::DescriptorType::eUniformBufferDynamic ) {
+			if ( info.type == le::DescriptorType::eUniformBufferDynamic ) {
 				info.range = binding->block.size;
 			}
 
 			// For buffer Types the name of the binding we're interested in is the type name.
-			if ( info.type == vk::DescriptorType::eUniformBufferDynamic ||
-			     info.type == vk::DescriptorType::eStorageBufferDynamic ) {
+			if ( info.type == le::DescriptorType::eUniformBufferDynamic ||
+			     info.type == le::DescriptorType::eStorageBufferDynamic ) {
 				info.name_hash = hash_64_fnv1a( binding->type_description->type_name );
 			} else {
 				info.name_hash = hash_64_fnv1a( binding->name );

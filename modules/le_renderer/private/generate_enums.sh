@@ -13,6 +13,7 @@ VkBuildAccelerationStructureFlagBitsKHR, yes
 VkColorComponentFlagBits
 VkCompareOp, yes
 VkCullModeFlagBits
+VkDescriptorType,
 VkFilter, yes
 VkFormat, yes
 VkFrontFace, yes
