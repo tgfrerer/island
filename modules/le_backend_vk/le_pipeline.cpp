@@ -863,7 +863,7 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			info.setIndex   = binding->set;
 			info.binding    = binding->binding;
 			info.type       = descriptor_type_from_spv_descriptor_type( binding->descriptor_type );
-			info.stage_bits = enumToNum( module->stage );
+			info.stage_bits = uint32_t( module->stage );
 			info.count      = binding->count;
 
 			// Dynamic uniform buffers need to specify a range given in bytes.
@@ -982,7 +982,7 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 		// print out filenames for shader stage which matches stage bitflag
 
 		for ( auto& s : shader_stages ) {
-			if ( enumToNum( ( s )->stage ) & stage_bitfield ) {
+			if ( uint32_t( ( s )->stage ) & stage_bitfield ) {
 				os << "\t '" << ( s )->filepath << "'" << std::endl;
 			}
 		}
@@ -1099,7 +1099,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet{ { module->filepath.string() } }; // let first element be the original source file path
 
-	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->source_language },  module->stage , module->filepath.string().c_str(), spirv_code, includesSet, module->macro_defines );
+	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->source_language }, module->stage, module->filepath.string().c_str(), spirv_code, includesSet, module->macro_defines );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.

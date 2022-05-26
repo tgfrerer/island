@@ -86,7 +86,24 @@ ISL_API_ATTR DLL_CORE_API char const* le_get_argument_name_from_hash( uint64_t v
 		LE_MODULE_LOAD_STATIC( x )
 #endif
 
+// ----------------------------------------------------------------------
+// Preprocessor Macro utilities
+//
 #define LE_OPAQUE_HANDLE( object ) typedef struct object##_t* object;
+
+// Wrap an enum of `enum_name` in a struct with `struct_name` so
+// that it can be opaquely passed around, then unwrapped.
+#define LE_WRAP_ENUM_IN_STRUCT( enum_name, struct_name ) \
+	struct struct_name {                                 \
+		enum_name data;                                  \
+		          operator const enum_name&() const {    \
+			          return data;                       \
+		}                                                \
+		operator enum_name&() {                          \
+			return data;                                 \
+		}                                                \
+	};                                                   \
+	static_assert( sizeof( enum_name ) == sizeof( struct_name ) && "struct and wrapper must have the same size" )
 
 // Callback forwarding is a technique for hiding target address changes
 // from libraries which trigger callbacks.

@@ -1,9 +1,8 @@
 #include "le_core.h"
 #include "le_backend_vk.h"
-#include "le_backend_types_internal.h"
 
-#include "private/le_renderer_types.h"
 #include "util/vk_mem_alloc/vk_mem_alloc.h"
+#include <cstring> // for memcpy
 
 /*
 

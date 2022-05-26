@@ -41,7 +41,7 @@ struct le_device_o {
 	std::set<std::string> requestedDeviceExtensions;
 
 	DefaultQueueIndices defaultQueueIndices;
-	vk::Format          defaultDepthStencilFormat;
+	VkFormat            defaultDepthStencilFormat;
 
 	uint32_t referenceCount = 0;
 };
@@ -310,7 +310,7 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 		vk::FormatProperties formatProps = self->vkPhysicalDevice.getFormatProperties( format );
 		// Format must support depth stencil attachment for optimal tiling
 		if ( formatProps.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment ) {
-			self->defaultDepthStencilFormat = format;
+			self->defaultDepthStencilFormat = VkFormat( format );
 			break;
 		}
 	}
@@ -413,8 +413,8 @@ VkQueue device_get_default_compute_queue( le_device_o* self_ ) {
 
 // ----------------------------------------------------------------------
 
-VkFormatEnum device_get_default_depth_stencil_format( le_device_o* self ) {
-	return { self->defaultDepthStencilFormat };
+VkFormatEnum const* device_get_default_depth_stencil_format( le_device_o* self ) {
+	return reinterpret_cast<VkFormatEnum const*>( &self->defaultDepthStencilFormat );
 }
 
 // ----------------------------------------------------------------------

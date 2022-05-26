@@ -49,6 +49,8 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 		return vk::enum_name( rhs );                                          \
 	}
 
+LE_WRAP_ENUM_IN_STRUCT( VkFormat, VkFormatEnum ); // define wrapper struct `VkFormatEnum`
+
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 1;
 constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
@@ -1151,7 +1153,7 @@ static void backend_setup( le_backend_o* self ) {
 		assert( !self->swapchainImageFormat.empty() && "must have at least one swapchain image format available." );
 
 		self->defaultFormatColorAttachment        = static_cast<le::Format>( self->swapchainImageFormat[ 0 ] );
-		self->defaultFormatDepthStencilAttachment = static_cast<le::Format>( vk::Format( vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
+		self->defaultFormatDepthStencilAttachment = static_cast<le::Format>( VkFormat( *vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
 
 		// We hard-code default format for sampled images, since this is the most likely
 		// format we will encounter bitmaps to be encoded in, and there is no good way
@@ -1354,7 +1356,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 
 			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
 			syncChain.emplace_back( beforeFirstUse ); // attachment initial state for a renderpass - may be loaded/cleared on first use
-			                                                       // * sync state: ready for load/store *
+			                                          // * sync state: ready for load/store *
 		}
 
 		{
@@ -2247,7 +2249,7 @@ static void backend_create_descriptor_pools( BackendFrameData& frame, vk::Device
 
 		descriptorPoolSizes.reserve( DESCRIPTOR_TYPE_COUNT );
 
-		for (auto i : DESCRIPTOR_TYPES) {
+		for ( auto i : DESCRIPTOR_TYPES ) {
 			descriptorPoolSizes.emplace_back( vk::DescriptorType( i ), 1000 ); // 1000 descriptors of each type
 		}
 
@@ -2609,7 +2611,7 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 
 		self->allocations.push_back( allocation );
 		self->allocationInfo.push_back( allocationInfo );
-		self->buffers.emplace_back(buffer );
+		self->buffers.emplace_back( buffer );
 
 		// Staging resources share the same name, but their allocation index is different.
 		//

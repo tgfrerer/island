@@ -57,6 +57,7 @@ struct VkMemoryAllocateInfo;
 struct VkSpecializationMapEntry;
 struct VkPhysicalDeviceFeatures2;
 
+struct VkFormatEnum;
 struct LeRenderPass;
 
 struct VmaAllocator_T;
@@ -188,7 +189,7 @@ struct le_backend_vk_api {
 		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_device_o* self_ );
 		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_device_o* self_ );
 		VkQueue_T *                 ( *get_default_compute_queue               ) ( le_device_o* self_ );
-		VkFormatEnum                ( *get_default_depth_stencil_format        ) ( le_device_o* self_ );
+		VkFormatEnum const*         ( *get_default_depth_stencil_format        ) ( le_device_o* self_ );
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_device_o* self_ );
 		bool                        ( *is_extension_available                  ) ( le_device_o* self, char const * extension_name);
