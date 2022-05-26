@@ -1,6 +1,9 @@
 #pragma once
-
-// This file was auto-generated using gen_le_enums.py
+//
+// *** THIS FILE WAS AUTO-GENERATED - DO NOT EDIT ***
+//
+// See ./scripts/codegen/gen_le_enums.py for details.
+//
 
 #include <stdint.h>
 
