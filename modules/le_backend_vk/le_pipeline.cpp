@@ -25,6 +25,8 @@
 
 static constexpr auto LOGGER_LABEL = "le_pipeline";
 
+#include "private/le_backend_vk/le_backend_types_pipeline.inl"
+
 struct specialization_map_info_t {
 	std::vector<vk::SpecializationMapEntry> entries;
 	std::vector<char>                       data;

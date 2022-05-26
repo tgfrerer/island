@@ -14,6 +14,8 @@
 #include <mutex>
 #include <map>
 
+#include "private/le_backend_vk/le_backend_types_pipeline.inl"
+
 static constexpr auto LOGGER_LABEL = "le_pipeline_builder";
 
 /*
