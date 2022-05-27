@@ -122,7 +122,7 @@ le_img_resource_handle le_font_renderer_get_font_image( le_font_renderer_o* self
 bool le_font_renderer_setup_resources( le_font_renderer_o* self, le_rendergraph_o* module ) {
 
 	auto resource_upload_pass =
-	    le::RenderPass( "uploadImage", LE_RENDER_PASS_TYPE_TRANSFER )
+	    le::RenderPass( "uploadImage", le::RenderPassType::eTransfer )
 	        .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
 		        le::RenderPass rp{ rp_ };
 

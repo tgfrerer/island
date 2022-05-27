@@ -37,6 +37,7 @@ enum class SampleCountFlagBits : uint32_t;
 enum class CompareOp : uint32_t;
 enum class StencilOp : uint32_t;
 enum class ShaderStageFlagBits : uint32_t;
+enum class CullModeFlagBits : uint32_t;
 enum class ShaderSourceLanguage : uint32_t;
 using ColorComponentMask = uint32_t;
 using CullModeFlags      = uint32_t;
@@ -756,6 +757,10 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_cull_mode( parent.self, mode );
 			return *this;
+		}
+
+		RasterizationState& setCullMode( le::CullModeFlagBits const& mode ) {
+			return setCullMode( le::CullModeFlags( mode ) );
 		}
 
 		RasterizationState& setFrontFace( le::FrontFace const& frontFace ) {

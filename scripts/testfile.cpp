@@ -122,9 +122,9 @@ struct LeBufferWriteRegion {
 
 enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
-	LE_RENDER_PASS_TYPE_DRAW      = 1, // << most common case, should be 0
-	LE_RENDER_PASS_TYPE_TRANSFER  = 2,
-	LE_RENDER_PASS_TYPE_COMPUTE   = 3,
+	le::RenderPassType::eDraw      = 1, // << most common case, should be 0
+	le::RenderPassType::eTransfer  = 2,
+	le::RenderPassType::eCompute   = 3,
 };
 
 typedef uint32_t LeImageUsageFlags;

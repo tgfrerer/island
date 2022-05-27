@@ -1283,7 +1283,7 @@ static bool app_update( app_o* self ) {
 	{
 
 		auto renderpass_main =
-		    le::RenderPass( "main", LE_RENDER_PASS_TYPE_DRAW )
+		    le::RenderPass( "main", le::RenderPassType::eDraw )
 		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
 		        .setSampleCount( le::SampleCountFlagBits::e8 )
 		        .setExecuteCallback( self, render_pass_main_exec ) //

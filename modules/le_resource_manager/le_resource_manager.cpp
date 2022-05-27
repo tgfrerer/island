@@ -135,7 +135,7 @@ static void le_resource_manager_update( le_resource_manager_o* manager, le_rende
 	}
 
 	auto renderPassTransfer =
-	    le::RenderPass( "xfer_le_resource_manager", LE_RENDER_PASS_TYPE_TRANSFER )
+	    le::RenderPass( "xfer_le_resource_manager", le::RenderPassType::eTransfer )
 	        .setSetupCallback( manager, setupTransferPass )  // decide whether to go forward
 	        .setExecuteCallback( manager, execTransferPass ) //
 	    ;
