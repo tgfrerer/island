@@ -1879,7 +1879,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 	std::vector<le_shader_binding_info> combined_bindings = shader_modules_merge_bindings( self->shaderManager, shader_modules, shader_modules_count );
 
 	// -- Create array of DescriptorSetLayouts
-	std::array<VkDescriptorSetLayout, 8> vkLayouts{};
+	VkDescriptorSetLayout vkLayouts[ 8 ];
 	{
 
 		// -- Create one vkDescriptorSetLayout for each set in bindings
@@ -1926,7 +1926,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		}
 
 		for ( size_t i = 0; i != sets.size(); ++i ) {
-			info.set_layout_keys[ i ] = le_pipeline_cache_produce_descriptor_set_layout( self, sets[ i ], &vkLayouts[ i ] );
+			info.set_layout_keys[ i ] = le_pipeline_cache_produce_descriptor_set_layout( self, sets[ i ], vkLayouts + i );
 		}
 	}
 
@@ -1957,7 +1957,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		    .pNext                  = nullptr,                           // optional
 		    .flags                  = 0,                                 // optional
 		    .setLayoutCount         = uint32_t( info.set_layout_count ), // optional
-		    .pSetLayouts            = vkLayouts.data(),
+		    .pSetLayouts            = vkLayouts,
 		    .pushConstantRangeCount = uint32_t( push_constant_buffer_size ? 1 : 0 ), // optional
 		    .pPushConstantRanges    = push_constant_buffer_size ? &push_constant_range : nullptr,
 		};
