@@ -606,7 +606,7 @@ struct LeClearDepthStencilValue {
 	uint32_t stencil;
 };
 
-struct LeClearValue {
+struct le::ClearValue {
 	union {
 		LeClearColorValue        color;
 		LeClearDepthStencilValue depthStencil;
@@ -616,12 +616,12 @@ struct LeClearValue {
 // FIXME: this struct is over-specified and pierces abstraction boundaries.
 struct le_image_attachment_info_t {
 
-	static constexpr LeClearValue DefaultClearValueColor        = { { { { { 0.f, 0.f, 0.f, 0.f } } } } };
-	static constexpr LeClearValue DefaultClearValueDepthStencil = { { { { { 1.f, 0 } } } } };
+	static constexpr le::ClearValue DefaultClearValueColor        = { { { { { 0.f, 0.f, 0.f, 0.f } } } } };
+	static constexpr le::ClearValue DefaultClearValueDepthStencil = { { { { { 1.f, 0 } } } } };
 
 	le::AttachmentLoadOp  loadOp     = le::AttachmentLoadOp::eClear;  //
 	le::AttachmentStoreOp storeOp    = le::AttachmentStoreOp::eStore; //
-	LeClearValue          clearValue = DefaultClearValueColor;        // only used if loadOp == clear
+	le::ClearValue          clearValue = DefaultClearValueColor;        // only used if loadOp == clear
 
 	le_resource_handle_t resource_id{}; // (private - do not set) handle given to this attachment
 };

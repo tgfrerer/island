@@ -2130,7 +2130,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 	        .addColorAttachment(
 	            color_attachment_image,
 	            le::ImageAttachmentInfoBuilder()
-	                .setColorClearValue( LeClearValue( { 0.125f, 0.125f, 0.125f, 1.f } ) )
+	                .setColorClearValue( le::ClearValue( { 0.125f, 0.125f, 0.125f, 1.f } ) )
 	                .build() )
 	        .setSampleCount( le::SampleCountFlagBits::e4 );
 

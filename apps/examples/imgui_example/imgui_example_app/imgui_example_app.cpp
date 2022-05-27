@@ -207,7 +207,7 @@ static bool imgui_example_app_update( imgui_example_app_o* self ) {
 
 			    auto info =
 			        le::ImageAttachmentInfoBuilder()
-			            .setColorClearValue( reinterpret_cast<LeClearValue&>( app->backgroundColor ) )
+			            .setColorClearValue( reinterpret_cast<le::ClearValue&>( app->backgroundColor ) )
 			            .build();
 
 			    rp
