@@ -9,6 +9,8 @@
 #include <set>
 #include <map>
 
+#include <vulkan/vulkan.hpp>
+
 static constexpr auto LOGGER_LABEL = "le_backend";
 
 #ifdef _WIN32

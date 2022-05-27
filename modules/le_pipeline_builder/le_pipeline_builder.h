@@ -33,13 +33,13 @@ enum class BlendFactor : uint32_t;
 enum class AttachmentBlendPreset : uint32_t;
 enum class PolygonMode : uint32_t;
 enum class FrontFace : uint32_t;
-enum class CullModeFlagBits : uint32_t;
 enum class SampleCountFlagBits : uint32_t;
 enum class CompareOp : uint32_t;
 enum class StencilOp : uint32_t;
 enum class ShaderStageFlagBits : uint32_t;
 enum class ShaderSourceLanguage : uint32_t;
 using ColorComponentMask = uint32_t;
+using CullModeFlags      = uint32_t;
 } // namespace le
 
 // clang-format off
@@ -98,7 +98,7 @@ struct le_pipeline_builder_api {
 			void (*set_depth_clamp_enable         )(le_graphics_pipeline_builder_o *self, bool const & enable);
 			void (*set_rasterizer_discard_enable  )(le_graphics_pipeline_builder_o *self, bool const & enable);
 			void (*set_polygon_mode               )(le_graphics_pipeline_builder_o *self, le::PolygonMode const & polygon_mode);
-			void (*set_cull_mode                  )(le_graphics_pipeline_builder_o *self, le::CullModeFlagBits const & cull_mode_flag_bits);
+			void (*set_cull_mode                  )(le_graphics_pipeline_builder_o *self, le::CullModeFlags const & cull_mode_flag_bits);
 			void (*set_front_face                 )(le_graphics_pipeline_builder_o *self, le::FrontFace const & front_face);
 			void (*set_depth_bias_enable          )(le_graphics_pipeline_builder_o *self, bool const & enable);
 			void (*set_depth_bias_constant_factor )(le_graphics_pipeline_builder_o *self, float const & factor);
@@ -752,7 +752,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			return *this;
 		}
 
-		RasterizationState& setCullMode( le::CullModeFlagBits const& mode ) {
+		RasterizationState& setCullMode( le::CullModeFlags const& mode ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_cull_mode( parent.self, mode );
 			return *this;

@@ -1,6 +1,7 @@
 #include "le_backend_vk.h"
 #include "le_backend_types_internal.h"
 
+#include <cassert>
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -25,29 +26,30 @@
 
 static constexpr auto LOGGER_LABEL = "le_pipeline";
 
+#include <vulkan/vulkan.h>
 #include "private/le_backend_vk/le_backend_types_pipeline.inl"
 
 struct specialization_map_info_t {
-	std::vector<vk::SpecializationMapEntry> entries;
-	std::vector<char>                       data;
+	std::vector<VkSpecializationMapEntry> entries;
+	std::vector<char>                     data;
 };
 
 struct le_shader_module_o {
-	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_shader_defines
-	uint64_t                                         hash_shader_defines = 0;     ///< hash taken from shader defines string
-	uint64_t                                         hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
-	std::string                                      macro_defines       = "";    ///< #defines to pass to shader compiler
-	std::vector<le_shader_binding_info>              bindings;                    ///< info for each binding, sorted asc.
-	std::vector<uint32_t>                            spirv    = {};               ///< spirv source code for this module
-	std::filesystem::path                            filepath = {};               ///< path to source file
-	std::vector<std::string>                         vertexAttributeNames;        ///< (used for debug only) name for vertex attribute
-	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
-	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
-	VkShaderModule                                   module                    = nullptr;
-	le::ShaderStage                                  stage                     = {};
-	uint64_t                                         push_constant_buffer_size = 0; ///< number of bytes for push constant buffer, zero indicates no push constant buffer in use.
-	le::ShaderSourceLanguage                         source_language           = le::ShaderSourceLanguage::eDefault;
-	specialization_map_info_t                        specialization_map_info; ///< information concerning specialization constants for this shader stage
+	uint64_t                                       hash                = 0;     ///< hash taken from spirv code + hash_shader_defines
+	uint64_t                                       hash_shader_defines = 0;     ///< hash taken from shader defines string
+	uint64_t                                       hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
+	std::string                                    macro_defines       = "";    ///< #defines to pass to shader compiler
+	std::vector<le_shader_binding_info>            bindings;                    ///< info for each binding, sorted asc.
+	std::vector<uint32_t>                          spirv    = {};               ///< spirv source code for this module
+	std::filesystem::path                          filepath = {};               ///< path to source file
+	std::vector<std::string>                       vertexAttributeNames;        ///< (used for debug only) name for vertex attribute
+	std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
+	std::vector<VkVertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
+	VkShaderModule                                 module                    = nullptr;
+	le::ShaderStageFlagBits                        stage                     = {};
+	uint64_t                                       push_constant_buffer_size = 0; ///< number of bytes for push constant buffer, zero indicates no push constant buffer in use.
+	le::ShaderSourceLanguage                       source_language           = le::ShaderSourceLanguage::eDefault;
+	specialization_map_info_t                      specialization_map_info; ///< information concerning specialization constants for this shader stage
 };
 
 // A table from `handle` -> `object*`, protected by mutex.
@@ -204,7 +206,7 @@ struct ProtectedModuleDependencies {
 };
 
 struct le_shader_manager_o {
-	vk::Device device = nullptr;
+	VkDevice device = nullptr;
 
 	HashMap<le_shader_module_handle, le_shader_module_o> shaderModules; // OWNING. Stores all shader modules used in backend, indexed via shader_module_handle
 
@@ -221,11 +223,11 @@ struct le_shader_manager_o {
 //       to consolidate after the frame has been processed.
 struct le_pipeline_manager_o {
 	le_device_o* le_device = nullptr; // arc-owning, increases reference count, decreases on destruction
-	vk::Device   device    = nullptr;
+	VkDevice     device    = nullptr;
 
 	std::mutex mtx;
 
-	vk::PipelineCache vulkanCache = nullptr;
+	VkPipelineCache vulkanCache = nullptr;
 
 	le_shader_manager_o* shaderManager = nullptr; // owning: does it make sense to have a shader manager additionally to the pipeline manager?
 
@@ -238,39 +240,39 @@ struct le_pipeline_manager_o {
 	HashMap<uint64_t, le_pipeline_layout_info> pipelineLayoutInfos;
 
 	HashMap<uint64_t, le_descriptor_set_layout_t> descriptorSetLayouts;
-	HashMap<uint64_t, vk::PipelineLayout>         pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
+	HashMap<uint64_t, VkPipelineLayout>           pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 };
 
-static vk::Format vk_format_from_spv_reflect_format( SpvReflectFormat const& format ) {
+static VkFormat vk_format_from_spv_reflect_format( SpvReflectFormat const& format ) {
 	// clang-format off
 	switch (format)
 	{
-		case SPV_REFLECT_FORMAT_UNDEFINED           : return  vk::Format(VK_FORMAT_UNDEFINED);
-		case SPV_REFLECT_FORMAT_R32_UINT            : return  vk::Format(VK_FORMAT_R32_UINT);
-		case SPV_REFLECT_FORMAT_R32_SINT            : return  vk::Format(VK_FORMAT_R32_SINT);
-		case SPV_REFLECT_FORMAT_R32_SFLOAT          : return  vk::Format(VK_FORMAT_R32_SFLOAT);
-		case SPV_REFLECT_FORMAT_R32G32_UINT         : return  vk::Format(VK_FORMAT_R32G32_UINT);
-		case SPV_REFLECT_FORMAT_R32G32_SINT         : return  vk::Format(VK_FORMAT_R32G32_SINT);
-		case SPV_REFLECT_FORMAT_R32G32_SFLOAT       : return  vk::Format(VK_FORMAT_R32G32_SFLOAT);
-		case SPV_REFLECT_FORMAT_R32G32B32_UINT      : return  vk::Format(VK_FORMAT_R32G32B32_UINT);
-		case SPV_REFLECT_FORMAT_R32G32B32_SINT      : return  vk::Format(VK_FORMAT_R32G32B32_SINT);
-		case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT    : return  vk::Format(VK_FORMAT_R32G32B32_SFLOAT);
-		case SPV_REFLECT_FORMAT_R32G32B32A32_UINT   : return  vk::Format(VK_FORMAT_R32G32B32A32_UINT);
-		case SPV_REFLECT_FORMAT_R32G32B32A32_SINT   : return  vk::Format(VK_FORMAT_R32G32B32A32_SINT);
-		case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT : return  vk::Format(VK_FORMAT_R32G32B32A32_SFLOAT);
-		case SPV_REFLECT_FORMAT_R64_UINT            : return  vk::Format(VK_FORMAT_R64_UINT);
-		case SPV_REFLECT_FORMAT_R64_SINT            : return  vk::Format(VK_FORMAT_R64_SINT);
-		case SPV_REFLECT_FORMAT_R64_SFLOAT          : return  vk::Format(VK_FORMAT_R64_SFLOAT);
-		case SPV_REFLECT_FORMAT_R64G64_UINT         : return  vk::Format(VK_FORMAT_R64G64_UINT);
-		case SPV_REFLECT_FORMAT_R64G64_SINT         : return  vk::Format(VK_FORMAT_R64G64_SINT);
-		case SPV_REFLECT_FORMAT_R64G64_SFLOAT       : return  vk::Format(VK_FORMAT_R64G64_SFLOAT);
-		case SPV_REFLECT_FORMAT_R64G64B64_UINT      : return  vk::Format(VK_FORMAT_R64G64B64_UINT);
-		case SPV_REFLECT_FORMAT_R64G64B64_SINT      : return  vk::Format(VK_FORMAT_R64G64B64_SINT);
-		case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT    : return  vk::Format(VK_FORMAT_R64G64B64_SFLOAT);
-		case SPV_REFLECT_FORMAT_R64G64B64A64_UINT   : return  vk::Format(VK_FORMAT_R64G64B64A64_UINT);
-		case SPV_REFLECT_FORMAT_R64G64B64A64_SINT   : return  vk::Format(VK_FORMAT_R64G64B64A64_SINT);
-		case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT : return  vk::Format(VK_FORMAT_R64G64B64A64_SFLOAT);
-		default	                                    : assert(false); return vk::Format();
+		case SPV_REFLECT_FORMAT_UNDEFINED           : return  VK_FORMAT_UNDEFINED;
+		case SPV_REFLECT_FORMAT_R32_UINT            : return  VK_FORMAT_R32_UINT;
+		case SPV_REFLECT_FORMAT_R32_SINT            : return  VK_FORMAT_R32_SINT;
+		case SPV_REFLECT_FORMAT_R32_SFLOAT          : return  VK_FORMAT_R32_SFLOAT;
+		case SPV_REFLECT_FORMAT_R32G32_UINT         : return  VK_FORMAT_R32G32_UINT;
+		case SPV_REFLECT_FORMAT_R32G32_SINT         : return  VK_FORMAT_R32G32_SINT;
+		case SPV_REFLECT_FORMAT_R32G32_SFLOAT       : return  VK_FORMAT_R32G32_SFLOAT;
+		case SPV_REFLECT_FORMAT_R32G32B32_UINT      : return  VK_FORMAT_R32G32B32_UINT;
+		case SPV_REFLECT_FORMAT_R32G32B32_SINT      : return  VK_FORMAT_R32G32B32_SINT;
+		case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT    : return  VK_FORMAT_R32G32B32_SFLOAT;
+		case SPV_REFLECT_FORMAT_R32G32B32A32_UINT   : return  VK_FORMAT_R32G32B32A32_UINT;
+		case SPV_REFLECT_FORMAT_R32G32B32A32_SINT   : return  VK_FORMAT_R32G32B32A32_SINT;
+		case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT : return  VK_FORMAT_R32G32B32A32_SFLOAT;
+		case SPV_REFLECT_FORMAT_R64_UINT            : return  VK_FORMAT_R64_UINT;
+		case SPV_REFLECT_FORMAT_R64_SINT            : return  VK_FORMAT_R64_SINT;
+		case SPV_REFLECT_FORMAT_R64_SFLOAT          : return  VK_FORMAT_R64_SFLOAT;
+		case SPV_REFLECT_FORMAT_R64G64_UINT         : return  VK_FORMAT_R64G64_UINT;
+		case SPV_REFLECT_FORMAT_R64G64_SINT         : return  VK_FORMAT_R64G64_SINT;
+		case SPV_REFLECT_FORMAT_R64G64_SFLOAT       : return  VK_FORMAT_R64G64_SFLOAT;
+		case SPV_REFLECT_FORMAT_R64G64B64_UINT      : return  VK_FORMAT_R64G64B64_UINT;
+		case SPV_REFLECT_FORMAT_R64G64B64_SINT      : return  VK_FORMAT_R64G64B64_SINT;
+		case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT    : return  VK_FORMAT_R64G64B64_SFLOAT;
+		case SPV_REFLECT_FORMAT_R64G64B64A64_UINT   : return  VK_FORMAT_R64G64B64A64_UINT;
+		case SPV_REFLECT_FORMAT_R64G64B64A64_SINT   : return  VK_FORMAT_R64G64B64A64_SINT;
+		case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT : return  VK_FORMAT_R64G64B64A64_SFLOAT;
+		default	                                    : assert(false); return VkFormat();
 	} // clang-format on
 }
 
@@ -311,102 +313,89 @@ static le::DescriptorType descriptor_type_from_spv_descriptor_type( SpvReflectDe
 
 // ----------------------------------------------------------------------
 
-static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_rate& input_rate ) {
-	switch ( input_rate ) {
-	case ( le_vertex_input_rate::ePerInstance ):
-		return vk::VertexInputRate::eInstance;
-	case ( le_vertex_input_rate::ePerVertex ):
-		return vk::VertexInputRate::eVertex;
-	}
-	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
-	return vk::VertexInputRate::eVertex;
-}
-
-// ----------------------------------------------------------------------
-
 // clang-format off
-/// \returns corresponding vk::Format for a given le_input_attribute_description struct
-static inline vk::Format vk_format_from_le_vertex_input_attribute_description( le_vertex_input_attribute_description const & d){
+/// \returns corresponding VkFormat for a given le_input_attribute_description struct
+static inline VkFormat vk_format_from_le_vertex_input_attribute_description( le_vertex_input_attribute_description const & d){
 
 	if ( d.vecsize == 0 || d.vecsize > 4 ){
 		assert(false); // vecsize must be between 1 and 4
-		return vk::Format::eUndefined;
+		return VK_FORMAT_UNDEFINED;
 	}
 
 	switch ( d.type ) {
 	case le_num_type::eFloat:
 		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Sfloat;
-		case 3: return vk::Format::eR32G32B32Sfloat;
-		case 2: return vk::Format::eR32G32Sfloat;
-		case 1: return vk::Format::eR32Sfloat;
+		case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+		case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+		case 2: return VK_FORMAT_R32G32_SFLOAT;
+		case 1: return VK_FORMAT_R32_SFLOAT;
 		}
 	    break;
 	case le_num_type::eHalf:
 		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR16G16B16A16Sfloat;
-		case 3: return vk::Format::eR16G16B16Sfloat;
-		case 2: return vk::Format::eR16G16Sfloat;
-		case 1: return vk::Format::eR16Sfloat;
+		case 4: return VK_FORMAT_R16G16B16A16_SFLOAT;
+		case 3: return VK_FORMAT_R16G16B16_SFLOAT;
+		case 2: return VK_FORMAT_R16G16_SFLOAT;
+		case 1: return VK_FORMAT_R16_SFLOAT;
 		}
 	    break;
 	case le_num_type::eUShort: // fall through to eShort
 	case le_num_type::eShort:
 		if (d.isNormalised){
 			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR16G16B16A16Unorm;
-			case 3: return vk::Format::eR16G16B16Unorm;
-			case 2: return vk::Format::eR16G16Unorm;
-			case 1: return vk::Format::eR16Unorm;
+			case 4: return VK_FORMAT_R16G16B16A16_UNORM;
+			case 3: return VK_FORMAT_R16G16B16_UNORM;
+			case 2: return VK_FORMAT_R16G16_UNORM;
+			case 1: return VK_FORMAT_R16_UNORM;
 			}
 		}else{
 			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR16G16B16A16Uint;
-			case 3: return vk::Format::eR16G16B16Uint;
-			case 2: return vk::Format::eR16G16Uint;
-			case 1: return vk::Format::eR16Uint;
+			case 4: return VK_FORMAT_R16G16B16A16_UINT;
+			case 3: return VK_FORMAT_R16G16B16_UINT;
+			case 2: return VK_FORMAT_R16G16_UINT;
+			case 1: return VK_FORMAT_R16_UINT;
 			}
 		}
 	    break;
 	case le_num_type::eInt:
 		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Sint;
-		case 3: return vk::Format::eR32G32B32Sint;
-		case 2: return vk::Format::eR32G32Sint;
-		case 1: return vk::Format::eR32Sint;
+		case 4: return VK_FORMAT_R32G32B32A32_SINT;
+		case 3: return VK_FORMAT_R32G32B32_SINT;
+		case 2: return VK_FORMAT_R32G32_SINT;
+		case 1: return VK_FORMAT_R32_SINT;
 		}
 	    break;
 	case le_num_type::eUInt:
 		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Uint;
-		case 3: return vk::Format::eR32G32B32Uint;
-		case 2: return vk::Format::eR32G32Uint;
-		case 1: return vk::Format::eR32Uint;
+		case 4: return VK_FORMAT_R32G32B32A32_UINT;
+		case 3: return VK_FORMAT_R32G32B32_UINT;
+		case 2: return VK_FORMAT_R32G32_UINT;
+		case 1: return VK_FORMAT_R32_UINT;
 		}
 	    break;
 	case le_num_type::eULong:
 		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR64G64B64A64Uint;
-		case 3: return vk::Format::eR64G64B64Uint;
-		case 2: return vk::Format::eR64G64Uint;
-		case 1: return vk::Format::eR64Uint;
+		case 4: return VK_FORMAT_R64G64B64A64_UINT;
+		case 3: return VK_FORMAT_R64G64B64_UINT;
+		case 2: return VK_FORMAT_R64G64_UINT;
+		case 1: return VK_FORMAT_R64_UINT;
 		}
 	    break;
 	case le_num_type::eChar:  // fall through to uChar
 	case le_num_type::eUChar:
 		if (d.isNormalised){
 			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR8G8B8A8Unorm;
-			case 3: return vk::Format::eR8G8B8Unorm;
-			case 2: return vk::Format::eR8G8Unorm;
-			case 1: return vk::Format::eR8Unorm;
+			case 4: return VK_FORMAT_R8G8B8A8_UNORM;
+			case 3: return VK_FORMAT_R8G8B8_UNORM;
+			case 2: return VK_FORMAT_R8G8_UNORM;
+			case 1: return VK_FORMAT_R8_UNORM;
 			}
 		} else {
 			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR8G8B8A8Uint;
-			case 3: return vk::Format::eR8G8B8Uint;
-			case 2: return vk::Format::eR8G8Uint;
-			case 1: return vk::Format::eR8Uint;
+			case 4: return VK_FORMAT_R8G8B8A8_UINT;
+			case 3: return VK_FORMAT_R8G8B8_UINT;
+			case 2: return VK_FORMAT_R8G8_UINT;
+			case 1: return VK_FORMAT_R8_UINT;
 			}
 		}
 	    break;
@@ -415,15 +404,15 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 	}
 
 	assert(false); // abandon all hope
-	return vk::Format::eUndefined;
+	return VK_FORMAT_UNDEFINED;
 }
 // clang-format on
 
 // Converts a le shader stage enum to a vulkan shader stage flag bit
 // Currently these are kept in sync which means conversion is a simple
 // matter of initialising one from the other.
-static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage& stage ) {
-	return vk::ShaderStageFlagBits( stage );
+static inline VkShaderStageFlagBits le_to_vk( const le::ShaderStage& stage ) {
+	return VkShaderStageFlagBits( stage );
 }
 
 // ----------------------------------------------------------------------
@@ -740,7 +729,7 @@ static uint64_t shader_modules_get_pipeline_layout_hash( le_shader_manager_o* sh
 // broadcasting to be much more costly than to set push constants individually per shader stage. It is also
 // considerably simpler to implement, as we don't have to keep track of whether push constant ranges declared
 // in different shader stages are aliasing.
-static void shader_modules_collect_info( le_shader_manager_o* shader_manager, le_shader_module_handle const* shader_modules, size_t numModules, size_t* push_constant_buffer_size_max, vk::ShaderStageFlags* shader_stage_flags ) {
+static void shader_modules_collect_info( le_shader_manager_o* shader_manager, le_shader_module_handle const* shader_modules, size_t numModules, size_t* push_constant_buffer_size_max, VkShaderStageFlags* shader_stage_flags ) {
 	for ( le_shader_module_handle const *s = shader_modules, *s_end = shader_modules + numModules; s != s_end; s++ ) {
 		auto p_module = ( shader_manager->shaderModules.try_find( *s ) );
 		assert( p_module && "shader module was not found" );
@@ -785,16 +774,16 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 	// What we generate here represents the fallback vertex attribute bindings for this shader.
 	//
 	if ( module->stage == le::ShaderStage::eVertex ) {
-		std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; // <- gets stored in module at end
-		std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   // <- gets stored in module at end
-		std::vector<std::string>                         vertexAttributeNames;        // <- gets stored in module at end
+		std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions; // <- gets stored in module at end
+		std::vector<VkVertexInputBindingDescription>   vertexBindingDescriptions;   // <- gets stored in module at end
+		std::vector<std::string>                       vertexAttributeNames;        // <- gets stored in module at end
 
 		size_t input_count = spv_module.input_variable_count;
 
 		struct AttributeBindingDescription {
-			vk::VertexInputAttributeDescription attribute;
-			vk::VertexInputBindingDescription   binding;
-			std::string                         name;
+			VkVertexInputAttributeDescription attribute;
+			VkVertexInputBindingDescription   binding;
+			std::string                       name;
 		};
 
 		std::vector<AttributeBindingDescription> input_descriptions;
@@ -805,18 +794,20 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			if ( input->location != uint32_t( ~0 ) ) {
 
 				input_descriptions.emplace_back();
-				auto& d = input_descriptions.back();
-
-				d.name = input->name;
-				d.attribute
-				    .setBinding( input->location )                                    // by default, one binding per location
-				    .setLocation( input->location )                                   // by default, one binding per location
-				    .setOffset( 0 )                                                   // non-interleaved means offset must be 0
-				    .setFormat( vk_format_from_spv_reflect_format( input->format ) ); // derive format from spv type
-				d.binding
-				    .setBinding( input->location )
-				    .setInputRate( vk::VertexInputRate::eVertex )
-				    .setStride( byte_stride_from_spv_type_description( input->type_description->traits.numeric ) );
+				input_descriptions.back() = {
+				    .attribute = {
+				        .location = input->location,                                    // by default, one binding per location
+				        .binding  = input->location,                                    // by default, one binding per location
+				        .format   = vk_format_from_spv_reflect_format( input->format ), // derive format from spv type
+				        .offset   = 0,                                                  // non-interleaved means offset must be 0
+				    },
+				    .binding = {
+				        .binding   = input->location,
+				        .stride    = byte_stride_from_spv_type_description( input->type_description->traits.numeric ),
+				        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+				    },
+				    .name = input->name,
+				};
 			}
 		}
 
@@ -1148,12 +1139,20 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	// A: Not really - according to spec module must only be alife while pipeline is being compiled.
 	//    If we can guarantee that no other process is using this module at the moment to compile a
 	//    Pipeline, we can safely delete it.
-	self->device.destroyShaderModule( module->module );
+	vkDestroyShaderModule( self->device, module->module, nullptr );
 	module->module = nullptr;
 
 	// -- create new vulkan shader module object
-	vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
-	module->module = self->device.createShaderModule( createInfo );
+
+	VkShaderModuleCreateInfo createInfo = {
+	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+	    .pNext    = nullptr, // optional
+	    .flags    = 0,       // optional
+	    .codeSize = module->spirv.size() * sizeof( uint32_t ),
+	    .pCode    = module->spirv.data(),
+	};
+
+	vkCreateShaderModule( self->device, &createInfo, nullptr, &module->module );
 }
 
 // ----------------------------------------------------------------------
@@ -1213,8 +1212,8 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 
 	// -- destroy retained shader modules
 	self->shaderModules.iterator( []( le_shader_module_o* module, void* user_data ) {
-		vk::Device device{ *static_cast<vk::Device*>( user_data ) };
-		device.destroyShaderModule( module->module );
+		VkDevice device = *static_cast<VkDevice*>( user_data );
+		vkDestroyShaderModule( device, module->module, nullptr );
 	},
 	                              &self->device );
 
@@ -1281,7 +1280,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	if ( specialization_map_entries_count != 0 ) {
 		hash_specialization_constants = SpookyHash::Hash64( specialization_map_data, specialization_map_data_num_bytes, hash_specialization_constants );
-		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( vk::SpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( VkSpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
 	}
 
 	le_shader_module_o module{};
@@ -1296,10 +1295,10 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	    static_cast<char*>( specialization_map_data ),
 	    static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
 	module.specialization_map_info.entries.assign(
-	    reinterpret_cast<vk::SpecializationMapEntry const*>( specialization_map_entries ),
-	    reinterpret_cast<vk::SpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
+	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ),
+	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
 
-	static_assert( sizeof( vk::SpecializationMapEntry ) == sizeof( VkSpecializationMapEntry ), "SpecializationMapEntry must be of same size, whether using vkhpp or not." );
+	static_assert( sizeof( VkSpecializationMapEntry ) == sizeof( VkSpecializationMapEntry ), "SpecializationMapEntry must be of same size, whether using vkhpp or not." );
 
 	le_shader_module_o* cached_module = self->shaderModules.try_find( handle );
 
@@ -1320,8 +1319,15 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	}
 	// ----------| invariant: bindings sanity check passed
 
-	vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module.spirv.size() * sizeof( uint32_t ), module.spirv.data() );
-	module.module = self->device.createShaderModule( createInfo );
+	VkShaderModuleCreateInfo createInfo = {
+	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+	    .pNext    = nullptr, // optional
+	    .flags    = 0,       // optional
+	    .codeSize = module.spirv.size() * sizeof( uint32_t ),
+	    .pCode    = module.spirv.data(),
+	};
+
+	vkCreateShaderModule( self->device, &createInfo, nullptr, &module.module );
 	logger.info( "Vk shader module created %p", module.module );
 
 	if ( cached_module == nullptr ) {
@@ -1329,7 +1335,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 		bool insert_successful = self->shaderModules.try_insert( handle, &module );
 		if ( !insert_successful ) {
 			logger.error( "Could not retain shader module" );
-			self->device.destroyShaderModule( module.module );
+			vkDestroyShaderModule( self->device, module.module, nullptr );
 			logger.debug( "Vk shader module destroyed %p", module.module );
 			return nullptr;
 		}
@@ -1342,7 +1348,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 		auto old_module = *cached_module;
 		*cached_module  = module;
 		// ... and delete the old module
-		self->device.destroyShaderModule( old_module.module );
+		vkDestroyShaderModule( self->device, old_module.module, nullptr );
 		logger.debug( "Vk shader module destroyed %p", old_module.module );
 	}
 
@@ -1356,7 +1362,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 // ----------------------------------------------------------------------
 // Cold path.
 // called via decoder / produce_frame - only if we create a vkPipeline
-static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o* self, le_shader_module_handle const* shader_modules, size_t numModules ) {
+static VkPipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o* self, le_shader_module_handle const* shader_modules, size_t numModules ) {
 
 	static auto logger             = LeLog( LOGGER_LABEL );
 	uint64_t    pipelineLayoutHash = shader_modules_get_pipeline_layout_hash( self->shaderManager, shader_modules, numModules );
@@ -1375,12 +1381,12 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 // ----------------------------------------------------------------------
 // Creates a vulkan graphics pipeline based on a shader state object and a given renderpass and subpass index.
 //
-static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o* self, graphics_pipeline_state_o const* pso, const LeRenderPass& pass, uint32_t subpass ) {
+static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o* self, graphics_pipeline_state_o const* pso, const LeRenderPass& pass, uint32_t subpass ) {
 
-	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
+	std::vector<VkPipelineShaderStageCreateInfo> pipelineStages;
 	pipelineStages.reserve( pso->shaderModules.size() );
 
-	std::vector<vk::SpecializationInfo*> p_specialization_infos;
+	std::vector<VkSpecializationInfo*> p_specialization_infos;
 	p_specialization_infos.reserve( pso->shaderModules.size() );
 
 	le_shader_module_o* vertexShaderModule = nullptr; // We may need the vertex shader module later
@@ -1399,34 +1405,36 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 
 		// Create a new (potentially unused) entry for specialization info
 		p_specialization_infos.emplace_back( nullptr );
-		vk::SpecializationInfo*& p_specialization_info = p_specialization_infos.back();
+		VkSpecializationInfo*& p_specialization_info = p_specialization_infos.back();
 
 		// Fetch specialization constant data from shader
 		// associate it with p_specialization_info
 
 		if ( !s->specialization_map_info.entries.empty() ) {
-			p_specialization_info = new ( vk::SpecializationInfo );
-			p_specialization_info
-			    ->setMapEntryCount( s->specialization_map_info.entries.size() )
-			    .setPMapEntries( s->specialization_map_info.entries.data() )
-			    .setDataSize( s->specialization_map_info.data.size() )
-			    .setPData( s->specialization_map_info.data.data() );
+			p_specialization_info  = new ( VkSpecializationInfo );
+			*p_specialization_info = {
+			    .mapEntryCount = uint32_t( s->specialization_map_info.entries.size() ), // optional
+			    .pMapEntries   = s->specialization_map_info.entries.data(),
+			    .dataSize      = s->specialization_map_info.data.size(), // optional
+			    .pData         = s->specialization_map_info.data.data(),
+			};
 		}
 
-		vk::PipelineShaderStageCreateInfo info{};
-		info
-		    .setFlags( {} )                                  // must be 0 - "reserved for future use"
-		    .setStage( le_to_vk( s->stage ) )                //
-		    .setModule( s->module )                          //
-		    .setPName( "main" )                              //
-		    .setPSpecializationInfo( p_specialization_info ) // set specialisation constants, if any
-		    ;
+		VkPipelineShaderStageCreateInfo info = {
+		    .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		    .pNext               = nullptr, // optional
+		    .flags               = 0,       // optional
+		    .stage               = VkShaderStageFlagBits( s->stage ),
+		    .module              = s->module, // optional
+		    .pName               = "main",
+		    .pSpecializationInfo = p_specialization_info, // optional
+		};
 
 		pipelineStages.emplace_back( info );
 	}
 
-	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;        // Where to get data from
-	std::vector<vk::VertexInputAttributeDescription> vertexInputAttributeDescriptions; // How it feeds into the shader's vertex inputs
+	std::vector<VkVertexInputBindingDescription>   vertexBindingDescriptions;        // Where to get data from
+	std::vector<VkVertexInputAttributeDescription> vertexInputAttributeDescriptions; // How it feeds into the shader's vertex inputs
 
 	if ( vertexShaderModule != nullptr ) {
 
@@ -1447,22 +1455,22 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 			// Create vertex input binding descriptions
 			for ( auto const& b : pso->explicitVertexInputBindingDescriptions ) {
 
-				vk::VertexInputBindingDescription bindingDescription;
-				bindingDescription
-				    .setBinding( b.binding )
-				    .setStride( b.stride )
-				    .setInputRate( vk_input_rate_from_le_input_rate( b.input_rate ) );
+				VkVertexInputBindingDescription bindingDescription = {
+				    .binding   = b.binding,
+				    .stride    = b.stride,
+				    .inputRate = VkVertexInputRate( b.input_rate ),
+				};
 
 				vertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
 			}
 
 			for ( auto const& a : pso->explicitVertexAttributeDescriptions ) {
-				vk::VertexInputAttributeDescription attributeDescription;
-				attributeDescription
-				    .setLocation( a.location )
-				    .setBinding( a.binding )
-				    .setOffset( a.binding_offset )
-				    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) );
+				VkVertexInputAttributeDescription attributeDescription = {
+				    .location = a.location,
+				    .binding  = a.binding,
+				    .format   = vk_format_from_le_vertex_input_attribute_description( a ),
+				    .offset   = a.binding_offset,
+				};
 
 				vertexInputAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
 			}
@@ -1471,16 +1479,18 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 
 	// Combine vertex input `binding` state and vertex input `attribute` state into
 	// something that vk will accept
-	vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
-	vertexInputStageInfo
-	    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
-	    .setVertexBindingDescriptionCount( uint32_t( vertexBindingDescriptions.size() ) )
-	    .setPVertexBindingDescriptions( vertexBindingDescriptions.data() )
-	    .setVertexAttributeDescriptionCount( uint32_t( vertexInputAttributeDescriptions.size() ) )
-	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions.data() ) //
-	    ;
+	VkPipelineVertexInputStateCreateInfo vertexInputStageInfo = {
+	    .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+	    .pNext                           = nullptr,                                      // optional
+	    .flags                           = 0,                                            // optional
+	    .vertexBindingDescriptionCount   = uint32_t( vertexBindingDescriptions.size() ), // optional
+	    .pVertexBindingDescriptions      = vertexBindingDescriptions.data(),
+	    .vertexAttributeDescriptionCount = uint32_t( vertexInputAttributeDescriptions.size() ), // optional
+	    .pVertexAttributeDescriptions    = vertexInputAttributeDescriptions.data(),
+	};
+	;
 
-	// Fetch vk::PipelineLayout for this pso
+	// Fetch VkPipelineLayout for this pso
 	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, pso->shaderModules.data(), pso->shaderModules.size() );
 
 	//
@@ -1488,143 +1498,175 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 	// the current renderpass - each attachment may have their own blend state.
 	// Our pipeline objects will have 16 stages which are readable.
 	//
-	assert( pass.numColorAttachments <= VK_MAX_COLOR_ATTACHMENTS );
+	assert( pass.numColorAttachments <= LE_MAX_COLOR_ATTACHMENTS );
 	//
-	vk::PipelineColorBlendStateCreateInfo colorBlendState;
-	colorBlendState
-	    .setLogicOpEnable( VK_FALSE )
-	    .setLogicOp( ::vk::LogicOp::eClear )
-	    .setAttachmentCount( pass.numColorAttachments )
-	    .setPAttachments( pso->data.blendAttachmentStates.data() )
-	    .setBlendConstants( pso->data.blend_factor_constants );
+	VkPipelineColorBlendStateCreateInfo colorBlendState =
+	    {
+	        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+	        .pNext           = nullptr, // optional
+	        .flags           = 0,       // optional
+	        .logicOpEnable   = VK_FALSE,
+	        .logicOp         = VK_LOGIC_OP_CLEAR,
+	        .attachmentCount = pass.numColorAttachments, // optional
+	        .pAttachments    = pso->data.blendAttachmentStates,
+	        .blendConstants  = {
+	             pso->data.blend_factor_constants[ 0 ],
+	             pso->data.blend_factor_constants[ 1 ],
+	             pso->data.blend_factor_constants[ 2 ],
+	             pso->data.blend_factor_constants[ 3 ],
+            },
+	    };
+	;
 
 	// Viewport and Scissor are tracked as dynamic states, and although this object will not
 	// get used, we must still fulfill the contract of providing a valid object to vk.
 	//
-	static vk::PipelineViewportStateCreateInfo defaultViewportState{ vk::PipelineViewportStateCreateFlags(), 1, nullptr, 1, nullptr };
+	static VkPipelineViewportStateCreateInfo defaultViewportState = {
+	    .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+	    .pNext         = nullptr, // optional
+	    .flags         = 0,       // optional
+	    .viewportCount = 1,       // optional
+	    .pViewports    = nullptr, // optional
+	    .scissorCount  = 1,       // optional
+	    .pScissors     = nullptr, // optional
+	};
+	;
 
 	// We will allways keep Scissor, Viewport and LineWidth as dynamic states,
 	// otherwise we might have way too many pipelines flying around.
-	std::array<vk::DynamicState, 3> dynamicStates = { {
-	    vk::DynamicState::eScissor,
-	    vk::DynamicState::eViewport,
-	    vk::DynamicState::eLineWidth,
-	} };
+	VkDynamicState dynamicStates[] = {
+	    VK_DYNAMIC_STATE_SCISSOR,
+	    VK_DYNAMIC_STATE_VIEWPORT,
+	    VK_DYNAMIC_STATE_LINE_WIDTH,
+	};
 
-	vk::PipelineDynamicStateCreateInfo dynamicState;
-	dynamicState
-	    .setDynamicStateCount( dynamicStates.size() )
-	    .setPDynamicStates( dynamicStates.data() );
+	VkPipelineDynamicStateCreateInfo dynamicState = {
+	    .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+	    .pNext             = nullptr,                                            // optional
+	    .flags             = 0,                                                  // optional
+	    .dynamicStateCount = sizeof( dynamicStates ) / sizeof( VkDynamicState ), // optional
+	    .pDynamicStates    = dynamicStates,
+	};
 
 	// We must patch pipeline multisample state here - this is because we may not know the renderpass a pipeline
 	// is used with, and the number of samples such renderpass supports.
 	auto multisampleCreateInfo = pso->data.multisampleState;
 
-	multisampleCreateInfo.setRasterizationSamples( pass.sampleCount );
+	multisampleCreateInfo.rasterizationSamples = VkSampleCountFlagBits( pass.sampleCount );
 
 	// setup pipeline
-	vk::GraphicsPipelineCreateInfo gpi;
-	gpi
-	    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives ) //
-	    .setStageCount( uint32_t( pipelineStages.size() ) )        // set shaders
-	    .setPStages( pipelineStages.data() )                       // set shaders
-	    .setPVertexInputState( &vertexInputStageInfo )             //
-	    .setPInputAssemblyState( &pso->data.inputAssemblyState )   //
-	    .setPTessellationState( &pso->data.tessellationState )     //
-	    .setPViewportState( &defaultViewportState )                // not used as these states are dynamic, defaultState is a dummy value to pacify driver
-	    .setPRasterizationState( &pso->data.rasterizationInfo )    //
-	    .setPMultisampleState( &multisampleCreateInfo )            // <- we patch this with correct sample count for renderpass, because otherwise not possible
-	    .setPDepthStencilState( &pso->data.depthStencilState )     //
-	    .setPColorBlendState( &colorBlendState )                   //
-	    .setPDynamicState( &dynamicState )                         //
-	    .setLayout( pipelineLayout )                               //
-	    .setRenderPass( pass.renderPass )                          // must be a valid renderpass.
-	    .setSubpass( subpass )                                     //
-	    .setBasePipelineHandle( nullptr )                          //
-	    .setBasePipelineIndex( 0 )                                 // -1 signals not to use a base pipeline index
 
-	    ;
+	VkGraphicsPipelineCreateInfo gpi =
+	    {
+	        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+	        .pNext               = nullptr,                                  //
+	        .flags               = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT, //
+	        .stageCount          = uint32_t( pipelineStages.size() ),        // set shaders
+	        .pStages             = pipelineStages.data(),                    // set shaders
+	        .pVertexInputState   = &vertexInputStageInfo,                    //
+	        .pInputAssemblyState = &pso->data.inputAssemblyState,            //
+	        .pTessellationState  = &pso->data.tessellationState,             //
+	        .pViewportState      = &defaultViewportState,                    // not used as these states are dynamic, defaultState is a dummy value to pacify driver
+	        .pRasterizationState = &pso->data.rasterizationInfo,             //
+	        .pMultisampleState   = &multisampleCreateInfo,                   // <- we patch this with correct sample count for renderpass, because otherwise not possible
+	        .pDepthStencilState  = &pso->data.depthStencilState,             //
+	        .pColorBlendState    = &colorBlendState,                         //
+	        .pDynamicState       = &dynamicState,                            //
+	        .layout              = pipelineLayout,                           //
+	        .renderPass          = pass.renderPass,                          // must be a valid renderpass.
+	        .subpass             = subpass,                                  //
+	        .basePipelineHandle  = nullptr,                                  // optional
+	        .basePipelineIndex   = 0,                                        // -1 signals not to use a base pipeline index
+	    };
 
-	auto creation_result = self->device.createGraphicsPipeline( self->vulkanCache, gpi );
+	VkPipeline pipeline = nullptr;
+	auto       result   = vkCreateGraphicsPipelines( self->device, self->vulkanCache, 1, &gpi, nullptr, &pipeline );
 
+	// cleanup temporary specialisation info objects
 	for ( auto& p_spec : p_specialization_infos ) {
 		delete ( p_spec );
 	}
 	p_specialization_infos.clear();
 
-	assert( creation_result.result == vk::Result::eSuccess && "pipeline must be created successfully" );
-	return creation_result.value;
+	assert( result == VK_SUCCESS && "pipeline must be created successfully" );
+	return pipeline;
 }
 
 // ----------------------------------------------------------------------
 
-static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager_o* self, compute_pipeline_state_o const* pso ) {
+static VkPipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager_o* self, compute_pipeline_state_o const* pso ) {
 
-	// Fetch vk::PipelineLayout for this pso
+	// Fetch VkPipelineLayout for this pso
 	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, &pso->shaderStage, 1 );
 	auto s              = self->shaderManager->shaderModules.try_find( pso->shaderStage );
 	assert( s && "shader module could not be found" );
 
-	vk::SpecializationInfo* p_specialization_info = nullptr;
+	VkSpecializationInfo* p_specialization_info = nullptr;
 	if ( !s->specialization_map_info.entries.empty() ) {
-		p_specialization_info = new ( vk::SpecializationInfo );
-		p_specialization_info
-		    ->setMapEntryCount( s->specialization_map_info.entries.size() )
-		    .setPMapEntries( s->specialization_map_info.entries.data() )
-		    .setDataSize( s->specialization_map_info.data.size() )
-		    .setPData( s->specialization_map_info.data.data() );
+		p_specialization_info  = new ( VkSpecializationInfo );
+		*p_specialization_info = {
+		    .mapEntryCount = uint32_t( s->specialization_map_info.entries.size() ), // optional
+		    .pMapEntries   = s->specialization_map_info.entries.data(),
+		    .dataSize      = s->specialization_map_info.data.size(), // optional
+		    .pData         = s->specialization_map_info.data.data(),
+		};
 	}
 
-	vk::PipelineShaderStageCreateInfo shaderStage{};
-	shaderStage
-	    .setFlags( {} )                                  // must be 0 - "reserved for future use"
-	    .setStage( le_to_vk( s->stage ) )                //
-	    .setModule( s->module )                          //
-	    .setPName( "main" )                              //
-	    .setPSpecializationInfo( p_specialization_info ) // Set specialization info (useful for setting workgroup size for example)
-	    ;
+	VkPipelineShaderStageCreateInfo shaderStage = {
+	    .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+	    .pNext               = nullptr, // optional
+	    .flags               = 0,       // optional
+	    .stage               = VkShaderStageFlagBits( s->stage ),
+	    .module              = s->module, // optional
+	    .pName               = "main",
+	    .pSpecializationInfo = p_specialization_info, // optional
+	};
 
-	vk::ComputePipelineCreateInfo cpi;
-	cpi
-	    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives )
-	    .setStage( shaderStage )
-	    .setLayout( pipelineLayout )
-	    .setBasePipelineHandle( nullptr )
-	    .setBasePipelineIndex( 0 ) // -1 signals not to use base pipeline index
-	    ;
+	VkComputePipelineCreateInfo cpi = {
+	    .sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+	    .pNext              = nullptr,                                  // optional
+	    .flags              = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT, // optional
+	    .stage              = shaderStage,
+	    .layout             = pipelineLayout,
+	    .basePipelineHandle = nullptr, // optional
+	    .basePipelineIndex  = 0,       // -1 signals not to use base pipeline index
+	};
 
-	auto creation_result = self->device.createComputePipeline( self->vulkanCache, cpi );
-	assert( creation_result.result == vk::Result::eSuccess && "pipeline must be created successfully" );
+	VkPipeline pipeline = nullptr;
+	auto       result   = vkCreateComputePipelines( self->device, self->vulkanCache, 1, &cpi, nullptr, &pipeline );
 
+	// cleanup temporary specialisation info objects
 	delete ( p_specialization_info );
-	return creation_result.value;
+
+	assert( result == VK_SUCCESS && "pipeline must be created successfully" );
+	return pipeline;
 }
 
 // ----------------------------------------------------------------------
 
 #ifdef LE_FEATURE_RTX
-static vk::RayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType const& tp ) {
+static VkRayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType const& tp ) {
 	// clang-format off
     switch(tp){
-	    case (le::RayTracingShaderGroupType::eTrianglesHitGroup  ) : return vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
-	    case (le::RayTracingShaderGroupType::eProceduralHitGroup ) : return vk::RayTracingShaderGroupTypeKHR::eProceduralHitGroup;
-	    case (le::RayTracingShaderGroupType::eRayGen             ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral;
-	    case (le::RayTracingShaderGroupType::eMiss               ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral;
-	    case (le::RayTracingShaderGroupType::eCallable           ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral; 
+	    case (le::RayTracingShaderGroupType::eTrianglesHitGroup  ) : return VkRayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
+	    case (le::RayTracingShaderGroupType::eProceduralHitGroup ) : return VkRayTracingShaderGroupTypeKHR::eProceduralHitGroup;
+	    case (le::RayTracingShaderGroupType::eRayGen             ) : return VkRayTracingShaderGroupTypeKHR::eGeneral;
+	    case (le::RayTracingShaderGroupType::eMiss               ) : return VkRayTracingShaderGroupTypeKHR::eGeneral;
+	    case (le::RayTracingShaderGroupType::eCallable           ) : return VkRayTracingShaderGroupTypeKHR::eGeneral; 
     }
 	// clang-format on
 	assert( false ); // unreachable
-	return vk::RayTracingShaderGroupTypeKHR::eGeneral;
+	return VkRayTracingShaderGroupTypeKHR::eGeneral;
 }
 
 // ----------------------------------------------------------------------
 
-static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o* self, rtx_pipeline_state_o const* pso ) {
+static VkPipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o* self, rtx_pipeline_state_o const* pso ) {
 
-	// Fetch vk::PipelineLayout for this pso
+	// Fetch VkPipelineLayout for this pso
 	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, pso->shaderStages.data(), pso->shaderStages.size() );
 
-	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
+	std::vector<VkPipelineShaderStageCreateInfo> pipelineStages;
 	pipelineStages.reserve( pso->shaderStages.size() );
 
 	le_shader_module_handle rayGenModule = nullptr; // We may need the ray gen shader module later
@@ -1638,7 +1680,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 			rayGenModule = shader_stage;
 		}
 
-		vk::PipelineShaderStageCreateInfo info{};
+		VkPipelineShaderStageCreateInfo info{};
 		info
 		    .setFlags( {} )                    // must be 0 - "reserved for future use"
 		    .setStage( le_to_vk( s->stage ) )  //
@@ -1650,14 +1692,14 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 		pipelineStages.emplace_back( info );
 	}
 
-	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> shadingGroups;
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shadingGroups;
 
 	shadingGroups.reserve( pso->shaderGroups.size() );
 
 	// Fill in shading groups from pso->groups
 
 	for ( auto const& group : pso->shaderGroups ) {
-		vk::RayTracingShaderGroupCreateInfoKHR info;
+		VkRayTracingShaderGroupCreateInfoKHR info;
 		info
 		    .setType( le_to_vk( group.type ) )
 		    .setGeneralShader( group.generalShaderIdx )
@@ -1667,7 +1709,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 		shadingGroups.emplace_back( std::move( info ) );
 	}
 
-	vk::RayTracingPipelineCreateInfoKHR create_info;
+	VkRayTracingPipelineCreateInfoKHR create_info;
 	create_info
 	    .setFlags( {} )
 	    .setStageCount( uint32_t( pipelineStages.size() ) )
@@ -1682,7 +1724,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 	    .setBasePipelineIndex( 0 );
 
 	auto result = self->device.createRayTracingPipelineKHR( nullptr, self->vulkanCache, create_info );
-	assert( vk::Result::eSuccess == result.result );
+	assert( VkResult::eSuccess == result.result );
 	return result.value;
 }
 #endif
@@ -1690,7 +1732,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 // ----------------------------------------------------------------------
 
 /// \brief returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
-static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_manager_o* self, std::vector<le_shader_binding_info> const& bindings, vk::DescriptorSetLayout* layout ) {
+static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_manager_o* self, std::vector<le_shader_binding_info> const& bindings, VkDescriptorSetLayout* layout ) {
 
 	auto& descriptorSetLayouts = self->descriptorSetLayouts; // FIXME: this method only needs rw access to this, and the device
 
@@ -1709,103 +1751,109 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 		// -- Layout was not found in cache, we must create vk objects.
 
-		std::vector<vk::DescriptorSetLayoutBinding> vk_bindings;
+		std::vector<VkDescriptorSetLayoutBinding> vk_bindings;
 
 		vk_bindings.reserve( bindings.size() );
 
 		for ( const auto& b : bindings ) {
-			vk::DescriptorSetLayoutBinding binding{};
-			binding.setBinding( b.binding )
-			    .setDescriptorType( vk::DescriptorType( b.type ) )
-			    .setDescriptorCount( b.count )
-			    .setStageFlags( vk::ShaderStageFlags( b.stage_bits ) )
-			    .setPImmutableSamplers( nullptr );
+			VkDescriptorSetLayoutBinding binding = {
+			    .binding            = 0,
+			    .descriptorType     = VkDescriptorType( b.type ),
+			    .descriptorCount    = b.count, // optional
+			    .stageFlags         = VkShaderStageFlags( b.stage_bits ),
+			    .pImmutableSamplers = nullptr, // optional
+			};
+
 			vk_bindings.emplace_back( std::move( binding ) );
 		}
 
-		vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
-		setLayoutInfo
-		    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
-		    .setBindingCount( uint32_t( vk_bindings.size() ) )
-		    .setPBindings( vk_bindings.data() );
+		VkDescriptorSetLayoutCreateInfo setLayoutInfo = {
+		    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		    .pNext        = nullptr,                        // optional
+		    .flags        = 0,                              // optional
+		    .bindingCount = uint32_t( vk_bindings.size() ), // optional
+		    .pBindings    = vk_bindings.data(),
+		};
 
-		*layout = self->device.createDescriptorSetLayout( setLayoutInfo );
+		vkCreateDescriptorSetLayout( self->device, &setLayoutInfo, nullptr, layout );
 
 		// -- Create descriptorUpdateTemplate
 		//
-		// The template needs to be created so that data for a vk::DescriptorSet
+		// The template needs to be created so that data for a VkDescriptorSet
 		// can be read from a vector of tightly packed
 		// DescriptorData elements.
 		//
 
-		vk::DescriptorUpdateTemplate updateTemplate;
+		VkDescriptorUpdateTemplate updateTemplate;
 		{
-			std::vector<vk::DescriptorUpdateTemplateEntry> entries;
+			std::vector<VkDescriptorUpdateTemplateEntry> entries;
 
 			entries.reserve( bindings.size() );
 
 			size_t base_offset = 0; // offset in bytes into DescriptorData vector, assuming vector is tightly packed.
 			for ( const auto& b : bindings ) {
-				vk::DescriptorUpdateTemplateEntry entry;
 
-				auto descriptorType = vk::DescriptorType( b.type );
-
-				entry.setDstBinding( b.binding );
-				entry.setDescriptorCount( b.count );
-				entry.setDescriptorType( descriptorType );
-				entry.setDstArrayElement( 0 ); // starting element at this binding to update - always 0
+				VkDescriptorUpdateTemplateEntry entry = {
+				    .dstBinding      = b.binding,
+				    .dstArrayElement = 0, // starting element at this binding to update - always 0
+				    .descriptorCount = b.count,
+				    .descriptorType  = VkDescriptorType( b.type ),
+				    .offset          = 0,
+				    .stride          = 0,
+				};
 
 				// set offset based on type of binding, so that template reads from correct data
 
-				switch ( descriptorType ) {
-				case vk::DescriptorType::eAccelerationStructureKHR:
-					entry.setOffset( base_offset + offsetof( DescriptorData, accelerationStructureInfo ) );
+				switch ( b.type ) {
+				case le::DescriptorType::eAccelerationStructureKhr:
+					entry.offset = base_offset + offsetof( DescriptorData, accelerationStructureInfo );
 					break;
-				case vk::DescriptorType::eUniformTexelBuffer:
+				case le::DescriptorType::eUniformTexelBuffer:
 					assert( false ); // not implemented
 					break;
-				case vk::DescriptorType::eStorageTexelBuffer:
+				case le::DescriptorType::eStorageTexelBuffer:
 					assert( false ); // not implemented
 					break;
-				case vk::DescriptorType::eInputAttachment:
+				case le::DescriptorType::eInputAttachment:
 					assert( false ); // not implemented
 					break;
-				case vk::DescriptorType::eCombinedImageSampler:                              // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case vk::DescriptorType::eSampledImage:                                      // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case vk::DescriptorType::eStorageImage:                                      // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case vk::DescriptorType::eSampler:                                           // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-					entry.setOffset( base_offset + offsetof( DescriptorData, imageInfo ) );  // <- point to first field of ImageInfo
-					break;                                                                   //
-				case vk::DescriptorType::eUniformBuffer:                                     // fall-through as this kind of descriptor uses BufferInfo
-				case vk::DescriptorType::eStorageBuffer:                                     // fall-through as this kind of descriptor uses BufferInfo
-				case vk::DescriptorType::eUniformBufferDynamic:                              // fall-through as this kind of descriptor uses BufferInfo
-				case vk::DescriptorType::eStorageBufferDynamic:                              //
-					entry.setOffset( base_offset + offsetof( DescriptorData, bufferInfo ) ); // <- point to first element of BufferInfo
+				case le::DescriptorType::eCombinedImageSampler:                          // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
+				case le::DescriptorType::eSampledImage:                                  // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
+				case le::DescriptorType::eStorageImage:                                  // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
+				case le::DescriptorType::eSampler:                                       // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
+					entry.offset = base_offset + offsetof( DescriptorData, imageInfo );  // <- point to first field of ImageInfo
+					break;                                                               //
+				case le::DescriptorType::eUniformBuffer:                                 // fall-through as this kind of descriptor uses BufferInfo
+				case le::DescriptorType::eStorageBuffer:                                 // fall-through as this kind of descriptor uses BufferInfo
+				case le::DescriptorType::eUniformBufferDynamic:                          // fall-through as this kind of descriptor uses BufferInfo
+				case le::DescriptorType::eStorageBufferDynamic:                          //
+					entry.offset = base_offset + offsetof( DescriptorData, bufferInfo ); // <- point to first element of BufferInfo
 					break;
 				default:
 					assert( false && "invalid descriptor type" );
 				}
 
-				entry.setStride( sizeof( DescriptorData ) );
+				entry.stride = sizeof( DescriptorData );
 
 				entries.emplace_back( std::move( entry ) );
 
 				base_offset += sizeof( DescriptorData );
 			}
 
-			vk::DescriptorUpdateTemplateCreateInfo info;
-			info
-			    .setFlags( {} ) // no flags for now
-			    .setDescriptorUpdateEntryCount( uint32_t( entries.size() ) )
-			    .setPDescriptorUpdateEntries( entries.data() )
-			    .setTemplateType( vk::DescriptorUpdateTemplateType::eDescriptorSet )
-			    .setDescriptorSetLayout( *layout )
-			    .setPipelineBindPoint( {} ) // ignored, since update_template_type is not push_descriptors
-			    .setPipelineLayout( {} )    // ignored, since update_template_type is not push_descriptors
-			    .setSet( 0 )                // ignored, since update_template_type is not push_descriptors
-			    ;
+			VkDescriptorUpdateTemplateCreateInfo info = {
+			    .sType                      = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,
+			    .pNext                      = nullptr, // optional
+			    .flags                      = 0,       // optional
+			    .descriptorUpdateEntryCount = uint32_t( entries.size() ),
+			    .pDescriptorUpdateEntries   = entries.data(),
+			    .templateType               = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET,
+			    .descriptorSetLayout        = *layout,
+			    .pipelineBindPoint          = {}, // ignored as template type is not push_descriptors
+			    .pipelineLayout             = {}, // ignored as template type is not push_descriptors
+			    .set                        = {}, // ignored as template type is not push_descriptors
+			};
 
-			updateTemplate = self->device.createDescriptorUpdateTemplate( info );
+			vkCreateDescriptorUpdateTemplate( self->device, &info, nullptr, &updateTemplate );
 		}
 
 		le_descriptor_set_layout_t le_layout_info;
@@ -1831,7 +1879,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 	std::vector<le_shader_binding_info> combined_bindings = shader_modules_merge_bindings( self->shaderManager, shader_modules, shader_modules_count );
 
 	// -- Create array of DescriptorSetLayouts
-	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
+	std::array<VkDescriptorSetLayout, 8> vkLayouts{};
 	{
 
 		// -- Create one vkDescriptorSetLayout for each set in bindings
@@ -1859,7 +1907,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		}
 
 		info.set_layout_count = uint32_t( sets.size() );
-		assert( sets.size() <= VK_MAX_BOUND_DESCRIPTOR_SETS ); // must be less or equal to maximum bound descriptor sets (currently 8 on NV)
+		assert( sets.size() <= LE_MAX_BOUND_DESCRIPTOR_SETS ); // must be less or equal to maximum bound descriptor sets (currently 8 on NV)
 
 		{
 			// Assert that sets and bindings are not sparse (you must not have "holes" in sets, bindings.)
@@ -1884,10 +1932,10 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 
 	// -- Collect data over all shader stages: push_constant buffer size, active shader stages
 
-	static_assert( sizeof( std::underlying_type<vk::ShaderStageFlagBits>::type ) == sizeof( uint32_t ), "ShaderStageFlagBits must be same size as uint32_t" );
+	static_assert( sizeof( std::underlying_type<VkShaderStageFlagBits>::type ) == sizeof( uint32_t ), "ShaderStageFlagBits must be same size as uint32_t" );
 
-	vk::ShaderStageFlags active_shader_stages;
-	uint64_t             push_constant_buffer_size = 0;
+	VkShaderStageFlags active_shader_stages;
+	uint64_t           push_constant_buffer_size = 0;
 	shader_modules_collect_info( self->shaderManager, shader_modules, shader_modules_count, &push_constant_buffer_size, &active_shader_stages );
 	info.active_vk_shader_stages = uint32_t( active_shader_stages );
 
@@ -1898,30 +1946,33 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 
 	if ( nullptr == found_pl ) {
 
-		vk::PushConstantRange push_constant_range;
-		push_constant_range
-		    .setOffset( 0 )
-		    .setSize( push_constant_buffer_size )
-		    .setStageFlags( active_shader_stages );
+		VkPushConstantRange push_constant_range = {
+		    .stageFlags = active_shader_stages,
+		    .offset     = 0,
+		    .size       = uint32_t( push_constant_buffer_size ),
+		};
 
-		vk::Device                   device = self->device;
-		vk::PipelineLayoutCreateInfo layoutCreateInfo;
-		layoutCreateInfo
-		    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
-		    .setSetLayoutCount( uint32_t( info.set_layout_count ) )
-		    .setPSetLayouts( vkLayouts.data() )
-		    .setPushConstantRangeCount( push_constant_buffer_size ? 1 : 0 )
-		    .setPPushConstantRanges( push_constant_buffer_size ? &push_constant_range : nullptr );
+		VkPipelineLayoutCreateInfo layoutCreateInfo = {
+		    .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		    .pNext                  = nullptr,                           // optional
+		    .flags                  = 0,                                 // optional
+		    .setLayoutCount         = uint32_t( info.set_layout_count ), // optional
+		    .pSetLayouts            = vkLayouts.data(),
+		    .pushConstantRangeCount = uint32_t( push_constant_buffer_size ? 1 : 0 ), // optional
+		    .pPushConstantRanges    = push_constant_buffer_size ? &push_constant_range : nullptr,
+		};
 
 		// Create vkPipelineLayout
-		vk::PipelineLayout pipelineLayout = device.createPipelineLayout( layoutCreateInfo );
+		VkPipelineLayout pipelineLayout = nullptr;
+		vkCreatePipelineLayout( self->device, &layoutCreateInfo, nullptr, &pipelineLayout );
+
 		// Attempt to store pipeline layout in cache
 		bool result = self->pipelineLayouts.try_insert( info.pipeline_layout_key, &pipelineLayout );
 
 		if ( false == result ) {
 			// If we couldn't store the pipeline layout in cache, we must manually
 			// dispose of be vulkan object, otherwise the cache will take care of cleanup.
-			device.destroyPipelineLayout( pipelineLayout );
+			vkDestroyPipelineLayout( self->device, pipelineLayout, nullptr );
 		}
 	}
 
@@ -2138,7 +2189,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 				    pipeline_and_layout_info.pipeline,
 				    0, uint32_t( pso->shaderGroups.size() ),
 				    dataSize, handles + sizeof( LeShaderGroupDataHeader ) );
-				assert( success == vk::Result::eSuccess );
+				assert( success == VkResult::eSuccess );
 			}
 			self->rtx_shader_group_data.try_insert( pipeline_hash, &handles );
 
@@ -2328,7 +2379,7 @@ bool le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o* se
 // ----------------------------------------------------------------------
 
 static VkPipelineLayout le_pipeline_manager_get_pipeline_layout_public( le_pipeline_manager_o* self, uint64_t key ) {
-	vk::PipelineLayout const* pLayout = self->pipelineLayouts.try_find( key );
+	VkPipelineLayout const* pLayout = self->pipelineLayouts.try_find( key );
 	assert( pLayout && "layout cannot be nullptr" );
 	return *pLayout;
 }
@@ -2381,13 +2432,15 @@ static le_pipeline_manager_o* le_pipeline_manager_create( le_device_o* le_device
 	vk_device_i.increase_reference_count( le_device );
 	self->device = vk_device_i.get_vk_device( le_device );
 
-	vk::PipelineCacheCreateInfo pipelineCacheInfo;
-	pipelineCacheInfo
-	    .setFlags( vk::PipelineCacheCreateFlags() ) // "reserved for future use"
-	    .setInitialDataSize( 0 )
-	    .setPInitialData( nullptr );
+	VkPipelineCacheCreateInfo info = {
+	    .sType           = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
+	    .pNext           = nullptr, // optional
+	    .flags           = 0,       // optional
+	    .initialDataSize = 0,       // optional
+	    .pInitialData    = nullptr,
+	};
 
-	self->vulkanCache   = self->device.createPipelineCache( pipelineCacheInfo );
+	vkCreatePipelineCache( self->device, &info, nullptr, &self->vulkanCache );
 	self->shaderManager = le_shader_manager_create( self->device );
 
 	return self;
@@ -2408,13 +2461,13 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o* self ) {
 	// -- destroy descriptorSetLayouts, and descriptorUpdateTemplates
 	self->descriptorSetLayouts.iterator(
 	    []( le_descriptor_set_layout_t* e, void* user_data ) {
-		    vk::Device* device = static_cast<vk::Device*>( user_data );
+		    VkDevice device = *static_cast<VkDevice*>( user_data );
 		    if ( e->vk_descriptor_set_layout ) {
-			    device->destroyDescriptorSetLayout( e->vk_descriptor_set_layout );
+			    vkDestroyDescriptorSetLayout( device, e->vk_descriptor_set_layout, nullptr );
 			    logger.info( "Destroyed VkDescriptorSetLayout: %p", e->vk_descriptor_set_layout );
 		    }
 		    if ( e->vk_descriptor_update_template ) {
-			    device->destroyDescriptorUpdateTemplate( e->vk_descriptor_update_template );
+			    vkDestroyDescriptorUpdateTemplate( device, e->vk_descriptor_update_template, nullptr );
 			    logger.info( "Destroyed VkDescriptorUpdateTemplate: %p", e->vk_descriptor_update_template );
 		    }
 	    },
@@ -2422,9 +2475,9 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o* self ) {
 
 	// -- destroy pipelineLayouts
 	self->pipelineLayouts.iterator(
-	    []( vk::PipelineLayout* e, void* user_data ) {
-		    vk::Device* device = static_cast<vk::Device*>( user_data );
-		    device->destroyPipelineLayout( *e );
+	    []( VkPipelineLayout* e, void* user_data ) {
+		    auto device = *static_cast<VkDevice*>( user_data );
+		    vkDestroyPipelineLayout( device, *e, nullptr );
 		    logger.info( "Destroyed VkPipelineLayout: %p", *e );
 	    },
 	    &self->device );
@@ -2434,8 +2487,8 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o* self ) {
 
 	self->pipelines.iterator(
 	    []( VkPipeline* p, void* user_data ) {
-		    auto device = static_cast<vk::Device*>( user_data );
-		    device->destroyPipeline( *p );
+		    auto device = *static_cast<VkDevice*>( user_data );
+		    vkDestroyPipeline( device, *p, nullptr );
 		    logger.info( "Destroyed VkPipeline: %p", *p );
 	    },
 	    &self->device );
@@ -2451,7 +2504,7 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o* self ) {
 	// Destroy Pipeline Cache
 
 	if ( self->vulkanCache ) {
-		self->device.destroyPipelineCache( self->vulkanCache );
+		vkDestroyPipelineCache( self->device, self->vulkanCache, nullptr );
 	}
 
 	le_backend_vk::vk_device_i.decrease_reference_count( self->le_device );

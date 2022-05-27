@@ -9,6 +9,7 @@
 #include <set>
 #include <string>
 
+#include <vulkan/vulkan.hpp>
 static constexpr auto LOGGER_LABEL = "le_instance_vk";
 
 // Automatically disable Validation Layers for Release Builds

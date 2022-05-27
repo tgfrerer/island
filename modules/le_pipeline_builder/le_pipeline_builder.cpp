@@ -7,12 +7,14 @@
 #include "private/le_renderer_types.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
 
 #include "le_backend_vk.h" // for access to pipeline state object cache
-#include "le_backend_types_internal.h"
 
-#include <array>
+#include <cassert>
+#include <string>
+#include <cstring> // for memcpy
 #include <vector>
-#include <mutex>
 #include <map>
+
+#include <vulkan/vulkan.h>
 
 #include "private/le_backend_vk/le_backend_types_pipeline.inl"
 
@@ -54,10 +56,6 @@ static constexpr auto LOGGER_LABEL = "le_pipeline_builder";
     it is strongly suggested.
 
 */
-
-static constexpr inline vk::PrimitiveTopology le_to_vk( const le::PrimitiveTopology& lhs ) noexcept {
-	return vk::PrimitiveTopology( lhs );
-}
 
 // contains everything (except renderpass/subpass) needed to create a pipeline in the backend
 struct le_graphics_pipeline_builder_o {
@@ -308,74 +306,95 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o* pipelineCache ) {
 	self->obj           = new graphics_pipeline_state_o();
 	// set default values
 
-	self->obj->data.inputAssemblyState
-	    .setTopology( vk::PrimitiveTopology::eTriangleList )
-	    .setPrimitiveRestartEnable( VK_FALSE );
+	self->obj->data.inputAssemblyState = {
+	    .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+	    .pNext                  = nullptr,
+	    .flags                  = 0,
+	    .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+	    .primitiveRestartEnable = VK_FALSE,
+	};
 
-	self->obj->data.tessellationState
-	    .setPatchControlPoints( 3 );
+	self->obj->data.tessellationState = {
+	    .sType              = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
+	    .pNext              = nullptr, // optional
+	    .flags              = 0,       // optional
+	    .patchControlPoints = 3,
+	};
 
 	// Viewport and scissor are tracked as dynamic states,
 	// so this object will not be used,
 	// but we need to give it some default values to match requirements.
 	//
+	self->obj->data.rasterizationInfo = {
+	    .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+	    .pNext                   = nullptr,
+	    .flags                   = 0,
+	    .depthClampEnable        = VK_FALSE,
+	    .rasterizerDiscardEnable = VK_FALSE,
+	    .polygonMode             = VK_POLYGON_MODE_FILL,
+	    .cullMode                = VK_CULL_MODE_NONE,
+	    .frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+	    .depthBiasEnable         = VK_FALSE,
+	    .depthBiasConstantFactor = 0.f,
+	    .depthBiasClamp          = 0.f,
+	    .depthBiasSlopeFactor    = 1.f,
+	    .lineWidth               = 1.f,
+	};
 
-	self->obj->data.rasterizationInfo
-	    .setDepthClampEnable( VK_FALSE )
-	    .setRasterizerDiscardEnable( VK_FALSE )
-	    .setPolygonMode( vk::PolygonMode::eFill )
-	    .setCullMode( vk::CullModeFlagBits::eNone )
-	    .setFrontFace( vk::FrontFace::eCounterClockwise )
-	    .setDepthBiasEnable( VK_FALSE )
-	    .setDepthBiasConstantFactor( 0.f )
-	    .setDepthBiasClamp( 0.f )
-	    .setDepthBiasSlopeFactor( 1.f )
-	    .setLineWidth( 1.f );
+	self->obj->data.multisampleState = {
+	    .sType                 = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+	    .pNext                 = nullptr, // optional
+	    .flags                 = 0,       // optional
+	    .rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
+	    .sampleShadingEnable   = VK_FALSE,
+	    .minSampleShading      = 0.f,
+	    .pSampleMask           = nullptr, // optional
+	    .alphaToCoverageEnable = VK_FALSE,
+	    .alphaToOneEnable      = VK_FALSE,
+	};
 
-	self->obj->data.multisampleState
-	    .setRasterizationSamples( vk::SampleCountFlagBits::e1 )
-	    .setSampleShadingEnable( VK_FALSE )
-	    .setMinSampleShading( 0.f )
-	    .setPSampleMask( nullptr )
-	    .setAlphaToCoverageEnable( VK_FALSE )
-	    .setAlphaToOneEnable( VK_FALSE );
+	VkStencilOpState stencilOpState = {
+	    .failOp      = VK_STENCIL_OP_KEEP,
+	    .passOp      = VK_STENCIL_OP_KEEP,
+	    .depthFailOp = VK_STENCIL_OP_KEEP,
+	    .compareOp   = VK_COMPARE_OP_NEVER,
+	    .compareMask = 0,
+	    .writeMask   = 0,
+	    .reference   = 0,
+	};
 
-	vk::StencilOpState stencilOpState{};
-	stencilOpState
-	    .setFailOp( vk::StencilOp::eKeep )
-	    .setPassOp( vk::StencilOp::eKeep )
-	    .setDepthFailOp( vk::StencilOp::eKeep )
-	    .setCompareOp( vk::CompareOp::eNever )
-	    .setCompareMask( 0 )
-	    .setWriteMask( 0 )
-	    .setReference( 0 );
-
-	self->obj->data.depthStencilState
-	    .setDepthTestEnable( VK_TRUE )
-	    .setDepthWriteEnable( VK_TRUE )
-	    .setDepthCompareOp( vk::CompareOp::eLessOrEqual )
-	    .setDepthBoundsTestEnable( VK_FALSE )
-	    .setStencilTestEnable( VK_FALSE )
-	    .setFront( stencilOpState )
-	    .setBack( stencilOpState )
-	    .setMinDepthBounds( 0.f )
-	    .setMaxDepthBounds( 0.f );
+	self->obj->data.depthStencilState = {
+	    .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+	    .pNext                 = nullptr, // optional
+	    .flags                 = 0,       // optional
+	    .depthTestEnable       = VK_TRUE,
+	    .depthWriteEnable      = VK_TRUE,
+	    .depthCompareOp        = VK_COMPARE_OP_LESS_OR_EQUAL,
+	    .depthBoundsTestEnable = VK_FALSE,
+	    .stencilTestEnable     = VK_FALSE,
+	    .front                 = stencilOpState,
+	    .back                  = stencilOpState,
+	    .minDepthBounds        = 0.f,
+	    .maxDepthBounds        = 0.f,
+	};
 
 	// Default values for color blend state: premultiplied alpha
 	for ( auto& blendAttachmentState : self->obj->data.blendAttachmentStates ) {
-		blendAttachmentState
-		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp( vk::BlendOp::eAdd )
-		    .setAlphaBlendOp( vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor( vk::BlendFactor::eSrcAlpha )
-		    .setDstColorBlendFactor( vk::BlendFactor::eOneMinusSrcAlpha )
-		    .setSrcAlphaBlendFactor( vk::BlendFactor::eOne )
-		    .setDstAlphaBlendFactor( vk::BlendFactor::eZero )
-		    .setColorWriteMask(
-		        vk::ColorComponentFlagBits::eR |
-		        vk::ColorComponentFlagBits::eG |
-		        vk::ColorComponentFlagBits::eB |
-		        vk::ColorComponentFlagBits::eA );
+
+		blendAttachmentState = {
+		    .blendEnable         = VK_TRUE,
+		    .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+		    .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+		    .colorBlendOp        = VK_BLEND_OP_ADD,
+		    .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+		    .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+		    .alphaBlendOp        = VK_BLEND_OP_ADD,
+		    .colorWriteMask =
+		        VK_COLOR_COMPONENT_R_BIT |
+		        VK_COLOR_COMPONENT_G_BIT |
+		        VK_COLOR_COMPONENT_B_BIT |
+		        VK_COLOR_COMPONENT_A_BIT, // optional
+		};
 	}
 
 	return self;
@@ -531,263 +550,230 @@ static void le_graphics_pipeline_builder_add_shader_stage( le_graphics_pipeline_
 // ----------------------------------------------------------------------
 
 static void input_assembly_state_set_primitive_restart_enable( le_graphics_pipeline_builder_o* self, uint32_t const& primitiveRestartEnable ) {
-	self->obj->data.inputAssemblyState.setPrimitiveRestartEnable( primitiveRestartEnable );
+	self->obj->data.inputAssemblyState.primitiveRestartEnable = primitiveRestartEnable;
 }
 
 // ----------------------------------------------------------------------
 
 static void input_assembly_state_set_toplogy( le_graphics_pipeline_builder_o* self, le::PrimitiveTopology const& topology ) {
-	self->obj->data.inputAssemblyState.setTopology( le_to_vk( topology ) );
+	self->obj->data.inputAssemblyState.topology = static_cast<VkPrimitiveTopology>( topology );
 }
 
 static void blend_attachment_state_set_blend_enable( le_graphics_pipeline_builder_o* self, size_t which_attachment, bool blendEnable ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
-	    .setBlendEnable( blendEnable );
+	    .blendEnable = blendEnable;
 }
 
 static void blend_attachment_state_set_color_blend_op( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendOp& blendOp ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
-	    .setColorBlendOp( static_cast<vk::BlendOp>( blendOp ) );
+	    .colorBlendOp = static_cast<VkBlendOp>( blendOp );
 }
 
 static void blend_attachment_state_set_alpha_blend_op( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendOp& blendOp ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
-	    .setAlphaBlendOp( static_cast<vk::BlendOp>( blendOp ) );
+	    .alphaBlendOp = static_cast<VkBlendOp>( blendOp );
 }
 
 static void blend_attachment_state_set_src_color_blend_factor( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendFactor& blendFactor ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
-	    .setSrcColorBlendFactor( static_cast<vk::BlendFactor>( blendFactor ) );
+	    .srcColorBlendFactor = static_cast<VkBlendFactor>( blendFactor );
 }
 static void blend_attachment_state_set_dst_color_blend_factor( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendFactor& blendFactor ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
-	    .setDstColorBlendFactor( static_cast<vk::BlendFactor>( blendFactor ) );
+	    .dstColorBlendFactor = static_cast<VkBlendFactor>( blendFactor );
 }
 
 static void blend_attachment_state_set_src_alpha_blend_factor( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendFactor& blendFactor ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
-	    .setSrcAlphaBlendFactor( static_cast<vk::BlendFactor>( blendFactor ) );
+	    .srcAlphaBlendFactor = static_cast<VkBlendFactor>( blendFactor );
 }
 
 static void blend_attachment_state_set_dst_alpha_blend_factor( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendFactor& blendFactor ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
-	    .setDstAlphaBlendFactor( static_cast<vk::BlendFactor>( blendFactor ) );
+	    .dstAlphaBlendFactor = static_cast<VkBlendFactor>( blendFactor );
 }
 
 static void blend_attachment_state_set_color_write_mask( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::ColorComponentFlags& write_mask ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
-	    .setColorWriteMask( static_cast<vk::ColorComponentFlags>( write_mask ) );
+	    .colorWriteMask = static_cast<VkColorComponentFlags>( write_mask );
 }
 
 static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::AttachmentBlendPreset& preset ) {
 
 	switch ( preset ) {
-
 	case le::AttachmentBlendPreset::ePremultipliedAlpha: {
-
-		self->obj->data.blendAttachmentStates[ which_attachment ]
-		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp( vk::BlendOp::eAdd )
-		    .setAlphaBlendOp( vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor( vk::BlendFactor::eSrcAlpha )
-		    .setDstColorBlendFactor( vk::BlendFactor::eOneMinusSrcAlpha )
-		    .setSrcAlphaBlendFactor( vk::BlendFactor::eOne )
-		    .setDstAlphaBlendFactor( vk::BlendFactor::eZero )
-		    .setColorWriteMask(
-		        vk::ColorComponentFlagBits::eR |
-		        vk::ColorComponentFlagBits::eG |
-		        vk::ColorComponentFlagBits::eB |
-		        vk::ColorComponentFlagBits::eA ) //
-		    ;
-
+		self->obj->data.blendAttachmentStates[ which_attachment ] = {
+		    .blendEnable         = VK_TRUE,
+		    .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+		    .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+		    .colorBlendOp        = VK_BLEND_OP_ADD,
+		    .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+		    .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+		    .alphaBlendOp        = VK_BLEND_OP_ADD,
+		    .colorWriteMask =
+		        VK_COLOR_COMPONENT_R_BIT |
+		        VK_COLOR_COMPONENT_G_BIT |
+		        VK_COLOR_COMPONENT_B_BIT |
+		        VK_COLOR_COMPONENT_A_BIT, // optional
+		};
 	} break;
-
 	case le::AttachmentBlendPreset::eAdd: {
-
-		self->obj->data.blendAttachmentStates[ which_attachment ]
-		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp( vk::BlendOp::eAdd )
-		    .setAlphaBlendOp( vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor( vk::BlendFactor::eOne )  //  fragment shader output assumed to be premultiplied alpha!
-		    .setDstColorBlendFactor( vk::BlendFactor::eOne )  //
-		    .setSrcAlphaBlendFactor( vk::BlendFactor::eOne )  //
-		    .setDstAlphaBlendFactor( vk::BlendFactor::eZero ) //
-		    .setColorWriteMask(
-		        vk::ColorComponentFlagBits::eR |
-		        vk::ColorComponentFlagBits::eG |
-		        vk::ColorComponentFlagBits::eB |
-		        vk::ColorComponentFlagBits::eA ) //
-		    ;
-
+		self->obj->data.blendAttachmentStates[ which_attachment ] = {
+		    .blendEnable         = VK_TRUE,
+		    .srcColorBlendFactor = VK_BLEND_FACTOR_ONE, //  fragment shader output assumed to be premultiplied alpha!
+		    .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+		    .colorBlendOp        = VK_BLEND_OP_ADD,
+		    .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+		    .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+		    .alphaBlendOp        = VK_BLEND_OP_ADD,
+		    .colorWriteMask =
+		        VK_COLOR_COMPONENT_R_BIT |
+		        VK_COLOR_COMPONENT_G_BIT |
+		        VK_COLOR_COMPONENT_B_BIT |
+		        VK_COLOR_COMPONENT_A_BIT, // optional
+		};
 	} break;
 	case le::AttachmentBlendPreset::eMultiply: {
-
-		self->obj->data.blendAttachmentStates[ which_attachment ]
-		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp( vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor( vk::BlendFactor::eDstColor )
-		    .setDstColorBlendFactor( vk::BlendFactor::eOneMinusSrcAlpha ) //
-		    .setColorWriteMask(
-		        vk::ColorComponentFlagBits::eR |
-		        vk::ColorComponentFlagBits::eG |
-		        vk::ColorComponentFlagBits::eB ) //
-		    ;
-
+		self->obj->data.blendAttachmentStates[ which_attachment ] = {
+		    .blendEnable         = VK_TRUE,
+		    .srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR,
+		    .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+		    .colorBlendOp        = VK_BLEND_OP_ADD,
+		    .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO, // has no effect because only rgb
+		    .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO, // has no effect because only rgb
+		    .alphaBlendOp        = VK_BLEND_OP_ADD,      // has no effect because only rgb
+		    .colorWriteMask =
+		        VK_COLOR_COMPONENT_R_BIT |
+		        VK_COLOR_COMPONENT_G_BIT |
+		        VK_COLOR_COMPONENT_B_BIT, // note that we're not using alpha here
+		};
 	} break;
 	case le::AttachmentBlendPreset::eCopy: {
-
 		self->obj->data.blendAttachmentStates[ which_attachment ]
-		    .setBlendEnable( VK_FALSE );
+		    .blendEnable = VK_FALSE;
 
 	} break;
 	}
 }
 
-// ----------------------------------------------------------------------
-
-static inline vk::PolygonMode le_polygon_mode_to_vk( le::PolygonMode const& mode ) {
-	return vk::PolygonMode( mode );
-}
-
-static inline vk::CullModeFlagBits le_cull_mode_to_vk( le::CullModeFlagBits const& cull_mode ) {
-	return vk::CullModeFlagBits( cull_mode );
-}
-
-static inline vk::FrontFace le_front_face_to_vk( le::FrontFace const& front_face ) {
-	return vk::FrontFace( front_face );
-}
-
 static void tessellation_state_set_patch_control_points( le_graphics_pipeline_builder_o* self, uint32_t count ) {
-	self->obj->data.tessellationState.setPatchControlPoints( count );
+	self->obj->data.tessellationState.patchControlPoints = count;
 }
 
 static void rasterization_state_set_depth_clamp_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.rasterizationInfo.setDepthClampEnable( enable );
+	self->obj->data.rasterizationInfo.depthClampEnable = enable;
 }
 static void rasterization_state_set_rasterizer_discard_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.rasterizationInfo.setRasterizerDiscardEnable( enable );
+	self->obj->data.rasterizationInfo.rasterizerDiscardEnable = enable;
 }
 static void rasterization_state_set_polygon_mode( le_graphics_pipeline_builder_o* self, le::PolygonMode const& polygon_mode ) {
-	self->obj->data.rasterizationInfo.setPolygonMode( le_polygon_mode_to_vk( polygon_mode ) );
+	self->obj->data.rasterizationInfo.polygonMode = VkPolygonMode( polygon_mode );
 }
-static void rasterization_state_set_cull_mode( le_graphics_pipeline_builder_o* self, le::CullModeFlagBits const& cull_mode_flag_bits ) {
-	self->obj->data.rasterizationInfo.setCullMode( le_cull_mode_to_vk( cull_mode_flag_bits ) );
+static void rasterization_state_set_cull_mode( le_graphics_pipeline_builder_o* self, le::CullModeFlags const& cull_mode_flag_bits ) {
+	self->obj->data.rasterizationInfo.cullMode = VkCullModeFlags( cull_mode_flag_bits );
 }
 static void rasterization_state_set_front_face( le_graphics_pipeline_builder_o* self, le::FrontFace const& front_face ) {
-	self->obj->data.rasterizationInfo.setFrontFace( le_front_face_to_vk( front_face ) );
+	self->obj->data.rasterizationInfo.frontFace = VkFrontFace( front_face );
 }
 static void rasterization_state_set_depth_bias_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.rasterizationInfo.setDepthBiasEnable( enable );
+	self->obj->data.rasterizationInfo.depthBiasEnable = enable;
 }
 static void rasterization_state_set_depth_bias_constant_factor( le_graphics_pipeline_builder_o* self, float const& factor ) {
-	self->obj->data.rasterizationInfo.setDepthBiasConstantFactor( factor );
+	self->obj->data.rasterizationInfo.depthBiasConstantFactor = factor;
 }
 static void rasterization_state_set_depth_bias_clamp( le_graphics_pipeline_builder_o* self, float const& clamp ) {
-	self->obj->data.rasterizationInfo.setDepthBiasClamp( clamp );
+	self->obj->data.rasterizationInfo.depthBiasClamp = clamp;
 }
 static void rasterization_state_set_depth_bias_slope_factor( le_graphics_pipeline_builder_o* self, float const& factor ) {
-	self->obj->data.rasterizationInfo.setDepthBiasSlopeFactor( factor );
+	self->obj->data.rasterizationInfo.depthBiasSlopeFactor = factor;
 }
 static void rasterization_state_set_line_width( le_graphics_pipeline_builder_o* self, float const& line_width ) {
-	self->obj->data.rasterizationInfo.setLineWidth( line_width );
-}
-
-// ----------------------------------------------------------------------
-static inline vk::SampleCountFlagBits le_sample_count_flags_to_vk( le::SampleCountFlagBits const& rhs ) {
-	return vk::SampleCountFlagBits( rhs );
+	self->obj->data.rasterizationInfo.lineWidth = line_width;
 }
 
 static void multisample_state_set_rasterization_samples( le_graphics_pipeline_builder_o* self, le::SampleCountFlagBits const& num_samples ) {
-	self->obj->data.multisampleState.setRasterizationSamples( le_sample_count_flags_to_vk( num_samples ) );
+	self->obj->data.multisampleState.rasterizationSamples = VkSampleCountFlagBits( num_samples );
 }
 
 static void multisample_state_set_sample_shading_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.multisampleState.setSampleShadingEnable( enable );
+	self->obj->data.multisampleState.sampleShadingEnable = enable;
 }
 static void multisample_state_set_min_sample_shading( le_graphics_pipeline_builder_o* self, float const& min_sample_shading ) {
-	self->obj->data.multisampleState.setMinSampleShading( min_sample_shading );
+	self->obj->data.multisampleState.minSampleShading = min_sample_shading;
 }
 static void multisample_state_set_alpha_to_coverage_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.multisampleState.setAlphaToCoverageEnable( enable );
+	self->obj->data.multisampleState.alphaToCoverageEnable = enable;
 }
 static void multisample_state_set_alpha_to_one_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.multisampleState.setAlphaToOneEnable( enable );
+	self->obj->data.multisampleState.alphaToOneEnable = enable;
 }
 
 // ----------------------------------------------------------------------
 
-static inline vk::StencilOp le_stencil_op_state_to_vk( le::StencilOp const& rhs ) {
-	return vk::StencilOp( rhs );
-}
-
-static inline vk::CompareOp le_compare_op_to_vk( le::CompareOp const& rhs ) {
-	return vk::CompareOp( rhs );
-}
-
 static void stencil_op_state_front_set_fail_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
-	self->obj->data.depthStencilState.front.setFailOp( le_stencil_op_state_to_vk( op ) );
+	self->obj->data.depthStencilState.front.failOp = VkStencilOp( op );
 }
 static void stencil_op_state_front_set_pass_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
-	self->obj->data.depthStencilState.front.setPassOp( le_stencil_op_state_to_vk( op ) );
+	self->obj->data.depthStencilState.front.passOp = VkStencilOp( op );
 }
 static void stencil_op_state_front_set_depth_fail_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
-	self->obj->data.depthStencilState.front.setDepthFailOp( le_stencil_op_state_to_vk( op ) );
+	self->obj->data.depthStencilState.front.depthFailOp = VkStencilOp( op );
 }
 static void stencil_op_state_front_set_compare_op( le_graphics_pipeline_builder_o* self, le::CompareOp const& op ) {
-	self->obj->data.depthStencilState.front.setCompareOp( le_compare_op_to_vk( op ) );
+	self->obj->data.depthStencilState.front.compareOp = VkCompareOp( op );
 }
 static void stencil_op_state_front_set_compare_mask( le_graphics_pipeline_builder_o* self, uint32_t const& mask ) {
-	self->obj->data.depthStencilState.front.setCompareMask( mask );
+	self->obj->data.depthStencilState.front.compareMask = mask;
 }
 static void stencil_op_state_front_set_write_mask( le_graphics_pipeline_builder_o* self, uint32_t const& mask ) {
-	self->obj->data.depthStencilState.front.setWriteMask( mask );
+	self->obj->data.depthStencilState.front.writeMask = mask;
 }
 static void stencil_op_state_front_set_reference( le_graphics_pipeline_builder_o* self, uint32_t const& reference ) {
-	self->obj->data.depthStencilState.front.setReference( reference );
+	self->obj->data.depthStencilState.front.reference = reference;
 }
 
 static void stencil_op_state_back_set_fail_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
-	self->obj->data.depthStencilState.back.setFailOp( le_stencil_op_state_to_vk( op ) );
+	self->obj->data.depthStencilState.back.failOp = VkStencilOp( op );
 }
 static void stencil_op_state_back_set_pass_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
-	self->obj->data.depthStencilState.back.setPassOp( le_stencil_op_state_to_vk( op ) );
+	self->obj->data.depthStencilState.back.passOp = VkStencilOp( op );
 }
 static void stencil_op_state_back_set_depth_fail_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
-	self->obj->data.depthStencilState.back.setDepthFailOp( le_stencil_op_state_to_vk( op ) );
+	self->obj->data.depthStencilState.back.depthFailOp = VkStencilOp( op );
 }
 static void stencil_op_state_back_set_compare_op( le_graphics_pipeline_builder_o* self, le::CompareOp const& op ) {
-	self->obj->data.depthStencilState.back.setCompareOp( le_compare_op_to_vk( op ) );
+	self->obj->data.depthStencilState.back.compareOp = VkCompareOp( op );
 }
 static void stencil_op_state_back_set_compare_mask( le_graphics_pipeline_builder_o* self, uint32_t const& mask ) {
-	self->obj->data.depthStencilState.back.setCompareMask( mask );
+	self->obj->data.depthStencilState.back.compareMask = mask;
 }
 static void stencil_op_state_back_set_write_mask( le_graphics_pipeline_builder_o* self, uint32_t const& mask ) {
-	self->obj->data.depthStencilState.back.setWriteMask( mask );
+	self->obj->data.depthStencilState.back.writeMask = mask;
 }
 static void stencil_op_state_back_set_reference( le_graphics_pipeline_builder_o* self, uint32_t const& reference ) {
-	self->obj->data.depthStencilState.back.setReference( reference );
+	self->obj->data.depthStencilState.back.reference = reference;
 }
 
 static void depth_stencil_state_set_depth_test_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.depthStencilState.setDepthTestEnable( enable );
+	self->obj->data.depthStencilState.depthTestEnable = enable;
 }
 static void depth_stencil_state_set_depth_write_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.depthStencilState.setDepthWriteEnable( enable );
+	self->obj->data.depthStencilState.depthWriteEnable = enable;
 }
 static void depth_stencil_state_set_depth_compare_op( le_graphics_pipeline_builder_o* self, le::CompareOp const& compare_op ) {
-	self->obj->data.depthStencilState.setDepthCompareOp( le_compare_op_to_vk( compare_op ) );
+	self->obj->data.depthStencilState.depthCompareOp = VkCompareOp( compare_op );
 }
 static void depth_stencil_state_set_depth_bounds_test_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.depthStencilState.setDepthBoundsTestEnable( enable );
+	self->obj->data.depthStencilState.depthBoundsTestEnable = enable;
 }
 static void depth_stencil_state_set_stencil_test_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
-	self->obj->data.depthStencilState.setStencilTestEnable( enable );
+	self->obj->data.depthStencilState.stencilTestEnable = enable;
 }
 static void depth_stencil_state_set_min_depth_bounds( le_graphics_pipeline_builder_o* self, float const& min_bounds ) {
-	self->obj->data.depthStencilState.setMinDepthBounds( min_bounds );
+	self->obj->data.depthStencilState.minDepthBounds = min_bounds;
 }
 static void depth_stencil_state_set_max_depth_bounds( le_graphics_pipeline_builder_o* self, float const& max_bounds ) {
-	self->obj->data.depthStencilState.setMaxDepthBounds( max_bounds );
+	self->obj->data.depthStencilState.maxDepthBounds = max_bounds;
 }
 
 // ----------------------------------------------------------------------

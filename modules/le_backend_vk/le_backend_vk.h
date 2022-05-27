@@ -20,6 +20,9 @@ struct le_resource_handle_t; // defined in renderer_types
 
 struct le_pipeline_manager_o;
 
+constexpr uint8_t LE_MAX_BOUND_DESCRIPTOR_SETS = 8;
+constexpr uint8_t LE_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
+
 struct graphics_pipeline_state_o; // for le_pipeline_builder
 struct compute_pipeline_state_o;  // for le_pipeline_builder
 struct rtx_pipeline_state_o;      // for le_pipeline_builder
@@ -39,6 +42,7 @@ LE_OPAQUE_HANDLE( le_cpso_handle );
 LE_OPAQUE_HANDLE( le_cpso_handle );
 LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // handle for backend-managed rtx bottom level acceleration info
 LE_OPAQUE_HANDLE( le_rtx_tlas_info_handle ); // handle for backend-managed rtx top level acceleration info
+
 struct le_rtx_geometry_t;
 
 struct VkInstance_T;

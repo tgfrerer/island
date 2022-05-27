@@ -4,22 +4,11 @@
 //       Its sole purpose of being is to create a dependency inversion, so that both these compilation units
 //       may share the same types for creating pipelines.
 
-#include <vulkan/vulkan.hpp>
-
+#include <cstring>
+#include <string>
 #include <vector>
+#include <vulkan/vulkan.h>
 #include "private/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`, `le_resource_handle`, `LeRenderPassType`
-
-constexpr uint8_t VK_MAX_BOUND_DESCRIPTOR_SETS = 8;
-constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
-
-struct compute_pipeline_state_o {
-	le_shader_module_handle shaderStage; // non-owning; refers opaquely to a compute shader module (or not)
-};
-
-struct rtx_pipeline_state_o {
-	std::vector<le_shader_module_handle>  shaderStages; // non-owning, refers to a number of shader modules.
-	std::vector<le_rtx_shader_group_info> shaderGroups; // references shader modules from shaderStages by index.
-};
 
 // This struct must be tightly packed, as a arrays of bindings get hashed
 // so that we can get a hash over DescriptorSets.
@@ -156,7 +145,7 @@ struct AttachmentInfo {
 
 struct LeRenderPass {
 
-	AttachmentInfo attachments[ VK_MAX_COLOR_ATTACHMENTS ]; // maximum of 16 color output attachments
+	AttachmentInfo attachments[ LE_MAX_COLOR_ATTACHMENTS ]; // maximum of 16 color output attachments
 	uint16_t       numColorAttachments;                     // 0..VK_MAX_COLOR_ATTACHMENTS
 	uint16_t       numResolveAttachments;                   // 0..8
 	uint16_t       numDepthStencilAttachments;              // 0..1
@@ -167,7 +156,7 @@ struct LeRenderPass {
 	VkRenderPass            renderPass;
 	uint32_t                width;
 	uint32_t                height;
-	vk::SampleCountFlagBits sampleCount;    // We store this with renderpass, as sampleCount must be same for all color/depth attachments
+	le::SampleCountFlagBits sampleCount;    // We store this with renderpass, as sampleCount must be same for all color/depth attachments
 	uint64_t                renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	struct le_command_buffer_encoder_o* encoder;

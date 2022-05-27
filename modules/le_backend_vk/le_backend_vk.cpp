@@ -20,6 +20,8 @@
 #include <mutex>
 #include <memory>
 
+#include <vulkan/vulkan.hpp>
+
 static constexpr auto LOGGER_LABEL = "le_backend";
 
 #include "le_backend_vk_settings.inl"
@@ -263,28 +265,6 @@ class KillList : NoCopy, NoMove {
 		infos.push_back( el );
 	}
 };
-
-// ----------------------------------------------------------------------
-
-static inline const vk::ClearValue& le_clear_value_to_vk( const le::ClearValue& lhs ) {
-	static_assert( sizeof( vk::ClearValue ) == sizeof( le::ClearValue ), "Clear value type size must be equal between Le and Vk" );
-	return reinterpret_cast<const vk::ClearValue&>( lhs );
-}
-
-// ----------------------------------------------------------------------
-
-// LE_ENUM_TO_VK( SampleCountFlagBits, le_sample_count_flag_bits_to_vk );
-// LE_ENUM_TO_VK( ImageTiling, le_image_tiling_to_vk );
-// LE_ENUM_TO_VK( ImageType, le_image_type_to_vk );
-// LE_ENUM_TO_VK( Format, le_format_to_vk );
-// LE_ENUM_TO_VK( AttachmentLoadOp, le_attachment_load_op_to_vk );
-// LE_ENUM_TO_VK( AttachmentStoreOp, le_attachment_store_op_to_vk );
-// LE_ENUM_TO_VK( Filter, le_filter_to_vk );
-// LE_ENUM_TO_VK( SamplerMipmapMode, le_sampler_mipmap_mode_to_vk );
-// LE_ENUM_TO_VK( SamplerAddressMode, le_sampler_address_mode_to_vk );
-// LE_ENUM_TO_VK( CompareOp, le_compare_op_to_vk );
-// LE_ENUM_TO_VK( BorderColor, le_border_color_to_vk );
-// LE_ENUM_TO_VK( IndexType, le_index_type_to_vk );
 
 // ----------------------------------------------------------------------
 
@@ -1473,7 +1453,7 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 		currentPass.width       = renderpass_i.get_width( *pass );
 		currentPass.height      = renderpass_i.get_height( *pass );
-		currentPass.sampleCount = static_cast<vk::SampleCountFlagBits>( renderpass_i.get_sample_count( *pass ) );
+		currentPass.sampleCount = renderpass_i.get_sample_count( *pass );
 
 		// Find explicit sync ops needed for resources which are not image
 		// attachments.
@@ -4291,7 +4271,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		uint32_t subpassIndex  = 0;
 
 		vk::PipelineLayout currentPipelineLayout                          = nullptr;
-		vk::DescriptorSet  descriptorSets[ VK_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
+		vk::DescriptorSet  descriptorSets[ LE_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
 
 		// We store currently bound descriptors so that we only allocate new DescriptorSets
 		// if the descriptors really change. With dynamic descriptors, it is very likely
