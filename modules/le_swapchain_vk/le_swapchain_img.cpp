@@ -84,17 +84,17 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN );
 
-	int imgAllocationResult = -1;
-	int bufAllocationResult = -1;
+	VkResult imgAllocationResult = VK_ERROR_UNKNOWN;
+	VkResult bufAllocationResult = VK_ERROR_UNKNOWN;
 
 	uint32_t const numFrames = self->mImagecount;
 
-	self->transferFrames.reserve( numFrames );
+	self->transferFrames.resize( numFrames, {} );
 
 	for ( size_t i = 0; i != numFrames; ++i ) {
-		TransferFrame frame{};
 
-		//		uint64_t imgSize = 0;
+		auto&    frame               = self->transferFrames[ i ];
+		uint64_t image_size_in_bytes = 0;
 		{
 			// Allocate space for an image which can hold a render surface
 
@@ -122,13 +122,15 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			allocationCreateInfo.preferredFlags = 0;
 
 			using namespace le_backend_vk;
-			imgAllocationResult = private_backend_vk_i.allocate_image( self->backend, &imageCreateInfo,
-			                                                           &allocationCreateInfo,
-			                                                           &frame.image,
-			                                                           &frame.imageAllocation,
-			                                                           &frame.imageAllocationInfo );
+			imgAllocationResult = VkResult(
+			    private_backend_vk_i.allocate_image(
+			        self->backend, &imageCreateInfo,
+			        &allocationCreateInfo,
+			        &frame.image,
+			        &frame.imageAllocation,
+			        &frame.imageAllocationInfo ) );
 			assert( imgAllocationResult == VK_SUCCESS );
-			//			imgSize = frame.imageAllocationInfo.size;
+			image_size_in_bytes = frame.imageAllocationInfo.size;
 		}
 
 		{
@@ -142,7 +144,7 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 			    .pNext                 = nullptr, // optional
 			    .flags                 = 0,       // optional
-			    .size                  = 0,
+			    .size                  = image_size_in_bytes,
 			    .usage                 = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 			    .queueFamilyIndexCount = 1, // optional
@@ -154,8 +156,16 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			allocationCreateInfo.usage          = VMA_MEMORY_USAGE_CPU_ONLY;
 			allocationCreateInfo.preferredFlags = 0;
 
-			bufAllocationResult = private_backend_vk_i.allocate_buffer( self->backend, &bufferCreateInfo, &allocationCreateInfo, reinterpret_cast<VkBuffer*>( &frame.buffer ), &frame.bufferAllocation, &frame.bufferAllocationInfo );
-			assert( imgAllocationResult == VK_SUCCESS );
+			bufAllocationResult = VkResult(
+			    private_backend_vk_i.allocate_buffer(
+			        self->backend,
+			        &bufferCreateInfo,
+			        &allocationCreateInfo,
+			        &frame.buffer,
+			        &frame.bufferAllocation,
+			        &frame.bufferAllocationInfo //
+			        ) );
+			assert( bufAllocationResult == VK_SUCCESS );
 		}
 
 		{
@@ -168,7 +178,7 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			vkCreateFence( self->device, &info, nullptr, &frame.frameFence );
 		}
 
-		self->transferFrames.emplace_back( frame );
+		// self->transferFrames.emplace_back( std::move( frame ) );
 	}
 
 	// Allocate command buffers for each frame.
@@ -183,14 +193,16 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 	};
 	;
 
-	VkCommandBuffer cmdBuffers[ 2 ];
-	vkAllocateCommandBuffers( self->device, &allocateInfo, cmdBuffers );
+	{
+		std::vector<VkCommandBuffer> cmdBuffers( numFrames * 2 );
+		vkAllocateCommandBuffers( self->device, &allocateInfo, cmdBuffers.data() );
 
-	// set up commands in frames.
+		// set up commands in frames.
 
-	for ( size_t i = 0; i != numFrames; ++i ) {
-		self->transferFrames[ i ].cmdAcquire = cmdBuffers[ i * 2 ];
-		self->transferFrames[ i ].cmdPresent = cmdBuffers[ i * 2 + 1 ];
+		for ( size_t i = 0; i != numFrames; ++i ) {
+			self->transferFrames[ i ].cmdAcquire = cmdBuffers[ i * 2 ];
+			self->transferFrames[ i ].cmdPresent = cmdBuffers[ i * 2 + 1 ];
+		}
 	}
 
 	// Add commands to command buffers for all frames.
