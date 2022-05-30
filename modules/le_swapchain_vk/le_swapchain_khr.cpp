@@ -243,7 +243,7 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 
 	;
 
-	auto result = vkCreateSwapchainKHR( self->device, &swapChainCreateInfo, nullptr, &oldSwapchain );
+	auto result = vkCreateSwapchainKHR( self->device, &swapChainCreateInfo, nullptr, &self->swapchainKHR );
 	assert( result == VK_SUCCESS );
 
 	// If an existing swap chain is re-created, destroy the old swap chain
