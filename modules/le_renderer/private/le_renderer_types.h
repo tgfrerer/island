@@ -420,16 +420,6 @@ class RendererInfoBuilder {
 	}
 
 	le_renderer_settings_t const& build() {
-
-		// Do some checks:
-		// + If no window was specified, then force image swapchain as a fallback.
-
-		//		if ( self.swapchain_settings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN && self.window == nullptr ) {
-		//			// We must force an image swapchain as a fallback.
-		//			self.swapchain_settings.type         = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
-		//			self.swapchain_settings.img_settings = {}; // apply default image swapchain settings.
-		//		}
-
 		return info;
 	}
 };

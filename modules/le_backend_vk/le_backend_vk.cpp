@@ -777,6 +777,7 @@ static void backend_destroy( le_backend_o* self ) {
 static void backend_create_swapchains( le_backend_o* self, uint32_t num_settings, le_swapchain_settings_t* settings ) {
 
 	using namespace le_swapchain_vk;
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	assert( num_settings && "num_settings must not be zero" );
 
@@ -785,17 +786,26 @@ static void backend_create_swapchains( le_backend_o* self, uint32_t num_settings
 
 		switch ( settings->type ) {
 
-		case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
-			// Create an image swapchain
-			swapchain = swapchain_i.create( api->swapchain_img_i, self, settings );
-		} break;
 		case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
 			// Create a windowless swapchain
 			swapchain = swapchain_i.create( api->swapchain_direct_i, self, settings );
 		} break;
 		case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
-			backend_create_window_surface( self, settings );
-			swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, settings );
+			if ( settings->khr_settings.window != nullptr ) {
+				backend_create_window_surface( self, settings );
+				swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, settings );
+				break;
+			} else {
+				settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
+				logger.warn( "Automatically selected Image Swapchain as no window was specified" );
+				settings->img_settings          = {};
+				settings->img_settings.pipe_cmd = "";
+			}
+
+		} // deliberate fallthrough in case no window was specified
+		case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
+			// Create an image swapchain
+			swapchain = swapchain_i.create( api->swapchain_img_i, self, settings );
 		} break;
 		}
 
