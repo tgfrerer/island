@@ -1,29 +1,35 @@
-#include "le_backend_vk.h"
-#include <vulkan/vulkan.hpp>
+#include "le_swapchain_vk.h"
+#include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
+#include <vulkan/vulkan.h>
+#include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
-#include "include/internal/le_swapchain_vk_common.h"
+#include "le_backend_vk.h"
+
+#include <cassert>
 #include "private/le_renderer_types.h" // for le_swapchain_settings_t, and le::Format
 #include "util/vk_mem_alloc/vk_mem_alloc.h"
 #include "le_log.h"
 
+#include <cstring>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include <vector>
 
 static constexpr auto LOGGER_LABEL = "le_swapchain_img";
 
 struct TransferFrame {
-	vk::Image         image            = nullptr; // Owned. Handle to image
-	vk::Buffer        buffer           = nullptr; // Owned. Handle to buffer
+	VkImage           image            = nullptr; // Owned. Handle to image
+	VkBuffer          buffer           = nullptr; // Owned. Handle to buffer
 	VmaAllocation     imageAllocation  = nullptr; // Owned. Handle to image allocation
 	VmaAllocation     bufferAllocation = nullptr; // Owned. Handle to buffer allocation
 	VmaAllocationInfo imageAllocationInfo{};
 	VmaAllocationInfo bufferAllocationInfo{};
-	vk::Fence         frameFence;
-	vk::CommandBuffer cmdPresent; // copies from image to buffer
-	vk::CommandBuffer cmdAcquire; // transfers image back to correct layout
+	VkFence           frameFence;
+	VkCommandBuffer   cmdPresent; // copies from image to buffer
+	VkCommandBuffer   cmdAcquire; // transfers image back to correct layout
 };
 
 struct img_data_o {
@@ -32,12 +38,12 @@ struct img_data_o {
 	uint32_t                   totalImages;                    // total number of produced images
 	uint32_t                   mImageIndex;                    // current image index
 	uint32_t                   vk_graphics_queue_family_index; //
-	vk::Extent3D               mSwapchainExtent;               //
-	vk::SurfaceFormatKHR       windowSurfaceFormat;            //
+	VkExtent3D                 mSwapchainExtent;               //
+	VkSurfaceFormatKHR         windowSurfaceFormat;            //
 	uint32_t                   reserved__;                     // RESERVED for packing this struct
-	vk::Device                 device;                         // Owned by backend
-	vk::PhysicalDevice         physicalDevice;                 // Owned by backend
-	vk::CommandPool            vkCommandPool;                  // Command pool from wich we allocate present and acquire command buffers
+	VkDevice                   device;                         // Owned by backend
+	VkPhysicalDevice           physicalDevice;                 // Owned by backend
+	VkCommandPool              vkCommandPool;                  // Command pool from wich we allocate present and acquire command buffers
 	le_backend_o*              backend = nullptr;              // Not owned. Backend owns swapchain.
 	std::vector<TransferFrame> transferFrames;                 //
 	FILE*                      pipe = nullptr;                 // Pipe to ffmpeg. Owned. must be closed if opened
@@ -46,18 +52,18 @@ struct img_data_o {
 
 // ----------------------------------------------------------------------
 
-static inline vk::Format le_format_to_vk( const le::Format& format ) noexcept {
-	return vk::Format( format );
+static inline VkFormat le_format_to_vk( const le::Format& format ) noexcept {
+	return VkFormat( format );
 }
 
 // ----------------------------------------------------------------------
 
-static inline void vk_result_assert_success( vk::Result const&& result ) {
+static inline void vk_result_assert_success( VkResult const&& result ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	if ( result != vk::Result::eSuccess ) {
-		logger.warn( "Vulkan operation returned: %s, but we expected vk::Result::eSuccess", vk::to_string( result ).c_str() );
+	if ( result != VK_SUCCESS ) {
+		logger.warn( "Vulkan operation returned: %s, but we expected VkResult::eSuccess", to_str( result ) );
 	}
-	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+	assert( result == VK_SUCCESS && "Vulkan operation must succeed" );
 }
 
 // ----------------------------------------------------------------------
@@ -67,11 +73,12 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 	auto self = static_cast<img_data_o* const>( base->data );
 
 	if ( settings_ ) {
-		self->mSettings = *settings_;
-		self->mSwapchainExtent
-		    .setWidth( self->mSettings.width_hint )
-		    .setHeight( self->mSettings.height_hint )
-		    .setDepth( 1 );
+		self->mSettings        = *settings_;
+		self->mSwapchainExtent = {
+		    .width  = self->mSettings.width_hint,
+		    .height = self->mSettings.height_hint,
+		    .depth  = 1,
+		};
 		self->mImagecount = self->mSettings.imagecount_hint;
 	}
 
@@ -87,26 +94,27 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 	for ( size_t i = 0; i != numFrames; ++i ) {
 		TransferFrame frame{};
 
-		uint64_t imgSize = 0;
+		//		uint64_t imgSize = 0;
 		{
 			// Allocate space for an image which can hold a render surface
 
-			VkImageCreateInfo imageCreateInfo =
-			    static_cast<VkImageCreateInfo&>(
-			        vk::ImageCreateInfo()
-			            .setImageType( ::vk::ImageType::e2D )
-			            .setFormat( self->windowSurfaceFormat.format )
-			            .setExtent( self->mSwapchainExtent )
-			            .setMipLevels( 1 )
-			            .setArrayLayers( 1 )
-			            .setSamples( vk::SampleCountFlagBits::e1 )
-			            .setTiling( vk::ImageTiling::eOptimal )
-			            .setUsage( vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc )
-			            .setSharingMode( ::vk::SharingMode::eExclusive )
-			            .setQueueFamilyIndexCount( 1 )
-			            .setPQueueFamilyIndices( &self->vk_graphics_queue_family_index )
-			            .setInitialLayout( ::vk::ImageLayout::eUndefined ) //
-			    );
+			VkImageCreateInfo imageCreateInfo{
+			    .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			    .pNext                 = nullptr, // optional
+			    .flags                 = 0,       // optional
+			    .imageType             = VK_IMAGE_TYPE_2D,
+			    .format                = self->windowSurfaceFormat.format,
+			    .extent                = self->mSwapchainExtent,
+			    .mipLevels             = 1,
+			    .arrayLayers           = 1,
+			    .samples               = VK_SAMPLE_COUNT_1_BIT,
+			    .tiling                = VK_IMAGE_TILING_OPTIMAL,
+			    .usage                 = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+			    .queueFamilyIndexCount = 1, // optional
+			    .pQueueFamilyIndices   = &self->vk_graphics_queue_family_index,
+			    .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
+			};
 
 			VmaAllocationCreateInfo allocationCreateInfo{};
 			allocationCreateInfo.flags          = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
@@ -116,11 +124,11 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			using namespace le_backend_vk;
 			imgAllocationResult = private_backend_vk_i.allocate_image( self->backend, &imageCreateInfo,
 			                                                           &allocationCreateInfo,
-			                                                           reinterpret_cast<VkImage*>( &frame.image ),
+			                                                           &frame.image,
 			                                                           &frame.imageAllocation,
 			                                                           &frame.imageAllocationInfo );
 			assert( imgAllocationResult == VK_SUCCESS );
-			imgSize = frame.imageAllocationInfo.size;
+			//			imgSize = frame.imageAllocationInfo.size;
 		}
 
 		{
@@ -130,14 +138,16 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			// there needs to be one buffer per image;
 			using namespace le_backend_vk;
 
-			VkBufferCreateInfo bufferCreateInfo =
-			    static_cast<VkBufferCreateInfo&>(
-			        vk::BufferCreateInfo()
-			            .setPQueueFamilyIndices( &self->vk_graphics_queue_family_index )
-			            .setQueueFamilyIndexCount( 1 )
-			            .setUsage( vk::BufferUsageFlagBits::eTransferDst )
-			            .setSize( imgSize ) //
-			    );
+			VkBufferCreateInfo bufferCreateInfo{
+			    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			    .pNext                 = nullptr, // optional
+			    .flags                 = 0,       // optional
+			    .size                  = 0,
+			    .usage                 = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+			    .queueFamilyIndexCount = 1, // optional
+			    .pQueueFamilyIndices   = &self->vk_graphics_queue_family_index,
+			};
 
 			VmaAllocationCreateInfo allocationCreateInfo{};
 			allocationCreateInfo.flags          = VMA_ALLOCATION_CREATE_MAPPED_BIT;
@@ -148,7 +158,15 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			assert( imgAllocationResult == VK_SUCCESS );
 		}
 
-		frame.frameFence = self->device.createFence( { ::vk::FenceCreateFlagBits::eSignaled } );
+		{
+			VkFenceCreateInfo info{
+			    .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+			    .pNext = nullptr, // optional
+			    .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+			};
+
+			vkCreateFence( self->device, &info, nullptr, &frame.frameFence );
+		}
 
 		self->transferFrames.emplace_back( frame );
 	}
@@ -156,13 +174,17 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 	// Allocate command buffers for each frame.
 	// Each frame needs one command buffer
 
-	::vk::CommandBufferAllocateInfo allocateInfo;
-	allocateInfo
-	    .setCommandPool( self->vkCommandPool )
-	    .setLevel( ::vk::CommandBufferLevel::ePrimary )
-	    .setCommandBufferCount( numFrames * 2 );
+	VkCommandBufferAllocateInfo allocateInfo{
+	    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+	    .pNext              = nullptr, // optional
+	    .commandPool        = self->vkCommandPool,
+	    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+	    .commandBufferCount = numFrames * 2,
+	};
+	;
 
-	auto cmdBuffers = self->device.allocateCommandBuffers( allocateInfo );
+	VkCommandBuffer cmdBuffers[ 2 ];
+	vkAllocateCommandBuffers( self->device, &allocateInfo, cmdBuffers );
 
 	// set up commands in frames.
 
@@ -176,77 +198,133 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 	for ( auto& frame : self->transferFrames ) {
 		{
 			// copy == transfer image to buffer memory
-			vk::CommandBuffer& cmdPresent = frame.cmdPresent;
-
-			cmdPresent.begin( { ::vk::CommandBufferUsageFlags() } );
-
+			VkCommandBuffer& cmdPresent = frame.cmdPresent;
 			{
-				auto imgMemBarrier =
-				    vk::ImageMemoryBarrier2()
-				        .setSrcStageMask( vk::PipelineStageFlagBits2::eAllCommands )
-				        .setSrcAccessMask( vk::AccessFlagBits2::eMemoryRead )
-				        .setDstAccessMask( vk::AccessFlagBits2::eTransferRead )
-				        .setDstStageMask( vk::PipelineStageFlagBits2::eAllTransfer )
-				        .setOldLayout( vk::ImageLayout::ePresentSrcKHR )
-				        .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )
-				        .setSrcQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: graphics -> transfer
-				        .setDstQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: graphics -> transfer
-				        .setImage( frame.image )
-				        .setSubresourceRange( { ::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } );
+				VkCommandBufferBeginInfo info = {
+				    .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+				    .pNext            = nullptr, // optional
+				    .flags            = 0,       // optional
+				    .pInheritanceInfo = 0,       // optional
+				};
 
-				;
-				cmdPresent.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( imgMemBarrier ) );
+				vkBeginCommandBuffer( cmdPresent, &info );
 			}
 
-			vk::ImageSubresourceLayers imgSubResource;
-			imgSubResource
-			    .setAspectMask( ::vk::ImageAspectFlagBits::eColor )
-			    .setMipLevel( 0 )
-			    .setBaseArrayLayer( 0 )
-			    .setLayerCount( 1 );
+			{
 
-			vk::BufferImageCopy imgCopy;
-			imgCopy
-			    .setBufferOffset( 0 ) // offset is always 0, since allocator created individual buffer objects
-			    .setBufferRowLength( self->mSwapchainExtent.width )
-			    .setBufferImageHeight( self->mSwapchainExtent.height )
-			    .setImageSubresource( imgSubResource )
-			    .setImageOffset( { 0 } )
-			    .setImageExtent( self->mSwapchainExtent );
+				VkImageMemoryBarrier2 img_barrier{
+				    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+				    .pNext               = nullptr,                              // optional
+				    .srcStageMask        = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, // FIXME: THIS SHOULD BE TOP OF PIPE?!
+				    .srcAccessMask       = VK_ACCESS_2_MEMORY_READ_BIT,          // FIXME: THIS SHOULD BE 0
+				    .dstStageMask        = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, // block on any transfer stage
+				    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make memory visible to transfer read
+				    .oldLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+				    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				    .srcQueueFamilyIndex = self->vk_graphics_queue_family_index,
+				    .dstQueueFamilyIndex = self->vk_graphics_queue_family_index,
+				    .image               = frame.image,
+				    .subresourceRange    = {
+				           .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+				           .baseMipLevel   = 0,
+				           .levelCount     = 1,
+				           .baseArrayLayer = 0,
+				           .layerCount     = 1,
+                    },
+				};
+
+				VkDependencyInfo info{
+				    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+				    .pNext                    = nullptr, // optional
+				    .dependencyFlags          = 0,       // optional
+				    .memoryBarrierCount       = 0,       // optional
+				    .pMemoryBarriers          = 0,
+				    .bufferMemoryBarrierCount = 0, // optional
+				    .pBufferMemoryBarriers    = 0,
+				    .imageMemoryBarrierCount  = 1, // optional
+				    .pImageMemoryBarriers     = &img_barrier,
+				};
+
+				vkCmdPipelineBarrier2( cmdPresent, &info );
+			}
+
+			VkBufferImageCopy imgCopy{
+			    .bufferOffset      = 0,
+			    .bufferRowLength   = self->mSwapchainExtent.width,
+			    .bufferImageHeight = self->mSwapchainExtent.height,
+			    .imageSubresource  = {
+			         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+			         .mipLevel       = 0,
+			         .baseArrayLayer = 0,
+			         .layerCount     = 1,
+                },
+			    .imageOffset = {},
+			    .imageExtent = self->mSwapchainExtent,
+			};
+			;
 
 			// TODO: here we must wait for the buffer read event to have been signalled - because that means that the buffer
 			// is available for writing again. Perhaps we should use a buffer which is not persistently mapped, if that's faster.
 
 			// Image must be transferred to a buffer - we can then read from this buffer.
-			cmdPresent.copyImageToBuffer( frame.image, ::vk::ImageLayout::eTransferSrcOptimal, frame.buffer, { imgCopy } );
-			cmdPresent.end();
+			vkCmdCopyImageToBuffer( cmdPresent, frame.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, frame.buffer, 1, &imgCopy );
+			vkEndCommandBuffer( cmdPresent );
 		}
 		{
 			// Move ownership of image back from transfer -> graphics
 			// Change image layout back to colorattachment
 
-			vk::CommandBuffer& cmdAcquire = frame.cmdAcquire;
-
-			cmdAcquire.begin( { vk::CommandBufferUsageFlags() } );
-
+			VkCommandBuffer& cmdAcquire = frame.cmdAcquire;
 			{
-				auto barrierReadToAcquire =
-				    vk::ImageMemoryBarrier2()
-				        .setSrcStageMask( vk::PipelineStageFlagBits2::eAllCommands )
-				        .setSrcAccessMask( vk::AccessFlagBits2::eTransferRead )
-				        .setDstStageMask( vk::PipelineStageFlagBits2::eColorAttachmentOutput )
-				        .setDstAccessMask( vk::AccessFlagBits2::eColorAttachmentWrite )
-				        .setOldLayout( vk::ImageLayout::eUndefined )
-				        .setNewLayout( vk::ImageLayout::eColorAttachmentOptimal )
-				        .setSrcQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: transfer -> graphics
-				        .setDstQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: transfer -> graphics
-				        .setImage( frame.image )
-				        .setSubresourceRange( { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } );
+				VkCommandBufferBeginInfo info = {
+				    .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+				    .pNext            = nullptr, // optional
+				    .flags            = 0,       // optional
+				    .pInheritanceInfo = 0,       // optional
+				};
 
-				cmdAcquire.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( barrierReadToAcquire ) );
+				vkBeginCommandBuffer( cmdAcquire, &info );
 			}
 
-			cmdAcquire.end();
+			{
+
+				VkImageMemoryBarrier2 img_read_to_acquire_barrier = {
+				    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+				    .pNext               = nullptr,                                         // optional
+				    .srcStageMask        = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,            // FIXME: should be top of pipe
+				    .srcAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,                   // FIXME: should be 0
+				    .dstStageMask        = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // block on color attachment output
+				    .dstAccessMask       = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,          // make image memory visible to attachment write
+				    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+				    .newLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				    .srcQueueFamilyIndex = self->vk_graphics_queue_family_index,
+				    .dstQueueFamilyIndex = self->vk_graphics_queue_family_index,
+				    .image               = frame.image,
+				    .subresourceRange    = {
+				           .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+				           .baseMipLevel   = 0,
+				           .levelCount     = 1,
+				           .baseArrayLayer = 0,
+				           .layerCount     = 1,
+                    },
+				};
+
+				VkDependencyInfo info = {
+				    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+				    .pNext                    = nullptr, // optional
+				    .dependencyFlags          = 0,       // optional
+				    .memoryBarrierCount       = 0,       // optional
+				    .pMemoryBarriers          = 0,
+				    .bufferMemoryBarrierCount = 0, // optional
+				    .pBufferMemoryBarriers    = 0,
+				    .imageMemoryBarrierCount  = 1, // optional
+				    .pImageMemoryBarriers     = &img_read_to_acquire_barrier,
+				};
+
+				vkCmdPipelineBarrier2( cmdAcquire, &info );
+			}
+
+			vkEndCommandBuffer( cmdAcquire );
 		}
 	}
 }
@@ -261,7 +339,7 @@ static le_swapchain_o* swapchain_img_create( const le_swapchain_vk_api::swapchai
 
 	self->backend                        = backend;
 	self->windowSurfaceFormat.format     = le_format_to_vk( self->mSettings.format_hint );
-	self->windowSurfaceFormat.colorSpace = vk::ColorSpaceKHR::eSrgbNonlinear;
+	self->windowSurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 	self->mImageIndex                    = uint32_t( ~0 );
 	self->pipe_cmd                       = std::string( settings->img_settings.pipe_cmd );
 	{
@@ -276,12 +354,14 @@ static le_swapchain_o* swapchain_img_create( const le_swapchain_vk_api::swapchai
 	{
 		// Create a command pool, so that we may create command buffers from it.
 
-		::vk::CommandPoolCreateInfo createInfo;
-		createInfo
-		    .setFlags( ::vk::CommandPoolCreateFlagBits::eResetCommandBuffer )
-		    .setQueueFamilyIndex( self->vk_graphics_queue_family_index ) //< Todo: make sure this has been set properly when renderer/queues were set up.
-		    ;
-		self->vkCommandPool = self->device.createCommandPool( createInfo );
+		VkCommandPoolCreateInfo createInfo{
+		    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		    .pNext            = nullptr,                                         // optional
+		    .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, // optional
+		    .queueFamilyIndex = self->vk_graphics_queue_family_index,
+		};
+
+		vkCreateCommandPool( self->device, &createInfo, nullptr, &self->vkCommandPool );
 	}
 
 	swapchain_img_reset( base, settings );
@@ -360,9 +440,9 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 
 		auto imageIndex = ( self->mImageIndex ) % self->mImagecount;
 
-		auto fenceWaitResult = self->device.waitForFences( { self->transferFrames[ imageIndex ].frameFence }, VK_TRUE, 100'000'000 );
+		auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence, VK_TRUE, 100'000'000 );
 
-		if ( fenceWaitResult != ::vk::Result::eSuccess ) {
+		if ( fenceWaitResult != VK_SUCCESS ) {
 			assert( false ); // waiting for fence took too long.
 		}
 	}
@@ -375,7 +455,7 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 		private_backend_vk_i.destroy_buffer( self->backend, f.buffer, f.bufferAllocation );
 
 		if ( f.frameFence ) {
-			self->device.destroyFence( f.frameFence );
+			vkDestroyFence( self->device, f.frameFence, nullptr );
 			f.frameFence = nullptr;
 		}
 	}
@@ -390,7 +470,7 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 		// which were allocated from it, so we don't have to free command
 		// buffers explicitly.
 
-		self->device.destroyCommandPool( self->vkCommandPool );
+		vkDestroyCommandPool( self->device, self->vkCommandPool, nullptr );
 		self->vkCommandPool = nullptr;
 	}
 
@@ -411,13 +491,13 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// acquire next image, signal semaphore
 	imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
 
-	auto fenceWaitResult = self->device.waitForFences( { self->transferFrames[ imageIndex ].frameFence }, VK_TRUE, 100'000'000 );
+	auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence, VK_TRUE, 100'000'000 );
 
-	if ( fenceWaitResult != ::vk::Result::eSuccess ) {
+	if ( fenceWaitResult != VK_SUCCESS ) {
 		assert( false ); // waiting for fence took too long.
 	}
 
-	self->device.resetFences( { self->transferFrames[ imageIndex ].frameFence } );
+	vkResetFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence );
 
 	self->mImageIndex = imageIndex;
 
@@ -449,19 +529,21 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 
 	// The number of array elements must correspond to the number of wait semaphores, as each
 	// mask specifies what the semaphore is waiting for.
-	// std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { ::vk::PipelineStageFlagBits::eTransfer };
+	// std::array<VkPipelineStageFlags, 1> wait_dst_stage_mask = { VkPipelineStageFlagBits::eTransfer };
 
-	auto presentCompleteSemaphore = vk::Semaphore{ semaphorePresentComplete };
+	auto presentCompleteSemaphore = VkSemaphore{ semaphorePresentComplete };
 
-	::vk::SubmitInfo submitInfo;
-	submitInfo
-	    .setWaitSemaphoreCount( 0 )
-	    .setPWaitSemaphores( nullptr )
-	    .setPWaitDstStageMask( nullptr )
-	    .setCommandBufferCount( 1 )
-	    .setPCommandBuffers( &self->transferFrames[ imageIndex ].cmdAcquire ) // transfers image back to correct layout
-	    .setSignalSemaphoreCount( 1 )
-	    .setPSignalSemaphores( &presentCompleteSemaphore );
+	VkSubmitInfo submitInfo{
+	    .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+	    .pNext                = nullptr, // optional
+	    .waitSemaphoreCount   = 0,       // optional
+	    .pWaitSemaphores      = 0,
+	    .pWaitDstStageMask    = 0,
+	    .commandBufferCount   = 1, // optional
+	    .pCommandBuffers      = &self->transferFrames[ imageIndex ].cmdAcquire,
+	    .signalSemaphoreCount = 1, // optional
+	    .pSignalSemaphores    = &presentCompleteSemaphore,
+	};
 
 	// !TODO: instead of submitting to the default graphics queue, this needs to go to the transfer queue.
 
@@ -471,14 +553,16 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 		// Submitting directly via the queue is not very elegant, as the queue must be exernally synchronised, and
 		// by submitting to the queue here we are living on the edge if we ever wanted
 		// to have more than one thread producing frames.
-
-		// we can use an event (signal here, command buffer waits for it)
+		//
+		// We should be fine - just make sure that acquire_next_frame (this method) gets called after all
+		// frame producers have submitted their payloads to the queue.
 
 		using namespace le_backend_vk;
 		auto le_device_o = private_backend_vk_i.get_le_device( self->backend );
-		auto queue       = vk::Queue{ vk_device_i.get_default_graphics_queue( le_device_o ) };
+		auto queue       = VkQueue{ vk_device_i.get_default_graphics_queue( le_device_o ) };
 
-		vk_result_assert_success( queue.submit( 1, &submitInfo, nullptr ) );
+		auto result = vkQueueSubmit( queue, 1, &submitInfo, nullptr );
+		assert( result == VK_SUCCESS );
 	}
 
 	return true;
@@ -490,26 +574,23 @@ static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 
 	auto self = static_cast<img_data_o* const>( base->data );
 
-	vk::PipelineStageFlags wait_dst_stage_mask = ::vk::PipelineStageFlagBits::eColorAttachmentOutput;
+	VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-	auto renderCompleteSemaphore = vk::Semaphore{ renderCompleteSemaphore_ };
-
-	vk::SubmitInfo submitInfo;
-	submitInfo
-	    .setWaitSemaphoreCount( 1 )
-	    .setPWaitSemaphores( &renderCompleteSemaphore ) // the render complete semaphore tells us that the image has been written
-	    .setPWaitDstStageMask( &wait_dst_stage_mask )
-	    .setCommandBufferCount( 1 )
-	    .setPCommandBuffers( &self->transferFrames[ *pImageIndex ].cmdPresent ) // copies image to buffer
-	    .setSignalSemaphoreCount( 0 )
-	    .setPSignalSemaphores( nullptr );
+	VkSubmitInfo submitInfo{
+	    .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+	    .pNext                = nullptr, // optional
+	    .waitSemaphoreCount   = 1,
+	    .pWaitSemaphores      = &renderCompleteSemaphore_, // tells us that the image has been written
+	    .pWaitDstStageMask    = &wait_dst_stage_mask,
+	    .commandBufferCount   = 1,
+	    .pCommandBuffers      = &self->transferFrames[ *pImageIndex ].cmdPresent, // copies image to buffer
+	    .signalSemaphoreCount = 0,                                                // optional
+	    .pSignalSemaphores    = 0,
+	};
 
 	// Todo: submit to this to a transfer queue, not main queue, if possible
 
-	{
-		vk::Queue queue{ queue_ };
-		queue.submit( { submitInfo }, self->transferFrames[ *pImageIndex ].frameFence );
-	}
+	vkQueueSubmit( queue_, 1, &submitInfo, self->transferFrames[ *pImageIndex ].frameFence );
 
 	return true;
 };
