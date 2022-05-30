@@ -263,10 +263,8 @@ struct le_swapchain_settings_t {
 };
 
 struct le_renderer_settings_t {
-	char const**            requested_device_extensions       = nullptr; /// DEPRECATED, optional
-	uint32_t                requested_device_extensions_count = 0;       /// DEPRECATED
-	le_swapchain_settings_t swapchain_settings[ 16 ]          = {};
-	size_t                  num_swapchain_settings            = 1;
+	le_swapchain_settings_t swapchain_settings[ 16 ] = {};
+	size_t                  num_swapchain_settings   = 1;
 };
 
 // specifies parameters for an image write operation.
@@ -302,14 +300,12 @@ class RendererInfoBuilder {
 	le_swapchain_settings_t* swapchain_settings = nullptr;
 
   public:
-	RendererInfoBuilder( le_window_o* window = nullptr, char const** requested_device_extensions = nullptr, uint32_t requested_device_extensions_count = 0 )
+	RendererInfoBuilder( le_window_o* window = nullptr )
 	    : swapchain_settings( info.swapchain_settings ) {
 		if ( window != nullptr ) {
 			info.swapchain_settings->khr_settings.window = window;
 			info.swapchain_settings->type                = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
 		}
-		info.requested_device_extensions       = requested_device_extensions;
-		info.requested_device_extensions_count = requested_device_extensions_count;
 	}
 
 	class SwapchainInfoBuilder {

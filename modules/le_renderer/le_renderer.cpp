@@ -370,13 +370,6 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 		using namespace le_backend_vk;
 		self->backend = vk_backend_i.create();
 
-		// Todo: we want to remove extensions settings from renderer, as extensions can now be required via global:
-		// `le_backend_vk::le_backend_settings_interface_i.add_required_[device|instance]_extension`
-		//
-		for ( size_t i = 0; i < settings.requested_device_extensions_count; i++ ) {
-			api->le_backend_settings_i.add_required_device_extension( settings.requested_device_extensions[ i ] );
-		}
-
 		for ( size_t i = 0; i < settings.num_swapchain_settings; i++ ) {
 			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( &settings.swapchain_settings[ i ] );
 			le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( &settings.swapchain_settings[ i ] );
