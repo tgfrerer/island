@@ -4121,7 +4121,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 	static_assert( sizeof( vk::Viewport ) == sizeof( le::Viewport ), "Viewport data size must be same in vk and le" );
 	static_assert( sizeof( vk::Rect2D ) == sizeof( le::Rect2D ), "Rect2D data size must be same in vk and le" );
 
-	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties( *self->device ).limits.maxVertexInputBindings;
+	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties( *self->device )->limits.maxVertexInputBindings;
 
 	// TODO: (parallelize) when going wide, there needs to be a commandPool for each execution context so that
 	// command buffer generation may be free-threaded.

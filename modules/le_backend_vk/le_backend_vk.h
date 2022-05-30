@@ -198,9 +198,9 @@ struct le_backend_vk_api {
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_device_o* self_ );
 		bool                        ( *is_extension_available                  ) ( le_device_o* self, char const * extension_name);
 
-		const VkPhysicalDeviceProperties&       ( *get_vk_physical_device_properties        ) ( le_device_o* self );
-		const VkPhysicalDeviceMemoryProperties& ( *get_vk_physical_device_memory_properties ) ( le_device_o* self );
-		bool									( *get_vk_physical_device_ray_tracing_properties)(le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties);
+		const VkPhysicalDeviceProperties*       ( *get_vk_physical_device_properties        ) ( le_device_o* self );
+		const VkPhysicalDeviceMemoryProperties* ( *get_vk_physical_device_memory_properties ) ( le_device_o* self );
+		bool	                                    ( *get_vk_physical_device_ray_tracing_properties)(le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties);
 		bool                                    ( *get_memory_allocation_info               ) ( le_device_o *self, const VkMemoryRequirements &memReqs, const uint32_t &memPropsRef, VkMemoryAllocateInfo *pMemoryAllocationInfo );
 	};
 
