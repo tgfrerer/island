@@ -44,7 +44,12 @@ def to_titled_camel_case(snake_str):
 
 def generate_struct(struct_name):
 
-    type_info = reg.typedict[struct_name]
+    type_info = reg.typedict.get(struct_name)
+
+    if type_info is None:
+        print("Key `{}` not found.".format(struct_name))
+        return ""
+
     members = type_info.elem.findall('.//member')
 
     body = "{} = {{\n".format(struct_name)
