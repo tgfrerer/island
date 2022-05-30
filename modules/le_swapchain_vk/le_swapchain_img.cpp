@@ -52,22 +52,6 @@ struct img_data_o {
 
 // ----------------------------------------------------------------------
 
-static inline VkFormat le_format_to_vk( const le::Format& format ) noexcept {
-	return VkFormat( format );
-}
-
-// ----------------------------------------------------------------------
-
-static inline void vk_result_assert_success( VkResult const&& result ) {
-	static auto logger = LeLog( LOGGER_LABEL );
-	if ( result != VK_SUCCESS ) {
-		logger.warn( "Vulkan operation returned: %s, but we expected VkResult::eSuccess", to_str( result ) );
-	}
-	assert( result == VK_SUCCESS && "Vulkan operation must succeed" );
-}
-
-// ----------------------------------------------------------------------
-
 static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settings_t* settings_ ) {
 
 	auto self = static_cast<img_data_o* const>( base->data );
@@ -227,12 +211,12 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 				VkImageMemoryBarrier2 img_barrier{
 				    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 				    .pNext               = nullptr,                              // optional
-				    .srcStageMask        = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, // FIXME: THIS SHOULD BE TOP OF PIPE?!
-				    .srcAccessMask       = VK_ACCESS_2_MEMORY_READ_BIT,          // FIXME: THIS SHOULD BE 0
+				    .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,  // wait for nothing
+				    .srcAccessMask       = 0,                                    // flush nothing
 				    .dstStageMask        = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, // block on any transfer stage
-				    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make memory visible to transfer read
-				    .oldLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-				    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make memory visible to transfer read (after layout transition)
+				    .oldLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,      // transition from present_src
+				    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to transfer_src optimal
 				    .srcQueueFamilyIndex = self->vk_graphics_queue_family_index,
 				    .dstQueueFamilyIndex = self->vk_graphics_queue_family_index,
 				    .image               = frame.image,
@@ -303,12 +287,12 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 				VkImageMemoryBarrier2 img_read_to_acquire_barrier = {
 				    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 				    .pNext               = nullptr,                                         // optional
-				    .srcStageMask        = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,            // FIXME: should be top of pipe
-				    .srcAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,                   // FIXME: should be 0
+				    .srcStageMask        = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,               // FIXME: should be top of pipe
+				    .srcAccessMask       = 0,                                               // FIXME: should be 0
 				    .dstStageMask        = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // block on color attachment output
-				    .dstAccessMask       = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,          // make image memory visible to attachment write
-				    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-				    .newLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				    .dstAccessMask       = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,          // make image memory visible to attachment write (after layout transition)
+				    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,                       // transition from undefined to
+				    .newLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,        // attachment optimal
 				    .srcQueueFamilyIndex = self->vk_graphics_queue_family_index,
 				    .dstQueueFamilyIndex = self->vk_graphics_queue_family_index,
 				    .image               = frame.image,
@@ -350,7 +334,7 @@ static le_swapchain_o* swapchain_img_create( const le_swapchain_vk_api::swapchai
 	auto self          = static_cast<img_data_o*>( base->data );
 
 	self->backend                        = backend;
-	self->windowSurfaceFormat.format     = le_format_to_vk( self->mSettings.format_hint );
+	self->windowSurfaceFormat.format     = VkFormat( self->mSettings.format_hint );
 	self->windowSurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 	self->mImageIndex                    = uint32_t( ~0 );
 	self->pipe_cmd                       = std::string( settings->img_settings.pipe_cmd );
