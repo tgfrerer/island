@@ -144,7 +144,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 						foundMatch  = true;
 						foundFamily = familyIndex;
 						foundIndex  = usedQueues[ familyIndex ] + 1;
-						logger.info( "Found versatile queue matching: '%s'", flags );
+						logger.info( "Found versatile queue matching: '%d'", flags );
 					}
 					break;
 				}
@@ -155,7 +155,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 			result.emplace_back( foundFamily, foundIndex, reqIdx );
 			usedQueues[ foundFamily ] = foundIndex; // mark this queue as used
 		} else {
-			logger.error( "No available queue matching requirement: '%s'", flags );
+			logger.error( "No available queue matching requirement: '%d'", flags );
 		}
 
 		++reqIdx;
