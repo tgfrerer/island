@@ -1757,7 +1757,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 		for ( const auto& b : bindings ) {
 			VkDescriptorSetLayoutBinding binding = {
-			    .binding            = 0,
+			    .binding            = b.binding,
 			    .descriptorType     = VkDescriptorType( b.type ),
 			    .descriptorCount    = b.count, // optional
 			    .stageFlags         = VkShaderStageFlags( b.stage_bits ),
