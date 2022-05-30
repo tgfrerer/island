@@ -1,11 +1,9 @@
-#include "le_backend_vk.h"
+// #include "le_backend_vk.h"
 
 // NOTE: This header *must not* be included by anyone else but le_backend_vk.cpp or le_pipeline_builder.cpp.
 //       Its sole purpose of being is to create a dependency inversion, so that both these compilation units
 //       may share the same types for creating pipelines.
 
-#include <cstring>
-#include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
 #include "private/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`, `le_resource_handle`, `LeRenderPassType`
@@ -100,7 +98,9 @@ struct DescriptorData {
 		return type == rhs.type &&
 		       bindingNumber == rhs.bindingNumber &&
 		       arrayIndex == rhs.arrayIndex &&
-		       0 == memcmp( data, rhs.data, sizeof( data ) );
+		       data[ 0 ] == rhs.data[ 0 ] &&
+		       data[ 1 ] == rhs.data[ 1 ] &&
+		       data[ 2 ] == rhs.data[ 2 ];
 	}
 };
 
@@ -168,6 +168,6 @@ struct LeRenderPass {
 		uint32_t           active;
 	};
 
-	std::string                 debugName;         // Debug name for renderpass
-	std::vector<ExplicitSyncOp> explicit_sync_ops; // explicit sync operations for renderpass, these execute before renderpass begins.
+	char                        debugName[ 256 ] = ""; // Debug name for renderpass
+	std::vector<ExplicitSyncOp> explicit_sync_ops;     // explicit sync operations for renderpass, these execute before renderpass begins.
 };

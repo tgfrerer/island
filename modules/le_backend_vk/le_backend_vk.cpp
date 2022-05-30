@@ -1448,8 +1448,8 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 		LeRenderPass currentPass{};
 
-		currentPass.type      = renderpass_i.get_type( *pass );
-		currentPass.debugName = renderpass_i.get_debug_name( *pass );
+		currentPass.type = renderpass_i.get_type( *pass );
+		memcpy( currentPass.debugName, renderpass_i.get_debug_name( *pass ), sizeof( currentPass.debugName ) );
 
 		currentPass.width       = renderpass_i.get_width( *pass );
 		currentPass.height      = renderpass_i.get_height( *pass );
@@ -1792,7 +1792,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 		vk::AccessFlags2        dstAccessToExternalFlags;
 
 		if ( PRINT_DEBUG_MESSAGES ) {
-			logger.info( "* Renderpass: '%s'", pass.debugName.c_str() );
+			logger.info( "* Renderpass: '%s'", pass.debugName );
 			logger.info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
 		}
 
@@ -1899,7 +1899,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 		{
 			if ( PRINT_DEBUG_MESSAGES ) {
 
-				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName.c_str() );
+				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName );
 				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", vk::to_string( srcStageFromExternalFlags ).c_str() );
 				logger.info( "\t dstStage: %-40s anything in stage %1$s.", vk::to_string( dstStageFromExternalFlags ).c_str() );
 				uint64_t( srcAccessFromExternalFlags )
@@ -1907,7 +1907,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", vk::to_string( srcAccessFromExternalFlags ).c_str() );
 				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", vk::to_string( dstAccessFromExternalFlags ).c_str(), vk::to_string( dstStageFromExternalFlags ).c_str() );
 
-				logger.info( "Subpass Dependency: subpass `%s` to VK_SUBPASS_EXTERNAL:", pass.debugName.c_str() );
+				logger.info( "Subpass Dependency: subpass `%s` to VK_SUBPASS_EXTERNAL:", pass.debugName );
 				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", vk::to_string( srcStageToExternalFlags ).c_str() );
 				logger.info( "\t dstStage: %-40s anything in stage %1$s.", vk::to_string( dstStageToExternalFlags ).c_str() );
 				uint64_t( srcAccessToExternalFlags )
@@ -4145,7 +4145,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 		if ( should_insert_debug_labels ) {
 			vk::DebugUtilsLabelEXT labelInfo;
-			labelInfo.pLabelName = pass.debugName.c_str();
+			labelInfo.pLabelName = pass.debugName;
 
 			static constexpr auto LE_COLOUR_LIGHTBLUE    = hex_rgba_to_float_colour( 0x61BBEFFF );
 			static constexpr auto LE_COLOUR_GREENY_BLUE  = hex_rgba_to_float_colour( 0x4EC9B0FF );
@@ -4172,7 +4172,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		{
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-				logger.debug( "Renderpass '%s'", pass.debugName.c_str() );
+				logger.debug( "Renderpass '%s'", pass.debugName );
 			}
 
 			// -- Issue sync barriers for all resources which require explicit sync.

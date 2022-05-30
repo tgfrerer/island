@@ -2,6 +2,7 @@
 
 #include "le_backend_vk.h"
 
+#include <cstring>
 #include <vector>
 #include <string>
 #include <assert.h>
@@ -82,8 +83,8 @@ struct le_renderpass_o {
 	void*                                   setup_callback_user_data = nullptr;
 	std::vector<ExecuteCallbackInfo>        executeCallbacks;
 
-	le_command_buffer_encoder_o* encoder   = nullptr;
-	std::string                  debugName = "";
+	le_command_buffer_encoder_o* encoder = nullptr;
+	char                         debugName[ 256 ];
 };
 
 // ----------------------------------------------------------------------
@@ -98,10 +99,10 @@ struct le_rendergraph_o : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 static le_renderpass_o* renderpass_create( const char* renderpass_name, const le::RenderPassType& type_ ) {
-	auto self       = new le_renderpass_o();
-	self->id        = hash_64_fnv1a( renderpass_name );
-	self->type      = type_;
-	self->debugName = renderpass_name;
+	auto self  = new le_renderpass_o();
+	self->id   = hash_64_fnv1a( renderpass_name );
+	self->type = type_;
+	strncpy( self->debugName, renderpass_name, sizeof( self->debugName ) );
 	self->ref_count = 1;
 	return self;
 }
@@ -413,7 +414,7 @@ static void renderpass_get_used_resources( le_renderpass_o const* self, le_resou
 }
 
 static const char* renderpass_get_debug_name( le_renderpass_o const* self ) {
-	return self->debugName.c_str();
+	return self->debugName;
 }
 
 static uint64_t renderpass_get_id( le_renderpass_o const* self ) {
@@ -982,7 +983,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 		logger.info( "Render graph: " );
 		for ( const auto& pass : self->passes ) {
 
-			logger.info( "Renderpass: '%s'", pass->debugName.c_str() );
+			logger.info( "Renderpass: '%s'", pass->debugName );
 			le_image_attachment_info_t const* pImageAttachments   = nullptr;
 			le_img_resource_handle const*     pResources          = nullptr;
 			size_t                            numImageAttachments = 0;
