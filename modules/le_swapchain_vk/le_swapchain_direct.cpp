@@ -7,26 +7,23 @@
 #	define VK_USE_PLATFORM_XLIB_XRANDR_EXT
 #endif
 
-#define VULKAN_HPP_DISABLE_ENHANCED_MODE
-#define VULKAN_HPP_NO_SMART_HANDLE
-#define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 #include <iostream>
 #include <vector>
 #include <assert.h>
 
 #define ASSERT_VK_SUCCESS( x ) \
-	assert( x == vk::Result::eSuccess )
+	assert( x == VkResult::eSuccess )
 
 static constexpr auto LOGGER_LABEL = "le_swapchain_direct";
 
 struct SurfaceProperties {
-	vk::SurfaceFormatKHR              windowSurfaceFormat;
-	vk::SurfaceCapabilitiesKHR        surfaceCapabilities;
-	VkBool32                          presentSupported = VK_FALSE;
-	std::vector<vk::PresentModeKHR>   presentmodes;
-	std::vector<vk::SurfaceFormatKHR> availableSurfaceFormats;
+	VkSurfaceFormatKHR              windowSurfaceFormat;
+	VkSurfaceCapabilitiesKHR        surfaceCapabilities;
+	VkBool32                        presentSupported = VK_FALSE;
+	std::vector<VkPresentModeKHR>   presentmodes;
+	std::vector<VkSurfaceFormatKHR> availableSurfaceFormats;
 };
 
 #define getInstanceProc( instance, procName ) \
@@ -40,15 +37,15 @@ struct swp_direct_data_o {
 	le_backend_o*           backend                        = nullptr;
 	uint32_t                mImagecount                    = 0;
 	uint32_t                mImageIndex                    = uint32_t( ~0 ); // current image index
-	vk::SwapchainKHR        swapchainKHR                   = nullptr;
-	vk::Extent2D            mSwapchainExtent               = {};
-	vk::PresentModeKHR      mPresentMode                   = vk::PresentModeKHR::eFifo;
+	VkSwapchainKHR          swapchainKHR                   = nullptr;
+	VkExtent2D              mSwapchainExtent               = {};
+	VkPresentModeKHR        mPresentMode                   = VK_PRESENT_MODE_FIFO_KHR;
 	uint32_t                vk_graphics_queue_family_index = 0;
 	SurfaceProperties       mSurfaceProperties             = {};
-	std::vector<vk::Image>  mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
-	vk::Instance            instance                       = nullptr;
-	vk::Device              device                         = nullptr;
-	vk::PhysicalDevice      physicalDevice                 = nullptr;
+	std::vector<VkImage>    mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
+	VkInstance              instance                       = nullptr;
+	VkDevice                device                         = nullptr;
+	VkPhysicalDevice        physicalDevice                 = nullptr;
 
 #ifdef _MSC_VER
 
@@ -56,26 +53,88 @@ struct swp_direct_data_o {
 	Display* x11_display = nullptr;
 #endif
 
-	vk::DisplayKHR                            display                 = nullptr;
-	vk::SurfaceKHR                            surface                 = nullptr;
-	std::vector<vk::DisplayModePropertiesKHR> display_mode_properties = {};
+	VkDisplayKHR                            display                 = nullptr;
+	VkSurfaceKHR                            surface                 = nullptr;
+	std::vector<VkDisplayModePropertiesKHR> display_mode_properties = {};
 };
 
 // ----------------------------------------------------------------------
 
-static inline vk::Format le_format_to_vk( const le::Format& format ) noexcept {
-	return vk::Format( format );
+template <typename T>
+static inline auto clamp( const T& val_, const T& min_, const T& max_ ) {
+	return std::max( min_, ( std::min( val_, max_ ) ) );
 }
 
 // ----------------------------------------------------------------------
 
-static inline void vk_result_assert_success( vk::Result const&& result ) {
+static constexpr char const* to_str( const VkPresentModeKHR& tp ) {
+	switch ( static_cast<uint32_t>( tp ) ) {
+		// clang-format off
+	case          0: return "VkPresentModeImmediateKhr";
+	case          1: return "VkPresentModeMailboxKhr";
+	case          2: return "VkPresentModeFifoKhr";
+	case          3: return "VkPresentModeFifoRelaxedKhr";
+	case 1000111000: return "VkPresentModeSharedDemandRefreshKhr";
+	case 1000111001: return "VkPresentModeSharedContinuousRefreshKhr";
+	default: return "Unknown";
+		// clang-format on
+	};
+}
+static constexpr char const* to_str( const VkResult& tp ) {
+	switch ( static_cast<int32_t>( tp ) ) {
+		// clang-format off
+	case         -1: return "VkErrorOutOfHostMemory";
+	case        -10: return "VkErrorTooManyObjects";
+	case -1000000000: return "VkErrorSurfaceLostKhr";
+	case -1000000001: return "VkErrorNativeWindowInUseKhr";
+	case -1000001004: return "VkErrorOutOfDateKhr";
+	case -1000003001: return "VkErrorIncompatibleDisplayKhr";
+	case -1000011001: return "VkErrorValidationFailedExt";
+	case -1000012000: return "VkErrorInvalidShaderNv";
+	case -1000069000: return "VkErrorOutOfPoolMemory";
+	case -1000072003: return "VkErrorInvalidExternalHandle";
+	case -1000158000: return "VkErrorInvalidDrmFormatModifierPlaneLayoutExt";
+	case -1000161000: return "VkErrorFragmentation";
+	case -1000174001: return "VkErrorNotPermittedKhr";
+	case -1000255000: return "VkErrorFullScreenExclusiveModeLostExt";
+	case -1000257000: return "VkErrorInvalidOpaqueCaptureAddress";
+	case        -11: return "VkErrorFormatNotSupported";
+	case        -12: return "VkErrorFragmentedPool";
+	case        -13: return "VkErrorUnknown";
+	case         -2: return "VkErrorOutOfDeviceMemory";
+	case         -3: return "VkErrorInitializationFailed";
+	case         -4: return "VkErrorDeviceLost";
+	case         -5: return "VkErrorMemoryMapFailed";
+	case         -6: return "VkErrorLayerNotPresent";
+	case         -7: return "VkErrorExtensionNotPresent";
+	case         -8: return "VkErrorFeatureNotPresent";
+	case         -9: return "VkErrorIncompatibleDriver";
+	case          0: return "VkSuccess";
+	case          1: return "VkNotReady";
+	case          2: return "VkTimeout";
+	case          3: return "VkEventSet";
+	case          4: return "VkEventReset";
+	case          5: return "VkIncomplete";
+	case 1000001003: return "VkSuboptimalKhr";
+	case 1000268000: return "VkThreadIdleKhr";
+	case 1000268001: return "VkThreadDoneKhr";
+	case 1000268002: return "VkOperationDeferredKhr";
+	case 1000268003: return "VkOperationNotDeferredKhr";
+	case 1000297000: return "VkPipelineCompileRequired";
+	default: return "Unknown";
+		// clang-format on
+	};
+}
+
+// ----------------------------------------------------------------------
+
+static inline void vk_result_assert_success( VkResult const&& result ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	if ( result != vk::Result::eSuccess ) {
-		logger.error( "Vulkan operation returned: %s, but we expected vk::Result::eSuccess", vk::to_string( result ).c_str() );
+	if ( result != VK_SUCCESS ) {
+		logger.error( "Vulkan operation returned: %s, but we expected VkResult::eSuccess", to_str( result ) );
 	}
-	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+	assert( result == VK_SUCCESS && "Vulkan operation must succeed" );
 }
 // ----------------------------------------------------------------------
 
@@ -89,41 +148,38 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 
 	auto& surfaceProperties = self->mSurfaceProperties;
 
-	vk_result_assert_success(
-	    self->physicalDevice.getSurfaceSupportKHR(
-	        self->vk_graphics_queue_family_index,
-	        self->surface,
-	        &surfaceProperties.presentSupported ) );
-
+	auto result = vkGetPhysicalDeviceSurfaceSupportKHR( self->physicalDevice, self->vk_graphics_queue_family_index, self->surface, &surfaceProperties.presentSupported );
+	assert( result == VK_SUCCESS );
 	// Get list of supported surface formats
 
 	{
 		uint32_t num_elements{};
-		auto     result = self->physicalDevice.getSurfaceFormatsKHR( self->surface, &num_elements, nullptr );
-		ASSERT_VK_SUCCESS( result );
+		vkGetPhysicalDeviceSurfaceFormatsKHR( self->physicalDevice, self->surface, &num_elements, nullptr );
+		assert( result == VK_SUCCESS );
 		surfaceProperties.availableSurfaceFormats.resize( num_elements );
-		result = self->physicalDevice.getSurfaceFormatsKHR( self->surface, &num_elements, surfaceProperties.availableSurfaceFormats.data() );
+		result = vkGetPhysicalDeviceSurfaceFormatsKHR( self->physicalDevice, self->surface, &num_elements, surfaceProperties.availableSurfaceFormats.data() );
+		assert( result == VK_SUCCESS );
 	}
 	{
-		auto result = self->physicalDevice.getSurfaceCapabilitiesKHR( self->surface, &surfaceProperties.surfaceCapabilities );
-		ASSERT_VK_SUCCESS( result );
+		result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( self->physicalDevice, self->surface, &surfaceProperties.surfaceCapabilities );
+		assert( result == VK_SUCCESS );
 	}
 	{
 		uint32_t num_elements{};
-		auto     result = self->physicalDevice.getSurfacePresentModesKHR( self->surface, &num_elements, nullptr );
-		ASSERT_VK_SUCCESS( result );
+		result = vkGetPhysicalDeviceSurfacePresentModesKHR( self->physicalDevice, self->surface, &num_elements, nullptr );
+		assert( result == VK_SUCCESS );
 		surfaceProperties.presentmodes.resize( num_elements );
-		result = self->physicalDevice.getSurfacePresentModesKHR( self->surface, &num_elements, surfaceProperties.presentmodes.data() );
-		ASSERT_VK_SUCCESS( result );
+		result = vkGetPhysicalDeviceSurfacePresentModesKHR( self->physicalDevice, self->surface, &num_elements, surfaceProperties.presentmodes.data() );
+		assert( result == VK_SUCCESS );
 	}
 	size_t selectedSurfaceFormatIndex = 0;
-	auto   preferredSurfaceFormat     = le_format_to_vk( self->mSettings.format_hint );
+	auto   preferredSurfaceFormat     = VkFormat( self->mSettings.format_hint );
 
-	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) && ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == vk::Format::eUndefined ) ) {
+	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) && ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == VK_FORMAT_UNDEFINED ) ) {
 
 		// If the surface format list only includes one entry with VK_FORMAT_UNDEFINED,
-		// there is no preferred format, and we must assume vk::Format::eB8G8R8A8Unorm.
-		surfaceProperties.windowSurfaceFormat.format = vk::Format::eB8G8R8A8Unorm;
+		// there is no preferred format, and we must assume VkFormat::eB8G8R8A8Unorm.
+		surfaceProperties.windowSurfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
 
 	} else {
 
@@ -147,26 +203,26 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static vk::PresentModeKHR get_direct_presentmode( const le_swapchain_settings_t::khr_settings_t::Presentmode& presentmode_hint_ ) {
+static VkPresentModeKHR get_direct_presentmode( const le_swapchain_settings_t::khr_settings_t::Presentmode& presentmode_hint_ ) {
 	using PresentMode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 	switch ( presentmode_hint_ ) {
 	case ( PresentMode::eDefault ):
-		return vk::PresentModeKHR::eFifo;
+		return VK_PRESENT_MODE_FIFO_KHR;
 	case ( PresentMode::eImmediate ):
-		return vk::PresentModeKHR::eImmediate;
+		return VK_PRESENT_MODE_IMMEDIATE_KHR;
 	case ( PresentMode::eMailbox ):
-		return vk::PresentModeKHR::eMailbox;
+		return VK_PRESENT_MODE_MAILBOX_KHR;
 	case ( PresentMode::eFifo ):
-		return vk::PresentModeKHR::eFifo;
+		return VK_PRESENT_MODE_FIFO_KHR;
 	case ( PresentMode::eFifoRelaxed ):
-		return vk::PresentModeKHR::eFifoRelaxed;
+		return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
 	case ( PresentMode::eSharedDemandRefresh ):
-		return vk::PresentModeKHR::eSharedDemandRefresh;
+		return VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR;
 	case ( PresentMode::eSharedContinuousRefresh ):
-		return vk::PresentModeKHR::eSharedContinuousRefresh;
+		return VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR;
 	}
 	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
-	return vk::PresentModeKHR::eFifo;
+	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
 // ----------------------------------------------------------------------
@@ -174,20 +230,12 @@ static vk::PresentModeKHR get_direct_presentmode( const le_swapchain_settings_t:
 static void swapchain_attach_images( le_swapchain_o* base ) {
 	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
-	auto result = self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, nullptr );
-	ASSERT_VK_SUCCESS( result );
+	auto result = vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, nullptr );
+	assert( result == VK_SUCCESS );
 
 	self->mImageRefs.resize( self->mImagecount );
-
-	result = self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
-	ASSERT_VK_SUCCESS( result );
-}
-
-// ----------------------------------------------------------------------
-
-template <typename T>
-static inline auto clamp( const T& val_, const T& min_, const T& max_ ) {
-	return std::max( min_, ( std::min( val_, max_ ) ) );
+	vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
+	assert( result == VK_SUCCESS );
 }
 
 // ----------------------------------------------------------------------
@@ -206,16 +254,16 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN );
 
-	//	vk::Result err = ::vk::Result::eSuccess;
+	//	VkResult err = ::VkResult::eSuccess;
 
 	// The surface in SwapchainSettings::windowSurface has been assigned by glfwwindow, through glfw,
 	// just before this setup() method was called.
 	swapchain_query_surface_capabilities( base );
 
-	vk::SwapchainKHR oldSwapchain = self->swapchainKHR;
+	VkSwapchainKHR oldSwapchain = self->swapchainKHR;
 
-	const vk::SurfaceCapabilitiesKHR&        surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities;
-	const std::vector<::vk::PresentModeKHR>& presentModes        = self->mSurfaceProperties.presentmodes;
+	const VkSurfaceCapabilitiesKHR&        surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities;
+	const std::vector<::VkPresentModeKHR>& presentModes        = self->mSurfaceProperties.presentmodes;
 
 	// Either set or get the swapchain surface extents
 
@@ -239,8 +287,8 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 	if ( self->mPresentMode != presentModeHint ) {
 		logger.warn(
 		    "Could not switch to selected Swapchain Present Mode (%s), falling back to: %s",
-		    vk::to_string( presentModeHint ).c_str(),
-		    vk::to_string( self->mPresentMode ).c_str() );
+		    to_str( presentModeHint ),
+		    to_str( self->mPresentMode ) );
 	}
 
 	self->mImagecount = clamp( self->mSettings.imagecount_hint,
@@ -251,40 +299,45 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 		logger.warn( "Number of swapchain images was adjusted to: %d", self->mImagecount );
 	}
 
-	vk::SurfaceTransformFlagBitsKHR preTransform;
+	VkSurfaceTransformFlagBitsKHR preTransform;
 	// Note: this will be interesting for mobile devices
 	// - if rotation and mirroring for the final output can
 	// be defined here.
 
-	if ( surfaceCapabilities.supportedTransforms & ::vk::SurfaceTransformFlagBitsKHR::eIdentity ) {
-		preTransform = ::vk::SurfaceTransformFlagBitsKHR::eIdentity;
+	if ( surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR ) {
+		preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	} else {
 		preTransform = surfaceCapabilities.currentTransform;
 	}
 
-	vk::SwapchainCreateInfoKHR swapChainCreateInfo;
+	VkSwapchainCreateInfoKHR swapChainCreateInfo{
+	    .sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+	    .pNext                 = nullptr, // optional
+	    .flags                 = 0,       // optional
+	    .surface               = self->surface,
+	    .minImageCount         = self->mImagecount,
+	    .imageFormat           = self->mSurfaceProperties.windowSurfaceFormat.format,
+	    .imageColorSpace       = self->mSurfaceProperties.windowSurfaceFormat.colorSpace,
+	    .imageExtent           = self->mSwapchainExtent,
+	    .imageArrayLayers      = 1,
+	    .imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+	    .imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
+	    .queueFamilyIndexCount = 0, // optional
+	    .pQueueFamilyIndices   = 0,
+	    .preTransform          = preTransform,
+	    .compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+	    .presentMode           = self->mPresentMode,
+	    .clipped               = VK_TRUE,
+	    .oldSwapchain          = oldSwapchain, // optional
+	};
 
-	swapChainCreateInfo
-	    .setSurface( self->surface )
-	    .setMinImageCount( self->mImagecount )
-	    .setImageFormat( self->mSurfaceProperties.windowSurfaceFormat.format )
-	    .setImageColorSpace( self->mSurfaceProperties.windowSurfaceFormat.colorSpace )
-	    .setImageExtent( self->mSwapchainExtent )
-	    .setImageArrayLayers( 1 )
-	    .setImageUsage( vk::ImageUsageFlagBits::eColorAttachment )
-	    .setImageSharingMode( vk::SharingMode::eExclusive )
-	    .setPreTransform( preTransform )
-	    .setCompositeAlpha( vk::CompositeAlphaFlagBitsKHR::eOpaque )
-	    .setPresentMode( self->mPresentMode )
-	    .setClipped( VK_TRUE )
-	    .setOldSwapchain( oldSwapchain );
-
-	vk_result_assert_success( self->device.createSwapchainKHR( &swapChainCreateInfo, nullptr, &self->swapchainKHR ) );
+	auto result = vkCreateSwapchainKHR( self->device, &swapChainCreateInfo, nullptr, &self->swapchainKHR );
+	assert( result == VK_SUCCESS );
 
 	// If an existing swap chain is re-created, destroy the old swap chain
 	// This also cleans up all the presentable images
 	if ( oldSwapchain ) {
-		self->device.destroySwapchainKHR( oldSwapchain, nullptr );
+		vkDestroySwapchainKHR( self->device, oldSwapchain, nullptr );
 		oldSwapchain = nullptr;
 	}
 
@@ -315,17 +368,17 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 #else
 	self->x11_display    = XOpenDisplay( nullptr );
 #endif
-	auto phyDevice = vk::PhysicalDevice( self->physicalDevice );
+	auto phyDevice = VkPhysicalDevice( self->physicalDevice );
 
-	std::vector<vk::DisplayPropertiesKHR> display_props;
-	uint32_t                              prop_count = 0;
+	std::vector<VkDisplayPropertiesKHR> display_props;
+	uint32_t                            prop_count = 0;
 
-	auto result = self->physicalDevice.getDisplayPropertiesKHR( &prop_count, nullptr ); // place properties data
+	auto result = vkGetPhysicalDeviceDisplayPropertiesKHR( self->physicalDevice, &prop_count, nullptr );
 
-	ASSERT_VK_SUCCESS( result );
+	assert( result == VK_SUCCESS );
 	display_props.resize( prop_count );
-	result = self->physicalDevice.getDisplayPropertiesKHR( &prop_count, display_props.data() ); // place properties data
-	ASSERT_VK_SUCCESS( result );
+	result = vkGetPhysicalDeviceDisplayPropertiesKHR( self->physicalDevice, &prop_count, display_props.data() );
+	assert( result == VK_SUCCESS );
 
 	// We want to find out which display is secondary display
 	// but we assume that the primary display will be listed first.
@@ -346,29 +399,32 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 	{
 		uint32_t num_props{};
-		result = phyDevice.getDisplayModePropertiesKHR( self->display, &num_props, nullptr );
+		result = vkGetDisplayModePropertiesKHR( self->physicalDevice, self->display, &num_props, nullptr );
+		assert( vk_result == VK_SUCCESS );
+
 		self->display_mode_properties.resize( num_props );
-		result = phyDevice.getDisplayModePropertiesKHR( self->display, &num_props, self->display_mode_properties.data() );
+		result = vkGetDisplayModePropertiesKHR( self->physicalDevice, self->display, &num_props, self->display_mode_properties.data() );
+		assert( vk_result == VK_SUCCESS );
 	}
 	// let's try to acquire this screen
 
 	{
-		vk::DisplaySurfaceCreateInfoKHR info;
+		VkDisplaySurfaceCreateInfoKHR info{
+		    .sType           = VK_STRUCTURE_TYPE_DISPLAY_SURFACE_CREATE_INFO_KHR,
+		    .pNext           = nullptr, // optional
+		    .flags           = 0,       // optional
+		    .displayMode     = self->display_mode_properties[ 0 ].displayMode,
+		    .planeIndex      = 0,
+		    .planeStackIndex = 0,
+		    .transform       = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+		    .globalAlpha     = 1.f,
+		    .alphaMode       = VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR,
+		    .imageExtent     = self->display_mode_properties[ 0 ].parameters.visibleRegion,
+		};
 
-		info
-		    .setFlags( {} )
-		    .setDisplayMode( self->display_mode_properties[ 0 ].displayMode )
-		    .setPlaneIndex( 0 )
-		    .setPlaneStackIndex( 0 )
-		    .setTransform( vk::SurfaceTransformFlagBitsKHR::eIdentity )
-		    .setGlobalAlpha( 1.f )
-		    .setAlphaMode( vk::DisplayPlaneAlphaFlagBitsKHR::eOpaque )
-		    .setImageExtent( self->display_mode_properties[ 0 ].parameters.visibleRegion );
+		result = vkCreateDisplayPlaneSurfaceKHR( self->instance, &info, nullptr, &self->surface );
 
-		auto instance = vk::Instance( self->instance );
-		result        = instance.createDisplayPlaneSurfaceKHR( &info, nullptr, &self->surface );
-
-		ASSERT_VK_SUCCESS( result );
+		assert( result == VK_SUCCESS );
 
 		self->mSwapchainExtent.height = uint32_t( info.imageExtent.height );
 		self->mSwapchainExtent.width  = uint32_t( info.imageExtent.width );
@@ -385,13 +441,10 @@ static void swapchain_direct_destroy( le_swapchain_o* base ) {
 
 	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
-	vk::Device device = self->device;
-
-	device.destroySwapchainKHR( self->swapchainKHR, nullptr );
+	vkDestroySwapchainKHR( self->device, self->swapchainKHR, nullptr );
 	self->swapchainKHR = nullptr;
 
-	vk::Instance instance = self->instance;
-	instance.destroySurfaceKHR( self->surface, nullptr );
+	vkDestroySurfaceKHR( self->instance, self->surface, nullptr );
 	self->surface = nullptr;
 
 	getInstanceProc( self->instance, vkReleaseDisplayEXT );
@@ -437,21 +490,22 @@ static bool swapchain_direct_present( le_swapchain_o* base, VkQueue queue_, VkSe
 
 	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
-	vk::PresentInfoKHR presentInfo;
+	VkPresentInfoKHR presentInfo{
+	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+	    .pNext              = nullptr, // optional
+	    .waitSemaphoreCount = 1,       // optional
+	    .pWaitSemaphores    = &renderCompleteSemaphore_,
+	    .swapchainCount     = 1,
+	    .pSwapchains        = &self->swapchainKHR,
+	    .pImageIndices      = pImageIndex,
+	    .pResults           = 0, // optional
+	};
 
-	auto renderCompleteSemaphore = vk::Semaphore{ renderCompleteSemaphore_ };
+	;
 
-	presentInfo
-	    .setWaitSemaphoreCount( 1 )
-	    .setPWaitSemaphores( &renderCompleteSemaphore )
-	    .setSwapchainCount( 1 )
-	    .setPSwapchains( &self->swapchainKHR )
-	    .setPImageIndices( pImageIndex )
-	    .setPResults( nullptr );
+	auto result = vkQueuePresentKHR( queue_, &presentInfo );
 
-	auto result = vkQueuePresentKHR( queue_, reinterpret_cast<VkPresentInfoKHR*>( &presentInfo ) );
-
-	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
+	if ( result == VK_ERROR_OUT_OF_DATE_KHR ) {
 		return false;
 	}
 
