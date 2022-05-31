@@ -325,11 +325,13 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 	// but we assume that the primary display will be listed first.
 	self->display = display_props.back().display;
 
+	VkResult vk_result = VK_SUCCESS;
+
 #ifdef _MSC_VER
 #else
 
 	getInstanceProc( self->instance, vkAcquireXlibDisplayEXT );
-	auto vk_result = vkAcquireXlibDisplayEXT( phyDevice, self->x11_display, self->display );
+	vk_result = vkAcquireXlibDisplayEXT( phyDevice, self->x11_display, self->display );
 
 	if ( vk_result != VK_SUCCESS ) {
 		logger.error( "Unable to acquire display: %s", display_props.back().displayName );
