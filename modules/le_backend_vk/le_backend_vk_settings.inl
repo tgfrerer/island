@@ -6,7 +6,7 @@
 #include <set>
 #include <vector>
 #include <string>
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 struct le_backend_vk_settings_o {
 	std::set<std::string> required_instance_extensions_set; // we use set to give us permanent addresses for char*, and to ensure uniqueness of requested extensions
@@ -17,16 +17,15 @@ struct le_backend_vk_settings_o {
 	std::vector<char const*> required_instance_extensions;
 	std::vector<char const*> required_device_extensions;
 
-	vk::StructureChain<
-	    vk::PhysicalDeviceFeatures2,
-	    vk::PhysicalDeviceVulkan11Features,
-	    vk::PhysicalDeviceVulkan12Features,
-	    vk::PhysicalDeviceVulkan13Features,
-	    vk::PhysicalDeviceRayTracingPipelineFeaturesKHR,
-	    vk::PhysicalDeviceAccelerationStructureFeaturesKHR,
-	    vk::PhysicalDeviceMeshShaderFeaturesNV>
-
-	    requested_device_features = {};
+	struct RequestedDeviceFeatures {
+		VkPhysicalDeviceFeatures2                        features;
+		VkPhysicalDeviceVulkan11Features                 vk_11;
+		VkPhysicalDeviceVulkan12Features                 vk_12;
+		VkPhysicalDeviceVulkan13Features                 vk_13;
+		VkPhysicalDeviceRayTracingPipelineFeaturesKHR    ray_tracing_pipeline;
+		VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure;
+		VkPhysicalDeviceMeshShaderFeaturesNV             mesh_shader;
+	} requested_device_features;
 
 	std::vector<le_swapchain_settings_t> swapchain_settings;
 	uint32_t                             concurrency_count = 1; // number of potential worker threads
@@ -65,9 +64,7 @@ static bool le_backend_vk_settings_add_required_device_extension( le_backend_vk_
 
 		// Enable StorageBuffer16BitAccess if corresponding extension was requested.
 		if ( std::string( ext ).find( VK_KHR_16BIT_STORAGE_EXTENSION_NAME ) != std::string::npos ) {
-			self->requested_device_features.get<vk::PhysicalDeviceVulkan11Features>()
-			    .setStorageBuffer16BitAccess( true ) //
-			    ;
+			self->requested_device_features.vk_11.storageBuffer16BitAccess = VK_TRUE;
 		}
 
 		return true;
@@ -83,24 +80,97 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 
 	le_backend_vk_settings_o* self = new le_backend_vk_settings_o{};
 
-	self->requested_device_features.get<vk::PhysicalDeviceFeatures2>()
-	    .features                                  //
-	    .setFillModeNonSolid( true )               // allow drawing as wireframe
-	    .setWideLines( true )                      // require enable wide lines
-	    .setRobustBufferAccess( false )            // disable robust buffer access
-	    .setVertexPipelineStoresAndAtomics( true ) //
-	    .setFragmentStoresAndAtomics( true )       //
-	    .setSampleRateShading( true )              // enable so that we can use sampleShadingEnable
-	    .setGeometryShader( true )                 // we want geometry shaders
-	    .setShaderInt16( true )                    //
-	    .setShaderFloat64( true )                  //
-	    ;
+	self->requested_device_features.features = {
+	    .sType    = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+	    .pNext    = &self->requested_device_features.vk_11, // optional
+	    .features = {
+	        .robustBufferAccess                      = 0,
+	        .fullDrawIndexUint32                     = 0,
+	        .imageCubeArray                          = 0,
+	        .independentBlend                        = 0,
+	        .geometryShader                          = VK_TRUE, // we want geometry shaders
+	        .tessellationShader                      = 0,
+	        .sampleRateShading                       = VK_TRUE, // so that we can use sampleShadingEnable
+	        .dualSrcBlend                            = 0,
+	        .logicOp                                 = 0,
+	        .multiDrawIndirect                       = 0,
+	        .drawIndirectFirstInstance               = 0,
+	        .depthClamp                              = 0,
+	        .depthBiasClamp                          = 0,
+	        .fillModeNonSolid                        = VK_TRUE,
+	        .depthBounds                             = 0,
+	        .wideLines                               = VK_TRUE,
+	        .largePoints                             = 0,
+	        .alphaToOne                              = 0,
+	        .multiViewport                           = 0,
+	        .samplerAnisotropy                       = 0,
+	        .textureCompressionETC2                  = 0,
+	        .textureCompressionASTC_LDR              = 0,
+	        .textureCompressionBC                    = 0,
+	        .occlusionQueryPrecise                   = 0,
+	        .pipelineStatisticsQuery                 = 0,
+	        .vertexPipelineStoresAndAtomics          = VK_TRUE,
+	        .fragmentStoresAndAtomics                = VK_TRUE,
+	        .shaderTessellationAndGeometryPointSize  = 0,
+	        .shaderImageGatherExtended               = 0,
+	        .shaderStorageImageExtendedFormats       = 0,
+	        .shaderStorageImageMultisample           = 0,
+	        .shaderStorageImageReadWithoutFormat     = 0,
+	        .shaderStorageImageWriteWithoutFormat    = 0,
+	        .shaderUniformBufferArrayDynamicIndexing = 0,
+	        .shaderSampledImageArrayDynamicIndexing  = 0,
+	        .shaderStorageBufferArrayDynamicIndexing = 0,
+	        .shaderStorageImageArrayDynamicIndexing  = 0,
+	        .shaderClipDistance                      = 0,
+	        .shaderCullDistance                      = 0,
+	        .shaderFloat64                           = VK_TRUE,
+	        .shaderInt64                             = VK_TRUE,
+	        .shaderInt16                             = 0,
+	        .shaderResourceResidency                 = 0,
+	        .shaderResourceMinLod                    = 0,
+	        .sparseBinding                           = 0,
+	        .sparseResidencyBuffer                   = 0,
+	        .sparseResidencyImage2D                  = 0,
+	        .sparseResidencyImage3D                  = 0,
+	        .sparseResidency2Samples                 = 0,
+	        .sparseResidency4Samples                 = 0,
+	        .sparseResidency8Samples                 = 0,
+	        .sparseResidency16Samples                = 0,
+	        .sparseResidencyAliased                  = 0,
+	        .variableMultisampleRate                 = 0,
+	        .inheritedQueries                        = 0,
+	    },
+	};
+	self->requested_device_features.vk_11 = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+	    .pNext = &self->requested_device_features.vk_12, // optional
+	};
+	self->requested_device_features.vk_12 = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+	    .pNext = &self->requested_device_features.vk_13, // optional
+	};
+	self->requested_device_features.vk_13 = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+	    .pNext = &self->requested_device_features.ray_tracing_pipeline, // optional
+	};
+	self->requested_device_features.ray_tracing_pipeline = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+	    .pNext = &self->requested_device_features.acceleration_structure, // optional
+	};
+	self->requested_device_features.acceleration_structure = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+	    .pNext = &self->requested_device_features.mesh_shader, // optional
+	};
+	self->requested_device_features.mesh_shader = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV,
+	    .pNext = nullptr, // optional
+	};
 
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
 
-	self->requested_device_features.get<vk::PhysicalDeviceVulkan13Features>()
-	    .setSynchronization2( true ) // use synchronisation2 by default
-	    ;
+	// Apply some customisations
+
+	self->requested_device_features.vk_13.synchronization2 = VK_TRUE; // use synchronisation2 by default
 
 #ifdef LE_FEATURE_VIDEO
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_VIDEO_QUEUE_EXTENSION_NAME );
@@ -108,15 +178,15 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 #endif
 
 #ifdef LE_FEATURE_RTX
-	self->requested_device_features.get<vk::PhysicalDeviceVulkan12Features>()
+	self->requested_device_features.get<VkPhysicalDeviceVulkan12Features>()
 	    .setBufferDeviceAddress( true ) // needed for rtx
 	    //	    .setBufferDeviceAddressCaptureReplay( true ) // needed for frame debuggers, when using bufferDeviceAddress
 	    ;
 
-	self->requested_device_features.get<vk::PhysicalDeviceRayTracingPipelineFeaturesKHR>()
+	self->requested_device_features.get<VkPhysicalDeviceRayTracingPipelineFeaturesKHR>()
 	    .setRayTracingPipeline( true );
 
-	self->requested_device_features.get<vk::PhysicalDeviceAccelerationStructureFeaturesKHR>()
+	self->requested_device_features.get<VkPhysicalDeviceAccelerationStructureFeaturesKHR>()
 	    .setAccelerationStructure( true );
 
 	// request device extensions necessary for rtx
@@ -128,14 +198,14 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 
 #ifdef LE_FEATURE_MESH_SHADER_NV
 
-	self->requested_device_features.get<vk::PhysicalDeviceMeshShaderFeaturesNV>()
+	self->requested_device_features.get<VkPhysicalDeviceMeshShaderFeaturesNV>()
 	    .setMeshShader( true )
 	    .setTaskShader( true );
 
 	// We require 8 bit integers, and 16 bit floats for when we use mesh shaders -
 	// because most use cases will want to make use of these.
 
-	self->requested_device_features.get<vk::PhysicalDeviceVulkan12Features>()
+	self->requested_device_features.get<VkPhysicalDeviceVulkan12Features>()
 	    .setShaderInt8( true )    //
 	    .setShaderFloat16( true ) //
 	    ;
@@ -189,5 +259,5 @@ static bool le_backend_vk_settings_add_swapchain_setting( le_swapchain_settings_
 
 static VkPhysicalDeviceFeatures2 const* le_backend_vk_get_requested_physical_device_features_chain() {
 	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
-	return reinterpret_cast<VkPhysicalDeviceFeatures2 const*>( &self->requested_device_features.get<vk::PhysicalDeviceFeatures2>() );
+	return reinterpret_cast<VkPhysicalDeviceFeatures2 const*>( &self->requested_device_features.features );
 }
