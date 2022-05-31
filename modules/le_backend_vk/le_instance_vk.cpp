@@ -1,7 +1,9 @@
 #include "le_core.h"
 #include "le_backend_vk.h"
-#include "le_backend_types_internal.h"
+#include "le_hash_util.h"
 #include "le_log.h"
+#include <vector>
+#include <vulkan/vulkan.h>
 
 #include <iostream>
 #include <iomanip>
@@ -9,7 +11,6 @@
 #include <set>
 #include <string>
 
-#include <vulkan/vulkan.hpp>
 static constexpr auto LOGGER_LABEL = "le_instance_vk";
 
 // Automatically disable Validation Layers for Release Builds
@@ -25,8 +26,8 @@ static constexpr auto LOGGER_LABEL = "le_instance_vk";
 // ----------------------------------------------------------------------
 
 struct le_backend_vk_instance_o {
-	vk::Instance               vkInstance     = nullptr;
-	vk::DebugUtilsMessengerEXT debugMessenger = nullptr;
+	VkInstance               vkInstance     = nullptr;
+	VkDebugUtilsMessengerEXT debugMessenger = nullptr;
 
 	std::set<std::string> instanceExtensionSet{};
 };
@@ -36,11 +37,11 @@ struct le_backend_vk_instance_o {
  * layer. (The following are otherwise disabled by default)
  *
  */
-// static const vk::ValidationFeatureEnableEXT enabledValidationFeatures[] = {
-//  vk::ValidationFeatureEnableEXT::eGpuAssisted,
-//  vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
-//  vk::ValidationFeatureEnableEXT::eBestPractices,
-//  vk::ValidationFeatureEnableEXT::eDebugPrintf,
+// static const VkValidationFeatureEnableEXT enabledValidationFeatures[] = {
+//  VkValidationFeatureEnableEXT::eGpuAssisted,
+//  VkValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
+//  VkValidationFeatureEnableEXT::eBestPractices,
+//  VkValidationFeatureEnableEXT::eDebugPrintf,
 // };
 
 /*
@@ -48,26 +49,17 @@ struct le_backend_vk_instance_o {
  * layer. (The following are otherwise enabled by default)
  *
  */
-static const vk::ValidationFeatureDisableEXT disabledValidationFeatures[] = {
-    // vk::ValidationFeatureDisableEXT::eAll,
-    // vk::ValidationFeatureDisableEXT::eShaders,
-    // vk::ValidationFeatureDisableEXT::eThreadSafety,
-    // vk::ValidationFeatureDisableEXT::eApiParameters,
-    // vk::ValidationFeatureDisableEXT::eObjectLifetimes,
-    // vk::ValidationFeatureDisableEXT::eCoreChecks,
-    vk::ValidationFeatureDisableEXT::eUniqueHandles,
-};
+static const VkValidationFeatureDisableEXT disabledValidationFeatures[] = {
+    VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT };
 
 // ----------------------------------------------------------------------
 
 static bool instance_is_extension_available( le_backend_vk_instance_o* self, char const* extension_name ); // ffdecl
 
-// ----------------------------------------------------------------------
-
 #define DECLARE_EXT_PFN( proc ) \
 	static PFN_##proc pfn_##proc;
 
-// instance extensions
+//// instance extensions
 DECLARE_EXT_PFN( vkCreateDebugUtilsMessengerEXT );
 DECLARE_EXT_PFN( vkDestroyDebugUtilsMessengerEXT );
 DECLARE_EXT_PFN( vkSetDebugUtilsObjectTagEXT );
@@ -104,6 +96,12 @@ DECLARE_EXT_PFN( vkCmdDrawMeshTasksIndirectCountNV );
 
 #undef DECLARE_EXT_PFN
 
+#define getInstanceProc( instance, procName ) \
+	static auto procName = reinterpret_cast<PFN_##procName>( vkGetInstanceProcAddr( instance, #procName ) )
+
+#define getDeviceProc( instance, procName ) \
+	static auto procName = reinterpret_cast<PFN_##procName>( vkGetDeviceProcAddr( instance, #procName ) )
+
 // ----------------------------------------------------------------------
 
 static void patchExtProcAddrs( le_backend_vk_instance_o* obj ) {
@@ -128,7 +126,7 @@ static void patchExtProcAddrs( le_backend_vk_instance_o* obj ) {
 	// once we have fallen out of love with vulkan-hpp, and using volk becomes practical.
 
 #define GET_EXT_PROC_ADDR( proc ) \
-	pfn_##proc = reinterpret_cast<PFN_##proc>( obj->vkInstance.getProcAddr( #proc ) )
+	pfn_##proc = reinterpret_cast<PFN_##proc>( vkGetInstanceProcAddr( obj->vkInstance, #proc ) )
 
 	if ( instance_is_extension_available( obj, VK_EXT_DEBUG_UTILS_EXTENSION_NAME ) ) {
 		GET_EXT_PROC_ADDR( vkSetDebugUtilsObjectNameEXT );
@@ -170,9 +168,10 @@ static void patchExtProcAddrs( le_backend_vk_instance_o* obj ) {
 }
 
 // ----------------------------------------------------------------------
-// These method definitions are exported so that vkhpp can call them
-// vkhpp has matching declarations
-// - Note that these methods are not defined as `extern` -
+// These method definitions are exported so that they can be called in any
+// translation units which are linked with this one.
+//
+// - Note that these methods are not defined as `static` -
 // their linkage *must not* be local, so that they can be called
 // from other translation units.
 
@@ -405,16 +404,24 @@ static void create_debug_messenger_callback( le_backend_vk_instance_o* obj ) {
 		return;
 	}
 
-	vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
-	debugMessengerCreateInfo
-	    .setPNext( nullptr )
-	    .setFlags( {} )
-	    .setMessageSeverity( ~vk::DebugUtilsMessageSeverityFlagsEXT() ) // everything.
-	    .setMessageType( ~vk::DebugUtilsMessageTypeFlagsEXT() )         // everything.
-	    .setPfnUserCallback( debugUtilsMessengerCallback )
-	    .setPUserData( nullptr );
+	VkDebugUtilsMessengerCreateInfoEXT info{
+	    .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+	    .pNext = nullptr, // optional
+	    .flags = 0,       // optional
+	    .messageSeverity =
+	        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
+	        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+	        VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+	        VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
+	    .messageType =
+	        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+	        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT |
+	        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT,
+	    .pfnUserCallback = debugUtilsMessengerCallback,
+	    .pUserData       = nullptr, // optional
+	};
 
-	obj->debugMessenger = obj->vkInstance.createDebugUtilsMessengerEXT( debugMessengerCreateInfo );
+	vkCreateDebugUtilsMessengerEXT( obj->vkInstance, &info, nullptr, &obj->debugMessenger );
 }
 
 // ----------------------------------------------------------------------
@@ -429,7 +436,7 @@ static void destroy_debug_messenger_callback( le_backend_vk_instance_o* obj ) {
 		return;
 	}
 
-	obj->vkInstance.destroyDebugUtilsMessengerEXT( obj->debugMessenger );
+	vkDestroyDebugUtilsMessengerEXT( obj->vkInstance, obj->debugMessenger, nullptr );
 
 	obj->debugMessenger = nullptr;
 }
@@ -443,13 +450,15 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 	auto        self   = new le_backend_vk_instance_o();
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	vk::ApplicationInfo appInfo;
-	appInfo
-	    .setPApplicationName( "Island App" )
-	    .setApplicationVersion( VK_MAKE_API_VERSION( 0, 0, 0, 0 ) )
-	    .setPEngineName( ISL_ENGINE_NAME )
-	    .setEngineVersion( ISL_ENGINE_VERSION )
-	    .setApiVersion( VK_MAKE_API_VERSION( 0, 1, 3, 211 ) );
+	VkApplicationInfo appInfo{
+	    .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+	    .pNext              = nullptr,      // optional
+	    .pApplicationName   = "Island App", // optional
+	    .applicationVersion = VK_MAKE_API_VERSION( 0, 0, 0, 0 ),
+	    .pEngineName        = ISL_ENGINE_NAME, // optional
+	    .engineVersion      = ISL_ENGINE_VERSION,
+	    .apiVersion         = ( VK_MAKE_API_VERSION( 0, 1, 3, 211 ) ),
+	};
 
 	// -- create a vector of unique requested instance extension names
 
@@ -477,26 +486,30 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 		logger.info( "Debug instance layers added." );
 	}
 
-	vk::ValidationFeaturesEXT validationFeatures;
-	validationFeatures
-	    .setPNext( nullptr )
-	    //.setEnabledValidationFeatureCount( uint32_t( sizeof( enabledValidationFeatures ) / sizeof( vk::ValidationFeatureEnableEXT ) ) )
-	    //.setPEnabledValidationFeatures( enabledValidationFeatures )
-	    .setDisabledValidationFeatureCount( uint32_t( sizeof( disabledValidationFeatures ) / sizeof( vk::ValidationFeatureDisableEXT ) ) )
-	    .setPDisabledValidationFeatures( disabledValidationFeatures );
+	VkValidationFeaturesEXT validationFeatures{
+	    .sType                          = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+	    .pNext                          = nullptr, // optional
+	    .enabledValidationFeatureCount  = 0,       // optional
+	    .pEnabledValidationFeatures     = nullptr,
+	    .disabledValidationFeatureCount = uint32_t( sizeof( disabledValidationFeatures ) / sizeof( VkValidationFeatureDisableEXT ) ), // optional
+	    .pDisabledValidationFeatures    = disabledValidationFeatures,
+	};
+	;
 
-	vk::InstanceCreateInfo info;
-	info.setFlags( {} )
-	    .setPNext( SHOULD_USE_VALIDATION_LAYERS ? &validationFeatures : nullptr ) // We add a debug messenger object to instance creation to get creation-time debug info
-	    .setPApplicationInfo( &appInfo )
-	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
-	    .setPpEnabledLayerNames( instanceLayerNames.data() )
-	    .setEnabledExtensionCount( uint32_t( instanceExtensionCstr.size() ) )
-	    .setPpEnabledExtensionNames( instanceExtensionCstr.data() );
+	VkInstanceCreateInfo info{
+	    .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+	    .pNext                   = SHOULD_USE_VALIDATION_LAYERS ? &validationFeatures : nullptr, // optional
+	    .flags                   = 0,                                                            // optional
+	    .pApplicationInfo        = &appInfo,                                                     // optional
+	    .enabledLayerCount       = uint32_t( instanceLayerNames.size() ),                        // optional
+	    .ppEnabledLayerNames     = instanceLayerNames.data(),
+	    .enabledExtensionCount   = uint32_t( instanceExtensionCstr.size() ), // optional
+	    .ppEnabledExtensionNames = instanceExtensionCstr.data(),
+	};
 
-	self->vkInstance = vk::createInstance( info );
+	vkCreateInstance( &info, nullptr, &self->vkInstance );
 
-	// store a reference to into our central dictionary
+	// store a reference to this object into our central dictionary
 	*le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_instance_o" ) ) = self;
 
 	patchExtProcAddrs( self );
@@ -515,7 +528,7 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 static void instance_destroy( le_backend_vk_instance_o* obj ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	destroy_debug_messenger_callback( obj );
-	obj->vkInstance.destroy();
+	vkDestroyInstance( obj->vkInstance, nullptr );
 	delete ( obj );
 	logger.info( "Instance destroyed." );
 }
