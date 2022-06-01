@@ -918,7 +918,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 #if ( PRINT_DEBUG_MESSAGES )
 	auto printPassList = [ & ]() -> void {
 		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
-			logger.info( "Pass : %3d sort order: %12d : %s ", i, self->sortIndices[ i ], self->passes[ i ]->debugName.c_str() );
+			logger.info( "Pass : %3d sort order: %12d : %s ", i, self->sortIndices[ i ], self->passes[ i ]->debugName );
 		}
 	};
 	printPassList();
