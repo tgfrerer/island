@@ -5347,7 +5347,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						};
 
 						VkImageMemoryBarrier2 imageLayoutToTransferDstOptimal{
-						    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 						    .pNext               = nullptr,                             // optional
 						    .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, // wait for nothing as no memory must be made available
 						    .srcAccessMask       = {},                                  // no memory must be made available - our image is garbage data at first
