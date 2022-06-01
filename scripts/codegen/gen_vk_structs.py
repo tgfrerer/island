@@ -3,7 +3,7 @@
 import sys
 import argparse
 
-parser = argparse.ArgumentParser(description='Generate Vulkan struct templates mirroring given vulkan enums')
+parser = argparse.ArgumentParser(description='Generate Vulkan struct templates based on user input.')
 parser.add_argument("--vk_path", default="/usr/share/vulkan/registry", help='absolute path to vulkan registry')
 
 args = parser.parse_args()
@@ -65,6 +65,7 @@ def str2bool(v) -> bool:
     """evaluate anything that is not true(ish) as false"""
     return str(v).lower() in ("yes", "true", "t", "1")
 
+print("// Enter a Vulkan struct name to begin, Ctl+D to end interactive session:")
 
 for line in sys.stdin:
     body = ""
