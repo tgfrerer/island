@@ -221,22 +221,26 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	}
 	// ---------| invariant: there is at least one physical device
 
-	self->vkPhysicalDevice = deviceList.front();
+	{
+		// Find the first device which is a dedicated GPU, if none of these can be found,
+		// fall back to the first physical device.
 
-	// If there are more than one physical devices are available, find the
-	// first device which is a dedicated GPU, if none of these can be found,
-	// fall back to the first physical device.
+		self->vkPhysicalDevice = deviceList.front(); // select the first device as a fallback
 
-	for ( auto d = deviceList.begin() + 1; d != deviceList.end(); d++ ) {
-		vkGetPhysicalDeviceProperties2( *d, &self->properties.device_properties );
-
-		if ( self->properties.device_properties.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ) {
-			self->vkPhysicalDevice = *d;
-			break;
+		for ( auto d = deviceList.begin(); d != deviceList.end(); d++ ) {
+			VkPhysicalDeviceProperties device_properties{};
+			vkGetPhysicalDeviceProperties( self->vkPhysicalDevice, &device_properties );
+			if ( device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ) {
+				self->vkPhysicalDevice = *d;
+				break;
+			}
 		}
-	}
 
-	logger.info( "Selected GPU: %s", self->properties.device_properties.properties.deviceName );
+		// Fetch extended device properties for the currently selected physical device
+		vkGetPhysicalDeviceProperties2( self->vkPhysicalDevice, &self->properties.device_properties );
+
+		logger.info( "Selected GPU: %s", self->properties.device_properties.properties.deviceName );
+	}
 
 	// Let's find out the devices' memory properties
 	vkGetPhysicalDeviceMemoryProperties2( self->vkPhysicalDevice, &self->properties.memory_properties );
