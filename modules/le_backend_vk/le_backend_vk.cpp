@@ -9,6 +9,7 @@
 #include "private/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
+#include <cassert>
 #include <vector>
 #include <unordered_map>
 #include <forward_list>
@@ -19,8 +20,9 @@
 #include <atomic>
 #include <mutex>
 #include <memory>
+#include <cstring> // for memcpy
 
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 static constexpr auto LOGGER_LABEL = "le_backend";
 
@@ -40,15 +42,15 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 #	define DEBUG_TAG_RESOURCES true
 #endif
 
-// Helper macro to convert le:: enums to vk:: enums
-#define LE_ENUM_TO_VK( enum_name, fun_name )                                    \
-	static inline vk::enum_name fun_name( le::enum_name const& rhs ) noexcept { \
-		return vk::enum_name( rhs );                                            \
+// Helper macro to convert le:: enums toVk enums
+#define LE_ENUM_TO_VK( enum_name, fun_name )                                 \
+	static inlineVkenum_name fun_name( le::enum_name const& rhs ) noexcept { \
+		returnVkenum_name( rhs );                                            \
 	}
 
-#define LE_C_ENUM_TO_VK( enum_name, fun_name, c_enum_name )                   \
-	static inline vk::enum_name fun_name( c_enum_name const& rhs ) noexcept { \
-		return vk::enum_name( rhs );                                          \
+#define LE_C_ENUM_TO_VK( enum_name, fun_name, c_enum_name )                \
+	static inlineVkenum_name fun_name( c_enum_name const& rhs ) noexcept { \
+		returnVkenum_name( rhs );                                          \
 	}
 
 LE_WRAP_ENUM_IN_STRUCT( VkFormat, VkFormatEnum ); // define wrapper struct `VkFormatEnum`
@@ -236,14 +238,14 @@ struct ResourceCreateInfo {
 
 // bottom-level acceleration structure
 struct le_rtx_blas_info_o {
-	std::vector<le_rtx_geometry_t>         geometries;
-	vk::BuildAccelerationStructureFlagsKHR flags;
+	std::vector<le_rtx_geometry_t>       geometries;
+	VkBuildAccelerationStructureFlagsKHR flags;
 };
 
 // top-level acceleration structure
 struct le_rtx_tlas_info_o {
-	uint32_t                               instances_count;
-	vk::BuildAccelerationStructureFlagsKHR flags;
+	uint32_t                             instances_count;
+	VkBuildAccelerationStructureFlagsKHR flags;
 };
 
 // ----------------------------------------------------------------------
@@ -269,20 +271,20 @@ class KillList : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 // Convert a log2 of sample count to the corresponding `vk::SampleCountFlagBits` enum
-vk::SampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 ) {
+VkSampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 ) {
 
 	// this method is a quick and dirty hack, but as long as the
 	// following static asserts hold true, it will work.
 
-	static_assert( uint32_t( vk::SampleCountFlagBits::e1 ) == 1 << 0, "SampleCountFlagBits conversion failed." );
-	static_assert( uint32_t( vk::SampleCountFlagBits::e2 ) == 1 << 1, "SampleCountFlagBits conversion failed." );
-	static_assert( uint32_t( vk::SampleCountFlagBits::e4 ) == 1 << 2, "SampleCountFlagBits conversion failed." );
-	static_assert( uint32_t( vk::SampleCountFlagBits::e8 ) == 1 << 3, "SampleCountFlagBits conversion failed." );
-	static_assert( uint32_t( vk::SampleCountFlagBits::e16 ) == 1 << 4, "SampleCountFlagBits conversion failed." );
-	static_assert( uint32_t( vk::SampleCountFlagBits::e32 ) == 1 << 5, "SampleCountFlagBits conversion failed." );
-	static_assert( uint32_t( vk::SampleCountFlagBits::e64 ) == 1 << 6, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( VK_SAMPLE_COUNT_1_BIT ) == 1 << 0, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( VK_SAMPLE_COUNT_2_BIT ) == 1 << 1, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( VK_SAMPLE_COUNT_4_BIT ) == 1 << 2, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( VK_SAMPLE_COUNT_8_BIT ) == 1 << 3, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( VK_SAMPLE_COUNT_16_BIT ) == 1 << 4, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( VK_SAMPLE_COUNT_32_BIT ) == 1 << 5, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( VK_SAMPLE_COUNT_64_BIT ) == 1 << 6, "SampleCountFlagBits conversion failed." );
 
-	return vk::SampleCountFlagBits( 1 << sample_count_log2 );
+	return VkSampleCountFlagBits( 1 << sample_count_log2 );
 }
 
 // ----------------------------------------------------------------------
@@ -307,36 +309,37 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 
 	switch ( info.type ) {
 	case ( LeResourceType::eBuffer ): {
-		res.bufferInfo =
-		    static_cast<VkBufferCreateInfo&>(
-		        ( vk::BufferCreateInfo()
-		              .setFlags( {} )
-		              .setSize( info.buffer.size )
-		              .setUsage( vk::BufferUsageFlags{ info.buffer.usage } ) // FIXME: we need to call an explicit le -> vk conversion
-		              .setSharingMode( vk::SharingMode::eExclusive )
-		              .setQueueFamilyIndexCount( queueFamilyIndexCount )
-		              .setPQueueFamilyIndices( pQueueFamilyIndices ) ) );
+		res.bufferInfo = {
+		    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		    .pNext                 = nullptr, // optional
+		    .flags                 = 0,       // optional
+		    .size                  = info.buffer.size,
+		    .usage                 = VkBufferUsageFlags( info.buffer.usage ),
+		    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+		    .queueFamilyIndexCount = queueFamilyIndexCount, // optional
+		    .pQueueFamilyIndices   = pQueueFamilyIndices,
+		};
 
 	} break;
 	case ( LeResourceType::eImage ): {
 		auto const& img = info.image;
-		res.imageInfo =
-		    static_cast<VkImageCreateInfo&>(
-		        vk::ImageCreateInfo()
-		            .setFlags( static_cast<vk::ImageCreateFlags>( img.flags ) )             //
-		            .setImageType( static_cast<vk::ImageType>( img.imageType ) )            //
-		            .setFormat( static_cast<vk::Format>( img.format ) )                     //
-		            .setExtent( { img.extent.width, img.extent.height, img.extent.depth } ) //
-		            .setMipLevels( img.mipLevels )                                          //
-		            .setArrayLayers( img.arrayLayers )                                      //
-		            .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )     //
-		            .setTiling( static_cast<vk::ImageTiling>( img.tiling ) )                //
-		            .setUsage( static_cast<vk::ImageUsageFlags>( img.usage ) )              //
-		            .setSharingMode( vk::SharingMode::eExclusive )                          // hardcoded to Exclusive - no sharing between queues
-		            .setQueueFamilyIndexCount( queueFamilyIndexCount )                      //
-		            .setPQueueFamilyIndices( pQueueFamilyIndices )                          //
-		            .setInitialLayout( vk::ImageLayout::eUndefined )                        // must be either pre-initialised, or undefined (most likely)
-		    );
+		res.imageInfo   = {
+		      .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		      .pNext                 = nullptr,                         // optional
+		      .flags                 = VkImageCreateFlags( img.flags ), // optional
+		      .imageType             = VkImageType( img.imageType ),
+		      .format                = VkFormat( img.format ),
+		      .extent                = { img.extent.width, img.extent.height, img.extent.depth },
+		      .mipLevels             = img.mipLevels,
+		      .arrayLayers           = img.arrayLayers,
+		      .samples               = le_sample_count_log_2_to_vk( img.sample_count_log2 ),
+		      .tiling                = VkImageTiling( img.tiling ),
+		      .usage                 = VkImageUsageFlags( img.usage ),
+		      .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+		      .queueFamilyIndexCount = queueFamilyIndexCount, // optional
+		      .pQueueFamilyIndices   = pQueueFamilyIndices,
+		      .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
 
 	} break;
 	case ( LeResourceType::eRtxBlas ): {
@@ -369,9 +372,9 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 // of the second ResourceState becomes scope 2 for the barrier between them.
 //
 struct ResourceState {
-	vk::PipelineStageFlags2 stage;          // pipeline stage (implies earlier logical stages) that needs to happen-before
-	vk::AccessFlags2        visible_access; // which memory access in this stage currenty has visible memory - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
-	vk::ImageLayout         layout;         // current layout (for images)
+	VkPipelineStageFlags2 stage;          // pipeline stage (implies earlier logical stages) that needs to happen-before
+	VkAccessFlags2        visible_access; // which memory access in this stage currenty has visible memory - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
+	VkImageLayout         layout;         // current layout (for images)
 
 	bool operator==( const ResourceState& rhs ) const {
 		return visible_access == rhs.visible_access &&
@@ -404,7 +407,7 @@ struct le_staging_allocator_o {
 	VmaAllocator                   allocator;      // non-owning, refers to backend allocator object
 	VkDevice                       device;         // non-owning, refers to vulkan device object
 	std::mutex                     mtx;            // protects all staging* elements
-	std::vector<vk::Buffer>        buffers;        // 0..n staging buffers used with the current frame (freed on frame clear)
+	std::vector<VkBuffer>          buffers;        // 0..n staging buffers used with the current frame (freed on frame clear)
 	std::vector<VmaAllocation>     allocations;    // SOA: counterpart to buffers[]
 	std::vector<VmaAllocationInfo> allocationInfo; // SOA: counterpart to buffers[]
 };
@@ -412,8 +415,8 @@ struct le_staging_allocator_o {
 // ------------------------------------------------------------
 
 struct swapchain_state_t {
-	vk::Semaphore presentComplete = nullptr;
-	vk::Semaphore renderComplete  = nullptr;
+	VkSemaphore presentComplete = nullptr;
+	VkSemaphore renderComplete  = nullptr;
 
 	uint32_t image_idx          = uint32_t( ~0 );
 	uint32_t surface_width      = 0;
@@ -429,20 +432,20 @@ struct swapchain_state_t {
 // frame only operates only on its own memory, it will never see contention
 // with other threads processing other frames concurrently.
 struct BackendFrameData {
-	vk::Fence       frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
-	vk::CommandPool commandPool = nullptr;
+	VkFence       frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
+	VkCommandPool commandPool = nullptr;
 
 	std::vector<swapchain_state_t> swapchain_state;
-	std::vector<vk::CommandBuffer> commandBuffers;
+	std::vector<VkCommandBuffer>   commandBuffers;
 
 	struct Texture {
-		vk::Sampler   sampler;
-		vk::ImageView imageView;
+		VkSampler   sampler;
+		VkImageView imageView;
 	};
 
 	using texture_map_t = std::unordered_map<le_texture_handle, Texture>;
 
-	std::unordered_map<le_img_resource_handle, vk::ImageView> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
+	std::unordered_map<le_img_resource_handle, VkImageView> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
 	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
@@ -468,7 +471,7 @@ struct BackendFrameData {
 	std::vector<LeRenderPass>  passes;
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
-	std::vector<vk::DescriptorPool> descriptorPools; // one descriptor pool per pass
+	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass
 
 	/*
 
@@ -488,22 +491,22 @@ struct BackendFrameData {
 	VmaPool allocationPool; // pool from which allocations for this frame come from
 
 	std::vector<le_allocator_o*>   allocators;       // owning; typically one per `le_worker_thread`.
-	std::vector<vk::Buffer>        allocatorBuffers; // per allocator: one vkBuffer
+	std::vector<VkBuffer>          allocatorBuffers; // per allocator: one vkBuffer
 	std::vector<VmaAllocation>     allocations;      // per allocator: one allocation
 	std::vector<VmaAllocationInfo> allocationInfos;  // per allocator: one allocationInfo
 
 	le_staging_allocator_o* stagingAllocator; // owning: allocator for large objects to GPU memory
 };
 
-static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
-    vk::BufferUsageFlagBits::eIndexBuffer |
-    vk::BufferUsageFlagBits::eVertexBuffer |
-    vk::BufferUsageFlagBits::eUniformBuffer |
-    vk::BufferUsageFlagBits::eStorageBuffer |
+static const VkBufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
+    VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
 #ifdef LE_FEATURE_RTX
-    vk::BufferUsageFlagBits::eShaderDeviceAddress |
+    VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
 #endif
-    vk::BufferUsageFlagBits::eTransferSrc;
+    VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 /// \brief backend data object
 struct le_backend_o {
@@ -513,11 +516,11 @@ struct le_backend_o {
 
 	std::vector<le_swapchain_o*> swapchains; // Owning.
 
-	std::vector<vk::SurfaceKHR> windowSurfaces; // owning. one per window swapchain.
+	std::vector<VkSurfaceKHR> windowSurfaces; // owning. one per window swapchain.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
-	std::vector<vk::Format>             swapchainImageFormat; ///< default image format used for swapchain (backbuffer image must be in this format)
+	std::vector<VkFormat>               swapchainImageFormat; ///< default image format used for swapchain (backbuffer image must be in this format)
 	std::vector<uint32_t>               swapchainWidth;       ///< swapchain width gathered when setting/resetting swapchain
 	std::vector<uint32_t>               swapchainHeight;      ///< swapchain height gathered when setting/resetting swapchain
 	std::vector<le_img_resource_handle> swapchain_resources;  ///< resource handle for image associated with each swapchain
@@ -526,7 +529,7 @@ struct le_backend_o {
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
 	le::Format defaultFormatSampledImage           = {}; ///< default image format used for sampled images
 
-	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
@@ -555,13 +558,13 @@ struct ArgumentState {
 	uint32_t                                   setCount           = 0;  // current count of bound descriptorSets (max: 8)
 	std::array<std::vector<DescriptorData>, 8> setData;                 // data per-set
 
-	std::array<vk::DescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
-	std::array<vk::DescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
-	std::vector<le_shader_binding_info>         binding_infos;
+	std::array<VkDescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
+	std::array<VkDescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
+	std::vector<le_shader_binding_info>       binding_infos;
 };
 
 struct DescriptorSetState {
-	vk::DescriptorSetLayout     setLayout;
+	VkDescriptorSetLayout       setLayout;
 	std::vector<DescriptorData> setData;
 };
 
@@ -602,7 +605,7 @@ static void backend_create_window_surface( le_backend_o* self, le_swapchain_sett
 	assert( settings->khr_settings.window );
 
 	using namespace le_window;
-	vk::Instance instance             = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
+	VkInstance instance               = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
 	settings->khr_settings.vk_surface = window_i.create_surface( settings->khr_settings.window, instance );
 
 	assert( settings->khr_settings.vk_surface );
@@ -616,8 +619,8 @@ static void backend_destroy_window_surfaces( le_backend_o* self ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	for ( auto& surface : self->windowSurfaces ) {
-		vk::Instance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
-		instance.destroySurfaceKHR( surface );
+		VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
+		vkDestroySurfaceKHR( instance, surface, nullptr );
 		logger.debug( "Surface destroyed" );
 	}
 	self->windowSurfaces.clear();
@@ -640,7 +643,7 @@ static void backend_destroy( le_backend_o* self ) {
 		self->pipelineCache = nullptr;
 	}
 
-	vk::Device device = self->device->getVkDevice(); // may be nullptr if device was not created
+	VkDevice device = self->device->getVkDevice(); // may be nullptr if device was not created
 
 	// We must destroy the swapchain before self->mAllocator, as
 	// the swapchain might have allocated memory using the backend's allocator,
@@ -659,18 +662,18 @@ static void backend_destroy( le_backend_o* self ) {
 
 		// -- destroy per-frame data
 
-		device.destroyFence( frameData.frameFence );
+		vkDestroyFence( device, frameData.frameFence, nullptr );
 
 		for ( auto& swapchain_state : frameData.swapchain_state ) {
-			device.destroySemaphore( swapchain_state.presentComplete );
-			device.destroySemaphore( swapchain_state.renderComplete );
+			vkDestroySemaphore( device, swapchain_state.presentComplete, nullptr );
+			vkDestroySemaphore( device, swapchain_state.renderComplete, nullptr );
 		}
 		frameData.swapchain_state.clear();
 
-		device.destroyCommandPool( frameData.commandPool );
+		vkDestroyCommandPool( device, frameData.commandPool, nullptr );
 
 		for ( auto& d : frameData.descriptorPools ) {
-			device.destroyDescriptorPool( d );
+			vkDestroyDescriptorPool( device, d, nullptr );
 		}
 
 		{
@@ -679,7 +682,7 @@ static void backend_destroy( le_backend_o* self ) {
 			        frameData.allocatorBuffers.size() == frameData.allocations.size() &&
 			        frameData.allocatorBuffers.size() == frameData.allocationInfos.size() );
 
-			vk::Buffer*    buffer     = frameData.allocatorBuffers.data();
+			VkBuffer*      buffer     = frameData.allocatorBuffers.data();
 			VmaAllocation* allocation = frameData.allocations.data();
 
 			for ( auto allocator = frameData.allocators.begin(); allocator != frameData.allocators.end(); allocator++, buffer++, allocation++ ) {
@@ -702,9 +705,9 @@ static void backend_destroy( le_backend_o* self ) {
 		for ( auto& a : frameData.binnedResources ) {
 
 			if ( a.second.info.isBuffer() ) {
-				device.destroyBuffer( a.second.as.buffer );
+				vkDestroyBuffer( device, a.second.as.buffer, nullptr );
 			} else {
-				device.destroyImage( a.second.as.image );
+				vkDestroyImage( device, a.second.as.image, nullptr );
 			}
 #ifdef LE_FEATURE_RTX
 			if ( a.second.info.isBlas() ) {
@@ -730,10 +733,10 @@ static void backend_destroy( le_backend_o* self ) {
 
 		switch ( a.second.info.type ) {
 		case LeResourceType::eImage:
-			device.destroyImage( a.second.as.image );
+			vkDestroyImage( device, a.second.as.image, nullptr );
 			break;
 		case LeResourceType::eBuffer:
-			device.destroyBuffer( a.second.as.buffer );
+			vkDestroyBuffer( device, a.second.as.buffer, nullptr );
 			break;
 #ifdef LE_FEATURE_RTX
 		case LeResourceType::eRtxBlas:
@@ -811,7 +814,7 @@ static void backend_create_swapchains( le_backend_o* self, uint32_t num_settings
 
 		assert( swapchain );
 
-		self->swapchainImageFormat.push_back( vk::Format( swapchain_i.get_surface_format( swapchain )->format ) );
+		self->swapchainImageFormat.push_back( VkFormat( swapchain_i.get_surface_format( swapchain )->format ) );
 		self->swapchainWidth.push_back( swapchain_i.get_image_width( swapchain ) );
 		self->swapchainHeight.push_back( swapchain_i.get_image_height( swapchain ) );
 
@@ -950,21 +953,23 @@ static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator cons
 	// Find memory index for scratch buffer - we do this by pretending to create
 	// an allocation.
 
-	vk::BufferCreateInfo bufferInfo{};
-	bufferInfo
-	    .setFlags( {} )
-	    .setSize( 1 )
-	    .setUsage( LE_BUFFER_USAGE_FLAGS_SCRATCH )
-	    .setSharingMode( vk::SharingMode::eExclusive )
-	    .setQueueFamilyIndexCount( 1 )
-	    .setPQueueFamilyIndices( &queueFamilyGraphics );
+	VkBufferCreateInfo bufferInfo{
+	    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+	    .pNext                 = nullptr, // optional
+	    .flags                 = 0,       // optional
+	    .size                  = 1,
+	    .usage                 = LE_BUFFER_USAGE_FLAGS_SCRATCH,
+	    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+	    .queueFamilyIndexCount = 1, // optional
+	    .pQueueFamilyIndices   = &queueFamilyGraphics,
+	};
 
 	VmaAllocationCreateInfo allocInfo{};
 	allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
 	uint32_t memIndexScratchBufferGraphics = 0;
-	vmaFindMemoryTypeIndexForBufferInfo( allocator, &reinterpret_cast<VkBufferCreateInfo&>( bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
+	vmaFindMemoryTypeIndexForBufferInfo( allocator, &bufferInfo, &allocInfo, &memIndexScratchBufferGraphics );
 	return memIndexScratchBufferGraphics;
 }
 
@@ -973,21 +978,23 @@ static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator cons
 	// Find memory index for staging buffer - we do this by pretending to create
 	// an allocation.
 
-	vk::BufferCreateInfo bufferInfo{};
-	bufferInfo
-	    .setFlags( {} )
-	    .setSize( 1 )
-	    .setUsage( vk::BufferUsageFlagBits::eTransferSrc )
-	    .setSharingMode( vk::SharingMode::eExclusive )
-	    .setQueueFamilyIndexCount( 1 )
-	    .setPQueueFamilyIndices( &queueFamilyGraphics );
+	VkBufferCreateInfo bufferInfo{
+	    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+	    .pNext                 = nullptr, // optional
+	    .flags                 = 0,       // optional
+	    .size                  = 1,
+	    .usage                 = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+	    .queueFamilyIndexCount = 1, // optional
+	    .pQueueFamilyIndices   = &queueFamilyGraphics,
+	};
 
 	VmaAllocationCreateInfo allocInfo{};
 	allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
 	uint32_t memIndexStagingBufferGraphics = 0;
-	vmaFindMemoryTypeIndexForBufferInfo( allocator, &reinterpret_cast<VkBufferCreateInfo&>( bufferInfo ), &allocInfo, &memIndexStagingBufferGraphics );
+	vmaFindMemoryTypeIndexForBufferInfo( allocator, &bufferInfo, &allocInfo, &memIndexStagingBufferGraphics );
 	return memIndexStagingBufferGraphics;
 }
 
@@ -1040,9 +1047,9 @@ static void backend_setup( le_backend_o* self ) {
 
 	backend_initialise( self, settings->required_instance_extensions, settings->required_device_extensions );
 
-	vk::Device         vkDevice         = self->device->getVkDevice();
-	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
-	vk::Instance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
+	VkDevice         vkDevice         = self->device->getVkDevice();
+	VkPhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
+	VkInstance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
 
 #ifdef LE_FEATURE_RTX
 	// -- query rtx properties, and store them with backend
@@ -1095,15 +1102,36 @@ static void backend_setup( le_backend_o* self ) {
 		frameData.swapchain_state.resize( self->swapchains.size() );
 
 		{
+			VkSemaphoreCreateInfo const create_info = {
+			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+			    .pNext = nullptr, // optional
+			    .flags = 0,       // optional
+			};
+
 			for ( auto& state : frameData.swapchain_state ) {
-				state.presentComplete = vkDevice.createSemaphore( {} );
-				state.renderComplete  = vkDevice.createSemaphore( {} );
+				vkCreateSemaphore( vkDevice, &create_info, nullptr, &state.presentComplete );
+				vkCreateSemaphore( vkDevice, &create_info, nullptr, &state.renderComplete );
 			}
 		}
+		{
+			VkFenceCreateInfo create_info = {
+			    .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+			    .pNext = nullptr, // optional
+			    .flags = 0,       // optional
+			};
 
-		frameData.frameFence  = vkDevice.createFence( {} ); // fence starts out as "signalled"
-		frameData.commandPool = vkDevice.createCommandPool( { vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex() } );
+			vkCreateFence( vkDevice, &create_info, nullptr, &frameData.frameFence ); // frence starts out as sigmalled
+		}
+		{
+			VkCommandPoolCreateInfo create_info = {
+			    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+			    .pNext            = nullptr,                              // optional
+			    .flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, // optional
+			    .queueFamilyIndex = self->device->getDefaultGraphicsQueueFamilyIndex(),
+			};
 
+			vkCreateCommandPool( vkDevice, &create_info, nullptr, &frameData.commandPool );
+		}
 		{
 			// -- set up an allocation pool for each frame
 			// so that each frame can create sub-allocators
@@ -1226,19 +1254,21 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 			if ( currentAttachment->loadOp == le::AttachmentLoadOp::eLoad ) {
 				// we must now specify which stages need to be visible for which coming memory access
 				if ( isDepthStencil ) {
-					beforeFirstUse.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentRead;
-					beforeFirstUse.stage          = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
+					beforeFirstUse.visible_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+					beforeFirstUse.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
 
 				} else {
 					// we need to make visible the information from color attachment output stage
 					// to anyone using read or write on the color attachment.
-					beforeFirstUse.visible_access = vk::AccessFlagBits2::eColorAttachmentRead;
-					beforeFirstUse.stage          = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+					beforeFirstUse.visible_access = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT; // note that read does only need to be made visible, not available
+					beforeFirstUse.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 				}
 			} else if ( currentAttachment->loadOp == le::AttachmentLoadOp::eClear ) {
 				// resource.loadOp must be either CLEAR / or DONT_CARE
-				beforeFirstUse.stage          = isDepthStencil ? vk::PipelineStageFlagBits2::eEarlyFragmentTests : vk::PipelineStageFlagBits2::eColorAttachmentOutput;
-				beforeFirstUse.visible_access = vk::AccessFlagBits2( 0 );
+				beforeFirstUse.stage          = isDepthStencil
+				                                    ? VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
+				                                    : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+				beforeFirstUse.visible_access = VkAccessFlagBits2( 0 );
 			}
 
 			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
@@ -1257,15 +1287,15 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 
 				// we must now specify which stages need to be visible for which coming memory access
 				if ( isDepthStencil ) {
-					beforeSubpass.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentRead | vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
-					beforeSubpass.stage          = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
-					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+					beforeSubpass.visible_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+					beforeSubpass.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+					beforeSubpass.layout         = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 				} else {
 					// we need to make visible the information from color attachment output stage
 					// to anyone using read or write on the color attachment.
-					beforeSubpass.visible_access = vk::AccessFlagBits2::eColorAttachmentWrite | vk::AccessFlagBits2::eColorAttachmentRead;
-					beforeSubpass.stage          = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
-					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
+					beforeSubpass.visible_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+					beforeSubpass.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+					beforeSubpass.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 				}
 
 			} else {
@@ -1273,13 +1303,13 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 				// load op is either CLEAR, or DONT_CARE
 
 				if ( isDepthStencil ) {
-					beforeSubpass.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
-					beforeSubpass.stage          = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
-					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+					beforeSubpass.visible_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+					beforeSubpass.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+					beforeSubpass.layout         = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 				} else {
-					beforeSubpass.visible_access = vk::AccessFlagBits2::eColorAttachmentWrite;
-					beforeSubpass.stage          = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
-					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
+					beforeSubpass.visible_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+					beforeSubpass.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+					beforeSubpass.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 				}
 			}
 
@@ -1359,13 +1389,13 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 				// load op is either CLEAR, or DONT_CARE
 
 				if ( isDepthStencil ) {
-					beforeSubpass.visible_access = vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
-					beforeSubpass.stage          = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
-					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+					beforeSubpass.visible_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+					beforeSubpass.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+					beforeSubpass.layout         = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 				} else {
-					beforeSubpass.visible_access = vk::AccessFlagBits2::eColorAttachmentWrite;
-					beforeSubpass.stage          = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
-					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
+					beforeSubpass.visible_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+					beforeSubpass.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+					beforeSubpass.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 				}
 			}
 
@@ -1427,8 +1457,8 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		auto backbufferIt = syncChainTable.find( backbuffer );
 		if ( backbufferIt != syncChainTable.end() ) {
 			auto& backbufferState          = backbufferIt->second.front();
-			backbufferState.stage          = vk::PipelineStageFlagBits2::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
-			backbufferState.visible_access = vk::AccessFlagBits2( 0 );                           // semaphore took care of availability - we can assume memory is already available
+			backbufferState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT; // we need this, since semaphore waits on this stage
+			backbufferState.visible_access = VkAccessFlagBits2( 0 );                          // semaphore took care of availability - we can assume memory is already available
 		} else {
 			logger.warn( "No reference to backbuffer found in renderpass" );
 		}
@@ -1436,19 +1466,19 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 	using namespace le_renderer;
 
-	auto get_stage_flags_based_on_renderpass_type = []( le::RenderPassType const& rp_type ) -> vk::PipelineStageFlags2 {
+	auto get_stage_flags_based_on_renderpass_type = []( le::RenderPassType const& rp_type ) -> VkPipelineStageFlags2 {
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
 		case le::RenderPassType::eTransfer:
-			return vk::PipelineStageFlagBits2::eTransfer; // stage for transfer pass
+			return VK_PIPELINE_STAGE_2_TRANSFER_BIT; // stage for transfer pass
 		case le::RenderPassType::eDraw:
-			return vk::PipelineStageFlagBits2::eVertexShader; // earliest stage for draw pass
+			return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; // earliest stage for draw pass
 		case le::RenderPassType::eCompute:
-			return vk::PipelineStageFlagBits2::eComputeShader; // stage for compute pass
+			return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // stage for compute pass
 
 		default:
 			assert( false ); // unreachable - we don't know what kind of stage we're in.
-			return vk::PipelineStageFlagBits2();
+			return VkPipelineStageFlags2();
 		}
 	};
 
@@ -1496,21 +1526,21 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 					if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
 
-						requestedState.visible_access = vk::AccessFlagBits2::eShaderRead;
+						requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
 						requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
-						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
+						requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ) {
 
-						requestedState.visible_access = vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eShaderWrite;
+						requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 						requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
-						requestedState.layout         = vk::ImageLayout::eGeneral;
+						requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
 
 					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) ) {
 						// this is an image write operation.
-						requestedState.visible_access = vk::AccessFlagBits2::eShaderRead;
-						requestedState.stage          = vk::PipelineStageFlagBits2::eVertexShader;
-						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
+						requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
+						requestedState.stage          = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+						requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 					} else {
 						continue;
@@ -1552,14 +1582,14 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		auto finalState{ syncChain.back() };
 
 		if ( std::find( backbufferImageHandles.begin(), backbufferImageHandles.end(), id ) != backbufferImageHandles.end() ) {
-			finalState.stage          = vk::PipelineStageFlagBits2::eBottomOfPipe;
-			finalState.visible_access = vk::AccessFlagBits2::eMemoryRead;
-			finalState.layout         = vk::ImageLayout::ePresentSrcKHR;
+			finalState.stage          = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+			finalState.visible_access = VK_ACCESS_2_MEMORY_READ_BIT;
+			finalState.layout         = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		} else {
 			// we mimick implicit dependency here, which exists for a final subpass
 			// see p.210 vk spec (chapter 7, render pass)
-			finalState.stage          = vk::PipelineStageFlagBits2::eBottomOfPipe;
-			finalState.visible_access = vk::AccessFlagBits2( 0 );
+			finalState.stage          = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+			finalState.visible_access = VkAccessFlagBits2( 0 );
 		}
 
 		syncChain.emplace_back( std::move( finalState ) );
@@ -1637,16 +1667,16 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 /// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
 static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
-	auto&      frame  = self->mFrames[ frameIndex ];
-	vk::Device device = self->device->getVkDevice();
+	auto&    frame  = self->mFrames[ frameIndex ];
+	VkDevice device = self->device->getVkDevice();
 
 	// Non-blocking, polling
 	// auto result = device.getFenceStatus( {frame.frameFence} );
 
 	// NOTE: this may block.
-	auto result = device.waitForFences( { frame.frameFence }, true, 1000'000'000 );
+	auto result = vkWaitForFences( device, 1, &frame.frameFence, true, 100'000'000 );
 
-	if ( result != vk::Result::eSuccess ) {
+	if ( result != VK_SUCCESS ) {
 		return false;
 	} else {
 		return true;
@@ -1662,19 +1692,19 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	using namespace le_backend_vk;
 
-	auto&      frame  = self->mFrames[ frameIndex ];
-	vk::Device device = self->device->getVkDevice();
+	auto&    frame  = self->mFrames[ frameIndex ];
+	VkDevice device = self->device->getVkDevice();
 
 	//	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
 
-	//	if ( result != vk::Result::eSuccess ) {
+	//	if ( result !=VkResult::eSuccess ) {
 	//		return false;
 	//	}
 
 	// -------- Invariant: fence has been crossed, all resources protected by fence
 	//          can now be claimed back.
 
-	device.resetFences( { frame.frameFence } );
+	vkResetFences( device, 1, &frame.frameFence );
 
 	// -- reset all frame-local sub-allocators
 	for ( auto& alloc : frame.allocators ) {
@@ -1694,7 +1724,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	frame.availableResources.clear();
 
 	for ( auto& d : frame.descriptorPools ) {
-		device.resetDescriptorPool( d );
+		vkResetDescriptorPool( device, d, VkDescriptorPoolResetFlags() );
 	}
 
 	{ // clear resources owned exclusively by this frame
@@ -1702,22 +1732,22 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 		for ( auto& r : frame.ownedResources ) {
 			switch ( r.type ) {
 			case AbstractPhysicalResource::eBuffer:
-				device.destroyBuffer( r.asBuffer );
+				vkDestroyBuffer( device, r.asBuffer, nullptr );
 				break;
 			case AbstractPhysicalResource::eFramebuffer:
-				device.destroyFramebuffer( r.asFramebuffer );
+				vkDestroyFramebuffer( device, r.asFramebuffer, nullptr );
 				break;
 			case AbstractPhysicalResource::eImage:
-				device.destroyImage( r.asImage );
+				vkDestroyImage( device, r.asImage, nullptr );
 				break;
 			case AbstractPhysicalResource::eImageView:
-				device.destroyImageView( r.asImageView );
+				vkDestroyImageView( device, r.asImageView, nullptr );
 				break;
 			case AbstractPhysicalResource::eRenderPass:
-				device.destroyRenderPass( r.asRenderPass );
+				vkDestroyRenderPass( device, r.asRenderPass, nullptr );
 				break;
 			case AbstractPhysicalResource::eSampler:
-				device.destroySampler( r.asSampler );
+				vkDestroySampler( device, r.asSampler, nullptr );
 				break;
 
 			case AbstractPhysicalResource::eUndefined:
@@ -1728,7 +1758,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 		frame.ownedResources.clear();
 	}
 
-	device.freeCommandBuffers( frame.commandPool, frame.commandBuffers );
+	vkFreeCommandBuffers( device, frame.commandPool, uint32_t( frame.commandBuffers.size() ), frame.commandBuffers.data() );
 	frame.commandBuffers.clear();
 
 	frame.physicalResources.clear();
@@ -1743,14 +1773,13 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	}
 	frame.passes.clear();
 
-	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
+	vkResetCommandPool( device, frame.commandPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT );
 
 	return true;
 };
-
 // ----------------------------------------------------------------------
 
-static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& device ) {
+static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	// NOTE: we might be able to simplify this along the lines of
@@ -1761,15 +1790,15 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 	const auto& syncChainTable = frame.syncChainTable;
 
 	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
-	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits2::eColorAttachmentWrite |
-	                                      vk::AccessFlagBits2::eDepthStencilAttachmentWrite |
-	                                      vk::AccessFlagBits2::eAccelerationStructureWriteKHR |
-	                                      vk::AccessFlagBits2::eHostWrite |
-	                                      vk::AccessFlagBits2::eMemoryWrite |
-	                                      vk::AccessFlagBits2::eShaderWrite |
-	                                      vk::AccessFlagBits2::eTransferWrite |
-	                                      vk::AccessFlagBits2::eCommandPreprocessWriteNV |
-	                                      vk::AccessFlagBits2::eTransformFeedbackCounterWriteEXT );
+	const auto ANY_WRITE_ACCESS_FLAGS = ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+	                                      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+	                                      VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+	                                      VK_ACCESS_2_HOST_WRITE_BIT |
+	                                      VK_ACCESS_2_MEMORY_WRITE_BIT |
+	                                      VK_ACCESS_2_SHADER_WRITE_BIT |
+	                                      VK_ACCESS_2_TRANSFER_WRITE_BIT |
+	                                      VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
+	                                      VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT );
 
 	// Note: This should be trivial to parallelize.
 	for ( auto& pass : frame.passes ) {
@@ -1782,24 +1811,24 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 
 		// ---------| Invariant: current pass is a draw pass.
 
-		std::vector<vk::AttachmentDescription2> attachments;
+		std::vector<VkAttachmentDescription2> attachments;
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
-		std::vector<vk::AttachmentReference2> colorAttachmentReferences;
-		std::vector<vk::AttachmentReference2> resolveAttachmentReferences;
-		vk::AttachmentReference2*             dsAttachmentReference = nullptr;
+		std::vector<VkAttachmentReference2> colorAttachmentReferences;
+		std::vector<VkAttachmentReference2> resolveAttachmentReferences;
+		VkAttachmentReference2*             dsAttachmentReference = nullptr;
 
 		// We must accumulate these flags over all attachments - they are the
 		// union of all flags required by all attachments in a pass.
-		vk::PipelineStageFlags2 srcStageFromExternalFlags;
-		vk::PipelineStageFlags2 dstStageFromExternalFlags;
-		vk::AccessFlags2        srcAccessFromExternalFlags;
-		vk::AccessFlags2        dstAccessFromExternalFlags;
+		VkPipelineStageFlags2 srcStageFromExternalFlags  = 0;
+		VkPipelineStageFlags2 dstStageFromExternalFlags  = 0;
+		VkAccessFlags2        srcAccessFromExternalFlags = 0;
+		VkAccessFlags2        dstAccessFromExternalFlags = 0;
 
-		vk::PipelineStageFlags2 srcStageToExternalFlags;
-		vk::PipelineStageFlags2 dstStageToExternalFlags;
-		vk::AccessFlags2        srcAccessToExternalFlags;
-		vk::AccessFlags2        dstAccessToExternalFlags;
+		VkPipelineStageFlags2 srcStageToExternalFlags  = 0;
+		VkPipelineStageFlags2 dstStageToExternalFlags  = 0;
+		VkAccessFlags2        srcAccessToExternalFlags = 0;
+		VkAccessFlags2        dstAccessToExternalFlags = 0;
 
 		if ( PRINT_DEBUG_MESSAGES ) {
 			logger.info( "* Renderpass: '%s'", pass.debugName );
@@ -1823,40 +1852,61 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			bool isStencil = false;
 			le_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
 
-			vk::AttachmentDescription2 attachmentDescription{};
-			attachmentDescription
-			    .setFlags( vk::AttachmentDescriptionFlags() )                    // relevant for compatibility
-			    .setFormat( vk::Format( attachment->format ) )                   // relevant for compatibility
-			    .setSamples( vk::SampleCountFlagBits( attachment->numSamples ) ) // relevant for compatibility
-			    .setLoadOp( vk::AttachmentLoadOp( attachment->loadOp ) )
-			    .setStoreOp( vk::AttachmentStoreOp( attachment->storeOp ) )
-			    .setStencilLoadOp( isStencil ? vk::AttachmentLoadOp( attachment->loadOp ) : vk::AttachmentLoadOp::eDontCare )
-			    .setStencilStoreOp( isStencil ? vk::AttachmentStoreOp( attachment->storeOp ) : vk::AttachmentStoreOp::eDontCare )
-			    .setInitialLayout( syncInitial.layout )
-			    .setFinalLayout( syncFinal.layout );
+			VkAttachmentDescription2 attachmentDescription{
+			    .sType          = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
+			    .pNext          = nullptr,                        // optional
+			    .flags          = VkAttachmentDescriptionFlags(), // optional
+			    .format         = VkFormat( attachment->format ),
+			    .samples        = VkSampleCountFlagBits( attachment->numSamples ),
+			    .loadOp         = VkAttachmentLoadOp( attachment->loadOp ),
+			    .storeOp        = VkAttachmentStoreOp( attachment->storeOp ),
+			    .stencilLoadOp  = isStencil ? VkAttachmentLoadOp( attachment->loadOp ) : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			    .stencilStoreOp = isStencil ? VkAttachmentStoreOp( attachment->storeOp ) : VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			    .initialLayout  = syncInitial.layout,
+			    .finalLayout    = syncFinal.layout,
+			};
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-				logger.info( " %38s@%d : %30s → %30s → %30s | sync chain indices: %4d : %4d : %4d",
-				             attachment->resource->data->debug_name, 1 << attachment->resource->data->num_samples,
-				             vk::to_string( syncInitial.layout ).c_str(),
-				             vk::to_string( syncSubpass.layout ).c_str(),
-				             vk::to_string( syncFinal.layout ).c_str(),
-				             attachment->initialStateOffset,
-				             attachment->initialStateOffset + 1,
-				             attachment->finalStateOffset );
+				// FIXME: add debug messages back in
+				//				logger.info( " %38s@%d : %30s → %30s → %30s | sync chain indices: %4d : %4d : %4d",
+				//				             attachment->resource->data->debug_name, 1 << attachment->resource->data->num_samples,
+				//				             le::to_str( syncInitial.layout ),
+				//				             le::to_str( syncSubpass.layout ),
+				//				             le::to_str( syncFinal.layout ),
+				//				             attachment->initialStateOffset,
+				//				             attachment->initialStateOffset + 1,
+				//				             attachment->finalStateOffset );
 			}
 
 			attachments.emplace_back( attachmentDescription );
 
 			switch ( attachment->type ) {
 			case AttachmentInfo::Type::eDepthStencilAttachment:
-				dsAttachmentReference = new vk::AttachmentReference2( attachments.size() - 1, syncSubpass.layout ); // cleanup at the end of loop
+				dsAttachmentReference = new VkAttachmentReference2{
+				    .sType      = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
+				    .pNext      = nullptr, // optional
+				    .attachment = uint32_t( attachments.size() - 1 ),
+				    .layout     = syncSubpass.layout,
+				    .aspectMask = 0,
+				}; // cleanup at the end of loop
 				break;
 			case AttachmentInfo::Type::eColorAttachment:
-				colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
+				colorAttachmentReferences.push_back( {
+				    .sType      = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
+				    .pNext      = nullptr, // optional
+				    .attachment = uint32_t( attachments.size() - 1 ),
+				    .layout     = syncSubpass.layout,
+				    .aspectMask = 0,
+				} );
 				break;
 			case AttachmentInfo::Type::eResolveAttachment:
-				resolveAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
+				resolveAttachmentReferences.push_back( {
+				    .sType      = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
+				    .pNext      = nullptr, // optional
+				    .attachment = uint32_t( attachments.size() - 1 ),
+				    .layout     = syncSubpass.layout,
+				    .aspectMask = 0,
+				} );
 				break;
 			}
 
@@ -1875,7 +1925,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 
 			if ( 0 == uint64_t( srcStageFromExternalFlags ) ) {
 				// Ensure that the stage mask is valid if no src stage was specified.
-				srcStageFromExternalFlags = vk::PipelineStageFlagBits2::eTopOfPipe;
+				srcStageFromExternalFlags = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 			}
 		}
 
@@ -1883,72 +1933,97 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 			logger.info( "" );
 		}
 
-		std::vector<vk::SubpassDescription2> subpasses;
+		std::vector<VkSubpassDescription2> subpasses;
 		subpasses.reserve( 1 );
 
 		{
-			vk::SubpassDescription2 subpassDescription;
-			subpassDescription
-			    .setFlags( vk::SubpassDescriptionFlags() )
-			    .setPipelineBindPoint( vk::PipelineBindPoint::eGraphics )
-			    .setInputAttachmentCount( 0 )
-			    .setPInputAttachments( nullptr )
-			    .setColorAttachmentCount( uint32_t( colorAttachmentReferences.size() ) )
-			    .setPColorAttachments( colorAttachmentReferences.data() )
-			    .setPResolveAttachments( resolveAttachmentReferences.empty() ? nullptr : resolveAttachmentReferences.data() ) // must be NULL or have same length as colorAttachments
-			    .setPDepthStencilAttachment( dsAttachmentReference )
-			    .setPreserveAttachmentCount( 0 )
-			    .setPPreserveAttachments( nullptr );
+			VkSubpassDescription2 subpassDescription{
+			    .sType                   = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2,
+			    .pNext                   = nullptr, // optional
+			    .flags                   = 0,       // optional
+			    .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			    .viewMask                = 0,
+			    .inputAttachmentCount    = 0, // optional
+			    .pInputAttachments       = nullptr,
+			    .colorAttachmentCount    = uint32_t( colorAttachmentReferences.size() ), // optional
+			    .pColorAttachments       = colorAttachmentReferences.data(),
+			    .pResolveAttachments     = resolveAttachmentReferences.empty() ? nullptr : resolveAttachmentReferences.data(), // optional
+			    .pDepthStencilAttachment = dsAttachmentReference,                                                              // optional
+			    .preserveAttachmentCount = 0,                                                                                  // optional
+			    .pPreserveAttachments    = nullptr,
+			};
 
 			subpasses.emplace_back( subpassDescription );
 		}
 
-		std::array<vk::SubpassDependency2, 2> dependencies;
-		std::array<vk::MemoryBarrier2, 2>     memoryBarriers;
+		VkSubpassDependency2 dependencies[ 2 ];
+		VkMemoryBarrier2     memoryBarriers[ 2 ];
 
 		{
 			if ( PRINT_DEBUG_MESSAGES ) {
 
-				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName );
-				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", vk::to_string( srcStageFromExternalFlags ).c_str() );
-				logger.info( "\t dstStage: %-40s anything in stage %1$s.", vk::to_string( dstStageFromExternalFlags ).c_str() );
-				uint64_t( srcAccessFromExternalFlags )
-				    ? logger.info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", vk::to_string( srcAccessFromExternalFlags ).c_str(), vk::to_string( srcStageFromExternalFlags ).c_str() )
-				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", vk::to_string( srcAccessFromExternalFlags ).c_str() );
-				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", vk::to_string( dstAccessFromExternalFlags ).c_str(), vk::to_string( dstStageFromExternalFlags ).c_str() );
+				// FIXME: add these messages back in again
+				//				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName );
+				//				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", le::to_str( srcStageFromExternalFlags ) );
+				//				logger.info( "\t dstStage: %-40s anything in stage %1$s.", le::to_str( dstStageFromExternalFlags ) );
+				//				uint64_t( srcAccessFromExternalFlags )
+				//				    ? logger.info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", le::to_str( srcAccessFromExternalFlags ), le::to_str( srcStageFromExternalFlags ) )
+				//				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", le::to_str( srcAccessFromExternalFlags ) );
+				//				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", le::to_str( dstAccessFromExternalFlags ), le::to_str( dstStageFromExternalFlags ) );
 
-				logger.info( "Subpass Dependency: subpass `%s` to VK_SUBPASS_EXTERNAL:", pass.debugName );
-				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", vk::to_string( srcStageToExternalFlags ).c_str() );
-				logger.info( "\t dstStage: %-40s anything in stage %1$s.", vk::to_string( dstStageToExternalFlags ).c_str() );
-				uint64_t( srcAccessToExternalFlags )
-				    ? logger.info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", vk::to_string( srcAccessToExternalFlags ).c_str(), vk::to_string( srcStageToExternalFlags ).c_str() )
-				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", vk::to_string( srcAccessToExternalFlags ).c_str() );
-				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", vk::to_string( dstAccessToExternalFlags ).c_str(), vk::to_string( dstStageToExternalFlags ).c_str() );
-				logger.info( "" );
+				//				logger.info( "Subpass Dependency: subpass `%s` to VK_SUBPASS_EXTERNAL:", pass.debugName );
+				//				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", le::to_str( srcStageToExternalFlags ) );
+				//				logger.info( "\t dstStage: %-40s anything in stage %1$s.", le::to_str( dstStageToExternalFlags ) );
+				//				uint64_t( srcAccessToExternalFlags )
+				//				    ? logger.info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", le::to_str( srcAccessToExternalFlags ), le::to_str( srcStageToExternalFlags ) )
+				//				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", le::to_str( srcAccessToExternalFlags ) );
+				//				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", le::to_str( dstAccessToExternalFlags ), le::to_str( dstStageToExternalFlags ) );
+				//				logger.info( "" );
 			}
 
-			memoryBarriers[ 0 ]
-			    .setSrcStageMask( srcStageFromExternalFlags )
-			    .setDstStageMask( dstStageFromExternalFlags )
-			    .setSrcAccessMask( srcAccessFromExternalFlags )
-			    .setDstAccessMask( dstAccessFromExternalFlags );
-			dependencies[ 0 ]                         // external to subpass
-			    .setSrcSubpass( VK_SUBPASS_EXTERNAL ) // outside of renderpass
-			    .setDstSubpass( 0 )                   // first subpass
-			    .setPNext( &memoryBarriers[ 0 ] )
-			    .setDependencyFlags( vk::DependencyFlagBits::eByRegion );
+			memoryBarriers[ 0 ] = {
+			    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+			    .pNext         = nullptr,
+			    .srcStageMask  = srcStageFromExternalFlags,
+			    .srcAccessMask = srcAccessFromExternalFlags,
+			    .dstStageMask  = dstStageFromExternalFlags,
+			    .dstAccessMask = dstAccessFromExternalFlags,
+			};
+			memoryBarriers[ 1 ] = {
+			    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+			    .pNext         = nullptr,
+			    .srcStageMask  = srcStageToExternalFlags,
+			    .srcAccessMask = srcAccessToExternalFlags,
+			    .dstStageMask  = dstStageToExternalFlags,
+			    .dstAccessMask = dstAccessToExternalFlags,
+			};
 
-			memoryBarriers[ 1 ]
-			    .setSrcStageMask( srcStageToExternalFlags )
-			    .setDstStageMask( dstStageToExternalFlags )
-			    .setSrcAccessMask( srcAccessToExternalFlags )
-			    .setDstAccessMask( dstAccessToExternalFlags ) //
-			    ;
-			dependencies[ 1 ]                         // subpass to external
-			    .setSrcSubpass( 0 )                   // last subpass
-			    .setDstSubpass( VK_SUBPASS_EXTERNAL ) // outside of renderpass
-			    .setPNext( &memoryBarriers[ 1 ] )
-			    .setDependencyFlags( vk::DependencyFlagBits::eByRegion );
+			dependencies[ 0 ] = {
+			    // external to subpass
+			    .sType           = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
+			    .pNext           = memoryBarriers,              // optional
+			    .srcSubpass      = VK_SUBPASS_EXTERNAL,         // outside of renderpass
+			    .dstSubpass      = 0,                           // first subpass
+			    .srcStageMask    = 0,                           // not used
+			    .dstStageMask    = 0,                           // not used
+			    .srcAccessMask   = 0,                           // not used
+			    .dstAccessMask   = 0,                           // not used
+			    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT, // optional
+			    .viewOffset      = 0,
+			};
+			dependencies[ 1 ] = {
+			    // external to subpass
+			    .sType           = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
+			    .pNext           = memoryBarriers + 1,          // optional
+			    .srcSubpass      = 0,                           // last subpass
+			    .dstSubpass      = VK_SUBPASS_EXTERNAL,         // outside of subpass
+			    .srcStageMask    = 0,                           // not used
+			    .dstStageMask    = 0,                           // not used
+			    .srcAccessMask   = 0,                           // not used
+			    .dstAccessMask   = 0,                           // not used
+			    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT, // optional
+			    .viewOffset      = 0,
+			};
 		}
 
 		{
@@ -1971,13 +2046,13 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 					// We use offsetof so that we can get everything from flags to the start of the
 					// attachmentdescription to (but not including) loadOp. We assume that struct is tightly packed.
 
-					static_assert( sizeof( vk::AttachmentDescription::flags ) +
-					                       sizeof( vk::AttachmentDescription::format ) +
-					                       sizeof( vk::AttachmentDescription::samples ) ==
-					                   offsetof( vk::AttachmentDescription, loadOp ),
+					static_assert( sizeof( VkAttachmentDescription::flags ) +
+					                       sizeof( VkAttachmentDescription::format ) +
+					                       sizeof( VkAttachmentDescription::samples ) ==
+					                   offsetof( VkAttachmentDescription, loadOp ),
 					               "AttachmentDescription struct must be tightly packed for efficient hashing" );
 
-					rp_hash = SpookyHash::Hash64( &a, offsetof( vk::AttachmentDescription, loadOp ), rp_hash );
+					rp_hash = SpookyHash::Hash64( &a, offsetof( VkAttachmentDescription, loadOp ), rp_hash );
 				}
 
 				// -- Hash subpasses
@@ -1993,13 +2068,13 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 					rp_hash = SpookyHash::Hash64( &s.preserveAttachmentCount, sizeof( s.preserveAttachmentCount ), rp_hash );
 
 					// We define this as a pure function lambda, and hope for it to be inlined
-					auto calc_hash_for_attachment_references = []( vk::AttachmentReference2 const* pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
+					auto calc_hash_for_attachment_references = []( VkAttachmentReference2 const* pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
 						if ( pAttachmentRefs == nullptr ) {
 							return seed;
 						}
 						// ----------| invariant: pAttachmentRefs is valid
 						for ( auto const* pAr = pAttachmentRefs; pAr != pAttachmentRefs + count; pAr++ ) {
-							seed = SpookyHash::Hash64( pAr, sizeof( vk::AttachmentReference2::attachment ), seed );
+							seed = SpookyHash::Hash64( pAr, sizeof( VkAttachmentReference2::attachment ), seed );
 						}
 						return seed;
 					};
@@ -2028,17 +2103,23 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 				pass.renderpassHash = rp_hash;
 			}
 
-			vk::RenderPassCreateInfo2 renderpassCreateInfo;
-			renderpassCreateInfo
-			    .setAttachmentCount( uint32_t( attachments.size() ) )
-			    .setPAttachments( attachments.data() )
-			    .setSubpassCount( uint32_t( subpasses.size() ) )
-			    .setPSubpasses( subpasses.data() )
-			    .setDependencyCount( uint32_t( dependencies.size() ) )
-			    .setPDependencies( dependencies.data() );
+			VkRenderPassCreateInfo2 renderpassCreateInfo{
+			    .sType                   = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2,
+			    .pNext                   = nullptr, // optional
+			    .flags                   = 0,       // optional
+			    .attachmentCount         = uint32_t( attachments.size() ),
+			    .pAttachments            = attachments.data(),
+			    .subpassCount            = uint32_t( subpasses.size() ),
+			    .pSubpasses              = subpasses.data(),
+			    .dependencyCount         = uint32_t( sizeof( dependencies ) / sizeof( VkSubpassDependency2 ) ),
+			    .pDependencies           = dependencies,
+			    .correlatedViewMaskCount = 0, // optional
+			    .pCorrelatedViewMasks    = 0,
+			};
 
 			// Create vulkan renderpass object
-			pass.renderPass = device.createRenderPass2( renderpassCreateInfo );
+
+			vkCreateRenderPass2( device, &renderpassCreateInfo, nullptr, &pass.renderPass );
 
 			delete dsAttachmentReference; // noo-op if nullptr; we clean up here in case we allocated a
 			                              // depth stencil attachment reference above.
@@ -2057,11 +2138,11 @@ static void backend_create_renderpasses( BackendFrameData& frame, vk::Device& de
 
 // ----------------------------------------------------------------------
 
-/// \brief fetch vk::Buffer from frame local storage based on resource handle flags
+/// \brief fetchVkBuffer from frame local storage based on resource handle flags
 /// - allocatorBuffers[index] if transient,
 /// - stagingAllocator.buffers[index] if staging,
 /// otherwise, fetch from frame available resources based on an id lookup.
-static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData& frame, const le_buf_resource_handle& buffer ) {
+static inline VkBuffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData& frame, const le_buf_resource_handle& buffer ) {
 
 	if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsVirtual ) ) {
 		return frame.allocatorBuffers[ buffer->data->index ];
@@ -2073,7 +2154,7 @@ static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const Backen
 }
 
 // ----------------------------------------------------------------------
-static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData& frame, const le_img_resource_handle& img ) {
+static inline VkImage frame_data_get_image_from_le_resource_id( const BackendFrameData& frame, const le_img_resource_handle& img ) {
 	return frame.availableResources.at( img ).as.image;
 }
 
@@ -2100,8 +2181,8 @@ static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFra
 
 // ----------------------------------------------------------------------
 
-vk::ImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
-	vk::ImageAspectFlags aspectFlags{};
+VkImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
+	VkImageAspectFlags aspectFlags{};
 
 	bool isDepth   = false;
 	bool isStencil = false;
@@ -2109,13 +2190,13 @@ vk::ImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
 
 	if ( isDepth || isStencil ) {
 		if ( isDepth ) {
-			aspectFlags |= vk::ImageAspectFlagBits::eDepth;
+			aspectFlags |= VK_IMAGE_ASPECT_DEPTH_BIT;
 		}
 		if ( isStencil ) {
-			aspectFlags |= vk::ImageAspectFlagBits::eStencil;
+			aspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
 		}
 	} else {
-		aspectFlags |= vk::ImageAspectFlagBits::eColor;
+		aspectFlags |= VK_IMAGE_ASPECT_COLOR_BIT;
 	}
 
 	return aspectFlags;
@@ -2124,7 +2205,7 @@ vk::ImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
 // ----------------------------------------------------------------------
 // input: Pass
 // output: framebuffer, append newly created imageViews to retained resources list.
-static void backend_create_frame_buffers( BackendFrameData& frame, vk::Device& device ) {
+static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& device ) {
 
 	for ( auto& pass : frame.passes ) {
 
@@ -2136,29 +2217,33 @@ static void backend_create_frame_buffers( BackendFrameData& frame, vk::Device& d
 		                           pass.numResolveAttachments +
 		                           pass.numDepthStencilAttachments;
 
-		std::vector<vk::ImageView> framebufferAttachments;
+		std::vector<VkImageView> framebufferAttachments;
 		framebufferAttachments.reserve( attachmentCount );
 
 		auto const attachment_end = pass.attachments + attachmentCount;
 		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachment_end; attachment++ ) {
 
-			vk::ImageSubresourceRange subresourceRange;
-			subresourceRange
-			    .setAspectMask( get_aspect_flags_from_format( attachment->format ) )
-			    .setBaseMipLevel( 0 )
-			    .setLevelCount( 1 )
-			    .setBaseArrayLayer( 0 )
-			    .setLayerCount( 1 );
+			VkImageSubresourceRange subresourceRange{
+			    .aspectMask     = get_aspect_flags_from_format( attachment->format ),
+			    .baseMipLevel   = 0,
+			    .levelCount     = 1,
+			    .baseArrayLayer = 0,
+			    .layerCount     = 1,
+			};
 
-			vk::ImageViewCreateInfo imageViewCreateInfo;
-			imageViewCreateInfo
-			    .setImage( frame_data_get_image_from_le_resource_id( frame, attachment->resource ) )
-			    .setViewType( vk::ImageViewType::e2D )
-			    .setFormat( vk::Format( attachment->format ) )
-			    .setComponents( {} ) // default-constructor '{}' means identity
-			    .setSubresourceRange( subresourceRange );
+			VkImageViewCreateInfo imageViewCreateInfo{
+			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			    .pNext            = nullptr, // optional
+			    .flags            = 0,       // optional
+			    .image            = frame_data_get_image_from_le_resource_id( frame, attachment->resource ),
+			    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+			    .format           = VkFormat( attachment->format ),
+			    .components       = {},
+			    .subresourceRange = subresourceRange,
+			};
 
-			auto imageView = device.createImageView( imageViewCreateInfo );
+			VkImageView imageView = nullptr;
+			vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
 
 			framebufferAttachments.push_back( imageView );
 
@@ -2174,19 +2259,19 @@ static void backend_create_frame_buffers( BackendFrameData& frame, vk::Device& d
 			}
 		}
 
-		vk::FramebufferCreateInfo framebufferCreateInfo;
-		framebufferCreateInfo
-		    .setFlags( {} )
-		    .setRenderPass( pass.renderPass )
-		    .setAttachmentCount( attachmentCount )
-		    .setPAttachments( framebufferAttachments.data() )
+		VkFramebufferCreateInfo framebufferCreateInfo{
+		    .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+		    .pNext           = nullptr, // optional
+		    .flags           = 0,       // optional
+		    .renderPass      = pass.renderPass,
+		    .attachmentCount = attachmentCount, // optional
+		    .pAttachments    = framebufferAttachments.data(),
+		    .width           = pass.width,
+		    .height          = pass.height,
+		    .layers          = 1,
+		};
 
-		    .setWidth( pass.width )
-		    .setHeight( pass.height )
-		    .setLayers( 1 );
-
-		pass.framebuffer = device.createFramebuffer( framebufferCreateInfo );
-
+		vkCreateFramebuffer( device, &framebufferCreateInfo, nullptr, &pass.framebuffer );
 		{
 			// Retain framebuffer
 
@@ -2201,7 +2286,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, vk::Device& d
 
 // ----------------------------------------------------------------------
 
-static void backend_create_descriptor_pools( BackendFrameData& frame, vk::Device& device, size_t numRenderPasses ) {
+static void backend_create_descriptor_pools( BackendFrameData& frame, VkDevice& device, size_t numRenderPasses ) {
 
 	// Make sure that there is one descriptorpool for every renderpass.
 	// descriptor pools which were created previously will be re-used,
@@ -2235,21 +2320,28 @@ static void backend_create_descriptor_pools( BackendFrameData& frame, vk::Device
 
 	for ( ; frame.descriptorPools.size() < numRenderPasses; ) {
 
-		std::vector<vk::DescriptorPoolSize> descriptorPoolSizes;
+		std::vector<VkDescriptorPoolSize> descriptorPoolSizes;
 
 		descriptorPoolSizes.reserve( DESCRIPTOR_TYPE_COUNT );
 
 		for ( auto i : DESCRIPTOR_TYPES ) {
-			descriptorPoolSizes.emplace_back( vk::DescriptorType( i ), 1000 ); // 1000 descriptors of each type
+			descriptorPoolSizes.push_back( {
+			    .type            = i,
+			    .descriptorCount = 1000,
+			} ); // 1000 descriptors of each type
 		}
 
-		::vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo;
-		descriptorPoolCreateInfo
-		    .setMaxSets( 2000 )
-		    .setPoolSizeCount( uint32_t( descriptorPoolSizes.size() ) )
-		    .setPPoolSizes( descriptorPoolSizes.data() );
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{
+		    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		    .pNext         = nullptr, // optional
+		    .flags         = 0,       // optional
+		    .maxSets       = 2000,
+		    .poolSizeCount = uint32_t( descriptorPoolSizes.size() ),
+		    .pPoolSizes    = descriptorPoolSizes.data(),
+		};
 
-		vk::DescriptorPool descriptorPool = device.createDescriptorPool( descriptorPoolCreateInfo );
+		VkDescriptorPool descriptorPool = nullptr;
+		vkCreateDescriptorPool( device, &descriptorPoolCreateInfo, nullptr, &descriptorPool );
 
 		frame.descriptorPools.emplace_back( std::move( descriptorPool ) );
 	}
@@ -2356,33 +2448,33 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		// Allocate bottom level ray tracing acceleration structure
 
 		assert( vk_device && "blas allocation needs device" );
-		vk::Device device( vk_device );
+		VkDevice device( vk_device );
 
 		auto const blas = reinterpret_cast<le_rtx_blas_info_o*>( resourceInfo.blasInfo.handle );
 
-		std::vector<vk::AccelerationStructureGeometryKHR> geometries;
-		std::vector<uint32_t>                             primitive_counts;
+		std::vector<VkAccelerationStructureGeometryKHR> geometries;
+		std::vector<uint32_t>                           primitive_counts;
 
 		geometries.reserve( blas->geometries.size() );
 		primitive_counts.reserve( geometries.size() );
 
 		for ( auto const& g : blas->geometries ) {
 
-			vk::AccelerationStructureGeometryTrianglesDataKHR t_data{};
+			VkAccelerationStructureGeometryTrianglesDataKHR t_data{};
 			t_data
 			    .setMaxVertex( g.vertex_count - 1 ) // highest index of a vertex that will be accessed by build command
-			    .setIndexType( static_cast<vk::IndexType>( g.index_type ) )
-			    .setVertexFormat( static_cast<vk::Format>( g.vertex_format ) );
+			    .setIndexType( static_cast<VkIndexType>( g.index_type ) )
+			    .setVertexFormat( static_cast<VkFormat>( g.vertex_format ) );
 
-			vk::AccelerationStructureGeometryDataKHR g_data{};
+			VkAccelerationStructureGeometryDataKHR g_data{};
 			g_data
 			    .setInstances( 1 )
 			    .setTriangles( t_data );
 
-			vk::AccelerationStructureGeometryKHR geom{};
+			VkAccelerationStructureGeometryKHR geom{};
 			geom
-			    .setFlags( vk::GeometryFlagBitsKHR::eOpaque )
-			    .setGeometryType( vk::GeometryTypeKHR::eTriangles )
+			    .setFlags( VkGeometryFlagBitsKHR::eOpaque )
+			    .setGeometryType( VkGeometryTypeKHR::eTriangles )
 			    .setGeometry( g_data );
 
 			geometries.push_back( geom );
@@ -2390,21 +2482,21 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 			primitive_counts.push_back( g.index_count ? g.index_count / 3 : g.vertex_count / 3 );
 		}
 
-		vk::AccelerationStructureBuildGeometryInfoKHR build_info{};
+		VkAccelerationStructureBuildGeometryInfoKHR build_info{};
 
 		build_info
-		    .setType( vk::AccelerationStructureTypeKHR::eBottomLevel )
+		    .setType( VkAccelerationStructureTypeKHR::eBottomLevel )
 		    .setGeometries( geometries );
-		vk::AccelerationStructureBuildSizesInfoKHR build_sizes =
+		VkAccelerationStructureBuildSizesInfoKHR build_sizes =
 		    device.getAccelerationStructureBuildSizesKHR(
-		        vk::AccelerationStructureBuildTypeKHR::eDevice, build_info, primitive_counts );
+		        VkAccelerationStructureBuildTypeKHR::eDevice, build_info, primitive_counts );
 
-		vk::BufferCreateInfo bufferInfo{};
+		VkBufferCreateInfo bufferInfo{};
 		bufferInfo
-		    .setFlags( vk::BufferCreateFlags{} )
+		    .setFlags( VkBufferCreateFlags{} )
 		    .setSize( build_sizes.accelerationStructureSize )
-		    .setUsage( vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR )
-		    .setSharingMode( vk::SharingMode::eExclusive )
+		    .setUsage( VkBufferUsageFlagBits::eAccelerationStructureStorageKHR )
+		    .setSharingMode( VkSharingMode::eExclusive )
 		    .setQueueFamilyIndexCount( 0 )
 		    .setPQueueFamilyIndices( 0 );
 
@@ -2421,13 +2513,13 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 			assert( result == VkResult::VK_SUCCESS );
 		}
 
-		vk::AccelerationStructureCreateInfoKHR create_info{};
+		VkAccelerationStructureCreateInfoKHR create_info{};
 		create_info
-		    .setCreateFlags( vk::AccelerationStructureCreateFlagsKHR() )
+		    .setCreateFlags( VkAccelerationStructureCreateFlagsKHR() )
 		    .setBuffer( res.info.blasInfo.buffer )
 		    .setOffset( 0 ) // must be a multiple of 256 : vkSpec
 		    .setSize( build_sizes.accelerationStructureSize )
-		    .setType( vk::AccelerationStructureTypeKHR::eBottomLevel )
+		    .setType( VkAccelerationStructureTypeKHR::eBottomLevel )
 		    .setDeviceAddress( 0 ) // if 0, this means no specific device address requested
 		    ;
 
@@ -2443,7 +2535,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		// Query, and store object integer handle, which is used to refer
 		// to this bottom-level acceleration structure from a top-level
 		// acceleration structure
-		vk::AccelerationStructureDeviceAddressInfoKHR device_address_info{};
+		VkAccelerationStructureDeviceAddressInfoKHR device_address_info{};
 		device_address_info.setAccelerationStructure( res.as.blas );
 
 		res.info.blasInfo.device_address = device.getAccelerationStructureAddressKHR( device_address_info );
@@ -2457,39 +2549,39 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		// Allocate top level ray tracing allocation structure
 
 		assert( vk_device && "tlas allocation needs device" );
-		vk::Device device( vk_device );
+		VkDevice device( vk_device );
 
 		auto const tlas = reinterpret_cast<le_rtx_tlas_info_o*>( resourceInfo.tlasInfo.handle );
 
 		assert( tlas && "tlas must be valid." );
 
-		vk::AccelerationStructureBuildGeometryInfoKHR build_info{};
+		VkAccelerationStructureBuildGeometryInfoKHR build_info{};
 
-		vk::AccelerationStructureGeometryInstancesDataKHR instances_data{};
+		VkAccelerationStructureGeometryInstancesDataKHR instances_data{};
 
-		vk::AccelerationStructureGeometryDataKHR geometry_data{};
+		VkAccelerationStructureGeometryDataKHR geometry_data{};
 		geometry_data.setInstances( instances_data );
 
-		vk::AccelerationStructureGeometryKHR geom{};
+		VkAccelerationStructureGeometryKHR geom{};
 		geom
-		    .setGeometryType( vk::GeometryTypeKHR::eInstances )
+		    .setGeometryType( VkGeometryTypeKHR::eInstances )
 		    .setGeometry( geometry_data );
 
 		build_info
-		    .setType( vk::AccelerationStructureTypeKHR::eTopLevel )
-		    .setMode( vk::BuildAccelerationStructureModeKHR::eBuild )
+		    .setType( VkAccelerationStructureTypeKHR::eTopLevel )
+		    .setMode( VkBuildAccelerationStructureModeKHR::eBuild )
 		    .setGeometries( geom );
 
-		vk::AccelerationStructureBuildSizesInfoKHR build_sizes =
+		VkAccelerationStructureBuildSizesInfoKHR build_sizes =
 		    device.getAccelerationStructureBuildSizesKHR(
-		        vk::AccelerationStructureBuildTypeKHR::eDevice, build_info, tlas->instances_count );
+		        VkAccelerationStructureBuildTypeKHR::eDevice, build_info, tlas->instances_count );
 
-		vk::BufferCreateInfo bufferInfo{};
+		VkBufferCreateInfo bufferInfo{};
 		bufferInfo
-		    .setFlags( vk::BufferCreateFlags{} )
+		    .setFlags( VkBufferCreateFlags{} )
 		    .setSize( build_sizes.accelerationStructureSize )
-		    .setUsage( vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR )
-		    .setSharingMode( vk::SharingMode::eExclusive )
+		    .setUsage( VkBufferUsageFlagBits::eAccelerationStructureStorageKHR )
+		    .setSharingMode( VkSharingMode::eExclusive )
 		    .setQueueFamilyIndexCount( 0 )
 		    .setPQueueFamilyIndices( 0 );
 
@@ -2506,13 +2598,13 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 			assert( result == VkResult::VK_SUCCESS );
 		}
 
-		vk::AccelerationStructureCreateInfoKHR create_info{};
+		VkAccelerationStructureCreateInfoKHR create_info{};
 		create_info
-		    .setCreateFlags( vk::AccelerationStructureCreateFlagsKHR() )
+		    .setCreateFlags( VkAccelerationStructureCreateFlagsKHR() )
 		    .setBuffer( res.info.tlasInfo.buffer )
 		    .setOffset( 0 )
 		    .setSize( build_sizes.accelerationStructureSize )
-		    .setType( vk::AccelerationStructureTypeKHR::eTopLevel )
+		    .setType( VkAccelerationStructureTypeKHR::eTopLevel )
 		    .setDeviceAddress( 0 ) // if 0, this means no specific device address requested
 		    ;
 
@@ -2566,12 +2658,16 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 	VkBuffer          buffer;     // handle to buffer (returned from vmaMemAlloc)
 	VmaAllocationInfo allocationInfo;
 
-	VkBufferCreateInfo bufferCreateInfo =
-	    static_cast<VkBufferCreateInfo&>(
-	        vk::BufferCreateInfo()
-	            .setSize( numBytes )
-	            .setSharingMode( vk::SharingMode::eExclusive )
-	            .setUsage( vk::BufferUsageFlagBits::eTransferSrc ) );
+	VkBufferCreateInfo bufferCreateInfo{
+	    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+	    .pNext                 = nullptr, // optional
+	    .flags                 = 0,       // optional
+	    .size                  = numBytes,
+	    .usage                 = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+	    .queueFamilyIndexCount = 0, // optional
+	    .pQueueFamilyIndices   = 0,
+	};
 
 	VmaAllocationCreateInfo allocationCreateInfo{};
 	allocationCreateInfo.flags          = VMA_ALLOCATION_CREATE_MAPPED_BIT;
@@ -2637,8 +2733,7 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 
 /// Frees all allocations held by the staging allocator given in `self`
 static void staging_allocator_reset( le_staging_allocator_o* self ) {
-	auto lock   = std::scoped_lock( self->mtx );
-	auto device = vk::Device{ self->device };
+	auto lock = std::scoped_lock( self->mtx );
 
 	assert( self->buffers.size() == self->allocations.size() && self->buffers.size() == self->allocationInfo.size() &&
 	        "buffers, allocations, and allocationInfos sizes must match." );
@@ -3019,37 +3114,38 @@ static void insert_msaa_versions(
 
 static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info, const char* prefix = "" ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	if ( info.isBuffer() ) {
-		logger.info( "%-15s : %-32s : %11d : %30s : %-30s", prefix, handle->data->debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
-	} else if ( info.isImage() ) {
-		logger.info( "%-15s : %-30s@%d : %dx%dx%d : %30s : %-30s",
-		             prefix,
-		             !( handle->data->debug_name[ 0 ] == '\0' )
-		                 ? handle->data->debug_name
-		             : handle->data->reference_handle
-		                 ? handle->data->reference_handle->data->debug_name
-		                 : "unnamed",
-		             uint32( info.imageInfo.samples ),
-		             info.imageInfo.extent.width,
-		             info.imageInfo.extent.height,
-		             info.imageInfo.extent.depth,
-		             to_string( vk::Format( info.imageInfo.format ) ).c_str(),
-		             to_string( vk::ImageUsageFlags( info.imageInfo.usage ) ).c_str() );
-	} else if ( info.isBlas() ) {
-		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
-		             prefix,
-		             handle->data->debug_name,
-		             info.blasInfo.buffer_size,
-		             info.blasInfo.scratch_buffer_size,
-		             "-" );
-	} else if ( info.isTlas() ) {
-		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
-		             prefix,
-		             handle->data->debug_name,
-		             info.tlasInfo.buffer_size,
-		             info.tlasInfo.scratch_buffer_size,
-		             "-" );
-	}
+	// FIXME: add this back in
+	//	if ( info.isBuffer() ) {
+	//		logger.info( "%-15s : %-32s : %11d : %30s : %-30s", prefix, handle->data->debug_name, info.bufferInfo.size, "-", to_string( VkBufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
+	//	} else if ( info.isImage() ) {
+	//		logger.info( "%-15s : %-30s@%d : %dx%dx%d : %30s : %-30s",
+	//		             prefix,
+	//		             !( handle->data->debug_name[ 0 ] == '\0' )
+	//		                 ? handle->data->debug_name
+	//		             : handle->data->reference_handle
+	//		                 ? handle->data->reference_handle->data->debug_name
+	//		                 : "unnamed",
+	//		             uint32( info.imageInfo.samples ),
+	//		             info.imageInfo.extent.width,
+	//		             info.imageInfo.extent.height,
+	//		             info.imageInfo.extent.depth,
+	//		             to_string( VkFormat( info.imageInfo.format ) ).c_str(),
+	//		             to_string( VkImageUsageFlags( info.imageInfo.usage ) ).c_str() );
+	//	} else if ( info.isBlas() ) {
+	//		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
+	//		             prefix,
+	//		             handle->data->debug_name,
+	//		             info.blasInfo.buffer_size,
+	//		             info.blasInfo.scratch_buffer_size,
+	//		             "-" );
+	//	} else if ( info.isTlas() ) {
+	//		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
+	//		             prefix,
+	//		             handle->data->debug_name,
+	//		             info.tlasInfo.buffer_size,
+	//		             info.tlasInfo.scratch_buffer_size,
+	//		             "-" );
+	//	}
 }
 
 // ----------------------------------------------------------------------
@@ -3101,43 +3197,52 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 
 	// --------| invariant utuls extension is available
 
-	auto vk_result_assert_success = []( vk::Result const&& result ) {
-		if ( result != vk::Result::eSuccess ) {
-			logger.error( "Vulkan operation returned: '%s', but we expected vk::Result::eSuccess.", vk::to_string( result ).c_str() );
+	auto vk_result_assert_success = []( VkResult const&& result ) {
+		if ( result != VK_SUCCESS ) {
+			// FIXME: to_str on vulkan return value
+			// logger.error( "Vulkan operation returned: '%s', but we expected VK_SUCCESS.", le::to_str( result ) );
 		}
-		assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+		assert( result == VK_SUCCESS && "Vulkan operation must succeed" );
 	};
 
 	for ( auto const& r : resources ) {
 
-		auto device = vk::Device( device_ );
+		auto device = VkDevice( device_ );
 
-		vk::DebugUtilsObjectNameInfoEXT nameInfo;
+		VkDebugUtilsObjectNameInfoEXT nameInfo{
+		    .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+		    .pNext        = nullptr, // optional
+		    .objectType   = VK_OBJECT_TYPE_UNKNOWN,
+		    .objectHandle = 0,
+		    .pObjectName  = "", // optional
+		};
+		;
 
-		nameInfo.setPObjectName( r.first->data->debug_name );
+		nameInfo.pObjectName = r.first->data->debug_name;
 
 		switch ( r.first->data->type ) {
 		case LeResourceType::eImage:
-			nameInfo.setObjectType( vk::ObjectType::eImage );
-			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.image ) );
+			nameInfo.objectType   = VK_OBJECT_TYPE_IMAGE;
+			nameInfo.objectHandle = reinterpret_cast<uint64_t>( r.second.as.image );
 			break;
 		case LeResourceType::eBuffer:
-			nameInfo.setObjectType( vk::ObjectType::eBuffer );
-			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.buffer ) );
+			nameInfo.objectType   = VK_OBJECT_TYPE_BUFFER;
+			nameInfo.objectHandle = reinterpret_cast<uint64_t>( r.second.as.buffer );
 			break;
 		case LeResourceType::eRtxBlas:
-			nameInfo.setObjectType( vk::ObjectType::eAccelerationStructureKHR );
-			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.blas ) );
+			nameInfo.objectType   = VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR;
+			nameInfo.objectHandle = reinterpret_cast<uint64_t>( r.second.as.blas );
 			break;
 		case LeResourceType::eRtxTlas:
-			nameInfo.setObjectType( vk::ObjectType::eAccelerationStructureKHR );
-			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.tlas ) );
+			nameInfo.objectType   = VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR;
+			nameInfo.objectHandle = reinterpret_cast<uint64_t>( r.second.as.tlas );
 			break;
 		default:
 			assert( false && "unknown resource type" );
 		}
 
-		vk_result_assert_success( device.setDebugUtilsObjectNameEXT( &nameInfo ) );
+		auto result = vkSetDebugUtilsObjectNameEXT( device, &nameInfo );
+		assert( result == VK_SUCCESS );
 	}
 }
 
@@ -3402,7 +3507,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 // Allocates ImageViews, Samplers and Textures requested by individual passes
 // these are tied to the lifetime of the frame, and will be re-created
-static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Device const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
+static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
 
 	using namespace le_renderer;
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -3455,24 +3560,27 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 					continue;
 				}
 
-				vk::ImageSubresourceRange subresourceRange;
-				subresourceRange
-				    .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
-				    .setBaseMipLevel( 0 )
-				    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
-				    .setBaseArrayLayer( 0 )
-				    .setLayerCount( 1 );
+				VkImageSubresourceRange subresourceRange{
+				    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
+				    .baseMipLevel   = 0,
+				    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+				    .baseArrayLayer = 0,
+				    .layerCount     = 1,
+				};
 
-				vk::ImageViewCreateInfo imageViewCreateInfo{};
-				imageViewCreateInfo
-				    .setFlags( {} )
-				    .setImage( vk_resource_info.as.image )
-				    .setViewType( vk::ImageViewType::e2D )
-				    .setFormat( vk::Format( imageFormat ) )
-				    .setComponents( {} ) // default component mapping
-				    .setSubresourceRange( subresourceRange );
+				VkImageViewCreateInfo imageViewCreateInfo{
+				    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+				    .pNext            = nullptr, // optional
+				    .flags            = 0,       // optional
+				    .image            = vk_resource_info.as.image,
+				    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+				    .format           = VkFormat( imageFormat ),
+				    .components       = {}, // default component mapping
+				    .subresourceRange = subresourceRange,
+				};
 
-				auto imageView = device.createImageView( imageViewCreateInfo );
+				VkImageView imageView = nullptr;
+				vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
 
 				// Store image view object with frame, indexed by image resource id,
 				// so that it can be found quickly if need be.
@@ -3518,32 +3626,35 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 
 				auto& texInfo = textureInfos[ i ];
 
-				vk::ImageView imageView{};
+				VkImageView imageView{};
 				{
 					// Set or create vkImageview
 
 					auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) );
 
-					vk::ImageSubresourceRange subresourceRange;
-					subresourceRange
-					    .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
-					    .setBaseMipLevel( 0 )
-					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
-					    .setBaseArrayLayer( texInfo.imageView.base_array_layer )
-					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS ); // FIXME: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
+					VkImageSubresourceRange subresourceRange{
+					    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
+					    .baseMipLevel   = 0,
+					    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+					    .baseArrayLayer = texInfo.imageView.base_array_layer,
+					    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // Fixme: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
+					};
 
 					// TODO: fill in additional image view create info based on info from pass...
 
-					vk::ImageViewCreateInfo imageViewCreateInfo{};
-					imageViewCreateInfo
-					    .setFlags( {} ) // no special flags
-					    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
-					    .setViewType( static_cast<vk::ImageViewType>( texInfo.imageView.image_view_type ) )
-					    .setFormat( vk::Format( imageFormat ) ) // we got this earlier via texInfo
-					    .setComponents( {} )                    // default component mapping
-					    .setSubresourceRange( subresourceRange );
+					VkImageViewCreateInfo imageViewCreateInfo{
+					    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+					    .pNext            = nullptr, // optional
+					    .flags            = 0,       // optional
+					    .image            = frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ),
+					    .viewType         = VkImageViewType( texInfo.imageView.image_view_type ),
+					    .format           = VkFormat( imageFormat ),
+					    .components       = {}, // default component mapping
+					    .subresourceRange = subresourceRange,
+					};
 
-					imageView = device.createImageView( imageViewCreateInfo );
+					VkImageView imageView = nullptr;
+					vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
 
 					// Store vk object references with frame-owned resources, so that
 					// the vk objects can be destroyed when frame crosses the fence.
@@ -3555,31 +3666,34 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, vk::Dev
 					frame.ownedResources.emplace_front( std::move( res ) );
 				}
 
-				vk::Sampler sampler{};
+				VkSampler sampler{};
 				{
 					// Create VkSampler object on device.
 
-					vk::SamplerCreateInfo samplerCreateInfo{};
-					samplerCreateInfo
-					    .setFlags( {} )
-					    .setMagFilter( static_cast<vk::Filter>( texInfo.sampler.magFilter ) )
-					    .setMinFilter( static_cast<vk::Filter>( texInfo.sampler.minFilter ) )
-					    .setMipmapMode( static_cast<vk::SamplerMipmapMode>( texInfo.sampler.mipmapMode ) )
-					    .setAddressModeU( static_cast<vk::SamplerAddressMode>( texInfo.sampler.addressModeU ) )
-					    .setAddressModeV( static_cast<vk::SamplerAddressMode>( texInfo.sampler.addressModeV ) )
-					    .setAddressModeW( static_cast<vk::SamplerAddressMode>( texInfo.sampler.addressModeW ) )
-					    .setMipLodBias( texInfo.sampler.mipLodBias )
-					    .setAnisotropyEnable( texInfo.sampler.anisotropyEnable )
-					    .setMaxAnisotropy( texInfo.sampler.maxAnisotropy )
-					    .setCompareEnable( texInfo.sampler.compareEnable )
-					    .setCompareOp( static_cast<vk::CompareOp>( texInfo.sampler.compareOp ) )
-					    .setMinLod( texInfo.sampler.minLod )
-					    .setMaxLod( texInfo.sampler.maxLod )
-					    .setBorderColor( static_cast<vk::BorderColor>( texInfo.sampler.borderColor ) )
-					    .setUnnormalizedCoordinates( texInfo.sampler.unnormalizedCoordinates );
+					VkSamplerCreateInfo samplerCreateInfo{
+					    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+					    .pNext                   = nullptr, // optional
+					    .flags                   = 0,       // optional
+					    .magFilter               = VkFilter( texInfo.sampler.magFilter ),
+					    .minFilter               = VkFilter( texInfo.sampler.minFilter ),
+					    .mipmapMode              = VkSamplerMipmapMode( texInfo.sampler.mipmapMode ),
+					    .addressModeU            = VkSamplerAddressMode( texInfo.sampler.addressModeU ),
+					    .addressModeV            = VkSamplerAddressMode( texInfo.sampler.addressModeV ),
+					    .addressModeW            = VkSamplerAddressMode( texInfo.sampler.addressModeW ),
+					    .mipLodBias              = texInfo.sampler.mipLodBias,
+					    .anisotropyEnable        = texInfo.sampler.anisotropyEnable,
+					    .maxAnisotropy           = texInfo.sampler.maxAnisotropy,
+					    .compareEnable           = texInfo.sampler.compareEnable,
+					    .compareOp               = VkCompareOp( texInfo.sampler.compareOp ),
+					    .minLod                  = texInfo.sampler.minLod,
+					    .maxLod                  = texInfo.sampler.maxLod,
+					    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
+					    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
+					};
 
-					sampler = device.createSampler( samplerCreateInfo );
+					VkSampler sampler = nullptr;
 
+					vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler );
 					// Now store vk object references with frame-owned resources, so that
 					// the vk objects can be destroyed when frame crosses the fence.
 
@@ -3660,13 +3774,29 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 		frame.availableResources[ img_resource_handle ].as.image = swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
 		{
-			auto& backbufferInfo       = frame.availableResources[ img_resource_handle ].info.imageInfo;
-			backbufferInfo             = static_cast<VkImageCreateInfo&>( vk::ImageCreateInfo{} );
-			backbufferInfo.extent      = static_cast<VkExtent3D&>( vk::Extent3D( frame.swapchain_state[ i ].surface_width, frame.swapchain_state[ i ].surface_height, 1 ) );
-			backbufferInfo.format      = VkFormat( self->swapchainImageFormat[ i ] );
-			backbufferInfo.usage       = VkImageUsageFlags( vk::ImageUsageFlagBits::eColorAttachment );
-			backbufferInfo.mipLevels   = 1;
-			backbufferInfo.arrayLayers = 1;
+			// FIXME: check that refactor did the right thing here
+			auto& backbufferInfo = frame.availableResources[ img_resource_handle ].info.imageInfo;
+			backbufferInfo       = {
+			          .sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			          .pNext     = nullptr, // optional
+			          .flags     = 0,       // optional
+			          .imageType = VK_IMAGE_TYPE_2D,
+			          .format    = VkFormat( self->swapchainImageFormat[ i ] ),
+			          .extent    = {
+			                 .width  = frame.swapchain_state[ i ].surface_width,
+			                 .height = frame.swapchain_state[ i ].surface_height,
+			                 .depth  = 1,
+                },
+			          .mipLevels             = 1,
+			          .arrayLayers           = 1,
+			          .samples               = VK_SAMPLE_COUNT_1_BIT,
+			          .tiling                = VK_IMAGE_TILING_OPTIMAL,
+			          .usage                 = VkImageUsageFlags( VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ),
+			          .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+			          .queueFamilyIndexCount = 0, // optional
+			          .pQueueFamilyIndices   = nullptr,
+			          .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
+            };
 		}
 	}
 
@@ -3740,7 +3870,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		// If we use a mutex to protect backend-wide resources, we can release it now.
 	}
 
-	vk::Device device = self->device->getVkDevice();
+	VkDevice device = self->device->getVkDevice();
 
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_transient_resources( frame, device, passes, numRenderPasses );
@@ -3787,19 +3917,16 @@ static le_allocator_o** backend_create_transient_allocators( le_backend_o* self,
 
 		createInfo.pUserData = res;
 
-		VkBufferCreateInfo bufferCreateInfo;
-		{
-			// we use the cpp proxy because it's more ergonomic to fill the values.
-			vk::BufferCreateInfo bufferInfoProxy;
-			bufferInfoProxy
-			    .setFlags( {} )
-			    .setSize( LE_LINEAR_ALLOCATOR_SIZE )
-			    .setUsage( LE_BUFFER_USAGE_FLAGS_SCRATCH )
-			    .setSharingMode( vk::SharingMode::eExclusive )
-			    .setQueueFamilyIndexCount( 1 )
-			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics ); // TODO: use compute queue for compute passes, or transfer for transfer passes
-			bufferCreateInfo = static_cast<VkBufferCreateInfo&>( bufferInfoProxy );
-		}
+		VkBufferCreateInfo bufferCreateInfo{
+		    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		    .pNext                 = nullptr, // optional
+		    .flags                 = 0,       // optional
+		    .size                  = LE_LINEAR_ALLOCATOR_SIZE,
+		    .usage                 = LE_BUFFER_USAGE_FLAGS_SCRATCH,
+		    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+		    .queueFamilyIndexCount = 1,
+		    .pQueueFamilyIndices   = &self->queueFamilyIndexGraphics,
+		};
 
 		auto result = vmaCreateBuffer( self->mAllocator, &bufferCreateInfo, &createInfo, &buffer, &allocation, &allocationInfo );
 
@@ -3838,11 +3965,11 @@ static bool is_equal( le_pipeline_and_layout_info_t const& lhs, le_pipeline_and_
 	       lhs.layout_info.active_vk_shader_stages == rhs.layout_info.active_vk_shader_stages;
 }
 
-static bool updateArguments( const vk::Device&                  device,
-                             const vk::DescriptorPool&          descriptorPool_,
+static bool updateArguments( const VkDevice&                    device,
+                             const VkDescriptorPool&            descriptorPool_,
                              const ArgumentState&               argumentState,
                              std::array<DescriptorSetState, 8>& previousSetData,
-                             vk::DescriptorSet*                 descriptorSets ) {
+                             VkDescriptorSet*                   descriptorSets ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	// -- allocate descriptors from descriptorpool based on set layout info
@@ -3955,23 +4082,28 @@ static bool updateArguments( const vk::Device&                  device,
 			     previousSetData[ setId ].setData != argumentState.setData[ setId ] ||
 			     previousSetData[ setId ].setLayout != argumentState.layouts[ setId ] ) {
 
-				vk::DescriptorSetAllocateInfo allocateInfo;
-				allocateInfo.setDescriptorPool( descriptorPool_ )
-				    .setDescriptorSetCount( 1 )
-				    .setPSetLayouts( &argumentState.layouts[ setId ] );
+				VkDescriptorSetAllocateInfo allocateInfo{
+				    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+				    .pNext              = nullptr, // optional
+				    .descriptorPool     = descriptorPool_,
+				    .descriptorSetCount = 1,
+				    .pSetLayouts        = &argumentState.layouts[ setId ],
+				};
 
 				// -- allocate descriptorSets based on current layout
 				// and place them in the correct position
-				auto result = device.allocateDescriptorSets( &allocateInfo, &descriptorSets[ setId ] );
 
-				assert( result == vk::Result::eSuccess && "failed to allocate descriptor set" );
+				auto result = vkAllocateDescriptorSets( device, &allocateInfo, &descriptorSets[ setId ] );
+
+				assert( result == VK_SUCCESS && "failed to allocate descriptor set" );
 
 				if ( /* DISABLES CODE */ ( false ) ) {
 					// I wish that this would work - but it appears that accelerator decriptors cannot be updated using templates.
-					device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState.updateTemplates[ setId ], argumentState.setData[ setId ].data() );
+					vkUpdateDescriptorSetWithTemplate( device, descriptorSets[ setId ], argumentState.updateTemplates[ setId ], argumentState.setData[ setId ].data() );
+
 				} else {
 
-					std::vector<vk::WriteDescriptorSet> write_descriptor_sets;
+					std::vector<VkWriteDescriptorSet> write_descriptor_sets;
 
 					// We deliberately allocate write descriptor set acceleration structure objects on the heap,
 					// so that the pointer to the object will not change if and when the vector grows.
@@ -3979,20 +4111,24 @@ static bool updateArguments( const vk::Device&                  device,
 					// This means that we can hand out copies of pointers from this vector without fear from
 					// within the current scope, but also that we must clean up the contents of the vector
 					// manually before leaving the current scope or else we will leak these objects.
-					std::vector<vk::WriteDescriptorSetAccelerationStructureKHR*> write_acceleration_structures;
+					std::vector<VkWriteDescriptorSetAccelerationStructureKHR*> write_acceleration_structures;
 
 					write_descriptor_sets.reserve( argumentState.setData[ setId ].size() );
 
 					for ( auto& a : argumentState.setData[ setId ] ) {
-						vk::WriteDescriptorSet w{};
-
-						w
-						    .setDstSet( descriptorSets[ setId ] )
-						    .setDstBinding( a.bindingNumber )
-						    .setDstArrayElement( a.arrayIndex )
-						    .setDescriptorCount( 1 )
-						    .setDescriptorType( vk::DescriptorType( a.type ) ) //
-						    ;
+						VkWriteDescriptorSet w{
+						    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+						    .pNext            = nullptr, // optional
+						    .dstSet           = descriptorSets[ setId ],
+						    .dstBinding       = a.bindingNumber,
+						    .dstArrayElement  = a.arrayIndex,
+						    .descriptorCount  = 1,
+						    .descriptorType   = VkDescriptorType( a.type ),
+						    .pImageInfo       = 0,
+						    .pBufferInfo      = 0,
+						    .pTexelBufferView = 0,
+						};
+						;
 
 						switch ( a.type ) {
 						case le::DescriptorType::eSampler:
@@ -4000,17 +4136,17 @@ static bool updateArguments( const vk::Device&                  device,
 						case le::DescriptorType::eSampledImage:
 						case le::DescriptorType::eStorageImage:
 						case le::DescriptorType::eInputAttachment:
-							w.setPImageInfo( reinterpret_cast<vk::DescriptorImageInfo const*>( &a.imageInfo ) );
+							w.pImageInfo = reinterpret_cast<VkDescriptorImageInfo const*>( &a.imageInfo );
 							break;
 						case le::DescriptorType::eUniformTexelBuffer:
 						case le::DescriptorType::eStorageTexelBuffer:
-							w.setPTexelBufferView( reinterpret_cast<vk::BufferView const*>( &a.texelBufferInfo ) );
+							w.pTexelBufferView = reinterpret_cast<VkBufferView const*>( &a.texelBufferInfo );
 							break;
 						case le::DescriptorType::eUniformBuffer:
 						case le::DescriptorType::eStorageBuffer:
 						case le::DescriptorType::eUniformBufferDynamic:
 						case le::DescriptorType::eStorageBufferDynamic:
-							w.setPBufferInfo( reinterpret_cast<vk::DescriptorBufferInfo const*>( &a.bufferInfo ) );
+							w.pBufferInfo = reinterpret_cast<VkDescriptorBufferInfo const*>( &a.bufferInfo );
 							break;
 						case le::DescriptorType::eInlineUniformBlockExt:
 							assert( false && "inline uniform blocks are not yet supported" );
@@ -4019,10 +4155,16 @@ static bool updateArguments( const vk::Device&                  device,
 							assert( false && "NV acceleration structures are not supported anymore. Use KHR acceleration structures." );
 							break;
 						case le::DescriptorType::eAccelerationStructureKhr: {
-							auto wd                        = new vk::WriteDescriptorSetAccelerationStructureKHR{};
-							wd->accelerationStructureCount = 1;
-							wd->pAccelerationStructures    = &reinterpret_cast<vk::AccelerationStructureKHR const&>( a.accelerationStructureInfo.accelerationStructure );
-							w.setPNext( wd );
+							// FIXME: use an arena for that - we don't want to allocate on the free store
+							auto wd = new VkWriteDescriptorSetAccelerationStructureKHR{
+							    .sType                      = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+							    .pNext                      = nullptr, // optional
+							    .accelerationStructureCount = 1,
+							    .pAccelerationStructures    = &reinterpret_cast<VkAccelerationStructureKHR const&>( a.accelerationStructureInfo.accelerationStructure ),
+							};
+							w.pNext = wd;
+							write_acceleration_structures.push_back( wd );
+
 						} break;
 						default:
 							assert( false && "Unhandled descriptor Type" );
@@ -4030,7 +4172,7 @@ static bool updateArguments( const vk::Device&                  device,
 
 						write_descriptor_sets.emplace_back( w );
 					}
-					device.updateDescriptorSets( uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
+					vkUpdateDescriptorSets( device, uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
 
 					// We must manually delete any WriteDescriptorSetAccelerationStructureKHR objects
 					for ( auto& w : write_acceleration_structures ) {
@@ -4060,29 +4202,29 @@ static void debug_print_command( void*& cmd ) {
 
 	// clang-format off
 			switch (cmd_header->info.type){
-			    case (le::CommandType::eDrawIndexed): os << "eDrawIndexed"; break;
-			    case (le::CommandType::eDraw): os << "eDraw"; break;
-			    case (le::CommandType::eDispatch): os << "eDispatch"; break;
-			    case (le::CommandType::eBufferMemoryBarrier): os << "eBufferMemoryBarrier"; break;
-			    case (le::CommandType::eSetLineWidth): os << "eSetLineWidth"; break;
-			    case (le::CommandType::eSetViewport): os << "eSetViewport"; break;
-			    case (le::CommandType::eSetScissor): os << "eSetScissor"; break;
-			    case (le::CommandType::eSetPushConstantData): os << "eSetPushConstantData"; break;
-			    case (le::CommandType::eBindArgumentBuffer): os << "eBindArgumentBuffer"; break;
-			    case (le::CommandType::eSetArgumentTexture): os << "eSetArgumentTexture"; break;
-			    case (le::CommandType::eSetArgumentImage): os << "eSetArgumentImage"; break;
-			    case (le::CommandType::eBindIndexBuffer): os << "eBindIndexBuffer"; break;
-			    case (le::CommandType::eBindVertexBuffers): os << "eBindVertexBuffers"; break;
-			    case (le::CommandType::eBindGraphicsPipeline): os << "eBindGraphicsPipeline"; break;
-			    case (le::CommandType::eBindComputePipeline): os << "eBindComputePipeline"; break;
-			    case (le::CommandType::eWriteToBuffer): os << "eWriteToBuffer"; break;
+                case (le::CommandType::eDrawIndexed): os << "eDrawIndexed"; break;
+                case (le::CommandType::eDraw): os << "eDraw"; break;
+                case (le::CommandType::eDispatch): os << "eDispatch"; break;
+                case (le::CommandType::eBufferMemoryBarrier): os << "eBufferMemoryBarrier"; break;
+                case (le::CommandType::eSetLineWidth): os << "eSetLineWidth"; break;
+                case (le::CommandType::eSetViewport): os << "eSetViewport"; break;
+                case (le::CommandType::eSetScissor): os << "eSetScissor"; break;
+                case (le::CommandType::eSetPushConstantData): os << "eSetPushConstantData"; break;
+                case (le::CommandType::eBindArgumentBuffer): os << "eBindArgumentBuffer"; break;
+                case (le::CommandType::eSetArgumentTexture): os << "eSetArgumentTexture"; break;
+                case (le::CommandType::eSetArgumentImage): os << "eSetArgumentImage"; break;
+                case (le::CommandType::eBindIndexBuffer): os << "eBindIndexBuffer"; break;
+                case (le::CommandType::eBindVertexBuffers): os << "eBindVertexBuffers"; break;
+                case (le::CommandType::eBindGraphicsPipeline): os << "eBindGraphicsPipeline"; break;
+                case (le::CommandType::eBindComputePipeline): os << "eBindComputePipeline"; break;
+                case (le::CommandType::eWriteToBuffer): os << "eWriteToBuffer"; break;
                 case (le::CommandType::eBindRtxPipeline): os << "eBindRtxPipeline" ; break;
                 case (le::CommandType::eBuildRtxTlas): os << "eBuildRtxTlas"; break;
                 case (le::CommandType::eBuildRtxBlas): os << "eBuildRtxBlas"; break;
-			    case (le::CommandType::eWriteToImage): os << "eWriteToImage"; break;
-                case(le::CommandType::eDrawMeshTasks): os << "eDrawMeshTasks"; break;
-                case(le::CommandType::eTraceRays): os << "eTraceRays"; break;
-                case(le::CommandType::eSetArgumentTlas): os << "eSetArgumentTlas"; break;
+                case (le::CommandType::eWriteToImage): os << "eWriteToImage"; break;
+                case (le::CommandType::eDrawMeshTasks): os << "eDrawMeshTasks"; break;
+                case (le::CommandType::eTraceRays): os << "eTraceRays"; break;
+                case (le::CommandType::eSetArgumentTlas): os << "eSetArgumentTlas"; break;
 			}
 	// clang-format on
 
@@ -4126,19 +4268,31 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 #endif
 	auto& frame = self->mFrames[ frameIndex ];
 
-	vk::Device device = self->device->getVkDevice();
+	VkDevice device = self->device->getVkDevice();
 
-	static_assert( sizeof( vk::Viewport ) == sizeof( le::Viewport ), "Viewport data size must be same in vk and le" );
-	static_assert( sizeof( vk::Rect2D ) == sizeof( le::Rect2D ), "Rect2D data size must be same in vk and le" );
+	static_assert( sizeof( VkViewport ) == sizeof( le::Viewport ), "Viewport data size must be same in vk and le" );
+	static_assert( sizeof( VkRect2D ) == sizeof( le::Rect2D ), "Rect2D data size must be same in vk and le" );
 
 	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties( *self->device )->limits.maxVertexInputBindings;
 
 	// TODO: (parallelize) when going wide, there needs to be a commandPool for each execution context so that
 	// command buffer generation may be free-threaded.
-	auto numCommandBuffers = uint32_t( frame.passes.size() );
-	auto cmdBufs           = device.allocateCommandBuffers( { frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers } );
+	auto                         numCommandBuffers = uint32_t( frame.passes.size() );
+	std::vector<VkCommandBuffer> cmdBufs( numCommandBuffers );
 
-	std::array<vk::ClearValue, 16> clearValues{};
+	{
+		VkCommandBufferAllocateInfo info = {
+		    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		    .pNext              = nullptr, // optional
+		    .commandPool        = frame.commandPool,
+		    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		    .commandBufferCount = numCommandBuffers,
+		};
+
+		vkAllocateCommandBuffers( device, &info, cmdBufs.data() );
+	}
+
+	std::array<VkClearValue, 16> clearValues{};
 
 	// TODO: (parallel for)
 	// note that access to any caches when creating pipelines and layouts and descriptorsets must be
@@ -4151,11 +4305,24 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 		// create frame buffer, based on swapchain and renderpass
 
-		cmd.begin( { ::vk::CommandBufferUsageFlagBits::eOneTimeSubmit } );
+		{
+			VkCommandBufferBeginInfo info = {
+			    .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+			    .pNext            = nullptr,                                     // optional
+			    .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, // optional
+			    .pInheritanceInfo = 0,                                           // optional
+			};
+
+			vkBeginCommandBuffer( cmd, &info );
+		}
 
 		if ( should_insert_debug_labels ) {
-			vk::DebugUtilsLabelEXT labelInfo;
-			labelInfo.pLabelName = pass.debugName;
+			VkDebugUtilsLabelEXT labelInfo{
+			    .sType      = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+			    .pNext      = nullptr, // optional
+			    .pLabelName = pass.debugName,
+			    .color      = {},
+			};
 
 			static constexpr auto LE_COLOUR_LIGHTBLUE    = hex_rgba_to_float_colour( 0x61BBEFFF );
 			static constexpr auto LE_COLOUR_GREENY_BLUE  = hex_rgba_to_float_colour( 0x4EC9B0FF );
@@ -4164,19 +4331,19 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 			switch ( pass.type ) {
 			case le::RenderPassType::eCompute:
-				labelInfo.setColor( LE_COLOUR_LIGHTBLUE );
+				memcpy( labelInfo.color, LE_COLOUR_LIGHTBLUE.data(), sizeof( float ) * 4 );
 				break;
 			case le::RenderPassType::eDraw:
-				labelInfo.setColor( LE_COLOUR_GREENY_BLUE );
+				memcpy( labelInfo.color, LE_COLOUR_GREENY_BLUE.data(), sizeof( float ) * 4 );
 				break;
 			case le::RenderPassType::eTransfer:
-				labelInfo.setColor( LE_COLOUR_BRICK_ORANGE );
+				memcpy( labelInfo.color, LE_COLOUR_BRICK_ORANGE.data(), sizeof( float ) * 4 );
 				break;
 			default:
 				break;
 			}
 
-			cmd.beginDebugUtilsLabelEXT( labelInfo );
+			vkCmdBeginDebugUtilsLabelEXT( cmd, &labelInfo );
 		}
 
 		{
@@ -4219,37 +4386,52 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
 							auto const& s = syncChain[ i ];
-							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i,
-							              to_string( s.visible_access ).c_str(),
-							              to_string( s.stage ).c_str(),
-							              to_string( s.layout ).c_str() );
+							// FIXME: add these debug printouts back in
+							//							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i,
+							//							              to_string( s.visible_access ).c_str(),
+							//							              to_string( s.stage ).c_str(),
+							//							              to_string( s.layout ).c_str() );
 						}
 					}
 
 					auto dstImage = frame_data_get_image_from_le_resource_id( frame, static_cast<le_img_resource_handle>( op.resource ) );
 
-					vk::ImageSubresourceRange rangeAllMiplevels;
-					rangeAllMiplevels
-					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
-					    .setBaseMipLevel( 0 )
-					    .setLevelCount( VK_REMAINING_MIP_LEVELS )
-					    .setBaseArrayLayer( 0 )
-					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS );
+					VkImageSubresourceRange rangeAllMiplevels{
+					    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+					    .baseMipLevel   = 0,
+					    .levelCount     = VK_REMAINING_MIP_LEVELS,
+					    .baseArrayLayer = 0,
+					    .layerCount     = VK_REMAINING_ARRAY_LAYERS,
+					};
 
-					vk::ImageMemoryBarrier2 imageLayoutTransfer;
-					imageLayoutTransfer
-					    .setSrcStageMask( uint64_t( stateInitial.stage ) == 0 ? vk::PipelineStageFlagBits2::eTopOfPipe : stateInitial.stage ) // Any commands affecting this stage(s)
-					    .setDstStageMask( stateFinal.stage )                                                                                  // Happen-before this stage(s)
-					    .setSrcAccessMask( stateInitial.visible_access )                                                                      // make available
-					    .setDstAccessMask( stateFinal.visible_access )                                                                        // make visible
-					    .setOldLayout( stateInitial.layout )
-					    .setNewLayout( stateFinal.layout )
-					    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-					    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-					    .setImage( dstImage )
-					    .setSubresourceRange( rangeAllMiplevels );
+					VkImageMemoryBarrier2 imageLayoutTransfer{
+					    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+					    .pNext               = nullptr,
+					    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
+					    .srcAccessMask       = stateInitial.visible_access,                                                                    // make available memory update from operation (in case it was a write operation, otherwise don't wait)
+					    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
+					    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
+					    .oldLayout           = stateInitial.layout,
+					    .newLayout           = stateFinal.layout,
+					    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					    .image               = dstImage,
+					    .subresourceRange    = rangeAllMiplevels,
+					};
 
-					cmd.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( imageLayoutTransfer ) );
+					VkDependencyInfo dependencyInfo = {
+					    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+					    .pNext                    = nullptr, // optional
+					    .dependencyFlags          = 0,       // optional
+					    .memoryBarrierCount       = 0,       // optional
+					    .pMemoryBarriers          = 0,
+					    .bufferMemoryBarrierCount = 0, // optional
+					    .pBufferMemoryBarriers    = 0,
+					    .imageMemoryBarrierCount  = 1, // optional
+					    .pImageMemoryBarriers     = &imageLayoutTransfer,
+					};
+
+					vkCmdPipelineBarrier2( cmd, &dependencyInfo );
 				}
 			} // end for all explicit sync ops.
 		}
@@ -4258,18 +4440,23 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		if ( pass.type == le::RenderPassType::eDraw && pass.renderPass ) {
 
 			for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
-				clearValues[ i ] = reinterpret_cast<vk::ClearValue&>( pass.attachments[ i ].clearValue );
+				clearValues[ i ] = reinterpret_cast<VkClearValue&>( pass.attachments[ i ].clearValue );
 			}
 
-			vk::RenderPassBeginInfo renderPassBeginInfo;
-			renderPassBeginInfo
-			    .setRenderPass( pass.renderPass )
-			    .setFramebuffer( pass.framebuffer )
-			    .setRenderArea( vk::Rect2D( { 0, 0 }, { pass.width, pass.height } ) )
-			    .setClearValueCount( pass.numColorAttachments + pass.numDepthStencilAttachments )
-			    .setPClearValues( clearValues.data() );
+			VkRenderPassBeginInfo renderPassBeginInfo{
+			    .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+			    .pNext       = nullptr, // optional
+			    .renderPass  = pass.renderPass,
+			    .framebuffer = pass.framebuffer,
+			    .renderArea  = {
+			         .offset = { 0, 0 },
+			         .extent = { pass.width, pass.height },
+                },
+			    .clearValueCount = uint32_t( pass.numColorAttachments + pass.numDepthStencilAttachments ), // optional
+			    .pClearValues    = clearValues.data(),
+			};
 
-			cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
+			vkCmdBeginRenderPass( cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE );
 		}
 
 		// -- Translate intermediary command stream data to api-native instructions
@@ -4280,8 +4467,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		size_t   commandIndex  = 0;
 		uint32_t subpassIndex  = 0;
 
-		vk::PipelineLayout currentPipelineLayout                          = nullptr;
-		vk::DescriptorSet  descriptorSets[ LE_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
+		VkPipelineLayout currentPipelineLayout                          = nullptr;
+		VkDescriptorSet  descriptorSets[ LE_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
 
 		// We store currently bound descriptors so that we only allocate new DescriptorSets
 		// if the descriptors really change. With dynamic descriptors, it is very likely
@@ -4323,7 +4510,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 			le_pipeline_manager_o* pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
 
-			std::vector<vk::Buffer>       vertexInputBindings( maxVertexInputBindings, nullptr );
+			std::vector<VkBuffer>         vertexInputBindings( maxVertexInputBindings, nullptr );
 			void*                         dataIt = commandStream;
 			le_pipeline_and_layout_info_t currentPipeline{};
 
@@ -4422,7 +4609,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 								}
 							}
 
-							cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, currentPipeline.pipeline );
+							vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline.pipeline );
 						} else {
 							// Re-using previously bound pipeline. We may keep argumentState state as it is.
 						}
@@ -4515,8 +4702,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							// when we bind a pipeline, we update the descriptorsetstate based
 							// on what the pipeline requires.
 						}
-
-						cmd.bindPipeline( vk::PipelineBindPoint::eCompute, currentPipeline.pipeline );
+						vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, currentPipeline.pipeline );
 
 					} else {
 						// -- TODO: warn that compute pipelines may only be bound within
@@ -4614,27 +4800,33 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
 						}
 
-						cmd.bindPipeline( vk::PipelineBindPoint::eRayTracingKHR, currentPipeline.pipeline );
-
+						vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, currentPipeline.pipeline );
 						// -- "bind" shader binding table state
 
-						rtx_state.sbt_buffer = le_cmd->info.sbt_buffer;
+						{
+							rtx_state.sbt_buffer = le_cmd->info.sbt_buffer;
 
-						VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.sbt_buffer );
-						uint64_t offset    = device.getBufferAddress( { vk_buffer } );
+							VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.sbt_buffer );
 
-						rtx_state.ray_gen_sbt_offset  = offset + le_cmd->info.ray_gen_sbt_offset;
-						rtx_state.ray_gen_sbt_size    = le_cmd->info.ray_gen_sbt_size;
-						rtx_state.miss_sbt_offset     = offset + le_cmd->info.miss_sbt_offset;
-						rtx_state.miss_sbt_stride     = le_cmd->info.miss_sbt_stride;
-						rtx_state.miss_sbt_size       = le_cmd->info.miss_sbt_size;
-						rtx_state.hit_sbt_offset      = offset + le_cmd->info.hit_sbt_offset;
-						rtx_state.hit_sbt_stride      = le_cmd->info.hit_sbt_stride;
-						rtx_state.hit_sbt_size        = le_cmd->info.hit_sbt_size;
-						rtx_state.callable_sbt_offset = offset + le_cmd->info.callable_sbt_offset;
-						rtx_state.callable_sbt_stride = le_cmd->info.callable_sbt_stride;
-						rtx_state.callable_sbt_size   = le_cmd->info.callable_sbt_size;
-						rtx_state.is_set              = true;
+							VkBufferDeviceAddressInfo info = {
+							    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+							    .pNext  = nullptr, // optional
+							    .buffer = vk_buffer,
+							};
+							uint64_t offset               = vkGetBufferDeviceAddress( device, &info );
+							rtx_state.ray_gen_sbt_offset  = offset + le_cmd->info.ray_gen_sbt_offset;
+							rtx_state.ray_gen_sbt_size    = le_cmd->info.ray_gen_sbt_size;
+							rtx_state.miss_sbt_offset     = offset + le_cmd->info.miss_sbt_offset;
+							rtx_state.miss_sbt_stride     = le_cmd->info.miss_sbt_stride;
+							rtx_state.miss_sbt_size       = le_cmd->info.miss_sbt_size;
+							rtx_state.hit_sbt_offset      = offset + le_cmd->info.hit_sbt_offset;
+							rtx_state.hit_sbt_stride      = le_cmd->info.hit_sbt_stride;
+							rtx_state.hit_sbt_size        = le_cmd->info.hit_sbt_size;
+							rtx_state.callable_sbt_offset = offset + le_cmd->info.callable_sbt_offset;
+							rtx_state.callable_sbt_stride = le_cmd->info.callable_sbt_stride;
+							rtx_state.callable_sbt_size   = le_cmd->info.callable_sbt_size;
+							rtx_state.is_set              = true;
+						}
 
 					} else {
 						// -- TODO: warn that rtx pipelines may only be bound within
@@ -4657,7 +4849,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					if ( argumentState.setCount > 0 ) {
 
-						cmd.bindDescriptorSets( vk::PipelineBindPoint::eRayTracingKHR,
+						cmd.bindDescriptorSets( VkPipelineBindPoint::eRayTracingKHR,
 						                        currentPipelineLayout,
 						                        0,
 						                        argumentState.setCount,
@@ -4668,7 +4860,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					assert( rtx_state.is_set && "sbt state must have been set before calling traceRays" );
 
-					// vk::Buffer sbt_vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, rtx_state.sbt_buffer );
+					// VkBuffer sbt_vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, rtx_state.sbt_buffer );
 
 					//					std::cout << "sbt buffer: " << std::hex << sbt_vk_buffer << std::endl
 					//					          << std::flush;
@@ -4676,10 +4868,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					//					          << std::flush;
 
 					// buffer, offset, stride, size
-					vk::StridedDeviceAddressRegionKHR sbt_ray_gen{ rtx_state.ray_gen_sbt_offset, rtx_state.ray_gen_sbt_size, rtx_state.ray_gen_sbt_size };
-					vk::StridedDeviceAddressRegionKHR sbt_miss{ rtx_state.miss_sbt_offset, rtx_state.miss_sbt_stride, rtx_state.miss_sbt_size };
-					vk::StridedDeviceAddressRegionKHR sbt_hit{ rtx_state.hit_sbt_offset, rtx_state.hit_sbt_stride, rtx_state.hit_sbt_size };
-					vk::StridedDeviceAddressRegionKHR sbt_callable{ rtx_state.callable_sbt_offset, rtx_state.callable_sbt_stride, rtx_state.callable_sbt_size };
+					VkStridedDeviceAddressRegionKHR sbt_ray_gen{ rtx_state.ray_gen_sbt_offset, rtx_state.ray_gen_sbt_size, rtx_state.ray_gen_sbt_size };
+					VkStridedDeviceAddressRegionKHR sbt_miss{ rtx_state.miss_sbt_offset, rtx_state.miss_sbt_stride, rtx_state.miss_sbt_size };
+					VkStridedDeviceAddressRegionKHR sbt_hit{ rtx_state.hit_sbt_offset, rtx_state.hit_sbt_stride, rtx_state.hit_sbt_size };
+					VkStridedDeviceAddressRegionKHR sbt_callable{ rtx_state.callable_sbt_offset, rtx_state.callable_sbt_stride, rtx_state.callable_sbt_size };
 
 					cmd.traceRaysKHR(
 					    sbt_ray_gen,
@@ -4707,32 +4899,48 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					if ( argumentState.setCount > 0 ) {
 
-						cmd.bindDescriptorSets(
-						    vk::PipelineBindPoint::eCompute,
-						    currentPipelineLayout,
-						    0,
-						    argumentState.setCount,
-						    descriptorSets,
-						    argumentState.dynamicOffsetCount,
-						    argumentState.dynamicOffsets.data() );
+						vkCmdBindDescriptorSets( cmd,
+						                         VK_PIPELINE_BIND_POINT_COMPUTE,
+						                         currentPipelineLayout,
+						                         0,
+						                         argumentState.setCount,
+						                         descriptorSets,
+						                         argumentState.dynamicOffsetCount,
+						                         argumentState.dynamicOffsets.data() );
 					}
 
-					cmd.dispatch( le_cmd->info.groupCountX, le_cmd->info.groupCountY, le_cmd->info.groupCountZ );
+					vkCmdDispatch( cmd, le_cmd->info.groupCountX, le_cmd->info.groupCountY, le_cmd->info.groupCountZ );
 
 				} break;
 				case le::CommandType::eBufferMemoryBarrier: {
-					auto*                    le_cmd = static_cast<le::CommandBufferMemoryBarrier*>( dataIt );
-					vk::BufferMemoryBarrier2 bufferMemoryBarrier{};
-					bufferMemoryBarrier
-					    .setSrcStageMask( static_cast<vk::PipelineStageFlags2>( le_cmd->info.srcStageMask ) )
-					    .setDstStageMask( static_cast<vk::PipelineStageFlags2>( le_cmd->info.dstStageMask ) )
-					    .setBuffer( frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ) )
-					    .setSize( le_cmd->info.range )
-					    .setOffset( le_cmd->info.offset )
-					    .setDstAccessMask( static_cast<vk::AccessFlagBits2>( le_cmd->info.dstAccessMask ) ) //
-					    ;
+					auto*                  le_cmd = static_cast<le::CommandBufferMemoryBarrier*>( dataIt );
+					VkBufferMemoryBarrier2 bufferMemoryBarrier{
+					    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+					    .pNext               = nullptr,
+					    .srcStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.srcStageMask ), // happens-before
+					    .srcAccessMask       = 0,                                                               // FIXME: no memory is made available from src stage ?!
+					    .dstStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.dstStageMask ), // before continuing with dst stage
+					    .dstAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.dstAccessMask ),    // and making memory visible to dst stage
+					    .srcQueueFamilyIndex = 0,
+					    .dstQueueFamilyIndex = 0,
+					    .buffer              = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ),
+					    .offset              = le_cmd->info.offset,
+					    .size                = le_cmd->info.range,
+					};
 
-					cmd.pipelineBarrier2( vk::DependencyInfo().setBufferMemoryBarriers( bufferMemoryBarrier ) );
+					VkDependencyInfo dependency_info{
+					    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+					    .pNext                    = nullptr, // optional
+					    .dependencyFlags          = 0,       // optional
+					    .memoryBarrierCount       = 0,       // optional
+					    .pMemoryBarriers          = 0,
+					    .bufferMemoryBarrierCount = 1, // optional
+					    .pBufferMemoryBarriers    = &bufferMemoryBarrier,
+					    .imageMemoryBarrierCount  = 0, // optional
+					    .pImageMemoryBarriers     = 0,
+					};
+
+					vkCmdPipelineBarrier2( cmd, &dependency_info );
 
 				} break;
 				case le::CommandType::eDraw: {
@@ -4749,16 +4957,18 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					if ( argumentState.setCount > 0 ) {
 
-						cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
-						                        currentPipelineLayout,
-						                        0,
-						                        argumentState.setCount,
-						                        descriptorSets,
-						                        argumentState.dynamicOffsetCount,
-						                        argumentState.dynamicOffsets.data() );
+						vkCmdBindDescriptorSets(
+						    cmd,
+						    VK_PIPELINE_BIND_POINT_GRAPHICS,
+						    currentPipelineLayout,
+						    0,
+						    argumentState.setCount,
+						    descriptorSets,
+						    argumentState.dynamicOffsetCount,
+						    argumentState.dynamicOffsets.data() );
 					}
 
-					cmd.draw( le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
+					vkCmdDraw( cmd, le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
 				} break;
 
 				case le::CommandType::eDrawIndexed: {
@@ -4775,16 +4985,24 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					if ( argumentState.setCount > 0 ) {
 
-						cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
-						                        currentPipelineLayout,
-						                        0,
-						                        argumentState.setCount,
-						                        descriptorSets,
-						                        argumentState.dynamicOffsetCount,
-						                        argumentState.dynamicOffsets.data() );
+						vkCmdBindDescriptorSets(
+						    cmd,
+						    VK_PIPELINE_BIND_POINT_GRAPHICS,
+						    currentPipelineLayout,
+						    0,
+						    argumentState.setCount,
+						    descriptorSets,
+						    argumentState.dynamicOffsetCount,
+						    argumentState.dynamicOffsets.data() );
 					}
 
-					cmd.drawIndexed( le_cmd->info.indexCount, le_cmd->info.instanceCount, le_cmd->info.firstIndex, le_cmd->info.vertexOffset, le_cmd->info.firstInstance );
+					vkCmdDrawIndexed(
+					    cmd,
+					    le_cmd->info.indexCount,
+					    le_cmd->info.instanceCount,
+					    le_cmd->info.firstIndex,
+					    le_cmd->info.vertexOffset,
+					    le_cmd->info.firstInstance );
 				} break;
 
 				case le::CommandType::eDrawMeshTasks: {
@@ -4802,7 +5020,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					if ( argumentState.setCount > 0 ) {
 
-						cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
+						cmd.bindDescriptorSets( VkPipelineBindPoint::eGraphics,
 						                        currentPipelineLayout,
 						                        0,
 						                        argumentState.setCount,
@@ -4819,28 +5037,28 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				case le::CommandType::eSetLineWidth: {
 					auto* le_cmd = static_cast<le::CommandSetLineWidth*>( dataIt );
-					cmd.setLineWidth( le_cmd->info.width );
+					vkCmdSetLineWidth( cmd, le_cmd->info.width );
 				} break;
 
 				case le::CommandType::eSetViewport: {
 					auto* le_cmd = static_cast<le::CommandSetViewport*>( dataIt );
 					// Since data for viewports *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
-					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport*>( le_cmd + 1 ) );
+					vkCmdSetViewport( cmd, le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<VkViewport*>( le_cmd + 1 ) );
 				} break;
 
 				case le::CommandType::eSetScissor: {
 					auto* le_cmd = static_cast<le::CommandSetScissor*>( dataIt );
 					// Since data for scissors *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
-					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D*>( le_cmd + 1 ) );
+					vkCmdSetScissor( cmd, le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<VkRect2D*>( le_cmd + 1 ) );
 				} break;
 
 				case le::CommandType::eSetPushConstantData: {
 					if ( currentPipelineLayout ) {
-						auto*                le_cmd               = static_cast<le::CommandSetPushConstantData*>( dataIt );
-						vk::ShaderStageFlags active_shader_stages = vk::ShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
-						cmd.pushConstants( currentPipelineLayout, active_shader_stages, 0, le_cmd->info.num_bytes, ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
+						auto*              le_cmd               = static_cast<le::CommandSetPushConstantData*>( dataIt );
+						VkShaderStageFlags active_shader_stages = VkShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
+						vkCmdPushConstants( cmd, currentPipelineLayout, active_shader_stages, 0, le_cmd->info.num_bytes, ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
 					}
 					break;
 				}
@@ -5034,7 +5252,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					// ----------| invariant: image view has been found
 
 					bindingData.accelerationStructureInfo.accelerationStructure = found_resource->second.as.tlas;
-					bindingData.type                                            = vk::DescriptorType::eAccelerationStructureKHR;
+					bindingData.type                                            = VkDescriptorType::eAccelerationStructureKHR;
 					bindingData.arrayIndex                                      = uint32_t( le_cmd->info.array_index );
 
 				} break;
@@ -5042,7 +5260,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				case le::CommandType::eBindIndexBuffer: {
 					auto* le_cmd = static_cast<le::CommandBindIndexBuffer*>( dataIt );
 					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
-					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, static_cast<vk::IndexType>( le_cmd->info.indexType ) );
+					vkCmdBindIndexBuffer( cmd, buffer, le_cmd->info.offset, static_cast<VkIndexType>( le_cmd->info.indexType ) );
 				} break;
 
 				case le::CommandType::eBindVertexBuffers: {
@@ -5060,7 +5278,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					// we can use the cached value instead of having to do a lookup.
 
 					le_buf_resource_handle le_buffer    = le_cmd->info.pBuffers[ 0 ];
-					vk::Buffer             vk_buffer    = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+					VkBuffer               vk_buffer    = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
 					vertexInputBindings[ firstBinding ] = vk_buffer;
 
 					for ( uint32_t b = 1; b != numBuffers; ++b ) {
@@ -5072,7 +5290,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						vertexInputBindings[ b + firstBinding ] = vk_buffer;
 					}
 
-					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
+					vkCmdBindVertexBuffers( cmd, le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
 				} break;
 
 				case le::CommandType::eWriteToBuffer: {
@@ -5081,12 +5299,16 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					// TODO: we must sync this before the next read.
 					auto* le_cmd = static_cast<le::CommandWriteToBuffer*>( dataIt );
 
-					vk::BufferCopy region( le_cmd->info.src_offset, le_cmd->info.dst_offset, le_cmd->info.numBytes );
+					VkBufferCopy region{
+					    .srcOffset = le_cmd->info.src_offset,
+					    .dstOffset = le_cmd->info.dst_offset,
+					    .size      = le_cmd->info.numBytes,
+					};
 
 					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
 					auto dstBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.dst_buffer_id );
 
-					cmd.copyBuffer( srcBuffer, dstBuffer, 1, &region );
+					vkCmdCopyBuffer( cmd, srcBuffer, dstBuffer, 1, &region );
 
 					break;
 				}
@@ -5100,46 +5322,57 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					// We define a range that covers all miplevels. this is useful as it allows us to transform
 					// Image layouts in bulk, covering the full mip chain.
-					vk::ImageSubresourceRange rangeAllRemainingMiplevels;
-					rangeAllRemainingMiplevels
-					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
-					    .setBaseMipLevel( le_cmd->info.dst_miplevel )
-					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we want all miplevels to be in transferDstOptimal.
-					    .setBaseArrayLayer( le_cmd->info.dst_array_layer )
-					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS ); // we want the range to encompass all layers
+					VkImageSubresourceRange rangeAllRemainingMiplevels{
+					    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+					    .baseMipLevel   = le_cmd->info.dst_miplevel,
+					    .levelCount     = VK_REMAINING_MIP_LEVELS, // we want all miplevels to be in transferDstOptimal.
+					    .baseArrayLayer = le_cmd->info.dst_array_layer,
+					    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // we want the range to encompass all layers
+					};
 
 					{
 
-						auto bufferTransferBarrier =
-						    vk::BufferMemoryBarrier2()
-						        .setSrcStageMask( vk::PipelineStageFlagBits2::eHost )     // any host operation
-						        .setDstStageMask( vk::PipelineStageFlagBits2::eTransfer ) // must complete before transfer operation
-						        .setSrcAccessMask( vk::AccessFlagBits2::eHostWrite )      // make HostWrite memory available (flush host-write)
-						        .setDstAccessMask( vk::AccessFlagBits2::eTransferRead )   // and it must be visible for transferRead - so that we might read
-						        .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						        .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						        .setBuffer( srcBuffer )
-						        .setOffset( 0 )                   // we assume a fresh buffer was allocated, so offset must be 0
-						        .setSize( le_cmd->info.numBytes ) //
-						    ;
+						VkBufferMemoryBarrier2 bufferTransferBarrier{
+						    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+						    .pNext               = nullptr,                          // optional
+						    .srcStageMask        = VK_PIPELINE_STAGE_2_HOST_BIT,     // any host operation
+						    .srcAccessMask       = VK_ACCESS_2_HOST_WRITE_BIT,       // make HostWrite memory available (flush host-write)
+						    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT, // must complete before transfer operation
+						    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,    // and it must be visible for transferRead - so that we might read
+						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						    .buffer              = srcBuffer,
+						    .offset              = 0, // we assume a fresh buffer was allocated, so offset must be 0
+						    .size                = le_cmd->info.numBytes,
+						};
 
-						auto imageLayoutToTransferDstOptimal =
-						    vk::ImageMemoryBarrier2()
-						        .setSrcStageMask( vk::PipelineStageFlagBits2::eTopOfPipe ) // wait for nothing as no memory must be made available
-						        .setDstStageMask( vk::PipelineStageFlagBits2::eTransfer )  // layout transiton must complete before transfer operation
-						        .setSrcAccessMask( {} )                                    // no memory must be made available - our image is garbage data at first
-						        .setDstAccessMask( vk::AccessFlagBits2::eTransferWrite )   // make memory visible to transferWrite - so that we may write
-						        .setOldLayout( vk::ImageLayout::eUndefined )               // from vk::ImageLayout::eUndefined
-						        .setNewLayout( vk::ImageLayout::eTransferDstOptimal )      // to transfer_dst_optimal
-						        .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						        .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-						        .setImage( dstImage )
-						        .setSubresourceRange( rangeAllRemainingMiplevels ) //
-						    ;
+						VkImageMemoryBarrier2 imageLayoutToTransferDstOptimal{
+						    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+						    .pNext               = nullptr,                             // optional
+						    .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, // wait for nothing as no memory must be made available
+						    .srcAccessMask       = {},                                  // no memory must be made available - our image is garbage data at first
+						    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,    // layout transiton must complete before transfer operation
+						    .dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,      // make memory visible to transferWrite - so that we may write
+						    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+						    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						    .image               = dstImage,
+						    .subresourceRange    = rangeAllRemainingMiplevels,
+						};
+						VkDependencyInfo dependency_info{
+						    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+						    .pNext                    = nullptr,
+						    .dependencyFlags          = 0,
+						    .memoryBarrierCount       = 0,
+						    .pMemoryBarriers          = 0,
+						    .bufferMemoryBarrierCount = 1,
+						    .pBufferMemoryBarriers    = &bufferTransferBarrier,
+						    .imageMemoryBarrierCount  = 1,
+						    .pImageMemoryBarriers     = &imageLayoutToTransferDstOptimal,
+						};
 
-						cmd.pipelineBarrier2( vk::DependencyInfo()
-						                          .setBufferMemoryBarriers( bufferTransferBarrier )
-						                          .setImageMemoryBarriers( imageLayoutToTransferDstOptimal ) );
+						vkCmdPipelineBarrier2( cmd, &dependency_info );
 					}
 
 					{
@@ -5150,23 +5383,29 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// sure to add barriers, as these blit operations are transfers.
 						//
 
-						vk::ImageSubresourceLayers imageSubresourceLayers;
-						imageSubresourceLayers
-						    .setAspectMask( vk::ImageAspectFlagBits::eColor )
-						    .setMipLevel( 0 )
-						    .setBaseArrayLayer( le_cmd->info.dst_array_layer )
-						    .setLayerCount( 1 );
+						VkImageSubresourceLayers imageSubresourceLayers{
+						    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+						    .mipLevel       = 0,
+						    .baseArrayLayer = le_cmd->info.dst_array_layer,
+						    .layerCount     = 1,
+						};
 
-						vk::BufferImageCopy region;
-						region
-						    .setBufferOffset( 0 )                                       // buffer offset is 0, since staging buffer is a fresh, specially allocated buffer
-						    .setBufferRowLength( 0 )                                    // 0 means tightly packed
-						    .setBufferImageHeight( 0 )                                  // 0 means tightly packed
-						    .setImageSubresource( std::move( imageSubresourceLayers ) ) // stored inline
-						    .setImageOffset( { le_cmd->info.offset_x, le_cmd->info.offset_y, le_cmd->info.offset_z } )
-						    .setImageExtent( { le_cmd->info.image_w, le_cmd->info.image_h, le_cmd->info.image_d } );
+						VkBufferImageCopy region{
+						    .bufferOffset      = 0,                                   // buffer offset is 0, since staging buffer is a fresh, specially allocated buffer
+						    .bufferRowLength   = 0,                                   // 0 means tightly packed
+						    .bufferImageHeight = 0,                                   // 0 means tightly packed
+						    .imageSubresource  = std::move( imageSubresourceLayers ), // stored inline
+						    .imageOffset =
+						        { .x = le_cmd->info.offset_x,
+						          .y = le_cmd->info.offset_y,
+						          .z = le_cmd->info.offset_z },
+						    .imageExtent =
+						        { .width  = le_cmd->info.image_w,
+						          .height = le_cmd->info.image_h,
+						          .depth  = le_cmd->info.image_d } };
+						;
 
-						cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region );
+						vkCmdCopyBufferToImage( cmd, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region );
 					}
 
 					if ( le_cmd->info.num_miplevels > 1 ) {
@@ -5184,20 +5423,34 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						const uint32_t base_miplevel = le_cmd->info.dst_miplevel;
 						{
-							vk::ImageMemoryBarrier2 prepareBlit;
-							prepareBlit
-							    .setSrcStageMask( vk::PipelineStageFlagBits2::eTransfer )
-							    .setDstStageMask( vk::PipelineStageFlagBits2::eTransfer )
-							    .setSrcAccessMask( vk::AccessFlagBits2::eTransferWrite ) // make transfer write memory available (flush) to layout transition
-							    .setDstAccessMask( vk::AccessFlagBits2::eTransferRead )  // make cache (after layout transition) visible to transferRead op
-							    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )    // layout transition from transfer dst optimal
-							    .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )    // to shader readonly optimal - note: implicitly makes memory available
-							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-							    .setImage( dstImage )
-							    .setSubresourceRange( { vk::ImageAspectFlagBits::eColor, base_miplevel, 1, 0, 1 } );
+							VkImageMemoryBarrier2 prepareBlit{
+							    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+							    .pNext               = nullptr,                              // optional
+							    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // optional
+							    .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // make transfer write memory available (flush) to layout transition
+							    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // optional
+							    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make cache (after layout transition) visible to transferRead op
+							    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // layout transition from transfer dst optimal,
+							    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
+							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+							    .image               = 0,
+							    .subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
+							};
 
-							cmd.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( prepareBlit ) );
+							VkDependencyInfo dependency_info{
+							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+							    .pNext                    = nullptr, // optional
+							    .dependencyFlags          = 0,       // optional
+							    .memoryBarrierCount       = 0,       // optional
+							    .pMemoryBarriers          = 0,
+							    .bufferMemoryBarrierCount = 0, // optional
+							    .pBufferMemoryBarriers    = 0,
+							    .imageMemoryBarrierCount  = 1, // optional
+							    .pImageMemoryBarriers     = &prepareBlit,
+							};
+
+							vkCmdPipelineBarrier2( cmd, &dependency_info );
 						}
 						// Now blit from the srcMipLevel to dstMipLevel
 
@@ -5214,42 +5467,57 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							auto dstImgWidth  = srcImgWidth > 2 ? srcImgWidth >> 1 : 1;
 							auto dstImgHeight = srcImgHeight > 2 ? srcImgHeight >> 1 : 1;
 
-							vk::ImageSubresourceRange rangeSrcMipLevel( vk::ImageAspectFlagBits::eColor, srcMipLevel, 1, 0, 1 );
-							vk::ImageSubresourceRange rangeDstMipLevel( vk::ImageAspectFlagBits::eColor, dstMipLevel, 1, 0, 1 );
+							VkImageSubresourceRange rangeSrcMipLevel{ VK_IMAGE_ASPECT_COLOR_BIT, srcMipLevel, 1, 0, 1 }; // FIXME : why is this unused?
+							VkImageSubresourceRange rangeDstMipLevel{ VK_IMAGE_ASPECT_COLOR_BIT, dstMipLevel, 1, 0, 1 };
 
-							vk::ImageBlit region;
+							VkOffset3D  offsetZero = { 0, 0, 0 };
+							VkOffset3D  offsetSrc  = { srcImgWidth, srcImgHeight, 1 };
+							VkOffset3D  offsetDst  = { dstImgWidth, dstImgHeight, 1 };
+							VkImageBlit region{
+							    .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, srcMipLevel, 0, 1 },
+							    .srcOffsets     = { offsetZero, offsetSrc },
+							    .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, dstMipLevel, 0, 1 },
+							    .dstOffsets     = { offsetZero, offsetDst },
+							};
 
-							vk::Offset3D offsetZero = { 0, 0, 0 };
-							vk::Offset3D offsetSrc  = { srcImgWidth, srcImgHeight, 1 };
-							vk::Offset3D offsetDst  = { dstImgWidth, dstImgHeight, 1 };
-							region
-							    .setSrcSubresource( { vk::ImageAspectFlagBits::eColor, srcMipLevel, 0, 1 } )
-							    .setDstSubresource( { vk::ImageAspectFlagBits::eColor, dstMipLevel, 0, 1 } )
-							    .setSrcOffsets( { offsetZero, offsetSrc } )
-							    .setDstOffsets( { offsetZero, offsetDst } )
-							    //
-							    ;
-
-							cmd.blitImage( dstImage, vk::ImageLayout::eTransferSrcOptimal, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region, vk::Filter::eLinear );
+							vkCmdBlitImage(
+							    cmd,
+							    dstImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+							    dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							    1, &region, VK_FILTER_LINEAR );
 
 							// Now we barrier Read after Write, and transition our freshly blitted subresource to transferSrc,
 							// so that the next iteration may read from it.
 
 							{
-								vk::ImageMemoryBarrier2 finishBlit;
-								finishBlit
-								    .setSrcStageMask( vk::PipelineStageFlagBits2::eTransfer ) // wait on transfer op
-								    .setDstStageMask( vk::PipelineStageFlagBits2::eTransfer ) // before next transfer op
-								    .setSrcAccessMask( vk::AccessFlagBits2::eTransferWrite )  // flush transfer writes so that memory becomes available to layout transition
-								    .setDstAccessMask( vk::AccessFlagBits2::eTransferRead )   // make transitioned image visible to subsequent transfer read ops
-								    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )     // transition from transfer dst optimal
-								    .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )     // to shader readonly optimal
-								    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-								    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-								    .setImage( dstImage )
-								    .setSubresourceRange( rangeDstMipLevel );
+								VkImageMemoryBarrier2 finishBlit{
+								    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+								    .pNext               = nullptr,                              // optional
+								    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // wait on transfer op
+								    .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // flush transfer writes so that memory becomes available to layout transition
+								    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // before next transfer op
+								    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make transitioned image visible to subsequent transfer read ops
+								    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // transition from transfer dst optimal
+								    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal
+								    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+								    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+								    .image               = dstImage,
+								    .subresourceRange    = rangeDstMipLevel,
+								};
 
-								cmd.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( finishBlit ) );
+								VkDependencyInfo dependency_info{
+								    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+								    .pNext                    = nullptr, // optional
+								    .dependencyFlags          = 0,       // optional
+								    .memoryBarrierCount       = 0,       // optional
+								    .pMemoryBarriers          = 0,
+								    .bufferMemoryBarrierCount = 0, // optional
+								    .pBufferMemoryBarriers    = 0,
+								    .imageMemoryBarrierCount  = 1, // optional
+								    .pImageMemoryBarriers     = &finishBlit,
+								};
+
+								vkCmdPipelineBarrier2( cmd, &dependency_info );
 							}
 
 							// Store this miplevel image's dimensions for next iteration
@@ -5262,43 +5530,60 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					// Transition image from transfer src optimal to shader read only optimal layout
 
 					{
-						vk::ImageMemoryBarrier2 imageLayoutToShaderReadOptimal;
+						VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
+						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+						    .pNext               = nullptr, // optional
+						    .srcStageMask        = 0,       // optional
+						    .srcAccessMask       = 0,       // optional
+						    .dstStageMask        = 0,       // optional
+						    .dstAccessMask       = 0,       // optional
+						    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+						    .newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						    .image               = dstImage,
+						    .subresourceRange    = rangeAllRemainingMiplevels,
+						};
+						;
 
 						if ( le_cmd->info.num_miplevels > 1 ) {
 
 							// If there were additional miplevels, the miplevel generation logic ensures that all subresources
 							// are left in transfer_src layout.
 
-							imageLayoutToShaderReadOptimal
-							    .setSrcStageMask( vk::PipelineStageFlagBits2::eTransfer )       // anything in transfer must happen-before
-							    .setDstStageMask( vk::PipelineStageFlagBits2::eFragmentShader ) // anything that fragment shader does
-							    .setSrcAccessMask( {} )                                         // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
-							    .setDstAccessMask( vk::AccessFlagBits2::eShaderRead )           // make layout transitioned image visible to shader read in FragmentShader stage
-							    .setOldLayout( vk::ImageLayout::eTransferSrcOptimal )           // transition from transfer src optimal
-							    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal )        // ...to shader readonly optimal (and make transitioned image available)
-							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-							    .setImage( dstImage )
-							    .setSubresourceRange( rangeAllRemainingMiplevels );
+							imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
+							imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything that fragment shader does
+							imageLayoutToShaderReadOptimal.srcAccessMask = {};                                       // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
+							imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make layout transitioned image visible to shader read in FragmentShader stage
+							imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;     // transition from transfer src optimal
+							imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ...to shader readonly optimal =and make transitioned image available;
 						} else {
 
 							// If there are no additional miplevels, the single subresource will still be in
 							// transfer_dst layout after pixel data was uploaded to it.
 
-							imageLayoutToShaderReadOptimal
-							    .setSrcStageMask( vk::PipelineStageFlagBits2::eTransfer )       // anything in transfer must happen-before
-							    .setDstStageMask( vk::PipelineStageFlagBits2::eFragmentShader ) // anything in fragment shader
-							    .setSrcAccessMask( vk::AccessFlagBits2::eTransferWrite )        // make available what is in transferwrite - image layout transition will need it
-							    .setDstAccessMask( vk::AccessFlagBits2::eShaderRead )           // make visible the result of the image layout transition to shader read in FragmentShader stage
-							    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )           // transition the single one subresource , which is in transfer dst optimal...
-							    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal )        // ... to shader readonly optimal (and make the transitioned image available)
-							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-							    .setImage( dstImage )
-							    .setSubresourceRange( rangeAllRemainingMiplevels );
+							imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
+							imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything in fragment shader
+							imageLayoutToShaderReadOptimal.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;           // make available what is in transferwrite - image layout transition will need it
+							imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make visible the result of the image layout transition to shader read in FragmentShader stage
+							imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;     // transition the single one subresource , which is in transfer dst optimal...
+							imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ... to shader readonly optimal =and make the transitioned image available;
+							;
 						}
 
-						cmd.pipelineBarrier2( vk::DependencyInfo().setImageMemoryBarriers( imageLayoutToShaderReadOptimal ) ); // images: prepare for shader read
+						VkDependencyInfo dependency_info{
+						    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+						    .pNext                    = nullptr, // optional
+						    .dependencyFlags          = 0,       // optional
+						    .memoryBarrierCount       = 0,       // optional
+						    .pMemoryBarriers          = 0,
+						    .bufferMemoryBarrierCount = 0, // optional
+						    .pBufferMemoryBarriers    = 0,
+						    .imageMemoryBarrierCount  = 1, // optional
+						    .pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
+						};
+
+						vkCmdPipelineBarrier2( cmd, &dependency_info ); // images: prepare for shader read
 					}
 
 					break;
@@ -5320,50 +5605,50 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						VkAccelerationStructureKHR vk_acceleration_structure = allocated_resource.as.blas;
 						auto                       blas_info                 = reinterpret_cast<le_rtx_blas_info_o*>( allocated_resource.info.blasInfo.handle );
 
-						// Translate geometry info from internal format to vk::geometryKHR format.
+						// Translate geometry info from internal format toVkgeometryKHR format.
 						// We do this for each blas, which in turn may have an array of geometries.
 
-						std::vector<vk::AccelerationStructureGeometryKHR> geometries;
+						std::vector<VkAccelerationStructureGeometryKHR> geometries;
 						geometries.reserve( blas_info->geometries.size() );
 
-						std::vector<vk::AccelerationStructureBuildRangeInfoKHR> build_ranges;
+						std::vector<VkAccelerationStructureBuildRangeInfoKHR> build_ranges;
 						build_ranges.reserve( blas_info->geometries.size() );
 
 						for ( auto const& g : blas_info->geometries ) {
 
 							// TODO: we may want to cache this - so that we don't have to lookup addresses more than once
 
-							vk::Buffer vertex_buffer = frame_data_get_buffer_from_le_resource_id( frame, g.vertex_buffer );
-							vk::Buffer index_buffer  = frame_data_get_buffer_from_le_resource_id( frame, g.index_buffer );
+							VkBuffer vertex_buffer = frame_data_get_buffer_from_le_resource_id( frame, g.vertex_buffer );
+							VkBuffer index_buffer  = frame_data_get_buffer_from_le_resource_id( frame, g.index_buffer );
 
-							vk::DeviceOrHostAddressConstKHR vertex_addr =
+							VkDeviceOrHostAddressConstKHR vertex_addr =
 							    device.getBufferAddress( { vertex_buffer } ) + g.vertex_offset;
 
-							vk::DeviceOrHostAddressConstKHR index_addr =
+							VkDeviceOrHostAddressConstKHR index_addr =
 							    g.index_count
 							        ? device.getBufferAddress( { index_buffer } ) + g.index_offset
 							        : 0;
 
-							vk::AccelerationStructureGeometryTrianglesDataKHR triangles_data{};
+							VkAccelerationStructureGeometryTrianglesDataKHR triangles_data{};
 							triangles_data
-							    .setVertexFormat( static_cast<vk::Format>( g.vertex_format ) )
+							    .setVertexFormat( static_cast<VkFormat>( g.vertex_format ) )
 							    .setVertexData( vertex_addr )
 							    .setMaxVertex( g.vertex_count - 1 ) // highest index of a vertex that will be accessed via build command
 							    .setVertexStride( g.vertex_stride )
-							    .setIndexType( static_cast<vk::IndexType>( g.index_type ) )
+							    .setIndexType( static_cast<VkIndexType>( g.index_type ) )
 							    .setIndexData( index_addr )
 							    .setTransformData( {} ) // no transform data
 							    ;
 
-							vk::AccelerationStructureGeometryKHR geometry{};
+							VkAccelerationStructureGeometryKHR geometry{};
 							geometry
-							    .setFlags( vk::GeometryFlagBitsKHR::eOpaque )
-							    .setGeometryType( vk::GeometryTypeKHR::eTriangles )
+							    .setFlags( VkGeometryFlagBitsKHR::eOpaque )
+							    .setGeometryType( VkGeometryTypeKHR::eTriangles )
 							    .setGeometry( { triangles_data } );
 
 							geometries.emplace_back( geometry );
 
-							vk::AccelerationStructureBuildRangeInfoKHR build_range{};
+							VkAccelerationStructureBuildRangeInfoKHR build_range{};
 							if ( g.index_count ) {
 								// indexed geometry
 								build_range
@@ -5382,16 +5667,16 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							build_ranges.emplace_back( build_range );
 						}
 
-						vk::AccelerationStructureBuildRangeInfoKHR const* pBuildRangeInfos = build_ranges.data();
+						VkAccelerationStructureBuildRangeInfoKHR const* pBuildRangeInfos = build_ranges.data();
 
-						vk::DeviceOrHostAddressKHR scratchData;
+						VkDeviceOrHostAddressKHR scratchData;
 						//  We get the device address by querying from the buffer.
 						scratchData = device.getBufferAddress( { scratchBuffer } );
 
-						vk::AccelerationStructureBuildGeometryInfoKHR info;
+						VkAccelerationStructureBuildGeometryInfoKHR info;
 						info
-						    .setMode( vk::BuildAccelerationStructureModeKHR::eBuild )
-						    .setType( vk::AccelerationStructureTypeKHR::eBottomLevel )
+						    .setMode( VkBuildAccelerationStructureModeKHR::eBuild )
+						    .setType( VkAccelerationStructureTypeKHR::eBottomLevel )
 						    .setFlags( blas_info->flags )
 						    .setSrcAccelerationStructure( nullptr )
 						    .setDstAccelerationStructure( vk_acceleration_structure )
@@ -5405,11 +5690,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// is finished before starting the next one
 
 						{
-							vk::MemoryBarrier2 barrier(
-							    vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR, vk::AccessFlagBits2::eAccelerationStructureWriteKHR,  // all writes must be visible ...
-							    vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR, vk::AccessFlagBits2::eAccelerationStructureReadKHR ); // ... before the next read happens,
+							VkMemoryBarrier2 barrier(
+							    VkPipelineStageAccelerationStructureBuildKHR, VkAccessAccelerationStructureWriteKHR,  // all writes must be visible ...
+							    VkPipelineStageAccelerationStructureBuildKHR, VkAccessAccelerationStructureReadKHR ); // ... before the next read happens,
 
-							cmd.pipelineBarrier2( vk::DependencyInfo().setMemoryBarriers( barrier ) );
+							cmd.pipelineBarrier2( VkDependencyInfo().setMemoryBarriers( barrier ) );
 						}
 
 					} // end for each blas element in array
@@ -5448,10 +5733,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					// before building top-level acceleration structure
 
 					{
-						vk::MemoryBarrier2 barrier( vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,                                        //  Writes from transfer ...
-						                            vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR, vk::AccessFlagBits2::eAccelerationStructureWriteKHR ); // must be visible for accelerationStructureBuild stage ... before we can write to acceleration structures,
+						VkMemoryBarrier2 barrier( VkPipelineStageTransfer, VkAccessTransferWrite,                                        //  Writes from transfer ...
+						                          VkPipelineStageAccelerationStructureBuildKHR, VkAccessAccelerationStructureWriteKHR ); // must be visible for accelerationStructureBuild stage ... before we can write to acceleration structures,
 
-						cmd.pipelineBarrier2( vk::DependencyInfo().setMemoryBarriers( barrier ) );
+						cmd.pipelineBarrier2( VkDependencyInfo().setMemoryBarriers( barrier ) );
 					}
 
 					// instances information is encoded via buffer, but that buffer is also available as host memory,
@@ -5459,33 +5744,33 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id );
 					VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
 
-					vk::DeviceOrHostAddressConstKHR instanceBufferDeviceAddress =
+					VkDeviceOrHostAddressConstKHR instanceBufferDeviceAddress =
 					    device.getBufferAddress( { instanceBuffer } ) + le_cmd->info.staging_buffer_offset;
 
-					vk::AccelerationStructureGeometryKHR khr_instances_data;
-					khr_instances_data.setGeometryType( vk::GeometryTypeKHR::eInstances );
-					khr_instances_data.setFlags( vk::GeometryFlagBitsKHR::eOpaque );
-					khr_instances_data.geometry           = vk::AccelerationStructureGeometryDataKHR{};
-					khr_instances_data.geometry.instances = vk::AccelerationStructureGeometryInstancesDataKHR{};
+					VkAccelerationStructureGeometryKHR khr_instances_data;
+					khr_instances_data.setGeometryType( VkGeometryTypeKHR::eInstances );
+					khr_instances_data.setFlags( VkGeometryFlagBitsKHR::eOpaque );
+					khr_instances_data.geometry           = VkAccelerationStructureGeometryDataKHR{};
+					khr_instances_data.geometry.instances = VkAccelerationStructureGeometryInstancesDataKHR{};
 					khr_instances_data.geometry.instances.setArrayOfPointers( false );
 					khr_instances_data.geometry.instances.setData( instanceBufferDeviceAddress );
 
 					// Take pointer to array of khr_instances - we will need one further indirection because reasons.
 
 					//  we get the device address by querying from the buffer.
-					vk::DeviceOrHostAddressKHR scratchData =
+					VkDeviceOrHostAddressKHR scratchData =
 					    device.getBufferAddress( { scratchBuffer } );
 
-					vk::AccelerationStructureBuildGeometryInfoKHR info{};
-					info.setType( vk::AccelerationStructureTypeKHR::eTopLevel )
+					VkAccelerationStructureBuildGeometryInfoKHR info{};
+					info.setType( VkAccelerationStructureTypeKHR::eTopLevel )
 					    .setFlags( tlas_info->flags )
 					    .setSrcAccelerationStructure( {} )
-					    .setMode( vk::BuildAccelerationStructureModeKHR::eBuild )
+					    .setMode( VkBuildAccelerationStructureModeKHR::eBuild )
 					    .setDstAccelerationStructure( vk_acceleration_structure )
 					    .setGeometries( khr_instances_data )
 					    .setScratchData( scratchData );
 
-					vk::AccelerationStructureBuildRangeInfoKHR buildOffsets{};
+					VkAccelerationStructureBuildRangeInfoKHR buildOffsets{};
 					buildOffsets
 					    .setPrimitiveCount( tlas_info->instances_count ) // This is where we set the number of instances.
 					    .setPrimitiveOffset( 0 )                         // spec states: must be a multiple of 16?!!
@@ -5514,14 +5799,14 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 		// non-draw passes don't need renderpasses.
 		if ( pass.type == le::RenderPassType::eDraw && pass.renderPass ) {
-			cmd.endRenderPass();
+			vkCmdEndRenderPass( cmd );
 		}
 
 		if ( should_insert_debug_labels ) {
-			cmd.endDebugUtilsLabelEXT();
+			vkCmdEndDebugUtilsLabelEXT( cmd );
 		}
 
-		cmd.end();
+		vkEndCommandBuffer( cmd );
 	}
 
 	// place command buffer in frame store so that it can be submitted.
@@ -5577,53 +5862,64 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	auto& frame = self->mFrames[ frameIndex ];
 
-	std::vector<vk::SemaphoreSubmitInfo> present_complete_semaphore_submit_infos;
-	std::vector<vk::SemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
+	std::vector<VkSemaphoreSubmitInfo> present_complete_semaphore_submit_infos;
+	std::vector<VkSemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
 
 	present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 
 	for ( auto const& swp : frame.swapchain_state ) {
-		present_complete_semaphore_submit_infos.emplace_back(
-		    vk::SemaphoreSubmitInfo()
-		        .setSemaphore( swp.presentComplete )
-		        .setDeviceIndex( 0 )                                                // replaces vkDeviceGroupSubmitInfo
-		        .setStageMask( vk::PipelineStageFlagBits2::eColorAttachmentOutput ) // ? signal semaphore once ColorAttachmentOutput has completed
-		        .setValue( 1 )                                                      //
-		);
-		render_complete_semaphore_submit_infos.emplace_back(
-		    vk::SemaphoreSubmitInfo()
-		        .setSemaphore( swp.renderComplete )
-		        .setDeviceIndex( 0 )                                      // replaces vkDeviceGroupSubmitInfo
-		        .setStageMask( vk::PipelineStageFlagBits2::eAllCommands ) // ? signal semaphore once all commands have been processed
-		        .setValue( 2 )                                            //
-		);
+		present_complete_semaphore_submit_infos.push_back(
+		    {
+		        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+		        .pNext       = nullptr, // optional
+		        .semaphore   = swp.presentComplete,
+		        .value       = 1,
+		        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // ? signal semaphore once ColorAttachmentOutput has completed
+		        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
+		    } );
+		render_complete_semaphore_submit_infos.push_back(
+		    {
+		        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+		        .pNext       = nullptr, // optional
+		        .semaphore   = swp.renderComplete,
+		        .value       = 2,
+		        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // ? signal semaphore once all commands have been processed
+		        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
+		    } );
 	}
 
-	std::vector<vk::CommandBufferSubmitInfo> command_buffer_submit_infos;
+	std::vector<VkCommandBufferSubmitInfo> command_buffer_submit_infos;
 	command_buffer_submit_infos.reserve( frame.commandBuffers.size() );
 
 	for ( auto const& c : frame.commandBuffers ) {
-		command_buffer_submit_infos.emplace_back(
-		    vk::CommandBufferSubmitInfo()
-		        .setCommandBuffer( c )
-		        .setDeviceMask( 0 ) // replaces vkDeviceGroupSubmitInfo
-		);
+		command_buffer_submit_infos.push_back(
+		    {
+		        .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+		        .pNext         = nullptr, // optional
+		        .commandBuffer = c,
+		        .deviceMask    = 0, // replaces vkDeviceGroupSubmitInfo
+		    } );
 	}
 
-	vk::CommandBufferSubmitInfo si;
+	VkCommandBufferSubmitInfo si;
 	// we need one submit info for each command.
 
-	vk::SubmitInfo2 submitInfo;
-	submitInfo
-	    .setWaitSemaphoreInfos( present_complete_semaphore_submit_infos )
-	    .setCommandBufferInfos( command_buffer_submit_infos )
-	    .setSignalSemaphoreInfos( render_complete_semaphore_submit_infos ) //
-	    ;
+	VkSubmitInfo2 submitInfo{
+	    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+	    .pNext                    = nullptr,
+	    .flags                    = 0,
+	    .waitSemaphoreInfoCount   = uint32_t( present_complete_semaphore_submit_infos.size() ),
+	    .pWaitSemaphoreInfos      = present_complete_semaphore_submit_infos.data(),
+	    .commandBufferInfoCount   = uint32_t( command_buffer_submit_infos.size() ),
+	    .pCommandBufferInfos      = command_buffer_submit_infos.data(),
+	    .signalSemaphoreInfoCount = uint32_t( render_complete_semaphore_submit_infos.size() ),
+	    .pSignalSemaphoreInfos    = render_complete_semaphore_submit_infos.data(),
+	};
 
-	auto queue = vk::Queue{ self->device->getDefaultGraphicsQueue() };
+	auto queue = VkQueue{ self->device->getDefaultGraphicsQueue() };
 
-	queue.submit2( { submitInfo }, frame.frameFence );
+	vkQueueSubmit2( queue, 1, &submitInfo, frame.frameFence );
 
 	using namespace le_swapchain_vk;
 
@@ -5657,7 +5953,7 @@ le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx
 
 	// Store requested flags, but if no build flags requested, at least set the
 	// allowUpdate flag so that primitive geometry may be updated.
-	blas_info->flags = flags ? static_cast<vk::BuildAccelerationStructureFlagsKHR>( flags ) : vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
+	blas_info->flags = flags ? static_cast<VkBuildAccelerationStructureFlagsKHR>( flags ) : VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
 	self->rtx_blas_info_kill_list.add_element( blas_info );
@@ -5678,8 +5974,8 @@ le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32
 	// allowUpdate flag so that instance information such as transforms may be set.
 	tlas_info->flags =
 	    flags
-	        ? static_cast<vk::BuildAccelerationStructureFlagsKHR>( flags )
-	        : vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
+	        ? static_cast<VkBuildAccelerationStructureFlagsKHR>( flags )
+	        : VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
 	self->rtx_tlas_info_kill_list.add_element( tlas_info );
