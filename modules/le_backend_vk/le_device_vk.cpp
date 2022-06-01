@@ -179,17 +179,25 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 		    .properties = {},
 		};
 
-		self->properties.vk_11_physical_device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES;
-		self->properties.vk_11_physical_device_properties.pNext = &self->properties.vk_12_physical_device_properties;
+		self->properties.vk_11_physical_device_properties = {
+		    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES,
+		    .pNext = &self->properties.vk_12_physical_device_properties,
+		};
 
-		self->properties.vk_12_physical_device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
-		self->properties.vk_12_physical_device_properties.pNext = &self->properties.vk_13_physical_device_properties;
+		self->properties.vk_12_physical_device_properties = {
+		    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES,
+		    .pNext = &self->properties.vk_13_physical_device_properties,
+		};
 
-		self->properties.vk_13_physical_device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES;
-		self->properties.vk_13_physical_device_properties.pNext = &self->properties.raytracing_properties;
+		self->properties.vk_13_physical_device_properties = {
+		    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES,
+		    .pNext = &self->properties.raytracing_properties,
+		};
 
-		self->properties.raytracing_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
-		self->properties.raytracing_properties.pNext = nullptr;
+		self->properties.raytracing_properties = {
+		    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR,
+		    .pNext = nullptr,
+		};
 
 		self->properties.memory_properties = {
 		    .sType            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
@@ -230,20 +238,21 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 
 	logger.info( "Selected GPU: %s", self->properties.device_properties.properties.deviceName );
 
-	// let's find out the devices' memory properties
+	// Let's find out the devices' memory properties
 	vkGetPhysicalDeviceMemoryProperties2( self->vkPhysicalDevice, &self->properties.memory_properties );
 
-	uint32_t numQueueFamilyProperties = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties2( self->vkPhysicalDevice, &numQueueFamilyProperties, nullptr );
 	{
-		self->properties.queue_family_properties.resize( numQueueFamilyProperties,
-		                                                 {
-		                                                     .sType                 = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
-		                                                     .pNext                 = nullptr, // optional
-		                                                     .queueFamilyProperties = {},
-		                                                 } );
+		uint32_t numQueueFamilyProperties = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties2( self->vkPhysicalDevice, &numQueueFamilyProperties, nullptr );
+		self->properties.queue_family_properties.resize(
+		    numQueueFamilyProperties,
+		    {
+		        .sType                 = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
+		        .pNext                 = nullptr, // optional
+		        .queueFamilyProperties = {},
+		    } );
+		vkGetPhysicalDeviceQueueFamilyProperties2( self->vkPhysicalDevice, &numQueueFamilyProperties, self->properties.queue_family_properties.data() );
 	}
-	vkGetPhysicalDeviceQueueFamilyProperties2( self->vkPhysicalDevice, &numQueueFamilyProperties, self->properties.queue_family_properties.data() );
 
 	const auto& queueFamilyProperties = self->properties.queue_family_properties;
 	// See findBestMatchForRequestedQueues for how this tuple is laid out.
@@ -318,15 +327,15 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 
 	VkDeviceCreateInfo deviceCreateInfo = {
 	    .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-	    .pNext                   = features, // optional
-	    .flags                   = 0,        // optional
+	    .pNext                   = features, // this contains the features chain from settings
+	    .flags                   = 0,
 	    .queueCreateInfoCount    = uint32_t( device_queue_creation_infos.size() ),
 	    .pQueueCreateInfos       = device_queue_creation_infos.data(),
-	    .enabledLayerCount       = 0, // optional
+	    .enabledLayerCount       = 0,
 	    .ppEnabledLayerNames     = 0,
-	    .enabledExtensionCount   = uint32_t( enabledDeviceExtensionNames.size() ), // optional
+	    .enabledExtensionCount   = uint32_t( enabledDeviceExtensionNames.size() ),
 	    .ppEnabledExtensionNames = enabledDeviceExtensionNames.data(),
-	    .pEnabledFeatures        = 0, // optional
+	    .pEnabledFeatures        = nullptr, // must be nullptr, as we're using pNext for the features chain
 	};
 
 	// Create device
