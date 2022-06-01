@@ -5467,12 +5467,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							auto dstImgWidth  = srcImgWidth > 2 ? srcImgWidth >> 1 : 1;
 							auto dstImgHeight = srcImgHeight > 2 ? srcImgHeight >> 1 : 1;
 
-							VkImageSubresourceRange rangeSrcMipLevel{ VK_IMAGE_ASPECT_COLOR_BIT, srcMipLevel, 1, 0, 1 }; // FIXME : why is this unused?
-							VkImageSubresourceRange rangeDstMipLevel{ VK_IMAGE_ASPECT_COLOR_BIT, dstMipLevel, 1, 0, 1 };
-
-							VkOffset3D  offsetZero = { 0, 0, 0 };
-							VkOffset3D  offsetSrc  = { srcImgWidth, srcImgHeight, 1 };
-							VkOffset3D  offsetDst  = { dstImgWidth, dstImgHeight, 1 };
+							VkOffset3D  offsetZero = { .x = 0, .y = 0, .z = 0 };
+							VkOffset3D  offsetSrc  = { .x = srcImgWidth, .y = srcImgHeight, .z = 1 };
+							VkOffset3D  offsetDst  = { .x = dstImgWidth, .y = dstImgHeight, .z = 1 };
 							VkImageBlit region{
 							    .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, srcMipLevel, 0, 1 },
 							    .srcOffsets     = { offsetZero, offsetSrc },
@@ -5502,7 +5499,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 								    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 								    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 								    .image               = dstImage,
-								    .subresourceRange    = rangeDstMipLevel,
+								    .subresourceRange    = {
+								           .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+								           .baseMipLevel   = dstMipLevel,
+								           .levelCount     = 1,
+								           .baseArrayLayer = 0,
+								           .layerCount     = 1,
+                                    },
 								};
 
 								VkDependencyInfo dependency_info{
