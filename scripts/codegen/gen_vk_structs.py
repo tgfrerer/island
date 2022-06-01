@@ -2,9 +2,8 @@
 
 import sys
 import argparse
-import ipdb
 
-parser = argparse.ArgumentParser(description='Generate enum code mirroring given vulkan enums')
+parser = argparse.ArgumentParser(description='Generate Vulkan struct templates mirroring given vulkan enums')
 parser.add_argument("--vk_path", default="/usr/share/vulkan/registry", help='absolute path to vulkan registry')
 
 args = parser.parse_args()
@@ -15,32 +14,9 @@ vk_registry_path = args.vk_path
 sys.path.append(vk_registry_path)
 
 from reg import Registry
-from generator import OutputGenerator, GeneratorOptions, write
 
 reg = Registry()
 reg.loadFile(vk_registry_path + "/vk.xml")
-
-og = OutputGenerator()
-og.diagFile = open("/tmp/diagfile.txt", "w")
-
-
-def atoi(text):
-    # we convert every enum value to a textual representation. For numbers, we
-    # make sure that the value is a 16 digit hex representation. By using this
-    # uniform representation, we ensure human sorting, i.e. 0x03 comes before 0x10,
-    # whereas otherwise there was a risk of `0x10` being alphabetically sorted
-    # ahead of `0x3`
-    return format(int(text), '016x') if text.isdigit() else text
-
-
-def to_titled_camel_case(snake_str):
-    components = snake_str.split('_')
-    # We capitalize the first letter of each component.
-    # for the terms: 1D, 2D, 3D, 4D number-and-letter combination
-    # python's `title` method does the right thing automatically
-    # but we might want to preserve capitalisation for anything NV,
-    return ''.join(x.title() for x in components)
-
 
 def generate_struct(struct_name):
 
