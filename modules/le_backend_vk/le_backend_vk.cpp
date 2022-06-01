@@ -3653,7 +3653,6 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					    .subresourceRange = subresourceRange,
 					};
 
-					VkImageView imageView = nullptr;
 					vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
 
 					// Store vk object references with frame-owned resources, so that
@@ -3690,8 +3689,6 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
 					    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
 					};
-
-					VkSampler sampler = nullptr;
 
 					vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler );
 					// Now store vk object references with frame-owned resources, so that
