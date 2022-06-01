@@ -28,6 +28,7 @@
 static constexpr auto LOGGER_LABEL = "le_backend";
 
 #include "le_backend_vk_settings.inl"
+#include "private/le_backend_vk/vk_to_str_helpers.inl"
 
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
@@ -1868,15 +1869,14 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			};
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-				// FIXME: add debug messages back in
-				//				logger.info( " %38s@%d : %30s → %30s → %30s | sync chain indices: %4d : %4d : %4d",
-				//				             attachment->resource->data->debug_name, 1 << attachment->resource->data->num_samples,
-				//				             le::to_str( syncInitial.layout ),
-				//				             le::to_str( syncSubpass.layout ),
-				//				             le::to_str( syncFinal.layout ),
-				//				             attachment->initialStateOffset,
-				//				             attachment->initialStateOffset + 1,
-				//				             attachment->finalStateOffset );
+				logger.info( " %38s@%d : %30s → %30s → %30s | sync chain indices: %4d : %4d : %4d",
+				             attachment->resource->data->debug_name, 1 << attachment->resource->data->num_samples,
+				             to_str_vk_image_layout( syncInitial.layout ),
+				             to_str_vk_image_layout( syncSubpass.layout ),
+				             to_str_vk_image_layout( syncFinal.layout ),
+				             attachment->initialStateOffset,
+				             attachment->initialStateOffset + 1,
+				             attachment->finalStateOffset );
 			}
 
 			attachments.emplace_back( attachmentDescription );
@@ -1963,23 +1963,22 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		{
 			if ( PRINT_DEBUG_MESSAGES ) {
 
-				// FIXME: add these messages back in again
-				//				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName );
-				//				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", le::to_str( srcStageFromExternalFlags ) );
-				//				logger.info( "\t dstStage: %-40s anything in stage %1$s.", le::to_str( dstStageFromExternalFlags ) );
-				//				uint64_t( srcAccessFromExternalFlags )
-				//				    ? logger.info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", le::to_str( srcAccessFromExternalFlags ), le::to_str( srcStageFromExternalFlags ) )
-				//				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", le::to_str( srcAccessFromExternalFlags ) );
-				//				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", le::to_str( dstAccessFromExternalFlags ), le::to_str( dstStageFromExternalFlags ) );
+				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName );
+				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", to_string_vk_pipeline_stage_flags2( srcStageFromExternalFlags ).c_str() );
+				logger.info( "\t dstStage: %-40s anything in stage %1$s.", to_string_vk_pipeline_stage_flags2( dstStageFromExternalFlags ).c_str() );
+				uint64_t( srcAccessFromExternalFlags )
+				    ? logger.info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", to_string_vk_access_flags2( srcAccessFromExternalFlags ).c_str(), to_string_vk_pipeline_stage_flags2( srcStageFromExternalFlags ).c_str() )
+				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", to_string_vk_access_flags2( srcAccessFromExternalFlags ).c_str() );
+				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", to_string_vk_access_flags2( dstAccessFromExternalFlags ).c_str(), to_string_vk_pipeline_stage_flags2( dstStageFromExternalFlags ).c_str() );
 
-				//				logger.info( "Subpass Dependency: subpass `%s` to VK_SUBPASS_EXTERNAL:", pass.debugName );
-				//				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", le::to_str( srcStageToExternalFlags ) );
-				//				logger.info( "\t dstStage: %-40s anything in stage %1$s.", le::to_str( dstStageToExternalFlags ) );
-				//				uint64_t( srcAccessToExternalFlags )
-				//				    ? logger.info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", le::to_str( srcAccessToExternalFlags ), le::to_str( srcStageToExternalFlags ) )
-				//				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", le::to_str( srcAccessToExternalFlags ) );
-				//				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", le::to_str( dstAccessToExternalFlags ), le::to_str( dstStageToExternalFlags ) );
-				//				logger.info( "" );
+				logger.info( "Subpass Dependency: subpass `%s` to VK_SUBPASS_EXTERNAL:", pass.debugName );
+				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", to_string_vk_pipeline_stage_flags2( srcStageToExternalFlags ).c_str() );
+				logger.info( "\t dstStage: %-40s anything in stage %1$s.", to_string_vk_pipeline_stage_flags2( dstStageToExternalFlags ).c_str() );
+				uint64_t( srcAccessToExternalFlags )
+				    ? logger.info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", to_string_vk_access_flags2( srcAccessToExternalFlags ).c_str(), to_string_vk_pipeline_stage_flags2( srcStageToExternalFlags ).c_str() )
+				    : logger.info( "\tsrcAccess: %-40s No memory needs to be made available", to_string_vk_access_flags2( srcAccessToExternalFlags ).c_str() );
+				logger.info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", to_string_vk_access_flags2( dstAccessToExternalFlags ).c_str(), to_string_vk_pipeline_stage_flags2( dstStageToExternalFlags ).c_str() );
+				logger.info( "" );
 			}
 
 			memoryBarriers[ 0 ] = {
@@ -3111,42 +3110,40 @@ static void insert_msaa_versions(
 	usedResourcesInfos.insert( usedResourcesInfos.end(), msaa_resource_infos.begin(), msaa_resource_infos.end() );
 }
 
-// ----------------------------------------------------------------------
-
 static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info, const char* prefix = "" ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	// FIXME: add this back in
-	//	if ( info.isBuffer() ) {
-	//		logger.info( "%-15s : %-32s : %11d : %30s : %-30s", prefix, handle->data->debug_name, info.bufferInfo.size, "-", to_string( VkBufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
-	//	} else if ( info.isImage() ) {
-	//		logger.info( "%-15s : %-30s@%d : %dx%dx%d : %30s : %-30s",
-	//		             prefix,
-	//		             !( handle->data->debug_name[ 0 ] == '\0' )
-	//		                 ? handle->data->debug_name
-	//		             : handle->data->reference_handle
-	//		                 ? handle->data->reference_handle->data->debug_name
-	//		                 : "unnamed",
-	//		             uint32( info.imageInfo.samples ),
-	//		             info.imageInfo.extent.width,
-	//		             info.imageInfo.extent.height,
-	//		             info.imageInfo.extent.depth,
-	//		             to_string( VkFormat( info.imageInfo.format ) ).c_str(),
-	//		             to_string( VkImageUsageFlags( info.imageInfo.usage ) ).c_str() );
-	//	} else if ( info.isBlas() ) {
-	//		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
-	//		             prefix,
-	//		             handle->data->debug_name,
-	//		             info.blasInfo.buffer_size,
-	//		             info.blasInfo.scratch_buffer_size,
-	//		             "-" );
-	//	} else if ( info.isTlas() ) {
-	//		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
-	//		             prefix,
-	//		             handle->data->debug_name,
-	//		             info.tlasInfo.buffer_size,
-	//		             info.tlasInfo.scratch_buffer_size,
-	//		             "-" );
-	//	}
+	if ( info.isBuffer() ) {
+		logger.info( "%-15s : %-32s : %11d : %30s : %-30s", prefix, handle->data->debug_name, info.bufferInfo.size, "-",
+		             to_string_vk_buffer_usage_flags( info.bufferInfo.usage ).c_str() );
+	} else if ( info.isImage() ) {
+		logger.info( "%-15s : %-30s@%d : %dx%dx%d : %30s : %-30s",
+		             prefix,
+		             !( handle->data->debug_name[ 0 ] == '\0' )
+		                 ? handle->data->debug_name
+		             : handle->data->reference_handle
+		                 ? handle->data->reference_handle->data->debug_name
+		                 : "unnamed",
+		             uint32( info.imageInfo.samples ),
+		             info.imageInfo.extent.width,
+		             info.imageInfo.extent.height,
+		             info.imageInfo.extent.depth,
+		             to_str_vk_format( info.imageInfo.format ),
+		             to_string_vk_image_usage_flags( info.imageInfo.usage ).c_str() );
+	} else if ( info.isBlas() ) {
+		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
+		             prefix,
+		             handle->data->debug_name,
+		             info.blasInfo.buffer_size,
+		             info.blasInfo.scratch_buffer_size,
+		             "-" );
+	} else if ( info.isTlas() ) {
+		logger.info( "%-15s :%-32s : %11d : (%28d) : %-30s",
+		             prefix,
+		             handle->data->debug_name,
+		             info.tlasInfo.buffer_size,
+		             info.tlasInfo.scratch_buffer_size,
+		             "-" );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -3200,8 +3197,7 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 
 	auto vk_result_assert_success = []( VkResult const&& result ) {
 		if ( result != VK_SUCCESS ) {
-			// FIXME: to_str on vulkan return value
-			// logger.error( "Vulkan operation returned: '%s', but we expected VK_SUCCESS.", le::to_str( result ) );
+			logger.error( "Vulkan operation returned: '%s', but we expected VK_SUCCESS.", to_str_vk_result( result ) );
 		}
 		assert( result == VK_SUCCESS && "Vulkan operation must succeed" );
 	};
@@ -4384,11 +4380,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
 							auto const& s = syncChain[ i ];
-							// FIXME: add these debug printouts back in
-							//							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i,
-							//							              to_string( s.visible_access ).c_str(),
-							//							              to_string( s.stage ).c_str(),
-							//							              to_string( s.layout ).c_str() );
+							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i,
+							              to_string_vk_access_flags2( s.visible_access ).c_str(),
+							              to_string_vk_pipeline_stage_flags2( s.stage ).c_str(),
+							              to_str_vk_image_layout( s.layout ) );
 						}
 					}
 
@@ -5432,7 +5427,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
 							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .image               = dstImage, // FIXME: which image!!!
+							    .image               = dstImage,
 							    .subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
 							};
 
