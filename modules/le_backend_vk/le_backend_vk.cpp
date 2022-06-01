@@ -5432,19 +5432,19 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
 							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .image               = 0,
+							    .image               = dstImage, // FIXME: which image!!!
 							    .subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
 							};
 
 							VkDependencyInfo dependency_info{
 							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-							    .pNext                    = nullptr, // optional
-							    .dependencyFlags          = 0,       // optional
-							    .memoryBarrierCount       = 0,       // optional
+							    .pNext                    = nullptr,
+							    .dependencyFlags          = 0,
+							    .memoryBarrierCount       = 0,
 							    .pMemoryBarriers          = 0,
-							    .bufferMemoryBarrierCount = 0, // optional
+							    .bufferMemoryBarrierCount = 0,
 							    .pBufferMemoryBarriers    = 0,
-							    .imageMemoryBarrierCount  = 1, // optional
+							    .imageMemoryBarrierCount  = 1,
 							    .pImageMemoryBarriers     = &prepareBlit,
 							};
 
