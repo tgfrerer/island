@@ -21,6 +21,7 @@
 #include <mutex>
 #include <memory>
 #include <cstring> // for memcpy
+#include <array>
 
 #include <vulkan/vulkan.h>
 
