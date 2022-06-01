@@ -221,7 +221,7 @@ static bool pass_draw_setup( le_renderpass_o* pRp, void* user_data ) {
 
 	auto attachment_info =
 	    le::ImageAttachmentInfoBuilder()
-	        .setColorClearValue( { LeClearColorValue{ { 0, 0, 0, 255 } } } )
+	        .setColorClearValue( { le::ClearColorValue{ { 0, 0, 0, 255 } } } )
 	        .setLoadOp( le::AttachmentLoadOp::eClear )
 	        .build();
 	rp
