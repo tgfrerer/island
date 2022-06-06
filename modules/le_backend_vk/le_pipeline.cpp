@@ -1648,15 +1648,15 @@ static VkPipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager
 static VkRayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType const& tp ) {
 	// clang-format off
     switch(tp){
-	    case (le::RayTracingShaderGroupType::eTrianglesHitGroup  ) : return VkRayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
-	    case (le::RayTracingShaderGroupType::eProceduralHitGroup ) : return VkRayTracingShaderGroupTypeKHR::eProceduralHitGroup;
-	    case (le::RayTracingShaderGroupType::eRayGen             ) : return VkRayTracingShaderGroupTypeKHR::eGeneral;
-	    case (le::RayTracingShaderGroupType::eMiss               ) : return VkRayTracingShaderGroupTypeKHR::eGeneral;
-	    case (le::RayTracingShaderGroupType::eCallable           ) : return VkRayTracingShaderGroupTypeKHR::eGeneral; 
+	    case (le::RayTracingShaderGroupType::eTrianglesHitGroup  ) : return VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+	    case (le::RayTracingShaderGroupType::eProceduralHitGroup ) : return VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+	    case (le::RayTracingShaderGroupType::eRayGen             ) : return  VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	    case (le::RayTracingShaderGroupType::eMiss               ) : return  VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	    case (le::RayTracingShaderGroupType::eCallable           ) : return VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR; 
     }
 	// clang-format on
 	assert( false ); // unreachable
-	return VkRayTracingShaderGroupTypeKHR::eGeneral;
+	return VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
 }
 
 // ----------------------------------------------------------------------
@@ -1680,14 +1680,15 @@ static VkPipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o* 
 			rayGenModule = shader_stage;
 		}
 
-		VkPipelineShaderStageCreateInfo info{};
-		info
-		    .setFlags( {} )                    // must be 0 - "reserved for future use"
-		    .setStage( le_to_vk( s->stage ) )  //
-		    .setModule( s->module )            //
-		    .setPName( "main" )                //
-		    .setPSpecializationInfo( nullptr ) //
-		    ;
+		VkPipelineShaderStageCreateInfo info = {
+		    .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		    .pNext               = nullptr, // optional
+		    .flags               = 0,       // optional
+		    .stage               = le_to_vk( s->stage ),
+		    .module              = s->module,
+		    .pName               = "main",
+		    .pSpecializationInfo = nullptr,
+		};
 
 		pipelineStages.emplace_back( info );
 	}
@@ -1699,33 +1700,42 @@ static VkPipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o* 
 	// Fill in shading groups from pso->groups
 
 	for ( auto const& group : pso->shaderGroups ) {
-		VkRayTracingShaderGroupCreateInfoKHR info;
-		info
-		    .setType( le_to_vk( group.type ) )
-		    .setGeneralShader( group.generalShaderIdx )
-		    .setClosestHitShader( group.closestHitShaderIdx )
-		    .setAnyHitShader( group.anyHitShaderIdx )
-		    .setIntersectionShader( group.intersectionShaderIdx );
+		VkRayTracingShaderGroupCreateInfoKHR info = {
+		    .sType                           = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+		    .pNext                           = nullptr, // optional
+		    .type                            = le_to_vk( group.type ),
+		    .generalShader                   = group.generalShaderIdx,
+		    .closestHitShader                = group.closestHitShaderIdx,
+		    .anyHitShader                    = group.anyHitShaderIdx,
+		    .intersectionShader              = group.intersectionShaderIdx,
+		    .pShaderGroupCaptureReplayHandle = nullptr, // optional
+		};
+
 		shadingGroups.emplace_back( std::move( info ) );
 	}
 
-	VkRayTracingPipelineCreateInfoKHR create_info;
-	create_info
-	    .setFlags( {} )
-	    .setStageCount( uint32_t( pipelineStages.size() ) )
-	    .setPStages( pipelineStages.data() )
-	    .setGroupCount( uint32_t( shadingGroups.size() ) )
-	    .setPGroups( shadingGroups.data() )
-	    .setMaxPipelineRayRecursionDepth( 16 ) // FIXME: we should probably reduce this,
-	                                           // or expose it via the api, but definitely
-	                                           // limit it to hardware limit
-	    .setLayout( pipelineLayout )
-	    .setBasePipelineHandle( nullptr )
-	    .setBasePipelineIndex( 0 );
+	VkRayTracingPipelineCreateInfoKHR create_info = {
+	    .sType                        = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
+	    .pNext                        = nullptr,
+	    .flags                        = 0,
+	    .stageCount                   = uint32_t( pipelineStages.size() ),
+	    .pStages                      = pipelineStages.data(),
+	    .groupCount                   = uint32_t( shadingGroups.size() ),
+	    .pGroups                      = shadingGroups.data(),
+	    .maxPipelineRayRecursionDepth = 16, // fixme: this should be either exposed through the api - and limited by the hardware limit
+	    .pLibraryInfo                 = 0,
+	    .pLibraryInterface            = 0,
+	    .pDynamicState                = 0,
+	    .layout                       = pipelineLayout,
+	    .basePipelineHandle           = nullptr,
+	    .basePipelineIndex            = 0,
+	};
 
-	auto result = self->device.createRayTracingPipelineKHR( nullptr, self->vulkanCache, create_info );
-	assert( VkResult::eSuccess == result.result );
-	return result.value;
+	VkPipeline pipeline = nullptr;
+	auto       result   = vkCreateRayTracingPipelinesKHR( self->device, nullptr, self->vulkanCache, 1, &create_info, nullptr, &pipeline );
+
+	assert( VK_SUCCESS == result );
+	return pipeline;
 }
 #endif
 
@@ -2161,9 +2171,9 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			*maybe_shader_group_data = *g;
 		} else {
 			// If shader group data was not found, we must must query, and store it.
-			using namespace le_backend_vk;
-			VkPhysicalDeviceRayTracingPipelinePropertiesKHR props;
-			bool                                            result = vk_device_i.get_vk_physical_device_ray_tracing_properties( self->le_device, &props );
+			static VkPhysicalDeviceRayTracingPipelinePropertiesKHR props;
+
+			static bool result = le_backend_vk::vk_device_i.get_vk_physical_device_ray_tracing_properties( self->le_device, &props );
 			assert( result && "properties must be successfully acquired." );
 
 			size_t dataSize   = props.shaderGroupHandleSize * pso->shaderGroups.size();
@@ -2185,11 +2195,14 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 			{
 				// Retrieve shader group handles from GPU
-				auto success = self->device.getRayTracingShaderGroupHandlesKHR(
+
+				auto result = vkGetRayTracingShaderGroupHandlesKHR(
+				    self->device,
 				    pipeline_and_layout_info.pipeline,
 				    0, uint32_t( pso->shaderGroups.size() ),
 				    dataSize, handles + sizeof( LeShaderGroupDataHeader ) );
-				assert( success == VkResult::eSuccess );
+
+				assert( result == VK_SUCCESS );
 			}
 			self->rtx_shader_group_data.try_insert( pipeline_hash, &handles );
 

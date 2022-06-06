@@ -179,16 +179,9 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 #endif
 
 #ifdef LE_FEATURE_RTX
-	self->requested_device_features.get<VkPhysicalDeviceVulkan12Features>()
-	    .setBufferDeviceAddress( true ) // needed for rtx
-	    //	    .setBufferDeviceAddressCaptureReplay( true ) // needed for frame debuggers, when using bufferDeviceAddress
-	    ;
-
-	self->requested_device_features.get<VkPhysicalDeviceRayTracingPipelineFeaturesKHR>()
-	    .setRayTracingPipeline( true );
-
-	self->requested_device_features.get<VkPhysicalDeviceAccelerationStructureFeaturesKHR>()
-	    .setAccelerationStructure( true );
+	self->requested_device_features.vk_12.bufferDeviceAddress                    = true; // needed for rtx
+	self->requested_device_features.ray_tracing_pipeline.rayTracingPipeline      = true;
+	self->requested_device_features.acceleration_structure.accelerationStructure = true;
 
 	// request device extensions necessary for rtx
 	le_backend_vk_settings_add_required_device_extension( self, "VK_KHR_deferred_host_operations" );
