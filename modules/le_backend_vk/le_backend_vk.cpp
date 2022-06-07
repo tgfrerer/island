@@ -3245,13 +3245,6 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 
 	// --------| invariant utuls extension is available
 
-	auto vk_result_assert_success = []( VkResult const&& result ) {
-		if ( result != VK_SUCCESS ) {
-			logger.error( "Vulkan operation returned: '%s', but we expected VK_SUCCESS.", to_str_vk_result( result ) );
-		}
-		assert( result == VK_SUCCESS && "Vulkan operation must succeed" );
-	};
-
 	for ( auto const& r : resources ) {
 
 		auto device = VkDevice( device_ );
