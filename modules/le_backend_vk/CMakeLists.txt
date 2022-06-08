@@ -12,8 +12,7 @@ depends_on_island_module(le_renderer)
 
 # add_compile_definitions(VMA_USE_STL_CONTAINERS=1)
 
-add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
-add_compile_definitions(VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST)
+add_compile_definitions(SPIRV_REFLECT_USE_SYSTEM_SPIRV_H)
 
 
 set (SOURCES "le_backend_vk.cpp")
