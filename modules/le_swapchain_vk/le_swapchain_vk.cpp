@@ -1,16 +1,43 @@
 #include "le_swapchain_vk.h"
 #include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
 #include "private/le_renderer_types.h" // for swapchain_settings
+#include "le_backend_vk.h"
 #include "assert.h"
 // ----------------------------------------------------------------------
+#ifdef PLUGINS_DYNAMIC
+#	define VOLK_IMPLEMENTATION
+#endif
+#include "util/volk/volk.h"
 
 static void swapchain_reset( le_swapchain_o* self, const le_swapchain_settings_t* settings ) {
 	self->vtable.reset( self, settings );
 }
 
+void post_reload_hook( le_backend_o* backend ) {
+#ifdef PLUGINS_DYNAMIC
+	if ( backend ) {
+		VkResult result = volkInitialize();
+		assert( result == VK_SUCCESS && "must successfully initialize the vulkan loader in case we're loading this module as a library" );
+		auto       le_instance = le_backend_vk::private_backend_vk_i.get_instance( backend );
+		VkInstance instance    = le_backend_vk::vk_instance_i.get_vk_instance( le_instance );
+		volkLoadInstance( instance );
+		auto device = le_backend_vk::private_backend_vk_i.get_vk_device( backend );
+		volkLoadDevice( device );
+	}
+#endif
+}
+
 // ----------------------------------------------------------------------
 
 static le_swapchain_o* swapchain_create( le_swapchain_vk_api::swapchain_interface_t const& interface, le_backend_o* backend, const le_swapchain_settings_t* settings ) {
+
+	post_reload_hook( backend );
+
+#ifdef PLUGINS_DYNAMIC
+	// store the pointer to our current backend.
+	*le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_o" ) ) = backend;
+#endif
+
 	return interface.create( interface, backend, settings );
 }
 
@@ -121,7 +148,11 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	register_le_swapchain_direct_api( api );
 
 #ifdef PLUGINS_DYNAMIC
-	le_core_load_library_persistently( "libvulkan.so" );
-	le_core_load_library_persistently( "libX11.so" );
+	// in case we're running this as a dynamic module, we must patch all vulkan methods as soon as the module gets reloaded
+
+	auto backend_o = *le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_o" ) );
+	post_reload_hook( static_cast<le_backend_o*>( backend_o ) );
 #endif
+
+	le_core_load_library_persistently( "libX11.so" );
 }

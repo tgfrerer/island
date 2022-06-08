@@ -1,7 +1,8 @@
 #include "le_swapchain_vk.h"
 #include <cassert>
-#include <vulkan/vulkan.h>
+
 #include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
+#include "util/volk/volk.h"
 #include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include "le_backend_vk.h"

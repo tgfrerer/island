@@ -15,7 +15,7 @@ depends_on_island_module(le_ui_event)
 depends_on_island_module(le_log)
 depends_on_island_module(le_backend_vk)
 
-add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
+add_compile_definitions(VK_NO_PROTOTYPES)
 
 set (SOURCES "le_window.cpp")
 set (SOURCES ${SOURCES} "le_window.h")
@@ -51,10 +51,9 @@ endif()
 
 
 if (WIN32)
-    set (LINKER_FLAGS ${LINKER_FLAGS} vulkan-1 glfw)
+     set (LINKER_FLAGS ${LINKER_FLAGS} glfw)
 else()
     set (LINKER_FLAGS -Wl,--whole-archive glfw -Wl,--no-whole-archive)
-    set (LINKER_FLAGS ${LINKER_FLAGS} vulkan)
 endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})

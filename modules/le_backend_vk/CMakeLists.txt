@@ -10,9 +10,8 @@ depends_on_island_module(le_window)
 depends_on_island_module(le_swapchain_vk)
 depends_on_island_module(le_renderer)
 
-# add_compile_definitions(VMA_USE_STL_CONTAINERS=1)
-
 add_compile_definitions(SPIRV_REFLECT_USE_SYSTEM_SPIRV_H)
+add_compile_definitions(VK_NO_PROTOTYPES)
 
 
 set (SOURCES "le_backend_vk.cpp")
@@ -32,6 +31,9 @@ set (SOURCES ${SOURCES} "util/vk_mem_alloc/vk_mem_alloc.cpp")
 set (SOURCES ${SOURCES} "util/spirv_reflect/spirv_reflect.h")
 set (SOURCES ${SOURCES} "util/spirv_reflect/spirv_reflect.c")
 
+set (SOURCES ${SOURCES} "util/volk/volk.h")
+set (SOURCES ${SOURCES} "util/volk/volk.c")
+
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
 
@@ -46,9 +48,7 @@ else()
 endif()
 
 IF (WIN32)
-    set (LINKER_FLAGS vulkan-1)
 ELSE()
-    set (LINKER_FLAGS ${LINKER_FLAGS} -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
     set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 ENDIF()    
     

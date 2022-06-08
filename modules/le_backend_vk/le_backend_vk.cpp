@@ -23,7 +23,7 @@
 #include <cstring> // for memcpy
 #include <array>
 
-#include <vulkan/vulkan.h>
+#include "util/volk/volk.h"
 
 static constexpr auto LOGGER_LABEL = "le_backend";
 
@@ -6199,6 +6199,5 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	api_i->backend_settings_singleton = static_cast<le_backend_vk_settings_o*>( *p_settings_singleton_addr );
 
 #ifdef PLUGINS_DYNAMIC
-	le_core_load_library_persistently( "libvulkan.so" );
 #endif
 }

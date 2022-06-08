@@ -5,6 +5,8 @@ depends_on_island_module(le_core)
 depends_on_island_module(le_window)
 depends_on_island_module(le_log)
 
+add_compile_definitions(VK_NO_PROTOTYPES)
+
 set (SOURCES "le_swapchain_vk.h")
 set (SOURCES ${SOURCES} "le_swapchain_vk.cpp")
 set (SOURCES ${SOURCES} "le_swapchain_khr.cpp")
@@ -23,9 +25,8 @@ else()
 endif()
 
 if (WIN32)
-    set (LINKER_FLAGS vulkan-1)
 else()
-    set (LINKER_FLAGS -Wl,--whole-archive vulkan X11 -Wl,--no-whole-archive )
+    set (LINKER_FLAGS -Wl,--whole-archive X11 -Wl,--no-whole-archive )
 endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})

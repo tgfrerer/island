@@ -345,6 +345,9 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	// Create device
 	vkCreateDevice( self->vkPhysicalDevice, &deviceCreateInfo, nullptr, &self->vkDevice );
 
+	// load device pointers directly, to bypass the device dispatcher for better performance
+	volkLoadDevice( self->vkDevice );
+
 	// Store queue flags, and queue family index per queue into renderer properties,
 	// so that queue capabilities and family index may be queried thereafter.
 

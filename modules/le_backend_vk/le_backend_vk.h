@@ -270,7 +270,7 @@ LE_MODULE_LOAD_DEFAULT( le_backend_vk );
 #ifdef __cplusplus
 
 namespace le_backend_vk {
-const auto api = le_backend_vk_api_i;
+static const auto api = le_backend_vk_api_i;
 
 static const auto& settings_i             = api->le_backend_settings_i;
 static const auto& vk_backend_i           = api->vk_backend_i;
