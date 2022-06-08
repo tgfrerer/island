@@ -30,8 +30,8 @@ internally, like:
 #if !defined( VMA_DYNAMIC_VULKAN_FUNCTIONS )
 #	define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #	if defined( VK_NO_PROTOTYPES )
-extern PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
-extern PFN_vkGetDeviceProcAddr   vkGetDeviceProcAddr;
+extern "C" PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+extern "C" PFN_vkGetDeviceProcAddr   vkGetDeviceProcAddr;
 #    endif
 #endif
 
