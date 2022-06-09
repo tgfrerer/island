@@ -18,7 +18,7 @@ struct le_bloom_pass_api {
 		} bloom;
 		struct luma_threshold_params_t {
 			float defaultColor[ 3 ]{0.f, 0.f, 0.f}; // vec3(0)
-			float defaultOpacity{0.7};              // 0
+			float defaultOpacity{0.7f};             // 0
 			float luminosityThreshold{0.75f};       // 1.f
 			float smoothWidth{0.01f};               // 1.0
 		} luma_threshold;

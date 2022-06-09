@@ -15,6 +15,7 @@
 #include <array>
 #include <vector>
 #include <algorithm>
+#include <iterator>
 
 static le_img_resource_handle IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 

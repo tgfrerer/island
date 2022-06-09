@@ -273,7 +273,7 @@ le_render_module_add_bloom_pass(
 			h = std::max<uint32_t>( 1, h / 2 );
 
 			char pass_name[ 32 ];
-			snprintf( pass_name, sizeof( pass_name ), "blur_h_%lu", i );
+			snprintf( pass_name, sizeof( pass_name ), "blur_h_%zu", i );
 
 			auto passBlurHorizontal =
 			    le::RenderPass( pass_name, le::RenderPassType::eDraw )
@@ -283,7 +283,7 @@ le_render_module_add_bloom_pass(
 			        .setHeight( h )
 			        .setExecuteCallback( &BlurSettingsH[ i ], blur_render_fun );
 
-			snprintf( pass_name, sizeof( pass_name ), "blur_v_%lu", i );
+			snprintf( pass_name, sizeof( pass_name ), "blur_v_%zu", i );
 
 			auto passBlurVertical =
 			    le::RenderPass( pass_name, le::RenderPassType::eDraw )
