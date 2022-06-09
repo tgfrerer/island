@@ -193,7 +193,7 @@ depends on the Vulkan SDK.
 
 ## Install Vulkan SDK 
 
-### Vulkan SDK >= `1.2.175`
+### Vulkan SDK >= `1.3.211`
 
 I recommend to install the latest Vulkan SDK via a package manager.
 Follow the installation instructions via:
