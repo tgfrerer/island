@@ -186,10 +186,10 @@ static int tweakable_add_watch( CbData* cb_data, char const* file_path ) {
 					//
 					switch ( cb_data->type ) {
 					case CbData::Type::u64:
-						sscanf( str_start, "TWEAK ( %llu ) ", &cb_data->data.u64 );
+						sscanf( str_start, "TWEAK ( %lu ) ", &cb_data->data.u64 );
 						break;
 					case CbData::Type::i64:
-						sscanf( str_start, "TWEAK ( %lli ) ", &cb_data->data.i64 );
+						sscanf( str_start, "TWEAK ( %li ) ", &cb_data->data.i64 );
 						break;
 					case CbData::Type::i32:
 						sscanf( str_start, "TWEAK ( %d ) ", &cb_data->data.i32 );
