@@ -49,13 +49,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") 
     # this is only needed for the GNU linker - it will force the linker to check all libraries for symbols,
     # not just the ones that are specified before a given library. 
     # more modern (and faster) linkers such as lld (llvm) or mold won't need this.
    target_link_libraries(${PROJECT_NAME} PRIVATE "-Wl,--start-group" $CACHE{STATIC_LIBRARIES} "-Wl,--end-group" )
 else()
-   target_link_libraries(${PROJECT_NAME} PRIVATE $CACHE{STATIC_LIBRARIES} )
+    # link static libs
+    target_link_libraries(${PROJECT_NAME} PRIVATE $CACHE{STATIC_LIBRARIES} )
 endif()
 
 
