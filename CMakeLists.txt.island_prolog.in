@@ -14,6 +14,13 @@ else()
     set(PLUGINS_DYNAMIC OFF CACHE BOOL "Use dynamic linking for all plugins")
 endif()
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # use lld linker for clang-compiled binary - it's faster than gnu ld,
+    # and you don't have to worry about the linking order for libraries.
+    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-fuse-ld=lld -Wno-unused-command-line-argument")
+    set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-fuse-ld=lld -Wno-unused-command-line-argument")
+endif()
+
 set ( STATIC_LIBRARIES "" CACHE INTERNAL "static_libraries" )
 set ( DEPENDENCY_DEPTH 0 CACHE INTERNAL "current depth in dependency hierarchy" )
 
@@ -85,11 +92,13 @@ set ( MODULE_LOCATIONS_LIST CACHE INTERNAL "module_locations_list")
 # Set default island module location
 add_island_module_location("${ISLAND_BASE_DIR}/modules")
 
-# We will store all requested module names in this list, and then load modules based on this list
-set ( MODULES_LIST )
-
 # We will store all loaded module names in this global list, so that we can make sure that modules don't get loaded more than once.
 set ( LOADED_MODULES_LIST CACHE INTERNAL "loaded_modules_list" )
+
+# We will store all requested module names in this global list, to keep track of all modules which have been requested.
+# once this list is empty we know there are no more modules which need to be loaded.
+set ( REQUESTED_MODULES_LIST CACHE INTERNAL "requested_modules_list" )
+
 
 # These modules are always loaded - they control the plugin system.
 set ( ISLAND_LOADER_MODULES le_log;le_file_watcher;le_core )
@@ -126,13 +135,26 @@ endif()
 # Add required modules to modules list based on user flags
 #
 if (REQUIRES_ISLAND_LOADER)
-    list (APPEND MODULES_LIST ${ISLAND_LOADER_MODULES})
+    list (APPEND REQUESTED_MODULES_LIST ${ISLAND_LOADER_MODULES})
 endif()
  
 if (REQUIRES_ISLAND_CORE)
-   list (APPEND MODULES_LIST ${CORE_ISLAND_MODULES})
+    list (APPEND REQUESTED_MODULES_LIST ${CORE_ISLAND_MODULES})
 endif()
 
+# ----------------------------------------------------------------------
+
+macro(add_static_lib LIB_NAME)
+
+    if (NOT ${LIB_NAME} IN_LIST STATIC_LIBRARIES})
+        set ( STATIC_LIBRARIES ${LIB_NAME} $CACHE{STATIC_LIBRARIES} CACHE INTERNAL "static_libraries" )
+        # message( STATUS "${TMP_INDENT}>>> Static libs: ${STATIC_LIBRARIES}")
+    else()
+        # set (STATIC_LIBRARIES ${STATIC_LIBRARIES} PARENT_SCOPE)
+        message( STATUS "[ NOTE ] Rejecting extra static lib addition: `${LIB_NAME}` - lib already present."  )
+    endif()
+
+endmacro(add_static_lib LIB_NAME)
 
 # ----------------------------------------------------------------------
 
@@ -161,7 +183,6 @@ function(find_module MODULE_LOCATION MODULE_NAME )
     endforeach()
 endfunction()
 
-
 # ----------------------------------------------------------------------
 # Loads a requested module - note that this may recursively 
 # trigger loading more modules, as modules are added via 
@@ -180,14 +201,14 @@ macro(include_island_module MODULE_NAME SHOULD_ADD)
         get_directory_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} INCLUDE_DIRECTORIES)
 
         if (NOT ${MODULE_LOCATION} IN_LIST dirs)
-            message(STATUS "${TMP_INDENT}Loading module  : ${MODULE_NAME}")
+            # message(STATUS "${TMP_INDENT}Loading module  : ${MODULE_NAME}")
             include_directories( "${MODULE_LOCATION}")
             # message(STATUS "${TMP_INDENT}+++ Adding include : ${MODULE_LOCATION}")
         endif()
 
         # set_directory_properties()
         if ( ${SHOULD_ADD} )
-            message(STATUS "${TMP_INDENT}Adding subdirectory  : ${MODULE_LOCATION}")
+            message(STATUS "${TMP_INDENT} ${MODULE_NAME}")
             add_subdirectory( ${MODULE_LOCATION} ${MODULE_NAME} )
         endif()
 
@@ -199,37 +220,39 @@ macro(include_island_module MODULE_NAME SHOULD_ADD)
 
 endmacro()
 
-
 # ----------------------------------------------------------------------
 # Call this macro from other modules to establish a dependency.
 # Adds a module name to list of requested modules, 
 # checks whether a module was already requested to prevent duplicates.
-macro(add_island_module MODULE_NAME)
+macro(request_island_module MODULE_NAME)
     
     if (NOT ${MODULE_NAME} IN_LIST LOADED_MODULES_LIST)
         # prepend module name to loaded_modules_list in global scope
-        set( LOADED_MODULES_LIST ${LOADED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "loaded_modules_list" )        
-        include_island_module( ${MODULE_NAME} TRUE )
+        set( REQUESTED_MODULES_LIST ${MODULE_NAME} ${REQUESTED_MODULES_LIST} CACHE INTERNAL "requested modules_list" )        
+        include_island_module( ${MODULE_NAME} FALSE )
     else()
         include_island_module( ${MODULE_NAME} FALSE )
         # message(STATUS "[ NOTE ] Rejecting add_island_module request: `${MODULE_NAME}` - Module already present."  )
     endif()
 
-endmacro(add_island_module)
+endmacro(request_island_module)
 
 # ----------------------------------------------------------------------
-
-macro(add_static_lib LIB_NAME)
-
-    if (NOT ${LIB_NAME} IN_LIST STATIC_LIBRARIES})
-        set ( STATIC_LIBRARIES ${LIB_NAME} $CACHE{STATIC_LIBRARIES} CACHE INTERNAL "static_libraries" )
-        # message( STATUS "${TMP_INDENT}>>> Static libs: ${STATIC_LIBRARIES}")
+# Call this macro from other modules to establish a dependency.
+# Adds a module name to list of requested modules, 
+# checks whether a module was already requested to prevent duplicates.
+macro(load_island_module MODULE_NAME)
+    
+    if (NOT ${MODULE_NAME} IN_LIST LOADED_MODULES_LIST)
+        # prepend module name to loaded_modules_list in global scope
+        set( LOADED_MODULES_LIST ${LOADED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "loaded_modules_list" )     
+        include_island_module( ${MODULE_NAME} TRUE )
     else()
-        # set (STATIC_LIBRARIES ${STATIC_LIBRARIES} PARENT_SCOPE)
-        message( STATUS "[ NOTE ] Rejecting extra static lib addition: `${LIB_NAME}` - lib already present."  )
+        include_island_module( ${MODULE_NAME} FALSE )
+        message(STATUS "[ NOTE ] Rejecting load_island_module request: `${MODULE_NAME}` - Module already present."  )
     endif()
 
-endmacro(add_static_lib LIB_NAME)
+endmacro(load_island_module)
 
 # ----------------------------------------------------------------------
 
@@ -241,9 +264,9 @@ macro (depends_on_island_module MODULE_NAME)
     string(REPEAT "  " ${DEPENDENCY_DEPTH} TMP_INDENT)
 
     get_filename_component(THIS_MODULE_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME_WE )
-    message(STATUS "${TMP_INDENT}*** ${THIS_MODULE_NAME} Depends on Module: ${MODULE_NAME}")
+    message(STATUS "${TMP_INDENT} ${THIS_MODULE_NAME} ← ${MODULE_NAME}")
 
-    add_island_module(${MODULE_NAME})
+    request_island_module(${MODULE_NAME})
 
     math( EXPR TMP_DEPENDENCY_DEPTH "$CACHE{DEPENDENCY_DEPTH}-1")
     set ( DEPENDENCY_DEPTH ${TMP_DEPENDENCY_DEPTH} CACHE INTERNAL "current depth in dependency hierarchy" )
@@ -328,8 +351,4 @@ endmacro(add_dynamic_linker_flags)
 
 # ----------------------------------------------------------------------
 
-
-# Load all modules which where requested
-foreach( M IN LISTS MODULES_LIST )
-    add_island_module(${M})
-endforeach()
+set( REQUESTED_MODULES_LIST ${REQUESTED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "requested modules_list" )  

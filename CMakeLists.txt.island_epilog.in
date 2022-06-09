@@ -1,4 +1,33 @@
+# Load all modules which where requested
+foreach( M IN LISTS MODULES_LIST )
+    request_island_module(${M})
+endforeach()
 
+
+while(REQUESTED_MODULES_LIST)
+    # remove any duplicates from requested modules 
+    list(REMOVE_DUPLICATES REQUESTED_MODULES_LIST)
+    # remove any modules from the requested list which are already in the loaded list
+    list(REMOVE_ITEM REQUESTED_MODULES_LIST ${LOADED_MODULES_LIST})
+    # store the requested_modules_list back to global
+    set( REQUESTED_MODULES_LIST ${REQUESTED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "requested modules_list" )  
+    
+    # message(STATUS "requested modules 1: ${REQUESTED_MODULES_LIST}")
+    
+    # Load all modules which where requested and which were not yet loaded
+    foreach( M IN LISTS REQUESTED_MODULES_LIST )
+        load_island_module(${M})
+    endforeach()
+    
+    # message(STATUS "requested modules 2: ${REQUESTED_MODULES_LIST}")
+    list(REMOVE_ITEM REQUESTED_MODULES_LIST ${LOADED_MODULES_LIST})
+    # store requested modules list back to global
+    set( REQUESTED_MODULES_LIST ${REQUESTED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "requested modules_list" )  
+    # repeat this until no more modules are requested.
+    
+    # message(STATUS "requested modules 3: ${REQUESTED_MODULES_LIST}")
+    # remove any elements from requested modules which are now present in loaded modules
+endwhile(REQUESTED_MODULES_LIST)
 
 # print_current_includes()
 
@@ -18,17 +47,16 @@ endif()
 # we need to link in the dynamic linking library so we can use dynamic linking
 target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 
-# target_link_libraries("${ISLAND_BASE_DIR}modules/le_renderer" "${ISLAND_BASE_DIR}modules/le_log")
-
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") 
     # this is only needed for the GNU linker - it will force the linker to check all libraries for symbols,
     # not just the ones that are specified before a given library. 
     # more modern (and faster) linkers such as lld (llvm) or mold won't need this.
    target_link_libraries(${PROJECT_NAME} PRIVATE "-Wl,--start-group" $CACHE{STATIC_LIBRARIES} "-Wl,--end-group" )
 else()
-   target_link_libraries(${PROJECT_NAME} PRIVATE $CACHE{STATIC_LIBRARIES} )
+    # link static libs
+    target_link_libraries(${PROJECT_NAME} PRIVATE $CACHE{STATIC_LIBRARIES} )
 endif()
 
 
