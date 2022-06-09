@@ -130,7 +130,7 @@ build_app(){
 	mkdir -p $build_dir
 	pushd $build_dir
 	
-	cmake --config ../.. -DCMAKE_BUILD_TYPE=Release -GNinja
+	cmake ../.. -DCMAKE_BUILD_TYPE=Release -GNinja
 	
 	# we store the timestamp of the last built app executable
 	local previous_hash=0
