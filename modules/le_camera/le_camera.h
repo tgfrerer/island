@@ -3,20 +3,6 @@
 
 #include "le_core.h"
 
-#ifdef __cplusplus
-
-#	ifndef ISL_ALLOW_GLM_TYPES
-#		define ISL_ALLOW_GLM_TYPES 1
-#	endif
-
-// Life is terrible without 3d type primitives, so let's include some glm forward declarations
-
-#	if ( ISL_ALLOW_GLM_TYPES == 1 )
-#		include <glm/fwd.hpp>
-#	endif
-
-#endif
-
 struct le_camera_o;
 struct le_camera_controller_o;
 struct le_mouse_event_data_o;
@@ -45,11 +31,6 @@ struct le_camera_api {
 		void             ( * get_view_matrix          ) ( le_camera_o* self, float * p_matrix_4x4 );
         void             ( * set_is_orthographic      ) ( le_camera_o* self, bool is_ortographic);
 
-#if ( ISL_ALLOW_GLM_TYPES == 1 )
-		void              (* set_view_matrix_glm       )( le_camera_o* self, glm::mat4 const & view_matrix);
-		glm::mat4 const & (* get_view_matrix_glm       )( le_camera_o* self);
-		glm::mat4 const & (* get_projection_matrix_glm )( le_camera_o* self);
-#endif
 
 		void             ( * get_projection_matrix    ) ( le_camera_o* self, float * p_matrix_4x4 );
 		float            ( * get_unit_distance        ) ( le_camera_o* self );
@@ -80,8 +61,8 @@ LE_MODULE_LOAD_DEFAULT( le_camera );
 namespace le_camera {
 static const auto& api = le_camera_api_i;
 
-static const auto& le_camera_i            = api -> le_camera_i;
-static const auto& le_camera_controller_i = api -> le_camera_controller_i;
+static const auto& le_camera_i            = api->le_camera_i;
+static const auto& le_camera_controller_i = api->le_camera_controller_i;
 
 } // namespace le_camera
 
@@ -104,22 +85,6 @@ class LeCamera : NoMove {
 
 	LeCamera& operator=( const LeCamera& rhs ) = delete;
 
-#	if ( ISL_ALLOW_GLM_TYPES == 1 )
-
-	glm::mat4 const& getViewMatrixGlm() const {
-		return le_camera::le_camera_i.get_view_matrix_glm( self );
-	}
-
-	glm::mat4 const& getProjectionMatrixGlm() const {
-		return le_camera::le_camera_i.get_projection_matrix_glm( self );
-	}
-
-	void setViewMatrixGlm( glm::mat4 const& viewMatrix ) {
-		le_camera::le_camera_i.set_view_matrix_glm( self, viewMatrix );
-	}
-
-#	endif
-
 	void getViewMatrix( float* p_matrix_4x4 ) const {
 		return le_camera::le_camera_i.get_view_matrix( self, p_matrix_4x4 );
 	}
@@ -128,8 +93,8 @@ class LeCamera : NoMove {
 		return le_camera::le_camera_i.get_projection_matrix( self, p_matrix_4x4 );
 	}
 
-	void setViewMatrix( float const* viewMatrix ) {
-		le_camera::le_camera_i.set_view_matrix( self, viewMatrix );
+	void setViewMatrix( float const* p_matrix_4x4 ) {
+		le_camera::le_camera_i.set_view_matrix( self, p_matrix_4x4 );
 	}
 
 	float getUnitDistance() {
@@ -163,8 +128,8 @@ class LeCamera : NoMove {
 		le_camera::le_camera_i.set_clip_distances( self, nearClip, farClip );
 	}
 
-	bool getSphereCentreInFrustum( float const* pSphereCentreInCameraSpaceFloat3, float sphereRadius_ ) {
-		return le_camera::le_camera_i.get_sphere_in_frustum( self, pSphereCentreInCameraSpaceFloat3, sphereRadius_ );
+	bool getSphereCentreInFrustum( float const* pSphereCentreInCameraSpaceFloat3, float sphereRadius ) {
+		return le_camera::le_camera_i.get_sphere_in_frustum( self, pSphereCentreInCameraSpaceFloat3, sphereRadius );
 	}
 
 	operator auto() {

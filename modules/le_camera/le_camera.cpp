@@ -7,10 +7,6 @@
 #include <array>
 #include <string.h> // for memcpy
 
-#define GLM_ENABLE_EXPERIMENTAL
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-
 #include "glm/gtc/matrix_transform.hpp"
 #include <glm/glm.hpp>
 
@@ -145,20 +141,8 @@ static void camera_get_view_matrix( le_camera_o* self, float* p_matrix ) {
 
 // ----------------------------------------------------------------------
 
-static glm::mat4 const& camera_get_view_matrix_glm( le_camera_o* self ) {
-	return self->view_matrix;
-}
-
-// ----------------------------------------------------------------------
-
 static void camera_set_view_matrix( le_camera_o* self, float const* viewMatrix ) {
 	self->view_matrix = *reinterpret_cast<glm::mat4 const*>( viewMatrix );
-}
-
-// ----------------------------------------------------------------------
-
-static void camera_set_view_matrix_glm( le_camera_o* self, glm::mat4 const& viewMatrix ) {
-	self->view_matrix = viewMatrix;
 }
 
 // ----------------------------------------------------------------------
@@ -544,12 +528,6 @@ LE_MODULE_REGISTER_IMPL( le_camera, api ) {
 	le_camera_i.set_clip_distances    = camera_set_clip_distances;
 	le_camera_i.get_sphere_in_frustum = camera_get_sphere_in_frustum;
 	le_camera_i.set_is_orthographic   = camera_set_is_orthographic;
-
-#if ISL_ALLOW_GLM_TYPES == 1
-	le_camera_i.set_view_matrix_glm       = camera_set_view_matrix_glm;
-	le_camera_i.get_view_matrix_glm       = camera_get_view_matrix_glm;
-	le_camera_i.get_projection_matrix_glm = camera_get_projection_matrix_glm;
-#endif
 
 	auto& le_camera_controller_i = static_cast<le_camera_api*>( api )->le_camera_controller_i;
 

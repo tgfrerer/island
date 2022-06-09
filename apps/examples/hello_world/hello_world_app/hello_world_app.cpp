@@ -13,10 +13,6 @@
 #include "le_resource_manager.h"
 #include "le_pixels.h"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-#define GLM_ENABLE_EXPERIMENTAL
-
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/string_cast.hpp"
@@ -199,7 +195,7 @@ static void reset_camera( hello_world_app_o* self ) {
 	// glm::mat4 camMatrix = glm::lookAt( glm::vec3{30000, -10000, 20000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	glm::mat4 camMatrix = glm::mat4{ { 0.585995, 0.191119, 0.787454, -0.000000 }, { -0.049265, 0.978394, -0.200800, 0.000000 }, { -0.808816, 0.078874, 0.582749, -0.000000 }, { 3039.844482, 3673.605225, -15533.671875, 1.000000 } };
 	// glm::mat4 camMatrix = glm::mat4{{-0.254149, 0.880418, 0.400359, -0.000000}, {0.633864, 0.464280, -0.618607, 0.000000}, {-0.730506, 0.096555, -0.676056, 0.000000}, {-792.769653, 1875.776367, -15593.370117, 1.000000}};
-	self->camera.setViewMatrixGlm( camMatrix );
+	self->camera.setViewMatrix( &camMatrix[ 0 ][ 0 ] );
 }
 
 // ----------------------------------------------------------------------
@@ -217,7 +213,8 @@ static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o* self, 
 	const float visibleSunRadius = 200; // when to start showing the sun
 	const float cEARTH_RADIUS    = 6360.f - visibleSunRadius;
 
-	glm::mat4 viewMatrix             = self->camera.getViewMatrixGlm();
+	glm::mat4 viewMatrix;
+	self->camera.getViewMatrix( &viewMatrix[ 0 ][ 0 ] );
 	glm::vec4 camera_pos_world_space = glm::inverse( viewMatrix ) * glm::vec4( 0, 0, 0, 1 );
 	glm::vec3 camToEarthCentre       = glm::vec3( 0, 0, 0 ) - glm::vec3( camera_pos_world_space );
 
@@ -437,11 +434,11 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 		double angularDistance = app->animate ? app->timeDelta * speed : 0;
 		app->earthRotation     = fmod( app->earthRotation + angularDistance, 360.0 );
 
-		earthParams.model       = glm::mat4( 1.f );                                                                                    // identity matrix
-		earthParams.model       = glm::rotate( earthParams.model, glm::radians( -13.4f ), glm::vec3{ 0, 0, 1 } );                      // apply ecliptic
-		earthParams.model       = glm::rotate( earthParams.model, glm::radians( float( app->earthRotation ) ), glm::vec3{ 0, 1, 0 } ); // apply day/night rotation
-		cameraParams.view       = app->camera.getViewMatrixGlm();
-		cameraParams.projection = app->camera.getProjectionMatrixGlm();
+		earthParams.model = glm::mat4( 1.f );                                                                                    // identity matrix
+		earthParams.model = glm::rotate( earthParams.model, glm::radians( -13.4f ), glm::vec3{ 0, 0, 1 } );                      // apply ecliptic
+		earthParams.model = glm::rotate( earthParams.model, glm::radians( float( app->earthRotation ) ), glm::vec3{ 0, 1, 0 } ); // apply day/night rotation
+		app->camera.getViewMatrix( &cameraParams.view[ 0 ][ 0 ] );
+		app->camera.getProjectionMatrix( &cameraParams.projection[ 0 ][ 0 ] );
 
 		glm::vec4 sourceInCameraSpace     = cameraParams.view * sunInWorldSpace;
 		glm::vec4 worldCentreInWorldSpace = glm::vec4{ 0, 0, 0, 1 };
@@ -714,21 +711,25 @@ static void hello_world_app_process_ui_events( hello_world_app_o* self ) {
 					wantsToggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
 					reset_camera( self );
-					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					glm::mat4x4 view_matrix;
+					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
+					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
 					self->cameraController.setPivotDistance( distance_to_origin );
 				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
 					self->cameraController.setPivotDistance( 0 );
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
-					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					glm::mat4x4 view_matrix;
+					self->camera.getViewMatrix( &view_matrix[ 0 ][ 0 ] );
+					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
 					self->cameraController.setPivotDistance( distance_to_origin );
 				} else if ( e.key == LeUiEvent::NamedKey::eA ) {
 					self->animate ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eP ) {
 					// print out current camera view matrix
-					std::cout << "View matrix:" << glm::to_string( self->camera.getViewMatrixGlm() ) << std::endl
-					          << std::flush;
-					std::cout << "camera node matrix:" << glm::to_string( glm::inverse( self->camera.getViewMatrixGlm() ) ) << std::endl
-					          << std::flush;
+					//					std::cout << "View matrix:" << glm::to_string( self->camera.getViewMatrixGlm() ) << std::endl
+					//					          << std::flush;
+					//					std::cout << "camera node matrix:" << glm::to_string( glm::inverse( self->camera.getViewMatrixGlm() ) ) << std::endl
+					//					          << std::flush;
 				}
 			} // if ButtonAction == eRelease
 

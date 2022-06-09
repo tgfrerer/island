@@ -10,8 +10,6 @@ depends_on_island_module(le_renderer)
 depends_on_island_module(le_pipeline_builder)
 depends_on_island_module(le_camera)
 
-
-
 set (SOURCES "triangle_app.cpp")
 set (SOURCES ${SOURCES} "triangle_app.h")
 

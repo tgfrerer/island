@@ -6,8 +6,6 @@
 #include "le_pipeline_builder.h"
 #include "le_ui_event.h"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
@@ -196,7 +194,7 @@ static bool quad_template_app_update( quad_template_app_o* self ) {
 
 static void quad_template_app_destroy( quad_template_app_o* self ) {
 
-	delete ( self ); // deletes camera
+	delete ( self ); 
 }
 
 // ----------------------------------------------------------------------

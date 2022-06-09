@@ -14,7 +14,7 @@
 
 static void
 le_render_module_add_blit_pass(
-    le_rendergraph_o*           module,
+    le_rendergraph_o*             module,
     le_img_resource_handle const& input,
     le_img_resource_handle const& output ) {
 
@@ -55,7 +55,7 @@ le_render_module_add_blit_pass(
 
 static void
 le_render_module_add_bloom_pass(
-    le_rendergraph_o*           module,
+    le_rendergraph_o*             module,
     le_img_resource_handle const& input,
     le_img_resource_handle const& output,
     uint32_t const&               width,

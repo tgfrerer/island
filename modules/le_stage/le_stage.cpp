@@ -1769,9 +1769,9 @@ static void pass_draw( le_command_buffer_encoder_o* encoder_, void* user_data ) 
 
 		using namespace le_camera;
 		le_camera_i.set_viewport( camera, viewports[ 0 ] );
-		camera_view_matrix       = le_camera_i.get_view_matrix_glm( camera );
-		camera_projection_matrix = le_camera_i.get_projection_matrix_glm( camera );
-		camera_world_matrix      = glm::inverse( camera_view_matrix );
+		le_camera_i.get_view_matrix( camera, ( float* )( &camera_view_matrix ) );
+		le_camera_i.get_projection_matrix( camera, ( float* )( &camera_projection_matrix ) );
+		camera_world_matrix = glm::inverse( camera_view_matrix );
 	} else {
 		// Attempt to apply first camera from scene if no interactive camera was set.
 		//

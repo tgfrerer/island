@@ -16,6 +16,11 @@ project (${PROJECT_NAME})
 # Uncomment the next line to disable loading Vulkan Validation Layers.
 # add_compile_definitions( SHOULD_USE_VALIDATION_LAYERS=false )
 
+# set glm switches here so that they apply globally 
+#add_compile_definitions( GLM_FORCE_DEPTH_ZERO_TO_ONE ) # vulkan clip space is from 0 to 1
+#add_compile_definitions( GLM_FORCE_RIGHT_HANDED      ) # glTF uses right handed coordinate system, and we're following its lead.
+#add_compile_definitions( GLM_ENABLE_EXPERIMENTAL     )
+
 # Point this to the base directory of your Island installation
 set (ISLAND_BASE_DIR "${PROJECT_SOURCE_DIR}/../../../")
 

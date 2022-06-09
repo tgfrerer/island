@@ -9,9 +9,6 @@
 
 #include "le_mesh.h"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-#define GLM_ENABLE_EXPERIMENTAL
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
@@ -331,17 +328,21 @@ static void app_process_ui_events( app_o* self ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
 					wantsToggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
+					glm::mat4 view_matrix;
+					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
 					float distance_to_origin =
 					    glm::distance( glm::vec4{ 0, 0, 0, 1 },
-					                   glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					                   glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
 					self->cameraController.setPivotDistance( distance_to_origin );
 				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
 					self->cameraController.setPivotDistance( 0 );
 				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
 					reset_camera( self );
+					glm::mat4 view_matrix;
+					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
 					float distance_to_origin =
 					    glm::distance( glm::vec4{ 0, 0, 0, 1 },
-					                   glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					                   glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
 					self->cameraController.setPivotDistance( distance_to_origin );
 				}
 

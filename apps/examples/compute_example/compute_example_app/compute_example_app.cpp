@@ -3,8 +3,6 @@
 #include "le_window.h"
 #include "le_renderer.h"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #define GLM_ENABLE_EXPERIMENTAL
@@ -105,7 +103,7 @@ static void reset_camera( compute_example_app_o* self ) {
 	      { -0.007937, 0.962072, -0.272678, 0.000000 },
 	      { 0.367212, 0.256439, 0.894089, -0.000000 },
 	      { 25.002544, -99.994820, -616.479797, 1.000000 } };
-	self->camera.setViewMatrixGlm( camMatrix );
+	self->camera.setViewMatrix( ( float* )( &camMatrix ) );
 }
 
 // ----------------------------------------------------------------------
@@ -277,9 +275,9 @@ static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 	        .build();
 
 	MvpUbo_t mvp;
-	mvp.model      = glm::mat4( 1.f ); // identity matrix
-	mvp.view       = app->camera.getViewMatrixGlm();
-	mvp.projection = app->camera.getProjectionMatrixGlm();
+	mvp.model = glm::mat4( 1.f ); // identity matrix
+	app->camera.getViewMatrix( ( float* )( &mvp.view ) );
+	app->camera.getProjectionMatrix( ( float* )( &mvp.projection ) );
 
 	uint64_t bufferOffsets[ 1 ] = { 0 };
 
@@ -315,18 +313,24 @@ static void compute_example_app_process_ui_events( compute_example_app_o* self )
 					wantsToggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
 					reset_camera( self );
-					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					glm::mat4x4 view_matrix;
+					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
+					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
 					self->cameraController.setPivotDistance( distance_to_origin );
 				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
 					self->cameraController.setPivotDistance( 0 );
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
-					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					glm::mat4x4 view_matrix;
+					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
+					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
 					self->cameraController.setPivotDistance( distance_to_origin );
 				} else if ( e.key == LeUiEvent::NamedKey::eP ) {
 					// print out current camera view matrix
-					std::cout << "View matrix:" << glm::to_string( self->camera.getViewMatrixGlm() ) << std::endl
+					glm::mat4x4 view_matrix;
+					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
+					std::cout << "View matrix:" << glm::to_string( view_matrix ) << std::endl
 					          << std::flush;
-					std::cout << "camera node matrix:" << glm::to_string( glm::inverse( self->camera.getViewMatrixGlm() ) ) << std::endl
+					std::cout << "camera node matrix:" << glm::to_string( glm::inverse( view_matrix ) ) << std::endl
 					          << std::flush;
 				} else if ( e.key == LeUiEvent::NamedKey::eA ) {
 					if ( self->anim_speed != 0 ) {
