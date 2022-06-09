@@ -6,6 +6,7 @@ depends_on_island_module(le_renderer)
 depends_on_island_module(le_camera)
 depends_on_island_module(le_timebase)
 depends_on_island_module(le_pixels)
+depends_on_island_module(le_pipeline_builder)
 
 set (SOURCES "le_stage.cpp")
 set (SOURCES ${SOURCES} "le_stage.h")

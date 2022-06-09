@@ -1,5 +1,8 @@
 set (TARGET le_bloom_pass)
 
+depends_on_island_module(le_renderer)
+depends_on_island_module(le_pipeline_builder)
+
 set (SOURCES "le_bloom_pass.cpp")
 set (SOURCES ${SOURCES} "le_bloom_pass.h")
 

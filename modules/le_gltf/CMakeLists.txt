@@ -2,6 +2,7 @@ set (TARGET le_gltf)
 
 # list modules this module depends on
 depends_on_island_module(le_stage)
+depends_on_island_module(le_renderer)
 
 set (SOURCES "le_gltf.cpp")
 set (SOURCES ${SOURCES} "le_gltf.h")
