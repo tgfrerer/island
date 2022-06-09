@@ -1,3 +1,6 @@
+depends_on_island_module(le_log)
+
+
 set (TARGET test_log_app)
 
 set (SOURCES "test_log_app.cpp")
