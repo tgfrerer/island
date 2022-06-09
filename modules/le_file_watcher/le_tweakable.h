@@ -39,6 +39,7 @@
 #	include <fstream>
 #	include <iostream>
 
+#	include <cstring>
 #	include <string>
 
 // ----------------------------------------------------------------------
@@ -185,26 +186,26 @@ static int tweakable_add_watch( CbData* cb_data, char const* file_path ) {
 					//
 					switch ( cb_data->type ) {
 					case CbData::Type::u64:
-						sscanf_s( str_start, "TWEAK ( %llu ) ", &cb_data->data.u64 );
+						sscanf( str_start, "TWEAK ( %llu ) ", &cb_data->data.u64 );
 						break;
 					case CbData::Type::i64:
-						sscanf_s( str_start, "TWEAK ( %lli ) ", &cb_data->data.i64 );
+						sscanf( str_start, "TWEAK ( %lli ) ", &cb_data->data.i64 );
 						break;
 					case CbData::Type::i32:
-						sscanf_s( str_start, "TWEAK ( %d ) ", &cb_data->data.i32 );
+						sscanf( str_start, "TWEAK ( %d ) ", &cb_data->data.i32 );
 						break;
 					case CbData::Type::u32:
-						sscanf_s( str_start, "TWEAK ( %ud ) ", &cb_data->data.u32 );
+						sscanf( str_start, "TWEAK ( %ud ) ", &cb_data->data.u32 );
 						break;
 					case CbData::Type::f32:
-						sscanf_s( str_start, "TWEAK ( %f ) ", &cb_data->data.f32 );
+						sscanf( str_start, "TWEAK ( %f ) ", &cb_data->data.f32 );
 						break;
 					case CbData::Type::f64:
-						sscanf_s( str_start, "TWEAK ( %lf ) ", &cb_data->data.f64 );
+						sscanf( str_start, "TWEAK ( %lf ) ", &cb_data->data.f64 );
 						break;
 					case CbData::Type::b32: {
 						char token[ 6 ];
-						sscanf_s( str_start, "TWEAK ( %5c ) ", token );
+						sscanf( str_start, "TWEAK ( %5c ) ", token );
 						if ( strncmp( token, "true", 4 ) == 0 ) {
 							cb_data->data.b32 = true;
 						} else if ( strncmp( token, "false", 5 ) == 0 ) {
