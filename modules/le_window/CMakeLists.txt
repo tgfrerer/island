@@ -2,10 +2,13 @@ set( GLFW_BUILD_EXAMPLES  OFF CACHE INTERNAL "" )
 set( GLFW_BUILD_TESTS     OFF CACHE INTERNAL "" )
 set( GLFW_BUILD_DOCS      OFF CACHE INTERNAL "" )
 set( GLFW_INSTALL         OFF CACHE INTERNAL "" )
+set( GLFW_VULKAN_STATIC    OFF CACHE INTERNAL "" )
 
 if (${PLUGINS_DYNAMIC})
     set( BUILD_SHARED_LIBS ON)
 endif()
+
+add_compile_definitions(VK_NO_PROTOTYPES)
 
 add_subdirectory( 3rdparty/glfw )
 
@@ -15,7 +18,6 @@ depends_on_island_module(le_ui_event)
 depends_on_island_module(le_log)
 depends_on_island_module(le_backend_vk)
 
-add_compile_definitions(VK_NO_PROTOTYPES)
 
 set (SOURCES "le_window.cpp")
 set (SOURCES ${SOURCES} "le_window.h")
