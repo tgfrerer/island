@@ -40,20 +40,6 @@ struct khr_data_o {
 
 // ----------------------------------------------------------------------
 
-static inline VkFormat le_format_to_vk( const le::Format& format ) noexcept {
-	return VkFormat( format );
-}
-
-// ----------------------------------------------------------------------
-static void vk_result_assert_success( VkResult const&& result ) {
-	static auto logger = LeLog( LOGGER_LABEL );
-	if ( result != VK_SUCCESS ) {
-		logger.error( "Vulkan operation returned: %s, but we expected VkResult::eSuccess", to_str( result ) );
-	}
-	assert( result == VK_SUCCESS && "Vulkan operation must succeed" );
-};
-// ----------------------------------------------------------------------
-
 static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 
 	// we need to find out if the current physical device supports PRESENT
@@ -87,7 +73,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 	}
 
 	size_t selectedSurfaceFormatIndex = 0;
-	auto   preferredSurfaceFormat     = le_format_to_vk( self->mSettings.format_hint );
+	auto   preferredSurfaceFormat     = VkFormat( self->mSettings.format_hint );
 
 	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) &&
 	     ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == VK_FORMAT_UNDEFINED ) ) {
@@ -116,15 +102,6 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].colorSpace;
 }
 
-// ----------------------------------------------------------------------
-
-static void check_vk_result( VkResult&& result ) {
-	static auto logger = LeLog( LOGGER_LABEL );
-	if ( result != VK_SUCCESS ) {
-		logger.error( "Vulkan operation returned: %s, but we expected VkResult::eSuccess", to_str( result ) );
-	}
-	assert( result == VK_SUCCESS && "Vulkan operation must succeed" );
-};
 // ----------------------------------------------------------------------
 
 static void swapchain_attach_images( le_swapchain_o* base ) {

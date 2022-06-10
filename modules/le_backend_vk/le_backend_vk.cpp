@@ -453,7 +453,8 @@ struct BackendFrameData {
 	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
 	// has a struct which holds indices into the sync chain telling us where to look
 	// up the sync state for a resource at different stages of renderpass construction.
-	std::unordered_map<le_resource_handle, std::vector<ResourceState>> syncChainTable;
+	using sync_chain_table_t = std::unordered_map<le_resource_handle, std::vector<ResourceState>>;
+	sync_chain_table_t syncChainTable;
 
 	static_assert( sizeof( VkBuffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
 
@@ -1420,6 +1421,90 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
 // resource sync state for images used as renderpass attachments is chosen so that they
 // can be implicitly synced using subpass dependencies.
+static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, LeRenderPass& currentPass, BackendFrameData::sync_chain_table_t& syncChainTable ) {
+	using namespace le_renderer;
+	le_resource_handle const*   resources       = nullptr;
+	LeResourceUsageFlags const* resources_usage = nullptr;
+	size_t                      resources_count = 0;
+	renderpass_i.get_used_resources( pass, &resources, &resources_usage, &resources_count );
+
+	auto get_stage_flags_based_on_renderpass_type = []( le::RenderPassType const& rp_type ) -> VkPipelineStageFlags2 {
+		// write_stage depends on current renderpass type.
+		switch ( rp_type ) {
+		case le::RenderPassType::eTransfer:
+			return VK_PIPELINE_STAGE_2_TRANSFER_BIT; // stage for transfer pass
+		case le::RenderPassType::eDraw:
+			return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; // earliest stage for draw pass
+		case le::RenderPassType::eCompute:
+			return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // stage for compute pass
+
+		default:
+			assert( false ); // unreachable - we don't know what kind of stage we're in.
+			return VkPipelineStageFlags2();
+		}
+	};
+
+	for ( size_t i = 0; i != resources_count; ++i ) {
+		auto const& resource = resources[ i ];
+		auto const& usage    = resources_usage[ i ];
+
+		auto& syncChain = syncChainTable[ resource ];
+		assert( !syncChain.empty() ); // must not be empty - this resource must exist, and have an initial sync state
+
+		LeRenderPass::ExplicitSyncOp syncOp{};
+
+		syncOp.resource                  = resource;
+		syncOp.active                    = true;
+		syncOp.sync_chain_offset_initial = uint32_t( syncChain.size() - 1 );
+
+		ResourceState requestedState{}; // State we want our image to be in when pass begins.
+
+		// Define synchronisation requirements for each resource based on resource type,
+		// and resource usage.
+		//
+		if ( usage.type == LeResourceType::eImage ) {
+
+			if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
+
+				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
+				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
+				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ) {
+
+				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
+				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
+
+			} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) ) {
+				// this is an image write operation.
+				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
+				requestedState.stage          = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			} else {
+				continue;
+			}
+
+		} else {
+			// Resources other than Images are ignored.
+
+			// TODO: whe should probably process buffers here, as skipping the loop here
+			// means that Buffers don't ever get added to explicit_sync_ops.
+			continue;
+		}
+
+		// -- we must add an entry to the sync chain to signal the state after change
+		syncChain.emplace_back( requestedState );
+
+		syncOp.sync_chain_offset_final = uint32_t( syncChain.size() - 1 );
+
+		// -- we must add an explicit sync op so that the change happens before the pass - this applies to
+		// passes which don't do implicit syncing, such as compute or transfer passes.
+		currentPass.explicit_sync_ops.emplace_back( syncOp );
+	}
+}
+
 static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o** ppPasses, size_t numRenderPasses, const std::vector<le_img_resource_handle>& backbufferImageHandles ) {
 
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
@@ -1468,22 +1553,6 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 	using namespace le_renderer;
 
-	auto get_stage_flags_based_on_renderpass_type = []( le::RenderPassType const& rp_type ) -> VkPipelineStageFlags2 {
-		// write_stage depends on current renderpass type.
-		switch ( rp_type ) {
-		case le::RenderPassType::eTransfer:
-			return VK_PIPELINE_STAGE_2_TRANSFER_BIT; // stage for transfer pass
-		case le::RenderPassType::eDraw:
-			return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; // earliest stage for draw pass
-		case le::RenderPassType::eCompute:
-			return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // stage for compute pass
-
-		default:
-			assert( false ); // unreachable - we don't know what kind of stage we're in.
-			return VkPipelineStageFlags2();
-		}
-	};
-
 	frame.passes.reserve( numRenderPasses );
 
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
@@ -1497,78 +1566,12 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		currentPass.height      = renderpass_i.get_height( *pass );
 		currentPass.sampleCount = renderpass_i.get_sample_count( *pass );
 
-		// Find explicit sync ops needed for resources which are not image
-		// attachments.
+		// Find explicit sync ops needed for resources which are not attachments
 		//
-		{
-			le_resource_handle const*   resources       = nullptr;
-			LeResourceUsageFlags const* resources_usage = nullptr;
-			size_t                      resources_count = 0;
-			renderpass_i.get_used_resources( *pass, &resources, &resources_usage, &resources_count );
-
-			for ( size_t i = 0; i != resources_count; ++i ) {
-				auto const& resource = resources[ i ];
-				auto const& usage    = resources_usage[ i ];
-
-				auto& syncChain = syncChainTable[ resource ];
-				assert( !syncChain.empty() ); // must not be empty - this resource must exist, and have an initial sync state
-
-				LeRenderPass::ExplicitSyncOp syncOp{};
-
-				syncOp.resource                  = resource;
-				syncOp.active                    = true;
-				syncOp.sync_chain_offset_initial = uint32_t( syncChain.size() - 1 );
-
-				ResourceState requestedState{}; // State we want our image to be in when pass begins.
-
-				// Define synchronisation requirements for each resource based on resource type,
-				// and resource usage.
-				//
-				if ( usage.type == LeResourceType::eImage ) {
-
-					if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
-
-						requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
-						requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
-						requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ) {
-
-						requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-						requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
-						requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
-
-					} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) ) {
-						// this is an image write operation.
-						requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
-						requestedState.stage          = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-						requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-					} else {
-						continue;
-					}
-
-				} else {
-					// Continue means nothing is added to sync chain.
-					continue;
-				}
-
-				// -- we must add an entry to the sync chain to signal the state after change
-				// -- we must add an explicit sync op so that the change happens before the pass
-
-				// add target state to sync chain for image.
-				syncChain.emplace_back( requestedState );
-
-				syncOp.sync_chain_offset_final = uint32_t( syncChain.size() - 1 );
-
-				// Store an explicit sync op
-				currentPass.explicit_sync_ops.emplace_back( syncOp );
-			}
-		}
+		le_renderpass_add_explicit_sync( *pass, currentPass, syncChainTable );
 
 		// Iterate over all image attachments
-		auto const& sampleCount = renderpass_i.get_sample_count( *pass );
-		le_renderpass_add_attachments( *pass, currentPass, frame, sampleCount );
+		le_renderpass_add_attachments( *pass, currentPass, frame, currentPass.sampleCount );
 
 		// Note that we "steal" the encoder from the renderer pass -
 		// it becomes now our (the backend's) job to destroy it.
@@ -1577,16 +1580,16 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		frame.passes.emplace_back( std::move( currentPass ) );
 	} // end for all passes
 
-	for ( auto& syncChainPair : syncChainTable ) {
-		const auto& id        = syncChainPair.first;
-		auto&       syncChain = syncChainPair.second;
+	for ( auto& s_entry : syncChainTable ) {
+		const auto& resource_handle = s_entry.first;
+		auto&       sync_chain      = s_entry.second;
 
-		auto finalState{ syncChain.back() };
+		auto finalState{ sync_chain.back() };
 
-		if ( std::find( backbufferImageHandles.begin(), backbufferImageHandles.end(), id ) != backbufferImageHandles.end() ) {
-			finalState.stage          = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-			finalState.visible_access = VK_ACCESS_2_MEMORY_READ_BIT;
-			finalState.layout         = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		if ( std::find( backbufferImageHandles.begin(), backbufferImageHandles.end(), resource_handle ) != backbufferImageHandles.end() ) {
+			finalState.stage          = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT; // Everything: Drain the pipeline
+			finalState.visible_access = VK_ACCESS_2_MEMORY_READ_BIT;            // Cached memory must be made visible to memory read access ...
+			finalState.layout         = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;        // ... so that it can perform layout transition to present_src
 		} else {
 			// we mimick implicit dependency here, which exists for a final subpass
 			// see p.210 vk spec (chapter 7, render pass)
@@ -1594,7 +1597,7 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 			finalState.visible_access = VkAccessFlagBits2( 0 );
 		}
 
-		syncChain.emplace_back( std::move( finalState ) );
+		sync_chain.emplace_back( std::move( finalState ) );
 	}
 
 	// ------------------------------------------------------
@@ -1784,9 +1787,6 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
-	// NOTE: we might be able to simplify this along the lines of
-	// <https://github.com/Tobski/simple_vulkan_synchronization>
-	// <https://github.com/gwihlidal/vk-sync-rs>
 
 	// create renderpasses
 	const auto& syncChainTable = frame.syncChainTable;
@@ -5369,6 +5369,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					{
 
+						// Note: this barrier prepares the buffer resource for transfer read
 						VkBufferMemoryBarrier2 bufferTransferBarrier{
 						    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
 						    .pNext               = nullptr,                          // optional
@@ -5383,6 +5384,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    .size                = le_cmd->info.numBytes,
 						};
 
+						// Note: this barrier is to prepare the image resource for receiving data
 						VkImageMemoryBarrier2 imageLayoutToTransferDstOptimal{
 						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 						    .pNext               = nullptr,                             // optional
@@ -5462,10 +5464,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						{
 							VkImageMemoryBarrier2 prepareBlit{
 							    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-							    .pNext               = nullptr,                              // optional
-							    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // optional
+							    .pNext               = nullptr,                              //
+							    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
 							    .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // make transfer write memory available (flush) to layout transition
-							    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // optional
+							    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
 							    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make cache (after layout transition) visible to transferRead op
 							    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // layout transition from transfer dst optimal,
 							    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
@@ -5547,13 +5549,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 								VkDependencyInfo dependency_info{
 								    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-								    .pNext                    = nullptr, // optional
-								    .dependencyFlags          = 0,       // optional
-								    .memoryBarrierCount       = 0,       // optional
+								    .pNext                    = nullptr,
+								    .dependencyFlags          = 0,
+								    .memoryBarrierCount       = 0,
 								    .pMemoryBarriers          = 0,
-								    .bufferMemoryBarrierCount = 0, // optional
+								    .bufferMemoryBarrierCount = 0,
 								    .pBufferMemoryBarriers    = 0,
-								    .imageMemoryBarrierCount  = 1, // optional
+								    .imageMemoryBarrierCount  = 1,
 								    .pImageMemoryBarriers     = &finishBlit,
 								};
 
@@ -5572,11 +5574,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					{
 						VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
 						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-						    .pNext               = nullptr, // optional
-						    .srcStageMask        = 0,       // optional
-						    .srcAccessMask       = 0,       // optional
-						    .dstStageMask        = 0,       // optional
-						    .dstAccessMask       = 0,       // optional
+						    .pNext               = nullptr,
+						    .srcStageMask        = 0,
+						    .srcAccessMask       = 0,
+						    .dstStageMask        = 0,
+						    .dstAccessMask       = 0,
 						    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
 						    .newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
 						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -5596,7 +5598,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							imageLayoutToShaderReadOptimal.srcAccessMask = {};                                       // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
 							imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make layout transitioned image visible to shader read in FragmentShader stage
 							imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;     // transition from transfer src optimal
-							imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ...to shader readonly optimal =and make transitioned image available;
+							imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ...to shader readonly optimal -and make transitioned image available;
 						} else {
 
 							// If there are no additional miplevels, the single subresource will still be in
@@ -5607,19 +5609,19 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							imageLayoutToShaderReadOptimal.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;           // make available what is in transferwrite - image layout transition will need it
 							imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make visible the result of the image layout transition to shader read in FragmentShader stage
 							imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;     // transition the single one subresource , which is in transfer dst optimal...
-							imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ... to shader readonly optimal =and make the transitioned image available;
+							imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ... to shader readonly optimal -and make the transitioned image available;
 							;
 						}
 
 						VkDependencyInfo dependency_info{
 						    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-						    .pNext                    = nullptr, // optional
-						    .dependencyFlags          = 0,       // optional
-						    .memoryBarrierCount       = 0,       // optional
+						    .pNext                    = nullptr,
+						    .dependencyFlags          = 0,
+						    .memoryBarrierCount       = 0,
 						    .pMemoryBarriers          = 0,
-						    .bufferMemoryBarrierCount = 0, // optional
+						    .bufferMemoryBarrierCount = 0,
 						    .pBufferMemoryBarriers    = 0,
-						    .imageMemoryBarrierCount  = 1, // optional
+						    .imageMemoryBarrierCount  = 1,
 						    .pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
 						};
 
