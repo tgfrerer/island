@@ -1957,8 +1957,8 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			subpasses.emplace_back( subpassDescription );
 		}
 
-		VkSubpassDependency2 dependencies[ 2 ];
 		VkMemoryBarrier2     memoryBarriers[ 2 ];
+		VkSubpassDependency2 dependencies[ 2 ];
 
 		{
 			if ( PRINT_DEBUG_MESSAGES ) {
@@ -2043,16 +2043,20 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 				// -- hash attachments
 				for ( const auto& a : attachments ) {
+
 					// We use offsetof so that we can get everything from flags to the start of the
-					// attachmentdescription to (but not including) loadOp. We assume that struct is tightly packed.
+					// attachmentdescription to (but not including) loadOp.
+					static_assert(
+					    offsetof( VkAttachmentDescription2, loadOp ) -
+					            offsetof( VkAttachmentDescription2, flags ) ==
+					        sizeof( VkAttachmentDescription2::flags ) +
+					            sizeof( VkAttachmentDescription2::format ) +
+					            sizeof( VkAttachmentDescription2::samples ),
+					    "AttachmentDescription struct must be tightly packed for efficient hashing" );
 
-					static_assert( sizeof( VkAttachmentDescription::flags ) +
-					                       sizeof( VkAttachmentDescription::format ) +
-					                       sizeof( VkAttachmentDescription::samples ) ==
-					                   offsetof( VkAttachmentDescription, loadOp ),
-					               "AttachmentDescription struct must be tightly packed for efficient hashing" );
-
-					rp_hash = SpookyHash::Hash64( &a, offsetof( VkAttachmentDescription, loadOp ), rp_hash );
+					rp_hash = SpookyHash::Hash64(
+					    &a.flags, offsetof( VkAttachmentDescription2, loadOp ) - offsetof( VkAttachmentDescription2, flags ),
+					    rp_hash );
 				}
 
 				// -- Hash subpasses
@@ -2074,7 +2078,9 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 						}
 						// ----------| invariant: pAttachmentRefs is valid
 						for ( auto const* pAr = pAttachmentRefs; pAr != pAttachmentRefs + count; pAr++ ) {
-							seed = SpookyHash::Hash64( pAr, sizeof( VkAttachmentReference2::attachment ), seed );
+							// Note: for RenderPass compatibility, only the actual attachment
+							// counts - Layout has no effect on compatibility.
+							seed = SpookyHash::Hash64( &pAr->attachment, sizeof( VkAttachmentReference2::attachment ), seed );
 						}
 						return seed;
 					};
