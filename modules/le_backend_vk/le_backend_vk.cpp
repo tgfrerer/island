@@ -297,7 +297,7 @@ inline uint16_t get_sample_count_log_2( uint32_t const& sample_count ) {
 #if defined( _MSC_VER )
 	auto lz = __lzcnt( sample_count );
 #else
-	auto lz = __builtin_clz( sample_count );
+	auto lz                         = __builtin_clz( sample_count );
 #endif
 	return 31 - lz;
 }
@@ -463,7 +463,9 @@ struct BackendFrameData {
 	// A: It must not: as it is used to map external resources as well.
 	std::unordered_map<le_resource_handle, AbstractPhysicalResource> physicalResources;
 
-	/// \brief vk resources retained and destroyed with BackendFrameData
+	/// \brief vk resources retained and destroyed with BackendFrameData.
+	/// These resources (such as samplers, imageviews, framebuffers) are transient,
+	/// and lifetime of these resources is tied to the frame fence.
 	std::forward_list<AbstractPhysicalResource> ownedResources;
 
 	/// \brief if user provides explicit resource info, we collect this here, so that we can make sure
@@ -476,6 +478,11 @@ struct BackendFrameData {
 
 	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass
 
+	typedef std::unordered_map<le_resource_handle, AllocatedResourceVk> ResourceMap_T;
+
+	ResourceMap_T availableResources; // resources this frame may use - each entry represents an association between a le_resource_handle and a vk resource
+	ResourceMap_T binnedResources;    // resources to delete when this frame comes round to clear()
+
 	/*
 
 	  Each Frame has one allocation pool from which all allocations for scratch buffers are drawn.
@@ -485,12 +492,6 @@ struct BackendFrameData {
 	  own thread.
 
 	 */
-
-	typedef std::unordered_map<le_resource_handle, AllocatedResourceVk> ResourceMap_T;
-
-	ResourceMap_T availableResources; // resources this frame may use
-	ResourceMap_T binnedResources;    // resources to delete when this frame comes round to clear()
-
 	VmaPool allocationPool; // pool from which allocations for this frame come from
 
 	std::vector<le_allocator_o*>   allocators;       // owning; typically one per `le_worker_thread`.
@@ -500,16 +501,6 @@ struct BackendFrameData {
 
 	le_staging_allocator_o* stagingAllocator; // owning: allocator for large objects to GPU memory
 };
-
-static const VkBufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
-    VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-#ifdef LE_FEATURE_RTX
-    VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-#endif
-    VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 /// \brief backend data object
 struct le_backend_o {
@@ -547,6 +538,9 @@ struct le_backend_o {
 	KillList<le_rtx_blas_info_o> rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
 	KillList<le_rtx_tlas_info_o> rtx_tlas_info_kill_list; // used to keep track rtx_blas_infos.
 
+	// Vulkan resources which are available to all frames.
+	// Generally, a resource needs to stay alive until the last frame that uses it has crossed its fence.
+	// FIXME: Access to this map needs to be secured via mutex...
 	struct {
 		std::unordered_map<le_resource_handle, AllocatedResourceVk> allocatedResources; // Allocated resources, indexed by resource name hash
 	} only_backend_allocate_resources_may_access;                                       // Only acquire_physical_resources may read/write
@@ -600,6 +594,24 @@ static inline void le_format_get_is_depth_stencil( le::Format const& format_, bo
 	return;
 }
 
+// ----------------------------------------------------------------------
+static VkBufferUsageFlags defaults_get_buffer_usage_scratch() {
+
+	VkBufferUsageFlags flags =
+	    VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+	    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+	    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+	    VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+	// Enable shader_device_address for scratch buffer, if raytracing feature is requested
+	static auto settings = le_backend_vk::api->backend_settings_singleton;
+	if ( settings->requested_device_features.ray_tracing_pipeline.rayTracingPipeline ) {
+		flags |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+	}
+
+	return flags;
+}
 // ----------------------------------------------------------------------
 
 static void backend_create_window_surface( le_backend_o* self, le_swapchain_settings_t* settings ) {
@@ -712,7 +724,6 @@ static void backend_destroy( le_backend_o* self ) {
 			} else {
 				vkDestroyImage( device, a.second.as.image, nullptr );
 			}
-#ifdef LE_FEATURE_RTX
 			if ( a.second.info.isBlas() ) {
 				vkDestroyBuffer( device, a.second.info.blasInfo.buffer, nullptr );
 				vkDestroyAccelerationStructureKHR( device, a.second.as.blas, nullptr );
@@ -721,7 +732,6 @@ static void backend_destroy( le_backend_o* self ) {
 				vkDestroyBuffer( device, a.second.info.tlasInfo.buffer, nullptr );
 				vkDestroyAccelerationStructureKHR( device, a.second.as.tlas, nullptr );
 			}
-#endif
 			vmaFreeMemory( self->mAllocator, a.second.allocation );
 		}
 		frameData.binnedResources.clear();
@@ -741,7 +751,6 @@ static void backend_destroy( le_backend_o* self ) {
 		case LeResourceType::eBuffer:
 			vkDestroyBuffer( device, a.second.as.buffer, nullptr );
 			break;
-#ifdef LE_FEATURE_RTX
 		case LeResourceType::eRtxBlas:
 			vkDestroyBuffer( device, a.second.info.blasInfo.buffer, nullptr );
 			vkDestroyAccelerationStructureKHR( device, a.second.as.blas, nullptr );
@@ -750,7 +759,6 @@ static void backend_destroy( le_backend_o* self ) {
 			vkDestroyBuffer( device, a.second.info.tlasInfo.buffer, nullptr );
 			vkDestroyAccelerationStructureKHR( device, a.second.as.tlas, nullptr );
 			break;
-#endif
 		default:
 			assert( false && "Unknown resource type" );
 		}
@@ -948,6 +956,7 @@ static le_backend_vk_instance_o* backend_get_instance( le_backend_o* self ) {
 // ----------------------------------------------------------------------
 // ffdecl.
 static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators );
+// ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
 
@@ -955,13 +964,14 @@ static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator cons
 
 	// Find memory index for scratch buffer - we do this by pretending to create
 	// an allocation.
+	static const VkBufferUsageFlags BUFFER_USAGE_FLAGS_SCRATCH = defaults_get_buffer_usage_scratch();
 
 	VkBufferCreateInfo bufferInfo{
 	    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 	    .pNext                 = nullptr, // optional
 	    .flags                 = 0,       // optional
 	    .size                  = 1,
-	    .usage                 = LE_BUFFER_USAGE_FLAGS_SCRATCH,
+	    .usage                 = BUFFER_USAGE_FLAGS_SCRATCH,
 	    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 	    .queueFamilyIndexCount = 1, // optional
 	    .pQueueFamilyIndices   = &queueFamilyGraphics,
@@ -1013,12 +1023,12 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 
 static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VmaAllocator* allocator ) {
 	VmaAllocatorCreateInfo createInfo{};
-	createInfo.flags = {
-#ifdef LE_FEATURE_RTX
-	    VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT
-#endif
-	};
 
+	// Enable shader_device_address for scratch buffer, if raytracing feature is requested
+	auto settings = le_backend_vk::api->backend_settings_singleton;
+	if ( settings->requested_device_features.vk_12.bufferDeviceAddress ) {
+		createInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+	}
 	createInfo.device                      = device;
 	createInfo.frameInUseCount             = 0;
 	createInfo.physicalDevice              = physical_device;
@@ -1054,10 +1064,8 @@ static void backend_setup( le_backend_o* self ) {
 	VkPhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
 	VkInstance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
 
-#ifdef LE_FEATURE_RTX
 	// -- query rtx properties, and store them with backend
 	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR&>( self->ray_tracing_props ) );
-#endif
 
 	// -- Create allocator for backend vulkan memory
 	// we do this here, because swapchain might want to already use the allocator.
@@ -2430,26 +2438,26 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 
 	if ( resourceInfo.isBuffer() ) {
 
-		result = vmaCreateBuffer( alloc,
-		                          &resourceInfo.bufferInfo,
-		                          &allocationCreateInfo,
-		                          &res.as.buffer,
-		                          &res.allocation,
-		                          &res.allocationInfo );
+		result = vmaCreateBuffer(
+		    alloc,
+		    &resourceInfo.bufferInfo,
+		    &allocationCreateInfo,
+		    &res.as.buffer,
+		    &res.allocation,
+		    &res.allocationInfo );
 		assert( result == VK_SUCCESS );
 
 	} else if ( resourceInfo.isImage() ) {
 
-		result = vmaCreateImage( alloc,
-		                         &resourceInfo.imageInfo,
-		                         &allocationCreateInfo,
-		                         &res.as.image,
-		                         &res.allocation,
-		                         &res.allocationInfo );
+		result = vmaCreateImage(
+		    alloc,
+		    &resourceInfo.imageInfo,
+		    &allocationCreateInfo,
+		    &res.as.image,
+		    &res.allocation,
+		    &res.allocationInfo );
 		assert( result == VK_SUCCESS );
 	} else if ( resourceInfo.isBlas() ) {
-
-#ifdef LE_FEATURE_RTX
 
 		// Allocate bottom level ray tracing acceleration structure
 
@@ -2575,12 +2583,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		res.info.blasInfo.device_address =
 		    vkGetAccelerationStructureDeviceAddressKHR( device, &device_address_info );
 
-#else
-		assert( false && "backend compiled without RTX features, but RTX feature requested." );
-#endif
 	} else if ( resourceInfo.isTlas() ) {
-
-#ifdef LE_FEATURE_RTX
 
 		// Allocate top level ray tracing allocation structure
 
@@ -2669,10 +2672,6 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		// Store memory requirements for scratch buffer into allocation info for this tlas element
 		res.info.tlasInfo.scratch_buffer_size = build_sizes.buildScratchSize;
 		res.info.tlasInfo.buffer_size         = build_sizes.accelerationStructureSize;
-
-#else
-		assert( false && "backend compiled without RTX features, but RTX feature requested." );
-#endif
 
 	} else {
 		assert( false && "Cannot allocate unknown resource type." );
@@ -3321,9 +3320,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-#ifdef LE_FEATURE_RTX
 	static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
-#endif
 
 	// -- first it is our holy duty to drop any binned resources which
 	// were condemned the last time this frame was active.
@@ -3477,7 +3474,6 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 		logger.info( "" );
 	}
 
-#ifdef LE_FEATURE_RTX
 	// -- Create rtx acceleration structure scratch buffer
 	{
 		// In case there are acceleration structures with the `build` flag set, we must allocate
@@ -3521,7 +3517,6 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			frame.binnedResources.insert_or_assign( resource_id, allocated_resource );
 		}
 	}
-#endif
 
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 
@@ -3881,6 +3876,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 		static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 		// Update final sync state for each pre-existing backend resource.
+		// fixme: this breaks the promise that no-one but allocate resources is writing to allocatedResources.
 		auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 		for ( auto const& tbl : frame.syncChainTable ) {
 			auto& resId       = tbl.first;
@@ -3942,7 +3938,8 @@ static le_allocator_o** backend_create_transient_allocators( le_backend_o* self,
 
 	using namespace le_backend_vk;
 
-	auto& frame = self->mFrames[ frameIndex ];
+	auto&                           frame                         = self->mFrames[ frameIndex ];
+	static const VkBufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH = defaults_get_buffer_usage_scratch();
 
 	for ( size_t i = frame.allocators.size(); i != numAllocators; ++i ) {
 
@@ -4876,7 +4873,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					}
 
 				} break;
-#ifdef LE_FEATURE_RTX
 				case le::CommandType::eTraceRays: {
 					auto* le_cmd = static_cast<le::CommandTraceRays*>( dataIt );
 
@@ -4929,7 +4925,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					);
 
 				} break;
-#endif
 				case le::CommandType::eDispatch: {
 					auto* le_cmd = static_cast<le::CommandDispatch*>( dataIt );
 
@@ -5059,25 +5054,22 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					if ( false == argumentsOk ) {
 						break;
 					}
-#ifdef LE_FEATURE_MESH_SHADER_NV
 
 					// --------| invariant: arguments were updated successfully
 
 					if ( argumentState.setCount > 0 ) {
 
-						cmd.bindDescriptorSets( VkPipelineBindPoint::eGraphics,
-						                        currentPipelineLayout,
-						                        0,
-						                        argumentState.setCount,
-						                        descriptorSets,
-						                        argumentState.dynamicOffsetCount,
-						                        argumentState.dynamicOffsets.data() );
+						vkCmdBindDescriptorSets( cmd,
+						                         VK_PIPELINE_BIND_POINT_GRAPHICS,
+						                         currentPipelineLayout,
+						                         0,
+						                         argumentState.setCount,
+						                         descriptorSets,
+						                         argumentState.dynamicOffsetCount,
+						                         argumentState.dynamicOffsets.data() );
 					}
 
-					cmd.drawMeshTasksNV( le_cmd->info.taskCount, le_cmd->info.firstTask );
-#else
-					break;
-#endif
+					vkCmdDrawMeshTasksNV( cmd, le_cmd->info.taskCount, le_cmd->info.firstTask );
 				} break;
 
 				case le::CommandType::eSetLineWidth: {
@@ -5265,7 +5257,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
 
 				} break;
-#ifdef LE_FEATURE_RTX
 				case le::CommandType::eSetArgumentTlas: {
 					auto*    le_cmd           = static_cast<le::CommandSetArgumentTlas*>( dataIt );
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
@@ -5299,7 +5290,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					bindingData.arrayIndex                                      = uint32_t( le_cmd->info.array_index );
 
 				} break;
-#endif
 				case le::CommandType::eBindIndexBuffer: {
 					auto* le_cmd = static_cast<le::CommandBindIndexBuffer*>( dataIt );
 					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
@@ -5636,7 +5626,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					break;
 				}
-#ifdef LE_FEATURE_RTX
 				case le::CommandType::eBuildRtxBlas: {
 					auto* le_cmd = static_cast<le::CommandBuildRtxBlas*>( dataIt );
 
@@ -5921,7 +5910,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					break;
 				}
-#endif // LE_FEATURE_RTX
 				default: {
 					assert( false && "command not handled" );
 				}
@@ -6205,7 +6193,4 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 
 	// Global settings object for backend - once a backend is initialized, this object is set to readonly.
 	api_i->backend_settings_singleton = static_cast<le_backend_vk_settings_o*>( *p_settings_singleton_addr );
-
-#ifdef PLUGINS_DYNAMIC
-#endif
 }

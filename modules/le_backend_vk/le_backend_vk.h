@@ -200,7 +200,7 @@ struct le_backend_vk_api {
 
 		const VkPhysicalDeviceProperties*       ( *get_vk_physical_device_properties        ) ( le_device_o* self );
 		const VkPhysicalDeviceMemoryProperties* ( *get_vk_physical_device_memory_properties ) ( le_device_o* self );
-		bool	                                    ( *get_vk_physical_device_ray_tracing_properties)(le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties);
+		void                                    ( *get_vk_physical_device_ray_tracing_properties)(le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties);
 		bool                                    ( *get_memory_allocation_info               ) ( le_device_o *self, const VkMemoryRequirements &memReqs, const uint32_t &memPropsRef, VkMemoryAllocateInfo *pMemoryAllocationInfo );
 	};
 
@@ -370,8 +370,8 @@ class Device : NoCopy, NoMove {
 		return le_backend_vk::vk_device_i.get_default_graphics_queue_family_index( self );
 	}
 
-	bool getRaytracingProperties( struct VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
-		return le_backend_vk::vk_device_i.get_vk_physical_device_ray_tracing_properties( self, properties );
+	void getRaytracingProperties( struct VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
+		le_backend_vk::vk_device_i.get_vk_physical_device_ray_tracing_properties( self, properties );
 	}
 
 	uint32_t getDefaultComputeQueueFamilyIndex() const {

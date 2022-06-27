@@ -392,7 +392,6 @@ class RenderPass {
 		return *this;
 	}
 
-#	ifdef LE_FEATURE_RTX
 	RenderPass& useRtxBlasResource( le_resource_handle resource_id, const LeRtxBlasUsageFlags& usage_flags = { LE_RTX_BLAS_USAGE_READ_BIT } ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxBlas, { { usage_flags } } } );
 		return *this;
@@ -402,7 +401,6 @@ class RenderPass {
 		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxTlas, { { usage_flags } } } );
 		return *this;
 	}
-#	endif
 
 	RenderPass& setIsRoot( bool isRoot = true ) {
 		le_renderer::renderpass_i.set_is_root( self, isRoot );

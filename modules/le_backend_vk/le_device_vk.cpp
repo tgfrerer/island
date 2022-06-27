@@ -460,13 +460,8 @@ const VkPhysicalDeviceMemoryProperties* device_get_vk_physical_device_memory_pro
 
 // ----------------------------------------------------------------------
 
-bool device_get_physical_device_ray_tracing_properties( le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
+void device_get_physical_device_ray_tracing_properties( le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
 	*properties = self->properties.raytracing_properties;
-#ifdef LE_FEATURE_RTX
-	return true;
-#else
-	return false;
-#endif
 }
 
 // ----------------------------------------------------------------------

@@ -6,6 +6,9 @@
 #include "le_stage_types.h"
 #include "le_pipeline_builder.h"
 
+#include "le_backend_vk.h"
+#include <vulkan/vulkan.h>
+
 #include "le_camera.h"
 #include "le_pixels.h"
 #include "le_timebase.h"
@@ -566,6 +569,33 @@ static uint32_t le_stage_create_texture( le_stage_o* stage, le_texture_info cons
 	return texture_idx;
 }
 
+static le::BufferUsageFlags get_defaults_buffer_usage_flags() {
+	// TODO: check if we can narrow usage flags based on whether bufferview
+	// which uses this buffer specifies index, or vertex for usage.
+
+	le::BufferUsageFlags flags =
+	    le::BufferUsageFlagBits::eTransferDst |
+	    le::BufferUsageFlagBits::eIndexBuffer |
+	    le::BufferUsageFlagBits::eVertexBuffer;
+
+	VkBaseInStructure const* vk_settings = reinterpret_cast<const VkBaseInStructure*>( le_backend_vk::api->le_backend_settings_i.get_requested_physical_device_features_chain() );
+	while ( vk_settings ) {
+		if ( vk_settings->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR ) {
+			auto rt_settings = ( VkPhysicalDeviceRayTracingPipelineFeaturesKHR const* )( vk_settings );
+			if ( rt_settings->rayTracingPipeline ) {
+				flags = flags | le::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyBitKhr; // we need this so that we can use this buffer to build acceleration structure
+			}
+		} else if ( vk_settings->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES ) {
+			auto vk_12_settings = ( VkPhysicalDeviceVulkan12Features const* )( vk_settings );
+			if ( vk_12_settings->bufferDeviceAddress ) {
+				flags = flags | le::BufferUsageFlagBits::eShaderDeviceAddress;
+			}
+		}
+		vk_settings = vk_settings->pNext;
+	}
+	return flags;
+}
+
 /// \brief Add a buffer to stage, return index to buffer within this stage.
 ///
 static uint32_t le_stage_create_buffer( le_stage_o* stage, void* mem, uint32_t sz, char const* debug_name ) {
@@ -614,21 +644,11 @@ static uint32_t le_stage_create_buffer( le_stage_o* stage, void* mem, uint32_t s
 			assert( false );
 		}
 
-		// TODO: check if we can narrow usage flags based on whether bufferview
-		// which uses this buffer specifies index, or vertex for usage.
+		static const auto BUFFER_USAGE_FLAGS = get_defaults_buffer_usage_flags();
 
 		buffer->resource_info = le::BufferInfoBuilder()
 		                            .setSize( buffer->size )
-		                            .addUsageFlags( {
-		                                le::BufferUsageFlagBits::eTransferDst |
-		                                le::BufferUsageFlagBits::eIndexBuffer |
-		                                le::BufferUsageFlagBits::eVertexBuffer
-#ifdef LE_FEATURE_RTX
-		                                |
-		                                le::BufferUsageFlagBits::eShaderDeviceAddress |
-		                                le::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyBitKhr // we need this so that we can use this buffer to build acceleration structure
-#endif
-		                            } )
+		                            .addUsageFlags( BUFFER_USAGE_FLAGS )
 		                            .build();
 
 		stage->buffer_handles.push_back( res );

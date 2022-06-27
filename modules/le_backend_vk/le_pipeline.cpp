@@ -1644,7 +1644,6 @@ static VkPipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager
 
 // ----------------------------------------------------------------------
 
-#ifdef LE_FEATURE_RTX
 static VkRayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType const& tp ) {
 	// clang-format off
     switch(tp){
@@ -1737,7 +1736,6 @@ static VkPipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o* 
 	assert( VK_SUCCESS == result );
 	return pipeline;
 }
-#endif
 
 // ----------------------------------------------------------------------
 
@@ -2103,7 +2101,6 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 //   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( le_pipeline_manager_o* self, le_rtxpso_handle pso_handle, char** maybe_shader_group_data ) {
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
-#ifdef LE_FEATURE_RTX
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	// -- 0. Fetch pso from cache using its hash key
@@ -2173,8 +2170,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			// If shader group data was not found, we must must query, and store it.
 			static VkPhysicalDeviceRayTracingPipelinePropertiesKHR props;
 
-			static bool result = le_backend_vk::vk_device_i.get_vk_physical_device_ray_tracing_properties( self->le_device, &props );
-			assert( result && "properties must be successfully acquired." );
+			le_backend_vk::vk_device_i.get_vk_physical_device_ray_tracing_properties( self->le_device, &props );
 
 			size_t dataSize   = props.shaderGroupHandleSize * pso->shaderGroups.size();
 			size_t bufferSize = dataSize + sizeof( LeShaderGroupDataHeader );
@@ -2196,7 +2192,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			{
 				// Retrieve shader group handles from GPU
 
-				auto result = vkGetRayTracingShaderGroupHandlesKHR(
+				bool result = vkGetRayTracingShaderGroupHandlesKHR(
 				    self->device,
 				    pipeline_and_layout_info.pipeline,
 				    0, uint32_t( pso->shaderGroups.size() ),
@@ -2223,9 +2219,6 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			*maybe_shader_group_data = handles;
 		}
 	}
-#else
-	assert( false && "backend compiled without RTX features, but RTX feature requested." );
-#endif
 	return pipeline_and_layout_info;
 }
 
