@@ -1146,8 +1146,8 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 
 	VkShaderModuleCreateInfo createInfo = {
 	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-	    .pNext    = nullptr, // optional
-	    .flags    = 0,       // optional
+	    .pNext    = nullptr,
+	    .flags    = 0,
 	    .codeSize = module->spirv.size() * sizeof( uint32_t ),
 	    .pCode    = module->spirv.data(),
 	};
@@ -1413,19 +1413,19 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 		if ( !s->specialization_map_info.entries.empty() ) {
 			p_specialization_info  = new ( VkSpecializationInfo );
 			*p_specialization_info = {
-			    .mapEntryCount = uint32_t( s->specialization_map_info.entries.size() ), // optional
+			    .mapEntryCount = uint32_t( s->specialization_map_info.entries.size() ),
 			    .pMapEntries   = s->specialization_map_info.entries.data(),
-			    .dataSize      = s->specialization_map_info.data.size(), // optional
+			    .dataSize      = s->specialization_map_info.data.size(),
 			    .pData         = s->specialization_map_info.data.data(),
 			};
 		}
 
 		VkPipelineShaderStageCreateInfo info = {
 		    .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-		    .pNext               = nullptr, // optional
-		    .flags               = 0,       // optional
+		    .pNext               = nullptr,
+		    .flags               = 0,
 		    .stage               = VkShaderStageFlagBits( s->stage ),
-		    .module              = s->module, // optional
+		    .module              = s->module,
 		    .pName               = "main",
 		    .pSpecializationInfo = p_specialization_info, // optional
 		};
@@ -1481,11 +1481,11 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	// something that vk will accept
 	VkPipelineVertexInputStateCreateInfo vertexInputStageInfo = {
 	    .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-	    .pNext                           = nullptr,                                      // optional
-	    .flags                           = 0,                                            // optional
-	    .vertexBindingDescriptionCount   = uint32_t( vertexBindingDescriptions.size() ), // optional
+	    .pNext                           = nullptr,
+	    .flags                           = 0,
+	    .vertexBindingDescriptionCount   = uint32_t( vertexBindingDescriptions.size() ),
 	    .pVertexBindingDescriptions      = vertexBindingDescriptions.data(),
-	    .vertexAttributeDescriptionCount = uint32_t( vertexInputAttributeDescriptions.size() ), // optional
+	    .vertexAttributeDescriptionCount = uint32_t( vertexInputAttributeDescriptions.size() ),
 	    .pVertexAttributeDescriptions    = vertexInputAttributeDescriptions.data(),
 	};
 	;
@@ -1503,11 +1503,11 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	VkPipelineColorBlendStateCreateInfo colorBlendState =
 	    {
 	        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-	        .pNext           = nullptr, // optional
-	        .flags           = 0,       // optional
+	        .pNext           = nullptr,
+	        .flags           = 0,
 	        .logicOpEnable   = VK_FALSE,
 	        .logicOp         = VK_LOGIC_OP_CLEAR,
-	        .attachmentCount = pass.numColorAttachments, // optional
+	        .attachmentCount = pass.numColorAttachments,
 	        .pAttachments    = pso->data.blendAttachmentStates,
 	        .blendConstants  = {
 	             pso->data.blend_factor_constants[ 0 ],
@@ -1523,12 +1523,12 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	//
 	static VkPipelineViewportStateCreateInfo defaultViewportState = {
 	    .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-	    .pNext         = nullptr, // optional
-	    .flags         = 0,       // optional
-	    .viewportCount = 1,       // optional
-	    .pViewports    = nullptr, // optional
-	    .scissorCount  = 1,       // optional
-	    .pScissors     = nullptr, // optional
+	    .pNext         = nullptr,
+	    .flags         = 0,
+	    .viewportCount = 1,
+	    .pViewports    = nullptr,
+	    .scissorCount  = 1,
+	    .pScissors     = nullptr,
 	};
 	;
 
@@ -1542,9 +1542,9 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 
 	VkPipelineDynamicStateCreateInfo dynamicState = {
 	    .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-	    .pNext             = nullptr,                                            // optional
-	    .flags             = 0,                                                  // optional
-	    .dynamicStateCount = sizeof( dynamicStates ) / sizeof( VkDynamicState ), // optional
+	    .pNext             = nullptr,
+	    .flags             = 0,
+	    .dynamicStateCount = sizeof( dynamicStates ) / sizeof( VkDynamicState ),
 	    .pDynamicStates    = dynamicStates,
 	};
 
@@ -1605,27 +1605,27 @@ static VkPipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager
 	if ( !s->specialization_map_info.entries.empty() ) {
 		p_specialization_info  = new ( VkSpecializationInfo );
 		*p_specialization_info = {
-		    .mapEntryCount = uint32_t( s->specialization_map_info.entries.size() ), // optional
+		    .mapEntryCount = uint32_t( s->specialization_map_info.entries.size() ),
 		    .pMapEntries   = s->specialization_map_info.entries.data(),
-		    .dataSize      = s->specialization_map_info.data.size(), // optional
+		    .dataSize      = s->specialization_map_info.data.size(),
 		    .pData         = s->specialization_map_info.data.data(),
 		};
 	}
 
 	VkPipelineShaderStageCreateInfo shaderStage = {
 	    .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-	    .pNext               = nullptr, // optional
-	    .flags               = 0,       // optional
+	    .pNext               = nullptr,
+	    .flags               = 0,
 	    .stage               = VkShaderStageFlagBits( s->stage ),
-	    .module              = s->module, // optional
+	    .module              = s->module,
 	    .pName               = "main",
-	    .pSpecializationInfo = p_specialization_info, // optional
+	    .pSpecializationInfo = p_specialization_info,
 	};
 
 	VkComputePipelineCreateInfo cpi = {
 	    .sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-	    .pNext              = nullptr,                                  // optional
-	    .flags              = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT, // optional
+	    .pNext              = nullptr,
+	    .flags              = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT,
 	    .stage              = shaderStage,
 	    .layout             = pipelineLayout,
 	    .basePipelineHandle = nullptr, // optional
