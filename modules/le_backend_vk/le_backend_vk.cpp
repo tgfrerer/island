@@ -5998,19 +5998,19 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		present_complete_semaphore_submit_infos.push_back(
 		    {
 		        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		        .pNext       = nullptr, // optional
+		        .pNext       = nullptr,
 		        .semaphore   = swp.presentComplete,
-		        .value       = 1,
-		        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // ? signal semaphore once ColorAttachmentOutput has completed
+		        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
+		        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
 		        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
 		    } );
 		render_complete_semaphore_submit_infos.push_back(
 		    {
 		        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		        .pNext       = nullptr, // optional
+		        .pNext       = nullptr,
 		        .semaphore   = swp.renderComplete,
-		        .value       = 2,
-		        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // ? signal semaphore once all commands have been processed
+		        .value       = 0,                                  // ignored, as this semaphore is not a timeline semaphore
+		        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 		        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
 		    } );
 	}
@@ -6028,24 +6028,59 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    } );
 	}
 
-	VkCommandBufferSubmitInfo si;
-	// we need one submit info for each command.
+	// we need one submit info for each batch of command buffers per queue.
+	{
 
-	VkSubmitInfo2 submitInfo{
-	    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-	    .pNext                    = nullptr,
-	    .flags                    = 0,
-	    .waitSemaphoreInfoCount   = uint32_t( present_complete_semaphore_submit_infos.size() ),
-	    .pWaitSemaphoreInfos      = present_complete_semaphore_submit_infos.data(),
-	    .commandBufferInfoCount   = uint32_t( command_buffer_submit_infos.size() ),
-	    .pCommandBufferInfos      = command_buffer_submit_infos.data(),
-	    .signalSemaphoreInfoCount = uint32_t( render_complete_semaphore_submit_infos.size() ),
-	    .pSignalSemaphoreInfos    = render_complete_semaphore_submit_infos.data(),
-	};
+		VkSubmitInfo2 submitInfo{
+		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+		    .pNext                    = nullptr,
+		    .flags                    = 0,
+		    .waitSemaphoreInfoCount   = uint32_t( present_complete_semaphore_submit_infos.size() ),
+		    .pWaitSemaphoreInfos      = present_complete_semaphore_submit_infos.data(), // wait for present complete - it gets signaled once the swapchain image is ready for writing
+		    .commandBufferInfoCount   = uint32_t( command_buffer_submit_infos.size() ),
+		    .pCommandBufferInfos      = command_buffer_submit_infos.data(),
+		    .signalSemaphoreInfoCount = uint32_t( render_complete_semaphore_submit_infos.size() ),
+		    .pSignalSemaphoreInfos    = render_complete_semaphore_submit_infos.data(), // signal render complete once this batch has finished processing
+		};
 
-	auto queue = VkQueue{ self->device->getDefaultGraphicsQueue() };
+		auto queue = VkQueue{ self->device->getDefaultGraphicsQueue() };
 
-	vkQueueSubmit2( queue, 1, &submitInfo, frame.frameFence );
+		vkQueueSubmit2( queue, 1, &submitInfo, nullptr );
+	}
+	{
+		/// Now that we have submitted our draw payload, we can wait for any timeline semaphores from this frame.
+		/// This is so that whatever gets executed on parallel queues will have time to complete until draw has completed.
+		///
+		/// Timeline Semaphores may be signalled from other (compute, transfer) queues.
+
+		/// We first sumbit draw, then wait for timeline semaphores, so that compute and transfer queue operations can happen
+		/// concurrently with the draw queue. The draw queue will then wait for completion.
+
+		/// go through all compute queue submission and wait for the timeline semaphore of the highest submission
+		/// go through all transwer queue submissions and wait for the timeline semaphore of the highest submission
+
+		/// If there are no submissions on compute or transfer, just signal that the fence was crossed.
+		///
+		/// Queue submission order means that batch 1 needs to complete before batch 2 -- see
+		/// VkSpec 7.2 (Implicit Synchronization Guarantees)
+
+		VkSubmitInfo2 submitInfo{
+		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+		    .pNext                    = nullptr,
+		    .flags                    = 0,
+		    .waitSemaphoreInfoCount   = 0,
+		    .pWaitSemaphoreInfos      = nullptr, // wait for any timeline semaphores from sibling queues here
+		    .commandBufferInfoCount   = 0,
+		    .pCommandBufferInfos      = nullptr,
+		    .signalSemaphoreInfoCount = 0,
+		    .pSignalSemaphoreInfos    = 0,
+
+		};
+
+		auto queue = VkQueue{ self->device->getDefaultGraphicsQueue() };
+
+		vkQueueSubmit2( queue, 1, &submitInfo, frame.frameFence );
+	}
 
 	using namespace le_swapchain_vk;
 
