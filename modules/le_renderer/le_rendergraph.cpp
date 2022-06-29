@@ -46,9 +46,12 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 constexpr size_t MAX_NUM_LAYER_RESOURCES = 4096; // set this to larger value if you want to deal with a larger number of distinct resources.
 using BitField                           = std::bitset<MAX_NUM_LAYER_RESOURCES>;
 
-struct Task {
+struct Node {
 	BitField reads;
 	BitField writes;
+	bool     is_root         = false; // whether this node is a root node
+	bool     is_contributing = false; // whether this node contributes to a root node
+	int      TreeNr          = 0;     // index of tree this node contributes to
 };
 
 // these are some sanity checks for le_renderer_types
@@ -488,49 +491,48 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the pass here. We must destroy it.
 }
 
-/// \brief Tag any tasks which contribute to any root task
-/// \details We do this so that we can weed out any tasks which are provably
+/// \brief Tag any nodes which contribute to any root nodesq
+/// \details We do this so that we can weed out any nodes which are provably
 ///          not contributing - these don't need to be executed at all.
-static void tasks_tag_contributing( Task* const tasks, const size_t numTasks ) {
+static void node_tag_contributing( Node* const nodes, const size_t num_nodes ) {
 
 	// we must iterate backwards from last layer to first layer
-	Task*             task      = tasks + numTasks;
-	Task const* const task_rend = tasks;
+	Node*             node      = nodes + num_nodes;
+	Node const* const node_rend = nodes;
 
 	BitField read_accum;
 
 	// find first root layer
 	//    monitored reads will be from the first root layer
 
-	while ( task != task_rend ) {
-		--task;
+	while ( node != node_rend ) {
+		--node;
 
-		bool isRoot = task->reads[ 0 ]; // any task which has the root signal set in the first read channel is considered a root task
-
-		// If it's a root task, get all reads from (= providers to) this task
-		// If it's not a root task, first see if there are any writes to currently monitored reads
+		// If it's a root node, get all reads from (= providers to) this node
+		// If it's not a root node, first see if there are any writes to currently monitored reads
 		//    if yes, add all reads to monitored reads
 
-		if ( isRoot || ( task->writes & read_accum ).any() ) {
-			// If this task is a root task - OR					      ) this means the layer is contributing
-			// If this task writes to any subsequent monitored reads, )
-			// Then we must monitor all reads by this task.
-			read_accum |= task->reads;
+		if ( node->is_root || ( node->writes & read_accum ).any() ) {
+			// If this node is a root node - OR					      ) this means the layer is contributing
+			// If this node writes to any subsequent monitored reads, )
+			// Then we must monitor all reads by this node.
+			read_accum |= node->reads;
 
-			task->reads[ 0 ] = true; // Make sure the task is tagged as contributing
+			node->is_contributing = true;
 		} else {
-			// Otherwise - this task does not contribute
+			// Otherwise - this node does not contribute
+			node->is_contributing = false;
 		}
-	} // end for all tasks, backwards iteration
+	} // end for all nodes, backwards iteration
 }
 
-/// Note: `sortIndices` must point to an array of `numtasks` elements of type uint32_t
-static void tasks_calculate_sort_indices( Task const* const tasks, const size_t numTasks, uint32_t* sortIndices ) {
+/// Note: `sortIndices` must point to an array of `numnodes` elements of type uint32_t
+static void nodes_calculate_sort_indices( Node const* const nodes, const size_t num_nodes, uint32_t* sortIndices ) {
 
 	BitField read_accum{};
 	BitField write_accum{};
 
-	/// Each bit in the task bitfield stands for one resource.
+	/// Each bit in the node bitfield stands for one resource.
 	/// Bitfield index corresponds to a resource id. Note that
 	/// bitfields are indexed right-to left (index zero is right-most).
 
@@ -539,42 +541,40 @@ static void tasks_calculate_sort_indices( Task const* const tasks, const size_t 
 	uint32_t sortIndex = 0;
 
 	{
-		Task const* const tasks_end = tasks + numTasks;
-		uint32_t*         taskOrder = sortIndices;
-		for ( Task const* task = tasks; task != tasks_end; task++, taskOrder++ ) {
+		Node const* const nodes_end   = nodes + num_nodes;
+		uint32_t*         nodes_order = sortIndices;
+		for ( Node const* n = nodes; n != nodes_end; n++, nodes_order++ ) {
 
-			// Weed out any tasks which are marked as non-contributing
-
-			if ( task->reads[ 0 ] == false ) {
-				*taskOrder = ~( 0u ); // tag task as not contributing by marking it with the maximum sort index
+			// Weed out any node which are marked as non-contributing
+			if ( !n->is_contributing ) {
+				*nodes_order = ~( 0u ); // tag node as not contributing by marking it with the maximum sort index
 				continue;
 			}
 
-			BitField read_write = ( task->reads & task->writes ); // read_after write in same task - this means a task boundary if it does touch any previously read or written elements
+			BitField read_write = ( n->reads & n->writes ); // read_after write in same node - this means a node boundary if it does touch any previously read or written elements
 
 			// A barrier is needed, if:
-			needs_barrier = ( read_accum & read_write ).any() ||    // - any previously read elements are touched by read-write, OR
-			                ( write_accum & read_write ).any() ||   // - any previously written elements are touched by read-write, OR
-			                ( write_accum & task->reads ).any() ||  // - the current task wants to read from a previously written task, OR
-			                ( write_accum & task->writes ).any() || // - the current task writes to a previously written resource, OR
-			                ( read_accum & task->writes ).any();    // - the current task wants to write to a task which was previously read.
+			needs_barrier = ( read_accum & read_write ).any() ||  // - any previously read elements are touched by read-write, OR
+			                ( write_accum & read_write ).any() || // - any previously written elements are touched by read-write, OR
+			                ( write_accum & n->reads ).any() ||   // - the current node wants to read from a previously written node, OR
+			                ( write_accum & n->writes ).any() ||  // - the current node writes to a previously written resource, OR
+			                ( read_accum & n->writes ).any();     // - the current node wants to write to a node which was previously read.
 
 			//			std::cout << "Needs barrier: " << ( needs_barrier ? "true" : "false" ) << std::endl
 			//			          << std::flush;
 
 			if ( needs_barrier ) {
-				++sortIndex;         // Barriers are expressed by increasing the sortIndex. tasks with the same sortIndex *may* execute concurrently.
-				read_accum.reset();  // Barriers apply everything before the current task
+				++sortIndex;         // Barriers are expressed by increasing the sortIndex. nodes with the same sortIndex *may* execute concurrently.
+				read_accum.reset();  // Barriers apply everything before the current node
 				write_accum.reset(); //
-				needs_barrier = false;
 			}
 
-			write_accum |= task->writes;
-			read_accum |= task->reads;
+			write_accum |= n->writes;
+			read_accum |= n->reads;
 
-			*taskOrder = sortIndex; // store current sortIndex value with task
+			*nodes_order = sortIndex; // store current sortIndex value with node
 
-			// std::cout << task->reads << " reads" << std::endl
+			// std::cout << node->reads << " reads" << std::endl
 			//           << std::flush;
 			// std::cout << read_accum << " read accum" << std::endl
 			//           << std::flush;
@@ -616,7 +616,7 @@ generate_dot_file_for_rendergraph(
     le_rendergraph_o*   self,
     le_resource_handle* uniqueResources,
     size_t const&       numUniqueResources,
-    Task const*         tasks,
+    Node const*         nodes,
     size_t              frame_number ) {
 
 	static auto           logger   = LeLog( LOGGER_LABEL );
@@ -670,7 +670,7 @@ generate_dot_file_for_rendergraph(
 
 				// if resource is being written to, then underline resource name
 
-				if ( tasks[ i ].writes[ res_idx ] ) {
+				if ( nodes[ i ].writes[ res_idx ] ) {
 					os << "<u>" << r->data->debug_name << "</u>";
 				} else {
 					os << "" << r->data->debug_name << "";
@@ -736,17 +736,17 @@ generate_dot_file_for_rendergraph(
 
 			assert( res_idx != numUniqueResources && "something went wrong, handle could not be found in list of unique handles." );
 
-			if ( !tasks[ i ].writes[ res_idx ] ) {
+			if ( !nodes[ i ].writes[ res_idx ] ) {
 				continue;
 			}
 
-			// now we must find any subsequent tasks which read from this resource.
+			// now we must find any subsequent nodes which read from this resource.
 
 			BitField res_filter = uint64_t( 1 ) << res_idx;
 
 			for ( size_t k = i + 1; k != self->passes.size(); k++ ) {
-				if ( ( tasks[ k ].reads & res_filter ).any() ||
-				     ( tasks[ k ].writes & tasks[ k ].reads & res_filter ).any() ) {
+				if ( ( nodes[ k ].reads & res_filter ).any() ||
+				     ( nodes[ k ].writes & nodes[ k ].reads & res_filter ).any() ) {
 
 					os << "\"" << p->debugName << "\":"
 					   << "\"" << needle->data->debug_name << "\""
@@ -757,7 +757,7 @@ generate_dot_file_for_rendergraph(
 					   << ( self->sortIndices[ k ] == ( ~0u ) ? "[style=dashed]" : "" )
 					   << ";" << std::endl;
 				}
-				if ( ( tasks[ k ].writes & res_filter ).any() ) {
+				if ( ( nodes[ k ].writes & res_filter ).any() ) {
 					break;
 				}
 			}
@@ -819,23 +819,23 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	static auto LE_RENDER_GRAPH_ROOT_LAYER_TAG = renderer_produce_resource_handle( "LE_RENDER_GRAPH_ROOT_LAYER_TAG", LeResourceType::eUndefined );
-	// We must express our list of passes as a list of tasks.
-	// A task holds two bitfields, the bitfield names are: `read` and `write`.
+	// We must express our list of passes as a list of nodes.
+	// A node holds two bitfields, the bitfield names are: `read` and `write`.
 	// Each bit in the bitfield represents a possible resource.
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
 
-	std::vector<Task>                                       tasks;
+	std::vector<Node>                                       nodes;
 	std::array<le_resource_handle, MAX_NUM_LAYER_RESOURCES> uniqueHandles; // lookup for resource handles.
-	uniqueHandles[ 0 ]        = LE_RENDER_GRAPH_ROOT_LAYER_TAG;            // handle with index zero is marker for root tasks
+	uniqueHandles[ 0 ]        = LE_RENDER_GRAPH_ROOT_LAYER_TAG;            // handle with index zero is marker for root nodes
 	size_t numUniqueResources = 1;
 
-	// Translate all passes into a task
-	//   Get list of resources per pass and build task from this
+	// Translate all passes into a node
+	//   Get list of resources per pass and build node from this
 
 	for ( auto const& p : self->passes ) {
 
-		Task task;
+		Node node;
 
 		const size_t numResources = p->resources.size();
 
@@ -859,28 +859,27 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 			// --------| invariant: uniqueHandles[res_idx] is valid
 
-			task.reads |= ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead ) << res_idx );
-			task.writes |= ( ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite ) >> 1 ) << res_idx );
+			node.reads |= ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead ) << res_idx );
+			node.writes |= ( ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite ) >> 1 ) << res_idx );
 		}
 
 		if ( p->isRoot ) {
-			// Any task which has reads[0] set to true is marked as a root task.
-			task.reads[ 0 ] = true;
+			node.is_root = true;
 		}
 
-		tasks.emplace_back( std::move( task ) );
+		nodes.emplace_back( std::move( node ) );
 	}
 
-	// Tag all tasks which contribute to any root task.
+	// Tag all nodes which contribute to any root node.
 	//
-	// Tasks which don't contribute to any root task
+	// Tasks which don't contribute to any root node
 	// can be disposed, as their products will never be used.
-	tasks_tag_contributing( tasks.data(), tasks.size() );
+	node_tag_contributing( nodes.data(), nodes.size() );
 
-	self->sortIndices.resize( tasks.size(), 0 );
+	self->sortIndices.resize( nodes.size(), 0 );
 
-	// Associate sort indices to tasks
-	tasks_calculate_sort_indices( tasks.data(), tasks.size(), self->sortIndices.data() );
+	// Associate sort indices to nodes
+	nodes_calculate_sort_indices( nodes.data(), nodes.size(), self->sortIndices.data() );
 
 #if ( DEBUG_GENERATE_DOT_GRAPH )
 	{
@@ -891,26 +890,26 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 		// calculate hash over all unique resources
 
-		// calculate hash over all tasks, their signatures
+		// calculate hash over all nodes, their signatures
 
 		std::hash<BitField> bit_hash;
 
-		std::vector<size_t> task_hashes;
-		task_hashes.reserve( tasks.size() * 2 );
+		std::vector<size_t> node_hashes;
+		node_hashes.reserve( nodes.size() * 2 );
 
-		for ( auto& t : tasks ) {
-			task_hashes.emplace_back( bit_hash( t.reads ) );
-			task_hashes.emplace_back( bit_hash( t.writes ) );
+		for ( auto& t : nodes ) {
+			node_hashes.emplace_back( bit_hash( t.reads ) );
+			node_hashes.emplace_back( bit_hash( t.writes ) );
 		}
 
-		uint64_t tasks_hash = SpookyHash::Hash64( task_hashes.data(), sizeof( size_t ) * task_hashes.size(), 0 );
-		SpookyHash::Hash64( uniqueHandles.data(), sizeof( le_resource_handle_t ) * numUniqueResources, tasks_hash );
+		uint64_t nodes_hash = SpookyHash::Hash64( node_hashes.data(), sizeof( size_t ) * node_hashes.size(), 0 );
+		SpookyHash::Hash64( uniqueHandles.data(), sizeof( le_resource_handle_t ) * numUniqueResources, nodes_hash );
 
 		static uint64_t previous_hash = 0;
 
-		if ( previous_hash != tasks_hash ) {
-			generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, tasks.data(), frame_number );
-			previous_hash = tasks_hash;
+		if ( previous_hash != nodes_hash ) {
+			generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, nodes.data(), frame_number );
+			previous_hash = nodes_hash;
 		}
 	}
 #endif

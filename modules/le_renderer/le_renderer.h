@@ -244,6 +244,7 @@ class Renderer {
 		le_renderer::renderer_i.setup( self, le::RendererInfoBuilder( window ).build() );
 	}
 
+	/// Call this method exactly once per Frame - this is where rendergraph execution callbacks are triggered.
 	void update( le_rendergraph_o* rendergraph ) {
 		le_renderer::renderer_i.update( self, rendergraph );
 	}
