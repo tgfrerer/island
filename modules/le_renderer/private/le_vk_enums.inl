@@ -1602,6 +1602,50 @@ static constexpr char const* to_str( const PrimitiveTopology& tp ) {
 
 // ----------------------------------------------------------------------
 
+using QueueFlags = uint32_t;
+enum class QueueFlagBits : QueueFlags {
+	eGraphics          = 0x00000001, // Queue supports graphics operations
+	eCompute           = 0x00000002, // Queue supports compute operations
+	eTransfer          = 0x00000004, // Queue supports transfer operations
+	eSparseBinding     = 0x00000008, // Queue supports sparse resource memory management operations
+	eProtected         = 0x00000010, // Queues may support protected operations
+	eVideoDecodeBitKhr = 0x00000020,
+	eVideoEncodeBitKhr = 0x00000040,
+	eReserved7BitQcom  = 0x00000080,
+	eReserved8BitNv    = 0x00000100,
+};
+
+constexpr QueueFlags operator|( QueueFlagBits const& lhs, QueueFlagBits const& rhs ) noexcept {
+	return static_cast<const QueueFlags>( static_cast<QueueFlags>( lhs ) | static_cast<QueueFlags>( rhs ) );
+};
+
+constexpr QueueFlags operator|( QueueFlags const& lhs, QueueFlagBits const& rhs ) noexcept {
+	return static_cast<const QueueFlags>( lhs | static_cast<QueueFlags>( rhs ) );
+};
+
+constexpr QueueFlags operator&( QueueFlagBits const& lhs, QueueFlagBits const& rhs ) noexcept {
+	return static_cast<const QueueFlags>( static_cast<QueueFlags>( lhs ) & static_cast<QueueFlags>( rhs ) );
+};
+
+static constexpr char const* to_str( const QueueFlagBits& tp ) {
+	switch ( static_cast<uint32_t>( tp ) ) {
+		// clang-format off
+		case 0x00000001: return "Graphics";
+		case 0x00000002: return "Compute";
+		case 0x00000004: return "Transfer";
+		case 0x00000008: return "SparseBinding";
+		case 0x00000010: return "Protected";
+		case 0x00000020: return "VideoDecodeBitKhr";
+		case 0x00000040: return "VideoEncodeBitKhr";
+		case 0x00000080: return "Reserved7BitQcom";
+		case 0x00000100: return "Reserved8BitNv";
+		default: return "Unknown";
+		// clang-format on
+	};
+}
+
+// ----------------------------------------------------------------------
+
 using SampleCountFlags = uint32_t;
 enum class SampleCountFlagBits : SampleCountFlags {
 	e1  = 0x00000001, // Sample count 1 supported

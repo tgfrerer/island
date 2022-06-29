@@ -150,7 +150,7 @@ struct LeRenderPass {
 	uint16_t       numResolveAttachments;                   // 0..8
 	uint16_t       numDepthStencilAttachments;              // 0..1
 
-	le::RenderPassType type;
+	le::QueueFlagBits type;
 
 	VkFramebuffer           framebuffer;
 	VkRenderPass            renderPass;

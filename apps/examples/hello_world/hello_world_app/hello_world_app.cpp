@@ -661,13 +661,13 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 
 		self->resource_manager.update( renderGraph );
 
-		le::RenderPass resourcePass( "resources", le::RenderPassType::eTransfer );
+		le::RenderPass resourcePass( "resources", le::QueueFlagBits::eTransfer );
 		resourcePass
 		    .setSetupCallback( self, pass_resource_setup )
 		    .setExecuteCallback( self, pass_resource_exec ) //
 		    ;
 
-		le::RenderPass renderPassFinal( "mainPass", le::RenderPassType::eDraw );
+		le::RenderPass renderPassFinal( "mainPass", le::QueueFlagBits::eGraphics );
 		renderPassFinal
 		    .setSetupCallback( self, pass_main_setup )
 		    .setSampleCount( le::SampleCountFlagBits::e8 )

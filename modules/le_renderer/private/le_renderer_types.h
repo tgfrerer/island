@@ -47,14 +47,6 @@ struct le_blas_resource_handle_t : le_resource_handle_t {
 struct le_tlas_resource_handle_t : le_resource_handle_t {
 };
 
-namespace le {
-enum RenderPassType : uint32_t {
-	eUndefined = 0,
-	eDraw      = 1,
-	eTransfer  = 2,
-	eCompute   = 3,
-};
-}
 
 // A graphics pipeline handle is an opaque handle to a *pipeline state* object.
 // Note that the pipeline state is different from the actual pipeline, as the

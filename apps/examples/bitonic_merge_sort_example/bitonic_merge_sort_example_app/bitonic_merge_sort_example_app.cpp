@@ -502,22 +502,22 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 	le::RenderGraph renderGraph{};
 	{
 		auto pass_noise =
-		    le::RenderPass( "initialize", le::RenderPassType::eTransfer )
+		    le::RenderPass( "initialize", le::QueueFlagBits::eTransfer )
 		        .setSetupCallback( self, pass_noise_setup )
 		        .setExecuteCallback( self, pass_noise_execute );
 
 		auto pass_upload_image =
-		    le::RenderPass( "upload_image", le::RenderPassType::eTransfer )
+		    le::RenderPass( "upload_image", le::QueueFlagBits::eTransfer )
 		        .setSetupCallback( self, pass_upload_image_setup )
 		        .setExecuteCallback( self, pass_upload_image_execute );
 
 		auto pass_compute =
-		    le::RenderPass( "compute", le::RenderPassType::eCompute )
+		    le::RenderPass( "compute", le::QueueFlagBits::eCompute )
 		        .setSetupCallback( self, pass_sort_setup )
 		        .setExecuteCallback( self, pass_sort_execute );
 
 		auto pass_draw =
-		    le::RenderPass( "root", le::RenderPassType::eDraw )
+		    le::RenderPass( "root", le::QueueFlagBits::eGraphics )
 		        .useBufferResource( self->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) )
 		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
 		        .setExecuteCallback( self, pass_draw_exec );

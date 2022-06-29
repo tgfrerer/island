@@ -381,15 +381,15 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 		// This pass will typically only get executed once - it will upload
 		// buffers .
 		auto passInitialise =
-		    le::RenderPass( "initialise", le::RenderPassType::eTransfer )
+		    le::RenderPass( "initialise", le::QueueFlagBits::eTransfer )
 		        .setSetupCallback( self, pass_initialise_setup )
 		        .setExecuteCallback( self, pass_initialise_exec );
 		auto passCompute =
-		    le::RenderPass( "compute", le::RenderPassType::eCompute )
+		    le::RenderPass( "compute", le::QueueFlagBits::eCompute )
 		        .setSetupCallback( self, pass_compute_setup )
 		        .setExecuteCallback( self, pass_compute_exec );
 		auto passDraw =
-		    le::RenderPass( "draw", le::RenderPassType::eDraw )
+		    le::RenderPass( "draw", le::QueueFlagBits::eGraphics )
 		        .setSetupCallback( self, pass_draw_setup )
 		        .setExecuteCallback( self, pass_draw_exec )
 		        .setSampleCount( le::SampleCountFlagBits::e8 );

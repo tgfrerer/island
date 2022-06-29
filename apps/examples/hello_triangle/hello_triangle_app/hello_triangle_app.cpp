@@ -240,7 +240,7 @@ static bool app_update( app_o* self ) {
 	{
 
 		auto renderPassFinal =
-		    le::RenderPass( "root", le::RenderPassType::eDraw )
+		    le::RenderPass( "root", le::QueueFlagBits::eGraphics )
 		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE ) // Color attachment
 		        .setExecuteCallback( self, pass_main_exec )      // This is where we record our draw commands
 		    ;

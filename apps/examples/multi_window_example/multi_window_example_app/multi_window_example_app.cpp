@@ -420,7 +420,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 
 		// Define a renderpass which outputs to window_0.
 		auto renderPassMain =
-		    le::RenderPass( "to_window_0", le::RenderPassType::eDraw )
+		    le::RenderPass( "to_window_0", le::QueueFlagBits::eGraphics )
 		        .addColorAttachment( IMG_SWAP_0, attachmentInfo[ 0 ] ) // IMG_SWAP_0 == swapchain 0 attachment
 		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
 		        .setSampleCount( le::SampleCountFlagBits::e8 )

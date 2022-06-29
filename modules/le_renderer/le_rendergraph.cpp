@@ -61,7 +61,7 @@ struct ExecuteCallbackInfo {
 
 struct le_renderpass_o {
 
-	le::RenderPassType      type         = le::RenderPassType::eUndefined;
+	le::QueueFlagBits       type         = le::QueueFlagBits{};
 	uint32_t                ref_count    = 0;                           // reference count (we're following an intrusive shared pointer pattern)
 	uint64_t                id           = 0;                           // hash of name
 	uint32_t                width        = 0;                           // < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
@@ -98,7 +98,7 @@ struct le_rendergraph_o : NoCopy, NoMove {
 
 // ----------------------------------------------------------------------
 
-static le_renderpass_o* renderpass_create( const char* renderpass_name, const le::RenderPassType& type_ ) {
+static le_renderpass_o* renderpass_create( const char* renderpass_name, const le::QueueFlagBits& type_ ) {
 	auto self  = new le_renderpass_o();
 	self->id   = hash_64_fnv1a( renderpass_name );
 	self->type = type_;
@@ -401,7 +401,7 @@ static bool renderpass_get_is_root( le_renderpass_o const* self ) {
 	return self->isRoot;
 }
 
-static le::RenderPassType renderpass_get_type( le_renderpass_o const* self ) {
+static le::QueueFlagBits renderpass_get_type( le_renderpass_o const* self ) {
 	return self->type;
 }
 
@@ -1086,7 +1086,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, pass_extents ); // NOTE: we must manually track the lifetime of encoder!
 
-			if ( pass->type == le::RenderPassType::eDraw ) {
+			if ( pass->type == le::QueueFlagBits::eGraphics ) {
 
 				// Set default scissor and viewport to full extent.
 

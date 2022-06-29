@@ -238,7 +238,7 @@ static bool app_update( app_o* self ) {
 	{
 
 		auto renderPassFinal =
-		    le::RenderPass( "root", le::RenderPassType::eDraw )
+		    le::RenderPass( "root", le::QueueFlagBits::eGraphics )
 		        .setSetupCallback( self, pass_main_setup )
 		        .setExecuteCallback( self, pass_main_exec ) //
 		    ;

@@ -173,7 +173,7 @@ static bool quad_template_app_update( quad_template_app_o* self ) {
 	le::RenderGraph renderGraph{};
 	{
 
-		le::RenderPass renderPassFinal( "root", le::RenderPassType::eDraw );
+		le::RenderPass renderPassFinal( "root", le::QueueFlagBits::eGraphics );
 
 		renderPassFinal
 		    .setSetupCallback( self, pass_main_setup )

@@ -43,7 +43,7 @@ le_render_module_add_blit_pass(
 	};
 
 	auto passBlit =
-	    le::RenderPass( "blit", le::RenderPassType::eDraw )
+	    le::RenderPass( "blit", le::QueueFlagBits::eGraphics )
 	        .sampleTexture( SRC_TEX_UNIT_0, le::ImageSamplerInfoBuilder( input ).build() )
 	        .addColorAttachment( output )
 	        .setExecuteCallback( nullptr, pass_blit_exec ) //
@@ -250,7 +250,7 @@ le_render_module_add_bloom_pass(
 	// -- Finally, combine the main image with the blurred image
 
 	auto passHighPass =
-	    le::RenderPass( "high_pass", le::RenderPassType::eDraw )
+	    le::RenderPass( "high_pass", le::QueueFlagBits::eGraphics )
 	        .sampleTexture( TEX_INPUT, samplerInfoImgInput )
 	        .addColorAttachment( targets_blur_v[ 0 ].image, LOAD_CLEAR )
 	        .setWidth( width / 2 )
@@ -276,7 +276,7 @@ le_render_module_add_bloom_pass(
 			snprintf( pass_name, sizeof( pass_name ), "blur_h_%zu", i );
 
 			auto passBlurHorizontal =
-			    le::RenderPass( pass_name, le::RenderPassType::eDraw )
+			    le::RenderPass( pass_name, le::QueueFlagBits::eGraphics )
 			        .sampleTexture( SRC_TEX_UNIT_0, source_info )                    // read
 			        .addColorAttachment( targets_blur_h[ i ].image, LOAD_DONT_CARE ) // write
 			        .setWidth( w )
@@ -286,7 +286,7 @@ le_render_module_add_bloom_pass(
 			snprintf( pass_name, sizeof( pass_name ), "blur_v_%zu", i );
 
 			auto passBlurVertical =
-			    le::RenderPass( pass_name, le::RenderPassType::eDraw )
+			    le::RenderPass( pass_name, le::QueueFlagBits::eGraphics )
 			        .sampleTexture( SRC_TEX_UNIT_0, targets_blur_h[ i ].info )       // read
 			        .addColorAttachment( targets_blur_v[ i ].image, LOAD_DONT_CARE ) // write
 			        .setWidth( w )
@@ -300,7 +300,7 @@ le_render_module_add_bloom_pass(
 		}
 
 		auto passCombine =
-		    le::RenderPass( "bloom_combine", le::RenderPassType::eDraw )
+		    le::RenderPass( "bloom_combine", le::QueueFlagBits::eGraphics )
 		        .sampleTexture( SRC_TEX_UNIT_0_0, targets_blur_v[ 0 ].info )
 		        .sampleTexture( SRC_TEX_UNIT_0_1, targets_blur_v[ 1 ].info )
 		        .sampleTexture( SRC_TEX_UNIT_0_2, targets_blur_v[ 2 ].info )

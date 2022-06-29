@@ -122,7 +122,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 
 	// Upload resources
 
-	le::RenderPass pass{ "imguiSetup", le::RenderPassType::eTransfer };
+	le::RenderPass pass{ "imguiSetup", le::QueueFlagBits::eTransfer };
 
 	pass
 	    .useImageResource( IMGUI_IMG_HANDLE, le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) )

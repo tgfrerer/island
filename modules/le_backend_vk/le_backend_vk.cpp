@@ -1436,14 +1436,14 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, LeRend
 	size_t                      resources_count = 0;
 	renderpass_i.get_used_resources( pass, &resources, &resources_usage, &resources_count );
 
-	auto get_stage_flags_based_on_renderpass_type = []( le::RenderPassType const& rp_type ) -> VkPipelineStageFlags2 {
+	auto get_stage_flags_based_on_renderpass_type = []( le::QueueFlagBits const& rp_type ) -> VkPipelineStageFlags2 {
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
-		case le::RenderPassType::eTransfer:
+		case le::QueueFlagBits::eTransfer:
 			return VK_PIPELINE_STAGE_2_TRANSFER_BIT; // stage for transfer pass
-		case le::RenderPassType::eDraw:
+		case le::QueueFlagBits::eGraphics:
 			return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; // earliest stage for draw pass
-		case le::RenderPassType::eCompute:
+		case le::QueueFlagBits::eCompute:
 			return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // stage for compute pass
 
 		default:
@@ -1815,7 +1815,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 		// The rest of this loop only concerns draw passes
 		//
-		if ( pass.type != le::RenderPassType::eDraw ) {
+		if ( pass.type != le::QueueFlagBits::eGraphics ) {
 			continue;
 		}
 
@@ -2223,7 +2223,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 
 	for ( auto& pass : frame.passes ) {
 
-		if ( pass.type != le::RenderPassType::eDraw ) {
+		if ( pass.type != le::QueueFlagBits::eGraphics ) {
 			continue;
 		}
 
@@ -3559,7 +3559,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 
-		if ( renderpass_i.get_type( *p ) != le::RenderPassType::eCompute ) {
+		if ( renderpass_i.get_type( *p ) != le::QueueFlagBits::eCompute ) {
 			continue;
 		}
 
@@ -4370,13 +4370,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			static constexpr auto LE_COLOUR_PALE_PEACH   = hex_rgba_to_float_colour( 0xFFDBA3FF );
 
 			switch ( pass.type ) {
-			case le::RenderPassType::eCompute:
+			case le::QueueFlagBits::eCompute:
 				memcpy( labelInfo.color, LE_COLOUR_LIGHTBLUE.data(), sizeof( float ) * 4 );
 				break;
-			case le::RenderPassType::eDraw:
+			case le::QueueFlagBits::eGraphics:
 				memcpy( labelInfo.color, LE_COLOUR_GREENY_BLUE.data(), sizeof( float ) * 4 );
 				break;
-			case le::RenderPassType::eTransfer:
+			case le::QueueFlagBits::eTransfer:
 				memcpy( labelInfo.color, LE_COLOUR_BRICK_ORANGE.data(), sizeof( float ) * 4 );
 				break;
 			default:
@@ -4476,7 +4476,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 
 		// Draw passes must begin by opening a Renderpass context.
-		if ( pass.type == le::RenderPassType::eDraw && pass.renderPass ) {
+		if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
 
 			for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
 				clearValues[ i ] = reinterpret_cast<VkClearValue&>( pass.attachments[ i ].clearValue );
@@ -4567,7 +4567,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				case le::CommandType::eBindGraphicsPipeline: {
 					auto* le_cmd = static_cast<le::CommandBindGraphicsPipeline*>( dataIt );
 
-					if ( pass.type == le::RenderPassType::eDraw ) {
+					if ( pass.type == le::QueueFlagBits::eGraphics ) {
 						// at this point, a valid renderpass must be bound
 
 						using namespace le_backend_vk;
@@ -4668,7 +4668,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				case le::CommandType::eBindComputePipeline: {
 					auto* le_cmd = static_cast<le::CommandBindComputePipeline*>( dataIt );
-					if ( pass.type == le::RenderPassType::eCompute ) {
+					if ( pass.type == le::QueueFlagBits::eCompute ) {
 						// at this point, a valid renderpass must be bound
 
 						using namespace le_backend_vk;
@@ -4752,7 +4752,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				case le::CommandType::eBindRtxPipeline: {
 					auto* le_cmd = static_cast<le::CommandBindRtxPipeline*>( dataIt );
-					if ( pass.type == le::RenderPassType::eCompute ) {
+					if ( pass.type == le::QueueFlagBits::eCompute ) {
 						// at this point, a valid renderpass must be bound
 
 						using namespace le_backend_vk;
@@ -5924,7 +5924,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 
 		// non-draw passes don't need renderpasses.
-		if ( pass.type == le::RenderPassType::eDraw && pass.renderPass ) {
+		if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
 			vkCmdEndRenderPass( cmd );
 		}
 
@@ -6015,6 +6015,13 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    } );
 	}
 
+	// TODO: Take into account queue affinity for each command buffer,
+	// so that we build batches of commands for each queue
+
+	// If resources are used across queues this means that batches need to be split so that we can synchronise between queues using semaphores
+	// This needs to be somehow communicated.
+	// We want a timeline semaphore for each queue so that any batch submitted to a queue can be waited upon
+
 	std::vector<VkCommandBufferSubmitInfo> command_buffer_submit_infos;
 	command_buffer_submit_infos.reserve( frame.commandBuffers.size() );
 
@@ -6022,13 +6029,13 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		command_buffer_submit_infos.push_back(
 		    {
 		        .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-		        .pNext         = nullptr, // optional
+		        .pNext         = nullptr,
 		        .commandBuffer = c,
 		        .deviceMask    = 0, // replaces vkDeviceGroupSubmitInfo
 		    } );
 	}
 
-	// we need one submit info for each batch of command buffers per queue.
+	// We need one submit info for each batch of command buffers per queue.
 	{
 
 		VkSubmitInfo2 submitInfo{

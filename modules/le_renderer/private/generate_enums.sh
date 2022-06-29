@@ -27,6 +27,7 @@ VkIndexType, yes
 VkPipelineStageFlagBits2,
 VkPolygonMode, yes
 VkPrimitiveTopology, yes
+VkQueueFlagBits, yes
 VkSampleCountFlagBits
 VkSamplerAddressMode, yes
 VkSamplerMipmapMode, yes

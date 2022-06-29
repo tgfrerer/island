@@ -30,6 +30,7 @@ struct le_backend_vk_settings_o {
 	std::vector<le_swapchain_settings_t> swapchain_settings;
 	uint32_t                             concurrency_count = 1; // number of potential worker threads
 	std::atomic_bool                     readonly          = false;
+	std::vector<VkQueueFlags>            requested_queues; // available queues and their flags.
 };
 
 // ----------------------------------------------------------------------
