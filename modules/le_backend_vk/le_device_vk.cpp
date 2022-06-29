@@ -58,6 +58,21 @@ struct le_device_o {
 
 // ----------------------------------------------------------------------
 
+static std::string le_queue_flags_to_string( le::QueueFlags flags ) {
+	std::string result;
+
+	for ( int i = 0; ( flags > 0 ); i++ ) {
+		if ( flags & 1 ) {
+			result.append( result.empty() ? std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) )
+			                              : " | " + std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) ) );
+		}
+		flags >>= 1;
+	}
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
 uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& queueFlags_, const VkQueueFlags& flags ) {
 
 	// Find out the queue family index for a queue best matching the given flags.
@@ -94,7 +109,7 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& queueFl
 ///        1.. index within queue family
 ///        2.. index of queue from props vector (used to keep queue indices
 //             consistent between requested queues and queues you will render to)
-std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQueues( const std::vector<VkQueueFamilyProperties2>& props, const std::vector<::VkQueueFlags>& reqProps ) {
+std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQueues( const std::vector<VkQueueFamilyProperties2>& props, const std::vector<VkQueueFlags>& reqProps ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -122,7 +137,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 					foundIndex  = usedQueues[ familyIndex ] + 1;
 					logger.info( "Found dedicated queue matching: '%d'", flags );
 				} else {
-					logger.info( "No more dedicated queues available matching: '%d'", flags );
+					logger.info( "No more dedicated queues available matching: '%s'", le_queue_flags_to_string( flags ).c_str() );
 				}
 				break;
 			}
@@ -144,7 +159,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 						foundMatch  = true;
 						foundFamily = familyIndex;
 						foundIndex  = usedQueues[ familyIndex ] + 1;
-						logger.info( "Found versatile queue matching: '%d'", flags );
+						logger.info( "Found versatile queue matching: '%s'", le_queue_flags_to_string( flags ).c_str() );
 					}
 					break;
 				}
@@ -291,8 +306,8 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 
 		queueCreateInfo = {
 		    .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		    .pNext            = nullptr, // optional
-		    .flags            = 0,       // optional
+		    .pNext            = nullptr,
+		    .flags            = 0,
 		    .queueFamilyIndex = queueFamily,
 		    .queueCount       = queueCount,
 		    .pQueuePriorities = prioritiesPerFamily[ queueFamily ].data(),
