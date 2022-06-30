@@ -32,11 +32,11 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 #	define LE_PRINT_DEBUG_MESSAGES false
 #endif
 
-#ifndef DEBUG_GENERATE_DOT_GRAPH
+#ifndef LE_GENERATE_DOT_GRAPH
 #	ifndef NDEBUG
-#		define DEBUG_GENERATE_DOT_GRAPH true
+#		define LE_GENERATE_DOT_GRAPH true
 #	else
-#		define DEBUG_GENERATE_DOT_GRAPH false
+#		define LE_GENERATE_DOT_GRAPH false
 #	endif
 #endif
 
@@ -890,7 +890,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// Associate sort indices to nodes
 	nodes_calculate_sort_indices( nodes.data(), nodes.size(), self->sortIndices.data() );
 
-#if ( DEBUG_GENERATE_DOT_GRAPH )
+#if ( LE_GENERATE_DOT_GRAPH )
 	{
 		// We must check if the renderpass has somehow changed - if we detect change, save out a new .dot file.
 
