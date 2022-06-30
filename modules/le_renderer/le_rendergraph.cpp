@@ -43,15 +43,18 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 #include <bitset>
 #include <set>
 
-constexpr size_t MAX_NUM_LAYER_RESOURCES = 4096; // set this to larger value if you want to deal with a larger number of distinct resources.
-using BitField                           = std::bitset<MAX_NUM_LAYER_RESOURCES>;
+constexpr size_t LE_MAX_NUM_RESOURCES = 64; // set this to larger value if you want to deal with a larger number of distinct resources.
+constexpr size_t LE_MAX_NUM_TREES     = 64; // maximum number of trees in a given graph ... we assume this is much smaller than LE_MAX_NUM_RESOURCES, but worst case it would need to be the same size.
+using ResourceField                   = std::bitset<LE_MAX_NUM_RESOURCES>;
+using TreeField                       = uint64_t;
+static_assert( sizeof( TreeField ) == LE_MAX_NUM_TREES / 8, "TreeField must have enough bits available to cover LE_MAX_NUM_TREES" );
 
 struct Node {
-	BitField reads;
-	BitField writes;
-	bool     is_root         = false; // whether this node is a root node
-	bool     is_contributing = false; // whether this node contributes to a root node
-	int      TreeNr          = 0;     // index of tree this node contributes to
+	ResourceField reads;
+	ResourceField writes;
+	TreeField     root_index_affinity;     // bitfield of tree affinities for resources. resources are only allowed to have affinity to one tree- otherwise these trees must be combined.
+	bool          is_root         = false; // whether this node is a root node
+	bool          is_contributing = false; // whether this node contributes to a root node
 };
 
 // these are some sanity checks for le_renderer_types
@@ -94,7 +97,6 @@ struct le_renderpass_o {
 
 struct le_rendergraph_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o*>   passes;                  //
-	std::vector<uint32_t>           sortIndices;             // One index for each pass
 	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
 };
@@ -500,7 +502,7 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes, ui
 	Node*             node      = nodes + num_nodes;
 	Node const* const node_rend = nodes;
 
-	BitField read_accum;
+	ResourceField read_accum;
 
 	if ( count_roots ) {
 		*count_roots = 0;
@@ -544,8 +546,8 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes, ui
 /// Note: `sortIndices` must point to an array of `numnodes` elements of type uint32_t
 static void nodes_calculate_sort_indices( Node const* const nodes, const size_t num_nodes, uint32_t* sortIndices ) {
 
-	BitField read_accum{};
-	BitField write_accum{};
+	ResourceField read_accum{};
+	ResourceField write_accum{};
 
 	/// Each bit in the node bitfield stands for one resource.
 	/// Bitfield index corresponds to a resource id. Note that
@@ -556,17 +558,17 @@ static void nodes_calculate_sort_indices( Node const* const nodes, const size_t 
 	uint32_t sortIndex = 0;
 
 	{
-		Node const* const nodes_end   = nodes + num_nodes;
-		uint32_t*         nodes_order = sortIndices;
-		for ( Node const* n = nodes; n != nodes_end; n++, nodes_order++ ) {
+		Node const* const nodes_end    = nodes + num_nodes;
+		uint32_t*         p_sort_index = sortIndices;
+		for ( Node const* n = nodes; n != nodes_end; n++, p_sort_index++ ) {
 
 			// Weed out any node which are marked as non-contributing
 			if ( !n->is_contributing ) {
-				*nodes_order = ~( 0u ); // tag node as not contributing by marking it with the maximum sort index
+				*p_sort_index = ~( 0u ); // tag node as not contributing by marking it with the maximum sort index
 				continue;
 			}
 
-			BitField read_write = ( n->reads & n->writes ); // read_after write in same node - this means a node boundary if it does touch any previously read or written elements
+			ResourceField read_write = ( n->reads & n->writes ); // read_after write in same node - this means a node boundary if it does touch any previously read or written elements
 
 			// A barrier is needed, if:
 			needs_barrier = ( read_accum & read_write ).any() ||  // - any previously read elements are touched by read-write, OR
@@ -587,7 +589,7 @@ static void nodes_calculate_sort_indices( Node const* const nodes, const size_t 
 			write_accum |= n->writes;
 			read_accum |= n->reads;
 
-			*nodes_order = sortIndex; // store current sortIndex value with node
+			*p_sort_index = sortIndex; // store current sortIndex value with node
 
 			// std::cout << node->reads << " reads" << std::endl
 			//           << std::flush;
@@ -689,11 +691,17 @@ generate_dot_file_for_rendergraph(
 				}
 
 				// if resource is being written to, then underline resource name
+				if ( nodes[ i ].reads[ res_idx ] ) {
+					os << "△";
+				}
+				if ( nodes[ i ].writes[ res_idx ] ) {
+					os << "▼";
+				}
 
 				if ( nodes[ i ].writes[ res_idx ] ) {
 					os << "<u>" << r->data->debug_name << "</u>";
 				} else {
-					os << "" << r->data->debug_name << "";
+					os << " " << r->data->debug_name << "";
 				}
 			}
 
@@ -702,34 +710,34 @@ generate_dot_file_for_rendergraph(
 		os << "</tr></table>>];" << std::endl;
 	}
 
-	// Indicate which passes are of the same rank,
-	// which we do by grouping passes by their sort order.
+	//	// Indicate which passes are of the same rank,
+	//	// which we do by grouping passes by their sort order.
 
-	{
-		// we need to group elements with the same sort indices.
+	//	{
+	//		// we need to group elements with the same sort indices.
 
-		// -- get a set of sort indices
-		// -- for each sort index, list passes with this sort index
+	//		// -- get a set of sort indices
+	//		// -- for each sort index, list passes with this sort index
 
-		std::set<uint32_t> unique_sort_indices;
+	//		std::set<uint32_t> unique_sort_indices;
 
-		for ( auto& i : self->sortIndices ) {
-			unique_sort_indices.insert( i );
-		}
+	//		for ( auto& i : self->sortIndices ) {
+	//			unique_sort_indices.insert( i );
+	//		}
 
-		for ( auto const& i : unique_sort_indices ) {
-			if ( i == ( ~0u ) ) {
-				continue;
-			}
-			os << "{rank=same; ";
-			for ( size_t j = 0; j != self->sortIndices.size(); j++ ) {
-				if ( i == self->sortIndices[ j ] ) {
-					os << "\"" << self->passes[ j ]->debugName << "\" ";
-				}
-			}
-			os << "}" << std::endl;
-		}
-	}
+	//		for ( auto const& i : unique_sort_indices ) {
+	//			if ( i == ( ~0u ) ) {
+	//				continue;
+	//			}
+	//			os << "{rank=same; ";
+	//			for ( size_t j = 0; j != self->sortIndices.size(); j++ ) {
+	//				if ( i == self->sortIndices[ j ] ) {
+	//					os << "\"" << self->passes[ j ]->debugName << "\" ";
+	//				}
+	//			}
+	//			os << "}" << std::endl;
+	//		}
+	//	}
 
 	// Draw connections : A connection goes from each resource that
 	// has been written in a pass to all subsequent passes which read
@@ -762,7 +770,7 @@ generate_dot_file_for_rendergraph(
 
 			// now we must find any subsequent nodes which read from this resource.
 
-			BitField res_filter = uint64_t( 1 ) << res_idx;
+			ResourceField res_filter = uint64_t( 1 ) << res_idx;
 
 			for ( size_t k = i + 1; k != self->passes.size(); k++ ) {
 				if ( ( nodes[ k ].reads & res_filter ).any() ||
@@ -774,7 +782,7 @@ generate_dot_file_for_rendergraph(
 					   << " -> \"" << self->passes[ k ]->debugName << "\":"
 					   << "\"" << needle->data->debug_name << "\""
 					   << ":n"
-					   << ( self->sortIndices[ k ] == ( ~0u ) ? "[style=dashed]" : "" )
+					   << ( nodes[ k ].is_contributing == false ? "[style=dashed]" : "" )
 					   << ";" << std::endl;
 				}
 				if ( ( nodes[ k ].writes & res_filter ).any() ) {
@@ -844,9 +852,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
 
-	std::vector<Node>                                       nodes;
-	std::array<le_resource_handle, MAX_NUM_LAYER_RESOURCES> uniqueHandles; // lookup for resource handles.
-	size_t                                                  numUniqueResources = 0;
+	std::vector<Node>                                    nodes;
+	std::array<le_resource_handle, LE_MAX_NUM_RESOURCES> uniqueHandles; // lookup for resource handles.
+	size_t                                               numUniqueResources = 0;
 
 	// Translate all passes into a node
 	//   Get list of resources per pass and build node from this
@@ -873,12 +881,13 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				// resource was not found, we must add a new resource
 				uniqueHandles[ res_idx ] = resource_handle;
 				numUniqueResources++;
+				assert( numUniqueResources < LE_MAX_NUM_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
 			}
 
 			// --------| invariant: uniqueHandles[res_idx] is valid
 
-			node.reads |= ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead ) << res_idx );
-			node.writes |= ( ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite ) >> 1 ) << res_idx );
+			node.reads.set( res_idx, ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead ) );
+			node.writes.set( res_idx, ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite ) >> 1 ) );
 		}
 
 		if ( p->isRoot ) {
@@ -892,12 +901,155 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	//
 	// Tasks which don't contribute to any root node
 	// can be disposed, as their products will never be used.
-	node_tag_contributing( nodes.data(), nodes.size() );
+	uint32_t root_count = 0; // gets set to number of found root nodes as a side-effect of node_tag_contributing
+	node_tag_contributing( nodes.data(), nodes.size(), &root_count );
+	assert( root_count <= LE_MAX_NUM_TREES && "number of nodes must fit LE_MAX_NUM_TREES, otherwise we can't express tree affinity as a bitfield" );
 
-	self->sortIndices.resize( nodes.size(), 0 );
+	{
+		std::vector<ResourceField> root_reads_accum( root_count );
+		std::vector<ResourceField> root_writes_accum( root_count );
 
-	// Associate sort indices to nodes
-	nodes_calculate_sort_indices( nodes.data(), nodes.size(), self->sortIndices.data() );
+		// for each root node, accumulate all reads, and writes from contributing nodes.
+		// we do this so that we can test whether each tree is isolated.
+
+		// a tree is isolated if none of its writes touch any other tree's reads.
+		// - what happens if a tree's reads touch another tree's write?
+		{
+			Node* nodes_rbegin = nodes.data() + nodes.size() - 1;
+			Node* nodes_rend   = nodes.data() - 1;
+
+			uint64_t root_index = 0;
+			// find first root node
+			for ( Node* r = nodes_rbegin; r != nodes_rend; r-- ) {
+				ResourceField& read_accum  = root_reads_accum[ root_index ];
+				ResourceField& write_accum = root_writes_accum[ root_index ];
+				while ( r != nodes_rend && !r->is_root ) {
+					r--;
+				}
+				if ( r == nodes_rend ) {
+					break;
+				}
+				// n is a root node.
+				read_accum  = r->reads;
+				write_accum = r->writes;
+				r->root_index_affinity |= ( 1 << root_index );
+
+				for ( Node* n = r - 1; n != nodes_rend; n-- ) {
+					if ( n->is_root ) {
+						continue;
+					}
+					// if this earlier node writes to any of our subsequent reads, we add it to our
+					// current tree of nodes.
+					if ( ( n->writes & read_accum ).any() ) {
+						read_accum |= n->reads;
+						write_accum |= n->writes;
+						// tag resource as belonging to this particular root node.
+						n->root_index_affinity |= ( 1 << root_index );
+					}
+				}
+				root_index++;
+			}
+		}
+
+#if ( LE_PRINT_DEBUG_MESSAGES )
+		{
+			logger.info( "Unique resources:" );
+			for ( size_t i = 0; i != numUniqueResources; i++ ) {
+				logger.info( "%3d : %s", i, uniqueHandles[ i ]->data->debug_name );
+			}
+		}
+		for ( size_t i = 0; i < root_count; i++ ) {
+			logger.info( "root node (%2d)", i );
+			logger.info( "reads : %s", root_reads_accum[ i ].to_string().c_str() );
+			logger.info( "writes: %s", root_writes_accum[ i ].to_string().c_str() );
+		}
+
+		logger.info( "" );
+		for ( size_t i = 0; i < self->passes.size(); i++ ) {
+			logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_index_affinity );
+		}
+#endif
+		// For each root, test its accumulated reads against all other root's accumulated writes.
+		// if there is an overlap, we know that the two roots which overlap must be combined, as
+		// they are not perfectly resource-isolated (an overlap means that one writes on the other's
+		// read resource).
+		//
+		// No such overlap is detected if both roots in a test only read from the same resource -
+		// this is because two queues may read concurrently from a resource.
+		//
+		// We need to test each root against all other roots - note that we can to two tests at once.
+		// Meaning our complexity for n root elemets is ((n^2-n)/2)
+		//
+		// Q: What happens when more than two batches overlap?
+		// A: Exactly what you would expect, all overlapping batches form one giant batch.
+		//
+
+		// Initially, each root starts out on their own queue -
+		// each queue id is initially a unique single bit in the queue_id bitfield
+		//
+		// If we detect overlap, roots which overlap will get their queue_ids OR'ed
+		// and both roots update the queue_id they point to - so that they point to the new, combined id
+		//
+		// By the end ot this process we get a list of unique queue_ids which have no overlap.
+		//
+		std::vector<TreeField> queue_id( root_count );     // queue id per root - starting out with a single bit
+		std::vector<int>       queue_id_idx( root_count ); // queue id index per root
+		for ( size_t i = 0; i != root_count; i++ ) {
+			queue_id[ i ] |= ( 1 << i ); // initialise to single bit at bitfield position corresponding to queue id
+			queue_id_idx[ i ] = i;       // initialise queue id index to be direct mapping
+		}
+
+		for ( size_t i = 0; i != root_count; i++ ) {
+			for ( size_t j = i + 1; j != root_count; j++ ) {
+				// compare i <-> j
+				// compare j <-> i
+				// If any reads appear in writes, tag both as being part of the same batch.
+				if ( ( root_reads_accum[ i ] & root_writes_accum[ j ] ).any() || // writes from j touch reads from i
+				     ( root_reads_accum[ j ] & root_writes_accum[ i ] ).any() )  // or writes from i touch reads from j
+				{
+
+					// Overlap detectd:
+					logger.info( "RenderGraph trees with roots %d and %d are not isolated and must be combined", i, j );
+
+					// Combine queue ids:
+					// Get current queue ids for i, j,
+					// and combine them in the queue pointed to with the lowest offset
+
+					TreeField combined_queue_id = queue_id[ queue_id_idx[ j ] ] | queue_id[ queue_id_idx[ i ] ];
+
+					if ( queue_id_idx[ i ] <= queue_id_idx[ j ] ) {
+						queue_id_idx[ j ] = queue_id_idx[ i ];
+					} else {
+						queue_id_idx[ i ] = queue_id_idx[ j ];
+					}
+
+					// update queue_id at newly shared queue position
+					queue_id[ queue_id_idx[ i ] ] = combined_queue_id;
+				}
+			}
+		}
+
+		auto it = std::unique( queue_id_idx.begin(), queue_id_idx.end() );
+		queue_id_idx.erase( it, queue_id_idx.end() );
+
+		for ( size_t i = 0; i != queue_id_idx.size(); i++ ) {
+			logger.info( "root id [ %3d] : queue id: %d", i, queue_id[ queue_id_idx[ i ] ] );
+			// TODO: if you filter for tree affinity by LOGICAL AND you will get all passes.
+
+			/*
+
+			    for all root_orders, filter all passes where
+
+			        true == (pass.tree_affinity & root_order),
+
+			every root order loop iteration will be one batch which can execute in parallel.
+
+			*/
+
+			// this is what we need to do when we create batches -
+			// filter by root sort bitfields from largest to smallest root sort bitfield.
+		}
+	}
 
 #if ( LE_GENERATE_DOT_GRAPH )
 	{
@@ -910,7 +1062,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 		// calculate hash over all nodes, their signatures
 
-		std::hash<BitField> bit_hash;
+		std::hash<ResourceField> bit_hash;
 
 		std::vector<size_t> node_hashes;
 		node_hashes.reserve( nodes.size() * 2 );
@@ -932,50 +1084,38 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	}
 #endif
 
-#if ( LE_PRINT_DEBUG_MESSAGES )
-	auto printPassList = [ & ]() -> void {
-		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
-			logger.info( "Pass : %3d sort order: %12d : %s ", i, self->sortIndices[ i ], self->passes[ i ]->debugName );
-		}
-	};
-	printPassList();
-#endif
-
 	{
 		// Remove any passes from rendergraph which do not contribute.
-		// Passes which don't contribute have a sort index of (unsigned) -1.
 		//
-		// We consolidate the list of passes by rebuilding it while only
-		// including passes which contribute (whose sort index != -1)
-
-		size_t numSortIndices = self->sortIndices.size();
+		size_t num_passes = self->passes.size();
 
 		std::vector<le_renderpass_o*> consolidated_passes;
-		std::vector<uint32_t>         consolidated_sort_indices;
+		consolidated_passes.reserve( num_passes );
 
-		consolidated_passes.reserve( numSortIndices );
-		consolidated_sort_indices.reserve( numSortIndices );
-
-		for ( size_t i = 0; i != self->sortIndices.size(); i++ ) {
-			if ( self->sortIndices[ i ] != ( ~0u ) ) {
-				// valid sort index, add to consolidated passes
+		for ( size_t i = 0; i != num_passes; i++ ) {
+			if ( nodes[ i ].is_contributing ) {
+				// Pass contributes, add it to consolidated passes
+				self->passes[ i ]->isRoot = nodes[ i ].is_root;
 				consolidated_passes.push_back( self->passes[ i ] );
-				consolidated_sort_indices.push_back( self->sortIndices[ i ] );
 			} else {
-				// Sort index hints that this pass is not used,
-				// since the rendergraph owns the pass at this point,
-				// we must delete it.
+				// Pass is not contributing, we will not keep it.
+				// Since the rendergraph owns this pass at this point,
+				// we must explicitly delete it.
 				delete self->passes[ i ];
 				self->passes[ i ] = nullptr;
 			}
 		}
 
+		// Update self->passes
 		std::swap( self->passes, consolidated_passes );
-		std::swap( self->sortIndices, consolidated_sort_indices );
 
 #if ( LE_PRINT_DEBUG_MESSAGES )
 		logger.info( "* Consolidated Pass List *" );
-		printPassList();
+		int i = 0;
+		for ( auto const& p : self->passes ) {
+			logger.info( "Pass : %3d : %s ", i, p->debugName );
+			i++;
+		}
 		logger.info( "" );
 #endif
 	}
@@ -1074,15 +1214,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 	const size_t numPasses = self->passes.size();
 
 	for ( size_t i = 0; i != numPasses; ++i ) {
-		auto& pass       = self->passes[ i ];
-		auto& sort_index = self->sortIndices[ i ]; // passes with same sort_index may execute in parallel.
-
-		if ( sort_index == ( ~0u ) ) {
-			// Pass has been marked as non-contributing during rendergraph.build step.
-			continue;
-		}
-
-		// ---------| invariant: pass may contribute
+		auto& pass = self->passes[ i ];
 
 		if ( !pass->executeCallbacks.empty() ) {
 
