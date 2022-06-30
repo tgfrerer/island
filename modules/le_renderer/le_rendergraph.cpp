@@ -829,7 +829,6 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	static auto LE_RENDER_GRAPH_ROOT_LAYER_TAG = renderer_produce_resource_handle( "LE_RENDER_GRAPH_ROOT_LAYER_TAG", LeResourceType::eUndefined );
 	// We must express our list of passes as a list of nodes.
 	// A node holds two bitfields, the bitfield names are: `read` and `write`.
 	// Each bit in the bitfield represents a possible resource.
@@ -838,8 +837,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 	std::vector<Node>                                       nodes;
 	std::array<le_resource_handle, MAX_NUM_LAYER_RESOURCES> uniqueHandles; // lookup for resource handles.
-	uniqueHandles[ 0 ]        = LE_RENDER_GRAPH_ROOT_LAYER_TAG;            // handle with index zero is marker for root nodes
-	size_t numUniqueResources = 1;
+	size_t                                                  numUniqueResources = 0;
 
 	// Translate all passes into a node
 	//   Get list of resources per pass and build node from this
