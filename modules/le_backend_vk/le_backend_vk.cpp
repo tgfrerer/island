@@ -35,8 +35,8 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 #	include <intrin.h> // for __lzcnt
 #endif
 
-#ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES false
+#ifndef LE_PRINT_DEBUG_MESSAGES
+#	define LE_PRINT_DEBUG_MESSAGES false
 #endif
 
 #ifndef DEBUG_TAG_RESOURCES
@@ -1840,7 +1840,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		VkAccessFlags2        srcAccessToExternalFlags = 0;
 		VkAccessFlags2        dstAccessToExternalFlags = 0;
 
-		if ( PRINT_DEBUG_MESSAGES ) {
+		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger.info( "* Renderpass: '%s'", pass.debugName );
 			logger.info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
 		}
@@ -1876,7 +1876,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			    .finalLayout    = syncFinal.layout,
 			};
 
-			if ( PRINT_DEBUG_MESSAGES ) {
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger.info( " %38s@%d : %30s → %30s → %30s | sync chain indices: %4d : %4d : %4d",
 				             attachment->resource->data->debug_name, 1 << attachment->resource->data->num_samples,
 				             to_str_vk_image_layout( syncInitial.layout ),
@@ -1938,7 +1938,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			}
 		}
 
-		if ( PRINT_DEBUG_MESSAGES ) {
+		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger.info( "" );
 		}
 
@@ -1969,7 +1969,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		VkSubpassDependency2 dependencies[ 2 ];
 
 		{
-			if ( PRINT_DEBUG_MESSAGES ) {
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
 
 				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName );
 				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", to_string_vk_pipeline_stage_flags2( srcStageFromExternalFlags ).c_str() );
@@ -3404,7 +3404,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 
-			if ( PRINT_DEBUG_MESSAGES || true ) {
+			if ( LE_PRINT_DEBUG_MESSAGES || true ) {
 				printResourceInfo( resource, allocatedResource.info, "ALLOC" );
 			}
 
@@ -3450,7 +3450,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
-				if ( PRINT_DEBUG_MESSAGES || true ) {
+				if ( LE_PRINT_DEBUG_MESSAGES || true ) {
 					printResourceInfo( resource, allocatedResource.info, "RE-ALLOC" );
 				}
 
@@ -3470,7 +3470,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			}
 		}
 	} // end for all used resources
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.info( "" );
 	}
 
@@ -3520,7 +3520,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.info( "Available Resources" );
 		logger.info( "%10s : %38s : %30s", "Type", "debugName", "Vk Handle" );
 		for ( auto const& r : frame.availableResources ) {
@@ -4294,7 +4294,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.debug( "** Process Frame #%8d **", frameIndex );
 	}
 
@@ -4388,7 +4388,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 		{
 
-			if ( PRINT_DEBUG_MESSAGES ) {
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger.debug( "Renderpass '%s'", pass.debugName );
 			}
 
@@ -4414,7 +4414,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				if ( stateInitial != stateFinal ) {
 					// we must issue an image barrier
 
-					if ( PRINT_DEBUG_MESSAGES ) {
+					if ( LE_PRINT_DEBUG_MESSAGES ) {
 
 						// --------| invariant: barrier is active.
 

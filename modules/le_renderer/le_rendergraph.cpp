@@ -28,8 +28,8 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
-#ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES false
+#ifndef LE_PRINT_DEBUG_MESSAGES
+#	define LE_PRINT_DEBUG_MESSAGES false
 #endif
 
 #ifndef DEBUG_GENERATE_DOT_GRAPH
@@ -923,7 +923,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	}
 #endif
 
-#if ( PRINT_DEBUG_MESSAGES )
+#if ( LE_PRINT_DEBUG_MESSAGES )
 	auto printPassList = [ & ]() -> void {
 		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
 			logger.info( "Pass : %3d sort order: %12d : %s ", i, self->sortIndices[ i ], self->passes[ i ]->debugName );
@@ -964,7 +964,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		std::swap( self->passes, consolidated_passes );
 		std::swap( self->sortIndices, consolidated_sort_indices );
 
-#if ( PRINT_DEBUG_MESSAGES )
+#if ( LE_PRINT_DEBUG_MESSAGES )
 		logger.info( "* Consolidated Pass List *" );
 		printPassList();
 		logger.info( "" );
@@ -986,7 +986,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		std::ostringstream msg;
 		logger.info( "Render graph: " );
 		for ( const auto& pass : self->passes ) {
