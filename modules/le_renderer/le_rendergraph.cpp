@@ -509,20 +509,26 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes ) {
 		--node;
 
 		// If it's a root node, get all reads from (= providers to) this node
+		//      if node is tagged being a root node and it writes to any monitored read, it can't be a root node.
 		// If it's not a root node, first see if there are any writes to currently monitored reads
-		//    if yes, add all reads to monitored reads
+		//      if yes, add all reads to monitored reads
 
-		if ( node->is_root || ( node->writes & read_accum ).any() ) {
+		bool writes_to_any_monitored_read = ( node->writes & read_accum ).any();
+
+		if ( node->is_root || writes_to_any_monitored_read ) {
 			// If this node is a root node - OR					      ) this means the layer is contributing
 			// If this node writes to any subsequent monitored reads, )
 			// Then we must monitor all reads by this node.
-			read_accum |= node->reads;
 
+			read_accum |= node->reads;
 			node->is_contributing = true;
-		} else {
-			// Otherwise - this node does not contribute
-			node->is_contributing = false;
+
+			if ( node->is_root && writes_to_any_monitored_read ) {
+				// Node cannot be root if it writes to a monitored read (this means that another more-root node depends on it)
+				node->is_root = false;
+			}
 		}
+
 	} // end for all nodes, backwards iteration
 }
 
