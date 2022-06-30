@@ -491,7 +491,7 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the pass here. We must destroy it.
 }
 
-/// \brief Tag any nodes which contribute to any root nodesq
+/// \brief Tag any nodes which contribute to any root nodes
 /// \details We do this so that we can weed out any nodes which are provably
 ///          not contributing - these don't need to be executed at all.
 static void node_tag_contributing( Node* const nodes, const size_t num_nodes ) {
@@ -584,26 +584,6 @@ static void nodes_calculate_sort_indices( Node const* const nodes, const size_t 
 	}
 }
 
-// returns path to current executable.
-std::filesystem::path getexepath() {
-	char result[ 1024 ] = { 0 };
-
-#ifdef _MSC_VER
-
-	// When NULL is passed to GetModuleHandle, the handle of the exe itself is returned
-	HMODULE hModule = GetModuleHandle( NULL );
-	if ( hModule != NULL ) {
-		// Use GetModuleFileName() with module handle to get the path
-		GetModuleFileName( hModule, result, ( sizeof( result ) ) );
-	}
-	size_t count = strnlen_s( result, sizeof( result ) );
-#else
-	ssize_t count = readlink( "/proc/self/exe", result, 1024 );
-#endif
-
-	return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
-}
-
 // ----------------------------------------------------------------------
 // Generates a .dot file for graphviz which visualises renderpasses
 // and their resource dependencies. It will also show the sequencing
@@ -619,8 +599,25 @@ generate_dot_file_for_rendergraph(
     Node const*         nodes,
     size_t              frame_number ) {
 
-	static auto           logger   = LeLog( LOGGER_LABEL );
-	std::filesystem::path exe_path = getexepath();
+	static auto                  logger   = LeLog( LOGGER_LABEL );
+	static std::filesystem::path exe_path = []() {
+		char result[ 1024 ] = { 0 };
+
+#ifdef _MSC_VER
+
+		// When NULL is passed to GetModuleHandle, the handle of the exe itself is returned
+		HMODULE hModule = GetModuleHandle( NULL );
+		if ( hModule != NULL ) {
+			// Use GetModuleFileName() with module handle to get the path
+			GetModuleFileName( hModule, result, ( sizeof( result ) ) );
+		}
+		size_t count = strnlen_s( result, sizeof( result ) );
+#else
+		ssize_t count = readlink( "/proc/self/exe", result, 1024 );
+#endif
+
+		return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
+	}();
 
 	std::ostringstream os;
 
