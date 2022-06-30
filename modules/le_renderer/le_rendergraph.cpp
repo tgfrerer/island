@@ -642,12 +642,20 @@ generate_dot_file_for_rendergraph(
 	for ( size_t i = 0; i != self->passes.size(); ++i ) {
 		auto const& p = self->passes[ i ];
 
-		if ( self->sortIndices[ i ] != ( ~0u ) ) {
+		if ( nodes[ i ].is_contributing ) {
 			os << "\"" << p->debugName << "\""
-			   << "[label = <<table border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
+			   << "[label = <<table border='0' cellborder='1' cellspacing='0'><tr><td border='"
+			   << ( nodes[ i ].is_root ? "10" : "0" )
+			   << "' sides='b' cellpadding='3'><b>"
+			   << ( nodes[ i ].is_root ? "⊥ " : "" )
+			   << p->debugName << "</b></td>";
 		} else {
 			os << "\"" << p->debugName << "\""
-			   << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
+			   << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='"
+			   << ( nodes[ i ].is_root ? "10" : "0" )
+			   << "' sides='b' cellpadding='3'><b>"
+			   << ( nodes[ i ].is_root ? "⊥ " : "" )
+			   << p->debugName << "</b></td>";
 		}
 
 		if ( p->resources.empty() ) {
