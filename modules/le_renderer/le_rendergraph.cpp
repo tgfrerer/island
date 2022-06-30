@@ -729,7 +729,7 @@ generate_dot_file_for_rendergraph(
 	for ( size_t i = 0; i != self->passes.size(); ++i ) {
 		auto const& p = self->passes[ i ];
 
-		// For each resource: find passes which read from it subsequently, until
+		// For each resource referenced by this pass: find passes which read from it subsequently, until
 		// the first pass writes to it again.
 
 		for ( size_t j = 0; j != p->resources.size(); j++ ) {
