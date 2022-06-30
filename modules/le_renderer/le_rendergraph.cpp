@@ -494,7 +494,7 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 /// \brief Tag any nodes which contribute to any root nodes
 /// \details We do this so that we can weed out any nodes which are provably
 ///          not contributing - these don't need to be executed at all.
-static void node_tag_contributing( Node* const nodes, const size_t num_nodes ) {
+static void node_tag_contributing( Node* const nodes, const size_t num_nodes, uint32_t* count_roots = nullptr ) {
 
 	// we must iterate backwards from last layer to first layer
 	Node*             node      = nodes + num_nodes;
@@ -502,8 +502,14 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes ) {
 
 	BitField read_accum;
 
+	if ( count_roots ) {
+		*count_roots = 0;
+	}
 	// find first root layer
 	//    monitored reads will be from the first root layer
+
+	// TODO: for each root node, we want to accumulate QueueFlagBits from
+	// nodes that contribute.
 
 	while ( node != node_rend ) {
 		--node;
@@ -526,6 +532,9 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes ) {
 			if ( node->is_root && writes_to_any_monitored_read ) {
 				// Node cannot be root if it writes to a monitored read (this means that another more-root node depends on it)
 				node->is_root = false;
+			}
+			if ( node->is_root && count_roots ) {
+				( *count_roots )++;
 			}
 		}
 
