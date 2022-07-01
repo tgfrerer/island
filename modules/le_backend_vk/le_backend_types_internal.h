@@ -158,7 +158,7 @@ struct BackendRenderPass {
 	uint16_t       numDepthStencilAttachments;              // 0..1
 
 	le::QueueFlagBits   type;
-	le::RootPassesField queue_submission_id; // key used to assign pass to queue submission
+	le::RootPassesField queue_submission_affinity; // key used to assign pass to queue submission
 
 	VkFramebuffer           framebuffer;
 	VkRenderPass            renderPass;

@@ -93,10 +93,10 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>    passes;                     //
-	std::vector<le_resource_handle>  declared_resources_id;      // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t>  declared_resources_info;    // | pre-declared resources (declared via module)
-	std::vector<le::RootPassesField> isolated_queue_invocations; // RootPassesField is a bitfield filter by which you can grab passes for each invocation
+	std::vector<le_renderpass_o*>    passes;                  //
+	std::vector<le_resource_handle>  declared_resources_id;   // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>  declared_resources_info; // | pre-declared resources (declared via module)
+	std::vector<le::RootPassesField> affinity_masks;          // vector of masks, which match all renderpasess exactly once - renderpasses which have an affinity bit which is touched by a mask need to render in the same batch/invocation/queue
 };
 
 // ----------------------------------------------------------------------
@@ -996,7 +996,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			logger.info( "queue key [ %-12d], affinity: %s", i, std::bitset<LE_MAX_NUM_GRAPH_ROOTS>( queue_id[ queue_id_idx[ i ] ] ).to_string().c_str() );
 #endif
 
-			self->isolated_queue_invocations.push_back( queue_id[ queue_id_idx[ i ] ] );
+			self->affinity_masks.push_back( queue_id[ queue_id_idx[ i ] ] );
 
 			{
 				// Do some error checking: each bit in the RootPassesField bitfield is only allowed
@@ -1233,6 +1233,12 @@ static void rendergraph_get_declared_resources( le_rendergraph_o* self, le_resou
 }
 
 // ----------------------------------------------------------------------
+
+static void rendergraph_get_p_affinity_masks( le_rendergraph_o* self, le::RootPassesField const** p_affinity_masks, uint32_t* num_affinity_masks ) {
+	*p_affinity_masks   = self->affinity_masks.data();
+	*num_affinity_masks = self->affinity_masks.size();
+}
+// ----------------------------------------------------------------------
 // Builds rendergraph from render_module, calls `setup` callbacks on each renderpass which provides a
 // `setup` callback.
 // If renderpass provides a setup method, pass is only added to rendergraph if its setup
@@ -1296,6 +1302,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_private_i.execute                = rendergraph_execute;
 	le_rendergraph_private_i.get_passes             = rendergraph_get_passes;
 	le_rendergraph_private_i.get_declared_resources = rendergraph_get_declared_resources;
+	le_rendergraph_private_i.get_p_affinity_masks   = rendergraph_get_p_affinity_masks;
 
 	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
 	le_renderpass_i.create                       = renderpass_create;

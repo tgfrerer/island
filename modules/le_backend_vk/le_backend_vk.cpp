@@ -474,7 +474,7 @@ struct BackendFrameData {
 	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
 
 	std::vector<BackendRenderPass>   passes;
-	std::vector<le::RootPassesField> queue_invocation_keys; // one key per isolated queue invocation
+	std::vector<le::RootPassesField> queue_submission_masks; // one key per isolated queue invocation
 
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
@@ -1585,7 +1585,7 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 		BackendRenderPass currentPass{};
 
-		renderpass_i.get_queue_sumbission_info( *pass, &currentPass.type, &currentPass.queue_submission_id );
+		renderpass_i.get_queue_sumbission_info( *pass, &currentPass.type, &currentPass.queue_submission_affinity );
 
 		memcpy( currentPass.debugName, renderpass_i.get_debug_name( *pass ), sizeof( currentPass.debugName ) );
 
@@ -1601,6 +1601,8 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		// Note that we "steal" the encoder from the renderer pass -
 		// it becomes now our (the backend's) job to destroy it.
 		currentPass.encoder = renderpass_i.steal_encoder( *pass );
+
+		// todo: store queue invocation keys
 
 		frame.passes.emplace_back( std::move( currentPass ) );
 	} // end for all passes
@@ -5994,7 +5996,8 @@ static le_pipeline_manager_o* backend_get_pipeline_cache( le_backend_o* self ) {
 
 static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
-	auto& frame = self->mFrames[ frameIndex ];
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto&       frame  = self->mFrames[ frameIndex ];
 
 	std::vector<VkSemaphoreSubmitInfo> present_complete_semaphore_submit_infos;
 	std::vector<VkSemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
@@ -6023,9 +6026,43 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    } );
 	}
 
-	// TODO: Take into account queue affinity for each command buffer,
+	// TODO: Take into account queue invocation keys when building command buffers.
 	// so that we build batches of commands for each queue
+	{
 
+		// Collect VkQueueFlags over all passes that match the same queue_invocation_key
+
+		size_t                                              num_invocation_keys = frame.queue_submission_masks.size();
+		std::vector<std::vector<VkCommandBufferSubmitInfo>> per_queue_submit_infos;
+		std::vector<VkQueueFlags>                           queue_flags_per_invocation_key( num_invocation_keys );
+
+		for ( size_t i = 0; i != num_invocation_keys; i++ ) {
+
+			auto&       qf  = queue_flags_per_invocation_key[ i ]; // stores accumulated queue flags for each submission
+			auto const& key = frame.queue_submission_masks[ i ];   // key for this queue submission, against which we must test all passes
+
+			for ( auto const& p : frame.passes ) {
+
+				if ( key & p.queue_submission_affinity ) { // match key against this passe's queue submission affinity
+					qf = qf | p.type;                      // accumulate queue flags
+
+					// TODO : build commandbuffer SubmitInfo for this submission
+				}
+			}
+
+			// build batches from command buffers which match this key
+		}
+
+#ifdef LE_PRINT_DEBUG_MESSAGES
+		{
+			int i = 0;
+			for ( auto const& qf : queue_flags_per_invocation_key ) {
+				logger.info( "" );
+				i++;
+			}
+		}
+#endif
+	}
 	// If resources are used across queues this means that batches need to be split so that we can synchronise between queues using semaphores
 	// This needs to be somehow communicated.
 	// We want a timeline semaphore for each queue so that any batch submitted to a queue can be waited upon
@@ -6119,8 +6156,19 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 }
 
 // ----------------------------------------------------------------------
+// Copy data from array of affinity masks into this frame's affinity masks array
+static void backend_set_frame_queue_submission_masks( le_backend_o* self, size_t frameIndex, void const* p_affinity_masks, uint32_t num_affinity_masks ) {
+	auto& frame = self->mFrames[ frameIndex ];
 
-le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
+	frame.queue_submission_masks.resize( num_affinity_masks );
+	memcpy( frame.queue_submission_masks.data(), p_affinity_masks, sizeof( le::RootPassesField ) * num_affinity_masks );
+
+	//
+}
+
+// ----------------------------------------------------------------------
+
+static le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
 
 	auto* blas_info = new le_rtx_blas_info_o{};
 
@@ -6139,7 +6187,7 @@ le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx
 
 // ----------------------------------------------------------------------
 
-le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
+static le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
 
 	auto* tlas_info = new le_rtx_tlas_info_o{};
 
@@ -6170,19 +6218,20 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	auto  api_i        = static_cast<le_backend_vk_api*>( api_ );
 	auto& vk_backend_i = api_i->vk_backend_i;
 
-	vk_backend_i.create                     = backend_create;
-	vk_backend_i.destroy                    = backend_destroy;
-	vk_backend_i.setup                      = backend_setup;
-	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
-	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
-	vk_backend_i.reset_failed_swapchains    = backend_reset_failed_swapchains;
-	vk_backend_i.get_transient_allocators   = backend_get_transient_allocators;
-	vk_backend_i.get_staging_allocator      = backend_get_staging_allocator;
-	vk_backend_i.poll_frame_fence           = backend_poll_frame_fence;
-	vk_backend_i.clear_frame                = backend_clear_frame;
-	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
-	vk_backend_i.process_frame              = backend_process_frame;
-	vk_backend_i.dispatch_frame             = backend_dispatch_frame;
+	vk_backend_i.create                           = backend_create;
+	vk_backend_i.destroy                          = backend_destroy;
+	vk_backend_i.setup                            = backend_setup;
+	vk_backend_i.get_num_swapchain_images         = backend_get_num_swapchain_images;
+	vk_backend_i.reset_swapchain                  = backend_reset_swapchain;
+	vk_backend_i.reset_failed_swapchains          = backend_reset_failed_swapchains;
+	vk_backend_i.get_transient_allocators         = backend_get_transient_allocators;
+	vk_backend_i.get_staging_allocator            = backend_get_staging_allocator;
+	vk_backend_i.poll_frame_fence                 = backend_poll_frame_fence;
+	vk_backend_i.clear_frame                      = backend_clear_frame;
+	vk_backend_i.acquire_physical_resources       = backend_acquire_physical_resources;
+	vk_backend_i.process_frame                    = backend_process_frame;
+	vk_backend_i.dispatch_frame                   = backend_dispatch_frame;
+	vk_backend_i.set_frame_queue_submission_masks = backend_set_frame_queue_submission_masks;
 
 	vk_backend_i.get_pipeline_cache    = backend_get_pipeline_cache;
 	vk_backend_i.update_shader_modules = backend_update_shader_modules;
