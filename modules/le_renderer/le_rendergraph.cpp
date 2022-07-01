@@ -543,64 +543,6 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes, ui
 	} // end for all nodes, backwards iteration
 }
 
-/// Note: `sortIndices` must point to an array of `numnodes` elements of type uint32_t
-static void nodes_calculate_sort_indices( Node const* const nodes, const size_t num_nodes, uint32_t* sortIndices ) {
-
-	ResourceField read_accum{};
-	ResourceField write_accum{};
-
-	/// Each bit in the node bitfield stands for one resource.
-	/// Bitfield index corresponds to a resource id. Note that
-	/// bitfields are indexed right-to left (index zero is right-most).
-
-	bool needs_barrier = false;
-
-	uint32_t sortIndex = 0;
-
-	{
-		Node const* const nodes_end    = nodes + num_nodes;
-		uint32_t*         p_sort_index = sortIndices;
-		for ( Node const* n = nodes; n != nodes_end; n++, p_sort_index++ ) {
-
-			// Weed out any node which are marked as non-contributing
-			if ( !n->is_contributing ) {
-				*p_sort_index = ~( 0u ); // tag node as not contributing by marking it with the maximum sort index
-				continue;
-			}
-
-			ResourceField read_write = ( n->reads & n->writes ); // read_after write in same node - this means a node boundary if it does touch any previously read or written elements
-
-			// A barrier is needed, if:
-			needs_barrier = ( read_accum & read_write ).any() ||  // - any previously read elements are touched by read-write, OR
-			                ( write_accum & read_write ).any() || // - any previously written elements are touched by read-write, OR
-			                ( write_accum & n->reads ).any() ||   // - the current node wants to read from a previously written node, OR
-			                ( write_accum & n->writes ).any() ||  // - the current node writes to a previously written resource, OR
-			                ( read_accum & n->writes ).any();     // - the current node wants to write to a node which was previously read.
-
-			//			std::cout << "Needs barrier: " << ( needs_barrier ? "true" : "false" ) << std::endl
-			//			          << std::flush;
-
-			if ( needs_barrier ) {
-				++sortIndex;         // Barriers are expressed by increasing the sortIndex. nodes with the same sortIndex *may* execute concurrently.
-				read_accum.reset();  // Barriers apply everything before the current node
-				write_accum.reset(); //
-			}
-
-			write_accum |= n->writes;
-			read_accum |= n->reads;
-
-			*p_sort_index = sortIndex; // store current sortIndex value with node
-
-			// std::cout << node->reads << " reads" << std::endl
-			//           << std::flush;
-			// std::cout << read_accum << " read accum" << std::endl
-			//           << std::flush;
-			// std::cout << write_accum << " write accum" << std::endl
-			//           << std::flush;
-		}
-	}
-}
-
 // ----------------------------------------------------------------------
 // Generates a .dot file for graphviz which visualises renderpasses
 // and their resource dependencies. It will also show the sequencing
