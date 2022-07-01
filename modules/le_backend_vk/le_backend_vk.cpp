@@ -473,7 +473,7 @@ struct BackendFrameData {
 	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
 
-	std::vector<BackendRenderPass>        passes;
+	std::vector<BackendRenderPass>   passes;
 	std::vector<le::RootPassesField> passes_root_affinity; // per-pass key used to assign each pass to queue
 
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
@@ -1588,9 +1588,7 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		currentPass.type = renderpass_i.get_type( *pass );
 		memcpy( currentPass.debugName, renderpass_i.get_debug_name( *pass ), sizeof( currentPass.debugName ) );
 
-		currentPass.width       = renderpass_i.get_width( *pass );
-		currentPass.height      = renderpass_i.get_height( *pass );
-		currentPass.sampleCount = renderpass_i.get_sample_count( *pass );
+		renderpass_i.get_framebuffer_settings( *pass, &currentPass.width, &currentPass.height, &currentPass.sampleCount );
 
 		// Find explicit sync ops needed for resources which are not attachments
 		//
@@ -2865,9 +2863,13 @@ static void collect_resource_infos_per_resource(
 
 	for ( auto rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
-		auto pass_width            = renderpass_i.get_width( *rp );
-		auto pass_height           = renderpass_i.get_height( *rp );
-		auto pass_num_samples_log2 = get_sample_count_log_2( uint32_t( renderpass_i.get_sample_count( *rp ) ) );
+		uint32_t                pass_width        = 0;
+		uint32_t                pass_height       = 0;
+		le::SampleCountFlagBits pass_sample_count = {};
+
+		renderpass_i.get_framebuffer_settings( *rp, &pass_width, &pass_height, &pass_sample_count );
+
+		uint16_t pass_num_samples_log2 = get_sample_count_log_2( uint32_t( pass_sample_count ) );
 
 		le_resource_handle const*   p_resources             = nullptr;
 		LeResourceUsageFlags const* p_resources_usage_flags = nullptr;
@@ -2988,8 +2990,9 @@ static void patch_renderpass_extents(
 	auto passes_end   = passes + numRenderPasses;
 
 	for ( auto rp = passes; rp != passes_end; rp++ ) {
-		auto pass_width  = renderpass_i.get_width( *rp );
-		auto pass_height = renderpass_i.get_height( *rp );
+		uint32_t pass_width  = 0;
+		uint32_t pass_height = 0;
+		renderpass_i.get_framebuffer_settings( *rp, &pass_width, &pass_height, nullptr );
 		if ( pass_width == 0 ) {
 			// if zero was chosen this means to use the default extents values for a
 			// renderpass, which is to use the frame's current swapchain extents.

@@ -370,12 +370,21 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 
 // ----------------------------------------------------------------------
 
-static uint32_t renderpass_get_width( le_renderpass_o const* self ) {
-	return self->width;
-}
-// ----------------------------------------------------------------------
-static uint32_t renderpass_get_height( le_renderpass_o const* self ) {
-	return self->height;
+static bool renderpass_get_framebuffer_settings( le_renderpass_o const* self, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count ) {
+	if ( self->type != le::QueueFlagBits::eGraphics ) {
+		return false; // only graphics passes have width, height, and sample_count
+	}
+	if ( width ) {
+		*width = self->width;
+	}
+	if ( height ) {
+		*height = self->height;
+	}
+	if ( sample_count ) {
+		*sample_count = self->sample_count;
+	}
+	// only return true if the current pass is graphics pass
+	return true;
 }
 
 static void renderpass_set_width( le_renderpass_o* self, uint32_t width ) {
@@ -388,10 +397,6 @@ static void renderpass_set_height( le_renderpass_o* self, uint32_t height ) {
 
 static void renderpass_set_sample_count( le_renderpass_o* self, le::SampleCountFlagBits const& sampleCount ) {
 	self->sample_count = sampleCount;
-}
-
-static le::SampleCountFlagBits const& renderpass_get_sample_count( le_renderpass_o const* self ) {
-	return self->sample_count;
 }
 
 // ----------------------------------------------------------------------
@@ -1279,18 +1284,16 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_private_i.get_passes             = rendergraph_get_passes;
 	le_rendergraph_private_i.get_declared_resources = rendergraph_get_declared_resources;
 
-	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
-	le_renderpass_i.create                       = renderpass_create;
-	le_renderpass_i.clone                        = renderpass_clone;
-	le_renderpass_i.destroy                      = renderpass_destroy;
-	le_renderpass_i.get_id                       = renderpass_get_id;
-	le_renderpass_i.get_debug_name               = renderpass_get_debug_name;
-	le_renderpass_i.get_type                     = renderpass_get_type;
-	le_renderpass_i.get_width                    = renderpass_get_width;
-	le_renderpass_i.set_width                    = renderpass_set_width;
-	le_renderpass_i.set_sample_count             = renderpass_set_sample_count;
-	le_renderpass_i.get_sample_count             = renderpass_get_sample_count;
-	le_renderpass_i.get_height                   = renderpass_get_height;
+	auto& le_renderpass_i                    = le_renderer_api_i->le_renderpass_i;
+	le_renderpass_i.create                   = renderpass_create;
+	le_renderpass_i.clone                    = renderpass_clone;
+	le_renderpass_i.destroy                  = renderpass_destroy;
+	le_renderpass_i.get_id                   = renderpass_get_id;
+	le_renderpass_i.get_debug_name           = renderpass_get_debug_name;
+	le_renderpass_i.get_type                 = renderpass_get_type;
+	le_renderpass_i.get_framebuffer_settings = renderpass_get_framebuffer_settings;
+	le_renderpass_i.set_width                = renderpass_set_width;
+	le_renderpass_i.set_sample_count         = renderpass_set_sample_count;
 	le_renderpass_i.set_height                   = renderpass_set_height;
 	le_renderpass_i.set_setup_callback           = renderpass_set_setup_callback;
 	le_renderpass_i.has_setup_callback           = renderpass_has_setup_callback;
