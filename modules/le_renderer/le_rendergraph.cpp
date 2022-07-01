@@ -974,22 +974,22 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		auto it = std::unique( queue_id_idx.begin(), queue_id_idx.end() );
 		queue_id_idx.erase( it, queue_id_idx.end() );
 
+		TreeField tf_accum = 0;
 		for ( size_t i = 0; i != queue_id_idx.size(); i++ ) {
 			logger.info( "root id [ %3d] : queue id: %d", i, queue_id[ queue_id_idx[ i ] ] );
-			// TODO: if you filter for tree affinity by LOGICAL AND you will get all passes.
 
-			/*
+			// If you filter for tree affinity by LOGICAL AND you will get all passes that
+			// contribute to a particular isolated queue invocation
+			self->isolated_queue_invocations.push_back( queue_id[ queue_id_idx[ i ] ] );
 
-			    for all root_orders, filter all passes where
+			// Do some error checking: each lane in the TreeField bitfield is only allowed
+			// to be used exactly once.
 
-			        true == (pass.tree_affinity & root_order),
-
-			every root order loop iteration will be one batch which can execute in parallel.
-
-			*/
-
-			// this is what we need to do when we create batches -
-			// filter by root sort bitfields from largest to smallest root sort bitfield.
+			{
+				TreeField test_val = queue_id[ queue_id_idx[ i ] ];
+				assert( !( test_val & tf_accum ) && "queue lanes must be independent." );
+				tf_accum |= test_val;
+			}
 		}
 	}
 
