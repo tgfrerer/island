@@ -474,6 +474,8 @@ struct BackendFrameData {
 	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
 
 	std::vector<BackendRenderPass>        passes;
+	std::vector<le::RootPassesField> passes_root_affinity; // per-pass key used to assign each pass to queue
+
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass

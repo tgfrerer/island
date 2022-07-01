@@ -41,20 +41,15 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 #endif
 
 #include <bitset>
-#include <set>
 
-constexpr size_t LE_MAX_NUM_RESOURCES = 64; // set this to larger value if you want to deal with a larger number of distinct resources.
-constexpr size_t LE_MAX_NUM_TREES     = 64; // maximum number of trees in a given graph ... we assume this is much smaller than LE_MAX_NUM_RESOURCES, but worst case it would need to be the same size.
-using ResourceField                   = std::bitset<LE_MAX_NUM_RESOURCES>;
-using RootPassesField                 = uint64_t;
-static_assert( sizeof( RootPassesField ) == LE_MAX_NUM_TREES / 8, "RootPassesField must have enough bits available to cover LE_MAX_NUM_TREES" );
+using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>;
 
 struct Node {
-	ResourceField   reads;
-	ResourceField   writes;
-	RootPassesField root_index_affinity;     // association of node with root node(s) - each bit represents a root node
-	bool            is_root         = false; // whether this node is a root node
-	bool            is_contributing = false; // whether this node contributes to a root node
+	ResourceField       reads;
+	ResourceField       writes;
+	le::RootPassesField root_index_affinity;     // association of node with root node(s) - each bit represents a root node
+	bool                is_root         = false; // whether this node is a root node
+	bool                is_contributing = false; // whether this node contributes to a root node
 };
 
 // these are some sanity checks for le_renderer_types
@@ -74,8 +69,8 @@ struct le_renderpass_o {
 	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
 
-	uint32_t        is_root = false;      // whether pass *must* be processed
-	RootPassesField root_passes_affinity; // association of this renderpass with one or more root passes
+	uint32_t            is_root = false;      // whether pass *must* be processed
+	le::RootPassesField root_passes_affinity; // association of this renderpass with one or more root passes
 
 	std::vector<le_resource_handle>    resources;              // all resources used in this pass
 	std::vector<LeResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
@@ -98,10 +93,10 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>   passes;                     //
-	std::vector<le_resource_handle> declared_resources_id;      // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t> declared_resources_info;    // | pre-declared resources (declared via module)
-	std::vector<RootPassesField>    isolated_queue_invocations; // RootPassesField is a bitfield filter by which you can grab passes for each invocation
+	std::vector<le_renderpass_o*>    passes;                     //
+	std::vector<le_resource_handle>  declared_resources_id;      // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>  declared_resources_info;    // | pre-declared resources (declared via module)
+	std::vector<le::RootPassesField> isolated_queue_invocations; // RootPassesField is a bitfield filter by which you can grab passes for each invocation
 };
 
 // ----------------------------------------------------------------------
@@ -796,9 +791,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
 
-	std::vector<Node>                                    nodes;
-	std::array<le_resource_handle, LE_MAX_NUM_RESOURCES> uniqueHandles; // lookup for resource handles.
-	size_t                                               numUniqueResources = 0;
+	std::vector<Node>                                          nodes;
+	std::array<le_resource_handle, LE_MAX_NUM_GRAPH_RESOURCES> uniqueHandles; // lookup for resource handles.
+	size_t                                                     numUniqueResources = 0;
 
 	// Translate all passes into a node
 	//   Get list of resources per pass and build node from this
@@ -825,7 +820,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				// resource was not found, we must add a new resource
 				uniqueHandles[ res_idx ] = resource_handle;
 				numUniqueResources++;
-				assert( numUniqueResources < LE_MAX_NUM_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
+				assert( numUniqueResources < LE_MAX_NUM_GRAPH_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
 			}
 
 			// --------| invariant: uniqueHandles[res_idx] is valid
@@ -847,7 +842,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// can be disposed, as their products will never be used.
 	uint32_t root_count = 0; // gets set to number of found root nodes as a side-effect of node_tag_contributing
 	node_tag_contributing( nodes.data(), nodes.size(), &root_count );
-	assert( root_count <= LE_MAX_NUM_TREES && "number of nodes must fit LE_MAX_NUM_TREES, otherwise we can't express tree affinity as a bitfield" );
+	assert( root_count <= LE_MAX_NUM_GRAPH_ROOTS && "number of nodes must fit LE_MAX_NUM_TREES, otherwise we can't express tree affinity as a bitfield" );
 
 	{
 		std::vector<ResourceField> root_reads_accum( root_count );
@@ -936,8 +931,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		//
 		// By the end ot this process we get a list of unique queue_ids which have no overlap.
 		//
-		std::vector<RootPassesField> queue_id( root_count );     // queue id per root - starting out with a single bit
-		std::vector<int>             queue_id_idx( root_count ); // queue id index per root
+		std::vector<le::RootPassesField> queue_id( root_count );     // queue id per root - starting out with a single bit
+		std::vector<int>                 queue_id_idx( root_count ); // queue id index per root
 		for ( size_t i = 0; i != root_count; i++ ) {
 			queue_id[ i ] |= ( 1 << i ); // initialise to single bit at bitfield position corresponding to queue id
 			queue_id_idx[ i ] = i;       // initialise queue id index to be direct mapping
@@ -959,7 +954,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 					// Get current queue ids for i, j,
 					// and combine them in the queue pointed to with the lowest offset
 
-					RootPassesField combined_queue_id = queue_id[ queue_id_idx[ j ] ] | queue_id[ queue_id_idx[ i ] ];
+					le::RootPassesField combined_queue_id = queue_id[ queue_id_idx[ j ] ] | queue_id[ queue_id_idx[ i ] ];
 
 					if ( queue_id_idx[ i ] <= queue_id_idx[ j ] ) {
 						queue_id_idx[ j ] = queue_id_idx[ i ];
@@ -976,7 +971,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		auto it = std::unique( queue_id_idx.begin(), queue_id_idx.end() );
 		queue_id_idx.erase( it, queue_id_idx.end() );
 
-		RootPassesField tf_accum = 0;
+		le::RootPassesField tf_accum = 0;
 		for ( size_t i = 0; i != queue_id_idx.size(); i++ ) {
 			logger.info( "root id [ %3d] : queue id: %d", i, queue_id[ queue_id_idx[ i ] ] );
 
@@ -988,7 +983,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			// to be used exactly once.
 
 			{
-				RootPassesField test_val = queue_id[ queue_id_idx[ i ] ];
+				le::RootPassesField test_val = queue_id[ queue_id_idx[ i ] ];
 				assert( !( test_val & tf_accum ) && "queue lanes must be independent." );
 				tf_accum |= test_val;
 			}

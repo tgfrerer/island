@@ -5,6 +5,14 @@
 
 #include "le_hash_util.h"
 
+constexpr size_t LE_MAX_NUM_GRAPH_RESOURCES = 64; // Maximum number of unique resources in a Rendergraph. Set this to larger value if you want to deal with a larger number of distinct resources.
+constexpr size_t LE_MAX_NUM_GRAPH_ROOTS     = 64; // Maximum number of root nodes in a given RenderGraph. We assume this is much smaller than LE_MAX_NUM_GRAPH_RESOURCES, but worst case it would need to be the same size.
+
+namespace le {
+using RootPassesField = uint64_t;
+static_assert( sizeof( RootPassesField ) == LE_MAX_NUM_GRAPH_ROOTS / 8, "LeRootPassesField must have enough bits available to cover LE_MAX_NUM_GRAPH_ROOTS" );
+} // namespace le
+
 // Wraps a type (also may also be an enum) in a struct with `struct_name` so
 // that it can be opaquely passed around, then unwrapped.
 #define LE_WRAP_TYPE_IN_STRUCT( type_name, struct_name )              \
