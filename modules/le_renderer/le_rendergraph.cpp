@@ -46,15 +46,15 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 constexpr size_t LE_MAX_NUM_RESOURCES = 64; // set this to larger value if you want to deal with a larger number of distinct resources.
 constexpr size_t LE_MAX_NUM_TREES     = 64; // maximum number of trees in a given graph ... we assume this is much smaller than LE_MAX_NUM_RESOURCES, but worst case it would need to be the same size.
 using ResourceField                   = std::bitset<LE_MAX_NUM_RESOURCES>;
-using TreeField                       = uint64_t;
-static_assert( sizeof( TreeField ) == LE_MAX_NUM_TREES / 8, "TreeField must have enough bits available to cover LE_MAX_NUM_TREES" );
+using RootPassesField                 = uint64_t;
+static_assert( sizeof( RootPassesField ) == LE_MAX_NUM_TREES / 8, "RootPassesField must have enough bits available to cover LE_MAX_NUM_TREES" );
 
 struct Node {
-	ResourceField reads;
-	ResourceField writes;
-	TreeField     root_index_affinity;     // bitfield of tree affinities for resources. resources are only allowed to have affinity to one tree- otherwise these trees must be combined.
-	bool          is_root         = false; // whether this node is a root node
-	bool          is_contributing = false; // whether this node contributes to a root node
+	ResourceField   reads;
+	ResourceField   writes;
+	RootPassesField root_index_affinity;     // association of node with root node(s) - each bit represents a root node
+	bool            is_root         = false; // whether this node is a root node
+	bool            is_contributing = false; // whether this node contributes to a root node
 };
 
 // these are some sanity checks for le_renderer_types
@@ -74,8 +74,8 @@ struct le_renderpass_o {
 	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
 
-	uint32_t  is_root = false;     // whether pass *must* be processed
-	TreeField root_index_affinity; // bitfield of tree affinities for resources. resources are only allowed to have affinity to one tree- otherwise these trees must be combined.
+	uint32_t        is_root = false;      // whether pass *must* be processed
+	RootPassesField root_passes_affinity; // association of this renderpass with one or more root passes
 
 	std::vector<le_resource_handle>    resources;              // all resources used in this pass
 	std::vector<LeResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
@@ -98,10 +98,10 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<TreeField>          isolated_queue_invocations; // TreeField is a bitfield filter by which you can grab passes for each invocation
 	std::vector<le_renderpass_o*>   passes;                     //
 	std::vector<le_resource_handle> declared_resources_id;      // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t> declared_resources_info;    // | pre-declared resources (declared via module)
+	std::vector<RootPassesField>    isolated_queue_invocations; // RootPassesField is a bitfield filter by which you can grab passes for each invocation
 };
 
 // ----------------------------------------------------------------------
@@ -913,7 +913,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_index_affinity );
 		}
 #endif
-		// For each root, test its accumulated reads against all other root's accumulated writes.
+		// For each root pass, test its accumulated reads against all other root passes' accumulated writes.
 		// if there is an overlap, we know that the two roots which overlap must be combined, as
 		// they are not perfectly resource-isolated (an overlap means that one writes on the other's
 		// read resource).
@@ -936,8 +936,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		//
 		// By the end ot this process we get a list of unique queue_ids which have no overlap.
 		//
-		std::vector<TreeField> queue_id( root_count );     // queue id per root - starting out with a single bit
-		std::vector<int>       queue_id_idx( root_count ); // queue id index per root
+		std::vector<RootPassesField> queue_id( root_count );     // queue id per root - starting out with a single bit
+		std::vector<int>             queue_id_idx( root_count ); // queue id index per root
 		for ( size_t i = 0; i != root_count; i++ ) {
 			queue_id[ i ] |= ( 1 << i ); // initialise to single bit at bitfield position corresponding to queue id
 			queue_id_idx[ i ] = i;       // initialise queue id index to be direct mapping
@@ -959,7 +959,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 					// Get current queue ids for i, j,
 					// and combine them in the queue pointed to with the lowest offset
 
-					TreeField combined_queue_id = queue_id[ queue_id_idx[ j ] ] | queue_id[ queue_id_idx[ i ] ];
+					RootPassesField combined_queue_id = queue_id[ queue_id_idx[ j ] ] | queue_id[ queue_id_idx[ i ] ];
 
 					if ( queue_id_idx[ i ] <= queue_id_idx[ j ] ) {
 						queue_id_idx[ j ] = queue_id_idx[ i ];
@@ -976,7 +976,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		auto it = std::unique( queue_id_idx.begin(), queue_id_idx.end() );
 		queue_id_idx.erase( it, queue_id_idx.end() );
 
-		TreeField tf_accum = 0;
+		RootPassesField tf_accum = 0;
 		for ( size_t i = 0; i != queue_id_idx.size(); i++ ) {
 			logger.info( "root id [ %3d] : queue id: %d", i, queue_id[ queue_id_idx[ i ] ] );
 
@@ -984,11 +984,11 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			// contribute to a particular isolated queue invocation
 			self->isolated_queue_invocations.push_back( queue_id[ queue_id_idx[ i ] ] );
 
-			// Do some error checking: each lane in the TreeField bitfield is only allowed
+			// Do some error checking: each bit in the RootPassesField bitfield is only allowed
 			// to be used exactly once.
 
 			{
-				TreeField test_val = queue_id[ queue_id_idx[ i ] ];
+				RootPassesField test_val = queue_id[ queue_id_idx[ i ] ];
 				assert( !( test_val & tf_accum ) && "queue lanes must be independent." );
 				tf_accum |= test_val;
 			}
@@ -1039,8 +1039,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		for ( size_t i = 0; i != num_passes; i++ ) {
 			if ( nodes[ i ].is_contributing ) {
 				// Pass contributes, add it to consolidated passes
-				self->passes[ i ]->is_root             = nodes[ i ].is_root;
-				self->passes[ i ]->root_index_affinity = nodes[ i ].root_index_affinity;
+				self->passes[ i ]->is_root              = nodes[ i ].is_root;
+				self->passes[ i ]->root_passes_affinity = nodes[ i ].root_index_affinity;
 				consolidated_passes.push_back( self->passes[ i ] );
 			} else {
 				// Pass is not contributing, we will not keep it.
