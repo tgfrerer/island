@@ -473,7 +473,7 @@ struct BackendFrameData {
 	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
 
-	std::vector<LeRenderPass>  passes;
+	std::vector<BackendRenderPass>        passes;
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass
@@ -1194,7 +1194,7 @@ static void backend_setup( le_backend_o* self ) {
 // ----------------------------------------------------------------------
 // Add image attachments to leRenderPass
 // Update syncchain for images affected.
-static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRenderPass& currentPass, BackendFrameData& frame, le::SampleCountFlagBits const& sampleCount ) {
+static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendRenderPass& currentPass, BackendFrameData& frame, le::SampleCountFlagBits const& sampleCount ) {
 
 	using namespace le_renderer;
 
@@ -1429,7 +1429,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
 // resource sync state for images used as renderpass attachments is chosen so that they
 // can be implicitly synced using subpass dependencies.
-static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, LeRenderPass& currentPass, BackendFrameData::sync_chain_table_t& syncChainTable ) {
+static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, BackendRenderPass& currentPass, BackendFrameData::sync_chain_table_t& syncChainTable ) {
 	using namespace le_renderer;
 	le_resource_handle const*   resources       = nullptr;
 	LeResourceUsageFlags const* resources_usage = nullptr;
@@ -1459,7 +1459,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, LeRend
 		auto& syncChain = syncChainTable[ resource ];
 		assert( !syncChain.empty() ); // must not be empty - this resource must exist, and have an initial sync state
 
-		LeRenderPass::ExplicitSyncOp syncOp{};
+		ExplicitSyncOp syncOp{};
 
 		syncOp.resource                  = resource;
 		syncOp.active                    = true;
@@ -1565,7 +1565,7 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
 
-		LeRenderPass currentPass{};
+		BackendRenderPass currentPass{};
 
 		currentPass.type = renderpass_i.get_type( *pass );
 		memcpy( currentPass.debugName, renderpass_i.get_debug_name( *pass ), sizeof( currentPass.debugName ) );

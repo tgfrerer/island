@@ -143,7 +143,14 @@ struct AttachmentInfo {
 	Type                    type;
 };
 
-struct LeRenderPass {
+struct ExplicitSyncOp {
+	le_resource_handle resource;                  // image used as texture, or buffer resource used in this pass
+	uint32_t           sync_chain_offset_initial; // offset when entering this pass
+	uint32_t           sync_chain_offset_final;   // offset when this pass has completed
+	uint32_t           active;
+};
+
+struct BackendRenderPass {
 
 	AttachmentInfo attachments[ LE_MAX_COLOR_ATTACHMENTS ]; // maximum of 16 color output attachments
 	uint16_t       numColorAttachments;                     // 0..VK_MAX_COLOR_ATTACHMENTS
@@ -160,13 +167,6 @@ struct LeRenderPass {
 	uint64_t                renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	struct le_command_buffer_encoder_o* encoder;
-
-	struct ExplicitSyncOp {
-		le_resource_handle resource;                  // image used as texture, or buffer resource used in this pass
-		uint32_t           sync_chain_offset_initial; // offset when entering this pass
-		uint32_t           sync_chain_offset_final;   // offset when this pass has completed
-		uint32_t           active;
-	};
 
 	char                        debugName[ 256 ] = ""; // Debug name for renderpass
 	std::vector<ExplicitSyncOp> explicit_sync_ops;     // explicit sync operations for renderpass, these execute before renderpass begins.

@@ -1381,7 +1381,7 @@ static VkPipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_man
 // ----------------------------------------------------------------------
 // Creates a vulkan graphics pipeline based on a shader state object and a given renderpass and subpass index.
 //
-static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o* self, graphics_pipeline_state_o const* pso, const LeRenderPass& pass, uint32_t subpass ) {
+static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o* self, graphics_pipeline_state_o const* pso, const BackendRenderPass& pass, uint32_t subpass ) {
 
 	std::vector<VkPipelineShaderStageCreateInfo> pipelineStages;
 	pipelineStages.reserve( pso->shaderModules.size() );
@@ -2024,7 +2024,7 @@ static inline void le_pipeline_manager_produce_pipeline_layout_info(
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeline(
     le_pipeline_manager_o* self,
     le_gpso_handle         gpso_handle,
-    const LeRenderPass& pass, uint32_t subpass ) {
+    const BackendRenderPass& pass, uint32_t subpass ) {
 
 	// TODO: Do we need this lock, or are the try_finds with their internal mutexes enough?
 	auto lock = std::unique_lock( self->mtx ); // Enforce sequentiality via scoped lock: no two renderpasses may access cache concurrently.
