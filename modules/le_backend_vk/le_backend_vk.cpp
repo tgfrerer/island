@@ -567,6 +567,22 @@ struct DescriptorSetState {
 	std::vector<DescriptorData> setData;
 };
 
+struct RtxState {
+	bool               is_set;
+	le_resource_handle sbt_buffer; // shader binding table buffer
+	uint64_t           ray_gen_sbt_offset;
+	uint64_t           ray_gen_sbt_size;
+	uint64_t           miss_sbt_offset;
+	uint64_t           miss_sbt_stride;
+	uint64_t           miss_sbt_size;
+	uint64_t           hit_sbt_offset;
+	uint64_t           hit_sbt_stride;
+	uint64_t           hit_sbt_size;
+	uint64_t           callable_sbt_offset;
+	uint64_t           callable_sbt_stride;
+	uint64_t           callable_sbt_size;
+};
+
 // ----------------------------------------------------------------------
 
 static inline void le_format_get_is_depth_stencil( le::Format const& format_, bool& isDepth, bool& isStencil ) {
@@ -4517,27 +4533,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		// for different accessors, only with different dynamic binding offsets.
 		//
 		//
-		std::array<DescriptorSetState, 8> previousSetState; ///< currently bound descriptorSetLayout+Data for each set
+		std::array<DescriptorSetState, 8> previousSetState; // currently bound descriptorSetLayout+Data for each set
+		ArgumentState                     argumentState{};  //
+		RtxState                          rtx_state{};      // used to keep track of shader binding tables bound with rtx pipelines.
 
-		ArgumentState argumentState{};
-
-		struct RtxState {
-			bool               is_set;
-			le_resource_handle sbt_buffer; // shader binding table buffer
-			uint64_t           ray_gen_sbt_offset;
-			uint64_t           ray_gen_sbt_size;
-			uint64_t           miss_sbt_offset;
-			uint64_t           miss_sbt_stride;
-			uint64_t           miss_sbt_size;
-			uint64_t           hit_sbt_offset;
-			uint64_t           hit_sbt_stride;
-			uint64_t           hit_sbt_size;
-			uint64_t           callable_sbt_offset;
-			uint64_t           callable_sbt_stride;
-			uint64_t           callable_sbt_size;
-		};
-
-		RtxState                      rtx_state{};                                                                      // used to keep track of shader binding tables bound with rtx pipelines.
 		static le_buf_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
 		if ( pass.encoder ) {

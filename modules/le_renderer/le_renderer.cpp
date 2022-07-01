@@ -479,7 +479,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	le_renderer::api->le_rendergraph_private_i.setup_passes( graph_, frame.rendergraph );
 
 	// find out which renderpasses contribute, only add contributing render passes to
-	// frameBuilder
+	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
 	// Execute callbacks into main application for each render pass,
@@ -559,7 +559,7 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 }
 
 // ----------------------------------------------------------------------
-
+// translate intermediate draw lists into vk command buffers, and sync primitives
 static const FrameData::State& renderer_process_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	using namespace le_backend_vk; // for vk_bakend_i
@@ -762,7 +762,8 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 
 		renderer_dispatch_frame( self, ( index + 2 ) % numFrames );
 
-		renderer_clear_frame( self, ( index + 1 ) % numFrames ); // wait for frame to come back (important to do this last, as it may block...)
+		// wait for frame to come back (important to do this last, as it may block...)
+		renderer_clear_frame( self, ( index + 1 ) % numFrames );
 	}
 
 	if ( self->swapchainDirty ) {

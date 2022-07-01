@@ -55,7 +55,6 @@ struct le_blas_resource_handle_t : le_resource_handle_t {
 struct le_tlas_resource_handle_t : le_resource_handle_t {
 };
 
-
 // A graphics pipeline handle is an opaque handle to a *pipeline state* object.
 // Note that the pipeline state is different from the actual pipeline, as the
 // pipeline is created, based on a pipeline state and a renderpass.
