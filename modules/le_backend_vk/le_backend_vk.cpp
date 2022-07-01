@@ -6044,7 +6044,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			for ( auto const& p : frame.passes ) {
 
 				if ( key & p.queue_submission_affinity ) { // match key against this passe's queue submission affinity
-					qf = qf | p.type;                      // accumulate queue flags
+					qf = qf | VkQueueFlags( p.type );      // accumulate queue flags
 
 					// TODO : build commandbuffer SubmitInfo for this submission
 				}
@@ -6053,9 +6053,10 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 #if LE_PRINT_DEBUG_MESSAGES
 		{
+			logger.info( "Listing queue batches and their queue affinity:" );
 			int i = 0;
 			for ( auto const& qf : queue_flags_per_invocation_key ) {
-				logger.info( "" );
+				logger.info( "#%i, [%-50s]", i, to_string_vk_queue_flags( qf ).c_str() );
 				i++;
 			}
 		}
