@@ -83,8 +83,8 @@ struct le_renderer_api {
 		bool                            ( *get_framebuffer_settings)(le_renderpass_o const * obj, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count);
 		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                            ( *use_img_resource         )( le_renderpass_o *obj, const le_img_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
-		void                            ( *use_buf_resource         )( le_renderpass_o *obj, const le_buf_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
+		void                            ( *use_img_resource     )( le_renderpass_o *obj, const le_img_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
+		void                            ( *use_buf_resource     )( le_renderpass_o *obj, const le_buf_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);

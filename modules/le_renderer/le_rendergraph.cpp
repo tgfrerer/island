@@ -70,7 +70,7 @@ struct le_renderpass_o {
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
 
 	uint32_t            is_root = false;      // whether pass *must* be processed
-	le::RootPassesField root_passes_affinity; // association of this renderpass with one or more root passes
+	le::RootPassesField root_passes_affinity; // association of this renderpass with one or more root passes that it contributes to
 
 	std::vector<le_resource_handle>    resources;              // all resources used in this pass
 	std::vector<LeResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
@@ -976,11 +976,11 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		auto it = std::unique( queue_id_idx.begin(), queue_id_idx.end() );
 		queue_id_idx.erase( it, queue_id_idx.end() );
 
-		le::RootPassesField tf_accum = 0;
+		le::RootPassesField check_queue_accum = 0;
 		for ( size_t i = 0; i != queue_id_idx.size(); i++ ) {
 			logger.info( "root id [ %3d] : queue id: %d", i, queue_id[ queue_id_idx[ i ] ] );
 
-			// If you filter for tree affinity by LOGICAL AND you will get all passes that
+			// If you filter for root affinity by LOGICAL AND you will get all passes that
 			// contribute to a particular isolated queue invocation
 			self->isolated_queue_invocations.push_back( queue_id[ queue_id_idx[ i ] ] );
 
@@ -988,9 +988,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			// to be used exactly once.
 
 			{
-				le::RootPassesField test_val = queue_id[ queue_id_idx[ i ] ];
-				assert( !( test_val & tf_accum ) && "queue lanes must be independent." );
-				tf_accum |= test_val;
+				le::RootPassesField q = queue_id[ queue_id_idx[ i ] ];
+				assert( !( q & check_queue_accum ) && "queue lanes must be independent." );
+				check_queue_accum |= q;
 			}
 		}
 	}
@@ -1284,16 +1284,16 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_private_i.get_passes             = rendergraph_get_passes;
 	le_rendergraph_private_i.get_declared_resources = rendergraph_get_declared_resources;
 
-	auto& le_renderpass_i                    = le_renderer_api_i->le_renderpass_i;
-	le_renderpass_i.create                   = renderpass_create;
-	le_renderpass_i.clone                    = renderpass_clone;
-	le_renderpass_i.destroy                  = renderpass_destroy;
-	le_renderpass_i.get_id                   = renderpass_get_id;
-	le_renderpass_i.get_debug_name           = renderpass_get_debug_name;
-	le_renderpass_i.get_type                 = renderpass_get_type;
-	le_renderpass_i.get_framebuffer_settings = renderpass_get_framebuffer_settings;
-	le_renderpass_i.set_width                = renderpass_set_width;
-	le_renderpass_i.set_sample_count         = renderpass_set_sample_count;
+	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
+	le_renderpass_i.create                       = renderpass_create;
+	le_renderpass_i.clone                        = renderpass_clone;
+	le_renderpass_i.destroy                      = renderpass_destroy;
+	le_renderpass_i.get_id                       = renderpass_get_id;
+	le_renderpass_i.get_debug_name               = renderpass_get_debug_name;
+	le_renderpass_i.get_type                     = renderpass_get_type;
+	le_renderpass_i.get_framebuffer_settings     = renderpass_get_framebuffer_settings;
+	le_renderpass_i.set_width                    = renderpass_set_width;
+	le_renderpass_i.set_sample_count             = renderpass_set_sample_count;
 	le_renderpass_i.set_height                   = renderpass_set_height;
 	le_renderpass_i.set_setup_callback           = renderpass_set_setup_callback;
 	le_renderpass_i.has_setup_callback           = renderpass_has_setup_callback;
