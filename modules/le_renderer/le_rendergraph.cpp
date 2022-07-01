@@ -409,8 +409,14 @@ static bool renderpass_get_is_root( le_renderpass_o const* self ) {
 	return self->is_root;
 }
 
-static le::QueueFlagBits renderpass_get_type( le_renderpass_o const* self ) {
-	return self->type;
+static void renderpass_get_queue_submission_info( const le_renderpass_o* self, le::QueueFlagBits* pass_type, le::RootPassesField* queue_submission_id ) {
+	if ( pass_type ) {
+		*pass_type =
+		    self->type;
+	}
+	if ( queue_submission_id ) {
+		*queue_submission_id = self->root_passes_affinity;
+	}
 }
 
 static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, LeResourceUsageFlags const** pResourcesUsage, size_t* count ) {
@@ -1290,7 +1296,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.destroy                      = renderpass_destroy;
 	le_renderpass_i.get_id                       = renderpass_get_id;
 	le_renderpass_i.get_debug_name               = renderpass_get_debug_name;
-	le_renderpass_i.get_type                     = renderpass_get_type;
+	le_renderpass_i.get_queue_sumbission_info    = renderpass_get_queue_submission_info;
 	le_renderpass_i.get_framebuffer_settings     = renderpass_get_framebuffer_settings;
 	le_renderpass_i.set_width                    = renderpass_set_width;
 	le_renderpass_i.set_sample_count             = renderpass_set_sample_count;

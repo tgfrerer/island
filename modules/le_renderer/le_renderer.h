@@ -91,7 +91,7 @@ struct le_renderer_api {
 		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
 		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
-		le::QueueFlagBits               ( *get_type             )( const le_renderpass_o* obj );
+		void                            ( *get_queue_sumbission_info)( const le_renderpass_o* obj, le::QueueFlagBits* pass_type, le::RootPassesField * queue_submission_id);
 		le_command_buffer_encoder_o*    ( *steal_encoder        )( le_renderpass_o* obj );
 		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_img_resource_handle ** pResourceIds, size_t* numAttachments);
 

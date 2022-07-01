@@ -1585,7 +1585,8 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 		BackendRenderPass currentPass{};
 
-		currentPass.type = renderpass_i.get_type( *pass );
+		renderpass_i.get_queue_sumbission_info( *pass, &currentPass.type, &currentPass.queue_submission_id );
+
 		memcpy( currentPass.debugName, renderpass_i.get_debug_name( *pass ), sizeof( currentPass.debugName ) );
 
 		renderpass_i.get_framebuffer_settings( *pass, &currentPass.width, &currentPass.height, &currentPass.sampleCount );
@@ -3572,7 +3573,8 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
 
 	using namespace le_renderer;
-	static auto logger = LeLog( LOGGER_LABEL );
+	static auto       logger = LeLog( LOGGER_LABEL );
+	le::QueueFlagBits pass_type{};
 
 	// Only for compute passes: Create imageviews for all available
 	// resources which are of type image and which have usage
@@ -3580,7 +3582,10 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 
-		if ( renderpass_i.get_type( *p ) != le::QueueFlagBits::eCompute ) {
+		// fetch pass type from this passes' queue sumbission info
+		renderpass_i.get_queue_sumbission_info( *p, &pass_type, nullptr );
+
+		if ( pass_type != le::QueueFlagBits::eCompute ) {
 			continue;
 		}
 
