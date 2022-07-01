@@ -6049,11 +6049,9 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 					// TODO : build commandbuffer SubmitInfo for this submission
 				}
 			}
-
-			// build batches from command buffers which match this key
 		}
 
-#ifdef LE_PRINT_DEBUG_MESSAGES
+#if LE_PRINT_DEBUG_MESSAGES
 		{
 			int i = 0;
 			for ( auto const& qf : queue_flags_per_invocation_key ) {
