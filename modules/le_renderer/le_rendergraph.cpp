@@ -73,7 +73,9 @@ struct le_renderpass_o {
 	uint32_t                width        = 0;                           // < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
-	uint32_t                isRoot       = false;                       // whether pass *must* be processed
+
+	uint32_t  is_root = false;     // whether pass *must* be processed
+	TreeField root_index_affinity; // bitfield of tree affinities for resources. resources are only allowed to have affinity to one tree- otherwise these trees must be combined.
 
 	std::vector<le_resource_handle>    resources;              // all resources used in this pass
 	std::vector<LeResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
@@ -96,9 +98,10 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>   passes;                  //
-	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
+	std::vector<TreeField>          isolated_queue_invocations; // TreeField is a bitfield filter by which you can grab passes for each invocation
+	std::vector<le_renderpass_o*>   passes;                     //
+	std::vector<le_resource_handle> declared_resources_id;      // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t> declared_resources_info;    // | pre-declared resources (declared via module)
 };
 
 // ----------------------------------------------------------------------
@@ -305,7 +308,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		if ( usage_flags.type == LeResourceType::eImage &&
 		     resource_is_a_swapchain_handle( static_cast<le_img_resource_handle>( resource_id ) ) ) {
 			// A request to write to swapchain image automatically turns a pass into a root pass.
-			self->isRoot = true;
+			self->is_root = true;
 		}
 
 		access_flags |= LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite;
@@ -398,12 +401,12 @@ static le::SampleCountFlagBits const& renderpass_get_sample_count( le_renderpass
 
 // ----------------------------------------------------------------------
 
-static void renderpass_set_is_root( le_renderpass_o* self, bool isRoot ) {
-	self->isRoot = isRoot;
+static void renderpass_set_is_root( le_renderpass_o* self, bool is_root ) {
+	self->is_root = is_root;
 }
 
 static bool renderpass_get_is_root( le_renderpass_o const* self ) {
-	return self->isRoot;
+	return self->is_root;
 }
 
 static le::QueueFlagBits renderpass_get_type( le_renderpass_o const* self ) {
@@ -550,8 +553,7 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes, ui
 //
 // The graphviz file is stored as graph.dot in the executable's directory.
 //
-static bool
-generate_dot_file_for_rendergraph(
+static bool generate_dot_file_for_rendergraph(
     le_rendergraph_o*   self,
     le_resource_handle* uniqueResources,
     size_t const&       numUniqueResources,
@@ -832,7 +834,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			node.writes.set( res_idx, ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite ) >> 1 ) );
 		}
 
-		if ( p->isRoot ) {
+		if ( p->is_root ) {
 			node.is_root = true;
 		}
 
@@ -1037,7 +1039,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		for ( size_t i = 0; i != num_passes; i++ ) {
 			if ( nodes[ i ].is_contributing ) {
 				// Pass contributes, add it to consolidated passes
-				self->passes[ i ]->isRoot = nodes[ i ].is_root;
+				self->passes[ i ]->is_root             = nodes[ i ].is_root;
+				self->passes[ i ]->root_index_affinity = nodes[ i ].root_index_affinity;
 				consolidated_passes.push_back( self->passes[ i ] );
 			} else {
 				// Pass is not contributing, we will not keep it.
