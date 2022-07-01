@@ -474,7 +474,7 @@ struct BackendFrameData {
 	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
 
 	std::vector<BackendRenderPass>   passes;
-	std::vector<le::RootPassesField> passes_root_affinity; // per-pass key used to assign each pass to queue
+	std::vector<le::RootPassesField> queue_invocation_keys; // one key per isolated queue invocation
 
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
@@ -2987,8 +2987,7 @@ static void patch_renderpass_extents(
     uint32_t          swapchainHeight ) {
 	using namespace le_renderer;
 
-	auto passes_begin = passes;
-	auto passes_end   = passes + numRenderPasses;
+	auto passes_end = passes + numRenderPasses;
 
 	for ( auto rp = passes; rp != passes_end; rp++ ) {
 		uint32_t pass_width  = 0;

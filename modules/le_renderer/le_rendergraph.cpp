@@ -916,8 +916,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 		logger.info( "" );
 		for ( size_t i = 0; i < self->passes.size(); i++ ) {
-			logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_index_affinity );
+			logger.info( "node %-20s, affinity: %s", self->passes[ i ]->debugName, std::bitset<LE_MAX_NUM_GRAPH_ROOTS>( nodes[ i ].root_index_affinity ).to_string().c_str() );
 		}
+		logger.info( "" );
 #endif
 		// For each root pass, test its accumulated reads against all other root passes' accumulated writes.
 		// if there is an overlap, we know that the two roots which overlap must be combined, as
@@ -979,21 +980,27 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			}
 		}
 
+		// Remove any duplicate entries in our indirection table
+		// (if trees get combined they will share the same id)
 		auto it = std::unique( queue_id_idx.begin(), queue_id_idx.end() );
 		queue_id_idx.erase( it, queue_id_idx.end() );
 
+		// ---------| invavriant: queue_id_idx has unique entries,
+
+		// consolidate queue invocation keys, and at the same time test the assertion that no key overlaps
+		//
 		le::RootPassesField check_queue_accum = 0;
 		for ( size_t i = 0; i != queue_id_idx.size(); i++ ) {
-			logger.info( "root id [ %3d] : queue id: %d", i, queue_id[ queue_id_idx[ i ] ] );
 
-			// If you filter for root affinity by LOGICAL AND you will get all passes that
-			// contribute to a particular isolated queue invocation
+#if ( LE_PRINT_DEBUG_MESSAGES )
+			logger.info( "queue key [ %-12d], affinity: %s", i, std::bitset<LE_MAX_NUM_GRAPH_ROOTS>( queue_id[ queue_id_idx[ i ] ] ).to_string().c_str() );
+#endif
+
 			self->isolated_queue_invocations.push_back( queue_id[ queue_id_idx[ i ] ] );
 
-			// Do some error checking: each bit in the RootPassesField bitfield is only allowed
-			// to be used exactly once.
-
 			{
+				// Do some error checking: each bit in the RootPassesField bitfield is only allowed
+				// to be used exactly once.
 				le::RootPassesField q = queue_id[ queue_id_idx[ i ] ];
 				assert( !( q & check_queue_accum ) && "queue lanes must be independent." );
 				check_queue_accum |= q;
