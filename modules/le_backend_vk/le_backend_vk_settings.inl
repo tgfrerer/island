@@ -69,6 +69,9 @@ static bool le_backend_vk_settings_add_required_device_extension( le_backend_vk_
 			self->requested_device_features.features.features.shaderInt16  = VK_TRUE;
 		}
 
+		// we need timeline semaphores for multi-queue ops
+		self->requested_device_features.vk_12.timelineSemaphore = VK_TRUE;
+
 		return true;
 	} else {
 		static auto logger = LeLog( "le_backend_vk_settings" );

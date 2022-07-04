@@ -40,6 +40,7 @@ struct le_device_o {
 	std::vector<VkQueueFlags> queuesWithCapabilitiesRequest = { VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_COMPUTE_BIT };
 	std::vector<uint32_t>     queueFamilyIndices;
 	std::vector<VkQueue>      queues;
+	std::vector<VkSemaphore>  queue_timeline_semaphores;
 
 	struct DefaultQueueIndices {
 		uint32_t graphics      = ~uint32_t( 0 );
@@ -385,6 +386,25 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	self->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, VK_QUEUE_TRANSFER_BIT );
 	self->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, VK_QUEUE_SPARSE_BINDING_BIT );
 
+	{
+		VkSemaphoreTypeCreateInfo type_info = {
+		    .sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+		    .pNext         = nullptr, // optional
+		    .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+		    .initialValue  = 0,
+		};
+		VkSemaphoreCreateInfo info = {
+		    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		    .pNext = &type_info, // optional
+		    .flags = 0,          // optional
+		};
+
+		self->queue_timeline_semaphores.resize( self->queues.size() );
+
+		for ( size_t i = 0; i != self->queue_timeline_semaphores.size(); i++ ) {
+			vkCreateSemaphore( self->vkDevice, &info, nullptr, self->queue_timeline_semaphores.data() + i );
+		}
+	}
 	// Query possible depth formats, find the
 	// first format that supports attachment as a depth stencil
 	//
@@ -425,6 +445,9 @@ le_device_o* device_increase_reference_count( le_device_o* self ) {
 // ----------------------------------------------------------------------
 
 void device_destroy( le_device_o* self ) {
+	for ( size_t i = 0; i != self->queue_timeline_semaphores.size(); i++ ) {
+		vkDestroySemaphore( self->vkDevice, self->queue_timeline_semaphores[ i ], nullptr );
+	}
 	vkDestroyDevice( self->vkDevice, nullptr );
 	delete ( self );
 };
