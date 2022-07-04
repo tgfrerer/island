@@ -33,14 +33,19 @@ struct le_device_o {
 
 	} properties;
 
+	struct TimelineSemaphore {
+		VkSemaphore semaphore;
+		uint64_t    wait_value; // highest value which this semaphore is going to signal - others may wait on this, defaults to 0
+	};
+
 	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
 	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
 	// which closest fits requested capabilities.
 	//
-	std::vector<VkQueueFlags> queuesWithCapabilitiesRequest = { VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_COMPUTE_BIT };
-	std::vector<uint32_t>     queueFamilyIndices;
-	std::vector<VkQueue>      queues;
-	std::vector<VkSemaphore>  queue_timeline_semaphores;
+	std::vector<VkQueueFlags>      queuesWithCapabilitiesRequest = { VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_COMPUTE_BIT };
+	std::vector<uint32_t>          queueFamilyIndices;
+	std::vector<VkQueue>           queues;
+	std::vector<TimelineSemaphore> queue_timeline_semaphores; // one timeline semaphore per queue
 
 	struct DefaultQueueIndices {
 		uint32_t graphics      = ~uint32_t( 0 );
@@ -402,7 +407,7 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 		self->queue_timeline_semaphores.resize( self->queues.size() );
 
 		for ( size_t i = 0; i != self->queue_timeline_semaphores.size(); i++ ) {
-			vkCreateSemaphore( self->vkDevice, &info, nullptr, self->queue_timeline_semaphores.data() + i );
+			vkCreateSemaphore( self->vkDevice, &info, nullptr, &self->queue_timeline_semaphores[ i ].semaphore );
 		}
 	}
 	// Query possible depth formats, find the
@@ -446,8 +451,9 @@ le_device_o* device_increase_reference_count( le_device_o* self ) {
 
 void device_destroy( le_device_o* self ) {
 	for ( size_t i = 0; i != self->queue_timeline_semaphores.size(); i++ ) {
-		vkDestroySemaphore( self->vkDevice, self->queue_timeline_semaphores[ i ], nullptr );
+		vkDestroySemaphore( self->vkDevice, self->queue_timeline_semaphores[ i ].semaphore, nullptr );
 	}
+	self->queue_timeline_semaphores.clear();
 	vkDestroyDevice( self->vkDevice, nullptr );
 	delete ( self );
 };

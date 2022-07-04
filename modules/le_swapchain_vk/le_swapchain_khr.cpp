@@ -276,18 +276,18 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete_, uint32_t& imageIndex_ ) {
+static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore present_complete_semaphore, uint32_t& image_index ) {
 
 	auto self = static_cast<khr_data_o* const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
 
-	auto result = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, semaphorePresentComplete_, nullptr, &imageIndex_ );
+	auto result = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, present_complete_semaphore, nullptr, &image_index );
 
 	switch ( result ) {
 	case VK_SUCCESS:
-		self->mImageIndex = imageIndex_;
+		self->mImageIndex = image_index;
 		return true;
 	case VK_SUBOPTIMAL_KHR:         // | fall-through
 	case VK_ERROR_SURFACE_LOST_KHR: // |
