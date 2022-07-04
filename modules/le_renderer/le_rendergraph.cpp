@@ -916,7 +916,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 		logger.info( "" );
 		for ( size_t i = 0; i < self->passes.size(); i++ ) {
-			logger.info( "node %-20s, affinity: %s", self->passes[ i ]->debugName, std::bitset<LE_MAX_NUM_GRAPH_ROOTS>( nodes[ i ].root_index_affinity ).to_string().c_str() );
+			logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_index_affinity );
 		}
 		logger.info( "" );
 #endif
@@ -993,7 +993,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		for ( size_t i = 0; i != queue_id_idx.size(); i++ ) {
 
 #if ( LE_PRINT_DEBUG_MESSAGES )
-			logger.info( "queue key [ %-12d], affinity: %s", i, std::bitset<LE_MAX_NUM_GRAPH_ROOTS>( queue_id[ queue_id_idx[ i ] ] ).to_string().c_str() );
+			logger.info( "queue key [ %-12d], affinity: %x", i, queue_id[ queue_id_idx[ i ] ] );
 #endif
 
 			self->affinity_masks.push_back( queue_id[ queue_id_idx[ i ] ] );
