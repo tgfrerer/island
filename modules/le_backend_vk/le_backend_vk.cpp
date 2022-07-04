@@ -6026,14 +6026,14 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    } );
 	}
 
-	// TODO: Take into account queue invocation keys when building command buffers.
-	// so that we build batches of commands for each queue
+	// Collect command buffers for each queue invocation by testing against invocation key.
+	// if a pass's affinity matches the invocation key, it belongs to that particular queue invocation.
 	{
 
 		// Collect VkQueueFlags over all passes that match the same queue_invocation_key
 
 		size_t                                              num_invocation_keys = frame.queue_submission_masks.size();
-		std::vector<std::vector<VkCommandBufferSubmitInfo>> per_queue_submit_infos;
+		std::vector<std::vector<VkCommandBufferSubmitInfo>> per_queue_submit_infos( num_invocation_keys );
 		std::vector<VkQueueFlags>                           queue_flags_per_invocation_key( num_invocation_keys );
 
 		for ( size_t i = 0; i != num_invocation_keys; i++ ) {
@@ -6041,11 +6041,19 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			auto&       qf  = queue_flags_per_invocation_key[ i ]; // stores accumulated queue flags for each submission
 			auto const& key = frame.queue_submission_masks[ i ];   // key for this queue submission, against which we must test all passes
 
-			for ( auto const& p : frame.passes ) {
+			for ( size_t pi = 0; pi != frame.passes.size(); pi++ ) {
 
+				auto const& p = frame.passes[ pi ];
 				if ( key & p.queue_submission_affinity ) { // match key against this passe's queue submission affinity
 					qf = qf | VkQueueFlags( p.type );      // accumulate queue flags
 
+					per_queue_submit_infos[ i ].push_back(
+					    {
+					        .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+					        .pNext         = nullptr,
+					        .commandBuffer = frame.commandBuffers[ pi ],
+					        .deviceMask    = 0,
+					    } );
 					// TODO : build commandbuffer SubmitInfo for this submission
 				}
 			}
@@ -6119,7 +6127,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
 		    .pNext                    = nullptr,
 		    .flags                    = 0,
-		    .waitSemaphoreInfoCount   = 0,
+		    .waitSemaphoreInfoCount   = 0,       // this is where we wait for the timeline semaphores from other queue invocations from this frame.
 		    .pWaitSemaphoreInfos      = nullptr, // wait for any timeline semaphores from sibling queues here
 		    .commandBufferInfoCount   = 0,
 		    .pCommandBufferInfos      = nullptr,
@@ -6142,7 +6150,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		bool result =
 		    swapchain_i.present(
 		        self->swapchains[ i ],
-		        self->device->getDefaultGraphicsQueue(),
+		        self->device->getDefaultGraphicsQueue(), // we must present on a queue which has present enabled, graphics queue should fit the bill.
 		        render_complete_semaphore_submit_infos[ i ].semaphore,
 		        &frame.swapchain_state[ i ].image_idx );
 
