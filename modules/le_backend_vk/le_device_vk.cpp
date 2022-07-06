@@ -79,20 +79,20 @@ static std::string le_queue_flags_to_string( le::QueueFlags flags ) {
 
 // ----------------------------------------------------------------------
 
-uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& queueFlags_, const VkQueueFlags& flags ) {
+uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& haystack, const VkQueueFlags& needle ) {
 
 	// Find out the queue family index for a queue best matching the given flags.
 	// We use this to find out the index of the Graphics Queue for example.
 
-	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ) {
-		if ( queueFlags_[ i ] == flags ) {
+	for ( uint32_t i = 0; i != haystack.size(); i++ ) {
+		if ( haystack[ i ] == needle ) {
 			// First perfect match
 			return i;
 		}
 	}
 
-	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ) {
-		if ( queueFlags_[ i ] & flags ) {
+	for ( uint32_t i = 0; i != haystack.size(); i++ ) {
+		if ( haystack[ i ] & needle ) {
 			// First multi-function queue match
 			return i;
 		}
@@ -100,9 +100,9 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& queueFl
 
 	// ---------| invariant: no queue found
 
-	if ( flags & VK_QUEUE_GRAPHICS_BIT ) {
+	if ( needle & VK_QUEUE_GRAPHICS_BIT ) {
 		static auto logger = LeLog( LOGGER_LABEL );
-		logger.error( "Could not find queue family index matching: '%d'", flags );
+		logger.error( "Could not find queue family index matching: '%d'", needle );
 	}
 
 	return ~( uint32_t( 0 ) );
@@ -187,7 +187,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 
 // ----------------------------------------------------------------------
 
-le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** extension_names, uint32_t extension_names_count ) {
+le_device_o* device_create( le_backend_vk_instance_o* backend_instance, const char** extension_names, uint32_t extension_names_count ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -229,7 +229,7 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 
 	using namespace le_backend_vk;
 
-	VkInstance instance = vk_instance_i.get_vk_instance( instance_ );
+	VkInstance instance = vk_instance_i.get_vk_instance( backend_instance );
 
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices( instance, &deviceCount, nullptr );
@@ -284,7 +284,7 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, self->queuesWithCapabilitiesRequest );
 
 	// Create queues based on queriedQueueFamilyAndIndex
-	std::vector<::VkDeviceQueueCreateInfo> device_queue_creation_infos;
+	std::vector<VkDeviceQueueCreateInfo> device_queue_creation_infos;
 	// Consolidate queues by queue family type - this will also sort by queue family type.
 	std::map<uint32_t, uint32_t> queueCountPerFamily; // queueFamily -> count
 
