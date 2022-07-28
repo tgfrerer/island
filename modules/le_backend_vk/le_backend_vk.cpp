@@ -529,16 +529,8 @@ struct le_backend_o {
 	le_backend_vk_instance_o*   instance;
 	std::unique_ptr<le::Device> device;
 
-	struct QueueInfo {
-		VkQueue      queue;                // non-owning: owned by device
-		VkQueueFlags queue_flags;          // Capabilities for this particular queue
-		VkSemaphore  semaphore;            // owning, Per-queue timeline semaphore
-		uint64_t     semaphore_wait_value; // Highest value which this semaphore is going to signal - others may wait on this, defaults to 0
-		uint32_t     family_index;         // queue family index for this queue - all queues with the same family index have the same capabilities, multiple queues may share the same family index (when they belong to the same family)
-	};
-
-	std::vector<QueueInfo> queues;                         // queues which were created via device
-	uint32_t               queue_default_graphics_idx = 0; // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
+	std::vector<BackendQueueInfo> queues;                         // queues which were created via device
+	uint32_t                      queue_default_graphics_idx = 0; // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
 
 	std::vector<le_swapchain_o*> swapchains; // Owning.
 
@@ -1103,7 +1095,7 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 		};
 
 		for ( uint32_t i = 0; i != num_queues; i++ ) {
-			le_backend_o::QueueInfo queue_info{
+			BackendQueueInfo queue_info{
 			    .queue                = queues[ i ],
 			    .queue_flags          = queues_flags[ i ],
 			    .semaphore            = nullptr,
@@ -6207,6 +6199,24 @@ static le_pipeline_manager_o* backend_get_pipeline_cache( le_backend_o* self ) {
 }
 
 // ----------------------------------------------------------------------
+// Return a pointer to a queue info structure holding the queue
+// which we use for default graphics operations. This is also
+// the queue which is used for swapchain present.
+static BackendQueueInfo* backend_get_default_graphics_queue_info( le_backend_o* self ) {
+
+	assert( !self->queues.empty() && "No queues available; Cannot retrieve default graphics queue" );
+	// -----------| Invariant: queue available
+
+	static auto result = &self->queues[ self->queue_default_graphics_idx ];
+
+	// It's safe to return a pointer to a vector element, and to cache it here,
+	// as `self->queues` is constant once a device has been created.
+	// There is no way to add or remove queues at a later stage because queues
+	// are owned by device.
+
+	return result;
+}
+// ----------------------------------------------------------------------
 
 static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
@@ -6242,12 +6252,12 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	bool did_wait_for_present_semaphore = false;
 
-	for ( auto const& sd : frame.queue_submission_data ) {
+	for ( auto const& current_submission : frame.queue_submission_data ) {
 
 		std::vector<VkCommandBufferSubmitInfo> command_buffer_submit_infos;
-		command_buffer_submit_infos.reserve( sd.command_pool->buffers.size() ); // one command buffer per pass
+		command_buffer_submit_infos.reserve( current_submission.command_pool->buffers.size() ); // one command buffer per pass
 
-		for ( auto const& c : sd.command_pool->buffers ) {
+		for ( auto const& c : current_submission.command_pool->buffers ) {
 			command_buffer_submit_infos.push_back(
 			    {
 			        .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
@@ -6261,9 +6271,9 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		VkSemaphoreSubmitInfo signal_semaphore_timeline_complete = {
 		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		    .pNext       = nullptr,
-		    .semaphore   = self->queues[ sd.queue_idx ].semaphore,
-		    .value       = ++self->queues[ sd.queue_idx ].semaphore_wait_value, // NOTE pre-increment. Timeline value this timeline semaphore will signal upon completion
-		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,                  // signal semaphore once all commands have been processed
+		    .semaphore   = self->queues[ current_submission.queue_idx ].semaphore,
+		    .value       = ++self->queues[ current_submission.queue_idx ].semaphore_wait_value, // NOTE pre-increment. Timeline value this timeline semaphore will signal upon completion
+		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,                                  // signal semaphore once all commands have been processed
 		    .deviceIndex = 0,
 		};
 
@@ -6271,7 +6281,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		VkSemaphoreSubmitInfo* wait_semaphore_infos = nullptr;
 		uint32_t               wait_semaphore_count = 0;
 
-		if ( did_wait_for_present_semaphore == false && sd.queue_idx == self->queue_default_graphics_idx ) {
+		if ( did_wait_for_present_semaphore == false && current_submission.queue_idx == self->queue_default_graphics_idx ) {
 			wait_semaphore_infos           = wait_present_complete_semaphore_submit_infos.data(); // wait for present complete - it gets signaled once the swapchain image is ready for writing
 			wait_semaphore_count           = wait_present_complete_semaphore_submit_infos.size();
 			did_wait_for_present_semaphore = true;
@@ -6289,13 +6299,14 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    .pSignalSemaphoreInfos    = &signal_semaphore_timeline_complete,
 		};
 
-		auto queue = self->queues[ sd.queue_idx ].queue;
+		auto queue = self->queues[ current_submission.queue_idx ].queue;
 
 		vkQueueSubmit2( queue, 1, &submitInfo, nullptr );
 	}
 
 	assert( did_wait_for_present_semaphore && "Must wait for present semaphore on default graphics queue. Is there a default graphics queue?" );
 
+	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ].queue; // will not change for the duration of the program.
 	{
 		/// Now that we have submitted our payloads, we can wait for any timeline semaphores from this frame.
 		/// This is so that whatever gets executed on parallel queues will have time to complete until draw has completed.
@@ -6341,9 +6352,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 		};
 
-		auto queue = self->queues[ self->queue_default_graphics_idx ].queue;
-
-		vkQueueSubmit2( queue, 1, &submitInfo, frame.frameFence );
+		vkQueueSubmit2( graphics_queue, 1, &submitInfo, frame.frameFence );
 	}
 
 	bool overall_result = true;
@@ -6352,14 +6361,12 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		// submit frame for present using the graphics queue
 		using namespace le_swapchain_vk;
 
-		auto queue = self->queues[ self->queue_default_graphics_idx ].queue;
-
 		for ( size_t i = 0; i != self->swapchains.size(); i++ ) {
 
 			bool result =
 			    swapchain_i.present(
 			        self->swapchains[ i ],
-			        queue, // we must present on a queue which has present enabled, graphics queue should fit the bill.
+			        graphics_queue, // we must present on a queue which has present enabled, graphics queue should fit the bill.
 			        render_complete_semaphore_submit_infos[ i ].semaphore,
 			        &frame.swapchain_state[ i ].image_idx );
 
@@ -6460,15 +6467,16 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
 
-	auto& private_backend_i                  = api_i->private_backend_vk_i;
-	private_backend_i.get_vk_device          = backend_get_vk_device;
-	private_backend_i.get_vk_physical_device = backend_get_vk_physical_device;
-	private_backend_i.get_le_device          = backend_get_le_device;
-	private_backend_i.get_instance           = backend_get_instance;
-	private_backend_i.allocate_image         = backend_allocate_image;
-	private_backend_i.destroy_image          = backend_destroy_image;
-	private_backend_i.allocate_buffer        = backend_allocate_buffer;
-	private_backend_i.destroy_buffer         = backend_destroy_buffer;
+	auto& private_backend_i                           = api_i->private_backend_vk_i;
+	private_backend_i.get_vk_device                   = backend_get_vk_device;
+	private_backend_i.get_vk_physical_device          = backend_get_vk_physical_device;
+	private_backend_i.get_le_device                   = backend_get_le_device;
+	private_backend_i.get_instance                    = backend_get_instance;
+	private_backend_i.allocate_image                  = backend_allocate_image;
+	private_backend_i.destroy_image                   = backend_destroy_image;
+	private_backend_i.allocate_buffer                 = backend_allocate_buffer;
+	private_backend_i.destroy_buffer                  = backend_destroy_buffer;
+	private_backend_i.get_default_graphics_queue_info = backend_get_default_graphics_queue_info;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;

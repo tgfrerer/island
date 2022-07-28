@@ -1,12 +1,12 @@
 #include "le_swapchain_vk.h"
-#include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
-#include "util/volk/volk.h"
-#include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include "le_backend_vk.h"
+#include "le_backend_types_internal.h"
+
+#include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
+#include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include <cassert>
-#include "private/le_renderer_types.h" // for le_swapchain_settings_t, and le::Format
 #include "util/vk_mem_alloc/vk_mem_alloc.h"
 #include "le_log.h"
 
@@ -16,7 +16,6 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
-#include <vector>
 
 static constexpr auto LOGGER_LABEL = "le_swapchain_img";
 
@@ -48,7 +47,7 @@ struct img_data_o {
 	std::vector<TransferFrame> transferFrames;        //
 	FILE*                      pipe = nullptr;        // Pipe to ffmpeg. Owned. must be closed if opened
 	std::string                pipe_cmd;              // command line
-	VkQueue                    queue = nullptr;       // queue, initially null, set in present, used in acquire_next_image
+	BackendQueueInfo*          queue_info = nullptr;  // Non-owning. Present-enabled queue, initially null, set at create
 };
 
 // ----------------------------------------------------------------------
@@ -342,10 +341,9 @@ static le_swapchain_o* swapchain_img_create( const le_swapchain_vk_api::swapchai
 	{
 
 		using namespace le_backend_vk;
-		self->device                = private_backend_vk_i.get_vk_device( backend );
-		self->physicalDevice        = private_backend_vk_i.get_vk_physical_device( backend );
-		auto le_device              = private_backend_vk_i.get_le_device( backend );
-		self->vk_queue_family_index = vk_device_i.get_swapchain_enabled_queue_family_index( le_device );
+		self->device         = private_backend_vk_i.get_vk_device( backend );
+		self->physicalDevice = private_backend_vk_i.get_vk_physical_device( backend );
+		self->queue_info     = private_backend_vk_i.get_default_graphics_queue_info( backend );
 	}
 
 	{
@@ -548,13 +546,11 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 		// We should be fine - just make sure that acquire_next_frame (this method) gets called after all
 		// frame producers have submitted their payloads to the queue.
 
-		auto queue = self->queue; // queue is set upon last call to `present`
-
-		if ( queue ) {
-			auto result = vkQueueSubmit( queue, 1, &submitInfo, nullptr );
+		if ( self->queue_info ) {
+			auto result = vkQueueSubmit( self->queue_info->queue, 1, &submitInfo, nullptr );
 			assert( result == VK_SUCCESS );
 		} else {
-			le::Log( LOGGER_LABEL ).warn( "queue was not set when acquiring image for image swapchain." );
+			le::Log( LOGGER_LABEL ).error( "queue was not set when acquiring image for image swapchain." );
 		}
 	}
 
@@ -582,7 +578,6 @@ static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue, VkSemaph
 	};
 
 	vkQueueSubmit( queue, 1, &submitInfo, self->transferFrames[ *pImageIndex ].frameFence );
-	self->queue = queue; // store queue so that the same queue can be used with `acquire_next_image`
 	return true;
 };
 

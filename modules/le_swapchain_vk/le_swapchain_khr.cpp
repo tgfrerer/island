@@ -6,11 +6,10 @@
 #include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include "le_backend_vk.h"
-#include "private/le_renderer_types.h"
+#include "le_backend_types_internal.h"
 #include "le_window.h"
 #include "le_log.h"
 #include <iostream>
-#include <vector>
 
 static constexpr auto LOGGER_LABEL = "le_swapchain_khr";
 
@@ -248,8 +247,7 @@ static le_swapchain_o* swapchain_khr_create( const le_swapchain_vk_api::swapchai
 		using namespace le_backend_vk;
 		self->device                         = private_backend_vk_i.get_vk_device( backend );
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
-		auto le_device                       = private_backend_vk_i.get_le_device( backend );
-		self->vk_graphics_queue_family_index = vk_device_i.get_swapchain_enabled_queue_family_index( le_device );
+		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->family_index;
 	}
 
 	self->swapchainKHR = nullptr;

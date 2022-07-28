@@ -150,6 +150,14 @@ struct ExplicitSyncOp {
 	uint32_t           active;
 };
 
+struct BackendQueueInfo {
+	VkQueue      queue;                // non-owning: owned by device
+	VkQueueFlags queue_flags;          // Capabilities for this particular queue
+	VkSemaphore  semaphore;            // owning, Per-queue timeline semaphore
+	uint64_t     semaphore_wait_value; // Highest value which this semaphore is going to signal - others may wait on this, defaults to 0
+	uint32_t     family_index;         // queue family index for this queue - all queues with the same family index have the same capabilities, multiple queues may share the same family index (when they belong to the same family)
+};
+
 struct BackendRenderPass {
 
 	AttachmentInfo attachments[ LE_MAX_COLOR_ATTACHMENTS ]; // maximum of 16 color output attachments

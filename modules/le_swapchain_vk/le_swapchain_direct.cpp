@@ -2,17 +2,17 @@
 #ifndef _MSC_VER
 #	define VK_USE_PLATFORM_XLIB_XRANDR_EXT
 #endif
-#include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
-
-#include "util/volk/volk.h"
-#include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include "le_backend_vk.h"
+#include "le_backend_types_internal.h"
+
+#include "private/le_swapchain_vk/vk_to_string_helpers.inl"
+#include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
+
 #include "private/le_renderer_types.h"
 #include "le_log.h"
 
 #include <iostream>
-#include <vector>
 #include <assert.h>
 
 #define ASSERT_VK_SUCCESS( x ) \
@@ -302,8 +302,8 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 		auto le_device                       = private_backend_vk_i.get_le_device( backend );
 		self->device                         = private_backend_vk_i.get_vk_device( backend );
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
+		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->family_index;
 		self->instance                       = vk_instance_i.get_vk_instance( private_backend_vk_i.get_instance( backend ) );
-		self->vk_graphics_queue_family_index = vk_device_i.get_swapchain_enabled_queue_family_index( le_device );
 	}
 
 #ifdef _MSC_VER

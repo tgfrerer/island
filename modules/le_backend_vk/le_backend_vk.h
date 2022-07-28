@@ -63,6 +63,7 @@ struct VkPhysicalDeviceFeatures2;
 
 struct VkFormatEnum;
 struct BackendRenderPass;
+struct BackendQueueInfo;
 
 struct VmaAllocator_T;
 struct VmaAllocation_T;
@@ -125,6 +126,7 @@ struct le_backend_vk_api {
 		void                   ( *process_frame              ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses, le_resource_handle const * declared_resources, le_resource_info_t const * declared_resources_infos, size_t const & declared_resources_count );
 		void                   ( *set_frame_queue_submission_keys ) ( le_backend_o *self, size_t frameIndex, void const * p_affinity_masks, uint32_t num_affinity_masks ); // void* p_affinity_masks must be cast to le::RootPassesField, we can't forward-declare a using declaration
+
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
@@ -151,6 +153,8 @@ struct le_backend_vk_api {
 		le_backend_vk_instance_o* ( *get_instance             )(le_backend_o* self);
 		VkDevice_T*               ( *get_vk_device            )(le_backend_o const * self);
 		VkPhysicalDevice_T*       ( *get_vk_physical_device   )(le_backend_o const * self);
+
+        BackendQueueInfo*         ( *get_default_graphics_queue_info )(le_backend_o* self);
 
 		int32_t ( *allocate_image )
 		(
@@ -197,7 +201,6 @@ struct le_backend_vk_api {
 
         void                        ( *get_queue_family_indices                ) ( le_device_o* self, uint32_t * family_indices, uint32_t* num_family_indices);
         void                        (* get_queues_info                         ) ( le_device_o* self, uint32_t* queue_count, VkQueue_T** queues, uint32_t* queues_family_index, VkQueueFlags* queues_flags);
-		uint32_t                    ( *get_swapchain_enabled_queue_family_index) ( le_device_o* self_ );
 		VkFormatEnum const*         ( *get_default_depth_stencil_format        ) ( le_device_o* self_ );
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_device_o* self_ );

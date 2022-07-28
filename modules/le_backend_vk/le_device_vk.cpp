@@ -498,17 +498,6 @@ static void device_get_physical_device_ray_tracing_properties( le_device_o* self
 
 // ----------------------------------------------------------------------
 
-// get family index from first queue which has graphics enabled ( we assume that this means that this queue can present)
-// TODO: we need to find a better way to test whether a queue has present enabled.
-static uint32_t device_get_swapchain_enabled_queue_family_index( le_device_o* self ) {
-	for ( uint32_t i = 0; i != self->queues.size(); i++ ) {
-		if ( self->queues_flags[ i ] & VK_QUEUE_GRAPHICS_BIT ) {
-			return i;
-		}
-	}
-	return uint32_t( ~0 ); // return error code if no queue found which has graphics enabled.
-};
-
 static void device_get_queue_family_indices( le_device_o* self, uint32_t* family_indices, uint32_t* num_family_indices ) {
 	if ( num_family_indices && *num_family_indices == self->queues.size() ) {
 		memcpy( family_indices, self->queues_family_index.data(), sizeof( uint32_t ) * self->queues_family_index.size() );
@@ -597,7 +586,6 @@ void register_le_device_vk_api( void* api_ ) {
 	device_i.decrease_reference_count                      = device_decrease_reference_count;
 	device_i.increase_reference_count                      = device_increase_reference_count;
 	device_i.get_reference_count                           = device_get_reference_count;
-	device_i.get_swapchain_enabled_queue_family_index      = device_get_swapchain_enabled_queue_family_index;
 	device_i.get_queue_family_indices                      = device_get_queue_family_indices;
 	device_i.get_queues_info                               = le_device_get_queues_info;
 	device_i.get_default_depth_stencil_format              = device_get_default_depth_stencil_format;
