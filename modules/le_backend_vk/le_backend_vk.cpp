@@ -4425,25 +4425,6 @@ static BackendFrameData::CommandPool* backend_frame_data_produce_command_pool(
 	return pool;
 }
 
-// return index into queues vector for queue that best matches flags
-static uint32_t backend_get_queue_idx_from_flags( std::vector<le_backend_o::QueueInfo> const& queues, VkQueueFlags const& flags, std::vector<VkQueueFlags>& queues_used_as ) {
-
-	queues_used_as.resize( queues.size() ); // this should be a no-op, as we expect this vector to be the same size as queue
-
-	// first try to find an exact match
-
-	for ( uint32_t i = 0; i != queues.size(); i++ ) {
-		if ( queues[ i ].queue_flags == flags ) {
-			queues_used_as[ i ] |= flags;
-			return i;
-		}
-	}
-
-	// if that didn't work, then try to find the first queue that contains all our flags
-
-	assert( false && "no matching queue found" );
-	return -1; // unreachable
-}
 // ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
