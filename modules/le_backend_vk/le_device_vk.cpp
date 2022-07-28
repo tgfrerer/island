@@ -512,7 +512,11 @@ static void le_device_get_queues_info( le_device_o* self, uint32_t* queue_count,
 	if ( queue_count ) {
 		*queue_count = self->queues.size();
 	}
-	assert( self->queues.size() == self->queues_family_index.size() == self->queues_flags.size() && "Queue SOA members must have equal length." );
+
+	assert( self->queues.size() == self->queues_family_index.size() &&
+	        self->queues.size() == self->queues_flags.size() &&
+	        "Queue SOA members must have equal length." );
+
 	if ( queues ) {
 		memcpy( queues, self->queues.data(), sizeof( VkQueue ) * self->queues.size() );
 	}
