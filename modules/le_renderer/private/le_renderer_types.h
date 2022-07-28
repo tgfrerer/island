@@ -9,7 +9,7 @@ constexpr size_t LE_MAX_NUM_GRAPH_RESOURCES = 64; // Maximum number of unique re
 constexpr size_t LE_MAX_NUM_GRAPH_ROOTS     = 64; // Maximum number of root nodes in a given RenderGraph. We assume this is much smaller than LE_MAX_NUM_GRAPH_RESOURCES, but worst case it would need to be the same size.
 
 namespace le {
-using RootPassesField = uint64_t;
+using RootPassesField = uint64_t; // used to express affinity to a root pass - each bit usually represents a root pass
 static_assert( sizeof( RootPassesField ) == LE_MAX_NUM_GRAPH_ROOTS / 8, "LeRootPassesField must have enough bits available to cover LE_MAX_NUM_GRAPH_ROOTS" );
 } // namespace le
 

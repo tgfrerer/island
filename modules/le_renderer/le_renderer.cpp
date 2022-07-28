@@ -547,7 +547,7 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 		uint32_t                   num_affinity_masks = 0;
 
 		le_renderer::api->le_rendergraph_private_i.get_p_affinity_masks( frame.rendergraph, &p_affinity_masks, &num_affinity_masks );
-		vk_backend_i.set_frame_queue_submission_masks( self->backend, frameIndex, reinterpret_cast<void const*>( p_affinity_masks ), num_affinity_masks );
+		vk_backend_i.set_frame_queue_submission_keys( self->backend, frameIndex, reinterpret_cast<void const*>( p_affinity_masks ), num_affinity_masks );
 	}
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();

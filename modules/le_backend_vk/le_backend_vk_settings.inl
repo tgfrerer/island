@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <vulkan/vulkan.h>
+#include <cstring> // for memcpy
 
 struct le_backend_vk_settings_o {
 	std::set<std::string> required_instance_extensions_set; // we use set to give us permanent addresses for char*, and to ensure uniqueness of requested extensions
@@ -27,10 +28,36 @@ struct le_backend_vk_settings_o {
 		VkPhysicalDeviceMeshShaderFeaturesNV             mesh_shader;
 	} requested_device_features;
 
+	std::vector<VkQueueFlags> requested_queues_capabilities = {
+	    VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT,
+	    //	    VK_QUEUE_COMPUTE_BIT,
+	}; // each entry stands for one queue and its capabilities
+
 	std::vector<le_swapchain_settings_t> swapchain_settings;
 	uint32_t                             concurrency_count = 1; // number of potential worker threads
 	std::atomic_bool                     readonly          = false;
 };
+
+static bool le_backend_vk_settings_set_requested_queue_capabilities( VkQueueFlags* queues, uint32_t num_queues ) {
+	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
+	if ( self->readonly == false && queues != nullptr && num_queues > 0 ) {
+		self->requested_queues_capabilities.assign( queues, queues + num_queues );
+		return true;
+	} else {
+		static auto logger = LeLog( "le_backend_vk_settings" );
+		logger.error( "Cannot set queue capabilities" );
+		return false;
+	}
+}
+static void le_backend_vk_settings_get_requested_queue_capabilities( VkQueueFlags* queues, uint32_t* num_queues ) {
+	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
+	if ( num_queues ) {
+		*num_queues = self->requested_queues_capabilities.size();
+	}
+	if ( queues ) {
+		memcpy( queues, self->requested_queues_capabilities.data(), self->requested_queues_capabilities.size() * sizeof( VkQueueFlags ) );
+	}
+}
 
 // ----------------------------------------------------------------------
 

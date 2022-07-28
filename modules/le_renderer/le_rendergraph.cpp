@@ -42,12 +42,12 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 #include <bitset>
 
-using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>;
+using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
 
 struct Node {
 	ResourceField       reads;
 	ResourceField       writes;
-	le::RootPassesField root_index_affinity;     // association of node with root node(s) - each bit represents a root node
+	le::RootPassesField root_index_affinity;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
 	bool                is_root         = false; // whether this node is a root node
 	bool                is_contributing = false; // whether this node contributes to a root node
 };
@@ -69,8 +69,10 @@ struct le_renderpass_o {
 	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
 
-	uint32_t            is_root = false;      // whether pass *must* be processed
-	le::RootPassesField root_passes_affinity; // association of this renderpass with one or more root passes that it contributes to
+	uint32_t            is_root = false;      // Whether pass *must* be processed
+	le::RootPassesField root_passes_affinity; // Association of this renderpass with one or more root passes that it contributes to -
+	                                          // this needs to be communicated to backend, so that you may create queue submissions
+	                                          // by filtering via root_passes_affinity_masks
 
 	std::vector<le_resource_handle>    resources;              // all resources used in this pass
 	std::vector<LeResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
@@ -93,10 +95,14 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>    passes;                  //
-	std::vector<le_resource_handle>  declared_resources_id;   // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t>  declared_resources_info; // | pre-declared resources (declared via module)
-	std::vector<le::RootPassesField> affinity_masks;          // vector of masks, which match all renderpasess exactly once - renderpasses which have an affinity bit which is touched by a mask need to render in the same batch/invocation/queue
+	std::vector<le_renderpass_o*>    passes;                     //
+	std::vector<le_resource_handle>  declared_resources_id;      // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>  declared_resources_info;    // | pre-declared resources (declared via module)
+	std::vector<le::RootPassesField> root_passes_affinity_masks; // vector of masks, one per distinct tree within the rendergraph,
+	                                                             // each mask represents a filter: passes whose root_passes_affinity
+	                                                             // match via OR are contributing to the distinct tree whose key it was tested against.
+	                                                             // Each entry represents a distinct tree which can be submitted as a
+	                                                             // separate (and resource-isolated) queue submission.
 };
 
 // ----------------------------------------------------------------------
@@ -485,6 +491,7 @@ static void rendergraph_reset( le_rendergraph_o* self ) {
 	}
 	self->passes.clear();
 
+	self->root_passes_affinity_masks.clear();
 	self->declared_resources_id.clear();
 	self->declared_resources_info.clear();
 }
@@ -985,7 +992,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		auto it = std::unique( queue_id_idx.begin(), queue_id_idx.end() );
 		queue_id_idx.erase( it, queue_id_idx.end() );
 
-		// ---------| invavriant: queue_id_idx has unique entries,
+		// ---------| invariant: queue_id_idx has unique entries,
 
 		// consolidate queue invocation keys, and at the same time test the assertion that no key overlaps
 		//
@@ -996,7 +1003,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			logger.info( "queue key [ %-12d], affinity: %x", i, queue_id[ queue_id_idx[ i ] ] );
 #endif
 
-			self->affinity_masks.push_back( queue_id[ queue_id_idx[ i ] ] );
+			self->root_passes_affinity_masks.push_back( queue_id[ queue_id_idx[ i ] ] );
 
 			{
 				// Do some error checking: each bit in the RootPassesField bitfield is only allowed
@@ -1235,8 +1242,8 @@ static void rendergraph_get_declared_resources( le_rendergraph_o* self, le_resou
 // ----------------------------------------------------------------------
 
 static void rendergraph_get_p_affinity_masks( le_rendergraph_o* self, le::RootPassesField const** p_affinity_masks, uint32_t* num_affinity_masks ) {
-	*p_affinity_masks   = self->affinity_masks.data();
-	*num_affinity_masks = self->affinity_masks.size();
+	*p_affinity_masks   = self->root_passes_affinity_masks.data();
+	*num_affinity_masks = self->root_passes_affinity_masks.size();
 }
 // ----------------------------------------------------------------------
 // Builds rendergraph from render_module, calls `setup` callbacks on each renderpass which provides a
