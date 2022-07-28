@@ -13,10 +13,10 @@ struct le_backend_vk_settings_o {
 	std::set<std::string> required_instance_extensions_set; // we use set to give us permanent addresses for char*, and to ensure uniqueness of requested extensions
 	std::set<std::string> required_device_extensions_set;   // we use set to give us permanent addresses for char*, and to ensure uniqueness of requested extensions
 	                                                        //
-	// we keep the sets in sync with the following two vectors, which point into the set contents for their char const *
-	//
-	std::vector<char const*> required_instance_extensions;
-	std::vector<char const*> required_device_extensions;
+	                                                        // we keep the sets in sync with the following two vectors, which point into the set contents for their char const *
+	                                                        //
+	std::vector<char const*> required_instance_extensions;  //
+	std::vector<char const*> required_device_extensions;    //
 
 	struct RequestedDeviceFeatures {
 		VkPhysicalDeviceFeatures2                        features;
