@@ -1101,6 +1101,12 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 			    .semaphore_wait_value = 0,
 			    .family_index         = queues_family_index[ i ],
 			};
+			// Fetch the first graphics enabled queue and make this our default graphics queue -
+			// this queue will be used for swapchain present.
+			if ( self->queueFamilyIndexGraphics == uint32_t( ~0 ) && ( queues_flags[ i ] & VK_QUEUE_GRAPHICS_BIT ) ) {
+				self->queue_default_graphics_idx = i;
+				self->queueFamilyIndexGraphics   = queues_family_index[ i ];
+			}
 			// create one timeline semaphore for every queue.
 			vkCreateSemaphore( self->device->getVkDevice(), &semaphore_create_info, nullptr, &queue_info.semaphore );
 			self->queues.emplace_back( std::move( queue_info ) );
