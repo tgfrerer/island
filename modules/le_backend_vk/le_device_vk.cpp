@@ -10,6 +10,7 @@
 #include <map>
 #include <cstring> // for memcpy
 #include <cassert>
+#include <bitset>
 
 static constexpr auto LOGGER_LABEL = "le_backend";
 
@@ -103,11 +104,11 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& haystac
 //             consistent between requested queues and queues you will render to)
 
 struct QueueQueryResult {
-	uint32_t queue_family_index; // Queue Family Index
-	uint32_t queue_index;        // Offset within queue family.
-	                             // If we're picking the 1st queue of a family, the offset will be 0,
-	                             // If we're picking the 3rd queue of a family, the offset will be 2.
-	VkQueueFlags queue_flags;    // full flags that this queue supports
+	uint32_t queue_family_index;     // Queue Family Index
+	uint32_t queue_index;            // Offset within queue family.
+	                                 // If we're picking the 1st queue of a family, the offset will be 0,
+	                                 // If we're picking the 3rd queue of a family, the offset will be 2.
+	VkQueueFlags queue_family_flags; // Full flags that this queue supports
 };
 
 std::vector<QueueQueryResult> findBestMatchForRequestedQueues( const std::vector<VkQueueFamilyProperties2>& props, const std::vector<VkQueueFlags>& reqProps ) {
@@ -115,63 +116,60 @@ std::vector<QueueQueryResult> findBestMatchForRequestedQueues( const std::vector
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	std::vector<uint32_t> usedQueues( props.size(), ~( uint32_t( 0 ) ) ); // last used queue, per queue family (initialised at -1)
+	std::vector<uint32_t> usedQueues( props.size(), 0 ); // number of used queues per queue family
 
 	size_t reqIdx = 0; // original index for requested queue
 	for ( const auto& flags : reqProps ) {
 
-		// best match is a queue which does exclusively what we want
-		bool     foundMatch  = false;
-		uint32_t foundFamily = 0;
-		uint32_t foundIndex  = 0;
+		bool     foundMatch            = false;
+		uint32_t foundFamily           = 0;
+		uint32_t lowest_num_extra_bits = uint32_t( ~0 );
+
+		// Best match is a queue that has the fewest extra bits set after it covers all the bits
+		// that are mandatory.
+		// We should be able to find this in one pass per requested queue.
 
 		for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ) {
+			VkQueueFlags available_flags = props[ familyIndex ].queueFamilyProperties.queueFlags;
+			VkQueueFlags requested_flags = flags;
 
-			// 1. Is there a family that matches our requirements exactly?
-			// 2. Is a queue from this family still available?
-
-			if ( props[ familyIndex ].queueFamilyProperties.queueFlags == flags ) {
-				// perfect match
-				if ( usedQueues[ familyIndex ] + 1 < props[ familyIndex ].queueFamilyProperties.queueCount ) {
-					foundMatch  = true;
-					foundFamily = familyIndex;
-					foundIndex  = usedQueues[ familyIndex ] + 1;
-					logger.info( "Found dedicated queue matching: '%d'", flags );
-				} else {
-					logger.info( "No more dedicated queues available matching: '%s'", le_queue_flags_to_string( flags ).c_str() );
-				}
-				break;
-			}
-		}
-
-		if ( foundMatch == false ) {
-
-			// If we haven't found a match, we need to find a versatile queue which might
-			// be able to fulfill our requirements.
-
-			for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ) {
-
-				// 1. Is there a family that has the ability to fulfill our requirements?
-				// 2. Is a queue from this family still available?
-
-				if ( ( props[ familyIndex ].queueFamilyProperties.queueFlags & flags ) == flags ) {
-					// versatile queue matchvkGetPhysicalDeviceQueueFamilyProperties2
-					if ( usedQueues[ familyIndex ] + 1 < props[ familyIndex ].queueFamilyProperties.queueCount ) {
-						foundMatch  = true;
-						foundFamily = familyIndex;
-						foundIndex  = usedQueues[ familyIndex ] + 1;
-						logger.info( "Found versatile queue matching: '%s'", le_queue_flags_to_string( flags ).c_str() );
+			if ( ( available_flags & requested_flags ) == requested_flags ) {
+				// requested_flags are contained in available flags
+				VkQueueFlags leftover_flags = ( available_flags & ( ~requested_flags ) ); // flags which only appear in available_flags
+				size_t       num_extra_bits = std::bitset<sizeof( VkQueueFlags ) * 8>( leftover_flags ).count();
+				if ( num_extra_bits < lowest_num_extra_bits ) {
+					// Check if queue would be available
+					if ( usedQueues[ familyIndex ] < props[ familyIndex ].queueFamilyProperties.queueCount ) {
+						if ( foundMatch ) {
+							// we must release the previously used queue so that it becomes available again
+							usedQueues[ foundFamily ]--;
+						}
+						usedQueues[ familyIndex ]++; // mark this queue as used
+						foundFamily           = familyIndex;
+						lowest_num_extra_bits = num_extra_bits;
+						foundMatch            = true;
 					}
-					break;
 				}
 			}
 		}
+
 
 		if ( foundMatch ) {
-			result.push_back( { foundFamily, foundIndex, props[ foundFamily ].queueFamilyProperties.queueFlags } );
-			usedQueues[ foundFamily ] = foundIndex; // mark this queue as used
+
+			logger.info( "Found queue { %s } matching requirement: { %s }.",
+			             le_queue_flags_to_string( props[ foundFamily ].queueFamilyProperties.queueFlags ).c_str(),
+			             le_queue_flags_to_string( flags ).c_str() );
+
+			assert( usedQueues[ foundFamily ] > 0 && "must have at least one used queue at index" );
+
+			result.push_back( {
+			    .queue_family_index = foundFamily,                                           // queue family index
+			    .queue_index        = usedQueues[ foundFamily ] - 1,                         // index within queue family
+			    .queue_family_flags = props[ foundFamily ].queueFamilyProperties.queueFlags, // queue capability flags for this family
+			} );
+
 		} else {
-			logger.error( "No available queue matching requirement: '%d'", flags );
+			logger.error( "No queue available matching requirement: { %d }", flags );
 		}
 
 		++reqIdx;
@@ -388,7 +386,7 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 	for ( size_t i = 0; i != available_queues.size(); i++ ) {
 		vkGetDeviceQueue( self->vkDevice, available_queues[ i ].queue_family_index, available_queues[ i ].queue_index, &self->queues[ i ] );
 		self->queues_family_index[ i ] = available_queues[ i ].queue_family_index;
-		self->queues_flags[ i ]        = available_queues[ i ].queue_flags;
+		self->queues_flags[ i ]        = available_queues[ i ].queue_family_flags;
 	}
 
 	// Query possible depth formats, find the
