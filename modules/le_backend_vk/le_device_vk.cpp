@@ -283,7 +283,9 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 		le_backend_vk::settings_i.get_requested_queue_capabilities( requested_queues.data(), &num_requested_queues );
 
 		if ( requested_queues.empty() ) {
-			requested_queues.push_back( VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT );
+			VkQueueFlags default_queue_flags = { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT };
+			le::Log( LOGGER_LABEL ).info( "No queues explicitly requested, requesting default: { %s }", le_queue_flags_to_string( default_queue_flags ).c_str() );
+			requested_queues.push_back( default_queue_flags );
 		}
 	}
 	std::vector<QueueQueryResult> available_queues =
