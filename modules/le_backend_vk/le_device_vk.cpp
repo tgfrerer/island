@@ -35,25 +35,12 @@ struct le_device_o {
 
 	} properties;
 
-	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
-	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
-	// which closest fits requested capabilities.
-	//
-
-	std::vector<VkQueue>      queues;
-	std::vector<VkQueueFlags> queues_flags;
-	std::vector<uint32_t>     queues_family_index;
-
-	//	struct DefaultQueueIndices {
-	//		uint32_t graphics      = ~uint32_t( 0 );
-	//		uint32_t compute       = ~uint32_t( 0 );
-	//		uint32_t transfer      = ~uint32_t( 0 );
-	//		uint32_t sparseBinding = ~uint32_t( 0 );
-	//	};
+	std::vector<VkQueue>      queues;              // queues as created with device
+	std::vector<VkQueueFlags> queues_flags;        // per-queue capability flags
+	std::vector<uint32_t>     queues_family_index; // per-queue family index
 
 	std::set<std::string> requestedDeviceExtensions;
 
-	//	DefaultQueueIndices defaultQueueIndices;
 	VkFormat defaultDepthStencilFormat;
 
 	uint32_t referenceCount = 0;
@@ -66,8 +53,10 @@ static std::string le_queue_flags_to_string( le::QueueFlags flags ) {
 
 	for ( int i = 0; ( flags > 0 ); i++ ) {
 		if ( flags & 1 ) {
-			result.append( result.empty() ? std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) )
-			                              : " | " + std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) ) );
+			result.append(
+			    result.empty()
+			        ? std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) )
+			        : " | " + std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) ) );
 		}
 		flags >>= 1;
 	}
@@ -297,15 +286,15 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 			requested_queues.push_back( VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT );
 		}
 	}
-	std::vector<QueueQueryResult> queue_query =
+	std::vector<QueueQueryResult> available_queues =
 	    findBestMatchForRequestedQueues( self->properties.queue_family_properties, requested_queues );
 
-	// Create queues based on queriedQueueFamilyAndIndex
+	// Create queues based on available_queues
 	std::vector<VkDeviceQueueCreateInfo> device_queue_creation_infos;
 	// Consolidate queues by queue family type - this will also sort by queue family type.
 	std::map<uint32_t, uint32_t> queueCountPerFamily; // queueFamily -> count
 
-	for ( const auto& q : queue_query ) {
+	for ( const auto& q : available_queues ) {
 		// Attempt to insert family to map
 
 		auto insertResult = queueCountPerFamily.insert( { q.queue_family_index, 1 } );
@@ -315,11 +304,11 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 		}
 	}
 
-	device_queue_creation_infos.reserve( queue_query.size() );
+	device_queue_creation_infos.reserve( available_queues.size() );
 
 	// We must store this in a map so that the pointer stays
 	// alive until we call the api.
-	std::map<uint32_t, std::vector<float>> prioritiesPerFamily; // todo: use an arena for this
+	std::map<uint32_t, std::vector<float>> prioritiesPerFamily;
 
 	for ( auto& q : queueCountPerFamily ) {
 		VkDeviceQueueCreateInfo queueCreateInfo;
@@ -372,7 +361,7 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 	    .pNext                   = features, // this contains the features chain from settings
 	    .flags                   = 0,
 	    .queueCreateInfoCount    = uint32_t( device_queue_creation_infos.size() ),
-	    .pQueueCreateInfos       = device_queue_creation_infos.data(),
+	    .pQueueCreateInfos       = device_queue_creation_infos.data(), // note that queues are created with device, once the device is created its number of queues is immutable.
 	    .enabledLayerCount       = 0,
 	    .ppEnabledLayerNames     = 0,
 	    .enabledExtensionCount   = uint32_t( enabledDeviceExtensionNames.size() ),
@@ -389,16 +378,15 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 	// Store queue flags, and queue family index per queue into renderer properties,
 	// so that queue capabilities and family index may be queried thereafter.
 
-	self->queues.resize( queue_query.size() );
-	self->queues_family_index.resize( queue_query.size() );
-	self->queues_flags.resize( queue_query.size() );
+	self->queues.resize( available_queues.size() );
+	self->queues_family_index.resize( available_queues.size() );
+	self->queues_flags.resize( available_queues.size() );
 
-	// Fetch queue handle into mQueue, matching indices with the original queue request vector
-	for ( size_t i = 0; i != queue_query.size(); i++ ) {
-		self->queues_family_index[ i ] = queue_query[ i ].queue_family_index;
-		self->queues_flags[ i ]        = queue_query[ i ].queue_flags;
-
-		vkGetDeviceQueue( self->vkDevice, queue_query[ i ].queue_family_index, queue_query[ i ].queue_index, &self->queues[ i ] );
+	// Fetch queue handle into self->queues[i], matching indices with available_queues
+	for ( size_t i = 0; i != available_queues.size(); i++ ) {
+		vkGetDeviceQueue( self->vkDevice, available_queues[ i ].queue_family_index, available_queues[ i ].queue_index, &self->queues[ i ] );
+		self->queues_family_index[ i ] = available_queues[ i ].queue_family_index;
+		self->queues_flags[ i ]        = available_queues[ i ].queue_flags;
 	}
 
 	// Query possible depth formats, find the
@@ -576,8 +564,6 @@ static bool device_get_memory_allocation_info( le_device_o*                self,
 static bool device_is_extension_available( le_device_o* self, char const* extension_name ) {
 	return self->requestedDeviceExtensions.find( extension_name ) != self->requestedDeviceExtensions.end();
 }
-
-// ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
 

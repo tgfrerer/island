@@ -109,7 +109,7 @@ struct le_backend_vk_api {
 		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings );           // gets cloned
 
 		void ( *set_concurrency_count )( uint32_t concurrency_count );
-		// we could expand this with requests for queues.
+
 		void ( *get_requested_queue_capabilities )( VkQueueFlags* queues, uint32_t* num_queues );
 		bool ( *set_requested_queue_capabilities )( VkQueueFlags* queues, uint32_t num_queues );
 	};

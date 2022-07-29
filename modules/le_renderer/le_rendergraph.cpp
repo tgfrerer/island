@@ -936,10 +936,10 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// this is because two queues may read concurrently from a resource.
 		//
 		// We need to test each root against all other roots - note that we can to two tests at once.
-		// Meaning our complexity for n root elemets is ((n^2-n)/2)
+		// Meaning our complexity for n root elements is ((n^2-n)/2)
 		//
 		// Q: What happens when more than two batches overlap?
-		// A: Exactly what you would expect, all overlapping batches form one giant batch.
+		// A: Exactly what you would expect, all overlapping batches form one giant combined batch.
 		//
 
 		// Initially, each root starts out on their own queue -
@@ -1023,7 +1023,6 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// whenever something might have changed within the rendergraph, we generate a new .dot file.
 
 		// calculate hash over all unique resources
-
 		// calculate hash over all nodes, their signatures
 
 		std::hash<ResourceField> bit_hash;

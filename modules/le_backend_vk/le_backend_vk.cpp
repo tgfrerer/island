@@ -557,7 +557,6 @@ struct le_backend_o {
 	VmaAllocator mAllocator = nullptr;
 
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
-	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
 
 	KillList<le_rtx_blas_info_o> rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
 	KillList<le_rtx_tlas_info_o> rtx_tlas_info_kill_list; // used to keep track rtx_blas_infos.
@@ -1174,7 +1173,6 @@ static void backend_setup( le_backend_o* self ) {
 	self->mFrames.reserve( frameCount );
 
 	uint32_t memIndexScratchBufferGraphics = getMemoryIndexForGraphicsScratchBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used for transient command buffer allocations
-	uint32_t memIndexStagingBufferGraphics = getMemoryIndexForGraphicsStagingBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used to stage transfers to persistent memory
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
