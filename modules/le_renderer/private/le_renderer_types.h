@@ -167,6 +167,29 @@ struct ClearValue {
 		ClearDepthStencilValue depthStencil;
 	};
 };
+
+// ----------------------------------------------------------------------
+
+using ResourceAccessFlags = uint32_t;
+enum class ResourceAccessFlagBits : ResourceAccessFlags {
+	eUndefined = 0x0,
+	eRead      = 0x1 << 0,
+	eWrite     = 0x1 << 1,
+	eReadWrite = eRead | eWrite,
+};
+
+constexpr ResourceAccessFlags operator|( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const ResourceAccessFlags>( static_cast<ResourceAccessFlags>( lhs ) | static_cast<ResourceAccessFlags>( rhs ) );
+};
+
+constexpr ResourceAccessFlags operator|( ResourceAccessFlags const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const ResourceAccessFlags>( lhs | static_cast<ResourceAccessFlags>( rhs ) );
+};
+
+constexpr ResourceAccessFlags operator&( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const ResourceAccessFlags>( static_cast<ResourceAccessFlags>( lhs ) & static_cast<ResourceAccessFlags>( rhs ) );
+};
+
 } // namespace le
 
 struct le_image_attachment_info_t {
@@ -184,15 +207,6 @@ static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
 	info.clearValue = le_image_attachment_info_t::DefaultClearValueDepthStencil;
 	return info;
 }
-
-typedef uint32_t LeResourceAccessFlags_t;
-LE_WRAP_TYPE_IN_STRUCT( LeResourceAccessFlags_t, LeResourceAccessFlags );
-enum LeResourceAccessFlagBits : LeResourceAccessFlags_t {
-	eLeResourceAccessFlagBitUndefined  = 0x0,
-	eLeResourceAccessFlagBitRead       = 0x1 << 0,
-	eLeResourceAccessFlagBitWrite      = 0x1 << 1,
-	eLeResourceAccessFlagBitsReadWrite = eLeResourceAccessFlagBitRead | eLeResourceAccessFlagBitWrite,
-};
 
 // use le::ImageSamplerBuilder to define texture info
 struct le_sampler_info_t {

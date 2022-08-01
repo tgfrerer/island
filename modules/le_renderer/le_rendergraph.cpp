@@ -74,9 +74,9 @@ struct le_renderpass_o {
 	                                          // this needs to be communicated to backend, so that you may create queue submissions
 	                                          // by filtering via root_passes_affinity_masks
 
-	std::vector<le_resource_handle>    resources;              // all resources used in this pass
-	std::vector<LeResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
-	std::vector<LeResourceUsageFlags>  resources_usage;        // declared usage for each resource, in sync with resources
+	std::vector<le_resource_handle>      resources;              // all resources used in this pass
+	std::vector<le::ResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
+	std::vector<LeResourceUsageFlags>    resources_usage;        // declared usage for each resource, in sync with resources
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_img_resource_handle>     attachmentResources; // kept in sync with imageAttachments, one resource per attachment
@@ -215,7 +215,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		// Note that we don't immediately set the access flag,
 		// as the correct access flag is calculated based on resource_info
 		// after this block.
-		self->resources_access_flags.push_back( { LeResourceAccessFlagBits::eLeResourceAccessFlagBitUndefined } );
+		self->resources_access_flags.push_back( le::ResourceAccessFlags( le::ResourceAccessFlagBits::eUndefined ) );
 		self->resources_usage.push_back( usage_flags );
 	} else {
 
@@ -298,10 +298,10 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 	}
 
 	// update access flags
-	LeResourceAccessFlags& access_flags = self->resources_access_flags[ resource_idx ];
+	le::ResourceAccessFlags& access_flags = self->resources_access_flags[ resource_idx ];
 
 	if ( resourceWillBeReadFrom ) {
-		access_flags |= LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead;
+		access_flags = access_flags | le::ResourceAccessFlagBits::eRead;
 	}
 
 	if ( resourceWillBeWrittenTo ) {
@@ -312,7 +312,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 			self->is_root = true;
 		}
 
-		access_flags |= LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite;
+		access_flags = access_flags | le::ResourceAccessFlagBits::eWrite;
 	}
 }
 
@@ -823,8 +823,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		const size_t numResources = p->resources.size();
 
 		for ( size_t i = 0; i != numResources; i++ ) {
-			auto const&                  resource_handle = p->resources[ i ];
-			LeResourceAccessFlags const& access_flags    = p->resources_access_flags[ i ];
+			auto const&                    resource_handle = p->resources[ i ];
+			le::ResourceAccessFlags const& access_flags    = p->resources_access_flags[ i ];
 
 			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
 			for ( auto r = uniqueHandles.data(); res_idx != numUniqueResources; res_idx++, r++ ) {
@@ -843,8 +843,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 			// --------| invariant: uniqueHandles[res_idx] is valid
 
-			node.reads.set( res_idx, ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead ) );
-			node.writes.set( res_idx, ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite ) >> 1 ) );
+			node.reads.set( res_idx, ( le::ResourceAccessFlagBits( access_flags ) & le::ResourceAccessFlagBits::eRead ) );
+			node.writes.set( res_idx, ( ( le::ResourceAccessFlagBits( access_flags ) & le::ResourceAccessFlagBits::eWrite ) >> 1 ) );
 		}
 
 		if ( p->is_root ) {
