@@ -2923,7 +2923,7 @@ inline void frame_release_binned_resources( BackendFrameData& frame, VmaAllocato
 }
 
 // ----------------------------------------------------------------------
-//
+// TODO: don't use vectors for resourceInfos, consolidate in-place.
 static void collect_resource_infos_per_resource(
     le_renderpass_o const* const*                 passes,
     size_t                                        numRenderPasses,
@@ -2969,7 +2969,7 @@ static void collect_resource_infos_per_resource(
 				// Resource not found - we must insert a resource, and an empty vector, to fullfil the invariant
 				// that resource_index points at the correct elements
 
-				// Check if resource was declared explicitly via module - if yes,
+				// Check if resource was declared explicitly via rendergraph - if yes,
 				// insert resource info from there - otherwise insert an
 				// empty entry to indicate that for this resource there are no previous
 				// resource infos.
@@ -3048,37 +3048,6 @@ static void collect_resource_infos_per_resource(
 		} // end for all resources
 
 	} // end for all passes
-}
-
-// ----------------------------------------------------------------------
-
-static void patch_renderpass_extents(
-    le_renderpass_o** passes,
-    size_t            numRenderPasses,
-    uint32_t          swapchainWidth,
-    uint32_t          swapchainHeight ) {
-	using namespace le_renderer;
-
-	auto passes_end = passes + numRenderPasses;
-
-	for ( auto rp = passes; rp != passes_end; rp++ ) {
-		uint32_t pass_width  = 0;
-		uint32_t pass_height = 0;
-		renderpass_i.get_framebuffer_settings( *rp, &pass_width, &pass_height, nullptr );
-		if ( pass_width == 0 ) {
-			// if zero was chosen this means to use the default extents values for a
-			// renderpass, which is to use the frame's current swapchain extents.
-			pass_width = swapchainWidth;
-			renderpass_i.set_width( *rp, pass_width );
-		}
-
-		if ( pass_height == 0 ) {
-			// if zero was chosen this means to use the default extents values for a
-			// renderpass, which is to use the frame's current swapchain extents.
-			pass_height = swapchainHeight;
-			renderpass_i.set_height( *rp, pass_height );
-		}
-	}
 }
 
 // ----------------------------------------------------------------------
@@ -3291,6 +3260,37 @@ static void printResourceInfo( le_resource_handle const& handle, ResourceCreateI
 		             info.tlasInfo.buffer_size,
 		             info.tlasInfo.scratch_buffer_size,
 		             "-" );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void patch_renderpass_extents(
+    le_renderpass_o** passes,
+    size_t            numRenderPasses,
+    uint32_t          swapchainWidth,
+    uint32_t          swapchainHeight ) {
+	using namespace le_renderer;
+
+	auto passes_end = passes + numRenderPasses;
+
+	for ( auto rp = passes; rp != passes_end; rp++ ) {
+		uint32_t pass_width  = 0;
+		uint32_t pass_height = 0;
+		renderpass_i.get_framebuffer_settings( *rp, &pass_width, &pass_height, nullptr );
+		if ( pass_width == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			pass_width = swapchainWidth;
+			renderpass_i.set_width( *rp, pass_width );
+		}
+
+		if ( pass_height == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			pass_height = swapchainHeight;
+			renderpass_i.set_height( *rp, pass_height );
+		}
 	}
 }
 
