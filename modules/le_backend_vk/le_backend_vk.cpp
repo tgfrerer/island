@@ -1550,8 +1550,9 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 		ResourceState requestedState{}; // State we want our image to be in when pass begins.
 
-		// Define synchronisation requirements for each resource based on resource type,
-		// and resource usage.
+		// If resource is an image and it either gets sampled or used as storage,
+		// add an entry to the sync chain for this resource representing the state
+		// that we expect the resource to be in when the pass begins.
 		//
 		if ( usage.type == LeResourceType::eImage ) {
 
@@ -1566,12 +1567,6 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
-
-			} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) ) {
-				// this is an image write operation.
-				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
-				requestedState.stage          = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 			} else {
 				continue;
@@ -2109,7 +2104,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			    .viewOffset      = 0,
 			};
 			dependencies[ 1 ] = {
-			    // external to subpass
+			    // subpass to external
 			    .sType           = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
 			    .pNext           = memoryBarriers + 1,          // optional
 			    .srcSubpass      = 0,                           // last subpass
