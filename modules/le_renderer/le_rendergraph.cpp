@@ -43,6 +43,30 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 #include <bitset>
 
 using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
+// ----------------------------------------------------------------------
+
+namespace le {
+using ResourceAccessFlags = uint32_t;
+enum class ResourceAccessFlagBits : ResourceAccessFlags {
+	eUndefined = 0x0,
+	eRead      = 0x1 << 0,
+	eWrite     = 0x1 << 1,
+	eReadWrite = eRead | eWrite,
+};
+
+constexpr ResourceAccessFlags operator|( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const ResourceAccessFlags>( static_cast<ResourceAccessFlags>( lhs ) | static_cast<ResourceAccessFlags>( rhs ) );
+};
+
+constexpr ResourceAccessFlags operator|( ResourceAccessFlags const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const ResourceAccessFlags>( lhs | static_cast<ResourceAccessFlags>( rhs ) );
+};
+
+constexpr ResourceAccessFlags operator&( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const ResourceAccessFlags>( static_cast<ResourceAccessFlags>( lhs ) & static_cast<ResourceAccessFlags>( rhs ) );
+};
+} // namespace le
+
 
 struct Node {
 	ResourceField       reads;

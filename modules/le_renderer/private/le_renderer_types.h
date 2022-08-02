@@ -168,28 +168,6 @@ struct ClearValue {
 	};
 };
 
-// ----------------------------------------------------------------------
-
-using ResourceAccessFlags = uint32_t;
-enum class ResourceAccessFlagBits : ResourceAccessFlags {
-	eUndefined = 0x0,
-	eRead      = 0x1 << 0,
-	eWrite     = 0x1 << 1,
-	eReadWrite = eRead | eWrite,
-};
-
-constexpr ResourceAccessFlags operator|( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const ResourceAccessFlags>( static_cast<ResourceAccessFlags>( lhs ) | static_cast<ResourceAccessFlags>( rhs ) );
-};
-
-constexpr ResourceAccessFlags operator|( ResourceAccessFlags const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const ResourceAccessFlags>( lhs | static_cast<ResourceAccessFlags>( rhs ) );
-};
-
-constexpr ResourceAccessFlags operator&( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const ResourceAccessFlags>( static_cast<ResourceAccessFlags>( lhs ) & static_cast<ResourceAccessFlags>( rhs ) );
-};
-
 } // namespace le
 
 struct le_image_attachment_info_t {
@@ -663,6 +641,7 @@ struct le_resource_info_t {
 	};
 
 	LeResourceType type;
+
 	union {
 		BufferInfo buffer;
 		ImageInfo  image;
@@ -846,7 +825,7 @@ struct CommandBufferMemoryBarrier {
 	struct {
 		le::PipelineStageFlags2 srcStageMask;
 		le::PipelineStageFlags2 dstStageMask;
-		le::AccessFlags         dstAccessMask;
+		le::AccessFlags2        dstAccessMask;
 		le_buf_resource_handle  buffer;
 		uint64_t                offset;
 		uint64_t                range;

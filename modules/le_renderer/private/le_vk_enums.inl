@@ -11,53 +11,87 @@ namespace le {
 
 // ----------------------------------------------------------------------
 
-using AccessFlags = uint32_t;
-enum class AccessFlagBits : AccessFlags {
+using AccessFlags2 = uint64_t;
+enum class AccessFlagBits2 : AccessFlags2 {
 	eNone                                    = 0,
-	eIndirectCommandRead                     = 0x00000001, // Controls coherency of indirect command reads
-	eIndexRead                               = 0x00000002, // Controls coherency of index reads
-	eVertexAttributeRead                     = 0x00000004, // Controls coherency of vertex attribute reads
-	eUniformRead                             = 0x00000008, // Controls coherency of uniform buffer reads
-	eInputAttachmentRead                     = 0x00000010, // Controls coherency of input attachment reads
-	eShaderRead                              = 0x00000020, // Controls coherency of shader reads
-	eShaderWrite                             = 0x00000040, // Controls coherency of shader writes
-	eColorAttachmentRead                     = 0x00000080, // Controls coherency of color attachment reads
-	eColorAttachmentWrite                    = 0x00000100, // Controls coherency of color attachment writes
-	eDepthStencilAttachmentRead              = 0x00000200, // Controls coherency of depth/stencil attachment reads
-	eDepthStencilAttachmentWrite             = 0x00000400, // Controls coherency of depth/stencil attachment writes
-	eTransferRead                            = 0x00000800, // Controls coherency of transfer reads
-	eTransferWrite                           = 0x00001000, // Controls coherency of transfer writes
-	eHostRead                                = 0x00002000, // Controls coherency of host reads
-	eHostWrite                               = 0x00004000, // Controls coherency of host writes
-	eMemoryRead                              = 0x00008000, // Controls coherency of memory reads
-	eMemoryWrite                             = 0x00010000, // Controls coherency of memory writes
-	eCommandPreprocessReadBitNv              = 0x00020000,
-	eCommandPreprocessWriteBitNv             = 0x00040000,
-	eColorAttachmentReadNoncoherentBitExt    = 0x00080000,
-	eConditionalRenderingReadBitExt          = 0x00100000, // read access flag for reading conditional rendering predicate
-	eAccelerationStructureReadBitKhr         = 0x00200000,
-	eAccelerationStructureWriteBitKhr        = 0x00400000,
-	eFragmentShadingRateAttachmentReadBitKhr = 0x00800000,
-	eFragmentDensityMapReadBitExt            = 0x01000000,
-	eTransformFeedbackWriteBitExt            = 0x02000000,
-	eTransformFeedbackCounterReadBitExt      = 0x04000000,
-	eTransformFeedbackCounterWriteBitExt     = 0x08000000,
+	eIndirectCommandRead                     = 0x00000001ULL,
+	eIndexRead                               = 0x00000002ULL,
+	eVertexAttributeRead                     = 0x00000004ULL,
+	eUniformRead                             = 0x00000008ULL,
+	eInputAttachmentRead                     = 0x00000010ULL,
+	eShaderRead                              = 0x00000020ULL,
+	eShaderWrite                             = 0x00000040ULL,
+	eColorAttachmentRead                     = 0x00000080ULL,
+	eColorAttachmentWrite                    = 0x00000100ULL,
+	eDepthStencilAttachmentRead              = 0x00000200ULL,
+	eDepthStencilAttachmentWrite             = 0x00000400ULL,
+	eTransferRead                            = 0x00000800ULL,
+	eTransferWrite                           = 0x00001000ULL,
+	eHostRead                                = 0x00002000ULL,
+	eHostWrite                               = 0x00004000ULL,
+	eMemoryRead                              = 0x00008000ULL,
+	eMemoryWrite                             = 0x00010000ULL,
+	eCommandPreprocessReadBitNv              = 0x00020000ULL,
+	eCommandPreprocessWriteBitNv             = 0x00040000ULL,
+	eColorAttachmentReadNoncoherentBitExt    = 0x00080000ULL,
+	eConditionalRenderingReadBitExt          = 0x00100000ULL, // read access flag for reading conditional rendering predicate
+	eAccelerationStructureReadBitKhr         = 0x00200000ULL,
+	eAccelerationStructureWriteBitKhr        = 0x00400000ULL,
+	eFragmentShadingRateAttachmentReadBitKhr = 0x00800000ULL,
+	eFragmentDensityMapReadBitExt            = 0x01000000ULL,
+	eTransformFeedbackWriteBitExt            = 0x02000000ULL,
+	eTransformFeedbackCounterReadBitExt      = 0x04000000ULL,
+	eTransformFeedbackCounterWriteBitExt     = 0x08000000ULL,
+	eReserved44BitNv                         = 0x100000000000ULL,
+	eReserved387BitKhr                       = 0x10000000000ULL,
+	eVideoDecodeWriteBitKhr                  = 0x1000000000ULL,
+	eShaderSampledRead                       = 0x100000000ULL,
+	eReserved45BitNv                         = 0x200000000000ULL,
+	eReserved41BitAmd                        = 0x20000000000ULL,
+	eVideoEncodeReadBitKhr                   = 0x2000000000ULL,
+	eShaderStorageRead                       = 0x200000000ULL,
+	eReserved42BitNv                         = 0x40000000000ULL,
+	eVideoEncodeWriteBitKhr                  = 0x4000000000ULL,
+	eShaderStorageWrite                      = 0x400000000ULL,
+	eReserved43BitNv                         = 0x80000000000ULL,
+	eInvocationMaskReadBitHuawei             = 0x8000000000ULL,
+	eVideoDecodeReadBitKhr                   = 0x800000000ULL,
 	eAccelerationStructureReadBitNv          = eAccelerationStructureReadBitKhr,
 	eAccelerationStructureWriteBitNv         = eAccelerationStructureWriteBitKhr,
+	eColorAttachmentReadBitKhr               = eColorAttachmentRead,
+	eColorAttachmentWriteBitKhr              = eColorAttachmentWrite,
+	eDepthStencilAttachmentReadBitKhr        = eDepthStencilAttachmentRead,
+	eDepthStencilAttachmentWriteBitKhr       = eDepthStencilAttachmentWrite,
 	eShadingRateImageReadBitNv               = eFragmentShadingRateAttachmentReadBitKhr,
+	eHostReadBitKhr                          = eHostRead,
+	eHostWriteBitKhr                         = eHostWrite,
+	eIndexReadBitKhr                         = eIndexRead,
+	eIndirectCommandReadBitKhr               = eIndirectCommandRead,
+	eInputAttachmentReadBitKhr               = eInputAttachmentRead,
+	eMemoryReadBitKhr                        = eMemoryRead,
+	eMemoryWriteBitKhr                       = eMemoryWrite,
 	eNoneKhr                                 = eNone,
+	eShaderReadBitKhr                        = eShaderRead,
+	eShaderSampledReadBitKhr                 = eShaderSampledRead,
+	eShaderStorageReadBitKhr                 = eShaderStorageRead,
+	eShaderStorageWriteBitKhr                = eShaderStorageWrite,
+	eShaderWriteBitKhr                       = eShaderWrite,
+	eTransferReadBitKhr                      = eTransferRead,
+	eTransferWriteBitKhr                     = eTransferWrite,
+	eUniformReadBitKhr                       = eUniformRead,
+	eVertexAttributeReadBitKhr               = eVertexAttributeRead,
 };
 
-constexpr AccessFlags operator|( AccessFlagBits const& lhs, AccessFlagBits const& rhs ) noexcept {
-	return static_cast<const AccessFlags>( static_cast<AccessFlags>( lhs ) | static_cast<AccessFlags>( rhs ) );
+constexpr AccessFlags2 operator|( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+	return static_cast<const AccessFlags2>( static_cast<AccessFlags2>( lhs ) | static_cast<AccessFlags2>( rhs ) );
 };
 
-constexpr AccessFlags operator|( AccessFlags const& lhs, AccessFlagBits const& rhs ) noexcept {
-	return static_cast<const AccessFlags>( lhs | static_cast<AccessFlags>( rhs ) );
+constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+	return static_cast<const AccessFlags2>( lhs | static_cast<AccessFlags2>( rhs ) );
 };
 
-constexpr AccessFlags operator&( AccessFlagBits const& lhs, AccessFlagBits const& rhs ) noexcept {
-	return static_cast<const AccessFlags>( static_cast<AccessFlags>( lhs ) & static_cast<AccessFlags>( rhs ) );
+constexpr AccessFlags2 operator&( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+	return static_cast<const AccessFlags2>( static_cast<AccessFlags2>( lhs ) & static_cast<AccessFlags2>( rhs ) );
 };
 
 // ----------------------------------------------------------------------
