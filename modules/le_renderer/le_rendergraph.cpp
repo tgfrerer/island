@@ -340,14 +340,6 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 	}
 }
 
-static void renderpass_use_img_resource( le_renderpass_o* self, const le_img_resource_handle& resource_id, LeResourceUsageFlags const& usage_flags ) {
-	renderpass_use_resource( self, resource_id, usage_flags );
-}
-// ----------------------------------------------------------------------
-static void renderpass_use_buf_resource( le_renderpass_o* self, const le_buf_resource_handle& resource_id, LeResourceUsageFlags const& usage_flags ) {
-	renderpass_use_resource( self, resource_id, usage_flags );
-}
-
 // ----------------------------------------------------------------------
 static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle texture, le_image_sampler_info_t const* textureInfo ) {
 
@@ -1355,8 +1347,6 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.add_depth_stencil_attachment = renderpass_add_depth_stencil_attachment;
 	le_renderpass_i.get_image_attachments        = renderpass_get_image_attachments;
 	le_renderpass_i.use_resource                 = renderpass_use_resource;
-	le_renderpass_i.use_img_resource             = renderpass_use_img_resource;
-	le_renderpass_i.use_buf_resource             = renderpass_use_buf_resource;
 	le_renderpass_i.get_used_resources           = renderpass_get_used_resources;
 	le_renderpass_i.steal_encoder                = renderpass_steal_encoder;
 	le_renderpass_i.sample_texture               = renderpass_sample_texture;

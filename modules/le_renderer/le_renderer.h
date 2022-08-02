@@ -83,8 +83,6 @@ struct le_renderer_api {
 		bool                            ( *get_framebuffer_settings)(le_renderpass_o const * obj, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count);
 		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                            ( *use_img_resource     )( le_renderpass_o *obj, const le_img_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
-		void                            ( *use_buf_resource     )( le_renderpass_o *obj, const le_buf_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);
@@ -383,12 +381,12 @@ class RenderPass {
 	}
 
 	RenderPass& useImageResource( le_img_resource_handle resource_id, le::ImageUsageFlags const& usage_flags ) {
-		le_renderer::renderpass_i.use_img_resource( self, resource_id, { LeResourceType::eImage, { usage_flags } } );
+		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eImage, { usage_flags } } );
 		return *this;
 	}
 
 	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::BufferUsageFlags const& usage_flags ) {
-		le_renderer::renderpass_i.use_buf_resource( self, resource_id, { LeResourceType::eBuffer, { usage_flags } } );
+		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eBuffer, { usage_flags } } );
 		return *this;
 	}
 
@@ -596,7 +594,7 @@ class Encoder {
 	Encoder& bufferMemoryBarrier(
 	    le::PipelineStageFlags2 const& srcStageMask,
 	    le::PipelineStageFlags2 const& dstStageMask,
-	    le::AccessFlags2 const&         dstAccessMask,
+	    le::AccessFlags2 const&        dstAccessMask,
 	    le_buf_resource_handle const&  buffer,
 	    uint64_t const&                offset = 0,
 	    uint64_t const&                range  = ~( 0ull ) ) {
