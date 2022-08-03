@@ -437,7 +437,8 @@ struct swapchain_state_t {
 // with other threads processing other frames concurrently.
 struct BackendFrameData {
 
-	VkFence frameFence = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
+	VkFence  frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
+	uint64_t frameNumber = 0;       // current frame number
 
 	struct CommandPool {
 		VkCommandPool                pool;                // One pool per submission - must be allocated from the same queue the commands get submitted to.
@@ -553,6 +554,7 @@ struct le_backend_o {
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
+	uint64_t                      totalFrameCount = 0; // total number of rendered or in-flight frames
 
 	le_pipeline_manager_o* pipelineCache = nullptr;
 
@@ -1203,6 +1205,7 @@ static void backend_setup( le_backend_o* self ) {
 		// -- Set up per-frame resources
 
 		BackendFrameData frameData{};
+		frameData.frameNumber = i;
 
 		frameData.swapchain_state.resize( self->swapchains.size() );
 
@@ -1248,6 +1251,8 @@ static void backend_setup( le_backend_o* self ) {
 
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
+
+	self->totalFrameCount = frameCount; // running total of frames
 
 	{
 		// We want to make sure to have at least one allocator.
@@ -1873,6 +1878,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 	}
 	frame.passes.clear();
+	frame.frameNumber = self->totalFrameCount++; // note post-increment
 
 	return true;
 };
@@ -6229,6 +6235,8 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	wait_present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
+
+	logger.info( "*** Dispatching frame %d", frame.frameNumber );
 
 	for ( auto const& swp : frame.swapchain_state ) {
 		wait_present_complete_semaphore_submit_infos.push_back(
