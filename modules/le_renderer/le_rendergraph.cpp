@@ -558,11 +558,19 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes, ui
 		bool writes_to_any_monitored_read = ( node->writes & read_accum ).any();
 
 		if ( node->is_root || writes_to_any_monitored_read ) {
+
 			// If this node is a root node - OR					      ) this means the layer is contributing
 			// If this node writes to any subsequent monitored reads, )
 			// Then we must monitor all reads by this node.
+			//
+			// If a write has no corresponding read (we see a write-only operation), it will extinguish
+			// the read bit at this place - this makes sense, as any previous writes to this place will
+			// be implicitly discarded by a write-only operation onto this place. (Any previous writes
+			// are never read, and we will need a new read to make this resource active again)
 
-			read_accum |= node->reads;
+			read_accum = ( read_accum & ( ~node->writes ) ) // Anything written in this node will be extinguished (consumed)
+			             | node->reads;                     // Anything read in this node will be lit up.
+
 			node->is_contributing = true;
 
 			if ( node->is_root && writes_to_any_monitored_read ) {
@@ -894,7 +902,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			Node* nodes_rend   = nodes.data() - 1;
 
 			uint64_t root_index = 0;
-			// find first root node
+
+			// find first root node by iterating backwards
 			for ( Node* r = nodes_rbegin; r != nodes_rend; r-- ) {
 				ResourceField& read_accum  = root_reads_accum[ root_index ];
 				ResourceField& write_accum = root_writes_accum[ root_index ];
@@ -1067,6 +1076,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 	{
 		// Remove any passes from rendergraph which do not contribute.
+		//
 		//
 		size_t num_passes = self->passes.size();
 
