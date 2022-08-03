@@ -94,6 +94,57 @@ constexpr AccessFlags2 operator&( AccessFlagBits2 const& lhs, AccessFlagBits2 co
 	return static_cast<const AccessFlags2>( static_cast<AccessFlags2>( lhs ) & static_cast<AccessFlags2>( rhs ) );
 };
 
+static constexpr char const* to_str( const AccessFlagBits2& tp ) {
+	switch ( static_cast<uint64_t>( tp ) ) {
+		// clang-format off
+		case          0: return "None";
+		case 0x00000001ULL: return "IndirectCommandRead";
+		case 0x00000002ULL: return "IndexRead";
+		case 0x00000004ULL: return "VertexAttributeRead";
+		case 0x00000008ULL: return "UniformRead";
+		case 0x00000010ULL: return "InputAttachmentRead";
+		case 0x00000020ULL: return "ShaderRead";
+		case 0x00000040ULL: return "ShaderWrite";
+		case 0x00000080ULL: return "ColorAttachmentRead";
+		case 0x00000100ULL: return "ColorAttachmentWrite";
+		case 0x00000200ULL: return "DepthStencilAttachmentRead";
+		case 0x00000400ULL: return "DepthStencilAttachmentWrite";
+		case 0x00000800ULL: return "TransferRead";
+		case 0x00001000ULL: return "TransferWrite";
+		case 0x00002000ULL: return "HostRead";
+		case 0x00004000ULL: return "HostWrite";
+		case 0x00008000ULL: return "MemoryRead";
+		case 0x00010000ULL: return "MemoryWrite";
+		case 0x00020000ULL: return "CommandPreprocessReadBitNv";
+		case 0x00040000ULL: return "CommandPreprocessWriteBitNv";
+		case 0x00080000ULL: return "ColorAttachmentReadNoncoherentBitExt";
+		case 0x00100000ULL: return "ConditionalRenderingReadBitExt";
+		case 0x00200000ULL: return "AccelerationStructureReadBitKhr";
+		case 0x00400000ULL: return "AccelerationStructureWriteBitKhr";
+		case 0x00800000ULL: return "FragmentShadingRateAttachmentReadBitKhr";
+		case 0x01000000ULL: return "FragmentDensityMapReadBitExt";
+		case 0x02000000ULL: return "TransformFeedbackWriteBitExt";
+		case 0x04000000ULL: return "TransformFeedbackCounterReadBitExt";
+		case 0x08000000ULL: return "TransformFeedbackCounterWriteBitExt";
+		case 0x100000000000ULL: return "Reserved44BitNv";
+		case 0x10000000000ULL: return "Reserved387BitKhr";
+		case 0x1000000000ULL: return "VideoDecodeWriteBitKhr";
+		case 0x100000000ULL: return "ShaderSampledRead";
+		case 0x200000000000ULL: return "Reserved45BitNv";
+		case 0x20000000000ULL: return "Reserved41BitAmd";
+		case 0x2000000000ULL: return "VideoEncodeReadBitKhr";
+		case 0x200000000ULL: return "ShaderStorageRead";
+		case 0x40000000000ULL: return "Reserved42BitNv";
+		case 0x4000000000ULL: return "VideoEncodeWriteBitKhr";
+		case 0x400000000ULL: return "ShaderStorageWrite";
+		case 0x80000000000ULL: return "Reserved43BitNv";
+		case 0x8000000000ULL: return "InvocationMaskReadBitHuawei";
+		case 0x800000000ULL: return "VideoDecodeReadBitKhr";
+		default: return "Unknown";
+		// clang-format on
+	};
+}
+
 // ----------------------------------------------------------------------
 
 enum class AttachmentLoadOp : uint32_t {
