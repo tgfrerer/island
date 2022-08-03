@@ -374,9 +374,11 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 // of the second ResourceState becomes scope 2 for the barrier between them.
 //
 struct ResourceState {
-	VkPipelineStageFlags2 stage;          // pipeline stage (implies earlier logical stages) that needs to happen-before
-	VkAccessFlags2        visible_access; // which memory access in this stage currenty has visible memory - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
-	VkImageLayout         layout;         // current layout (for images)
+	VkPipelineStageFlags2 stage;          // Pipeline stage (implies earlier logical stages) that needs to happen-before
+	VkAccessFlags2        visible_access; // which memory access in this stage currenty has visible memory -
+	                                      // if any of these are WRITE accesses, these must be made available(flushed)
+	                                      // before next access - for the next src access we can OR this with ANY_WRITES
+	VkImageLayout layout;                 // Current layout (for images)
 
 	bool operator==( const ResourceState& rhs ) const {
 		return visible_access == rhs.visible_access &&
