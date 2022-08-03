@@ -67,6 +67,73 @@ constexpr RWFlags operator&( ResourceAccessFlagBits const& lhs, ResourceAccessFl
 };
 } // namespace le
 
+// ----------------------------------------------------------------------
+constexpr le::AccessFlags2 LE_ALL_READ_ACCESS_FLAGS =
+    le::AccessFlagBits2::eIndirectCommandRead |
+    le::AccessFlagBits2::eIndexRead |
+    le::AccessFlagBits2::eVertexAttributeRead |
+    le::AccessFlagBits2::eUniformRead |
+    le::AccessFlagBits2::eInputAttachmentRead |
+    le::AccessFlagBits2::eShaderRead |
+    le::AccessFlagBits2::eColorAttachmentRead |
+    le::AccessFlagBits2::eDepthStencilAttachmentRead |
+    le::AccessFlagBits2::eTransferRead |
+    le::AccessFlagBits2::eHostRead |
+    le::AccessFlagBits2::eMemoryRead |
+    le::AccessFlagBits2::eCommandPreprocessReadBitNv |
+    le::AccessFlagBits2::eColorAttachmentReadNoncoherentBitExt |
+    le::AccessFlagBits2::eConditionalRenderingReadBitExt |
+    le::AccessFlagBits2::eAccelerationStructureReadBitKhr |
+    le::AccessFlagBits2::eTransformFeedbackCounterReadBitExt |
+    le::AccessFlagBits2::eFragmentDensityMapReadBitExt |
+    le::AccessFlagBits2::eFragmentShadingRateAttachmentReadBitKhr |
+    le::AccessFlagBits2::eShaderSampledRead |
+    le::AccessFlagBits2::eShaderStorageRead |
+    le::AccessFlagBits2::eVideoDecodeReadBitKhr |
+    le::AccessFlagBits2::eVideoEncodeReadBitKhr |
+    le::AccessFlagBits2::eInvocationMaskReadBitHuawei;
+
+constexpr le::AccessFlags2 LE_ALL_WRITE_ACCESS_FLAGS =
+    le::AccessFlagBits2::eShaderWrite |
+    le::AccessFlagBits2::eColorAttachmentWrite |
+    le::AccessFlagBits2::eDepthStencilAttachmentWrite |
+    le::AccessFlagBits2::eTransferWrite |
+    le::AccessFlagBits2::eHostWrite |
+    le::AccessFlagBits2::eMemoryWrite |
+    le::AccessFlagBits2::eCommandPreprocessWriteBitNv |
+    le::AccessFlagBits2::eAccelerationStructureWriteBitKhr |
+    le::AccessFlagBits2::eTransformFeedbackWriteBitExt |
+    le::AccessFlagBits2::eTransformFeedbackCounterWriteBitExt |
+    le::AccessFlagBits2::eVideoDecodeWriteBitKhr |
+    le::AccessFlagBits2::eVideoEncodeWriteBitKhr |
+    le::AccessFlagBits2::eShaderStorageWrite //
+    ;
+constexpr le::AccessFlags2 LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS =
+    le::AccessFlagBits2::eShaderSampledRead | //
+    le::AccessFlagBits2::eShaderRead |        // shader read is a potential read/write operation, as it might imply a layout transform
+    le::AccessFlagBits2::eShaderStorageRead   // this might mean a read/write in case we are accessing an image as it might imply a layout transform
+    ;
+
+// ----------------------------------------------------------------------
+
+static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
+	uint64_t    flags = tp;
+	std::string result;
+	int         bit_pos = 0;
+	while ( flags ) {
+		if ( flags & 1 ) {
+			if ( false == result.empty() ) {
+				result.append( " | " );
+			}
+			result.append( to_str( le::AccessFlagBits2( 1ULL << bit_pos ) ) );
+		}
+		flags >>= 1;
+		bit_pos++;
+	}
+	return result;
+}
+
+// ----------------------------------------------------------------------
 
 struct Node {
 	ResourceField       reads;
@@ -99,7 +166,7 @@ struct le_renderpass_o {
 	                                          // by filtering via root_passes_affinity_masks
 
 	std::vector<le_resource_handle> resources;                  // all resources used in this pass, contains info about resource type
-	std::vector<le::RWFlags>        resources_read_write_flags; // read/write flags for all resources, in sync with resources
+	std::vector<le::RWFlags>        resources_read_write_flags; // TODO: get rid of this: we can use resources_access_flags instead. read/write flags for all resources, in sync with resources
 	std::vector<le::AccessFlags2>   resources_access_flags;     // first read | last write access for each resource used in this pass
 
 	std::vector<LeResourceUsageFlags> resources_usage; // TODO: get rid of this: declared usage for each resource, in sync with resources
@@ -212,7 +279,7 @@ static inline bool resource_is_a_swapchain_handle( const le_img_resource_handle&
 // Associate a resource with a renderpass.
 // Data containted in `resource_info` decides whether the resource
 // is used for read, write, or read/write.
-static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, LeResourceUsageFlags const& usage_flags ) {
+static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, LeResourceUsageFlags const& usage_flags, le::AccessFlags2 const& access_flags ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -243,6 +310,8 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		// after this block.
 		self->resources_read_write_flags.push_back( le::RWFlags( le::ResourceAccessFlagBits::eUndefined ) );
 		self->resources_usage.push_back( usage_flags );
+		self->resources_access_flags.push_back( access_flags );
+
 	} else {
 
 		// Resource was already declared - we should aim to consolidate all declarations
@@ -259,86 +328,47 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 			              usage_flags.type );
 			assert( false );
 		}
+
+		// TODO: do error checking- we can't have too many access flags, or things
+		// become a bit confusing.
+		assert( false );
+		self->resources_access_flags[ resource_idx ] |= access_flags;
 	}
 
-	// Now we check whether there is a read and/or a write operation on
-	// the resource
-	static constexpr auto ALL_IMAGE_WRITE_FLAGS =
-	    le::ImageUsageFlagBits::eTransferDst |            //
-	    le::ImageUsageFlagBits::eStorage |                //
-	    le::ImageUsageFlagBits::eColorAttachment |        //
-	    le::ImageUsageFlagBits::eDepthStencilAttachment | //
-	    le::ImageUsageFlagBits::eTransientAttachment      //
-	    ;
+	// le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] resource: %40s, access { %-60s }", self->debugName, resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
 
-	static constexpr auto ALL_IMAGE_READ_FLAGS =
-	    le::ImageUsageFlagBits::eTransferSrc |            //
-	    le::ImageUsageFlagBits::eSampled |                //
-	    le::ImageUsageFlagBits::eStorage |                //
-	    le::ImageUsageFlagBits::eColorAttachment |        // assume read+write, although if clear, we wouldn't need read
-	    le::ImageUsageFlagBits::eDepthStencilAttachment | //
-	    le::ImageUsageFlagBits::eTransientAttachment |    //
-	    le::ImageUsageFlagBits::eInputAttachment          //
-	    ;
+	bool detectRead  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
+	bool detectWrite = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
 
-	static constexpr auto ALL_BUFFER_WRITE_FLAGS =
-	    le::BufferUsageFlagBits::eTransferDst |        //
-	    le::BufferUsageFlagBits::eStorageTexelBuffer | // assume read+write
-	    le::BufferUsageFlagBits::eStorageBuffer        // assume read+write
-	    ;
-
-	static constexpr auto ALL_BUFFER_READ_FLAGS =
-	    le::BufferUsageFlagBits::eTransferSrc |
-	    le::BufferUsageFlagBits::eUniformTexelBuffer |
-	    le::BufferUsageFlagBits::eUniformBuffer |
-	    le::BufferUsageFlagBits::eIndexBuffer |
-	    le::BufferUsageFlagBits::eVertexBuffer |
-	    le::BufferUsageFlagBits::eStorageBuffer |
-	    le::BufferUsageFlagBits::eStorageTexelBuffer |
-	    le::BufferUsageFlagBits::eIndirectBuffer |
-	    le::BufferUsageFlagBits::eConditionalRenderingBitExt //
-	    ;
-
-	bool resourceWillBeWrittenTo = false;
-	bool resourceWillBeReadFrom  = false;
-
-	switch ( usage_flags.type ) {
-	case LeResourceType::eBuffer: {
-		resourceWillBeReadFrom  = usage_flags.as.buffer_usage_flags & ALL_BUFFER_READ_FLAGS;
-		resourceWillBeWrittenTo = usage_flags.as.buffer_usage_flags & ALL_BUFFER_WRITE_FLAGS;
-	} break;
-	case LeResourceType::eImage: {
-		resourceWillBeReadFrom  = usage_flags.as.image_usage_flags & ALL_IMAGE_READ_FLAGS;
-		resourceWillBeWrittenTo = usage_flags.as.image_usage_flags & ALL_IMAGE_WRITE_FLAGS;
-	} break;
-	case LeResourceType::eRtxTlas: {
-		resourceWillBeReadFrom  = usage_flags.as.rtx_tlas_usage_flags & LE_RTX_TLAS_USAGE_READ_BIT;
-		resourceWillBeWrittenTo = usage_flags.as.rtx_tlas_usage_flags & LE_RTX_TLAS_USAGE_WRITE_BIT;
-	} break;
-	case LeResourceType::eRtxBlas: {
-		resourceWillBeReadFrom  = usage_flags.as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_READ_BIT;
-		resourceWillBeWrittenTo = usage_flags.as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_WRITE_BIT;
-	} break;
-	default:
-		break;
+	// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation
+	// this means that some reads to image resources are implicit read/writes.
+	// we can only get rid of this if we can prove that resources will not undergo a layout transform.
+	if ( resource_id->data->type == LeResourceType::eImage ) {
+		detectWrite |= ( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 	}
+
+	//	assert( detectRead == resourceWillBeReadFrom );
+	//	assert( detectWrite == resourceWillBeWrittenTo );
+
+	//	assert( resourceWillBeReadFrom == bool( access_flags & LE_ALL_READ_ACCESS_FLAGS ) );
+	//	assert( resourceWillBeWrittenTo == bool( access_flags & LE_ALL_WRITE_ACCESS_FLAGS ) );
 
 	// update access flags
-	le::RWFlags& access_flags = self->resources_read_write_flags[ resource_idx ];
+	le::RWFlags& rw_flags = self->resources_read_write_flags[ resource_idx ];
 
-	if ( resourceWillBeReadFrom ) {
-		access_flags = access_flags | le::ResourceAccessFlagBits::eRead;
+	if ( detectRead ) {
+		rw_flags = rw_flags | le::ResourceAccessFlagBits::eRead;
 	}
 
-	if ( resourceWillBeWrittenTo ) {
+	if ( detectWrite ) {
 
-		if ( usage_flags.type == LeResourceType::eImage &&
+		if ( resource_id->data->type == LeResourceType::eImage &&
 		     resource_is_a_swapchain_handle( static_cast<le_img_resource_handle>( resource_id ) ) ) {
 			// A request to write to swapchain image automatically turns a pass into a root pass.
 			self->is_root = true;
 		}
 
-		access_flags = access_flags | le::ResourceAccessFlagBits::eWrite;
+		rw_flags = rw_flags | le::ResourceAccessFlagBits::eWrite;
 	}
 }
 
@@ -360,8 +390,9 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 
 	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) } };
 
+	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags );
+	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags, access_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -371,11 +402,19 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resou
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
 
-	// Make sure that this imgage can be used as a color attachment,
+	// Make sure that this image can be used as a color attachment,
 	// even if user forgot to specify the flag.
 	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) } };
+	le::AccessFlags2     access_flags{};
 
-	renderpass_use_resource( self, image_id, required_flags );
+	if ( attachmentInfo->loadOp == le::AttachmentLoadOp::eLoad ) {
+		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentRead );
+	}
+	if ( attachmentInfo->storeOp == le::AttachmentStoreOp::eStore ) {
+		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentWrite );
+	}
+
+	renderpass_use_resource( self, image_id, required_flags, access_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -389,7 +428,15 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 	// even if user forgot to specify the flag.
 	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) } };
 
-	renderpass_use_resource( self, image_id, required_flags );
+	le::AccessFlags2 access_flags{};
+
+	if ( attachmentInfo->loadOp == le::AttachmentLoadOp::eLoad ) {
+		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eDepthStencilAttachmentRead );
+	}
+	if ( attachmentInfo->storeOp == le::AttachmentStoreOp::eStore ) {
+		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eDepthStencilAttachmentWrite );
+	}
+	renderpass_use_resource( self, image_id, required_flags, access_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -443,12 +490,13 @@ static void renderpass_get_queue_submission_info( const le_renderpass_o* self, l
 	}
 }
 
-static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, LeResourceUsageFlags const** pResourcesUsage, size_t* count ) {
+static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, LeResourceUsageFlags const** pResourcesUsage, le::AccessFlags2 const** pResourcesAccess, size_t* count ) {
 	assert( self->resources_usage.size() == self->resources.size() );
 
-	*count           = self->resources.size();
-	*pResources      = self->resources.data();
-	*pResourcesUsage = self->resources_usage.data();
+	*count            = self->resources.size();
+	*pResources       = self->resources.data();
+	*pResourcesUsage  = self->resources_usage.data();
+	*pResourcesAccess = self->resources_access_flags.data();
 }
 
 static const char* renderpass_get_debug_name( le_renderpass_o const* self ) {

@@ -1521,10 +1521,11 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 // can be implicitly synced using subpass dependencies.
 static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, BackendRenderPass& currentPass, BackendFrameData::sync_chain_table_t& syncChainTable ) {
 	using namespace le_renderer;
-	le_resource_handle const*   resources       = nullptr;
-	LeResourceUsageFlags const* resources_usage = nullptr;
-	size_t                      resources_count = 0;
-	renderpass_i.get_used_resources( pass, &resources, &resources_usage, &resources_count );
+	le_resource_handle const*   resources        = nullptr;
+	LeResourceUsageFlags const* resources_usage  = nullptr;
+	le::AccessFlags2 const*     resources_access = nullptr;
+	size_t                      resources_count  = 0;
+	renderpass_i.get_used_resources( pass, &resources, &resources_usage, &resources_access, &resources_count );
 
 	auto get_stage_flags_based_on_renderpass_type = []( le::QueueFlagBits const& rp_type ) -> VkPipelineStageFlags2 {
 		// write_stage depends on current renderpass type.
@@ -1565,17 +1566,23 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 			if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
 
-				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
+				assert( resources_access[ i ] == VK_ACCESS_2_SHADER_SAMPLED_READ_BIT );
+
+				requestedState.visible_access = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 			} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ) {
 
+				// assert( resources_access[ i ] == ( VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT ) );
+
 				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
 
-			} else {
+			}
+
+			else {
 				continue;
 			}
 
@@ -2947,11 +2954,12 @@ static void collect_resource_infos_per_resource(
 
 		uint16_t pass_num_samples_log2 = get_sample_count_log_2( uint32_t( pass_sample_count ) );
 
-		le_resource_handle const*   p_resources             = nullptr;
-		LeResourceUsageFlags const* p_resources_usage_flags = nullptr;
-		size_t                      resources_count         = 0;
+		le_resource_handle const*   p_resources              = nullptr;
+		LeResourceUsageFlags const* p_resources_usage_flags  = nullptr;
+		le::AccessFlags2 const*     p_resources_access_flags = nullptr;
+		size_t                      resources_count          = 0;
 
-		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_usage_flags, &resources_count );
+		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_usage_flags, &p_resources_access_flags, &resources_count );
 
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
@@ -3663,11 +3671,12 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 			continue;
 		}
 
-		const le_resource_handle*   resources      = nullptr;
-		const LeResourceUsageFlags* resource_usage = nullptr;
-		size_t                      resource_count = 0;
+		const le_resource_handle*   resources        = nullptr;
+		const LeResourceUsageFlags* resource_usage   = nullptr;
+		const le::AccessFlags2*     resources_access = nullptr;
+		size_t                      resource_count   = 0;
 
-		renderpass_i.get_used_resources( *p, &resources, &resource_usage, &resource_count );
+		renderpass_i.get_used_resources( *p, &resources, &resource_usage, &resources_access, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
 			auto const& r_usage_flags = resource_usage[ i ];
@@ -4553,19 +4562,16 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				data.command_pool->buffers.resize( info.commandBufferCount );
 				vkAllocateCommandBuffers( device, &info, data.command_pool->buffers.data() );
 			}
-			// todo: submit to queue, add timeline semaphores.
 		}
 
-#if LE_PRINT_DEBUG_MESSAGES
-		{
+		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger.info( "Listing queue batches and their queue affinity:" );
 			int i = 0;
-			for ( auto const& qf : queue_flags_per_invocation_key ) {
+			for ( auto const& qf : frame.queue_submission_keys ) {
 				logger.info( "#%i, [%-50s]", i, to_string_vk_queue_flags( qf ).c_str() );
 				i++;
 			}
 		}
-#endif
 	}
 
 	for ( auto const& submission : frame.queue_submission_data ) {
@@ -4633,7 +4639,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			{
 
 				if ( LE_PRINT_DEBUG_MESSAGES ) {
-					logger.debug( "Renderpass '%s'", pass.debugName );
+					logger.info( "*** Frame %d *** Queue %d *** Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 				}
 
 				// -- Issue sync barriers for all resources which require explicit sync.
@@ -4663,17 +4669,17 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							// --------| invariant: barrier is active.
 
 							// print out sync chain for sampled image
-							logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
-							logger.debug( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
+							logger.info( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
+							logger.info( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
 
 							auto const& syncChain = frame.syncChainTable.at( op.resource );
 
 							for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
 								auto const& s = syncChain[ i ];
-								logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i,
-								              to_string_vk_access_flags2( s.visible_access ).c_str(),
-								              to_string_vk_pipeline_stage_flags2( s.stage ).c_str(),
-								              to_str_vk_image_layout( s.layout ) );
+								logger.info( "\t % 3d : % 30s : % 30s : % 10s", i,
+								             to_string_vk_access_flags2( s.visible_access ).c_str(),
+								             to_string_vk_pipeline_stage_flags2( s.stage ).c_str(),
+								             to_str_vk_image_layout( s.layout ) );
 							}
 						}
 
@@ -6236,7 +6242,9 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	wait_present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 
-	logger.info( "*** Dispatching frame %d", frame.frameNumber );
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
+		logger.info( "*** Dispatching frame %d", frame.frameNumber );
+	}
 
 	for ( auto const& swp : frame.swapchain_state ) {
 		wait_present_complete_semaphore_submit_infos.push_back(
