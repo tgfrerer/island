@@ -6,8 +6,6 @@
 //
 
 #include <stdint.h>
-#include <vulkan/vulkan.h>
-#include <string>
 
 // ----------------------------------------------------------------------
 
@@ -71,7 +69,7 @@ static std::string to_string_vk_access_flags2( const VkAccessFlags2& tp ) {
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str_vk_access_flag_bits2( VkAccessFlagBits2( 1 << bit_pos ) ) );
+			result.append( to_str_vk_access_flag_bits2( VkAccessFlagBits2( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
@@ -123,7 +121,7 @@ static std::string to_string_vk_buffer_usage_flags( const VkBufferUsageFlags& tp
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str_vk_buffer_usage_flag_bits( VkBufferUsageFlagBits( 1 << bit_pos ) ) );
+			result.append( to_str_vk_buffer_usage_flag_bits( VkBufferUsageFlagBits( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
@@ -497,7 +495,7 @@ static std::string to_string_vk_image_usage_flags( const VkImageUsageFlags& tp )
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str_vk_image_usage_flag_bits( VkImageUsageFlagBits( 1 << bit_pos ) ) );
+			result.append( to_str_vk_image_usage_flag_bits( VkImageUsageFlagBits( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
@@ -565,7 +563,7 @@ static std::string to_string_vk_pipeline_stage_flags2( const VkPipelineStageFlag
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str_vk_pipeline_stage_flag_bits2( VkPipelineStageFlagBits2( 1 << bit_pos ) ) );
+			result.append( to_str_vk_pipeline_stage_flag_bits2( VkPipelineStageFlagBits2( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
@@ -601,7 +599,7 @@ static std::string to_string_vk_queue_flags( const VkQueueFlags& tp ) {
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str_vk_queue_flag_bits( VkQueueFlagBits( 1 << bit_pos ) ) );
+			result.append( to_str_vk_queue_flag_bits( VkQueueFlagBits( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
