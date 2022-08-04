@@ -321,6 +321,10 @@ static bool instance_is_extension_available( le_backend_vk_instance_o* self, cha
 static void instance_post_reload_hook( le_backend_vk_instance_o* obj ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	logger.debug( "post reload hook triggered." );
+
+	VkResult result = volkInitialize();
+	assert( result == VK_SUCCESS && "Volk must successfully load instance" );
+
 	patchExtProcAddrs( obj );
 	destroy_debug_messenger_callback( obj );
 	logger.debug( "Removed debug report callback." );
