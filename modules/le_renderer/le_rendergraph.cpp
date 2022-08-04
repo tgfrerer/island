@@ -153,7 +153,7 @@ struct ExecuteCallbackInfo {
 
 struct le_renderpass_o {
 
-	le::QueueFlagBits       type         = le::QueueFlagBits{};
+	le::QueueFlagBits       type         = le::QueueFlagBits{};         // Requirements for a queue to which this pass can be submitted.
 	uint32_t                ref_count    = 0;                           // reference count (we're following an intrusive shared pointer pattern)
 	uint64_t                id           = 0;                           // hash of name
 	uint32_t                width        = 0;                           // < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
