@@ -3024,14 +3024,37 @@ static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_r
 //
 // should return a map of all resources used in all passes, with consolidated infos per-resource.
 static void collect_resource_infos_per_resource(
-    le_renderpass_o const* const*                 passes,
-    size_t                                        numRenderPasses,
-    std::vector<le_resource_handle> const&        frame_declared_resources_id,   // | pre-declared resources (declared via module)
-    std::vector<le_resource_info_t> const&        frame_declared_resources_info, // | info for each pre-declared resource
-    std::vector<le_resource_handle>&              usedResources,
-    std::vector<std::vector<le_resource_info_t>>& usedResourcesInfos ) {
+    le_renderpass_o const* const*                               passes,
+    size_t                                                      numRenderPasses,
+    std::vector<le_resource_handle> const&                      frame_declared_resources_id,   // | pre-declared resources (declared via module)
+    std::vector<le_resource_info_t> const&                      frame_declared_resources_info, // | info for each pre-declared resource
+    std::vector<le_resource_handle>&                            usedResources,
+    std::vector<std::vector<le_resource_info_t>>&               usedResourcesInfos,
+    std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
 
 	using namespace le_renderer;
+
+	{
+		// add all pre-declared resources to active resources
+
+		// FIXME: we only want to add resources which are referred to in passes as active resources
+		// currently, all resources which are declared are deemed active -- or maybe, we want to
+		// delete (drop) any resources which used to be declared, but are not declared anymore?
+
+		// We would benefit though from not having to allocate resources that are not used in a pass.
+		// but then, we would want to allocate resources when we declare them.
+
+		for ( size_t i = 0; i != frame_declared_resources_id.size(); i++ ) {
+			auto const& resource     = frame_declared_resources_id[ i ];
+			auto const& resourceInfo = frame_declared_resources_info[ i ];
+
+			auto emplace_result = active_resources.try_emplace( resource, std::move( resourceInfo ) );
+			if ( !emplace_result.second ) {
+				// entry was not assigned, result.first will hold an iterator to the current element
+				consolidate_resource_info_into( emplace_result.first->second, resourceInfo );
+			}
+		}
+	}
 
 	for ( auto rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
@@ -3136,6 +3159,13 @@ static void collect_resource_infos_per_resource(
 
 			usedResourcesInfos[ resource_index ].emplace_back( resourceInfo );
 
+			{
+				auto emplace_result = active_resources.try_emplace( resource, std::move( resourceInfo ) );
+				if ( !emplace_result.second ) {
+					// entry was not assigned, result.first will hold an iterator to the current element
+					consolidate_resource_info_into( emplace_result.first->second, resourceInfo );
+				}
+			}
 		} // end for all resources
 
 	} // end for all passes
@@ -3525,10 +3555,22 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	std::vector<le_resource_handle>              usedResources;      // (
 	std::vector<std::vector<le_resource_info_t>> usedResourcesInfos; // ( usedResourceInfos[index] contains vector of usages for usedResource[index]
 
+	std::unordered_map<le_resource_handle, le_resource_info_t> active_resources;
+
 	collect_resource_infos_per_resource(
 	    passes, numRenderPasses,
 	    frame.declared_resources_id, frame.declared_resources_info,
-	    usedResources, usedResourcesInfos );
+	    usedResources, usedResourcesInfos,
+	    active_resources );
+
+	if ( 0 ) {
+		for ( auto const& r : active_resources ) {
+			logger.info( "resource [ %-30s ] : [ %-50s ]", r.first->data->debug_name,
+			             r.second.type == LeResourceType::eImage
+			                 ? to_string_vk_image_usage_flags( r.second.image.usage ).c_str()
+			                 : to_string_vk_buffer_usage_flags( r.second.buffer.usage ).c_str() );
+		}
+	}
 
 	assert( usedResources.size() == usedResourcesInfos.size() );
 
