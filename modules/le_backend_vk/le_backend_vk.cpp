@@ -1514,6 +1514,22 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 	} // end foreach image attachment
 }
 
+static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
+	uint64_t    flags = tp;
+	std::string result;
+	int         bit_pos = 0;
+	while ( flags ) {
+		if ( flags & 1 ) {
+			if ( false == result.empty() ) {
+				result.append( " | " );
+			}
+			result.append( to_str( le::AccessFlagBits2( 1ULL << bit_pos ) ) );
+		}
+		flags >>= 1;
+		bit_pos++;
+	}
+	return result;
+}
 // ----------------------------------------------------------------------
 // Updates sync chain for resourcess referenced in rendergraph
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
@@ -1521,11 +1537,10 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 // can be implicitly synced using subpass dependencies.
 static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, BackendRenderPass& currentPass, BackendFrameData::sync_chain_table_t& syncChainTable ) {
 	using namespace le_renderer;
-	le_resource_handle const*   resources        = nullptr;
-	LeResourceUsageFlags const* resources_usage  = nullptr;
-	le::AccessFlags2 const*     resources_access = nullptr;
-	size_t                      resources_count  = 0;
-	renderpass_i.get_used_resources( pass, &resources, &resources_usage, &resources_access, &resources_count );
+	le_resource_handle const* resources        = nullptr;
+	le::AccessFlags2 const*   resources_access = nullptr;
+	size_t                    resources_count  = 0;
+	renderpass_i.get_used_resources( pass, &resources, &resources_access, &resources_count );
 
 	auto get_stage_flags_based_on_renderpass_type = []( le::QueueFlagBits const& rp_type ) -> VkPipelineStageFlags2 {
 		// write_stage depends on current renderpass type.
@@ -1545,7 +1560,6 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 	for ( size_t i = 0; i != resources_count; ++i ) {
 		auto const& resource = resources[ i ];
-		auto const& usage    = resources_usage[ i ];
 
 		auto& syncChain = syncChainTable[ resource ];
 		assert( !syncChain.empty() ); // must not be empty - this resource must exist, and have an initial sync state
@@ -1562,24 +1576,18 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 		// add an entry to the sync chain for this resource representing the state
 		// that we expect the resource to be in when the pass begins.
 		//
-		if ( usage.type == LeResourceType::eImage ) {
+		if ( resource->data->type == LeResourceType::eImage ) {
 
-			if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
+			// le::Log( LOGGER_LABEL ).info( " resource: %40s, access { %-60s }", resource->data->debug_name, to_string_le_access_flags2( resources_access[ i ] ).c_str() );
 
-				assert( resources_access[ i ] == VK_ACCESS_2_SHADER_SAMPLED_READ_BIT );
-
-				requestedState.visible_access = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+			if ( resources_access[ i ] & VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ) {
+				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-			} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ) {
-
-				// assert( resources_access[ i ] == ( VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT ) );
-
-				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT ) ) {
+				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
-
 			}
 
 			else {
@@ -2954,19 +2962,15 @@ static void collect_resource_infos_per_resource(
 
 		uint16_t pass_num_samples_log2 = get_sample_count_log_2( uint32_t( pass_sample_count ) );
 
-		le_resource_handle const*   p_resources              = nullptr;
-		LeResourceUsageFlags const* p_resources_usage_flags  = nullptr;
-		le::AccessFlags2 const*     p_resources_access_flags = nullptr;
-		size_t                      resources_count          = 0;
+		le_resource_handle const* p_resources              = nullptr;
+		le::AccessFlags2 const*   p_resources_access_flags = nullptr;
+		size_t                    resources_count          = 0;
 
-		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_usage_flags, &p_resources_access_flags, &resources_count );
+		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_access_flags, &resources_count );
 
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
-			le_resource_handle const&   resource             = p_resources[ i ];             // Resource handle
-			LeResourceUsageFlags const& resource_usage_flags = p_resources_usage_flags[ i ]; // Resource usage flags
-
-			assert( resource_usage_flags.type == resource->data->type ); // Resource Usage Flags must be for matching resource type.
+			le_resource_handle const& resource = p_resources[ i ]; // Resource handle
 
 			// Test whether a resource with this id is already in usedResources -
 			// if not, resource_index will be identical to usedResource vector size,
@@ -3018,11 +3022,9 @@ static void collect_resource_infos_per_resource(
 			// We also need to ensure that the extent has 1 as depth value by default.
 
 			le_resource_info_t resourceInfo = {}; // empty resource info
-			resourceInfo.type               = resource_usage_flags.type;
+			resourceInfo.type               = resource->data->type;
 
 			if ( resourceInfo.type == LeResourceType::eImage ) {
-
-				resourceInfo.image.usage = resource_usage_flags.as.image_usage_flags;
 
 				auto& imgInfo   = resourceInfo.image;
 				auto& imgExtent = imgInfo.extent;
@@ -3045,11 +3047,8 @@ static void collect_resource_infos_per_resource(
 				imgExtent.depth = std::max<uint32_t>( imgExtent.depth, 1 );
 
 			} else if ( resourceInfo.type == LeResourceType::eBuffer ) {
-				resourceInfo.buffer.usage = resource_usage_flags.as.buffer_usage_flags;
 			} else if ( resourceInfo.type == LeResourceType::eRtxBlas ) {
-				resourceInfo.blas.usage = resource_usage_flags.as.rtx_blas_usage_flags;
 			} else if ( resourceInfo.type == LeResourceType::eRtxTlas ) {
-				resourceInfo.tlas.usage = resource_usage_flags.as.rtx_tlas_usage_flags;
 			} else {
 				assert( false ); // unreachable
 			}
@@ -3671,19 +3670,16 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 			continue;
 		}
 
-		const le_resource_handle*   resources        = nullptr;
-		const LeResourceUsageFlags* resource_usage   = nullptr;
-		const le::AccessFlags2*     resources_access = nullptr;
-		size_t                      resource_count   = 0;
+		const le_resource_handle* resources        = nullptr;
+		const le::AccessFlags2*   resources_access = nullptr;
+		size_t                    resource_count   = 0;
 
-		renderpass_i.get_used_resources( *p, &resources, &resource_usage, &resources_access, &resource_count );
+		renderpass_i.get_used_resources( *p, &resources, &resources_access, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
-			auto const& r_usage_flags = resource_usage[ i ];
+			auto const& r = static_cast<le_img_resource_handle>( resources[ i ] );
 
-			if ( r_usage_flags.type == LeResourceType::eImage &&
-			     ( r_usage_flags.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage ) ) ) {
-				auto const& r = static_cast<le_img_resource_handle>( resources[ i ] );
+			if ( r->data->type == LeResourceType::eImage ) {
 
 				// We create a default image view for this image and store it with the frame. If no explicit image view
 				// for a particular operation has been specified, this default image view is used.
@@ -3906,6 +3902,13 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// ----------| invariant: swapchain image acquisition was successful.
 
+	// Setup declared resources per frame - These are resources declared using resource infos
+	// which are explicitly declared by user via the rendermodule, but which may or may not be
+	// actually used in the frame.
+	//
+	frame.declared_resources_id   = { declared_resources, declared_resources + declared_resources_count };
+	frame.declared_resources_info = { declared_resources_infos, declared_resources_infos + declared_resources_count };
+
 	for ( size_t i = 0; i != self->swapchains.size(); ++i ) {
 		// Acquire swapchain image
 
@@ -3934,19 +3937,31 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 			          .arrayLayers           = 1,
 			          .samples               = VK_SAMPLE_COUNT_1_BIT,
 			          .tiling                = VK_IMAGE_TILING_OPTIMAL,
-			          .usage                 = VkImageUsageFlags( VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ),
+			          .usage                 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			          .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 			          .queueFamilyIndexCount = 0, // optional
 			          .pQueueFamilyIndices   = nullptr,
 			          .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
             };
 		}
-	}
 
-	// For all passes - set pass width/height to swapchain width/height if not known.
+		// Add swapchain resource to automatically- declared resources
+		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
+
+		frame.declared_resources_id.push_back( img_resource_handle );
+		frame.declared_resources_info.push_back(
+		    le::ImageInfoBuilder()
+		        .addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
+		        .setExtent(
+		            frame.swapchain_state[ i ].surface_width,
+		            frame.swapchain_state[ i ].surface_height,
+		            1 )
+		        .build() );
+	}
 
 	assert( !frame.swapchain_state.empty() && "frame.swapchains_state must not be empty" );
 
+	// For all passes - set pass width/height to swapchain width/height if not known.
 	// Only extents of swapchain[0] are used to infer extents for renderpasses which lack extents info
 	patch_renderpass_extents(
 	    passes,
@@ -3954,64 +3969,62 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	    frame.swapchain_state[ 0 ].surface_width,
 	    frame.swapchain_state[ 0 ].surface_height );
 
-	// Setup declared resources per frame - These are resources declared using resource infos
-	// which are explicitly declared by user via the rendermodule, but which may or may not be
-	// actually used in the frame.
-
-	frame.declared_resources_id   = { declared_resources, declared_resources + declared_resources_count };
-	frame.declared_resources_info = { declared_resources_infos, declared_resources_infos + declared_resources_count };
-
+	// Note: this consumes frame.declared_resources
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
-	// Initialise sync chain table - each resource receives initial state
-	// from current entry in frame.availableResources resource map.
-	frame.syncChainTable.clear();
-	for ( auto const& res : frame.availableResources ) {
-		frame.syncChainTable.insert( { res.first, { res.second.state } } );
-	}
-
-	// -- build sync chain for each resource, create explicit sync barrier requests for resources
-	// which cannot be impliciltly synced.
-	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchain_resources );
-
-	// At this point we know the state for each resource at the end of the sync chain.
-	// this state will be the initial state for the resource
-
 	{
+		// Initialise, then build sync chain table - each resource receives initial state
+		// from current entry in frame.availableResources resource map -
 
-		static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
-		// Update final sync state for each pre-existing backend resource.
-		// fixme: this breaks the promise that no-one but allocate resources is writing to allocatedResources.
-		auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
-		for ( auto const& tbl : frame.syncChainTable ) {
-			auto& resId       = tbl.first;
-			auto& resSyncList = tbl.second;
-
-			assert( !resSyncList.empty() ); // sync list must have entries
-
-			// find element with matching resource ID in list of backend resources
-
-			auto res = backendResources.find( resId );
-			if ( res != backendResources.end() ) {
-				// Element found.
-				// Set sync state for this resource to value of last elment in the sync chain.
-				res->second.state = resSyncList.back();
-			} else {
-
-				assert( std::find( self->swapchain_resources.begin(), self->swapchain_resources.end(), resId ) != self->swapchain_resources.end() ||
-				        resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
-
-				// Frame local resource must be available as a backend resource,
-				// unless the resource is the swapchain image handle, which is owned and managed
-				// by the swapchain.
-				// Another exception is LE_RTX_SCRATCH_BUFFER, which is a transient resource,
-				// and as such does not end up in backendResources, but starts out directly
-				// as a binned resource.
-				// Otherwise something fishy is going on.
-			}
+		frame.syncChainTable.clear();
+		for ( auto const& res : frame.availableResources ) {
+			frame.syncChainTable.insert( { res.first, { res.second.state } } );
 		}
 
-		// If we use a mutex to protect backend-wide resources, we can release it now.
+		// -- build sync chain for each resource, create explicit sync barrier requests for resources
+		// which cannot be impliciltly synced.
+		frame_track_resource_state( frame, passes, numRenderPasses, self->swapchain_resources );
+
+		// At this point we know the state for each resource at the end of the sync chain.
+		// this state will be the initial state for the resource
+
+		{
+			// Update final sync state for each pre-existing backend resource.
+			// fixme: this breaks the promise that no-one but allocate resources is writing to allocatedResources.
+
+			static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
+
+			auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
+			for ( auto const& tbl : frame.syncChainTable ) {
+				auto const& resId       = tbl.first;
+				auto const& resSyncList = tbl.second;
+
+				assert( !resSyncList.empty() ); // sync list must have entries
+
+				// find element with matching resource ID in list of backend resources
+
+				auto res = backendResources.find( resId );
+				if ( res != backendResources.end() ) {
+					// Element found.
+					// Set sync state for this resource to value of last elment in the sync chain.
+					res->second.state = resSyncList.back();
+				} else {
+
+					assert( std::find( self->swapchain_resources.begin(), self->swapchain_resources.end(), resId ) != self->swapchain_resources.end() ||
+					        resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
+
+					// Frame local resource must be available as a backend resource,
+					// unless the resource is the swapchain image handle, which is owned and managed
+					// by the swapchain.
+					// Another exception is LE_RTX_SCRATCH_BUFFER, which is a transient resource,
+					// and as such does not end up in backendResources, but starts out directly
+					// as a binned resource.
+					// Otherwise something fishy is going on.
+				}
+			}
+
+			// If we use a mutex to protect backend-wide resources, we can release it now.
+		}
 	}
 
 	VkDevice device = self->device->getVkDevice();
@@ -4665,7 +4678,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					if ( stateInitial != stateFinal ) {
 						// we must issue an image barrier
 
-						if ( LE_PRINT_DEBUG_MESSAGES ) {
+						if ( 1 || LE_PRINT_DEBUG_MESSAGES ) {
 
 							// --------| invariant: barrier is active.
 

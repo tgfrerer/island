@@ -169,8 +169,6 @@ struct le_renderpass_o {
 	std::vector<le::RWFlags>        resources_read_write_flags; // TODO: get rid of this: we can use resources_access_flags instead. read/write flags for all resources, in sync with resources
 	std::vector<le::AccessFlags2>   resources_access_flags;     // first read | last write access for each resource used in this pass
 
-	std::vector<LeResourceUsageFlags> resources_usage; // TODO: get rid of this: declared usage for each resource, in sync with resources
-
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_img_resource_handle>     attachmentResources; // kept in sync with imageAttachments, one resource per attachment
 
@@ -279,18 +277,9 @@ static inline bool resource_is_a_swapchain_handle( const le_img_resource_handle&
 // Associate a resource with a renderpass.
 // Data containted in `resource_info` decides whether the resource
 // is used for read, write, or read/write.
-static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, LeResourceUsageFlags const& usage_flags, le::AccessFlags2 const& access_flags ) {
+static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
-
-	assert( usage_flags.type == LeResourceType::eBuffer ||
-	        usage_flags.type == LeResourceType::eImage ||
-	        usage_flags.type == LeResourceType::eRtxTlas ||
-	        usage_flags.type == LeResourceType::eRtxBlas );
-
-	assert( resource_id->data->type == usage_flags.type && "usage flags must match resource type" );
-
-	// ---------| Invariant: resource is either an image or buffer
 
 	size_t resource_idx    = 0; // index of matching resource
 	size_t resources_count = self->resources.size();
@@ -309,28 +298,12 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		// as the correct access flag is calculated based on resource_info
 		// after this block.
 		self->resources_read_write_flags.push_back( le::RWFlags( le::ResourceAccessFlagBits::eUndefined ) );
-		self->resources_usage.push_back( usage_flags );
 		self->resources_access_flags.push_back( access_flags );
 
 	} else {
 
-		// Resource was already declared - we should aim to consolidate all declarations
-		// unless the declarations are conflicting.
-
-		// What would be conflicting declarations?
-		// -> A resource cannot be declared as an image, and then as a buffer, since resource types must match.
-
-		if ( usage_flags.type != self->resources_usage[ resource_idx ].type ) {
-			logger.error( "FATAL: Resource '%s' declared with conflicting types: '%d != %d'. "
-			              "There can only be one declaration per resource per renderpass.",
-			              resource_id->data->debug_name,
-			              self->resources_usage[ resource_idx ].type,
-			              usage_flags.type );
-			assert( false );
-		}
-
-		// TODO: do error checking- we can't have too many access flags, or things
-		// become a bit confusing.
+		// Resource was already used : this should be fine if declared with identical access_flags,
+		// otherwise it is an error.
 		assert( false );
 		self->resources_access_flags[ resource_idx ] |= access_flags;
 	}
@@ -340,18 +313,13 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 	bool detectRead  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
 	bool detectWrite = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
 
-	// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation
+	// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
 	// this means that some reads to image resources are implicit read/writes.
 	// we can only get rid of this if we can prove that resources will not undergo a layout transform.
+	//
 	if ( resource_id->data->type == LeResourceType::eImage ) {
 		detectWrite |= ( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 	}
-
-	//	assert( detectRead == resourceWillBeReadFrom );
-	//	assert( detectWrite == resourceWillBeWrittenTo );
-
-	//	assert( resourceWillBeReadFrom == bool( access_flags & LE_ALL_READ_ACCESS_FLAGS ) );
-	//	assert( resourceWillBeWrittenTo == bool( access_flags & LE_ALL_WRITE_ACCESS_FLAGS ) );
 
 	// update access flags
 	le::RWFlags& rw_flags = self->resources_read_write_flags[ resource_idx ];
@@ -388,11 +356,9 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 	//	self->textureImageIds.push_back( textureInfo->imageView.imageId );
 	self->textureInfos.push_back( *textureInfo ); // store a copy of info
 
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) } };
-
 	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags, access_flags );
+	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -402,10 +368,7 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resou
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
 
-	// Make sure that this image can be used as a color attachment,
-	// even if user forgot to specify the flag.
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) } };
-	le::AccessFlags2     access_flags{};
+	le::AccessFlags2 access_flags{};
 
 	if ( attachmentInfo->loadOp == le::AttachmentLoadOp::eLoad ) {
 		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentRead );
@@ -414,7 +377,7 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resou
 		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentWrite );
 	}
 
-	renderpass_use_resource( self, image_id, required_flags, access_flags );
+	renderpass_use_resource( self, image_id, access_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -424,10 +387,6 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
 
-	// Make sure that this image can be used as a depth stencil attachment,
-	// even if user forgot to specify the flag.
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) } };
-
 	le::AccessFlags2 access_flags{};
 
 	if ( attachmentInfo->loadOp == le::AttachmentLoadOp::eLoad ) {
@@ -436,7 +395,7 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 	if ( attachmentInfo->storeOp == le::AttachmentStoreOp::eStore ) {
 		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eDepthStencilAttachmentWrite );
 	}
-	renderpass_use_resource( self, image_id, required_flags, access_flags );
+	renderpass_use_resource( self, image_id, access_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -490,12 +449,11 @@ static void renderpass_get_queue_submission_info( const le_renderpass_o* self, l
 	}
 }
 
-static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, LeResourceUsageFlags const** pResourcesUsage, le::AccessFlags2 const** pResourcesAccess, size_t* count ) {
-	assert( self->resources_usage.size() == self->resources.size() );
+static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, le::AccessFlags2 const** pResourcesAccess, size_t* count ) {
+	assert( self->resources_access_flags.size() == self->resources.size() );
 
 	*count            = self->resources.size();
 	*pResources       = self->resources.data();
-	*pResourcesUsage  = self->resources_usage.data();
 	*pResourcesAccess = self->resources_access_flags.data();
 }
 

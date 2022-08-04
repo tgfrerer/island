@@ -83,10 +83,10 @@ struct le_renderer_api {
 		bool                            ( *get_framebuffer_settings)(le_renderpass_o const * obj, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count);
 		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags, le::AccessFlags2 const& access_flags);
+		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id,  le::AccessFlags2 const& access_flags);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);
-		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, le::AccessFlags2 const ** pResourcesAccess, size_t *count );
+		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds,  le::AccessFlags2 const ** pResourcesAccess, size_t *count );
 		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
 		void                            ( *get_queue_sumbission_info)( const le_renderpass_o* obj, le::QueueFlagBits* pass_type, le::RootPassesField * queue_submission_id);
@@ -380,23 +380,23 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass& useImageResource( le_img_resource_handle resource_id, le::ImageUsageFlags const& usage_flags, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eImage, { usage_flags } }, access_flags );
+	RenderPass& useImageResource( le_img_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead ) ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
 		return *this;
 	}
 
-	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::BufferUsageFlags const& usage_flags, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eVertexAttributeRead ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eBuffer, { usage_flags } }, access_flags );
+	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eVertexAttributeRead ) ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
 		return *this;
 	}
 
-	RenderPass& useRtxBlasResource( le_resource_handle resource_id, const LeRtxBlasUsageFlags& usage_flags = { LE_RTX_BLAS_USAGE_READ_BIT }, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxBlas, { { usage_flags } } }, access_flags );
+	RenderPass& useRtxBlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
 		return *this;
 	}
 
-	RenderPass& useRtxTlasResource( le_resource_handle resource_id, const LeRtxTlasUsageFlags& usage_flags = { LE_RTX_TLAS_USAGE_READ_BIT }, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxTlas, { { usage_flags } } }, access_flags );
+	RenderPass& useRtxTlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
 		return *this;
 	}
 
