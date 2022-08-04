@@ -488,8 +488,9 @@ struct BackendFrameData {
 
 	/// \brief if user provides explicit resource info, we collect this here, so that we can make sure
 	/// that any inferred resourceInfo is compatible with what the user selected.
-	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
+	/// there is no guarantee that declared resources are unique, which means we must consolidate.
+	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (explicitly declared via rendergraph)
+	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (explicitly declared via rendergraph)
 
 	std::vector<BackendRenderPass>   passes;
 	std::vector<le::RootPassesField> queue_submission_keys; // One key per isolated queue invocation,
@@ -2945,6 +2946,8 @@ inline void frame_release_binned_resources( BackendFrameData& frame, VmaAllocato
 
 // ----------------------------------------------------------------------
 // TODO: don't use vectors for resourceInfos, consolidate in-place.
+//
+// should return a map of all resources used in all passes, with consolidated infos per-resource.
 static void collect_resource_infos_per_resource(
     le_renderpass_o const* const*                 passes,
     size_t                                        numRenderPasses,
@@ -3029,25 +3032,25 @@ static void collect_resource_infos_per_resource(
 
 			if ( resourceInfo.type == LeResourceType::eImage ) {
 
-				auto& imgInfo   = resourceInfo.image;
-				auto& imgExtent = imgInfo.extent;
+				auto& imgInfo = resourceInfo.image;
 
 				imgInfo.extent_from_pass = { pass_width, pass_height, 1 };
 
-				if ( imgInfo.usage & ( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eDepthStencilAttachment ) ) {
+				if ( p_resources_access_flags[ i ] &
+				     le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentWrite |
+				                       le::AccessFlagBits2::eColorAttachmentRead |
+				                       le::AccessFlagBits2::eDepthStencilAttachmentWrite |
+				                       le::AccessFlagBits2::eDepthStencilAttachmentRead ) ) {
+
+					// ---------- | resource is either used as a depth stencil attachment, or a color attachment
 
 					imgInfo.mipLevels         = 1;
 					imgInfo.imageType         = le::ImageType::e2D;
 					imgInfo.tiling            = le::ImageTiling::eOptimal;
 					imgInfo.arrayLayers       = 1;
 					imgInfo.sample_count_log2 = pass_num_samples_log2;
-
-					imgExtent.width  = pass_width;
-					imgExtent.height = pass_height;
+					imgInfo.extent            = { pass_width, pass_height, 1 };
 				}
-
-				// depth must be at least 1, but may arrive zero-initialised.
-				imgExtent.depth = std::max<uint32_t>( imgExtent.depth, 1 );
 
 			} else if ( resourceInfo.type == LeResourceType::eBuffer ) {
 			} else if ( resourceInfo.type == LeResourceType::eRtxBlas ) {
@@ -4681,7 +4684,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					if ( stateInitial != stateFinal ) {
 						// we must issue an image barrier
 
-						if ( 1 || LE_PRINT_DEBUG_MESSAGES ) {
+						if ( LE_PRINT_DEBUG_MESSAGES ) {
 
 							// --------| invariant: barrier is active.
 
