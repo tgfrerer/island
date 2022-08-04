@@ -2944,6 +2944,81 @@ inline void frame_release_binned_resources( BackendFrameData& frame, VmaAllocato
 	frame.binnedResources.clear();
 }
 
+static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_resource_info_t const& rhs ) {
+
+	// return superset of lhs and rhs in lhs
+	assert( lhs.type == rhs.type );
+
+	switch ( lhs.type ) {
+	case LeResourceType::eBuffer: {
+
+		lhs.buffer.size = std::max( lhs.buffer.size, rhs.buffer.size );
+		lhs.buffer.usage |= rhs.buffer.usage;
+
+		return;
+	}
+	case LeResourceType::eImage: {
+		// TODO (tim): check how we can enforce correct number of array layers and mip levels
+
+		if ( rhs.image.arrayLayers > lhs.image.arrayLayers ) {
+			lhs.image.arrayLayers = rhs.image.arrayLayers;
+		}
+
+		if ( rhs.image.mipLevels > lhs.image.mipLevels ) {
+			lhs.image.mipLevels = rhs.image.mipLevels;
+		}
+
+		if ( uint32_t( rhs.image.imageType ) > uint32_t( lhs.image.imageType ) ) {
+			// this is a bit sketchy.
+			lhs.image.imageType = rhs.image.imageType;
+		}
+
+		lhs.image.flags |= rhs.image.flags;
+		lhs.image.usage |= rhs.image.usage;
+		lhs.image.samplesFlags |= uint32_t( 1 << rhs.image.sample_count_log2 );
+
+		// If an image format was explictly set, this takes precedence over eUndefined.
+		// Note that we skip this block if both infos have the same format, so if both
+		// infos are eUndefined, format stays undefined.
+
+		if ( rhs.image.format != le::Format::eUndefined && rhs.image.format != lhs.image.format ) {
+
+			// ----------| invariant: both formats differ, and second format is not undefined
+
+			if ( lhs.image.format == le::Format::eUndefined ) {
+				lhs.image.format = rhs.image.format;
+			} else {
+				// Houston, we have a problem!
+				// Two different formats were explicitly specified for this image.
+				assert( false );
+			}
+		}
+
+		// Make sure the image is as large as it needs to be
+
+		lhs.image.extent.width  = std::max( lhs.image.extent.width, rhs.image.extent.width );
+		lhs.image.extent.height = std::max( lhs.image.extent.height, rhs.image.extent.height );
+		lhs.image.extent.depth  = std::max( lhs.image.extent.depth, rhs.image.extent.depth );
+
+		lhs.image.extent_from_pass.width  = std::max( lhs.image.extent_from_pass.width, rhs.image.extent_from_pass.width );
+		lhs.image.extent_from_pass.height = std::max( lhs.image.extent_from_pass.height, rhs.image.extent_from_pass.height );
+		lhs.image.extent_from_pass.depth  = std::max( lhs.image.extent_from_pass.depth, rhs.image.extent_from_pass.depth );
+		return;
+	}
+	case LeResourceType::eRtxBlas: {
+		return;
+	}
+	case LeResourceType::eRtxTlas: {
+		return;
+	}
+
+	case LeResourceType::eUndefined: {
+		assert( false ); // unreachable
+		return;
+	}
+	}
+}
+
 // ----------------------------------------------------------------------
 // TODO: don't use vectors for resourceInfos, consolidate in-place.
 //
