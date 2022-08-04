@@ -12,6 +12,12 @@
 #include <set>
 #include <string>
 
+#ifdef _MSC_VER
+#	include <intrin.h> // for debugbreak()
+#else
+#	include <csignal> // for std::raise
+#endif
+
 static constexpr auto LOGGER_LABEL = "le_instance_vk";
 
 // Automatically disable Validation Layers for Release Builds
@@ -140,6 +146,17 @@ static VkBool32 debugUtilsMessengerCallback(
 	}
 
 	log_fun( logger, "vk validation: {%10s | %7s} %s", msgType.c_str(), logLevel.c_str(), pCallbackData->pMessage );
+
+#ifndef NDEBUG
+	// Raise a breakpoint on ERROR in case we're running in debug mode.
+	if ( shouldBailout ) {
+#	ifdef _MSC_VER
+		debugbreak(); // see: https://docs.microsoft.com/en-us/cpp/intrinsics/debugbreak?view=msvc-170
+#	else
+		std::raise( SIGINT );
+#	endif
+	}
+#endif
 
 	return shouldBailout;
 }
