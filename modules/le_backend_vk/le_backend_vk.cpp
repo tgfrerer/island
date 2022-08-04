@@ -3224,7 +3224,8 @@ static void insert_msaa_versions(
 			    le_renderer::renderer_i.produce_img_resource_handle(
 			        resource->data->debug_name, current_sample_count_log_2, static_cast<le_img_resource_handle>( resource ), 0 );
 
-			le_resource_info_t resource_info_copy = resourceInfo;
+			le_resource_info_t resource_info_copy      = resourceInfo;
+			resource_info_copy.image.sample_count_log2 = current_sample_count_log_2;
 
 			// Patch original resource info to note 1 sample - we do this because
 			// handle and info must be in sync.
