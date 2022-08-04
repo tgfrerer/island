@@ -308,7 +308,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		self->resources_access_flags[ resource_idx ] |= access_flags;
 	}
 
-	// le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] resource: %40s, access { %-60s }", self->debugName, resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
+	//	le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debugName, resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
 
 	bool detectRead  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
 	bool detectWrite = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
