@@ -4567,10 +4567,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger.info( "Listing queue batches and their queue affinity:" );
 			int i = 0;
-			for ( auto const& qf : frame.queue_submission_keys ) {
-				logger.info( "#%i, [%-50s]", i, to_string_vk_queue_flags( qf ).c_str() );
+			for ( auto const& qf : frame.queue_submission_data ) {
+				logger.info( "#%i, [%-50s]", i, to_string_vk_queue_flags( qf.queue_flags ).c_str() );
 				i++;
 			}
+			logger.info( "" );
 		}
 	}
 
