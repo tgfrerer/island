@@ -380,13 +380,13 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass& useImageResource( le_img_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
+	RenderPass& useImageResource( le_img_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
 		return *this;
 	}
 
-	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eVertexAttributeRead ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
+	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
 		return *this;
 	}
 
