@@ -1584,7 +1584,10 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			} else if ( resources_access[ i ] & ( VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT ) ) {
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
+			                                      VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT |
+			                                      VK_ACCESS_2_SHADER_READ_BIT |
+			                                      VK_ACCESS_2_SHADER_WRITE_BIT ) ) {
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
