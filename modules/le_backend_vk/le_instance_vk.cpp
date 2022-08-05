@@ -151,7 +151,7 @@ static VkBool32 debugUtilsMessengerCallback(
 	// Raise a breakpoint on ERROR in case we're running in debug mode.
 	if ( shouldBailout ) {
 #	ifdef _MSC_VER
-		debugbreak(); // see: https://docs.microsoft.com/en-us/cpp/intrinsics/debugbreak?view=msvc-170
+		__debugbreak(); // see: https://docs.microsoft.com/en-us/cpp/intrinsics/debugbreak?view=msvc-170
 #	else
 		std::raise( SIGINT );
 #	endif
