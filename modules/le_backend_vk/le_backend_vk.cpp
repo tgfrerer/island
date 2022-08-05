@@ -3696,7 +3696,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 
-	if ( 1 || LE_PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.info( "Available Resources" );
 		logger.info( "%10s : %38s : %30s", "Type", "debugName", "Vk Handle" );
 		for ( auto const& r : frame.availableResources ) {
@@ -4768,7 +4768,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					if ( stateInitial != stateFinal ) {
 						// we must issue an image barrier
 
-						if ( 1 || LE_PRINT_DEBUG_MESSAGES ) {
+						if ( LE_PRINT_DEBUG_MESSAGES ) {
 
 							// --------| invariant: barrier is active.
 
