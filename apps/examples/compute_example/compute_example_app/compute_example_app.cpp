@@ -116,8 +116,8 @@ static bool pass_initialise_setup( le_renderpass_o* pRp, void* user_data ) {
 
 	le::RenderPass rp( pRp );
 	rp
-	    .useBufferResource( app->gpu_mesh->vertex_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) ) //
-	    .useBufferResource( app->gpu_mesh->index_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) )  //
+	    .useBufferResource( app->gpu_mesh->vertex_handle, le::AccessFlagBits2::eTransferWrite ) //
+	    .useBufferResource( app->gpu_mesh->index_handle, le::AccessFlagBits2::eTransferWrite )  //
 	    ;
 
 	if ( app->meshUploaded ) {
@@ -173,17 +173,6 @@ static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* u
 
 // ----------------------------------------------------------------------
 
-static bool pass_compute_setup( le_renderpass_o* pRp, void* user_data ) {
-	auto           app = static_cast<compute_example_app_o*>( user_data );
-	le::RenderPass rp( pRp );
-	rp
-	    .useBufferResource( app->gpu_mesh->vertex_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) );
-
-	return true;
-};
-
-// ----------------------------------------------------------------------
-
 static void pass_compute_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<compute_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
@@ -224,8 +213,8 @@ static bool pass_draw_setup( le_renderpass_o* pRp, void* user_data ) {
 	        .build();
 	rp
 	    .addColorAttachment( app->renderer.getSwapchainResource(), attachment_info ) // color attachment
-	    .useBufferResource( app->gpu_mesh->vertex_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer ) )
-	    .useBufferResource( app->gpu_mesh->index_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer ) ) //
+	    .useBufferResource( app->gpu_mesh->vertex_handle )
+	    .useBufferResource( app->gpu_mesh->index_handle, le::AccessFlagBits2::eIndexRead ) //
 	    ;
 
 	return true;
@@ -380,19 +369,20 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 	{
 		// This pass will typically only get executed once - it will upload
 		// buffers .
+
 		auto passInitialise =
 		    le::RenderPass( "initialise", le::QueueFlagBits::eTransfer )
 		        .setSetupCallback( self, pass_initialise_setup )
 		        .setExecuteCallback( self, pass_initialise_exec );
 		auto passCompute =
 		    le::RenderPass( "compute", le::QueueFlagBits::eCompute )
-		        .setSetupCallback( self, pass_compute_setup )
+		        .useBufferResource( self->gpu_mesh->vertex_handle, le::AccessFlagBits2::eShaderStorageRead, le::AccessFlagBits2::eShaderStorageWrite )
 		        .setExecuteCallback( self, pass_compute_exec );
 		auto passDraw =
 		    le::RenderPass( "draw", le::QueueFlagBits::eGraphics )
 		        .setSetupCallback( self, pass_draw_setup )
 		        .setExecuteCallback( self, pass_draw_exec )
-		        .setSampleCount( le::SampleCountFlagBits::e8 );
+		        .setSampleCount( le::SampleCountFlagBits::e4 );
 
 		renderGraph
 		    .addRenderPass( passInitialise )
@@ -402,11 +392,13 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 		        self->gpu_mesh->vertex_handle,
 		        le::BufferInfoBuilder()
 		            .setSize( self->gpu_mesh->vertex_num_bytes )
+		            .addUsageFlags( le::BufferUsageFlagBits::eVertexBuffer | le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst )
 		            .build() )
 		    .declareResource(
 		        self->gpu_mesh->index_handle,
 		        le::BufferInfoBuilder()
 		            .setSize( self->gpu_mesh->index_num_bytes )
+		            .addUsageFlags( le::BufferUsageFlagBits::eIndexBuffer | le::BufferUsageFlagBits::eTransferDst )
 		            .build() ) //
 		    ;
 	}

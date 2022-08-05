@@ -422,7 +422,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 		auto renderPassMain =
 		    le::RenderPass( "to_window_0", le::QueueFlagBits::eGraphics )
 		        .addColorAttachment( IMG_SWAP_0, attachmentInfo[ 0 ] ) // IMG_SWAP_0 == swapchain 0 attachment
-		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
+		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ) )
 		        .setSampleCount( le::SampleCountFlagBits::e8 )
 		        .setExecuteCallback( self, pass_to_window_0 ) //
 		    ;
@@ -446,7 +446,10 @@ static bool app_update( multi_window_example_app_o* self ) {
 
 		renderGraph
 		    .addRenderPass( renderPassMain )
-		    .addRenderPass( renderPassSecond );
+		    .addRenderPass( renderPassSecond )
+		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() )
+		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    ;
 	}
 
 	self->renderer.update( renderGraph );
