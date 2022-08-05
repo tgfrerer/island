@@ -3113,22 +3113,23 @@ static void collect_resource_infos_per_resource(
 
 	} // end for all passes
 
-	// patch any resources which are already known.
+	// -- Consolidate resources with pre-declared resources
+	//
+	// If any of our active resources has been pre-declared explicitly via the rendergraph,
+	// consolidate its info with the pre-declared resource's info.
+	//
+	// As a side-effect this will also consolidate any frame-declared resources which
+	// are declared more than once and used in the current rendergraph.
 
-	{
-		// If any of our active resources has been pre-declared, consolidate
-		// its info with the pre-declared resource's info.
+	for ( size_t i = 0; i != frame_declared_resources_id.size(); i++ ) {
+		auto const& resource     = frame_declared_resources_id[ i ];
+		auto const& resourceInfo = frame_declared_resources_info[ i ];
 
-		for ( size_t i = 0; i != frame_declared_resources_id.size(); i++ ) {
-			auto const& resource     = frame_declared_resources_id[ i ];
-			auto const& resourceInfo = frame_declared_resources_info[ i ];
+		auto find_result = active_resources.find( resource );
+		if ( find_result != active_resources.end() ) {
+			// a declared resource was found for an used resource - we must consolidate the two.
 
-			auto find_result = active_resources.find( resource );
-			if ( find_result != active_resources.end() ) {
-				// a declared resource was found for an used resource - we must consolidate the two.
-
-				consolidate_resource_info_into( find_result->second, resourceInfo );
-			}
+			consolidate_resource_info_into( find_result->second, resourceInfo );
 		}
 	}
 }
@@ -3990,7 +3991,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	// ----------| invariant: swapchain image acquisition was successful.
 
 	// Setup declared resources per frame - These are resources declared using resource infos
-	// which are explicitly declared by user via the rendermodule, but which may or may not be
+	// which are explicitly declared by user via the rendergraph, but which may or may not be
 	// actually used in the frame.
 	//
 	frame.declared_resources_id   = { declared_resources, declared_resources + declared_resources_count };
@@ -4006,7 +4007,9 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 		auto const& img_resource_handle = self->swapchain_resources[ i ];
 
-		frame.availableResources[ img_resource_handle ].as.image = swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
+		frame.availableResources[ img_resource_handle ].as.image =
+		    swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
+
 		{
 			auto& backbufferInfo = frame.availableResources[ img_resource_handle ].info.imageInfo;
 			backbufferInfo       = {
