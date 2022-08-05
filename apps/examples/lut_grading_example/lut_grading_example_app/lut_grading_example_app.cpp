@@ -67,7 +67,7 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 	        .setExtent( 64, 64, 64 )
 	        .build();
 
-	app->COLOR_LUT_IMG_HANDLE = le::Renderer::produceImageHandle( "lut_image" );
+	app->COLOR_LUT_IMG_HANDLE = le::Renderer::produceImageHandle( "lut_image" ); // LE_IMG_RESOURCE("lut_image");
 	app->SRC_IMG_HANDLE       = le::Renderer::produceImageHandle( "source_image" );
 
 	// Instruct resource manager to load data for images from given path

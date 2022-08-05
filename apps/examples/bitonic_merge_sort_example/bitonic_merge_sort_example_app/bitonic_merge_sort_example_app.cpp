@@ -179,7 +179,7 @@ static bool pass_noise_setup( le_renderpass_o* renderpass_, void* user_data ) {
 	auto           app = static_cast<app_o*>( user_data );
 
 	if ( app->source_dirty && app->data_source_type == DataSourceType::eNoise ) {
-		rp.useBufferResource( app->pixels_data->handle, le::AccessFlags2( le::AccessFlagBits2::eTransferWrite ) );
+		rp.useBufferResource( app->pixels_data->handle, le::AccessFlagBits2::eTransferWrite );
 		app->pixels_data->unsorted   = true;
 		app->slow_mo.seen_iterations = 0;
 		app->source_dirty            = false;
@@ -196,7 +196,7 @@ static bool pass_upload_image_setup( le_renderpass_o* rp_, void* user_data ) {
 	auto           app = static_cast<app_o*>( user_data );
 
 	if ( app->source_dirty && app->data_source_type == DataSourceType::eImage && !app->dropped_image_path.empty() ) {
-		rp.useBufferResource( app->pixels_data->handle, le::AccessFlags2( le::AccessFlagBits2::eTransferWrite ) );
+		rp.useBufferResource( app->pixels_data->handle, le::AccessFlagBits2::eTransferWrite );
 		app->pixels_data->unsorted   = true;
 		app->slow_mo.seen_iterations = 0;
 		app->source_dirty            = false;
@@ -213,7 +213,7 @@ static bool pass_sort_setup( le_renderpass_o* rp_, void* user_data ) {
 	le::RenderPass rp{ rp_ };
 
 	if ( app->pixels_data->unsorted == true ) {
-		rp.useBufferResource( app->pixels_data->handle, le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite );
+		rp.useBufferResource( app->pixels_data->handle, le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2::eShaderWrite );
 		return true;
 	}
 	return false;
@@ -518,7 +518,7 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 
 		auto pass_draw =
 		    le::RenderPass( "root", le::QueueFlagBits::eGraphics )
-		        .useBufferResource( self->pixels_data->handle, le::AccessFlags2( le::AccessFlagBits2::eShaderStorageRead ) )
+		        .useBufferResource( self->pixels_data->handle, le::AccessFlagBits2::eShaderStorageRead )
 		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
 		        .setExecuteCallback( self, pass_draw_exec );
 
@@ -531,9 +531,11 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 		// We must make sure that the engine knows how much space to allocate for our
 		// pixels data buffer - this is why we explicitly declare this buffer resource:
 		renderGraph
-		    .declareResource( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageInfoBuilder()
-		                                                     .setUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
-		                                                     .build() )
+		    .declareResource(
+		        LE_SWAPCHAIN_IMAGE_HANDLE,
+		        le::ImageInfoBuilder()
+		            .setUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
+		            .build() )
 		    .declareResource(
 		        self->pixels_data->handle,
 		        le::BufferInfoBuilder()
