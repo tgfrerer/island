@@ -9,6 +9,7 @@
 #include "private/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
+#include <bitset>
 #include <cassert>
 #include <vector>
 #include <unordered_map>
@@ -233,7 +234,7 @@ struct ResourceCreateInfo {
 		return type == LeResourceType::eRtxTlas;
 	}
 
-	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t& info, uint32_t* pQueueFamilyIndices, uint32_t queueFamilyindexCount );
+	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t& info );
 };
 
 // ----------------------------------------------------------------------
@@ -304,7 +305,7 @@ inline uint16_t get_sample_count_log_2( uint32_t const& sample_count ) {
 
 // ----------------------------------------------------------------------
 
-ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t& info, uint32_t* pQueueFamilyIndices, uint32_t queueFamilyIndexCount ) {
+ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t& info ) {
 	ResourceCreateInfo res{};
 
 	res.type = info.type;
@@ -318,8 +319,8 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		    .size                  = info.buffer.size,
 		    .usage                 = VkBufferUsageFlags( info.buffer.usage ),
 		    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		    .queueFamilyIndexCount = queueFamilyIndexCount, // optional
-		    .pQueueFamilyIndices   = pQueueFamilyIndices,
+		    .queueFamilyIndexCount = 0, // optional
+		    .pQueueFamilyIndices   = nullptr,
 		};
 
 	} break;
@@ -338,8 +339,8 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		      .tiling                = VkImageTiling( img.tiling ),
 		      .usage                 = VkImageUsageFlags( img.usage ),
 		      .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		      .queueFamilyIndexCount = queueFamilyIndexCount, // optional
-		      .pQueueFamilyIndices   = pQueueFamilyIndices,
+		      .queueFamilyIndexCount = 0, // optional
+		      .pQueueFamilyIndices   = nullptr,
 		      .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
         };
 
@@ -2960,6 +2961,10 @@ static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_r
 	case LeResourceType::eImage: {
 		// TODO (tim): check how we can enforce correct number of array layers and mip levels
 
+		lhs.image.samplesFlags |= rhs.image.samplesFlags;
+		assert( lhs.image.sample_count_log2 == 0 ); // NOTE: we expect sample_count_log2 not to be set at this point
+		assert( rhs.image.sample_count_log2 == 0 ); // NOTE: we expect sample_count_log2 not to be set at this point
+
 		if ( rhs.image.arrayLayers > lhs.image.arrayLayers ) {
 			lhs.image.arrayLayers = rhs.image.arrayLayers;
 		}
@@ -2975,7 +2980,6 @@ static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_r
 
 		lhs.image.flags |= rhs.image.flags;
 		lhs.image.usage |= rhs.image.usage;
-		lhs.image.samplesFlags |= uint32_t( 1 << rhs.image.sample_count_log2 );
 
 		// If an image format was explictly set, this takes precedence over eUndefined.
 		// Note that we skip this block if both infos have the same format, so if both
@@ -3028,33 +3032,9 @@ static void collect_resource_infos_per_resource(
     size_t                                                      numRenderPasses,
     std::vector<le_resource_handle> const&                      frame_declared_resources_id,   // | pre-declared resources (declared via module)
     std::vector<le_resource_info_t> const&                      frame_declared_resources_info, // | info for each pre-declared resource
-    std::vector<le_resource_handle>&                            usedResources,
-    std::vector<std::vector<le_resource_info_t>>&               usedResourcesInfos,
     std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
 
 	using namespace le_renderer;
-
-	{
-		// add all pre-declared resources to active resources
-
-		// FIXME: we only want to add resources which are referred to in passes as active resources
-		// currently, all resources which are declared are deemed active -- or maybe, we want to
-		// delete (drop) any resources which used to be declared, but are not declared anymore?
-
-		// We would benefit though from not having to allocate resources that are not used in a pass.
-		// but then, we would want to allocate resources when we declare them.
-
-		for ( size_t i = 0; i != frame_declared_resources_id.size(); i++ ) {
-			auto const& resource     = frame_declared_resources_id[ i ];
-			auto const& resourceInfo = frame_declared_resources_info[ i ];
-
-			auto emplace_result = active_resources.try_emplace( resource, std::move( resourceInfo ) );
-			if ( !emplace_result.second ) {
-				// entry was not assigned, result.first will hold an iterator to the current element
-				consolidate_resource_info_into( emplace_result.first->second, resourceInfo );
-			}
-		}
-	}
 
 	for ( auto rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
@@ -3081,43 +3061,6 @@ static void collect_resource_infos_per_resource(
 			// which is useful, because as soon as we add an element to the vector
 			// resource_index will index the correct element.
 
-			auto resource_index = static_cast<size_t>( std::find( usedResources.begin(), usedResources.end(), resource ) - usedResources.begin() );
-
-			if ( resource_index == usedResources.size() ) {
-
-				// Resource not found - we must insert a resource, and an empty vector, to fullfil the invariant
-				// that resource_index points at the correct elements
-
-				// Check if resource was declared explicitly via rendergraph - if yes,
-				// insert resource info from there - otherwise insert an
-				// empty entry to indicate that for this resource there are no previous
-				// resource infos.
-
-				// We only want to add resources which are actually used in the frame to
-				// used_resources, which is why we keep declared resources separate, and
-				// only copy their resource info as needed.
-
-				size_t found_resource_index = 0;
-				// search for resource id in vector of declared resources.
-				for ( auto const& id : frame_declared_resources_id ) {
-					if ( id == resource ) {
-						// resource found, let's use this declared_resource_index.
-						break;
-					}
-					found_resource_index++;
-				}
-
-				if ( found_resource_index == frame_declared_resources_id.size() ) {
-					// Nothing found. Insert empty entry
-					usedResources.push_back( resource );
-					usedResourcesInfos.push_back( {} );
-				} else {
-					// Explicitly declared resource found. Insert declaration info.
-					usedResources.push_back( frame_declared_resources_id[ found_resource_index ] );
-					usedResourcesInfos.push_back( { frame_declared_resources_info[ found_resource_index ] } );
-				}
-			}
-
 			// We must ensure that images which are used as Color, or DepthStencil attachments
 			// fit the extents of their renderpass - as this is a Vulkan requirement.
 			//
@@ -3125,8 +3068,9 @@ static void collect_resource_infos_per_resource(
 			//
 			// We also need to ensure that the extent has 1 as depth value by default.
 
-			le_resource_info_t resourceInfo = {}; // empty resource info
-			resourceInfo.type               = resource->data->type;
+			le_resource_info_t resourceInfo = {
+			    .type = resource->data->type, // empty resource info, but with type set according to resource type
+			};
 
 			if ( resourceInfo.type == LeResourceType::eImage ) {
 
@@ -3142,12 +3086,13 @@ static void collect_resource_infos_per_resource(
 
 					// ---------- | resource is either used as a depth stencil attachment, or a color attachment
 
-					imgInfo.mipLevels         = 1;
-					imgInfo.imageType         = le::ImageType::e2D;
-					imgInfo.tiling            = le::ImageTiling::eOptimal;
-					imgInfo.arrayLayers       = 1;
-					imgInfo.sample_count_log2 = pass_num_samples_log2;
-					imgInfo.extent            = { pass_width, pass_height, 1 };
+					imgInfo.mipLevels    = 1;
+					imgInfo.imageType    = le::ImageType::e2D;
+					imgInfo.tiling       = le::ImageTiling::eOptimal;
+					imgInfo.arrayLayers  = 1;
+					imgInfo.samplesFlags = uint32_t( 1 ) << pass_num_samples_log2; // note we set sample count as a flag so that it can be consolidated -
+					// imgInfo.sample_count_log2 = 0; // note that we leave sample_count_log2 untouched.
+					imgInfo.extent = { pass_width, pass_height, 1 };
 				}
 
 			} else if ( resourceInfo.type == LeResourceType::eBuffer ) {
@@ -3156,8 +3101,6 @@ static void collect_resource_infos_per_resource(
 			} else {
 				assert( false ); // unreachable
 			}
-
-			usedResourcesInfos[ resource_index ].emplace_back( resourceInfo );
 
 			{
 				auto emplace_result = active_resources.try_emplace( resource, std::move( resourceInfo ) );
@@ -3169,6 +3112,25 @@ static void collect_resource_infos_per_resource(
 		} // end for all resources
 
 	} // end for all passes
+
+	// patch any resources which are already known.
+
+	{
+		// If any of our active resources has been pre-declared, consolidate
+		// its info with the pre-declared resource's info.
+
+		for ( size_t i = 0; i != frame_declared_resources_id.size(); i++ ) {
+			auto const& resource     = frame_declared_resources_id[ i ];
+			auto const& resourceInfo = frame_declared_resources_info[ i ];
+
+			auto find_result = active_resources.find( resource );
+			if ( find_result != active_resources.end() ) {
+				// a declared resource was found for an used resource - we must consolidate the two.
+
+				consolidate_resource_info_into( find_result->second, resourceInfo );
+			}
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -3207,8 +3169,6 @@ static void consolidate_resource_infos(
 	} break;
 	case LeResourceType::eImage: {
 
-		first_info->image.samplesFlags |= uint32_t( 1 << first_info->image.sample_count_log2 );
-
 		// Consolidate into first_info, beginning with the second element
 		for ( auto* info = first_info + 1; info != info_end; info++ ) {
 
@@ -3229,7 +3189,8 @@ static void consolidate_resource_infos(
 
 			first_info->image.flags |= info->image.flags;
 			first_info->image.usage |= info->image.usage;
-			first_info->image.samplesFlags |= uint32_t( 1 << info->image.sample_count_log2 );
+			first_info->image.samplesFlags |= info->image.samplesFlags;
+			;
 
 			// If an image format was explictly set, this takes precedence over eUndefined.
 			// Note that we skip this block if both infos have the same format, so if both
@@ -3296,57 +3257,56 @@ static void consolidate_resource_infos(
 // ----------------------------------------------------------------------
 
 static void insert_msaa_versions(
-    std::vector<le_resource_handle>&              usedResources,
-    std::vector<std::vector<le_resource_info_t>>& usedResourcesInfos ) {
+    std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
 	// For each image resource which is specified with versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
+	std::unordered_map<le_resource_handle, le_resource_info_t> extra_resources;
 
-	const size_t usedResourcesSize = usedResources.size();
-
-	std::vector<le_resource_handle>              msaa_resources;
-	std::vector<std::vector<le_resource_info_t>> msaa_resource_infos;
-
-	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
-
-		le_resource_handle& resource = usedResources[ i ];
-
-		if ( resource->data->type != LeResourceType::eImage ) {
+	for ( auto const& ar : active_resources ) {
+		if ( ar.first->data->type != LeResourceType::eImage ) {
 			continue;
 		}
-		le_resource_info_t& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
-		// --------| invariant: resource is image
+		// ----------| Invariant: resource is an image
 
-		if ( resourceInfo.image.samplesFlags & ~uint32( le::SampleCountFlagBits::e1 ) ) {
+		// For any samplesFlags, we must create a matching msaa version of the image.
+		std::bitset<sizeof( ar.second.image.samplesFlags ) * 8> samples_flags( ar.second.image.samplesFlags );
 
-			// We found a resource with flags requesting more than just single sample.
-			// for each flag we must clone the current resource and add to extra resources
+		uint32_t sample_count_log_2 = 1;                  // 2^1 evaluates to 2
+		samples_flags               = samples_flags >> 1; // we remove the single-sampled image, as we assume it already exists.
 
-			uint16_t current_sample_count_log_2 = get_sample_count_log_2( resourceInfo.image.samplesFlags );
+		while ( samples_flags.count() ) {
 
-			le_resource_handle resource_copy =
-			    le_renderer::renderer_i.produce_img_resource_handle(
-			        resource->data->debug_name, current_sample_count_log_2, static_cast<le_img_resource_handle>( resource ), 0 );
+			if ( samples_flags.test( 0 ) ) {
+				// we must create a resource copy with this sample count
+				le_resource_handle resource_copy =
+				    le_renderer::renderer_i.produce_img_resource_handle(
+				        ar.first->data->debug_name, sample_count_log_2, static_cast<le_img_resource_handle>( ar.first ), 0 );
+				le_resource_info_t resource_info_copy      = ar.second;
+				resource_info_copy.image.sample_count_log2 = sample_count_log_2;
 
-			le_resource_info_t resource_info_copy      = resourceInfo;
-			resource_info_copy.image.sample_count_log2 = current_sample_count_log_2;
+				// insert extra resource into extra msaa resources
+				auto result = extra_resources.try_emplace( resource_copy, resource_info_copy );
+				if ( result.second == false ) {
+					// key already existed, must be consolidated
+					consolidate_resource_info_into( result.first->second, resource_info_copy );
+				}
+			}
 
-			// Patch original resource info to note 1 sample - we do this because
-			// handle and info must be in sync.
-			//
-			resourceInfo.image.sample_count_log2 = 0;
-
-			msaa_resources.push_back( resource_copy );
-			msaa_resource_infos.push_back( { resource_info_copy } );
+			samples_flags = samples_flags >> 1;
+			sample_count_log_2++;
 		}
 	}
 
-	// -- Insert additional msaa resources into usedResources
-	// -- Insert additional msaa resource infos into usedResourceInfos
-
-	usedResources.insert( usedResources.end(), msaa_resources.begin(), msaa_resources.end() );
-	usedResourcesInfos.insert( usedResourcesInfos.end(), msaa_resource_infos.begin(), msaa_resource_infos.end() );
+	// append extra resources to active resources
+	for ( auto& er : extra_resources ) {
+		auto result = active_resources.try_emplace( er.first, er.second );
+		if ( result.second == false ) {
+			// key already existed, must be consolidated
+			consolidate_resource_info_into( result.first->second, er.second );
+		}
+	}
 }
 
 static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info, const char* prefix = "" ) {
@@ -3526,6 +3486,8 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 // We are currently not checking for "orphaned" resources (resources which are available in the
 // backend, but not used by the frame) - these could possibly be recycled, too.
 
+static constexpr auto REFACTOR_ACTIVE_RESOURCES = 1;
+
 static void backend_allocate_resources( le_backend_o* self, BackendFrameData& frame, le_renderpass_o** passes, size_t numRenderPasses ) {
 
 	/*
@@ -3552,18 +3514,15 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	// in a separate step. That way, we can first make sure all flags are combined,
 	// before we make sure to we find a valid image format which matches all uses...
 	//
-	std::vector<le_resource_handle>              usedResources;      // (
-	std::vector<std::vector<le_resource_info_t>> usedResourcesInfos; // ( usedResourceInfos[index] contains vector of usages for usedResource[index]
 
 	std::unordered_map<le_resource_handle, le_resource_info_t> active_resources;
 
 	collect_resource_infos_per_resource(
 	    passes, numRenderPasses,
 	    frame.declared_resources_id, frame.declared_resources_info,
-	    usedResources, usedResourcesInfos,
 	    active_resources );
 
-	if ( 0 ) {
+	if ( REFACTOR_ACTIVE_RESOURCES && false ) {
 		for ( auto const& r : active_resources ) {
 			logger.info( "resource [ %-30s ] : [ %-50s ]", r.first->data->debug_name,
 			             r.second.type == LeResourceType::eImage
@@ -3572,30 +3531,20 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 		}
 	}
 
-	assert( usedResources.size() == usedResourcesInfos.size() );
-
-	// For each resource, consolidate infos so that the first element in the vector of
-	// resourceInfos for a resource covers all intended usages of a resource.
-	//
-	for ( auto& versions : usedResourcesInfos ) {
-		consolidate_resource_infos( versions );
-	}
-
 	// For each image resource which has versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
-	insert_msaa_versions( usedResources, usedResourcesInfos );
+	insert_msaa_versions( active_resources );
 
 	// Check if all resources declared in this frame are already available in backend.
 	// If a resource is not available yet, this resource must be allocated.
 
 	auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
-	const size_t usedResourcesCount = usedResources.size();
-	for ( size_t i = 0; i != usedResourcesCount; ++i ) {
+	for ( auto const& ar : active_resources ) {
 
-		le_resource_handle const& resource     = usedResources[ i ];
-		le_resource_info_t const& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+		le_resource_handle const& resource     = ar.first;
+		le_resource_info_t const& resourceInfo = ar.second; ///< consolidated resource info for this resource over all passes
 
 		// See if a resource with this id is already available to the frame
 		// This may be the case with a swapchain image resource for example,
@@ -3611,7 +3560,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 		// first check if the resource is available to the frame,
 		// if that is not the chase, check if the resource is available to the frame.
 
-		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
+		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo );
 		auto       foundIt            = backendResources.find( resource );
 		const bool resourceIdNotFound = ( foundIt == backendResources.end() );
 
@@ -3712,11 +3661,10 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 		uint64_t scratchbuffer_max_size = 0;
 
-		const size_t usedResourcesCount = usedResources.size();
-		for ( size_t i = 0; i != usedResourcesCount; ++i ) {
+		for ( auto const& ar : active_resources ) {
 
-			le_resource_handle const& resourceId   = usedResources[ i ];
-			le_resource_info_t const& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+			le_resource_handle const& resourceId   = ar.first;
+			le_resource_info_t const& resourceInfo = ar.second; ///< consolidated resource info for this resource over all passes
 
 			if ( resourceInfo.type == LeResourceType::eRtxBlas &&
 			     ( resourceInfo.blas.usage & LE_RTX_BLAS_BUILD_BIT ) ) {
@@ -3735,7 +3683,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			resourceInfo.buffer.size              = uint32_t( scratchbuffer_max_size );
 			resourceInfo.buffer.usage             = le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eShaderDeviceAddress );
 			resourceInfo.type                     = LeResourceType::eBuffer;
-			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
+			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo );
 			auto               resource_id        = LE_RTX_SCRATCH_BUFFER_HANDLE;
 			auto               allocated_resource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 			frame.availableResources.insert_or_assign( resource_id, allocated_resource );
@@ -3747,21 +3695,36 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 
-	if ( LE_PRINT_DEBUG_MESSAGES ) {
+	if ( 1 || LE_PRINT_DEBUG_MESSAGES ) {
 		logger.info( "Available Resources" );
 		logger.info( "%10s : %38s : %30s", "Type", "debugName", "Vk Handle" );
 		for ( auto const& r : frame.availableResources ) {
-			if ( r.second.info.isBuffer() ) {
+			switch ( r.second.info.type ) {
+			case ( LeResourceType::eUndefined ):
+				break;
+			case ( LeResourceType::eBuffer ):
 				logger.info( "%10s : %38s : %30p",
 				             "Buffer",
 				             r.first->data->debug_name,
 				             r.second.as.buffer );
-			} else {
+				break;
+			case ( LeResourceType::eImage ):
 				logger.info( "%10s : %36s@%d : %30p",
 				             "Image",
 				             r.first->data->debug_name,
 				             1 << r.first->data->num_samples,
 				             r.second.as.buffer );
+				break;
+			case ( LeResourceType::eRtxBlas ):
+				logger.info( "%10s : %36s@%d",
+				             "RtxBLAS",
+				             r.first->data->debug_name );
+				break;
+			case ( LeResourceType::eRtxTlas ):
+				logger.info( "%10s : %36s@%d",
+				             "RtxTLAS",
+				             r.first->data->debug_name );
+				break;
 			}
 		}
 	}
@@ -4802,7 +4765,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					if ( stateInitial != stateFinal ) {
 						// we must issue an image barrier
 
-						if ( LE_PRINT_DEBUG_MESSAGES ) {
+						if ( 1 || LE_PRINT_DEBUG_MESSAGES ) {
 
 							// --------| invariant: barrier is active.
 
