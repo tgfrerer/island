@@ -850,7 +850,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 	for ( auto const& p : self->passes ) {
 
-		Node node;
+		Node node{};
 
 		const size_t numResources = p->resources.size();
 
@@ -904,27 +904,25 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// a tree is isolated if none of its writes touch any other tree's reads.
 		// - what happens if a tree's reads touch another tree's write?
 		{
-			Node* nodes_rbegin = nodes.data() + nodes.size() - 1;
-			Node* nodes_rend   = nodes.data() - 1;
 
 			uint64_t root_index = 0;
 
 			// find first root node by iterating backwards
-			for ( Node* r = nodes_rbegin; r != nodes_rend; r-- ) {
-				ResourceField& read_accum  = root_reads_accum[ root_index ];
-				ResourceField& write_accum = root_writes_accum[ root_index ];
-				while ( r != nodes_rend && !r->is_root ) {
-					r--;
+			for ( auto r = nodes.rbegin(); r != nodes.rend(); r++ ) {
+				while ( r != nodes.rend() && !r->is_root ) {
+					r++;
 				}
-				if ( r == nodes_rend ) {
+				if ( r == nodes.rend() ) {
 					break;
 				}
+				ResourceField& read_accum  = root_reads_accum[ root_index ];
+				ResourceField& write_accum = root_writes_accum[ root_index ];
 				// n is a root node.
 				read_accum  = r->reads;
 				write_accum = r->writes;
-				r->root_index_affinity |= ( 1 << root_index );
+				r->root_index_affinity |= ( 1ULL << root_index );
 
-				for ( Node* n = r - 1; n != nodes_rend; n-- ) {
+				for ( auto n = r +1; n != nodes.rend(); n++ ) {
 					if ( n->is_root ) {
 						continue;
 					}
@@ -934,7 +932,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 						read_accum |= n->reads;
 						write_accum |= n->writes;
 						// tag resource as belonging to this particular root node.
-						n->root_index_affinity |= ( 1 << root_index );
+						n->root_index_affinity |= ( 1ULL << root_index );
 					}
 				}
 				root_index++;
