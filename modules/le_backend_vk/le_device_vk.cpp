@@ -49,17 +49,18 @@ struct le_device_o {
 
 // ----------------------------------------------------------------------
 
-static std::string le_queue_flags_to_string( le::QueueFlags flags ) {
+static std::string le_queue_flags_to_string( le::QueueFlags const& flags ) {
 	std::string result;
 
-	for ( int i = 0; ( flags > 0 ); i++ ) {
-		if ( flags & 1 ) {
+	uint64_t f = flags;
+	for ( int i = 0; ( f > 0 ); i++ ) {
+		if ( f & 1 ) {
 			result.append(
 			    result.empty()
 			        ? std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) )
 			        : " | " + std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) ) );
 		}
-		flags >>= 1;
+		f >>= 1;
 	}
 	return result;
 }
@@ -153,12 +154,11 @@ std::vector<QueueQueryResult> findBestMatchForRequestedQueues( const std::vector
 			}
 		}
 
-
 		if ( foundMatch ) {
 
 			logger.info( "Found queue { %s } matching requirement: { %s }.",
-			             le_queue_flags_to_string( props[ foundFamily ].queueFamilyProperties.queueFlags ).c_str(),
-			             le_queue_flags_to_string( flags ).c_str() );
+			             le_queue_flags_to_string( le::QueueFlagBits( props[ foundFamily ].queueFamilyProperties.queueFlags ) ).c_str(),
+			             le_queue_flags_to_string( le::QueueFlagBits( flags ) ).c_str() );
 
 			assert( usedQueues[ foundFamily ] > 0 && "must have at least one used queue at index" );
 
@@ -282,7 +282,7 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 
 		if ( requested_queues.empty() ) {
 			VkQueueFlags default_queue_flags = { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT };
-			le::Log( LOGGER_LABEL ).info( "No queues explicitly requested, requesting default: { %s }", le_queue_flags_to_string( default_queue_flags ).c_str() );
+			le::Log( LOGGER_LABEL ).info( "No queues explicitly requested, requesting default: { %s }", le_queue_flags_to_string( le::QueueFlagBits( default_queue_flags ) ).c_str() );
 			requested_queues.push_back( default_queue_flags );
 		}
 	}

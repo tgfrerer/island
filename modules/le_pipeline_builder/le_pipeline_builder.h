@@ -39,8 +39,8 @@ enum class StencilOp : uint32_t;
 enum class ShaderStageFlagBits : uint32_t;
 enum class CullModeFlagBits : uint32_t;
 enum class ShaderSourceLanguage : uint32_t;
-using ColorComponentMask = uint32_t;
-using CullModeFlags      = uint32_t;
+struct ColorComponentFlags;
+struct CullModeFlags;
 } // namespace le
 
 // clang-format off
@@ -87,7 +87,7 @@ struct le_pipeline_builder_api {
 			void (*set_dst_color_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
 			void (*set_src_alpha_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
 			void (*set_dst_alpha_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
-			void (*set_color_write_mask       )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::ColorComponentMask &write_mask );
+			void (*set_color_write_mask       )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::ColorComponentFlags &write_mask );
 			void (*use_preset                 )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::AttachmentBlendPreset &preset );
 		};
 
@@ -759,10 +759,6 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			return *this;
 		}
 
-		RasterizationState& setCullMode( le::CullModeFlagBits const& mode ) {
-			return setCullMode( le::CullModeFlags( mode ) );
-		}
-
 		RasterizationState& setFrontFace( le::FrontFace const& frontFace ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.rasterization_state_i.set_front_face( parent.self, frontFace );
@@ -857,7 +853,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			return *this;
 		}
 
-		AttachmentBlendState& setColorWriteMask( const le::ColorComponentMask& write_mask ) {
+		AttachmentBlendState& setColorWriteMask( const le::ColorComponentFlags& write_mask ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_color_write_mask( parent.self, index, write_mask );
 			return *this;

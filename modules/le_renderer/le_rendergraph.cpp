@@ -117,7 +117,7 @@ static constexpr le::AccessFlags2 LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS =
 // ----------------------------------------------------------------------
 
 static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
-	uint64_t flags = tp.data;
+	uint64_t    flags = tp;
 	std::string result;
 	int         bit_pos = 0;
 	while ( flags ) {
@@ -125,9 +125,9 @@ static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str( le::AccessFlagBits2( le::AccessFlags2(1ULL << bit_pos ) ) ));
+			result.append( to_str( le::AccessFlagBits2( 1ULL << bit_pos ) ) );
 		}
-		flags>>= 1;
+		flags >>= 1;
 		bit_pos++;
 	}
 	return result;
@@ -136,11 +136,11 @@ static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
 // ----------------------------------------------------------------------
 
 struct Node {
-	ResourceField       reads = 0;
-	ResourceField       writes = 0;
+	ResourceField       reads               = 0;
+	ResourceField       writes              = 0;
 	le::RootPassesField root_index_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
-	bool                is_root         = false; // whether this node is a root node
-	bool                is_contributing = false; // whether this node contributes to a root node
+	bool                is_root             = false; // whether this node is a root node
+	bool                is_contributing     = false; // whether this node contributes to a root node
 };
 
 // these are some sanity checks for le_renderer_types
@@ -310,15 +310,15 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 	//	le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debugName, resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
 
-	bool detectRead  =  (access_flags & LE_ALL_READ_ACCESS_FLAGS ).data;
-	bool detectWrite = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS ).data;
+	bool detectRead  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
+	bool detectWrite = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
 
 	// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
 	// this means that some reads to image resources are implicit read/writes.
 	// we can only get rid of this if we can prove that resources will not undergo a layout transform.
 	//
 	if ( resource_id->data->type == LeResourceType::eImage ) {
-		detectWrite |= ( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS ).data;
+		detectWrite |= ( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 	}
 
 	// update access flags
@@ -922,7 +922,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				write_accum = r->writes;
 				r->root_index_affinity |= ( 1ULL << root_index );
 
-				for ( auto n = r +1; n != nodes.rend(); n++ ) {
+				for ( auto n = r + 1; n != nodes.rend(); n++ ) {
 					if ( n->is_root ) {
 						continue;
 					}
@@ -985,7 +985,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		std::vector<int>                 queue_id_idx( root_count ); // queue id index per root
 		for ( size_t i = 0; i != root_count; i++ ) {
 			queue_id[ i ] |= ( 1ULL << i ); // initialise to single bit at bitfield position corresponding to queue id
-			queue_id_idx[ i ] = i;       // initialise queue id index to be direct mapping
+			queue_id_idx[ i ] = i;          // initialise queue id index to be direct mapping
 		}
 
 		for ( size_t i = 0; i != root_count; i++ ) {

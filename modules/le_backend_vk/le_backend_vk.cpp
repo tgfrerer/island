@@ -1525,7 +1525,7 @@ static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str( le::AccessFlagBits2( le::AccessFlags2( 1ULL << bit_pos ) ) ) );
+			result.append( to_str( le::AccessFlagBits2( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;

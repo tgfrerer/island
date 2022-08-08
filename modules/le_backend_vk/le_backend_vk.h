@@ -75,7 +75,7 @@ typedef VkFlags  VkQueueFlags;
 
 namespace le {
 enum class ShaderStageFlagBits : uint32_t;
-using BuildAccelerationStructureFlagsKHR = uint32_t;
+struct BuildAccelerationStructureFlagsKHR;
 } // namespace le
 
 struct LeShaderSourceLanguageEnum;

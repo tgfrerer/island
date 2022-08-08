@@ -796,13 +796,13 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 // ----------------------------------------------------------------------
 
 static le_resource_info_t get_default_resource_info_for_image() {
-	le_resource_info_t res;
+	le_resource_info_t res = {};
 
 	res.type = LeResourceType::eImage;
 	{
 		auto& img                   = res.image;
 		img                         = {};
-		img.flags                   = 0;
+		img.flags                   = le::ImageCreateFlagBits( 0 );
 		img.format                  = le::Format::eUndefined;
 		img.arrayLayers             = 1;
 		img.extent.width            = 0;
@@ -825,10 +825,10 @@ static le_resource_info_t get_default_resource_info_for_image() {
 // ----------------------------------------------------------------------
 
 static le_resource_info_t get_default_resource_info_for_buffer() {
-	le_resource_info_t res;
-	res.type         = LeResourceType::eBuffer;
-	res.buffer.size  = 0;
-	res.buffer.usage = le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst );
+	le_resource_info_t res = {};
+	res.type               = LeResourceType::eBuffer;
+	res.buffer.size        = 0;
+	res.buffer.usage       = le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst );
 	return res;
 }
 

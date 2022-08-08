@@ -59,15 +59,14 @@ def generate_enum_group(original_enum_name, wants_to_string=False, num_bits=32):
     body = ""
 
     is_bitmask = (enum_type == 'bitmask')
+    bitmask_type = ""
 
     if is_bitmask:
         # in case we have a bitmask enum, we must define a type which may
         # contain the flag bits - we do this for type safety
         bitmask_type = enum_name.replace("FlagBits", "Flags")
-        body += "using %s = uint%s_t;\n" % (bitmask_type, num_bits)
-        body += "enum class %s : %s {\n" % (enum_name, bitmask_type)
-    else:
-        body += "enum class %s : uint%s_t {\n" % (enum_name, num_bits)
+
+    body += "enum class %s : uint%s_t {\n" % (enum_name, num_bits)
 
     enums = group_info.elem.findall('enum')
 
@@ -101,18 +100,47 @@ def generate_enum_group(original_enum_name, wants_to_string=False, num_bits=32):
 
     if is_bitmask:
         # implement the | or operator for our new class enum
-        body += """constexpr {bm_tp} operator | ({tp} const & lhs, {tp} const & rhs) noexcept {{
-        return static_cast<const {bm_tp}>(static_cast<{bm_tp}>(lhs) | static_cast<{bm_tp}>(rhs));
-        }};\n\n""".format(bm_tp=bitmask_type, tp=enum_name)
-        # implement the chained | or operator for our new class enum
-        body += """constexpr {bm_tp} operator | ({bm_tp} const & lhs, {tp} const & rhs) noexcept {{
-        return static_cast<const {bm_tp}>(lhs | static_cast<{bm_tp}>(rhs));
-        }};\n\n""".format(bm_tp=bitmask_type, tp=enum_name)
+        body += """
 
-        # implement the & or operator for our new class enum
-        body += """constexpr {bm_tp} operator & ({tp} const & lhs, {tp} const & rhs) noexcept {{
-        return static_cast<const {bm_tp}>(static_cast<{bm_tp}>(lhs) & static_cast<{bm_tp}>(rhs));
-        }};\n\n""".format(bm_tp=bitmask_type, tp=enum_name)
+        struct {bm_tp} {{
+        	constexpr {bm_tp}( {tp} const& rhs = {tp}() )
+        	    : data( uint{bw}_t( rhs ) ) {{
+        	}}
+        	constexpr operator const uint{bw}_t() const noexcept {{
+        		return data;
+        	}};
+            private:
+        	uint{bw}_t data;
+        }};
+
+        constexpr {bm_tp} operator | ({tp} const & lhs, {tp} const & rhs) noexcept {{
+            return {tp}(uint{bw}_t(lhs) | uint{bw}_t(rhs));
+        }};\n\n
+
+        constexpr {bm_tp} operator | ({bm_tp} const & lhs, {tp} const & rhs) noexcept {{
+            return {tp}( lhs | uint{bw}_t(rhs));
+        }};\n\n
+
+        constexpr {bm_tp} operator | ({bm_tp} const & lhs, {bm_tp} const & rhs) noexcept {{
+            return {tp}( lhs | uint{bw}_t(rhs));
+        }};\n\n
+
+        constexpr {bm_tp} operator |= ({bm_tp} const & lhs, {bm_tp} const & rhs) noexcept {{
+            return {tp}( lhs | uint{bw}_t(rhs));
+        }};\n\n
+
+        constexpr {bm_tp} operator & ({tp} const & lhs, {tp} const & rhs) noexcept {{
+            return {tp}(uint{bw}_t(lhs) & uint{bw}_t(rhs));
+        }};\n\n
+
+        constexpr {bm_tp} operator & ({bm_tp} const & lhs, {bm_tp} const & rhs) noexcept {{
+            return {tp}( lhs & uint{bw}_t(rhs));
+        }};\n\n
+
+        constexpr {bm_tp} operator & ({bm_tp} const & lhs, {tp} const & rhs) noexcept {{
+            return {tp}( lhs & uint{bw}_t(rhs));
+        }};\n\n
+        """.format(bm_tp=bitmask_type, tp=enum_name, bw=num_bits)
 
     if wants_to_string:
         # iterate over all values

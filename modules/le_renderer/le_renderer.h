@@ -487,7 +487,7 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder& setCreateFlags( le::ImageCreateFlags flags = 0 ) {
+	ImageInfoBuilder& setCreateFlags( le::ImageCreateFlags flags = ImageCreateFlagBits() ) {
 		img.flags = flags;
 		return *this;
 	}
