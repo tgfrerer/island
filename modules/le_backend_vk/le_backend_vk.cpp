@@ -1517,7 +1517,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 }
 
 static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
-	uint64_t    flags = tp;
+	uint64_t    flags = tp.data;
 	std::string result;
 	int         bit_pos = 0;
 	while ( flags ) {
@@ -1525,7 +1525,7 @@ static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str( le::AccessFlagBits2( 1ULL << bit_pos ) ) );
+			result.append( to_str( le::AccessFlagBits2( le::AccessFlags2(1ULL << bit_pos )) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
@@ -1582,15 +1582,15 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 			// le::Log( LOGGER_LABEL ).info( " resource: %40s, access { %-60s }", resource->data->debug_name, to_string_le_access_flags2( resources_access[ i ] ).c_str() );
 
-			if ( resources_access[ i ] & VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ) {
-				requestedState.visible_access = resources_access[ i ];
+			if ( resources_access[ i ].data & VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ) {
+				requestedState.visible_access = resources_access[ i ].data;
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			} else if ( resources_access[ i ] & ( VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
+			} else if ( resources_access[ i ].data & ( VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
 			                                      VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT |
 			                                      VK_ACCESS_2_SHADER_READ_BIT |
 			                                      VK_ACCESS_2_SHADER_WRITE_BIT ) ) {
-				requestedState.visible_access = resources_access[ i ];
+				requestedState.visible_access = resources_access[ i ].data;
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
 			}
@@ -3078,11 +3078,11 @@ static void collect_resource_infos_per_resource(
 
 				imgInfo.extent_from_pass = { pass_width, pass_height, 1 };
 
-				if ( p_resources_access_flags[ i ] &
+				if ( (p_resources_access_flags[ i ] &
 				     le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentWrite |
 				                       le::AccessFlagBits2::eColorAttachmentRead |
 				                       le::AccessFlagBits2::eDepthStencilAttachmentWrite |
-				                       le::AccessFlagBits2::eDepthStencilAttachmentRead ) ) {
+				                       le::AccessFlagBits2::eDepthStencilAttachmentRead )).data ) {
 
 					// ---------- | resource is either used as a depth stencil attachment, or a color attachment
 
@@ -5297,7 +5297,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    .srcStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.srcStageMask ), // happens-before
 						    .srcAccessMask       = 0,                                                               // FIXME: no memory is made available from src stage ?!
 						    .dstStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.dstStageMask ), // before continuing with dst stage
-						    .dstAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.dstAccessMask ),    // and making memory visible to dst stage
+						    .dstAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.dstAccessMask.data ),    // and making memory visible to dst stage
 						    .srcQueueFamilyIndex = 0,
 						    .dstQueueFamilyIndex = 0,
 						    .buffer              = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ),

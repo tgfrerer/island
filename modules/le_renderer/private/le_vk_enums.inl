@@ -11,91 +11,110 @@ namespace le {
 
 // ----------------------------------------------------------------------
 
-using AccessFlags2 = uint64_t;
-enum class AccessFlagBits2 : AccessFlags2 {
-	eNone                                    = 0,
-	eIndirectCommandRead                     = 0x00000001ULL,
-	eIndexRead                               = 0x00000002ULL,
-	eVertexAttributeRead                     = 0x00000004ULL,
-	eUniformRead                             = 0x00000008ULL,
-	eInputAttachmentRead                     = 0x00000010ULL,
-	eShaderRead                              = 0x00000020ULL,
-	eShaderWrite                             = 0x00000040ULL,
-	eColorAttachmentRead                     = 0x00000080ULL,
-	eColorAttachmentWrite                    = 0x00000100ULL,
-	eDepthStencilAttachmentRead              = 0x00000200ULL,
-	eDepthStencilAttachmentWrite             = 0x00000400ULL,
-	eTransferRead                            = 0x00000800ULL,
-	eTransferWrite                           = 0x00001000ULL,
-	eHostRead                                = 0x00002000ULL,
-	eHostWrite                               = 0x00004000ULL,
-	eMemoryRead                              = 0x00008000ULL,
-	eMemoryWrite                             = 0x00010000ULL,
-	eCommandPreprocessReadBitNv              = 0x00020000ULL,
-	eCommandPreprocessWriteBitNv             = 0x00040000ULL,
-	eColorAttachmentReadNoncoherentBitExt    = 0x00080000ULL,
-	eConditionalRenderingReadBitExt          = 0x00100000ULL, // read access flag for reading conditional rendering predicate
-	eAccelerationStructureReadBitKhr         = 0x00200000ULL,
-	eAccelerationStructureWriteBitKhr        = 0x00400000ULL,
-	eFragmentShadingRateAttachmentReadBitKhr = 0x00800000ULL,
-	eFragmentDensityMapReadBitExt            = 0x01000000ULL,
-	eTransformFeedbackWriteBitExt            = 0x02000000ULL,
-	eTransformFeedbackCounterReadBitExt      = 0x04000000ULL,
-	eTransformFeedbackCounterWriteBitExt     = 0x08000000ULL,
-	eReserved44BitNv                         = 0x100000000000ULL,
-	eReserved387BitKhr                       = 0x10000000000ULL,
-	eVideoDecodeWriteBitKhr                  = 0x1000000000ULL,
-	eShaderSampledRead                       = 0x100000000ULL,
-	eReserved45BitNv                         = 0x200000000000ULL,
-	eReserved41BitAmd                        = 0x20000000000ULL,
-	eVideoEncodeReadBitKhr                   = 0x2000000000ULL,
-	eShaderStorageRead                       = 0x200000000ULL,
-	eReserved42BitNv                         = 0x40000000000ULL,
-	eVideoEncodeWriteBitKhr                  = 0x4000000000ULL,
-	eShaderStorageWrite                      = 0x400000000ULL,
-	eReserved43BitNv                         = 0x80000000000ULL,
-	eInvocationMaskReadBitHuawei             = 0x8000000000ULL,
-	eVideoDecodeReadBitKhr                   = 0x800000000ULL,
-	eAccelerationStructureReadBitNv          = eAccelerationStructureReadBitKhr,
-	eAccelerationStructureWriteBitNv         = eAccelerationStructureWriteBitKhr,
-	eColorAttachmentReadBitKhr               = eColorAttachmentRead,
-	eColorAttachmentWriteBitKhr              = eColorAttachmentWrite,
-	eDepthStencilAttachmentReadBitKhr        = eDepthStencilAttachmentRead,
-	eDepthStencilAttachmentWriteBitKhr       = eDepthStencilAttachmentWrite,
-	eShadingRateImageReadBitNv               = eFragmentShadingRateAttachmentReadBitKhr,
-	eHostReadBitKhr                          = eHostRead,
-	eHostWriteBitKhr                         = eHostWrite,
-	eIndexReadBitKhr                         = eIndexRead,
-	eIndirectCommandReadBitKhr               = eIndirectCommandRead,
-	eInputAttachmentReadBitKhr               = eInputAttachmentRead,
-	eMemoryReadBitKhr                        = eMemoryRead,
-	eMemoryWriteBitKhr                       = eMemoryWrite,
-	eNoneKhr                                 = eNone,
-	eShaderReadBitKhr                        = eShaderRead,
-	eShaderSampledReadBitKhr                 = eShaderSampledRead,
-	eShaderStorageReadBitKhr                 = eShaderStorageRead,
-	eShaderStorageWriteBitKhr                = eShaderStorageWrite,
-	eShaderWriteBitKhr                       = eShaderWrite,
-	eTransferReadBitKhr                      = eTransferRead,
-	eTransferWriteBitKhr                     = eTransferWrite,
-	eUniformReadBitKhr                       = eUniformRead,
-	eVertexAttributeReadBitKhr               = eVertexAttributeRead,
+	struct AccessFlags2  {
+		uint64_t data;
+    };
+
+class AccessFlagBits2 {
+	  public:
+	static constexpr AccessFlags2 eNone                                    = { 0 };
+	static constexpr AccessFlags2 eIndirectCommandRead                     = { 0x00000001ULL };
+	static constexpr AccessFlags2 eIndexRead                               = { 0x00000002ULL };
+	static constexpr AccessFlags2 eVertexAttributeRead                     = { 0x00000004ULL };
+	static constexpr AccessFlags2 eUniformRead                             = {0x00000008ULL };
+	static constexpr AccessFlags2 eInputAttachmentRead                     = {0x00000010ULL };
+	static constexpr AccessFlags2 eShaderRead                              = { 0x00000020ULL };
+	static constexpr AccessFlags2 eShaderWrite                             = {0x00000040ULL };
+	static constexpr AccessFlags2 eColorAttachmentRead                     = {0x00000080ULL };
+	static constexpr AccessFlags2 eColorAttachmentWrite                    = {0x00000100ULL };
+	static constexpr AccessFlags2 eDepthStencilAttachmentRead              = {0x00000200ULL };
+	static constexpr AccessFlags2 eDepthStencilAttachmentWrite             = {0x00000400ULL };
+	static constexpr AccessFlags2 eTransferRead                            = {0x00000800ULL };
+	static constexpr AccessFlags2 eTransferWrite                           = {0x00001000ULL };
+	static constexpr AccessFlags2 eHostRead                                = {0x00002000ULL };
+	static constexpr AccessFlags2 eHostWrite                               = {0x00004000ULL };
+	static constexpr AccessFlags2 eMemoryRead                              = {0x00008000ULL };
+	static constexpr AccessFlags2 eMemoryWrite                             = {0x00010000ULL };
+	static constexpr AccessFlags2 eCommandPreprocessReadBitNv              = {0x00020000ULL };
+	static constexpr AccessFlags2 eCommandPreprocessWriteBitNv             = {0x00040000ULL };
+	static constexpr AccessFlags2 eColorAttachmentReadNoncoherentBitExt    = {0x00080000ULL };
+	static constexpr AccessFlags2 eConditionalRenderingReadBitExt          = {0x00100000ULL }; // read access flag for reading conditional rendering predicate
+	static constexpr AccessFlags2 eAccelerationStructureReadBitKhr         = {0x00200000ULL };
+	static constexpr AccessFlags2 eAccelerationStructureWriteBitKhr        = {0x00400000ULL };
+	static constexpr AccessFlags2 eFragmentShadingRateAttachmentReadBitKhr = {0x00800000ULL };
+	static constexpr AccessFlags2 eFragmentDensityMapReadBitExt            = {0x01000000ULL };
+	static constexpr AccessFlags2 eTransformFeedbackWriteBitExt            = {0x02000000ULL };
+	static constexpr AccessFlags2 eTransformFeedbackCounterReadBitExt      = {0x04000000ULL };
+	static constexpr AccessFlags2 eTransformFeedbackCounterWriteBitExt     = {0x08000000ULL };
+	static constexpr AccessFlags2 eReserved44BitNv                         = { 0x100000000000ULL };
+	static constexpr AccessFlags2 eReserved387BitKhr                       = { 0x10000000000ULL };
+	static constexpr AccessFlags2 eVideoDecodeWriteBitKhr                  = { 0x1000000000ULL };
+	static constexpr AccessFlags2 eShaderSampledRead                       = { 0x100000000ULL };
+	static constexpr AccessFlags2 eReserved45BitNv                         = { 0x200000000000ULL };
+	static constexpr AccessFlags2 eReserved41BitAmd                        = { 0x20000000000ULL };
+	static constexpr AccessFlags2 eVideoEncodeReadBitKhr                   = { 0x2000000000ULL };
+	static constexpr AccessFlags2 eShaderStorageRead                       = { 0x200000000ULL };
+	static constexpr AccessFlags2 eReserved42BitNv                         = { 0x40000000000ULL };
+	static constexpr AccessFlags2 eVideoEncodeWriteBitKhr                  = { 0x4000000000ULL };
+	static constexpr AccessFlags2 eShaderStorageWrite                      = { 0x400000000ULL };
+	static constexpr AccessFlags2 eReserved43BitNv                         = { 0x80000000000ULL };
+	static constexpr AccessFlags2 eInvocationMaskReadBitHuawei             = { 0x8000000000ULL };
+	static constexpr AccessFlags2 eVideoDecodeReadBitKhr                   = { 0x800000000ULL };
+	static constexpr AccessFlags2 eAccelerationStructureReadBitNv          = { eAccelerationStructureReadBitKhr };
+	static constexpr AccessFlags2 eAccelerationStructureWriteBitNv         = { eAccelerationStructureWriteBitKhr };
+	static constexpr AccessFlags2 eColorAttachmentReadBitKhr               = { eColorAttachmentRead };
+	static constexpr AccessFlags2 eColorAttachmentWriteBitKhr              = { eColorAttachmentWrite };
+	static constexpr AccessFlags2 eDepthStencilAttachmentReadBitKhr        = { eDepthStencilAttachmentRead };
+	static constexpr AccessFlags2 eDepthStencilAttachmentWriteBitKhr       = { eDepthStencilAttachmentWrite };
+	static constexpr AccessFlags2 eShadingRateImageReadBitNv               = { eFragmentShadingRateAttachmentReadBitKhr };
+	static constexpr AccessFlags2 eHostReadBitKhr                          = { eHostRead };
+	static constexpr AccessFlags2 eHostWriteBitKhr                         = { eHostWrite };
+	static constexpr AccessFlags2 eIndexReadBitKhr                         = { eIndexRead };
+	static constexpr AccessFlags2 eIndirectCommandReadBitKhr               = { eIndirectCommandRead };
+	static constexpr AccessFlags2 eInputAttachmentReadBitKhr               = { eInputAttachmentRead };
+	static constexpr AccessFlags2 eMemoryReadBitKhr                        = { eMemoryRead };
+	static constexpr AccessFlags2 eMemoryWriteBitKhr                       = { eMemoryWrite };
+	static constexpr AccessFlags2 eNoneKhr                                 = { eNone };
+	static constexpr AccessFlags2 eShaderReadBitKhr                        = { eShaderRead };
+	static constexpr AccessFlags2 eShaderSampledReadBitKhr                 = { eShaderSampledRead };
+	static constexpr AccessFlags2 eShaderStorageReadBitKhr                 = { eShaderStorageRead };
+	static constexpr AccessFlags2 eShaderStorageWriteBitKhr                = { eShaderStorageWrite };
+	static constexpr AccessFlags2 eShaderWriteBitKhr                       = { eShaderWrite };
+	static constexpr AccessFlags2 eTransferReadBitKhr                      = { eTransferRead };
+	static constexpr AccessFlags2 eTransferWriteBitKhr                     = { eTransferWrite };
+	static constexpr AccessFlags2 eUniformReadBitKhr                       = { eUniformRead };
+	static constexpr AccessFlags2 eVertexAttributeReadBitKhr               = { eVertexAttributeRead };
+
+
+	constexpr AccessFlagBits2( AccessFlags2 const& a )
+	    : data( a ){};
+
+	operator AccessFlags2 const &  () const {
+        return data;
+	};
+	
+  private:
+	AccessFlags2 const data = eNone;
+	friend constexpr AccessFlags2 operator|( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept;
+	friend constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept;
+	friend constexpr AccessFlags2 operator&( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept;
 };
 
-constexpr AccessFlags2 operator|( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
-	return static_cast<const AccessFlags2>( static_cast<AccessFlags2>( lhs ) | static_cast<AccessFlags2>( rhs ) );
+constexpr  AccessFlags2  operator|( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+	return static_cast<const AccessFlags2>(  lhs.data.data | rhs.data.data  );
 };
 
 constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
-	return static_cast<const AccessFlags2>( lhs | static_cast<AccessFlags2>( rhs ) );
+	return static_cast<const AccessFlags2>( lhs.data | rhs.data.data  );
 };
 
 constexpr AccessFlags2 operator&( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
-	return static_cast<const AccessFlags2>( static_cast<AccessFlags2>( lhs ) & static_cast<AccessFlags2>( rhs ) );
+	return static_cast<const AccessFlags2>( lhs.data.data & rhs.data.data  );
 };
 
-static constexpr char const* to_str( const AccessFlagBits2& tp ) {
-	switch ( static_cast<uint64_t>( tp ) ) {
+
+static  char const* to_str( const AccessFlagBits2& tp ) {
+	switch (  AccessFlags2(tp).data  ) {
 		// clang-format off
 		case          0: return "None";
 		case 0x00000001ULL: return "IndirectCommandRead";
