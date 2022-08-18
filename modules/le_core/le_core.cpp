@@ -455,7 +455,7 @@ class PltGot {
 
 	bool new_entry( void** plt, void** got ) {
 		auto entry = used_entries++;
-		if ( entry > MAX_CALLBACK_FORWARDERS_PER_PAGE ) {
+		if ( entry >= MAX_CALLBACK_FORWARDERS_PER_PAGE ) {
 			return false;
 		}
 		*plt = plt_at( entry );
