@@ -122,13 +122,19 @@ ISL_API_ATTR DLL_CORE_API char const* le_get_argument_name_from_hash( uint64_t v
 ///         This secondary level of indirection is necessary so that we can pass api entries
 ///         as callback entries. Api entries get automatically updated when an api is reloaded.
 ISL_API_ATTR void* le_core_get_callback_forwarder_addr_impl( void* p_function_pointer );
+// release a function pointer forwarder
+ISL_API_ATTR void le_core_release_callback_forwarder_addr_impl( void* p_function_pointer );
 
 /// USE THIS METHOD FOR CALLBACK FORWARDING
 #	define le_core_forward_callback( x ) \
 		le_core_get_callback_forwarder_addr_impl( ( void* )&x )
+#	define le_core_forward_callback_release( x ) \
+		le_core_release_callback_forwarder_addr_impl( ( void* )x )
 #else
 
 #	define le_core_forward_callback( x ) \
+		( x )
+#	define le_core_forward_callback_release( x ) \
 		( x )
 #endif
 
