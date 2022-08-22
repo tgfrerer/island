@@ -103,41 +103,41 @@ def generate_enum_group(original_enum_name, wants_to_string=False, num_bits=32):
         body += """
 
         struct {bm_tp} {{
-        	constexpr {bm_tp}( {tp} const& rhs = {tp}() )
+        	inline constexpr {bm_tp}( {tp} const& rhs = {tp}() )
         	    : data( uint{bw}_t( rhs ) ) {{
         	}}
-        	constexpr operator const uint{bw}_t() const noexcept {{
+        	inline constexpr operator const uint{bw}_t() const noexcept {{
         		return data;
         	}};
             private:
         	uint{bw}_t data;
         }};
 
-        constexpr {bm_tp} operator | ({tp} const & lhs, {tp} const & rhs) noexcept {{
+        inline constexpr {bm_tp} operator | ({tp} const & lhs, {tp} const & rhs) noexcept {{
             return {tp}(uint{bw}_t(lhs) | uint{bw}_t(rhs));
         }};\n\n
 
-        constexpr {bm_tp} operator | ({bm_tp} const & lhs, {tp} const & rhs) noexcept {{
+        inline constexpr {bm_tp} operator | ({bm_tp} const & lhs, {tp} const & rhs) noexcept {{
             return {tp}( lhs | uint{bw}_t(rhs));
         }};\n\n
 
-        constexpr {bm_tp} operator | ({bm_tp} const & lhs, {bm_tp} const & rhs) noexcept {{
+        inline constexpr {bm_tp} operator | ({bm_tp} const & lhs, {bm_tp} const & rhs) noexcept {{
             return {tp}( lhs | uint{bw}_t(rhs));
         }};\n\n
 
-        constexpr {bm_tp} operator |= ({bm_tp} const & lhs, {bm_tp} const & rhs) noexcept {{
-            return {tp}( lhs | uint{bw}_t(rhs));
+        inline constexpr {bm_tp} operator |= ({bm_tp} & lhs, {bm_tp} const & rhs) noexcept {{
+            return lhs = {tp}( lhs | uint{bw}_t(rhs));
         }};\n\n
 
-        constexpr {bm_tp} operator & ({tp} const & lhs, {tp} const & rhs) noexcept {{
+        inline constexpr {bm_tp} operator & ({tp} const & lhs, {tp} const & rhs) noexcept {{
             return {tp}(uint{bw}_t(lhs) & uint{bw}_t(rhs));
         }};\n\n
 
-        constexpr {bm_tp} operator & ({bm_tp} const & lhs, {bm_tp} const & rhs) noexcept {{
+        inline constexpr {bm_tp} operator & ({bm_tp} const & lhs, {bm_tp} const & rhs) noexcept {{
             return {tp}( lhs & uint{bw}_t(rhs));
         }};\n\n
 
-        constexpr {bm_tp} operator & ({bm_tp} const & lhs, {tp} const & rhs) noexcept {{
+        inline constexpr {bm_tp} operator & ({bm_tp} const & lhs, {tp} const & rhs) noexcept {{
             return {tp}( lhs & uint{bw}_t(rhs));
         }};\n\n
         """.format(bm_tp=bitmask_type, tp=enum_name, bw=num_bits)

@@ -82,10 +82,10 @@ enum class AccessFlagBits2 : uint64_t {
 };
 
 struct AccessFlags2 {
-	constexpr AccessFlags2( AccessFlagBits2 const& rhs = AccessFlagBits2() )
+	inline constexpr AccessFlags2( AccessFlagBits2 const& rhs = AccessFlagBits2() )
 	    : data( uint64_t( rhs ) ) {
 	}
-	constexpr operator const uint64_t() const noexcept {
+	inline constexpr operator const uint64_t() const noexcept {
 		return data;
 	};
 
@@ -93,31 +93,31 @@ struct AccessFlags2 {
 	uint64_t data;
 };
 
-constexpr AccessFlags2 operator|( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+inline constexpr AccessFlags2 operator|( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
 	return AccessFlagBits2( uint64_t( lhs ) | uint64_t( rhs ) );
 };
 
-constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+inline constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
 	return AccessFlagBits2( lhs | uint64_t( rhs ) );
 };
 
-constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlags2 const& rhs ) noexcept {
+inline constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlags2 const& rhs ) noexcept {
 	return AccessFlagBits2( lhs | uint64_t( rhs ) );
 };
 
-constexpr AccessFlags2 operator|=( AccessFlags2 const& lhs, AccessFlags2 const& rhs ) noexcept {
-	return AccessFlagBits2( lhs | uint64_t( rhs ) );
+inline constexpr AccessFlags2 operator|=( AccessFlags2& lhs, AccessFlags2 const& rhs ) noexcept {
+	return lhs = AccessFlagBits2( lhs | uint64_t( rhs ) );
 };
 
-constexpr AccessFlags2 operator&( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+inline constexpr AccessFlags2 operator&( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
 	return AccessFlagBits2( uint64_t( lhs ) & uint64_t( rhs ) );
 };
 
-constexpr AccessFlags2 operator&( AccessFlags2 const& lhs, AccessFlags2 const& rhs ) noexcept {
+inline constexpr AccessFlags2 operator&( AccessFlags2 const& lhs, AccessFlags2 const& rhs ) noexcept {
 	return AccessFlagBits2( lhs & uint64_t( rhs ) );
 };
 
-constexpr AccessFlags2 operator&( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+inline constexpr AccessFlags2 operator&( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
 	return AccessFlagBits2( lhs & uint64_t( rhs ) );
 };
 
@@ -444,10 +444,10 @@ enum class BufferUsageFlagBits : uint32_t {
 };
 
 struct BufferUsageFlags {
-	constexpr BufferUsageFlags( BufferUsageFlagBits const& rhs = BufferUsageFlagBits() )
+	inline constexpr BufferUsageFlags( BufferUsageFlagBits const& rhs = BufferUsageFlagBits() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -455,31 +455,31 @@ struct BufferUsageFlags {
 	uint32_t data;
 };
 
-constexpr BufferUsageFlags operator|( BufferUsageFlagBits const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
+inline constexpr BufferUsageFlags operator|( BufferUsageFlagBits const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
 	return BufferUsageFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr BufferUsageFlags operator|( BufferUsageFlags const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
+inline constexpr BufferUsageFlags operator|( BufferUsageFlags const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
 	return BufferUsageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr BufferUsageFlags operator|( BufferUsageFlags const& lhs, BufferUsageFlags const& rhs ) noexcept {
+inline constexpr BufferUsageFlags operator|( BufferUsageFlags const& lhs, BufferUsageFlags const& rhs ) noexcept {
 	return BufferUsageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr BufferUsageFlags operator|=( BufferUsageFlags const& lhs, BufferUsageFlags const& rhs ) noexcept {
-	return BufferUsageFlagBits( lhs | uint32_t( rhs ) );
+inline constexpr BufferUsageFlags operator|=( BufferUsageFlags& lhs, BufferUsageFlags const& rhs ) noexcept {
+	return lhs = BufferUsageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr BufferUsageFlags operator&( BufferUsageFlagBits const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
+inline constexpr BufferUsageFlags operator&( BufferUsageFlagBits const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
 	return BufferUsageFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr BufferUsageFlags operator&( BufferUsageFlags const& lhs, BufferUsageFlags const& rhs ) noexcept {
+inline constexpr BufferUsageFlags operator&( BufferUsageFlags const& lhs, BufferUsageFlags const& rhs ) noexcept {
 	return BufferUsageFlagBits( lhs & uint32_t( rhs ) );
 };
 
-constexpr BufferUsageFlags operator&( BufferUsageFlags const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
+inline constexpr BufferUsageFlags operator&( BufferUsageFlags const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
 	return BufferUsageFlagBits( lhs & uint32_t( rhs ) );
 };
 
@@ -535,10 +535,10 @@ enum class BuildAccelerationStructureFlagBitsKHR : uint32_t {
 };
 
 struct BuildAccelerationStructureFlagsKHR {
-	constexpr BuildAccelerationStructureFlagsKHR( BuildAccelerationStructureFlagBitsKHR const& rhs = BuildAccelerationStructureFlagBitsKHR() )
+	inline constexpr BuildAccelerationStructureFlagsKHR( BuildAccelerationStructureFlagBitsKHR const& rhs = BuildAccelerationStructureFlagBitsKHR() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -546,31 +546,31 @@ struct BuildAccelerationStructureFlagsKHR {
 	uint32_t data;
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagBitsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
+inline constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagBitsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
 	return BuildAccelerationStructureFlagBitsKHR( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
+inline constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
 	return BuildAccelerationStructureFlagBitsKHR( lhs | uint32_t( rhs ) );
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
+inline constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
 	return BuildAccelerationStructureFlagBitsKHR( lhs | uint32_t( rhs ) );
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator|=( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
-	return BuildAccelerationStructureFlagBitsKHR( lhs | uint32_t( rhs ) );
+inline constexpr BuildAccelerationStructureFlagsKHR operator|=( BuildAccelerationStructureFlagsKHR& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
+	return lhs = BuildAccelerationStructureFlagBitsKHR( lhs | uint32_t( rhs ) );
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagBitsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
+inline constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagBitsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
 	return BuildAccelerationStructureFlagBitsKHR( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
+inline constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
 	return BuildAccelerationStructureFlagBitsKHR( lhs & uint32_t( rhs ) );
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
+inline constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
 	return BuildAccelerationStructureFlagBitsKHR( lhs & uint32_t( rhs ) );
 };
 
@@ -600,10 +600,10 @@ enum class ColorComponentFlagBits : uint32_t {
 };
 
 struct ColorComponentFlags {
-	constexpr ColorComponentFlags( ColorComponentFlagBits const& rhs = ColorComponentFlagBits() )
+	inline constexpr ColorComponentFlags( ColorComponentFlagBits const& rhs = ColorComponentFlagBits() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -611,31 +611,31 @@ struct ColorComponentFlags {
 	uint32_t data;
 };
 
-constexpr ColorComponentFlags operator|( ColorComponentFlagBits const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
+inline constexpr ColorComponentFlags operator|( ColorComponentFlagBits const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
 	return ColorComponentFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr ColorComponentFlags operator|( ColorComponentFlags const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
+inline constexpr ColorComponentFlags operator|( ColorComponentFlags const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
 	return ColorComponentFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ColorComponentFlags operator|( ColorComponentFlags const& lhs, ColorComponentFlags const& rhs ) noexcept {
+inline constexpr ColorComponentFlags operator|( ColorComponentFlags const& lhs, ColorComponentFlags const& rhs ) noexcept {
 	return ColorComponentFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ColorComponentFlags operator|=( ColorComponentFlags const& lhs, ColorComponentFlags const& rhs ) noexcept {
-	return ColorComponentFlagBits( lhs | uint32_t( rhs ) );
+inline constexpr ColorComponentFlags operator|=( ColorComponentFlags& lhs, ColorComponentFlags const& rhs ) noexcept {
+	return lhs = ColorComponentFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ColorComponentFlags operator&( ColorComponentFlagBits const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
+inline constexpr ColorComponentFlags operator&( ColorComponentFlagBits const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
 	return ColorComponentFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr ColorComponentFlags operator&( ColorComponentFlags const& lhs, ColorComponentFlags const& rhs ) noexcept {
+inline constexpr ColorComponentFlags operator&( ColorComponentFlags const& lhs, ColorComponentFlags const& rhs ) noexcept {
 	return ColorComponentFlagBits( lhs & uint32_t( rhs ) );
 };
 
-constexpr ColorComponentFlags operator&( ColorComponentFlags const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
+inline constexpr ColorComponentFlags operator&( ColorComponentFlags const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
 	return ColorComponentFlagBits( lhs & uint32_t( rhs ) );
 };
 
@@ -678,10 +678,10 @@ enum class CullModeFlagBits : uint32_t {
 };
 
 struct CullModeFlags {
-	constexpr CullModeFlags( CullModeFlagBits const& rhs = CullModeFlagBits() )
+	inline constexpr CullModeFlags( CullModeFlagBits const& rhs = CullModeFlagBits() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -689,31 +689,31 @@ struct CullModeFlags {
 	uint32_t data;
 };
 
-constexpr CullModeFlags operator|( CullModeFlagBits const& lhs, CullModeFlagBits const& rhs ) noexcept {
+inline constexpr CullModeFlags operator|( CullModeFlagBits const& lhs, CullModeFlagBits const& rhs ) noexcept {
 	return CullModeFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr CullModeFlags operator|( CullModeFlags const& lhs, CullModeFlagBits const& rhs ) noexcept {
+inline constexpr CullModeFlags operator|( CullModeFlags const& lhs, CullModeFlagBits const& rhs ) noexcept {
 	return CullModeFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr CullModeFlags operator|( CullModeFlags const& lhs, CullModeFlags const& rhs ) noexcept {
+inline constexpr CullModeFlags operator|( CullModeFlags const& lhs, CullModeFlags const& rhs ) noexcept {
 	return CullModeFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr CullModeFlags operator|=( CullModeFlags const& lhs, CullModeFlags const& rhs ) noexcept {
-	return CullModeFlagBits( lhs | uint32_t( rhs ) );
+inline constexpr CullModeFlags operator|=( CullModeFlags& lhs, CullModeFlags const& rhs ) noexcept {
+	return lhs = CullModeFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr CullModeFlags operator&( CullModeFlagBits const& lhs, CullModeFlagBits const& rhs ) noexcept {
+inline constexpr CullModeFlags operator&( CullModeFlagBits const& lhs, CullModeFlagBits const& rhs ) noexcept {
 	return CullModeFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr CullModeFlags operator&( CullModeFlags const& lhs, CullModeFlags const& rhs ) noexcept {
+inline constexpr CullModeFlags operator&( CullModeFlags const& lhs, CullModeFlags const& rhs ) noexcept {
 	return CullModeFlagBits( lhs & uint32_t( rhs ) );
 };
 
-constexpr CullModeFlags operator&( CullModeFlags const& lhs, CullModeFlagBits const& rhs ) noexcept {
+inline constexpr CullModeFlags operator&( CullModeFlags const& lhs, CullModeFlagBits const& rhs ) noexcept {
 	return CullModeFlagBits( lhs & uint32_t( rhs ) );
 };
 
@@ -1427,10 +1427,10 @@ enum class ImageCreateFlagBits : uint32_t {
 };
 
 struct ImageCreateFlags {
-	constexpr ImageCreateFlags( ImageCreateFlagBits const& rhs = ImageCreateFlagBits() )
+	inline constexpr ImageCreateFlags( ImageCreateFlagBits const& rhs = ImageCreateFlagBits() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -1438,31 +1438,31 @@ struct ImageCreateFlags {
 	uint32_t data;
 };
 
-constexpr ImageCreateFlags operator|( ImageCreateFlagBits const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
+inline constexpr ImageCreateFlags operator|( ImageCreateFlagBits const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
 	return ImageCreateFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr ImageCreateFlags operator|( ImageCreateFlags const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
+inline constexpr ImageCreateFlags operator|( ImageCreateFlags const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
 	return ImageCreateFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ImageCreateFlags operator|( ImageCreateFlags const& lhs, ImageCreateFlags const& rhs ) noexcept {
+inline constexpr ImageCreateFlags operator|( ImageCreateFlags const& lhs, ImageCreateFlags const& rhs ) noexcept {
 	return ImageCreateFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ImageCreateFlags operator|=( ImageCreateFlags const& lhs, ImageCreateFlags const& rhs ) noexcept {
-	return ImageCreateFlagBits( lhs | uint32_t( rhs ) );
+inline constexpr ImageCreateFlags operator|=( ImageCreateFlags& lhs, ImageCreateFlags const& rhs ) noexcept {
+	return lhs = ImageCreateFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ImageCreateFlags operator&( ImageCreateFlagBits const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
+inline constexpr ImageCreateFlags operator&( ImageCreateFlagBits const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
 	return ImageCreateFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr ImageCreateFlags operator&( ImageCreateFlags const& lhs, ImageCreateFlags const& rhs ) noexcept {
+inline constexpr ImageCreateFlags operator&( ImageCreateFlags const& lhs, ImageCreateFlags const& rhs ) noexcept {
 	return ImageCreateFlagBits( lhs & uint32_t( rhs ) );
 };
 
-constexpr ImageCreateFlags operator&( ImageCreateFlags const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
+inline constexpr ImageCreateFlags operator&( ImageCreateFlags const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
 	return ImageCreateFlagBits( lhs & uint32_t( rhs ) );
 };
 
@@ -1610,10 +1610,10 @@ enum class ImageUsageFlagBits : uint32_t {
 };
 
 struct ImageUsageFlags {
-	constexpr ImageUsageFlags( ImageUsageFlagBits const& rhs = ImageUsageFlagBits() )
+	inline constexpr ImageUsageFlags( ImageUsageFlagBits const& rhs = ImageUsageFlagBits() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -1621,31 +1621,31 @@ struct ImageUsageFlags {
 	uint32_t data;
 };
 
-constexpr ImageUsageFlags operator|( ImageUsageFlagBits const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
+inline constexpr ImageUsageFlags operator|( ImageUsageFlagBits const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
 	return ImageUsageFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr ImageUsageFlags operator|( ImageUsageFlags const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
+inline constexpr ImageUsageFlags operator|( ImageUsageFlags const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
 	return ImageUsageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ImageUsageFlags operator|( ImageUsageFlags const& lhs, ImageUsageFlags const& rhs ) noexcept {
+inline constexpr ImageUsageFlags operator|( ImageUsageFlags const& lhs, ImageUsageFlags const& rhs ) noexcept {
 	return ImageUsageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ImageUsageFlags operator|=( ImageUsageFlags const& lhs, ImageUsageFlags const& rhs ) noexcept {
-	return ImageUsageFlagBits( lhs | uint32_t( rhs ) );
+inline constexpr ImageUsageFlags operator|=( ImageUsageFlags& lhs, ImageUsageFlags const& rhs ) noexcept {
+	return lhs = ImageUsageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ImageUsageFlags operator&( ImageUsageFlagBits const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
+inline constexpr ImageUsageFlags operator&( ImageUsageFlagBits const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
 	return ImageUsageFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr ImageUsageFlags operator&( ImageUsageFlags const& lhs, ImageUsageFlags const& rhs ) noexcept {
+inline constexpr ImageUsageFlags operator&( ImageUsageFlags const& lhs, ImageUsageFlags const& rhs ) noexcept {
 	return ImageUsageFlagBits( lhs & uint32_t( rhs ) );
 };
 
-constexpr ImageUsageFlags operator&( ImageUsageFlags const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
+inline constexpr ImageUsageFlags operator&( ImageUsageFlags const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
 	return ImageUsageFlagBits( lhs & uint32_t( rhs ) );
 };
 
@@ -1806,10 +1806,10 @@ enum class PipelineStageFlagBits2 : uint64_t {
 };
 
 struct PipelineStageFlags2 {
-	constexpr PipelineStageFlags2( PipelineStageFlagBits2 const& rhs = PipelineStageFlagBits2() )
+	inline constexpr PipelineStageFlags2( PipelineStageFlagBits2 const& rhs = PipelineStageFlagBits2() )
 	    : data( uint64_t( rhs ) ) {
 	}
-	constexpr operator const uint64_t() const noexcept {
+	inline constexpr operator const uint64_t() const noexcept {
 		return data;
 	};
 
@@ -1817,31 +1817,31 @@ struct PipelineStageFlags2 {
 	uint64_t data;
 };
 
-constexpr PipelineStageFlags2 operator|( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+inline constexpr PipelineStageFlags2 operator|( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
 	return PipelineStageFlagBits2( uint64_t( lhs ) | uint64_t( rhs ) );
 };
 
-constexpr PipelineStageFlags2 operator|( PipelineStageFlags2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+inline constexpr PipelineStageFlags2 operator|( PipelineStageFlags2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
 	return PipelineStageFlagBits2( lhs | uint64_t( rhs ) );
 };
 
-constexpr PipelineStageFlags2 operator|( PipelineStageFlags2 const& lhs, PipelineStageFlags2 const& rhs ) noexcept {
+inline constexpr PipelineStageFlags2 operator|( PipelineStageFlags2 const& lhs, PipelineStageFlags2 const& rhs ) noexcept {
 	return PipelineStageFlagBits2( lhs | uint64_t( rhs ) );
 };
 
-constexpr PipelineStageFlags2 operator|=( PipelineStageFlags2 const& lhs, PipelineStageFlags2 const& rhs ) noexcept {
-	return PipelineStageFlagBits2( lhs | uint64_t( rhs ) );
+inline constexpr PipelineStageFlags2 operator|=( PipelineStageFlags2& lhs, PipelineStageFlags2 const& rhs ) noexcept {
+	return lhs = PipelineStageFlagBits2( lhs | uint64_t( rhs ) );
 };
 
-constexpr PipelineStageFlags2 operator&( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+inline constexpr PipelineStageFlags2 operator&( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
 	return PipelineStageFlagBits2( uint64_t( lhs ) & uint64_t( rhs ) );
 };
 
-constexpr PipelineStageFlags2 operator&( PipelineStageFlags2 const& lhs, PipelineStageFlags2 const& rhs ) noexcept {
+inline constexpr PipelineStageFlags2 operator&( PipelineStageFlags2 const& lhs, PipelineStageFlags2 const& rhs ) noexcept {
 	return PipelineStageFlagBits2( lhs & uint64_t( rhs ) );
 };
 
-constexpr PipelineStageFlags2 operator&( PipelineStageFlags2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+inline constexpr PipelineStageFlags2 operator&( PipelineStageFlags2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
 	return PipelineStageFlagBits2( lhs & uint64_t( rhs ) );
 };
 
@@ -1916,10 +1916,10 @@ enum class QueueFlagBits : uint32_t {
 };
 
 struct QueueFlags {
-	constexpr QueueFlags( QueueFlagBits const& rhs = QueueFlagBits() )
+	inline constexpr QueueFlags( QueueFlagBits const& rhs = QueueFlagBits() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -1927,31 +1927,31 @@ struct QueueFlags {
 	uint32_t data;
 };
 
-constexpr QueueFlags operator|( QueueFlagBits const& lhs, QueueFlagBits const& rhs ) noexcept {
+inline constexpr QueueFlags operator|( QueueFlagBits const& lhs, QueueFlagBits const& rhs ) noexcept {
 	return QueueFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr QueueFlags operator|( QueueFlags const& lhs, QueueFlagBits const& rhs ) noexcept {
+inline constexpr QueueFlags operator|( QueueFlags const& lhs, QueueFlagBits const& rhs ) noexcept {
 	return QueueFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr QueueFlags operator|( QueueFlags const& lhs, QueueFlags const& rhs ) noexcept {
+inline constexpr QueueFlags operator|( QueueFlags const& lhs, QueueFlags const& rhs ) noexcept {
 	return QueueFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr QueueFlags operator|=( QueueFlags const& lhs, QueueFlags const& rhs ) noexcept {
-	return QueueFlagBits( lhs | uint32_t( rhs ) );
+inline constexpr QueueFlags operator|=( QueueFlags& lhs, QueueFlags const& rhs ) noexcept {
+	return lhs = QueueFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr QueueFlags operator&( QueueFlagBits const& lhs, QueueFlagBits const& rhs ) noexcept {
+inline constexpr QueueFlags operator&( QueueFlagBits const& lhs, QueueFlagBits const& rhs ) noexcept {
 	return QueueFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr QueueFlags operator&( QueueFlags const& lhs, QueueFlags const& rhs ) noexcept {
+inline constexpr QueueFlags operator&( QueueFlags const& lhs, QueueFlags const& rhs ) noexcept {
 	return QueueFlagBits( lhs & uint32_t( rhs ) );
 };
 
-constexpr QueueFlags operator&( QueueFlags const& lhs, QueueFlagBits const& rhs ) noexcept {
+inline constexpr QueueFlags operator&( QueueFlags const& lhs, QueueFlagBits const& rhs ) noexcept {
 	return QueueFlagBits( lhs & uint32_t( rhs ) );
 };
 
@@ -1985,10 +1985,10 @@ enum class SampleCountFlagBits : uint32_t {
 };
 
 struct SampleCountFlags {
-	constexpr SampleCountFlags( SampleCountFlagBits const& rhs = SampleCountFlagBits() )
+	inline constexpr SampleCountFlags( SampleCountFlagBits const& rhs = SampleCountFlagBits() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -1996,31 +1996,31 @@ struct SampleCountFlags {
 	uint32_t data;
 };
 
-constexpr SampleCountFlags operator|( SampleCountFlagBits const& lhs, SampleCountFlagBits const& rhs ) noexcept {
+inline constexpr SampleCountFlags operator|( SampleCountFlagBits const& lhs, SampleCountFlagBits const& rhs ) noexcept {
 	return SampleCountFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr SampleCountFlags operator|( SampleCountFlags const& lhs, SampleCountFlagBits const& rhs ) noexcept {
+inline constexpr SampleCountFlags operator|( SampleCountFlags const& lhs, SampleCountFlagBits const& rhs ) noexcept {
 	return SampleCountFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr SampleCountFlags operator|( SampleCountFlags const& lhs, SampleCountFlags const& rhs ) noexcept {
+inline constexpr SampleCountFlags operator|( SampleCountFlags const& lhs, SampleCountFlags const& rhs ) noexcept {
 	return SampleCountFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr SampleCountFlags operator|=( SampleCountFlags const& lhs, SampleCountFlags const& rhs ) noexcept {
-	return SampleCountFlagBits( lhs | uint32_t( rhs ) );
+inline constexpr SampleCountFlags operator|=( SampleCountFlags& lhs, SampleCountFlags const& rhs ) noexcept {
+	return lhs = SampleCountFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr SampleCountFlags operator&( SampleCountFlagBits const& lhs, SampleCountFlagBits const& rhs ) noexcept {
+inline constexpr SampleCountFlags operator&( SampleCountFlagBits const& lhs, SampleCountFlagBits const& rhs ) noexcept {
 	return SampleCountFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr SampleCountFlags operator&( SampleCountFlags const& lhs, SampleCountFlags const& rhs ) noexcept {
+inline constexpr SampleCountFlags operator&( SampleCountFlags const& lhs, SampleCountFlags const& rhs ) noexcept {
 	return SampleCountFlagBits( lhs & uint32_t( rhs ) );
 };
 
-constexpr SampleCountFlags operator&( SampleCountFlags const& lhs, SampleCountFlagBits const& rhs ) noexcept {
+inline constexpr SampleCountFlags operator&( SampleCountFlags const& lhs, SampleCountFlagBits const& rhs ) noexcept {
 	return SampleCountFlagBits( lhs & uint32_t( rhs ) );
 };
 
@@ -2094,10 +2094,10 @@ enum class ShaderStageFlagBits : uint32_t {
 };
 
 struct ShaderStageFlags {
-	constexpr ShaderStageFlags( ShaderStageFlagBits const& rhs = ShaderStageFlagBits() )
+	inline constexpr ShaderStageFlags( ShaderStageFlagBits const& rhs = ShaderStageFlagBits() )
 	    : data( uint32_t( rhs ) ) {
 	}
-	constexpr operator const uint32_t() const noexcept {
+	inline constexpr operator const uint32_t() const noexcept {
 		return data;
 	};
 
@@ -2105,31 +2105,31 @@ struct ShaderStageFlags {
 	uint32_t data;
 };
 
-constexpr ShaderStageFlags operator|( ShaderStageFlagBits const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
+inline constexpr ShaderStageFlags operator|( ShaderStageFlagBits const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
 	return ShaderStageFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr ShaderStageFlags operator|( ShaderStageFlags const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
+inline constexpr ShaderStageFlags operator|( ShaderStageFlags const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
 	return ShaderStageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ShaderStageFlags operator|( ShaderStageFlags const& lhs, ShaderStageFlags const& rhs ) noexcept {
+inline constexpr ShaderStageFlags operator|( ShaderStageFlags const& lhs, ShaderStageFlags const& rhs ) noexcept {
 	return ShaderStageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ShaderStageFlags operator|=( ShaderStageFlags const& lhs, ShaderStageFlags const& rhs ) noexcept {
-	return ShaderStageFlagBits( lhs | uint32_t( rhs ) );
+inline constexpr ShaderStageFlags operator|=( ShaderStageFlags& lhs, ShaderStageFlags const& rhs ) noexcept {
+	return lhs = ShaderStageFlagBits( lhs | uint32_t( rhs ) );
 };
 
-constexpr ShaderStageFlags operator&( ShaderStageFlagBits const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
+inline constexpr ShaderStageFlags operator&( ShaderStageFlagBits const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
 	return ShaderStageFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
 };
 
-constexpr ShaderStageFlags operator&( ShaderStageFlags const& lhs, ShaderStageFlags const& rhs ) noexcept {
+inline constexpr ShaderStageFlags operator&( ShaderStageFlags const& lhs, ShaderStageFlags const& rhs ) noexcept {
 	return ShaderStageFlagBits( lhs & uint32_t( rhs ) );
 };
 
-constexpr ShaderStageFlags operator&( ShaderStageFlags const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
+inline constexpr ShaderStageFlags operator&( ShaderStageFlags const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
 	return ShaderStageFlagBits( lhs & uint32_t( rhs ) );
 };
 
