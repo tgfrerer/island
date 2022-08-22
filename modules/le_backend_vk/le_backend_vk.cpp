@@ -1105,7 +1105,7 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 			    .queue_flags          = queues_flags[ i ],
 			    .semaphore            = nullptr,
 			    .semaphore_wait_value = 0,
-			    .family_index         = queues_family_index[ i ],
+			    .queue_family_index   = queues_family_index[ i ],
 			};
 			// Fetch the first graphics enabled queue and make this our default graphics queue -
 			// this queue will be used for swapchain present.
@@ -4531,7 +4531,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			// this submission has passes
 			// find available command pool which has the correct queue family.
 
-			data.command_pool = backend_frame_data_produce_command_pool( frame, self->queues[ data.queue_idx ].family_index, self->device->getVkDevice() );
+			data.command_pool = backend_frame_data_produce_command_pool( frame, self->queues[ data.queue_idx ].queue_family_index, self->device->getVkDevice() );
 			{
 				VkCommandBufferAllocateInfo info = {
 				    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,

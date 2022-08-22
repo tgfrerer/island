@@ -247,7 +247,7 @@ static le_swapchain_o* swapchain_khr_create( const le_swapchain_vk_api::swapchai
 		using namespace le_backend_vk;
 		self->device                         = private_backend_vk_i.get_vk_device( backend );
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
-		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->family_index;
+		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->queue_family_index;
 	}
 
 	self->swapchainKHR = nullptr;

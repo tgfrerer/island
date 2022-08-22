@@ -302,7 +302,7 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 		auto le_device                       = private_backend_vk_i.get_le_device( backend );
 		self->device                         = private_backend_vk_i.get_vk_device( backend );
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
-		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->family_index;
+		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->queue_family_index;
 		self->instance                       = vk_instance_i.get_vk_instance( private_backend_vk_i.get_instance( backend ) );
 	}
 
