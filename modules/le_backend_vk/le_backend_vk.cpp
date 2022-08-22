@@ -2945,6 +2945,8 @@ inline void frame_release_binned_resources( BackendFrameData& frame, VmaAllocato
 	frame.binnedResources.clear();
 }
 
+// ----------------------------------------------------------------------
+
 static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_resource_info_t const& rhs ) {
 
 	// return superset of lhs and rhs in lhs
@@ -3131,127 +3133,6 @@ static void collect_resource_infos_per_resource(
 
 			consolidate_resource_info_into( find_result->second, resourceInfo );
 		}
-	}
-}
-
-// ----------------------------------------------------------------------
-
-// per resource, combine resource_infos so that first element in resource infos
-// contains superset of all resource_infos available for this particular resource
-static void consolidate_resource_infos(
-    std::vector<le_resource_info_t>& resourceInfoVersions ) {
-
-	if ( resourceInfoVersions.empty() )
-		return;
-
-	// ---------| invariant: there is at least a first element.
-
-	le_resource_info_t* const       first_info = resourceInfoVersions.data();
-	le_resource_info_t const* const info_end   = first_info + resourceInfoVersions.size();
-
-	switch ( first_info->type ) {
-	case LeResourceType::eBuffer: {
-		// Consolidate into first_info, beginning with the second element
-		for ( auto* info = first_info + 1; info != info_end; info++ ) {
-			first_info->buffer.usage |= info->buffer.usage;
-
-			// Make sure buffer can hold maximum of requested number of bytes.
-			if ( info->buffer.size != 0 && info->buffer.size > first_info->buffer.size ) {
-				first_info->buffer.size = info->buffer.size;
-			}
-		}
-
-		// Now, we must make sure that the buffer info contains sane values.
-
-		// TODO: emit an error message and emit sane defaults if values fail this test.
-		assert( first_info->buffer.usage != 0 );
-		assert( first_info->buffer.size != 0 );
-
-	} break;
-	case LeResourceType::eImage: {
-
-		// Consolidate into first_info, beginning with the second element
-		for ( auto* info = first_info + 1; info != info_end; info++ ) {
-
-			// TODO (tim): check how we can enforce correct number of array layers and mip levels
-
-			if ( info->image.arrayLayers > first_info->image.arrayLayers ) {
-				first_info->image.arrayLayers = info->image.arrayLayers;
-			}
-
-			if ( info->image.mipLevels > first_info->image.mipLevels ) {
-				first_info->image.mipLevels = info->image.mipLevels;
-			}
-
-			if ( uint32_t( info->image.imageType ) > uint32_t( first_info->image.imageType ) ) {
-				// this is a bit sketchy.
-				first_info->image.imageType = info->image.imageType;
-			}
-
-			first_info->image.flags |= info->image.flags;
-			first_info->image.usage |= info->image.usage;
-			first_info->image.samplesFlags |= info->image.samplesFlags;
-			;
-
-			// If an image format was explictly set, this takes precedence over eUndefined.
-			// Note that we skip this block if both infos have the same format, so if both
-			// infos are eUndefined, format stays undefined.
-
-			if ( info->image.format != le::Format::eUndefined && info->image.format != first_info->image.format ) {
-
-				// ----------| invariant: both formats differ, and second format is not undefined
-
-				if ( first_info->image.format == le::Format::eUndefined ) {
-					first_info->image.format = info->image.format;
-				} else {
-					// Houston, we have a problem!
-					// Two different formats were explicitly specified for this image.
-					assert( false );
-				}
-			}
-
-			// Make sure the image is as large as it needs to be
-
-			first_info->image.extent.width  = std::max( first_info->image.extent.width, info->image.extent.width );
-			first_info->image.extent.height = std::max( first_info->image.extent.height, info->image.extent.height );
-			first_info->image.extent.depth  = std::max( first_info->image.extent.depth, info->image.extent.depth );
-
-			first_info->image.extent_from_pass.width  = std::max( first_info->image.extent_from_pass.width, info->image.extent_from_pass.width );
-			first_info->image.extent_from_pass.height = std::max( first_info->image.extent_from_pass.height, info->image.extent_from_pass.height );
-			first_info->image.extent_from_pass.depth  = std::max( first_info->image.extent_from_pass.depth, info->image.extent_from_pass.depth );
-		}
-
-		// If extents for first_info are zero, this means extents have not been explicitly specified.
-		// We therefore will fall back to setting extents from pass extents.
-
-		if ( first_info->image.extent.width == 0 ||
-		     first_info->image.extent.height == 0 ||
-		     first_info->image.extent.depth == 0 ) {
-			first_info->image.extent = first_info->image.extent_from_pass;
-		}
-
-		// Do a final sanity check to make sure all required fields are valid.
-
-		assert( first_info->image.extent.width * first_info->image.extent.height * first_info->image.extent.depth != 0 &&
-		        "Extents with zero volume are illegal. You must specify depth, width, and height to be > 0" ); // Extents with zero volume are illegal.
-		assert( first_info->image.usage != 0 );                                                                // Some kind of usage must be specified.
-
-	} break;
-	case LeResourceType::eRtxBlas: {
-		for ( auto* info = first_info + 1; info != info_end; info++ ) {
-			first_info->blas.usage |= info->blas.usage;
-		}
-		break;
-	}
-	case LeResourceType::eRtxTlas: {
-		for ( auto* info = first_info + 1; info != info_end; info++ ) {
-			first_info->tlas.usage |= info->tlas.usage;
-		}
-		break;
-	}
-	default:
-		assert( false && "unhandled resource type" );
-		break;
 	}
 }
 
@@ -3487,8 +3368,6 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 // We are currently not checking for "orphaned" resources (resources which are available in the
 // backend, but not used by the frame) - these could possibly be recycled, too.
 
-static constexpr auto REFACTOR_ACTIVE_RESOURCES = 1;
-
 static void backend_allocate_resources( le_backend_o* self, BackendFrameData& frame, le_renderpass_o** passes, size_t numRenderPasses ) {
 
 	/*
@@ -3523,7 +3402,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	    frame.declared_resources_id, frame.declared_resources_info,
 	    active_resources );
 
-	if ( REFACTOR_ACTIVE_RESOURCES && false ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		for ( auto const& r : active_resources ) {
 			logger.info( "resource [ %-30s ] : [ %-50s ]", r.first->data->debug_name,
 			             r.second.type == LeResourceType::eImage
