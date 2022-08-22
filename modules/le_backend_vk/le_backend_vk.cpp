@@ -376,7 +376,7 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 //
 struct ResourceState {
 	VkPipelineStageFlags2 stage;          // Pipeline stage (implies earlier logical stages) that needs to happen-before
-	VkAccessFlags2        visible_access; // which memory access in this stage currenty has visible memory -
+	VkAccessFlags2        visible_access; // Which memory access in this stage currenty has visible memory -
 	                                      // if any of these are WRITE accesses, these must be made available(flushed)
 	                                      // before next access - for the next src access we can OR this with ANY_WRITES
 	VkImageLayout layout;                 // Current layout (for images)
@@ -534,8 +534,8 @@ struct le_backend_o {
 	le_backend_vk_instance_o*   instance;
 	std::unique_ptr<le::Device> device;
 
-	std::vector<BackendQueueInfo> queues;                         // queues which were created via device
-	uint32_t                      queue_default_graphics_idx = 0; // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
+	std::vector<BackendQueueInfo> queues;                                              // queues which were created via device
+	uint32_t                      queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
 
 	std::vector<le_swapchain_o*> swapchains; // Owning.
 
@@ -6272,7 +6272,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		    .pNext       = nullptr,
 		    .semaphore   = self->queues[ current_submission.queue_idx ].semaphore,
-		    .value       = ++self->queues[ current_submission.queue_idx ].semaphore_wait_value, // NOTE pre-increment. Timeline value this timeline semaphore will signal upon completion
+		    .value       = ++self->queues[ current_submission.queue_idx ].semaphore_wait_value, // NOTE pre-increment. Timeline value which this timeline semaphore will signal upon completion
 		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,                                  // signal semaphore once all commands have been processed
 		    .deviceIndex = 0,
 		};
