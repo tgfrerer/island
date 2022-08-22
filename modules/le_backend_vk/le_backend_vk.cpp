@@ -115,9 +115,9 @@ struct ResourceCreateInfo {
 			return ( bufferInfo.flags == rhs.bufferInfo.flags &&
 			         bufferInfo.size == rhs.bufferInfo.size &&
 			         bufferInfo.usage == rhs.bufferInfo.usage &&
-			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
-			         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-			         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
+			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode
+			         // bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+			         // bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // these two entries are ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 
 		} else if ( isImage() ) {
@@ -134,9 +134,9 @@ struct ResourceCreateInfo {
 			         imageInfo.tiling == rhs.imageInfo.tiling &&
 			         imageInfo.usage == rhs.imageInfo.usage &&
 			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
-			         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-			         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+			         imageInfo.initialLayout == rhs.imageInfo.initialLayout
+			         // imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
+			         //  imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // these two entries are ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 		} else if ( isBlas() ) {
 			return blasInfo.handle == rhs.blasInfo.handle &&
@@ -169,9 +169,9 @@ struct ResourceCreateInfo {
 			return ( bufferInfo.flags == rhs.bufferInfo.flags &&
 			         bufferInfo.size == rhs.bufferInfo.size &&
 			         ( ( bufferInfo.usage & rhs.bufferInfo.usage ) == rhs.bufferInfo.usage ) &&
-			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
-			         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-			         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
+			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode
+			         // bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+			         // bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 
 		} else if ( isImage() ) {
@@ -196,9 +196,9 @@ struct ResourceCreateInfo {
 			         imageInfo.tiling == rhs.imageInfo.tiling &&
 			         ( ( imageInfo.usage & rhs.imageInfo.usage ) == rhs.imageInfo.usage ) &&
 			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
-			         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-			         ( void* )imageInfo.pQueueFamilyIndices == ( void* )rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+			         imageInfo.initialLayout == rhs.imageInfo.initialLayout
+			         // imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
+			         //( void* )imageInfo.pQueueFamilyIndices == ( void* )rhs.imageInfo.pQueueFamilyIndices // ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 		} else if ( isBlas() ) {
 			// NOTE: we don't compare scratch_buffer_sz, as scratch buffer sz is only available
@@ -1033,8 +1033,8 @@ static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator cons
 	    .size                  = 1,
 	    .usage                 = BUFFER_USAGE_FLAGS_SCRATCH,
 	    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-	    .queueFamilyIndexCount = 1, // optional
-	    .pQueueFamilyIndices   = &queueFamilyGraphics,
+	    .queueFamilyIndexCount = 0, // optional
+	    .pQueueFamilyIndices   = nullptr,
 	};
 
 	VmaAllocationCreateInfo allocInfo{};
@@ -1058,8 +1058,8 @@ static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator cons
 	    .size                  = 1,
 	    .usage                 = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 	    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-	    .queueFamilyIndexCount = 1, // optional
-	    .pQueueFamilyIndices   = &queueFamilyGraphics,
+	    .queueFamilyIndexCount = 0, // optional
+	    .pQueueFamilyIndices   = nullptr,
 	};
 
 	VmaAllocationCreateInfo allocInfo{};
@@ -4051,8 +4051,8 @@ static le_allocator_o** backend_create_transient_allocators( le_backend_o* self,
 		    .size                  = LE_LINEAR_ALLOCATOR_SIZE,
 		    .usage                 = LE_BUFFER_USAGE_FLAGS_SCRATCH,
 		    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		    .queueFamilyIndexCount = 1,
-		    .pQueueFamilyIndices   = &self->queueFamilyIndexGraphics,
+		    .queueFamilyIndexCount = 0,
+		    .pQueueFamilyIndices   = nullptr,
 		};
 
 		auto result = vmaCreateBuffer( self->mAllocator, &bufferCreateInfo, &createInfo, &buffer, &allocation, &allocationInfo );
