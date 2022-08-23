@@ -4408,7 +4408,8 @@ static BackendFrameData::CommandPool* backend_frame_data_produce_command_pool(
 		le::Log( LOGGER_LABEL ).info( "Created CommandPool %p", pool->pool );
 
 		frame.available_command_pools.push_back( pool );
-		pool->is_used = true; // mark this command pool as used
+		pool->vk_queue_family_idx = queue_family_index;
+		pool->is_used             = true; // mark this command pool as used
 	}
 
 	assert( pool && "must either find or create valid command pool" );
