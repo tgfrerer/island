@@ -175,6 +175,8 @@ struct BackendRenderPass {
 	le::SampleCountFlagBits sampleCount;    // We store this with renderpass, as sampleCount must be same for all color/depth attachments
 	uint64_t                renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
+	std::vector<le_resource_handle> resources; // resources used with this renderpass
+
 	struct le_command_buffer_encoder_o* encoder;
 
 	char                        debugName[ 256 ] = ""; // Debug name for renderpass

@@ -62,6 +62,14 @@ constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 1;
 constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
 
+static constexpr VkImageSubresourceRange LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS{
+    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+    .baseMipLevel   = 0,
+    .levelCount     = VK_REMAINING_MIP_LEVELS,
+    .baseArrayLayer = 0,
+    .layerCount     = VK_REMAINING_ARRAY_LAYERS,
+};
+
 struct LeRtxBlasCreateInfo {
 	le_rtx_blas_info_handle handle;
 	uint64_t                buffer_size;
@@ -380,11 +388,14 @@ struct ResourceState {
 	                                      // if any of these are WRITE accesses, these must be made available(flushed)
 	                                      // before next access - for the next src access we can OR this with ANY_WRITES
 	VkImageLayout layout;                 // Current layout (for images)
+	uint32_t      queue_family_index;
+	uint32_t      renderpass_index; // which renderpass currently uses this resource  -1 being outside of scope (e.g. swapchain)
 
 	bool operator==( const ResourceState& rhs ) const {
 		return visible_access == rhs.visible_access &&
 		       stage == rhs.stage &&
-		       layout == rhs.layout;
+		       layout == rhs.layout &&
+		       queue_family_index == rhs.queue_family_index;
 	}
 
 	bool operator!=( const ResourceState& rhs ) const {
@@ -534,8 +545,10 @@ struct le_backend_o {
 	le_backend_vk_instance_o*   instance;
 	std::unique_ptr<le::Device> device;
 
-	std::vector<BackendQueueInfo> queues;                                              // queues which were created via device
-	uint32_t                      queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
+	std::vector<BackendQueueInfo>          queues;                                              // queues which were created via device
+	std::unordered_map<uint32_t, uint32_t> default_queue_for_family_index;                      // map from queue_family index to index of default queue in queues for this queue family
+	uint32_t                               queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
+	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
 
 	std::vector<le_swapchain_o*> swapchains; // Owning.
 
@@ -573,6 +586,8 @@ struct le_backend_o {
 	struct {
 		std::unordered_map<le_resource_handle, AllocatedResourceVk> allocatedResources; // Allocated resources, indexed by resource name hash
 	} only_backend_allocate_resources_may_access;                                       // Only acquire_physical_resources may read/write
+
+	std::unordered_map<le_resource_handle, uint64_t> resource_queue_family_ownership; // per-resource queue family ownership - we use this to detect queue family ownership change for resources
 };
 
 // State of arguments for currently bound pipeline - we keep this here,
@@ -1080,6 +1095,7 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 
 	{ // initialise queues
 		uint32_t num_queues = 0;
+		uint32_t previous_queue_family_index;
 		vk_device_i.get_queues_info( *self->device, &num_queues, nullptr, nullptr, nullptr );
 		std::vector<VkQueue>      queues( num_queues );
 		std::vector<uint32_t>     queues_family_index( num_queues );
@@ -1107,6 +1123,16 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 			    .semaphore_wait_value = 0,
 			    .queue_family_index   = queues_family_index[ i ],
 			};
+
+			{
+				// If not all queues are from the same queue family, then we must
+				// keep track of queue ownership for resources
+				if ( i > 0 && queues_family_index[ i ] != previous_queue_family_index ) {
+					self->must_track_resources_queue_family_ownership = true;
+				}
+				previous_queue_family_index = queues_family_index[ i ];
+			}
+
 			// Fetch the first graphics enabled queue and make this our default graphics queue -
 			// this queue will be used for swapchain present.
 			if ( self->queueFamilyIndexGraphics == uint32_t( ~0 ) && ( queues_flags[ i ] & VK_QUEUE_GRAPHICS_BIT ) ) {
@@ -1116,9 +1142,16 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 			// create one timeline semaphore for every queue.
 			vkCreateSemaphore( self->device->getVkDevice(), &semaphore_create_info, nullptr, &queue_info.semaphore );
 			self->queues.emplace_back( std::move( queue_info ) );
+
+			// try to store the queue index together with the queue family index - this will
+			// only add an element if a queue family is not already present in the map.
+			self->default_queue_for_family_index.try_emplace( queue_info.queue_family_index, i );
 		}
 	}
 
+	if ( self->must_track_resources_queue_family_ownership ) {
+		le::Log( LOGGER_LABEL ).info( "Multiple queue families detected - tracking queue ownership per-resource." );
+	}
 	self->pipelineCache = le_pipeline_manager_i.create( *self->device );
 }
 // ----------------------------------------------------------------------
@@ -1544,6 +1577,8 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 	size_t                    resources_count  = 0;
 	renderpass_i.get_used_resources( pass, &resources, &resources_access, &resources_count );
 
+	currentPass.resources.assign( resources, resources + resources_count );
+
 	auto get_stage_flags_based_on_renderpass_type = []( le::QueueFlagBits const& rp_type ) -> VkPipelineStageFlags2 {
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
@@ -1688,8 +1723,6 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		// Note that we "steal" the encoder from the renderer pass -
 		// it becomes now our (the backend's) job to destroy it.
 		currentPass.encoder = renderpass_i.steal_encoder( *pass );
-
-		// todo: store queue invocation keys
 
 		frame.passes.emplace_back( std::move( currentPass ) );
 	} // end for all passes
@@ -1878,10 +1911,11 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	}
 
 	for ( auto& cp : frame.available_command_pools ) {
-		vkFreeCommandBuffers( device, cp->pool, uint32_t( cp->buffers.size() ), cp->buffers.data() ); // shouldn't clearing the pool implicitly free all command buffers allocated from the pool?
-		vkResetCommandPool( device, cp->pool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT );
-		cp->is_used = false; // mark this command pool as available for recycling.
-
+		if ( cp->is_used ) {
+			vkFreeCommandBuffers( device, cp->pool, uint32_t( cp->buffers.size() ), cp->buffers.data() ); // shouldn't clearing the pool implicitly free all command buffers allocated from the pool?
+			vkResetCommandPool( device, cp->pool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT );
+			cp->is_used = false; // mark this command pool as available for recycling.
+		}
 		// Note that we don't clear `cp->buffers` - no need to do this as buffers
 		// get resized and overwritten whenever a pool gets re-used.
 	}
@@ -1903,6 +1937,17 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	return true;
 };
 // ----------------------------------------------------------------------
+// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
+static constexpr auto ANY_WRITE_VK_ACCESS_2_FLAGS =
+    ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+      VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+      VK_ACCESS_2_HOST_WRITE_BIT |
+      VK_ACCESS_2_MEMORY_WRITE_BIT |
+      VK_ACCESS_2_SHADER_WRITE_BIT |
+      VK_ACCESS_2_TRANSFER_WRITE_BIT |
+      VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
+      VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT );
 
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 
@@ -1910,17 +1955,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 	// create renderpasses
 	const auto& syncChainTable = frame.syncChainTable;
-
-	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
-	const auto ANY_WRITE_ACCESS_FLAGS = ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-	                                      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-	                                      VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
-	                                      VK_ACCESS_2_HOST_WRITE_BIT |
-	                                      VK_ACCESS_2_MEMORY_WRITE_BIT |
-	                                      VK_ACCESS_2_SHADER_WRITE_BIT |
-	                                      VK_ACCESS_2_TRANSFER_WRITE_BIT |
-	                                      VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
-	                                      VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT );
 
 	// Note: This should be trivial to parallelize.
 	for ( auto& pass : frame.passes ) {
@@ -2033,7 +2067,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 			srcStageFromExternalFlags |= syncInitial.stage;
 			dstStageFromExternalFlags |= syncSubpass.stage;
-			srcAccessFromExternalFlags |= ( syncInitial.visible_access & ANY_WRITE_ACCESS_FLAGS );
+			srcAccessFromExternalFlags |= ( syncInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS );
 			dstAccessFromExternalFlags |= syncSubpass.visible_access; // & ~(syncInitial.visible_access );
 			// this would make only changes in availability operations happen. it should only happen if there are no src write_access_flags. we leave this out so as to give the driver more info
 
@@ -2041,7 +2075,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 			srcStageToExternalFlags |= syncChain.at( attachment->finalStateOffset - 1 ).stage;
 			dstStageToExternalFlags |= syncFinal.stage;
-			srcAccessToExternalFlags |= ( syncChain.at( attachment->finalStateOffset - 1 ).visible_access & ANY_WRITE_ACCESS_FLAGS );
+			srcAccessToExternalFlags |= ( syncChain.at( attachment->finalStateOffset - 1 ).visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS );
 			dstAccessToExternalFlags |= syncFinal.visible_access;
 
 			if ( 0 == uint64_t( srcStageFromExternalFlags ) ) {
@@ -4481,15 +4515,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			///
 			/// If this fails:
 			///
-			/// * Find approximately matching queue with the lowest number of submissios that matches.
+			/// * Find approximately matching queue with the lowest number of submissions that matches.
 			///
 			std::vector<uint32_t> num_submissions_per_queue( num_invocation_keys, 0 );
 			for ( size_t i = 0; i != num_invocation_keys; i++ ) {
 
 				auto const& queues = self->queues;
-				auto&       sub    = frame.queue_submission_data[ i ];
-
-				auto const& flags = sub.queue_flags;
+				auto const& flags  = frame.queue_submission_data[ i ].queue_flags;
 
 				int      matching_queue          = -1;
 				uint32_t lowest_submission_count = uint32_t( ~0 );
@@ -4669,19 +4701,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						auto dstImage = frame_data_get_image_from_le_resource_id( frame, static_cast<le_img_resource_handle>( op.resource ) );
 
-						VkImageSubresourceRange rangeAllMiplevels{
-						    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-						    .baseMipLevel   = 0,
-						    .levelCount     = VK_REMAINING_MIP_LEVELS,
-						    .baseArrayLayer = 0,
-						    .layerCount     = VK_REMAINING_ARRAY_LAYERS,
-						};
-
 						VkImageMemoryBarrier2 imageLayoutTransfer{
 						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 						    .pNext               = nullptr,
 						    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
-						    .srcAccessMask       = stateInitial.visible_access,                                                                    // make available memory update from operation (in case it was a write operation, otherwise don't wait)
+						    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
 						    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
 						    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
 						    .oldLayout           = stateInitial.layout,
@@ -4689,7 +4713,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 						    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 						    .image               = dstImage,
-						    .subresourceRange    = rangeAllMiplevels,
+						    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
 						};
 
 						VkDependencyInfo dependencyInfo = {
@@ -6220,16 +6244,360 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto&       frame  = self->mFrames[ frameIndex ];
 
-	std::vector<VkSemaphoreSubmitInfo> wait_present_complete_semaphore_submit_infos;
-	std::vector<VkSemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
-
-	wait_present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
-	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
+	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ].queue; // will not change for the duration of the program.
 
 	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.info( "*** Dispatching frame %d", frame.frameNumber );
 	}
 
+	if ( self->must_track_resources_queue_family_ownership ) {
+		// tag each resources with the queue family index they will be used with - using a bit flag.
+		// we only do this if we must track queue families. Queue families must only be tracked iff
+		// there is more than a single queue family available.
+
+		struct ownership_transfer_t {
+			le_resource_handle resource;
+			uint32_t           src_queue_family_index;
+			uint32_t           dst_queue_family_index;
+			uint32_t           dst_queue_index;
+			uint64_t           release_complete_semaphore_wait_value; // semaphore value that will be set on the src queue once release complete
+		};
+
+		std::vector<ownership_transfer_t> queue_ownership_transfers; // note that the transfer must happen on both queues - first release, then acquire.
+
+		for ( auto const& data : frame.queue_submission_data ) {
+			uint32_t idx = self->queues[ data.queue_idx ].queue_family_index;
+			for ( auto const& i : data.pass_indices ) {
+				for ( auto const& r : frame.passes[ i ].resources ) {
+
+					// test if family ownership matches - if not, change it, and note the change.
+
+					auto it = self->resource_queue_family_ownership.emplace( r, idx );
+
+					// there was already an element in there - we must compare
+					if ( it.second != true && idx != it.first->second ) {
+
+						ownership_transfer_t change;
+						// comparison shows that there was a change
+						change.src_queue_family_index = it.first->second;
+						change.dst_queue_family_index = idx;
+						change.resource               = r;
+						change.dst_queue_index        = data.queue_idx; // We keep track of the actual queue (additionally to its queue family)
+						                                                // that will acquire the resource,
+						                                                // as it is this one specifically that will need to wait for the
+						                                                // release semaphore to signal
+						queue_ownership_transfers.emplace_back( std::move( change ) );
+
+						// update entry, so that next frame can compare against the current frame.
+						logger.info( "**** change detected: frame index: %d", frameIndex );
+						it.first->second = idx;
+					}
+				}
+			}
+		}
+		if ( !queue_ownership_transfers.empty() ) {
+			// early-out if there are no queue ownership transfers here.
+
+			// Record into command buffers -
+			// first we release - for which we need to know the queue index of the command buffer.
+			//
+			// Q: Do we want to release/acquire in bulk - that is per queue family - or do we want to
+			//    do it specifically per-queue?
+			//
+			// A: we want to release in bulk, per-queue family, and then acquire specifically per-
+			//    queue. this means that all individual queues must wait for all resources per-queue to
+			//    be released. I think that is a good balance.
+			//
+			//    we also need these acquire semaphores to protect the queues from starting too early,
+			//    when their resources are not yet ready.
+			//
+			// If we had a finer release model, we would use more semaphores, but we would be able to
+			// interleave more, potentially, but I feel that semaphores are quite heavy, and that fewer
+			// of them is better.
+			//
+			/* Note that we split out the counting of required command buffers by
+			 * release command buffers and acquire command buffers. This is because
+			 * we accumulate *release* command buffers by common queue family index
+			 * (all release operations for the same queue family index happen in one batch)
+			 * and we accumulate *acquire* command buffers by common queue index
+			 * (all resources that are acquired by the same queue get acquired in the same batch)
+			 *
+			 */
+			/*
+
+			    for each queue family, we need one command buffer, which we use to release all
+			    resources that are owned by this queue family.
+
+			    for each queue that acquires resources, we need one command buffer to acquire
+			    all resources that this queue acquires.
+
+			*/
+
+			constexpr uint32_t    MAX_NUM_QUEUE_FAMILY_INDICES = 32;
+			uint32_t              cmd_per_family_counter[ MAX_NUM_QUEUE_FAMILY_INDICES ]{}; // zero-initialised
+			std::vector<uint32_t> cmd_acquire_per_queue_counter( self->queues.size(), 0 );
+
+			for ( auto const& t : queue_ownership_transfers ) {
+				cmd_per_family_counter[ t.src_queue_family_index ] |= 1; // accumulate release command buffer count per family here - if we already have one for this family then we're good.
+				cmd_acquire_per_queue_counter[ t.dst_queue_index ] |= 1; // accumulate command buffer count per queue here, we will need a separate one for this transaction
+			}
+
+			// For each acquire that requested a specific queue, we must
+			// allocate a command buffer with the correct queue family:
+			//
+			for ( uint32_t i = 0; i != cmd_acquire_per_queue_counter.size(); i++ ) {
+				cmd_per_family_counter[ self->queues[ i ].queue_family_index ] += cmd_acquire_per_queue_counter[ i ];
+			}
+
+			BackendFrameData::CommandPool* ownership_transfer_cmd_pools[ MAX_NUM_QUEUE_FAMILY_INDICES ]{};           // zero-initialised
+			uint32_t                       ownership_transfer_cmd_bufs_used_count[ MAX_NUM_QUEUE_FAMILY_INDICES ]{}; // zero-initialised. counts used command buffers.
+
+			VkCommandBufferBeginInfo cmd_begin_info = {
+			    .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+			    .pNext            = nullptr,                                     // optional
+			    .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, // optional
+			    .pInheritanceInfo = 0,                                           // optional
+			};
+
+			for ( uint32_t i = 0; i != MAX_NUM_QUEUE_FAMILY_INDICES; i++ ) {
+				if ( cmd_per_family_counter[ i ] != 0 && ownership_transfer_cmd_pools[ i ] == nullptr ) {
+					BackendFrameData::CommandPool* pool = backend_frame_data_produce_command_pool( frame, i, self->device->getVkDevice() );
+					VkCommandBufferAllocateInfo    info = {
+					       .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+					       .pNext              = nullptr,
+					       .commandPool        = pool->pool,
+					       .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+					       .commandBufferCount = cmd_per_family_counter[ i ],
+                    };
+					pool->buffers.resize( info.commandBufferCount );
+					vkAllocateCommandBuffers( self->device->getVkDevice(), &info, pool->buffers.data() );
+					// store the pool into our array of pools, so that we can look it up via the family index.
+					ownership_transfer_cmd_pools[ i ] = pool;
+
+					// Begin all command buffers - note: these must all end.
+					for ( auto& cmd : pool->buffers ) {
+						vkBeginCommandBuffer( cmd, &cmd_begin_info );
+					}
+				}
+			}
+
+			// go through all transfer ops and record all release operations. do this per-queue family.
+
+			{
+
+				// group release operations by queue family
+				struct Barriers {
+					std::vector<VkImageMemoryBarrier2>  img_barriers;
+					std::vector<VkBufferMemoryBarrier2> buf_barriers;
+					std::set<uint32_t>                  src_family_indices; // only used for acquire barriers
+				};
+
+				std::unordered_map<uint32_t, Barriers> release_barriers; // map from queue family index to release barrier
+				std::unordered_map<uint32_t, Barriers> acquire_barriers; // map from queue to acquire barrier
+
+				// group all release barriers together by queue family
+				// and group all acquire barriers together by queue
+				for ( auto& t : queue_ownership_transfers ) {
+
+					if ( t.resource->data->type == LeResourceType::eImage ) {
+						auto                  image = frame.availableResources.at( t.resource );
+						VkImageMemoryBarrier2 imageMemoryBarrier{
+						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+						    .pNext               = nullptr,
+						    .srcStageMask        = image.state.stage == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : image.state.stage, // happens-before
+						    .srcAccessMask       = ( image.state.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                     // make available
+						    .dstStageMask        = 0,                                                                                // happens-after
+						    .dstAccessMask       = 0,                                                                                // make visible
+						    .oldLayout           = image.state.layout,
+						    .newLayout           = image.state.layout,
+						    .srcQueueFamilyIndex = t.src_queue_family_index,
+						    .dstQueueFamilyIndex = t.dst_queue_family_index,
+						    .image               = image.as.image,
+						    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
+						};
+
+						release_barriers[ t.src_queue_family_index ].img_barriers.push_back( imageMemoryBarrier );
+						imageMemoryBarrier.srcAccessMask = 0;
+						imageMemoryBarrier.srcStageMask  = 0;
+						// imageMemoryBarrier.dstAccessMask = 0; // TODO
+						// imageMemoryBarrier.dstStageMask = 0; // TODO
+						acquire_barriers[ t.dst_queue_index ].img_barriers.push_back( imageMemoryBarrier );
+					} else if ( t.resource->data->type == LeResourceType::eBuffer ) {
+						auto                   buffer = frame.availableResources.at( t.resource );
+						VkBufferMemoryBarrier2 bufferMemoryBarrier{
+						    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+						    .pNext               = nullptr,
+						    .srcStageMask        = buffer.state.stage == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : buffer.state.stage, // happens-before
+						    .srcAccessMask       = buffer.state.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS,                          // make available
+						    .dstStageMask        = 0,                                                                                  // before continuing with dst stage
+						    .dstAccessMask       = 0,                                                                                  // and making memory visible to dst stage
+						    .srcQueueFamilyIndex = t.src_queue_family_index,
+						    .dstQueueFamilyIndex = t.dst_queue_family_index,
+						    .buffer              = buffer.as.buffer,
+						    .offset              = 0,
+						    .size                = buffer.info.bufferInfo.size,
+						};
+						release_barriers[ t.src_queue_family_index ].buf_barriers.push_back( bufferMemoryBarrier );
+						bufferMemoryBarrier.srcAccessMask = 0;
+						bufferMemoryBarrier.srcStageMask  = 0;
+						// bufferMemoryBarrier.dstAccessMask = 0; // TODO
+						// bufferMemoryBarrier.dstStageMask = 0; // TODO
+						acquire_barriers[ t.dst_queue_index ].buf_barriers.push_back( bufferMemoryBarrier );
+					} else {
+						assert( false && "unexpected resource type" );
+					}
+					// store src family index with acquire barrier - so that these barriers know which timeline semaphores to wait for.
+					acquire_barriers[ t.dst_queue_index ].src_family_indices.emplace( t.src_queue_family_index );
+				}
+
+				// ----------------------------------------------------------------------
+
+				// record all release actions into command buffers which match queue family
+				for ( auto& rb : release_barriers ) {
+					VkDependencyInfo dependencyInfo = {
+					    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+					    .pNext                    = nullptr, // optional
+					    .dependencyFlags          = 0,       // optional
+					    .memoryBarrierCount       = 0,       // optional
+					    .pMemoryBarriers          = 0,
+					    .bufferMemoryBarrierCount = uint32_t( rb.second.buf_barriers.size() ), // optional
+					    .pBufferMemoryBarriers    = rb.second.buf_barriers.data(),
+					    .imageMemoryBarrierCount  = uint32_t( rb.second.img_barriers.size() ), // optional
+					    .pImageMemoryBarriers     = rb.second.img_barriers.data(),
+					};
+
+					uint32_t queue_family_index = rb.first;
+					uint32_t queue_index        = self->default_queue_for_family_index.at( queue_family_index );
+					uint32_t buffer_idx         = ownership_transfer_cmd_bufs_used_count[ queue_family_index ]++; // note post-increment
+					auto     cmd                = ownership_transfer_cmd_pools[ rb.first ]->buffers[ buffer_idx ];
+
+					// record consolidated barrier into release command buffer for this queue family.
+					vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+					vkEndCommandBuffer( cmd );
+
+					auto queue = self->queues[ queue_index ];
+
+					VkCommandBufferSubmitInfo cmdSubmitInfo{
+					    .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+					    .pNext         = nullptr,
+					    .commandBuffer = cmd,
+					    .deviceMask    = 0, // replaces vkDeviceGroupSubmitInfo
+					};
+
+					// We want to signal a timeline semaphore for each queue submission so that any batch submitted to a queue can be waited upon
+					VkSemaphoreSubmitInfo signal_semaphore_timeline_complete = {
+					    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+					    .pNext       = nullptr,
+					    .semaphore   = queue.semaphore,
+					    .value       = ++queue.semaphore_wait_value,       // NOTE pre-increment. Timeline value which this timeline semaphore will signal upon completion
+					    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
+					    .deviceIndex = 0,
+					};
+
+					{
+						VkSubmitInfo2 submitInfo{
+						    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+						    .pNext                    = nullptr,
+						    .flags                    = 0,
+						    .waitSemaphoreInfoCount   = 0,
+						    .pWaitSemaphoreInfos      = nullptr,
+						    .commandBufferInfoCount   = 1,
+						    .pCommandBufferInfos      = &cmdSubmitInfo,
+						    .signalSemaphoreInfoCount = 1,
+						    .pSignalSemaphoreInfos    = &signal_semaphore_timeline_complete,
+						};
+
+						// submit on the default queue for this queue family
+						vkQueueSubmit2( queue.queue, 1, &submitInfo, nullptr );
+					}
+				}
+
+				// record all acquire actions grouped by queue - and then submit them -
+				// each acquire submission waits for any release actions that it depends on.
+				for ( auto& ab : acquire_barriers ) {
+					VkDependencyInfo dependencyInfo = {
+					    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+					    .pNext                    = nullptr, // optional
+					    .dependencyFlags          = 0,       // optional
+					    .memoryBarrierCount       = 0,       // optional
+					    .pMemoryBarriers          = 0,
+					    .bufferMemoryBarrierCount = uint32_t( ab.second.buf_barriers.size() ), // optional
+					    .pBufferMemoryBarriers    = ab.second.buf_barriers.data(),
+					    .imageMemoryBarrierCount  = uint32_t( ab.second.img_barriers.size() ), // optional
+					    .pImageMemoryBarriers     = ab.second.img_barriers.data(),
+					};
+
+					uint32_t queue_index      = ab.first;
+					uint32_t queue_family_idx = self->queues[ queue_index ].queue_family_index;
+					uint32_t buffer_idx       = ownership_transfer_cmd_bufs_used_count[ queue_family_idx ]++; // note post-increment
+
+					auto cmd = ownership_transfer_cmd_pools[ queue_family_idx ]->buffers[ buffer_idx ];
+					vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+					vkEndCommandBuffer( cmd );
+
+					auto queue = self->queues[ queue_index ];
+
+					VkCommandBufferSubmitInfo cmdSubmitInfo{
+					    .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+					    .pNext         = nullptr,
+					    .commandBuffer = cmd,
+					    .deviceMask    = 0, // replaces vkDeviceGroupSubmitInfo
+					};
+
+					// We want to signal a timeline semaphore for each queue submission so that any batch submitted to a queue can be waited upon
+					std::vector<VkSemaphoreSubmitInfo> wait_semaphore_timeline_complete;
+
+					for ( auto& wait : ab.second.src_family_indices ) {
+
+						uint32_t    src_queue_family_idx = wait;
+						uint32_t    src_queue_idx        = self->default_queue_for_family_index[ src_queue_family_idx ];
+						auto const& queue                = self->queues[ src_queue_idx ];
+
+						VkSemaphoreSubmitInfo info{
+						    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+						    .pNext       = nullptr,
+						    .semaphore   = queue.semaphore,
+						    .value       = queue.semaphore_wait_value,
+						    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+						    .deviceIndex = 0,
+						};
+						wait_semaphore_timeline_complete.emplace_back( info );
+					};
+
+					{
+						VkSubmitInfo2 submitInfo{
+						    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+						    .pNext                    = nullptr,
+						    .flags                    = 0,
+						    .waitSemaphoreInfoCount   = uint32_t( wait_semaphore_timeline_complete.size() ),
+						    .pWaitSemaphoreInfos      = wait_semaphore_timeline_complete.data(),
+						    .commandBufferInfoCount   = 1,
+						    .pCommandBufferInfos      = &cmdSubmitInfo,
+						    .signalSemaphoreInfoCount = 0,
+						    .pSignalSemaphoreInfos    = nullptr,
+						};
+
+						// submit on the queue chosen for this acquire barrier
+						vkQueueSubmit2( queue.queue, 1, &submitInfo, nullptr );
+					}
+				}
+			}
+
+			/*
+
+			    when we submit, the acquire barriers will act to delay the queues which are waiting on
+			    resources, there is therefore no further synchronisation necessary after we sync
+			    between release and acquire.
+
+			*/
+		}
+	}
+
+	std::vector<VkSemaphoreSubmitInfo> wait_present_complete_semaphore_submit_infos;
+	std::vector<VkSemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
+
+	wait_present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
+	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 	for ( auto const& swp : frame.swapchain_state ) {
 		wait_present_complete_semaphore_submit_infos.push_back(
 		    {
@@ -6255,6 +6623,18 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	for ( auto const& current_submission : frame.queue_submission_data ) {
 
+		// the first graphics payload has to wait on present complete.
+		std::vector<VkSemaphoreSubmitInfo> wait_semaphore_infos;
+
+		if ( did_wait_for_present_semaphore == false && current_submission.queue_idx == self->queue_default_graphics_idx ) {
+			wait_semaphore_infos.insert(                              // wait for present complete - it gets signaled once the swapchain image is ready for writing
+			    wait_semaphore_infos.end(),                           //
+			    wait_present_complete_semaphore_submit_infos.begin(), //
+			    wait_present_complete_semaphore_submit_infos.end() ); //
+			did_wait_for_present_semaphore = true;
+		}
+
+		// Prepare command buffers for submission
 		std::vector<VkCommandBufferSubmitInfo> command_buffer_submit_infos;
 		command_buffer_submit_infos.reserve( current_submission.command_pool->buffers.size() ); // one command buffer per pass
 
@@ -6268,7 +6648,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			    } );
 		}
 
-		// We want a timeline semaphore for each queue submission so that any batch submitted to a queue can be waited upon
+		// We want to signal a timeline semaphore for each queue submission so that any batch submitted to a queue can be waited upon
 		VkSemaphoreSubmitInfo signal_semaphore_timeline_complete = {
 		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		    .pNext       = nullptr,
@@ -6278,22 +6658,12 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    .deviceIndex = 0,
 		};
 
-		// the first graphics payload has to wait on present complete.
-		VkSemaphoreSubmitInfo* wait_semaphore_infos = nullptr;
-		uint32_t               wait_semaphore_count = 0;
-
-		if ( did_wait_for_present_semaphore == false && current_submission.queue_idx == self->queue_default_graphics_idx ) {
-			wait_semaphore_infos           = wait_present_complete_semaphore_submit_infos.data(); // wait for present complete - it gets signaled once the swapchain image is ready for writing
-			wait_semaphore_count           = wait_present_complete_semaphore_submit_infos.size();
-			did_wait_for_present_semaphore = true;
-		}
-
 		VkSubmitInfo2 submitInfo{
 		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
 		    .pNext                    = nullptr,
 		    .flags                    = 0,
-		    .waitSemaphoreInfoCount   = wait_semaphore_count,
-		    .pWaitSemaphoreInfos      = wait_semaphore_infos,
+		    .waitSemaphoreInfoCount   = uint32_t( wait_semaphore_infos.size() ),
+		    .pWaitSemaphoreInfos      = wait_semaphore_infos.data(),
 		    .commandBufferInfoCount   = uint32_t( command_buffer_submit_infos.size() ),
 		    .pCommandBufferInfos      = command_buffer_submit_infos.data(),
 		    .signalSemaphoreInfoCount = 1,
@@ -6307,7 +6677,6 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	assert( did_wait_for_present_semaphore && "Must wait for present semaphore on default graphics queue. Is there a default graphics queue?" );
 
-	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ].queue; // will not change for the duration of the program.
 	{
 		/// Now that we have submitted our payloads, we can wait for any timeline semaphores from this frame.
 		/// This is so that whatever gets executed on parallel queues will have time to complete until draw has completed.
@@ -6325,14 +6694,14 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		/// If submitted on the same queue, Queue submission order means that batch 1 needs to complete before batch 2
 		/// -- see VkSpec 7.2 (Implicit Synchronization Guarantees)
 
-		std::vector<VkSemaphoreSubmitInfo> timeline_semaphores;
+		std::vector<VkSemaphoreSubmitInfo> timeline_wait_semaphores;
 
 		for ( uint32_t i = 0; i != self->queues.size(); i++ ) {
-			timeline_semaphores.push_back( {
+			timeline_wait_semaphores.push_back( {
 			    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 			    .pNext       = nullptr,
 			    .semaphore   = self->queues[ i ].semaphore,
-			    .value       = self->queues[ i ].semaphore_wait_value, // highest value this timeline semaphore will signal
+			    .value       = self->queues[ i ].semaphore_wait_value, // wait for highest value this timeline semaphore will signal
 			    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,     // signal semaphore once all commands have been processed
 			    .deviceIndex = 0,
 			} );
@@ -6344,9 +6713,9 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
 		    .pNext                    = nullptr,
 		    .flags                    = 0,
-		    .waitSemaphoreInfoCount   = uint32_t( timeline_semaphores.size() ), // This is where we wait for the timeline semaphores from other queue invocations from this frame.
-		    .pWaitSemaphoreInfos      = timeline_semaphores.data(),             // Wait for any timeline semaphores from sibling queues here
-		    .commandBufferInfoCount   = 0,                                      // No commands submitted, this submission is purely for synchronisation
+		    .waitSemaphoreInfoCount   = uint32_t( timeline_wait_semaphores.size() ), // This is where we wait for the timeline semaphores from other queue invocations from this frame.
+		    .pWaitSemaphoreInfos      = timeline_wait_semaphores.data(),             // Wait for any timeline semaphores from sibling queues here
+		    .commandBufferInfoCount   = 0,                                           // No commands submitted, this submission is purely for synchronisation
 		    .pCommandBufferInfos      = nullptr,
 		    .signalSemaphoreInfoCount = uint32_t( render_complete_semaphore_submit_infos.size() ),
 		    .pSignalSemaphoreInfos    = render_complete_semaphore_submit_infos.data(), // signal render complete once this batch has finished processing
