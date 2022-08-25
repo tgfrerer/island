@@ -14,7 +14,7 @@
 #include <vector>
 #include <unordered_map>
 #include <forward_list>
-#include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <list>
 #include <set>
@@ -1183,8 +1183,7 @@ static void backend_setup( le_backend_o* self ) {
 
 	assert( settings );
 	if ( settings == nullptr ) {
-		std::cerr << "FATAL: Must specify settings for backend." << std::endl
-		          << std::flush;
+		le::Log( LOGGER_LABEL ).error( "FATAL: Must specify settings for backend." );
 		exit( 1 );
 	} else {
 		// Freeze settings, as these will be the settings that apply for the lifetime of the backend.
