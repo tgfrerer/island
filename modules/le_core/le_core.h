@@ -22,7 +22,7 @@
 #define ISL_MAKE_VERSION( major, minor, patch ) \
 	( ( ( ( uint32_t )( major ) ) << 22 ) | ( ( ( uint32_t )( minor ) ) << 12 ) | ( ( uint32_t )( patch ) ) )
 
-#define ISL_ENGINE_VERSION ISL_MAKE_VERSION( 0, 2, 0 )
+#define ISL_ENGINE_VERSION ISL_MAKE_VERSION( 0, 3, 0 )
 #define ISL_ENGINE_NAME "Project Island"
 
 #if defined( WIN32 ) && defined( PLUGINS_DYNAMIC )
