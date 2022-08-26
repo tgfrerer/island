@@ -538,7 +538,7 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 ///          not contributing - these don't need to be executed at all.
 static void node_tag_contributing( Node* const nodes, const size_t num_nodes, uint32_t* count_roots = nullptr ) {
 
-	// we must iterate backwards from last layer to first layer
+	// We iterate bottom to top - from last layer to first layer
 	Node*             node      = nodes + num_nodes;
 	Node const* const node_rend = nodes;
 
@@ -547,11 +547,11 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes, ui
 	if ( count_roots ) {
 		*count_roots = 0;
 	}
-	// find first root layer
-	//    monitored reads will be from the first root layer
-
-	// TODO: for each root node, we want to accumulate QueueFlagBits from
-	// nodes that contribute.
+	// Find first root layer
+	//    Monitored reads will be from the first root layer
+	//
+	// We say "layer" because we place all our nodes on top of each other for the purpose of
+	// this algorithm (order is important!) and then process bottom-to-top
 
 	while ( node != node_rend ) {
 		--node;
@@ -892,6 +892,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// can be disposed, as their products will never be used.
 	uint32_t root_count = 0; // gets set to number of found root nodes as a side-effect of node_tag_contributing
 	node_tag_contributing( nodes.data(), nodes.size(), &root_count );
+
 	assert( root_count <= LE_MAX_NUM_GRAPH_ROOTS && "number of nodes must fit LE_MAX_NUM_TREES, otherwise we can't express tree affinity as a bitfield" );
 
 	{
