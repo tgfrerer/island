@@ -388,14 +388,12 @@ struct ResourceState {
 	                                      // if any of these are WRITE accesses, these must be made available(flushed)
 	                                      // before next access - for the next src access we can OR this with ANY_WRITES
 	VkImageLayout layout;                 // Current layout (for images)
-	uint32_t      queue_family_index;
-	uint32_t      renderpass_index; // which renderpass currently uses this resource  -1 being outside of scope (e.g. swapchain)
+	uint32_t      renderpass_index;       // which renderpass currently uses this resource  -1 being outside of scope (e.g. swapchain)
 
 	bool operator==( const ResourceState& rhs ) const {
 		return visible_access == rhs.visible_access &&
 		       stage == rhs.stage &&
-		       layout == rhs.layout &&
-		       queue_family_index == rhs.queue_family_index;
+		       layout == rhs.layout;
 	}
 
 	bool operator!=( const ResourceState& rhs ) const {
@@ -4477,11 +4475,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties( *self->device )->limits.maxVertexInputBindings;
 
-	// Collect command buffers for each queue invocation by testing against invocation key.
-	// if a pass's affinity matches the invocation key, it belongs to that particular queue invocation.
+	// Collect command buffers for each queue submission by testing against queue submission key.
+	// if a pass's affinity matches the submission key, it belongs to that particular queue invocation.
 	{
 
-		// Collect VkQueueFlags over all passes that match the same queue_invocation_key
+		// Collect VkQueueFlags over all passes that match the same queue submission key
 
 		size_t num_invocation_keys = frame.queue_submission_keys.size();
 
@@ -4495,7 +4493,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			for ( size_t pi = 0; pi != frame.passes.size(); pi++ ) {
 
 				auto const& p = frame.passes[ pi ];
-				if ( key & p.root_passes_affinity ) { // match key against this passes queue submission affinity
+				if ( key & p.root_passes_affinity ) { // match key against this passe's queue submission affinity
 					qf = qf | VkQueueFlags( p.type ); // accumulate queue flags
 					submission_data.pass_indices.push_back( pi );
 				}
