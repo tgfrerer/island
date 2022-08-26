@@ -138,7 +138,7 @@ static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
 struct Node {
 	ResourceField       reads               = 0;
 	ResourceField       writes              = 0;
-	le::RootPassesField root_index_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
+	le::RootPassesField root_nodes_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
 	bool                is_root             = false; // whether this node is a root node
 	bool                is_contributing     = false; // whether this node contributes to a root node
 };
@@ -920,7 +920,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				// n is a root node.
 				read_accum  = r->reads;
 				write_accum = r->writes;
-				r->root_index_affinity |= ( 1ULL << root_index );
+				r->root_nodes_affinity |= ( 1ULL << root_index );
 
 				for ( auto n = r + 1; n != nodes.rend(); n++ ) {
 					if ( n->is_root ) {
@@ -932,7 +932,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 						read_accum |= n->reads;
 						write_accum |= n->writes;
 						// tag resource as belonging to this particular root node.
-						n->root_index_affinity |= ( 1ULL << root_index );
+						n->root_nodes_affinity |= ( 1ULL << root_index );
 					}
 				}
 				root_index++;
@@ -954,7 +954,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 		logger.info( "" );
 		for ( size_t i = 0; i < self->passes.size(); i++ ) {
-			logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_index_affinity );
+			logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_nodes_affinity );
 		}
 		logger.info( "" );
 #endif
@@ -1091,7 +1091,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			if ( nodes[ i ].is_contributing ) {
 				// Pass contributes, add it to consolidated passes
 				self->passes[ i ]->is_root              = nodes[ i ].is_root;
-				self->passes[ i ]->root_passes_affinity = nodes[ i ].root_index_affinity;
+				self->passes[ i ]->root_passes_affinity = nodes[ i ].root_nodes_affinity;
 				consolidated_passes.push_back( self->passes[ i ] );
 			} else {
 				// Pass is not contributing, we will not keep it.
