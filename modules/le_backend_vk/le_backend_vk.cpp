@@ -543,7 +543,7 @@ struct le_backend_o {
 	le_backend_vk_instance_o*   instance;
 	std::unique_ptr<le::Device> device;
 
-	std::vector<BackendQueueInfo>          queues;                                              // queues which were created via device
+	std::vector<BackendQueueInfo*>         queues;                                              // queues which were created via device
 	std::unordered_map<uint32_t, uint32_t> default_queue_for_family_index;                      // map from queue_family index to index of default queue in queues for this queue family
 	uint32_t                               queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
 	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
@@ -841,10 +841,13 @@ static void backend_destroy( le_backend_o* self ) {
 	// destroy window surface if there was a window surface
 	backend_destroy_window_surfaces( self );
 
-	{ // destroy timeline semaphores which were allocated per-queue
+	{
+		// destroy timeline semaphores which were allocated per-queue
+		// and destroy BackendQueueInfo objects which were allocated on the free store
 		for ( auto& q : self->queues ) {
-			vkDestroySemaphore( self->device->getVkDevice(), q.semaphore, nullptr );
-			q.semaphore = nullptr;
+			vkDestroySemaphore( self->device->getVkDevice(), q->semaphore, nullptr );
+			q->semaphore = nullptr;
+			delete ( q );
 		}
 		self->queues.clear();
 	}
@@ -1114,7 +1117,7 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 		};
 
 		for ( uint32_t i = 0; i != num_queues; i++ ) {
-			BackendQueueInfo queue_info{
+			BackendQueueInfo* queue_info = new BackendQueueInfo{
 			    .queue                = queues[ i ],
 			    .queue_flags          = queues_flags[ i ],
 			    .semaphore            = nullptr,
@@ -1138,12 +1141,12 @@ static void backend_initialise( le_backend_o* self, std::vector<char const*> req
 				self->queueFamilyIndexGraphics   = queues_family_index[ i ];
 			}
 			// create one timeline semaphore for every queue.
-			vkCreateSemaphore( self->device->getVkDevice(), &semaphore_create_info, nullptr, &queue_info.semaphore );
-			self->queues.emplace_back( std::move( queue_info ) );
+			vkCreateSemaphore( self->device->getVkDevice(), &semaphore_create_info, nullptr, &queue_info->semaphore );
+			self->queues.push_back( queue_info );
 
 			// try to store the queue index together with the queue family index - this will
 			// only add an element if a queue family is not already present in the map.
-			self->default_queue_for_family_index.try_emplace( queue_info.queue_family_index, i );
+			self->default_queue_for_family_index.try_emplace( queue_info->queue_family_index, i );
 		}
 	}
 
@@ -4525,7 +4528,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				// try to find an exact match with the lowest submissions to it
 				for ( uint32_t j = 0; j != queues.size(); j++ ) {
-					if ( ( queues[ j ].queue_flags ) == flags ) {
+					if ( ( queues[ j ]->queue_flags ) == flags ) {
 						// all flags are contained in q.queue_flags
 						if ( num_submissions_per_queue[ j ] < lowest_submission_count ) {
 							matching_queue          = j;
@@ -4537,7 +4540,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				if ( matching_queue == -1 ) {
 					// find an approximately-matching queue with the fewest submissions to it
 					for ( uint32_t j = 0; j != queues.size(); j++ ) {
-						if ( ( queues[ j ].queue_flags & flags ) == flags ) {
+						if ( ( queues[ j ]->queue_flags & flags ) == flags ) {
 							// all flags are contained in q.queue_flags
 							if ( num_submissions_per_queue[ j ] < lowest_submission_count ) {
 								matching_queue          = j;
@@ -4561,7 +4564,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			// this submission has passes
 			// find available command pool which has the correct queue family.
 
-			data.command_pool = backend_frame_data_produce_command_pool( frame, self->queues[ data.queue_idx ].queue_family_index, self->device->getVkDevice() );
+			data.command_pool = backend_frame_data_produce_command_pool( frame, self->queues[ data.queue_idx ]->queue_family_index, self->device->getVkDevice() );
 			{
 				VkCommandBufferAllocateInfo info = {
 				    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -6225,7 +6228,7 @@ static BackendQueueInfo* backend_get_default_graphics_queue_info( le_backend_o* 
 	assert( !self->queues.empty() && "No queues available; Cannot retrieve default graphics queue" );
 	// -----------| Invariant: queue available
 
-	static auto result = &self->queues[ self->queue_default_graphics_idx ];
+	static auto result = self->queues[ self->queue_default_graphics_idx ];
 
 	// It's safe to return a pointer to a vector element, and to cache it here,
 	// as `self->queues` is constant once a device has been created.
@@ -6254,7 +6257,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 	// Test for all resources test if family ownership matches
 	// since we last used this resource - if not, change it, and note the change.
 	for ( auto const& submission_data : frame.queue_submission_data ) {
-		uint32_t submission_queue_family_idx = self->queues[ submission_data.queue_idx ].queue_family_index;
+		uint32_t submission_queue_family_idx = self->queues[ submission_data.queue_idx ]->queue_family_index;
 		for ( auto const& i : submission_data.pass_indices ) {
 			for ( auto const& r : frame.passes[ i ].resources ) {
 
@@ -6368,7 +6371,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 		// allocate a command buffer with the correct queue family:
 		//
 		for ( uint32_t i = 0; i != cmd_acquire_per_queue_counter.size(); i++ ) {
-			cmd_per_family_counter[ self->queues[ i ].queue_family_index ] += cmd_acquire_per_queue_counter[ i ];
+			cmd_per_family_counter[ self->queues[ i ]->queue_family_index ] += cmd_acquire_per_queue_counter[ i ];
 		}
 	}
 
@@ -6504,7 +6507,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 		vkCmdPipelineBarrier2( cmd, &dependencyInfo );
 		vkEndCommandBuffer( cmd );
 
-		auto queue = self->queues[ queue_index ];
+		auto& queue = self->queues[ queue_index ];
 
 		VkCommandBufferSubmitInfo cmdSubmitInfo{
 		    .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
@@ -6516,8 +6519,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 		VkSemaphoreSubmitInfo signal_timeline_semaphore_release_complete = {
 		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		    .pNext       = nullptr,
-		    .semaphore   = queue.semaphore,
-		    .value       = ++queue.semaphore_wait_value,       // NOTE pre-increment. Timeline value which this timeline semaphore will signal upon completion
+		    .semaphore   = queue->semaphore,
+		    .value       = queue->semaphore_get_next_signal_value(),
 		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 		    .deviceIndex = 0,
 		};
@@ -6536,7 +6539,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			};
 
 			// submit on the default queue for this queue family
-			vkQueueSubmit2( queue.queue, 1, &submitInfo, nullptr );
+			vkQueueSubmit2( queue->queue, 1, &submitInfo, nullptr );
 		}
 	}
 
@@ -6570,7 +6573,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 		;
 
 		uint32_t queue_index      = ab.first;
-		uint32_t queue_family_idx = self->queues[ queue_index ].queue_family_index;
+		uint32_t queue_family_idx = self->queues[ queue_index ]->queue_family_index;
 		uint32_t buffer_idx       = ownership_transfer_cmd_bufs_used_count[ queue_family_idx ]++; // note post-increment
 
 		auto cmd = ownership_transfer_cmd_pools[ queue_family_idx ]->buffers[ buffer_idx ];
@@ -6579,7 +6582,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 		vkCmdPipelineBarrier2( cmd, &dependencyInfo );
 		vkEndCommandBuffer( cmd );
 
-		auto queue = self->queues[ queue_index ];
+		auto& queue = self->queues[ queue_index ];
 
 		VkCommandBufferSubmitInfo cmdSubmitInfo{
 		    .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
@@ -6600,8 +6603,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			VkSemaphoreSubmitInfo info{
 			    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 			    .pNext       = nullptr,
-			    .semaphore   = queue.semaphore,
-			    .value       = queue.semaphore_wait_value,
+			    .semaphore   = queue->semaphore,
+			    .value       = queue->semaphore_wait_value,
 			    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 			    .deviceIndex = 0,
 			};
@@ -6611,8 +6614,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 		VkSemaphoreSubmitInfo signal_timeline_semaphore_acquire_complete = {
 		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		    .pNext       = nullptr,
-		    .semaphore   = queue.semaphore,
-		    .value       = ++queue.semaphore_wait_value,       // NOTE pre-increment. Timeline value which this timeline semaphore will signal upon completion
+		    .semaphore   = queue->semaphore,
+		    .value       = queue->semaphore_get_next_signal_value(),
 		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 		    .deviceIndex = 0,
 		};
@@ -6631,11 +6634,11 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			};
 
 			// submit on the queue chosen for this acquire barrier
-			vkQueueSubmit2( queue.queue, 1, &submitInfo, nullptr );
+			vkQueueSubmit2( queue->queue, 1, &submitInfo, nullptr );
 		}
 	}
 
-	// ----------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// submit semaphore waits for queues which wait for acquire -
 	//
 	// If more than one queue of the same family want to acquire the same resource, then all but the first queue
@@ -6677,8 +6680,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 				VkSemaphoreSubmitInfo info{
 				    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 				    .pNext       = nullptr,
-				    .semaphore   = queue.semaphore,
-				    .value       = queue.semaphore_wait_value,
+				    .semaphore   = queue->semaphore,
+				    .value       = queue->semaphore_wait_value,
 				    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 				    .deviceIndex = 0,
 				};
@@ -6699,21 +6702,18 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 
 			auto const& queue = self->queues[ queue_idx ];
 			// submit on the queue chosen for this acquire barrier
-			vkQueueSubmit2( queue.queue, 1, &submitInfo, nullptr );
+			vkQueueSubmit2( queue->queue, 1, &submitInfo, nullptr );
 		}
 	}
 }
+
 // ----------------------------------------------------------------------
 static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto&       frame  = self->mFrames[ frameIndex ];
 
-	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ].queue; // will not change for the duration of the program.
-
-	if ( LE_PRINT_DEBUG_MESSAGES ) {
-		logger.info( "*** Dispatching frame %d", frame.frameNumber );
-	}
+	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ]->queue; // will not change for the duration of the program.
 
 	if ( self->must_track_resources_queue_family_ownership ) {
 		// add queue ownership transfer operations for resources which are shared across queue families.
@@ -6779,9 +6779,9 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		VkSemaphoreSubmitInfo signal_semaphore_timeline_complete = {
 		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		    .pNext       = nullptr,
-		    .semaphore   = self->queues[ current_submission.queue_idx ].semaphore,
-		    .value       = ++self->queues[ current_submission.queue_idx ].semaphore_wait_value, // NOTE pre-increment. Timeline value which this timeline semaphore will signal upon completion
-		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,                                  // signal semaphore once all commands have been processed
+		    .semaphore   = self->queues[ current_submission.queue_idx ]->semaphore,
+		    .value       = self->queues[ current_submission.queue_idx ]->semaphore_get_next_signal_value(),
+		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 		    .deviceIndex = 0,
 		};
 
@@ -6797,7 +6797,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    .pSignalSemaphoreInfos    = &signal_semaphore_timeline_complete,
 		};
 
-		auto queue = self->queues[ current_submission.queue_idx ].queue;
+		auto queue = self->queues[ current_submission.queue_idx ]->queue;
 
 		vkQueueSubmit2( queue, 1, &submitInfo, nullptr );
 	}
@@ -6827,9 +6827,9 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			timeline_wait_semaphores.push_back( {
 			    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 			    .pNext       = nullptr,
-			    .semaphore   = self->queues[ i ].semaphore,
-			    .value       = self->queues[ i ].semaphore_wait_value, // wait for highest value this timeline semaphore will signal
-			    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,     // signal semaphore once all commands have been processed
+			    .semaphore   = self->queues[ i ]->semaphore,
+			    .value       = self->queues[ i ]->semaphore_wait_value, // wait for highest value this timeline semaphore will signal
+			    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,      // signal semaphore once all commands have been processed
 			    .deviceIndex = 0,
 			} );
 		}
