@@ -4478,26 +4478,26 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties( *self->device )->limits.maxVertexInputBindings;
 
-	// Collect command buffers for each queue submission by testing against queue submission key.
-	// if a pass's affinity matches the submission key, it belongs to that particular queue invocation.
 	{
 
-		// Collect VkQueueFlags over all passes that match the same queue submission key
+		// -- Collect command buffers for each queue submission by testing against queue submission key.
+		//    if a pass's affinity matches the submission key, it belongs to that particular queue submission.
+		// -- And collect pass indices per queue submission
 
 		size_t num_invocation_keys = frame.queue_submission_keys.size();
 
 		for ( size_t i = 0; i != num_invocation_keys; i++ ) {
 
-			auto const& key = frame.queue_submission_keys[ i ]; // key for this queue submission, against which we must test all passes
+			auto const& key = frame.queue_submission_keys[ i ];
 
 			BackendFrameData::PerQueueSubmissionData submission_data{};
-			auto&                                    qf = submission_data.queue_flags;
 
 			for ( size_t pi = 0; pi != frame.passes.size(); pi++ ) {
 
-				auto const& p = frame.passes[ pi ];
-				if ( key & p.root_passes_affinity ) { // match key against this passe's queue submission affinity
-					qf = qf | VkQueueFlags( p.type ); // accumulate queue flags
+				auto const& pass = frame.passes[ pi ];
+
+				if ( key & pass.root_passes_affinity ) {
+					submission_data.queue_flags |= VkQueueFlags( pass.type ); // Accumulate queue flags over submission - queue capabilities must be superset
 					submission_data.pass_indices.push_back( pi );
 				}
 			}
@@ -4507,6 +4507,42 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 
 		assert( num_invocation_keys == frame.queue_submission_data.size() && "must have one submission data element per invocaton key" );
+
+		// -- Control that resources may only be used by the same queue family per-frame.
+		// we adjust for this by making the queue requirements a superset of all resource queue usages,
+		// and accumulating all queue usages per-resource first.
+
+		if ( self->must_track_resources_queue_family_ownership ) {
+			// We only must do this if we have multiple queue families active
+			// as this can get pretty expensive if there are many resources flying around.
+
+			// We do this to prevent a situation where a resource is claimed by two or more queue families
+			// Ideally, this
+
+			// for each resource, accumulate all queue type flags that it gets used with over all submissions
+
+			std::unordered_map<le_resource_handle, VkQueueFlags> resource_queue_flags;
+
+			for ( auto const& qs : frame.queue_submission_data ) {
+				for ( auto const& pi : qs.pass_indices ) {
+					for ( auto const& r : frame.passes[ pi ].resources ) {
+						resource_queue_flags[ r ] |= qs.queue_flags;
+					}
+				}
+			}
+
+			// now accumulate submission's queue flags based on the queue flags that all its resources have
+
+			for ( auto& qs : frame.queue_submission_data ) {
+				for ( auto const& pi : qs.pass_indices ) {
+					VkQueueFlags flags = qs.queue_flags;
+					for ( auto const& r : frame.passes[ pi ].resources ) {
+						flags |= resource_queue_flags.at( r );
+					}
+					qs.queue_flags = flags;
+				}
+			}
+		}
 
 		{
 			/// Assign queues to each submission:
@@ -4548,6 +4584,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							}
 						}
 					}
+				}
+
+				if ( matching_queue == -1 ) {
+					le::Log( LOGGER_LABEL ).error( "Could not find matching queue with capability: %s\n"
+					                               "This could be caused by one or more queue families claiming ownership of the same resource.",
+					                               to_string_vk_queue_flags( flags ).c_str() );
 				}
 
 				assert( matching_queue != -1 && "must have found matching queue" );
