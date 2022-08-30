@@ -6657,7 +6657,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		    .pNext       = nullptr,
 		    .semaphore   = queue->semaphore,
-		    .value       = queue->semaphore_get_next_signal_value(),
+		    .value       = queue->semaphore_wait_value + 1,    // note that we don't immediately update the wait value for this queue itself.
 		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 		    .deviceIndex = 0,
 		};
@@ -6680,6 +6680,15 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 		}
 	}
 
+	// We increase the semaphore wait values for all queues that did have an acquire step,
+	// so that acquire operations don't wait for each other - we know that acquire steps
+	// don't depend on each other because all that acquires have to wait for is any release.
+	// step that they depend on.
+	for ( auto& ab : acquire_barriers ) {
+		uint32_t          queue_index = ab.first;
+		BackendQueueInfo* queue       = self->queues[ queue_index ];
+		queue->semaphore_wait_value++;
+	}
 	// ---------------------------------------------------------------------
 	// submit semaphore waits for queues which wait for acquire -
 	//
