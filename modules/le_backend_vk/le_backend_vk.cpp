@@ -11,6 +11,7 @@
 
 #include <bitset>
 #include <cassert>
+#include <filesystem>
 #include <vector>
 #include <unordered_map>
 #include <forward_list>
@@ -55,6 +56,17 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 	static inlineVkenum_name fun_name( c_enum_name const& rhs ) noexcept { \
 		returnVkenum_name( rhs );                                          \
 	}
+
+// Persistent settings that can be shared among modules.
+// this is not yet production-ready, as it does not protect against race-conditions etc.e
+#define LE_GET_SETTING( SETTING_NAME, SETTING_TYPE, SETTING_DEFAULT_VALUE )                                   \
+	static SETTING_TYPE* SETTING_NAME = []() -> bool* {                                                       \
+		void** p_addr = le_core_produce_dictionary_entry( hash_64_fnv1a( #SETTING_NAME "_" #SETTING_TYPE ) ); \
+		if ( nullptr == *p_addr ) {                                                                           \
+			*p_addr = new SETTING_TYPE( SETTING_DEFAULT_VALUE );                                              \
+		}                                                                                                     \
+		return ( ( SETTING_TYPE* )( *p_addr ) );                                                              \
+	}()
 
 LE_WRAP_ENUM_IN_STRUCT( VkFormat, VkFormatEnum ); // define wrapper struct `VkFormatEnum`
 
@@ -1827,6 +1839,7 @@ static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 
 	// NOTE: this may block.
 	auto result = vkWaitForFences( device, 1, &frame.frameFence, true, 100'000'000 );
+	// le::Log( LOGGER_LABEL ).info( "=[%3d]== frame fence cleared", frameIndex );
 
 	if ( result != VK_SUCCESS ) {
 		return false;
@@ -1847,11 +1860,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	auto&    frame  = self->mFrames[ frameIndex ];
 	VkDevice device = self->device->getVkDevice();
 
-	//	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
-
-	//	if ( result !=VkResult::eSuccess ) {
-	//		return false;
-	//	}
+	// le::Log( LOGGER_LABEL ).info( "=[%3d]== clear frame ", frameIndex );
 
 	// -------- Invariant: fence has been crossed, all resources protected by fence
 	//          can now be claimed back.
@@ -6280,6 +6289,287 @@ static BackendQueueInfo* backend_get_default_graphics_queue_info( le_backend_o* 
 	return result;
 }
 
+struct QueueSubmissionLoggerData {
+
+	struct info_t {
+		uint32_t value;
+		uint32_t semaphore_id;
+	};
+
+	struct submission_t {
+		BackendQueueInfo*   queue;
+		std::string         info;
+		std::vector<info_t> wait_semaphores;
+		std::vector<info_t> signal_semaphores;
+	};
+
+	std::vector<submission_t> submissions;
+};
+
+std::unordered_map<VkSemaphore, uint32_t>* get_semaphore_indices() {
+	static std::unordered_map<VkSemaphore, uint32_t> semaphore_index;
+	return &semaphore_index;
+}
+std::vector<std::string>* get_semaphore_names() {
+	static std::vector<std::string> semaphore_names;
+	return &semaphore_names;
+}
+QueueSubmissionLoggerData* get_queue_submission_logger_data() {
+	static QueueSubmissionLoggerData data;
+	return &data;
+}
+
+std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const* backend ) {
+
+	auto semaphore_names   = get_semaphore_names();
+	auto semaphore_indices = get_semaphore_indices();
+
+	uint32_t f_idx = 0;
+	for ( auto const& f : backend->mFrames ) {
+		for ( size_t i = 0; i != f.swapchain_state.size(); i++ ) {
+			{
+				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].presentComplete, semaphore_indices->size() );
+				if ( it.second ) {
+					// if an element was inserted
+					semaphore_names->push_back( "PRESENT_COMPLETE@" + std::to_string( i ) );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				} else {
+					( *semaphore_names )[ it.first->second ] = "PRESENT_COMPLETE@" + std::to_string( i );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				}
+			}
+			{
+				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].renderComplete, semaphore_indices->size() );
+				if ( it.second ) {
+					// if an element was inserted
+					semaphore_names->push_back( "RENDER_COMPLETE@" + std::to_string( i ) );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				} else {
+					( *semaphore_names )[ it.first->second ] = "RENDER_COMPLETE@" + std::to_string( i );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				}
+			}
+		}
+		f_idx++;
+	}
+
+	return get_semaphore_names();
+};
+
+static void backend_emit_queue_submission_log( le_backend_o const* backend, uint64_t frame_number ) {
+
+	static std::filesystem::path exe_path = []() {
+		char result[ 1024 ] = { 0 };
+
+#ifdef _MSC_VER
+
+		// When NULL is passed to GetModuleHandle, the handle of the exe itself is returned
+		HMODULE hModule = GetModuleHandle( NULL );
+		if ( hModule != NULL ) {
+			// Use GetModuleFileName() with module handle to get the path
+			GetModuleFileName( hModule, result, ( sizeof( result ) ) );
+		}
+		size_t count = strnlen_s( result, sizeof( result ) );
+#else
+		ssize_t count = readlink( "/proc/self/exe", result, 1024 );
+#endif
+
+		return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
+	}();
+
+	static QueueSubmissionLoggerData*               data = get_queue_submission_logger_data();
+	static std::unordered_map<VkQueue, std::string> queue_name;
+	static std::vector<std::string>*                semaphore_names = backend_initialise_semaphore_names( backend );
+
+	std::ostringstream                     os;
+	std::unordered_map<uint64_t, uint32_t> wait_info_to_submission; // wait info to submission id
+	std::unordered_map<uint64_t, uint32_t> sign_info_to_submission; // signal info to submission id
+	uint32_t                               submission_id = 0;
+
+	os << "digraph g {\n"
+	      "rankdir = LR;\n"
+	      "node [shape = record; height = 1; fontname = \"IBM Plex Sans\";];\n"
+	      "graph [label = <<table border='0' cellborder='0' cellspacing='0' cellpadding='3'>";
+	for ( size_t i = 0; i != backend->queues.size(); i++ ) {
+
+		os << "<tr><td align='left'>queue_" << i << " : {" << to_string_vk_queue_flags( backend->queues[ i ]->queue_flags ) << "}</td></tr>";
+	}
+	os << "<tr><td align='left'>\"" << exe_path.string() << "\"</td></tr>"
+	   << "<tr><td align='left'>Island Queue Sync @ Frame № " << frame_number << "</td></tr>"
+	   << "</table>>; splines = true; nodesep = 0.7; fontname = \"IBM Plex Sans\"; fontsize = 10; labeljust = \"l\";];";
+	;
+
+	// -- Go through each submission in sequence
+	for ( auto const& submission : data->submissions ) {
+		// each submission represents one queue submission
+
+		os << "struct_" << submission_id << " [\n";
+
+		auto queue_name_it = queue_name.emplace( submission.queue->queue, "" );
+		if ( queue_name_it.second == true ) {
+			// there was no entry there, yet
+
+			std::ostringstream oname;
+			{
+				size_t i = 0;
+				for ( ; i != backend->queues.size(); i++ ) {
+					if ( backend->queues[ i ] == submission.queue ) {
+						break;
+					}
+				}
+				if ( i != backend->queues.size() ) {
+				}
+				oname << "queue_" << i << " : ";
+			}
+
+			queue_name_it.first->second = oname.str();
+		}
+
+		os << "\tlabel = \"<port_struct_" << submission_id << ">" << queue_name_it.first->second;
+		os << "|" << submission.info;
+
+		{
+			auto w_it = submission.wait_semaphores.begin();
+			auto s_it = submission.signal_semaphores.begin();
+			do {
+
+				os << "|";
+				os << "{";
+				if ( w_it != submission.wait_semaphores.end() ) {
+					os << "<port_" << w_it->semaphore_id << "_w_" << w_it->value << ">" << ( *semaphore_names )[ w_it->semaphore_id ] << "_" << w_it->value;
+					wait_info_to_submission.emplace( uint64( w_it->value ) << 32 | w_it->semaphore_id, submission_id );
+					w_it++;
+				}
+				os << "|";
+				if ( s_it != submission.signal_semaphores.end() ) {
+					os << "<port_" << s_it->semaphore_id << "_s_" << s_it->value << ">" << ( *semaphore_names )[ s_it->semaphore_id ] << "_" << s_it->value;
+					sign_info_to_submission.emplace( uint64( s_it->value ) << 32 | s_it->semaphore_id, submission_id );
+					s_it++;
+				}
+				os << "}";
+			} while ( w_it != submission.wait_semaphores.end() || s_it != submission.signal_semaphores.end() );
+		}
+		os << "\";\n];\n";
+		submission_id++;
+	}
+
+	// for all the waits, find a matching signal
+	os << "\n";
+
+	for ( auto const& w : wait_info_to_submission ) {
+		auto it = sign_info_to_submission.find( w.first );
+		if ( it != sign_info_to_submission.end() ) {
+
+			os << "\tstruct_" << it->second << ":port_" << ( it->first & ~uint32_t( 0 ) ) << "_s_" << ( it->first >> 32 ) << " -> "
+			   << "struct_" << w.second << ":port_" << ( w.first & ~uint32_t( 0 ) ) << "_w_" << ( w.first >> 32 ) << "\n";
+		}
+	}
+
+	// we want to link back to the last submission on the same queue
+	{
+		os << "edge [style=dashed;];\n";
+		std::unordered_map<VkQueue, uint32_t> queue_to_last_submission;
+		uint32_t                              i = 0;
+		for ( auto const& s : data->submissions ) {
+
+			auto it = queue_to_last_submission.emplace( s.queue->queue, i );
+
+			if ( it.second == false ) {
+				// there was already a previous entry for this queue
+
+				os << "\tstruct_" << it.first->second << ":port_struct_" << it.first->second << " -> "
+				   << "\tstruct_" << i << ":port_struct_" << i << "\n";
+
+				it.first->second = i;
+			}
+
+			i++;
+		}
+	}
+
+	os << "}\n";
+
+	auto write_to_file = []( char const* filename, std::ostringstream const& os ) {
+		FILE* out_file = fopen( filename, "wb" );
+		fprintf( out_file, "%s\n", os.str().c_str() );
+		fclose( out_file );
+
+		le::Log( LOGGER_LABEL ).info( "Generated .dot file: '%s'", filename );
+	};
+
+	char filename[ 32 ] = "queues.dot";
+
+	std::filesystem::path full_path = exe_path.parent_path() / filename;
+	write_to_file( full_path.string().c_str(), os );
+
+	snprintf( filename, sizeof( filename ), "queues_%08zu.dot", frame_number );
+
+	full_path = exe_path.parent_path() / filename;
+	write_to_file( full_path.string().c_str(), os );
+
+	data->submissions.clear();
+}
+
+// ----------------------------------------------------------------------
+// we wrap queue submissions so that we can log all parameters for a queue submission.
+static void backend_queue_submit( BackendQueueInfo* queue, uint submission_count, VkSubmitInfo2 const* submitInfo, VkFence fence, std::string const& debug_info = "" ) {
+
+	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
+
+	if ( *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES ) {
+
+		static QueueSubmissionLoggerData* data = get_queue_submission_logger_data();
+
+		VkSemaphoreSubmitInfo const*       wait_info      = submitInfo->pWaitSemaphoreInfos;
+		VkSemaphoreSubmitInfo const* const wait_infos_end = wait_info + submitInfo->waitSemaphoreInfoCount;
+		VkSemaphoreSubmitInfo const*       sign_info      = submitInfo->pSignalSemaphoreInfos;
+		VkSemaphoreSubmitInfo const* const sign_infos_end = sign_info + submitInfo->signalSemaphoreInfoCount;
+
+		static auto semaphore_index = get_semaphore_indices();
+		static auto semaphore_names = get_semaphore_names();
+
+		QueueSubmissionLoggerData::submission_t submission;
+		submission.queue = queue;
+		do {
+			if ( wait_info != wait_infos_end ) {
+				auto it = semaphore_index->emplace( wait_info->semaphore, semaphore_index->size() );
+				if ( it.second ) {
+					// if an element was inserted
+					semaphore_names->push_back( std::to_string( semaphore_names->size() ) );
+					assert( semaphore_names->size() == semaphore_index->size() );
+				}
+				uint32_t                          wait_semaphore_id = it.first->second;
+				QueueSubmissionLoggerData::info_t info;
+				info.semaphore_id = wait_semaphore_id;
+				info.value        = wait_info->value;
+				submission.wait_semaphores.emplace_back( std::move( info ) );
+				wait_info++;
+			}
+			if ( sign_info != sign_infos_end ) {
+				auto it = semaphore_index->emplace( sign_info->semaphore, semaphore_index->size() );
+				if ( it.second ) {
+					// if an element was inserted
+					semaphore_names->push_back( std::to_string( semaphore_names->size() ) );
+					assert( semaphore_names->size() == semaphore_index->size() );
+				}
+				uint32_t                          sign_semaphore_id = it.first->second;
+				QueueSubmissionLoggerData::info_t info;
+				info.semaphore_id = sign_semaphore_id;
+				info.value        = sign_info->value;
+				submission.signal_semaphores.emplace_back( std::move( info ) );
+				sign_info++;
+			}
+
+		} while ( sign_info != sign_infos_end || wait_info != wait_infos_end );
+		submission.info = debug_info;
+		data->submissions.emplace_back( std::move( submission ) );
+	}
+
+	// --------- the actual queue submission happens here
+
+	vkQueueSubmit2( queue->queue, submission_count, submitInfo, fence );
+};
+
 // ----------------------------------------------------------------------
 static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameIndex ) {
 
@@ -6344,8 +6634,11 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 						}
 					}
 
-					// update entry, so that next frame can compare against the current frame.
-					logger.info( "*[%4d]* Resource ownership change: [%s] qf%d -> qf%d (used with queue index:%d)", frameIndex, r->data->debug_name, found_queue_family_ownership->second, submission_queue_family_idx, submission_data.queue_idx );
+					if ( LE_PRINT_DEBUG_MESSAGES ) {
+						// update entry, so that next frame can compare against the current frame.
+						logger.info( "*[%4d]* Resource ownership change: [%s] qf%d -> qf%d (used with queue index:%d)",
+						             frameIndex, r->data->debug_name, found_queue_family_ownership->second, submission_queue_family_idx, submission_data.queue_idx );
+					}
 				}
 			}
 		}
@@ -6441,6 +6734,11 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			vkAllocateCommandBuffers( self->device->getVkDevice(), &info, pool->buffers.data() );
 			// store the pool into our array of pools, so that we can look it up via the family index.
 			ownership_transfer_cmd_pools[ i ] = pool;
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
+				for ( auto const& b : pool->buffers ) {
+					logger.info( "[%3d] allocated command buffer: %p", frame.frameNumber, b );
+				}
+			}
 		}
 	}
 
@@ -6581,7 +6879,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			};
 
 			// submit on the default queue for this queue family
-			vkQueueSubmit2( queue->queue, 1, &submitInfo, nullptr );
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, "release" );
 		}
 	}
 
@@ -6676,7 +6974,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			};
 
 			// submit on the queue chosen for this acquire barrier
-			vkQueueSubmit2( queue->queue, 1, &submitInfo, nullptr );
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, "acquire" );
 		}
 	}
 
@@ -6753,7 +7051,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 
 			auto const& queue = self->queues[ queue_idx ];
 			// submit on the queue chosen for this acquire barrier
-			vkQueueSubmit2( queue->queue, 1, &submitInfo, nullptr );
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, "must_wait_acquire" );
 		}
 	}
 }
@@ -6848,9 +7146,9 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    .pSignalSemaphoreInfos    = &signal_semaphore_timeline_complete,
 		};
 
-		auto queue = self->queues[ current_submission.queue_idx ]->queue;
+		auto queue = self->queues[ current_submission.queue_idx ];
 
-		vkQueueSubmit2( queue, 1, &submitInfo, nullptr );
+		backend_queue_submit( queue, 1, &submitInfo, nullptr, "rendergraph" );
 	}
 
 	assert( did_wait_for_present_semaphore && "Must wait for present semaphore on default graphics queue. Is there a default graphics queue?" );
@@ -6900,7 +7198,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 		};
 
-		vkQueueSubmit2( graphics_queue, 1, &submitInfo, frame.frameFence );
+		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, frame.frameFence, "graphics_queue_finalize" );
 	}
 
 	bool overall_result = true;
@@ -6922,6 +7220,17 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 			overall_result &= result;
 		}
+	}
+
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
+		logger.info( "*** Dispatched frame %d", frame.frameNumber );
+	}
+
+	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
+
+	if ( *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES ) {
+		backend_emit_queue_submission_log( self, frame.frameNumber );
+		*LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES = false;
 	}
 
 	return overall_result;
