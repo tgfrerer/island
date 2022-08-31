@@ -908,8 +908,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 			uint64_t root_index = 0;
 
-			// find first root node by iterating backwards
+			// iterating backwards
 			for ( auto r = nodes.rbegin(); r != nodes.rend(); r++ ) {
+				// find bottom-most root node
 				while ( r != nodes.rend() && !r->is_root ) {
 					r++;
 				}
@@ -970,23 +971,24 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// We need to test each root against all other roots - note that we can to two tests at once.
 		// Meaning our complexity for n root elements is ((n^2-n)/2)
 		//
-		// Q: What happens when more than two batches overlap?
-		// A: Exactly what you would expect, all overlapping batches form one giant combined batch.
+		// Q: What happens when more than two subgraphs overlap?
+		// A: Exactly what you would expect, all overlapping subgraph form one giant combined subgraph.
 		//
 
-		// Initially, each root starts out on their own queue -
-		// each queue id is initially a unique single bit in the queue_id bitfield
+		// Initially, each root starts out on their own subgraph -  each subgraph id is initially
+		// a unique single bit in the subgraph_id bitfield.
 		//
-		// If we detect overlap, roots which overlap will get their queue_ids OR'ed
-		// and both roots update the queue_id they point to - so that they point to the new, combined id
+		// If we detect overlap, roots which overlap will get their subgraph_ids OR'ed
+		// and both roots update the subgraph_id they point to - so that they point to the new,
+		// combined id.
 		//
-		// By the end ot this process we get a list of unique queue_ids which have no overlap.
+		// By the end ot this process we get a list of unique subgraph_ids which have no overlap.
 		//
-		std::vector<le::RootPassesField> queue_id( root_count );     // queue id per root - starting out with a single bit
-		std::vector<int>                 queue_id_idx( root_count ); // queue id index per root
+		std::vector<le::RootPassesField> subgraph_id( root_count );     // queue id per root - starting out with a single bit
+		std::vector<int>                 subgraph_id_idx( root_count ); // queue id index per root
 		for ( size_t i = 0; i != root_count; i++ ) {
-			queue_id[ i ] |= ( 1ULL << i ); // initialise to single bit at bitfield position corresponding to queue id
-			queue_id_idx[ i ] = i;          // initialise queue id index to be direct mapping
+			subgraph_id[ i ] |= ( 1ULL << i ); // initialise to single bit at bitfield position corresponding to queue id
+			subgraph_id_idx[ i ] = i;          // initialise queue id index to be direct mapping
 		}
 
 		for ( size_t i = 0; i != root_count; i++ ) {
@@ -1005,42 +1007,42 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 					// Get current queue ids for i, j,
 					// and combine them in the queue pointed to with the lowest offset
 
-					le::RootPassesField combined_queue_id = queue_id[ queue_id_idx[ j ] ] | queue_id[ queue_id_idx[ i ] ];
+					le::RootPassesField combined_subgraph_id = subgraph_id[ subgraph_id_idx[ j ] ] | subgraph_id[ subgraph_id_idx[ i ] ];
 
-					if ( queue_id_idx[ i ] <= queue_id_idx[ j ] ) {
-						queue_id_idx[ j ] = queue_id_idx[ i ];
+					if ( subgraph_id_idx[ i ] <= subgraph_id_idx[ j ] ) {
+						subgraph_id_idx[ j ] = subgraph_id_idx[ i ];
 					} else {
-						queue_id_idx[ i ] = queue_id_idx[ j ];
+						subgraph_id_idx[ i ] = subgraph_id_idx[ j ];
 					}
 
-					// update queue_id at newly shared queue position
-					queue_id[ queue_id_idx[ i ] ] = combined_queue_id;
+					// update subgraph_id at newly shared queue position
+					subgraph_id[ subgraph_id_idx[ i ] ] = combined_subgraph_id;
 				}
 			}
 		}
 
 		// Remove any duplicate entries in our indirection table
 		// (if trees get combined they will share the same id)
-		auto it = std::unique( queue_id_idx.begin(), queue_id_idx.end() );
-		queue_id_idx.erase( it, queue_id_idx.end() );
+		auto it = std::unique( subgraph_id_idx.begin(), subgraph_id_idx.end() );
+		subgraph_id_idx.erase( it, subgraph_id_idx.end() );
 
-		// ---------| invariant: queue_id_idx has unique entries,
+		// ---------| invariant: subgraph_id_idx has unique entries,
 
 		// consolidate queue invocation keys, and at the same time test the assertion that no key overlaps
 		//
 		le::RootPassesField check_queue_accum = 0;
-		for ( size_t i = 0; i != queue_id_idx.size(); i++ ) {
+		for ( size_t i = 0; i != subgraph_id_idx.size(); i++ ) {
 
 #if ( LE_PRINT_DEBUG_MESSAGES )
-			logger.info( "queue key [ %-12d], affinity: %x", i, queue_id[ queue_id_idx[ i ] ] );
+			logger.info( "queue key [ %-12d], affinity: %x", i, subgraph_id[ subgraph_id_idx[ i ] ] );
 #endif
 
-			self->root_passes_affinity_masks.push_back( queue_id[ queue_id_idx[ i ] ] );
+			self->root_passes_affinity_masks.push_back( subgraph_id[ subgraph_id_idx[ i ] ] );
 
 			{
 				// Do some error checking: each bit in the RootPassesField bitfield is only allowed
 				// to be used exactly once.
-				le::RootPassesField q = queue_id[ queue_id_idx[ i ] ];
+				le::RootPassesField q = subgraph_id[ subgraph_id_idx[ i ] ];
 				assert( !( q & check_queue_accum ) && "queue lanes must be independent." );
 				check_queue_accum |= q;
 			}
