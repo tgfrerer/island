@@ -1030,11 +1030,11 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 		// consolidate queue invocation keys, and at the same time test the assertion that no key overlaps
 		//
-		le::RootPassesField check_queue_accum = 0;
+		le::RootPassesField check_subgraph_accum = 0;
 		for ( size_t i = 0; i != subgraph_id_idx.size(); i++ ) {
 
 #if ( LE_PRINT_DEBUG_MESSAGES )
-			logger.info( "queue key [ %-12d], affinity: %x", i, subgraph_id[ subgraph_id_idx[ i ] ] );
+			logger.info( "subgraph key [ %-12d], affinity: %x", i, subgraph_id[ subgraph_id_idx[ i ] ] );
 #endif
 
 			self->root_passes_affinity_masks.push_back( subgraph_id[ subgraph_id_idx[ i ] ] );
@@ -1043,8 +1043,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				// Do some error checking: each bit in the RootPassesField bitfield is only allowed
 				// to be used exactly once.
 				le::RootPassesField q = subgraph_id[ subgraph_id_idx[ i ] ];
-				assert( !( q & check_queue_accum ) && "queue lanes must be independent." );
-				check_queue_accum |= q;
+				assert( !( q & check_subgraph_accum ) && "subgraph lanes must be independent." );
+				check_subgraph_accum |= q;
 			}
 		}
 	}
