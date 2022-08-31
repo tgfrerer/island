@@ -32,6 +32,12 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 #include "le_backend_vk_settings.inl"
 #include "private/le_backend_vk/vk_to_str_helpers.inl"
 
+#ifdef _MSC_VER
+#	include <Windows.h> // for getModule
+#else
+#	include <unistd.h> // for getexepath
+#endif
+
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
 #	include <intrin.h> // for __lzcnt
