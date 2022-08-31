@@ -13,6 +13,7 @@
 #include <cassert>
 #include <filesystem>
 #include <vector>
+#include <string>
 #include <unordered_map>
 #include <forward_list>
 #include <sstream>
@@ -6518,7 +6519,7 @@ static void backend_emit_queue_submission_log( le_backend_o const* backend, uint
 
 // ----------------------------------------------------------------------
 // we wrap queue submissions so that we can log all parameters for a queue submission.
-static void backend_queue_submit( BackendQueueInfo* queue, uint submission_count, VkSubmitInfo2 const* submitInfo, VkFence fence, std::string const& debug_info ) {
+static void backend_queue_submit( BackendQueueInfo* queue, uint submission_count, VkSubmitInfo2 const* submitInfo, VkFence fence, std::string const& debug_info = "" ) {
 
 	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
 
