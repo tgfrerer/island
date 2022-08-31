@@ -949,13 +949,13 @@ static void backend_get_swapchain_extent( le_backend_o* self, uint32_t index, ui
 bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
 	if ( *count < self->swapchain_resources.size() ) {
-		*count = self->swapchain_resources.size();
+		*count = uint32_t(self->swapchain_resources.size());
 		return false;
 	}
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
 
-	size_t num_items = *count = self->swapchain_resources.size();
+	uint32_t num_items = *count = uint32_t(self->swapchain_resources.size());
 
 	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * num_items );
 	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * num_items );
@@ -972,7 +972,7 @@ static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self
 // ----------------------------------------------------------------------
 
 static uint32_t backend_get_swapchain_count( le_backend_o* self ) {
-	return self->swapchain_resources.size();
+	return uint32_t(self->swapchain_resources.size());
 }
 
 // ----------------------------------------------------------------------
@@ -1228,7 +1228,7 @@ static void backend_setup( le_backend_o* self ) {
 
 	// -- create swapchain if requested
 
-	backend_create_swapchains( self, settings->swapchain_settings.size(), settings->swapchain_settings.data() );
+	backend_create_swapchains( self, uint32_t(settings->swapchain_settings.size()), settings->swapchain_settings.data() );
 
 	// -- setup backend memory objects
 
@@ -1366,7 +1366,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		//
 		if ( numSamplesLog2 != 0 ) {
 			img_resource = le_renderer::renderer_i.produce_img_resource_handle(
-			    img_resource->data->debug_name, numSamplesLog2, img_resource, 0 );
+			    img_resource->data->debug_name, uint8_t(numSamplesLog2), img_resource, 0 );
 		}
 
 		auto& syncChain = frame.syncChainTable[ img_resource ];
@@ -1404,7 +1404,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 			// track resource state before entering a subpass
 
 			auto& previousSyncState = syncChain.back();
-			auto  beforeFirstUse{ previousSyncState };
+			ResourceState beforeFirstUse{ previousSyncState };
 
 			if ( currentAttachment->loadOp == le::AttachmentLoadOp::eLoad ) {
 				// we must now specify which stages need to be visible for which coming memory access
@@ -1435,7 +1435,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 			// track resource state before subpass
 
 			auto& previousSyncState = syncChain.back();
-			auto  beforeSubpass{ previousSyncState };
+			ResourceState beforeSubpass{ previousSyncState };
 
 			if ( image_attachment_info.loadOp == le::AttachmentLoadOp::eLoad ) {
 				// resource.loadOp most be LOAD
@@ -2934,7 +2934,7 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 			staging_buffers.emplace_back(
 			    le_renderer::renderer_i.produce_buf_resource_handle(
 			        "Le-Staging-Buffer",
-			        le_buf_resource_usage_flags_t::eIsStaging, index ) );
+			        le_buf_resource_usage_flags_t::eIsStaging, uint32_t(index) ) );
 		}
 
 		*resource_handle = staging_buffers[ allocationIndex ];
@@ -4514,7 +4514,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				if ( key & pass.root_passes_affinity ) {
 					submission_data.queue_flags |= VkQueueFlags( pass.type ); // Accumulate queue flags over submission - queue capabilities must be superset
-					submission_data.pass_indices.push_back( pi );
+					submission_data.pass_indices.push_back( uint32_t(pi) );
 				}
 			}
 			if ( !submission_data.pass_indices.empty() ) {
@@ -4794,7 +4794,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			// Draw passes must begin by opening a Renderpass context.
 			if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
 
-				for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
+				for ( uint32_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
 					clearValues[ i ] = reinterpret_cast<VkClearValue&>( pass.attachments[ i ].clearValue );
 				}
 
@@ -5394,7 +5394,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						if ( currentPipelineLayout ) {
 							auto*              le_cmd               = static_cast<le::CommandSetPushConstantData*>( dataIt );
 							VkShaderStageFlags active_shader_stages = VkShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
-							vkCmdPushConstants( cmd, currentPipelineLayout, active_shader_stages, 0, le_cmd->info.num_bytes, ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
+							vkCmdPushConstants( cmd, currentPipelineLayout, active_shader_stages, 0, uint32_t(le_cmd->info.num_bytes), ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
 						}
 						break;
 					}
@@ -6335,7 +6335,7 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 	for ( auto const& f : backend->mFrames ) {
 		for ( size_t i = 0; i != f.swapchain_state.size(); i++ ) {
 			{
-				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].presentComplete, semaphore_indices->size() );
+				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].presentComplete, uint32_t( semaphore_indices->size() ) );
 				if ( it.second ) {
 					// if an element was inserted
 					semaphore_names->push_back( "PRESENT_COMPLETE@" + std::to_string( i ) );
@@ -6346,7 +6346,7 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 				}
 			}
 			{
-				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].renderComplete, semaphore_indices->size() );
+				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].renderComplete, uint32_t( semaphore_indices->size() ) );
 				if ( it.second ) {
 					// if an element was inserted
 					semaphore_names->push_back( "RENDER_COMPLETE@" + std::to_string( i ) );
@@ -6519,7 +6519,7 @@ static void backend_emit_queue_submission_log( le_backend_o const* backend, uint
 
 // ----------------------------------------------------------------------
 // we wrap queue submissions so that we can log all parameters for a queue submission.
-static void backend_queue_submit( BackendQueueInfo* queue, uint submission_count, VkSubmitInfo2 const* submitInfo, VkFence fence, std::string const& debug_info = "" ) {
+static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_count, VkSubmitInfo2 const* submitInfo, VkFence fence, std::string const& debug_info = "" ) {
 
 	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
 
@@ -6539,7 +6539,7 @@ static void backend_queue_submit( BackendQueueInfo* queue, uint submission_count
 		submission.queue = queue;
 		do {
 			if ( wait_info != wait_infos_end ) {
-				auto it = semaphore_index->emplace( wait_info->semaphore, semaphore_index->size() );
+				auto it = semaphore_index->emplace( wait_info->semaphore, uint32_t( semaphore_index->size() ) );
 				if ( it.second ) {
 					// if an element was inserted
 					semaphore_names->push_back( std::to_string( semaphore_names->size() ) );
@@ -6548,12 +6548,12 @@ static void backend_queue_submit( BackendQueueInfo* queue, uint submission_count
 				uint32_t                          wait_semaphore_id = it.first->second;
 				QueueSubmissionLoggerData::info_t info;
 				info.semaphore_id = wait_semaphore_id;
-				info.value        = wait_info->value;
+				info.value        = uint32_t( wait_info->value & ~uint32_t( 0 ) ); // truncate to 32 bit value
 				submission.wait_semaphores.emplace_back( std::move( info ) );
 				wait_info++;
 			}
 			if ( sign_info != sign_infos_end ) {
-				auto it = semaphore_index->emplace( sign_info->semaphore, semaphore_index->size() );
+				auto it = semaphore_index->emplace( sign_info->semaphore, uint32_t( semaphore_index->size() ) );
 				if ( it.second ) {
 					// if an element was inserted
 					semaphore_names->push_back( std::to_string( semaphore_names->size() ) );
@@ -6562,7 +6562,7 @@ static void backend_queue_submit( BackendQueueInfo* queue, uint submission_count
 				uint32_t                          sign_semaphore_id = it.first->second;
 				QueueSubmissionLoggerData::info_t info;
 				info.semaphore_id = sign_semaphore_id;
-				info.value        = sign_info->value;
+				info.value        = uint32_t( sign_info->value & ~uint32_t( 0 ) ); // truncate to 32bit value
 				submission.signal_semaphores.emplace_back( std::move( info ) );
 				sign_info++;
 			}
@@ -6610,8 +6610,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 				     submission_queue_family_idx != found_queue_family_ownership->second ) {
 
 					ownership_transfer_t change;
-					change.src_queue_family_index = found_queue_family_ownership->second;
-					change.dst_queue_family_index = submission_queue_family_idx;
+					change.src_queue_family_index = uint32_t(found_queue_family_ownership->second);
+					change.dst_queue_family_index = uint32_t(submission_queue_family_idx);
 					change.resource               = r;
 					change.dst_queue_index        = { submission_data.queue_idx }; // We keep track of the actual queue (additionally to its queue family)
 					                                                               // that will acquire the resource, as it is this one specifically that

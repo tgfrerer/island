@@ -52,7 +52,7 @@ static bool le_backend_vk_settings_set_requested_queue_capabilities( VkQueueFlag
 static void le_backend_vk_settings_get_requested_queue_capabilities( VkQueueFlags* queues, uint32_t* num_queues ) {
 	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
 	if ( num_queues ) {
-		*num_queues = self->requested_queues_capabilities.size();
+		*num_queues = uint32_t(self->requested_queues_capabilities.size());
 	}
 	if ( queues ) {
 		memcpy( queues, self->requested_queues_capabilities.data(), self->requested_queues_capabilities.size() * sizeof( VkQueueFlags ) );
