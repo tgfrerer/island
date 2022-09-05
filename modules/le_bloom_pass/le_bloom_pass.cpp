@@ -310,6 +310,16 @@ le_render_module_add_bloom_pass(
 		        .setExecuteCallback( params, combine_render_fun );
 
 		rendergraph_i.add_renderpass( module, passCombine );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_4" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_3" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_2" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_1" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_0" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_4" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_3" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_2" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_1" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_0" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
 	}
 }
 
