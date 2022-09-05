@@ -116,6 +116,16 @@ static constexpr le::AccessFlags2 LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS =
 
 // ----------------------------------------------------------------------
 
+extern le_resource_handle renderer_produce_resource_handle(
+    char const*           maybe_name,
+    LeResourceType const& resource_type,
+    uint8_t               num_samples      = 0,
+    uint8_t               flags            = 0,
+    uint16_t              index            = 0,
+    le_resource_handle    reference_handle = nullptr );
+
+// ----------------------------------------------------------------------
+
 static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
 	uint64_t    flags = tp;
 	std::string result;
@@ -533,64 +543,6 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the pass here. We must destroy it.
 }
 
-/// \brief Tag any nodes which contribute to any root nodes
-/// \details We do this so that we can weed out any nodes which are provably
-///          not contributing - these don't need to be executed at all.
-static void node_tag_contributing( Node* const nodes, const size_t num_nodes, uint32_t* count_roots = nullptr ) {
-
-	// We iterate bottom to top - from last layer to first layer
-	Node*             node      = nodes + num_nodes;
-	Node const* const node_rend = nodes;
-
-	ResourceField read_accum;
-
-	if ( count_roots ) {
-		*count_roots = 0;
-	}
-	// Find first root layer
-	//    Monitored reads will be from the first root layer
-	//
-	// We say "layer" because we place all our nodes on top of each other for the purpose of
-	// this algorithm (order is important!) and then process bottom-to-top
-
-	while ( node != node_rend ) {
-		--node;
-
-		// If it's a root node, get all reads from (= providers to) this node
-		//      if node is tagged being a root node and it writes to any monitored read, it can't be a root node.
-		// If it's not a root node, first see if there are any writes to currently monitored reads
-		//      if yes, add all reads to monitored reads
-
-		bool writes_to_any_monitored_read = ( node->writes & read_accum ).any();
-
-		if ( node->is_root || writes_to_any_monitored_read ) {
-
-			// If this node is a root node - OR					      ) this means the layer is contributing
-			// If this node writes to any subsequent monitored reads, )
-			// Then we must monitor all reads by this node.
-			//
-			// If a write has no corresponding read (we see a write-only operation), it will extinguish
-			// the read bit at this place - this makes sense, as any previous writes to this place will
-			// be implicitly discarded by a write-only operation onto this place. (Any previous writes
-			// are never read, and we will need a new read to make this resource active again)
-
-			read_accum = ( read_accum & ( ~node->writes ) ) // Anything written in this node will be extinguished (consumed)
-			             | node->reads;                     // Anything read in this node will be lit up.
-
-			node->is_contributing = true;
-
-			if ( node->is_root && writes_to_any_monitored_read ) {
-				// Node cannot be root if it writes to a monitored read (this means that another more-root node depends on it)
-				node->is_root = false;
-			}
-			if ( node->is_root && count_roots ) {
-				( *count_roots )++;
-			}
-		}
-
-	} // end for all nodes, backwards iteration
-}
-
 // ----------------------------------------------------------------------
 // Generates a .dot file for graphviz which visualises renderpasses
 // and their resource dependencies. It will also show the sequencing
@@ -812,24 +764,69 @@ static bool generate_dot_file_for_rendergraph(
 	return true;
 };
 
-extern le_resource_handle renderer_produce_resource_handle(
-    char const*           maybe_name,
-    LeResourceType const& resource_type,
-    uint8_t               num_samples      = 0,
-    uint8_t               flags            = 0,
-    uint16_t              index            = 0,
-    le_resource_handle    reference_handle = nullptr );
-// ----------------------------------------------------------------------
-// Calculate a topological order for passes within rendergraph.
-//
+/// \brief Tag any nodes which contribute to any root nodes
+/// \details We do this so that we can weed out any nodes which are provably
+///          not contributing - these don't need to be executed at all.
+static void node_tag_contributing( Node* const nodes, const size_t num_nodes, uint32_t* count_roots = nullptr ) {
+
+	// We iterate bottom to top - from last layer to first layer
+	Node*             node      = nodes + num_nodes;
+	Node const* const node_rend = nodes;
+
+	ResourceField read_accum;
+
+	if ( count_roots ) {
+		*count_roots = 0;
+	}
+	// Find first root layer
+	//    Monitored reads will be from the first root layer
+	//
+	// We say "layer" because we place all our nodes on top of each other for the purpose of
+	// this algorithm (order is important!) and then process bottom-to-top
+
+	while ( node != node_rend ) {
+		--node;
+
+		// If it's a root node, get all reads from (= providers to) this node
+		//      if node is tagged being a root node and it writes to any monitored read, it can't be a root node.
+		// If it's not a root node, first see if there are any writes to currently monitored reads
+		//      if yes, add all reads to monitored reads
+
+		bool writes_to_any_monitored_read = ( node->writes & read_accum ).any();
+
+		if ( node->is_root || writes_to_any_monitored_read ) {
+
+			// If this node is a root node - OR					      ) this means the layer is contributing
+			// If this node writes to any subsequent monitored reads, )
+			// Then we must monitor all reads by this node.
+			//
+			// If a write has no corresponding read (we see a write-only operation), it will extinguish
+			// the read bit at this place - this makes sense, as any previous writes to this place will
+			// be implicitly discarded by a write-only operation onto this place. (Any previous writes
+			// are never read, and we will need a new read to make this resource active again)
+
+			read_accum = ( read_accum & ( ~node->writes ) ) // Anything written in this node will be extinguished (consumed)
+			             | node->reads;                     // Anything read in this node will be lit up.
+
+			node->is_contributing = true;
+
+			if ( node->is_root && writes_to_any_monitored_read ) {
+				// Node cannot be root if it writes to a monitored read (this means that another more-root node depends on it)
+				node->is_root = false;
+			}
+			if ( node->is_root && count_roots ) {
+				( *count_roots )++;
+			}
+		}
+
+	} // end for all nodes, backwards iteration
+}
+
 // We assume that passes arrive in partial-order (i.e. the order
 // of adding passes to a module is meaningful)
 //
-// As a side-effect, this method:
-// + Removes (and deletes) any passes which do not contribute from a rendergraph.
-// + Updates sortIndices so that it has same number of elements as rendergraph.
-// After completion this method guarantees that sortIndices constains a valid
-// sort index for each corresponding renderpass.
+// As a side-effect, this method removes (and deletes) any
+// passes which do not contribute to the rendergraph
 //
 static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
