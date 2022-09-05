@@ -8,6 +8,9 @@
 #include <vector>
 #include <set>
 #include <map>
+#include <cstring> // for memcpy
+#include <cassert>
+#include <bitset>
 
 static constexpr auto LOGGER_LABEL = "le_backend";
 
@@ -33,45 +36,51 @@ struct le_device_o {
 
 	} properties;
 
-	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
-	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
-	// which closest fits requested capabilities.
-	//
-	std::vector<VkQueueFlags> queuesWithCapabilitiesRequest = { VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_COMPUTE_BIT };
-	std::vector<uint32_t>     queueFamilyIndices;
-	std::vector<VkQueue>      queues;
-
-	struct DefaultQueueIndices {
-		uint32_t graphics      = ~uint32_t( 0 );
-		uint32_t compute       = ~uint32_t( 0 );
-		uint32_t transfer      = ~uint32_t( 0 );
-		uint32_t sparseBinding = ~uint32_t( 0 );
-	};
+	std::vector<VkQueue>      queues;              // queues as created with device
+	std::vector<VkQueueFlags> queues_flags;        // per-queue capability flags
+	std::vector<uint32_t>     queues_family_index; // per-queue family index
 
 	std::set<std::string> requestedDeviceExtensions;
 
-	DefaultQueueIndices defaultQueueIndices;
-	VkFormat            defaultDepthStencilFormat;
+	VkFormat defaultDepthStencilFormat;
 
 	uint32_t referenceCount = 0;
 };
 
 // ----------------------------------------------------------------------
 
-uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& queueFlags_, const VkQueueFlags& flags ) {
+static std::string le_queue_flags_to_string( le::QueueFlags const& flags ) {
+	std::string result;
+
+	uint64_t f = flags;
+	for ( int i = 0; ( f > 0 ); i++ ) {
+		if ( f & 1 ) {
+			result.append(
+			    result.empty()
+			        ? std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) )
+			        : " | " + std::string( le::to_str( le::QueueFlagBits( 1 << i ) ) ) );
+		}
+		f >>= 1;
+	}
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& haystack, const VkQueueFlags& needle ) {
 
 	// Find out the queue family index for a queue best matching the given flags.
 	// We use this to find out the index of the Graphics Queue for example.
 
-	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ) {
-		if ( queueFlags_[ i ] == flags ) {
+	for ( uint32_t i = 0; i != haystack.size(); i++ ) {
+		if ( haystack[ i ] == needle ) {
 			// First perfect match
 			return i;
 		}
 	}
 
-	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ) {
-		if ( queueFlags_[ i ] & flags ) {
+	for ( uint32_t i = 0; i != haystack.size(); i++ ) {
+		if ( haystack[ i ] & needle ) {
 			// First multi-function queue match
 			return i;
 		}
@@ -79,9 +88,9 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& queueFl
 
 	// ---------| invariant: no queue found
 
-	if ( flags & VK_QUEUE_GRAPHICS_BIT ) {
+	if ( needle & VK_QUEUE_GRAPHICS_BIT ) {
 		static auto logger = LeLog( LOGGER_LABEL );
-		logger.error( "Could not find queue family index matching: '%d'", flags );
+		logger.error( "Could not find queue family index matching: '%d'", needle );
 	}
 
 	return ~( uint32_t( 0 ) );
@@ -94,68 +103,73 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<VkQueueFlags>& queueFl
 ///        1.. index within queue family
 ///        2.. index of queue from props vector (used to keep queue indices
 //             consistent between requested queues and queues you will render to)
-std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQueues( const std::vector<VkQueueFamilyProperties2>& props, const std::vector<::VkQueueFlags>& reqProps ) {
+
+struct QueueQueryResult {
+	uint32_t queue_family_index;     // Queue Family Index
+	uint32_t queue_index;            // Offset within queue family.
+	                                 // If we're picking the 1st queue of a family, the offset will be 0,
+	                                 // If we're picking the 3rd queue of a family, the offset will be 2.
+	VkQueueFlags queue_family_flags; // Full flags that this queue supports
+};
+
+std::vector<QueueQueryResult> findBestMatchForRequestedQueues( const std::vector<VkQueueFamilyProperties2>& props, const std::vector<VkQueueFlags>& reqProps ) {
+	std::vector<QueueQueryResult> result;
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	std::vector<std::tuple<uint32_t, uint32_t, size_t>> result;
-	std::vector<uint32_t>                               usedQueues( props.size(), ~( uint32_t( 0 ) ) ); // last used queue, per queue family (initialised at -1)
+	std::vector<uint32_t> usedQueues( props.size(), 0 ); // number of used queues per queue family
 
 	size_t reqIdx = 0; // original index for requested queue
 	for ( const auto& flags : reqProps ) {
 
-		// best match is a queue which does exclusively what we want
-		bool     foundMatch  = false;
-		uint32_t foundFamily = 0;
-		uint32_t foundIndex  = 0;
+		bool     foundMatch            = false;
+		uint32_t foundFamily           = 0;
+		uint32_t lowest_num_extra_bits = uint32_t( ~0 );
+
+		// Best match is a queue that has the fewest extra bits set after it covers all the bits
+		// that are mandatory.
+		// We should be able to find this in one pass per requested queue.
 
 		for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ) {
+			VkQueueFlags available_flags = props[ familyIndex ].queueFamilyProperties.queueFlags;
+			VkQueueFlags requested_flags = flags;
 
-			// 1. Is there a family that matches our requirements exactly?
-			// 2. Is a queue from this family still available?
-
-			if ( props[ familyIndex ].queueFamilyProperties.queueFlags == flags ) {
-				// perfect match
-				if ( usedQueues[ familyIndex ] + 1 < props[ familyIndex ].queueFamilyProperties.queueCount ) {
-					foundMatch  = true;
-					foundFamily = familyIndex;
-					foundIndex  = usedQueues[ familyIndex ] + 1;
-					logger.info( "Found dedicated queue matching: '%d'", flags );
-				} else {
-					logger.info( "No more dedicated queues available matching: '%d'", flags );
-				}
-				break;
-			}
-		}
-
-		if ( foundMatch == false ) {
-
-			// If we haven't found a match, we need to find a versatile queue which might
-			// be able to fulfill our requirements.
-
-			for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ) {
-
-				// 1. Is there a family that has the ability to fulfill our requirements?
-				// 2. Is a queue from this family still available?
-
-				if ( props[ familyIndex ].queueFamilyProperties.queueFlags & flags ) {
-					// versatile queue matchvkGetPhysicalDeviceQueueFamilyProperties2
-					if ( usedQueues[ familyIndex ] + 1 < props[ familyIndex ].queueFamilyProperties.queueCount ) {
-						foundMatch  = true;
-						foundFamily = familyIndex;
-						foundIndex  = usedQueues[ familyIndex ] + 1;
-						logger.info( "Found versatile queue matching: '%d'", flags );
+			if ( ( available_flags & requested_flags ) == requested_flags ) {
+				// requested_flags are contained in available flags
+				VkQueueFlags leftover_flags = ( available_flags & ( ~requested_flags ) ); // flags which only appear in available_flags
+				size_t       num_extra_bits = std::bitset<sizeof( VkQueueFlags ) * 8>( leftover_flags ).count();
+				if ( num_extra_bits < lowest_num_extra_bits ) {
+					// Check if queue would be available
+					if ( usedQueues[ familyIndex ] < props[ familyIndex ].queueFamilyProperties.queueCount ) {
+						if ( foundMatch ) {
+							// we must release the previously used queue so that it becomes available again
+							usedQueues[ foundFamily ]--;
+						}
+						usedQueues[ familyIndex ]++; // mark this queue as used
+						foundFamily           = familyIndex;
+						lowest_num_extra_bits = num_extra_bits;
+						foundMatch            = true;
 					}
-					break;
 				}
 			}
 		}
 
 		if ( foundMatch ) {
-			result.emplace_back( foundFamily, foundIndex, reqIdx );
-			usedQueues[ foundFamily ] = foundIndex; // mark this queue as used
+
+			logger.info( "Found queue { %s } matching requirement: { %s }.",
+			             le_queue_flags_to_string( le::QueueFlagBits( props[ foundFamily ].queueFamilyProperties.queueFlags ) ).c_str(),
+			             le_queue_flags_to_string( le::QueueFlagBits( flags ) ).c_str() );
+
+			assert( usedQueues[ foundFamily ] > 0 && "must have at least one used queue at index" );
+
+			result.push_back( {
+			    .queue_family_index = foundFamily,                                           // queue family index
+			    .queue_index        = usedQueues[ foundFamily ] - 1,                         // index within queue family
+			    .queue_family_flags = props[ foundFamily ].queueFamilyProperties.queueFlags, // queue capability flags for this family
+			} );
+
 		} else {
-			logger.error( "No available queue matching requirement: '%d'", flags );
+			logger.error( "No queue available matching requirement: { %d }", flags );
 		}
 
 		++reqIdx;
@@ -166,7 +180,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 
 // ----------------------------------------------------------------------
 
-le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** extension_names, uint32_t extension_names_count ) {
+static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, const char** extension_names, uint32_t extension_names_count ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -208,7 +222,7 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 
 	using namespace le_backend_vk;
 
-	VkInstance instance = vk_instance_i.get_vk_instance( instance_ );
+	VkInstance instance = vk_instance_i.get_vk_instance( backend_instance );
 
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices( instance, &deviceCount, nullptr );
@@ -258,30 +272,43 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 		vkGetPhysicalDeviceQueueFamilyProperties2( self->vkPhysicalDevice, &numQueueFamilyProperties, self->properties.queue_family_properties.data() );
 	}
 
-	const auto& queueFamilyProperties = self->properties.queue_family_properties;
-	// See findBestMatchForRequestedQueues for how this tuple is laid out.
-	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, self->queuesWithCapabilitiesRequest );
+	std::vector<VkQueueFlags> requested_queues;
+	{
+		// fetch user-requested queues
+		uint32_t num_requested_queues = 0;
+		le_backend_vk::settings_i.get_requested_queue_capabilities( nullptr, &num_requested_queues );
+		requested_queues.resize( num_requested_queues );
+		le_backend_vk::settings_i.get_requested_queue_capabilities( requested_queues.data(), &num_requested_queues );
 
-	// Create queues based on queriedQueueFamilyAndIndex
-	std::vector<::VkDeviceQueueCreateInfo> device_queue_creation_infos;
+		if ( requested_queues.empty() ) {
+			VkQueueFlags default_queue_flags = { VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT };
+			le::Log( LOGGER_LABEL ).info( "No queues explicitly requested, requesting default: { %s }", le_queue_flags_to_string( le::QueueFlagBits( default_queue_flags ) ).c_str() );
+			requested_queues.push_back( default_queue_flags );
+		}
+	}
+	std::vector<QueueQueryResult> available_queues =
+	    findBestMatchForRequestedQueues( self->properties.queue_family_properties, requested_queues );
+
+	// Create queues based on available_queues
+	std::vector<VkDeviceQueueCreateInfo> device_queue_creation_infos;
 	// Consolidate queues by queue family type - this will also sort by queue family type.
 	std::map<uint32_t, uint32_t> queueCountPerFamily; // queueFamily -> count
 
-	for ( const auto& q : queriedQueueFamilyAndIndex ) {
+	for ( const auto& q : available_queues ) {
 		// Attempt to insert family to map
 
-		auto insertResult = queueCountPerFamily.insert( { std::get<0>( q ), 1 } );
+		auto insertResult = queueCountPerFamily.insert( { q.queue_family_index, 1 } );
 		if ( false == insertResult.second ) {
 			// Increment count if family entry already existed in map.
 			insertResult.first->second++;
 		}
 	}
 
-	device_queue_creation_infos.reserve( queriedQueueFamilyAndIndex.size() );
+	device_queue_creation_infos.reserve( available_queues.size() );
 
 	// We must store this in a map so that the pointer stays
 	// alive until we call the api.
-	std::map<uint32_t, std::vector<float>> prioritiesPerFamily; // todo: use an arena for this
+	std::map<uint32_t, std::vector<float>> prioritiesPerFamily;
 
 	for ( auto& q : queueCountPerFamily ) {
 		VkDeviceQueueCreateInfo queueCreateInfo;
@@ -291,8 +318,8 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 
 		queueCreateInfo = {
 		    .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		    .pNext            = nullptr, // optional
-		    .flags            = 0,       // optional
+		    .pNext            = nullptr,
+		    .flags            = 0,
 		    .queueFamilyIndex = queueFamily,
 		    .queueCount       = queueCount,
 		    .pQueuePriorities = prioritiesPerFamily[ queueFamily ].data(),
@@ -334,7 +361,7 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	    .pNext                   = features, // this contains the features chain from settings
 	    .flags                   = 0,
 	    .queueCreateInfoCount    = uint32_t( device_queue_creation_infos.size() ),
-	    .pQueueCreateInfos       = device_queue_creation_infos.data(),
+	    .pQueueCreateInfos       = device_queue_creation_infos.data(), // note that queues are created with device, once the device is created its number of queues is immutable.
 	    .enabledLayerCount       = 0,
 	    .ppEnabledLayerNames     = 0,
 	    .enabledExtensionCount   = uint32_t( enabledDeviceExtensionNames.size() ),
@@ -351,24 +378,16 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 	// Store queue flags, and queue family index per queue into renderer properties,
 	// so that queue capabilities and family index may be queried thereafter.
 
-	self->queueFamilyIndices.resize( self->queuesWithCapabilitiesRequest.size() );
-	self->queues.resize( queriedQueueFamilyAndIndex.size() );
+	self->queues.resize( available_queues.size() );
+	self->queues_family_index.resize( available_queues.size() );
+	self->queues_flags.resize( available_queues.size() );
 
-	// Fetch queue handle into mQueue, matching indices with the original queue request vector
-	for ( auto& q : queriedQueueFamilyAndIndex ) {
-		const auto& queueFamilyIndex    = std::get<0>( q );
-		const auto& queueIndex          = std::get<1>( q );
-		const auto& requestedQueueIndex = std::get<2>( q );
-
-		vkGetDeviceQueue( self->vkDevice, queueFamilyIndex, queueIndex, &self->queues[ requestedQueueIndex ] );
-		self->queueFamilyIndices[ requestedQueueIndex ] = queueFamilyIndex;
+	// Fetch queue handle into self->queues[i], matching indices with available_queues
+	for ( size_t i = 0; i != available_queues.size(); i++ ) {
+		vkGetDeviceQueue( self->vkDevice, available_queues[ i ].queue_family_index, available_queues[ i ].queue_index, &self->queues[ i ] );
+		self->queues_family_index[ i ] = available_queues[ i ].queue_family_index;
+		self->queues_flags[ i ]        = available_queues[ i ].queue_family_flags;
 	}
-
-	// Populate indices for default queues - so that default queue may be queried by queue type
-	self->defaultQueueIndices.graphics      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, VK_QUEUE_GRAPHICS_BIT );
-	self->defaultQueueIndices.compute       = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, VK_QUEUE_COMPUTE_BIT );
-	self->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, VK_QUEUE_TRANSFER_BIT );
-	self->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, VK_QUEUE_SPARSE_BINDING_BIT );
 
 	// Query possible depth formats, find the
 	// first format that supports attachment as a depth stencil
@@ -402,21 +421,22 @@ le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** ex
 
 // ----------------------------------------------------------------------
 
-le_device_o* device_increase_reference_count( le_device_o* self ) {
+static le_device_o* device_increase_reference_count( le_device_o* self ) {
 	++self->referenceCount;
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-void device_destroy( le_device_o* self ) {
+static void device_destroy( le_device_o* self ) {
+	self->queues.clear();
 	vkDestroyDevice( self->vkDevice, nullptr );
 	delete ( self );
 };
 
 // ----------------------------------------------------------------------
 
-le_device_o* device_decrease_reference_count( le_device_o* self ) {
+static le_device_o* device_decrease_reference_count( le_device_o* self ) {
 
 	--self->referenceCount;
 
@@ -430,67 +450,74 @@ le_device_o* device_decrease_reference_count( le_device_o* self ) {
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_reference_count( le_device_o* self ) {
+static uint32_t device_get_reference_count( le_device_o* self ) {
 	return self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-VkDevice device_get_vk_device( le_device_o* self_ ) {
+static VkDevice device_get_vk_device( le_device_o* self_ ) {
 	return self_->vkDevice;
 }
 
 // ----------------------------------------------------------------------
 
-VkPhysicalDevice device_get_vk_physical_device( le_device_o* self_ ) {
+static VkPhysicalDevice device_get_vk_physical_device( le_device_o* self_ ) {
 	return self_->vkPhysicalDevice;
 }
 
 // ----------------------------------------------------------------------
 
-const VkPhysicalDeviceProperties* device_get_vk_physical_device_properties( le_device_o* self ) {
+static const VkPhysicalDeviceProperties* device_get_vk_physical_device_properties( le_device_o* self ) {
 	return &self->properties.device_properties.properties;
 }
 
 // ----------------------------------------------------------------------
 
-const VkPhysicalDeviceMemoryProperties* device_get_vk_physical_device_memory_properties( le_device_o* self ) {
+static const VkPhysicalDeviceMemoryProperties* device_get_vk_physical_device_memory_properties( le_device_o* self ) {
 	return &self->properties.memory_properties.memoryProperties;
 }
 
 // ----------------------------------------------------------------------
 
-void device_get_physical_device_ray_tracing_properties( le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
+static void device_get_physical_device_ray_tracing_properties( le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
 	*properties = self->properties.raytracing_properties;
 }
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_default_graphics_queue_family_index( le_device_o* self_ ) {
-	return self_->queueFamilyIndices[ self_->defaultQueueIndices.graphics ];
-};
-
-// ----------------------------------------------------------------------
-
-uint32_t device_get_default_compute_queue_family_index( le_device_o* self_ ) {
-	return self_->queueFamilyIndices[ self_->defaultQueueIndices.compute ];
+static void device_get_queue_family_indices( le_device_o* self, uint32_t* family_indices, uint32_t* num_family_indices ) {
+	if ( num_family_indices && *num_family_indices == self->queues.size() ) {
+		memcpy( family_indices, self->queues_family_index.data(), sizeof( uint32_t ) * self->queues_family_index.size() );
+	} else {
+		if ( num_family_indices ) {
+			*num_family_indices = self->queues.size();
+		}
+	}
 }
 
-// ----------------------------------------------------------------------
+static void le_device_get_queues_info( le_device_o* self, uint32_t* queue_count, VkQueue* queues, uint32_t* queues_family_index, VkQueueFlags* queues_flags ) {
+	if ( queue_count ) {
+		*queue_count = self->queues.size();
+	}
 
-VkQueue device_get_default_graphics_queue( le_device_o* self_ ) {
-	return self_->queues[ self_->defaultQueueIndices.graphics ];
+	assert( self->queues.size() == self->queues_family_index.size() &&
+	        self->queues.size() == self->queues_flags.size() &&
+	        "Queue SOA members must have equal length." );
+
+	if ( queues ) {
+		memcpy( queues, self->queues.data(), sizeof( VkQueue ) * self->queues.size() );
+	}
+	if ( queues_family_index ) {
+		memcpy( queues_family_index, self->queues_family_index.data(), sizeof( uint32_t ) * self->queues_family_index.size() );
+	}
+	if ( queues_flags ) {
+		memcpy( queues_flags, self->queues_flags.data(), sizeof( VkQueueFlags ) * self->queues_flags.size() );
+	}
 }
-
 // ----------------------------------------------------------------------
 
-VkQueue device_get_default_compute_queue( le_device_o* self_ ) {
-	return self_->queues[ self_->defaultQueueIndices.compute ];
-}
-
-// ----------------------------------------------------------------------
-
-VkFormatEnum const* device_get_default_depth_stencil_format( le_device_o* self ) {
+static VkFormatEnum const* device_get_default_depth_stencil_format( le_device_o* self ) {
 	return reinterpret_cast<VkFormatEnum const*>( &self->defaultDepthStencilFormat );
 }
 
@@ -540,8 +567,6 @@ static bool device_is_extension_available( le_device_o* self, char const* extens
 
 // ----------------------------------------------------------------------
 
-// ----------------------------------------------------------------------
-
 void register_le_device_vk_api( void* api_ ) {
 	auto  api_i    = static_cast<le_backend_vk_api*>( api_ );
 	auto& device_i = api_i->vk_device_i;
@@ -551,10 +576,8 @@ void register_le_device_vk_api( void* api_ ) {
 	device_i.decrease_reference_count                      = device_decrease_reference_count;
 	device_i.increase_reference_count                      = device_increase_reference_count;
 	device_i.get_reference_count                           = device_get_reference_count;
-	device_i.get_default_graphics_queue_family_index       = device_get_default_graphics_queue_family_index;
-	device_i.get_default_compute_queue_family_index        = device_get_default_compute_queue_family_index;
-	device_i.get_default_graphics_queue                    = device_get_default_graphics_queue;
-	device_i.get_default_compute_queue                     = device_get_default_compute_queue;
+	device_i.get_queue_family_indices                      = device_get_queue_family_indices;
+	device_i.get_queues_info                               = le_device_get_queues_info;
 	device_i.get_default_depth_stencil_format              = device_get_default_depth_stencil_format;
 	device_i.get_vk_physical_device                        = device_get_vk_physical_device;
 	device_i.get_vk_device                                 = device_get_vk_device;

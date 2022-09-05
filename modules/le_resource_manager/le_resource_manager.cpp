@@ -56,7 +56,7 @@ static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
 		}
 
 		if ( uses_resource ) {
-			rp.useImageResource( r.image_handle, le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) );
+			rp.useImageResource( r.image_handle, le::AccessFlagBits2::eTransferWrite );
 			needsTransfer = true;
 		}
 	}
@@ -135,7 +135,7 @@ static void le_resource_manager_update( le_resource_manager_o* manager, le_rende
 	}
 
 	auto renderPassTransfer =
-	    le::RenderPass( "xfer_le_resource_manager", le::RenderPassType::eTransfer )
+	    le::RenderPass( "xfer_le_resource_manager", le::QueueFlagBits::eTransfer )
 	        .setSetupCallback( manager, setupTransferPass )  // decide whether to go forward
 	        .setExecuteCallback( manager, execTransferPass ) //
 	    ;
@@ -209,6 +209,8 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 
 		item.image_layers.emplace_back( layer_data );
 	}
+
+	item.image_info.image.usage = le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage;
 
 	assert( item.image_info.image.extent.width != 0 &&
 	        item.image_info.image.extent.height != 0 &&

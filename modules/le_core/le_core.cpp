@@ -391,13 +391,16 @@ ISL_API_ATTR char const* le_get_argument_name_from_hash( uint64_t value ) {
 ///
 
 class PltGot {
-	void*        plt_got      = nullptr;
-	size_t       plt_got_sz   = 0;
-	char*        plt_page     = nullptr;
-	char*        got_page     = nullptr;
-	uint32_t     used_entries = 0;
-	const size_t PAGE_SIZE;
-	const size_t MAX_CALLBACK_FORWARDERS_PER_PAGE;
+	void*                plt_got    = nullptr;
+	size_t               plt_got_sz = 0;
+	char*                plt_page   = nullptr;
+	char*                got_page   = nullptr;
+	const size_t         PAGE_SIZE;
+	const size_t         MAX_CALLBACK_FORWARDERS_PER_PAGE;
+	std::vector<uint8_t> usage_markers; // A bitfield, where each bit represents an entry
+	                                    // in the table, 0 where each bit signals whether an entry
+	                                    // was used or not. Because we check occupancy before adding a new entry,
+	                                    // this helps us to recycle entries which have been released.
 
 	void* plt_at( size_t index ) {
 		assert( index < MAX_CALLBACK_FORWARDERS_PER_PAGE && "callback plt index out of bounds" );
@@ -412,7 +415,9 @@ class PltGot {
   public:
 	PltGot()
 	    : PAGE_SIZE( sysconf( _SC_PAGESIZE ) )
-	    , MAX_CALLBACK_FORWARDERS_PER_PAGE( PAGE_SIZE / 16 ) {
+	    , MAX_CALLBACK_FORWARDERS_PER_PAGE( PAGE_SIZE / ( 16 ) )
+	    , usage_markers( ( MAX_CALLBACK_FORWARDERS_PER_PAGE + 7 ) / 8, 0 ) // allocate greedily to make sure we have enough bits to cover all
+	{
 
 		plt_got_sz = PAGE_SIZE * 2;
 		plt_got    = mmap( NULL, plt_got_sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 );
@@ -441,7 +446,7 @@ class PltGot {
 			memcpy( plt_page + 16 * i, thunk, 16 );
 		}
 
-		// now we set permissions for this page to be exec + read only.
+		// Now we set permissions for this page to be exec + read only.
 		// We keep read/write for the second page, as second page will
 		// contain the got, which we might want to update externally.
 
@@ -454,12 +459,46 @@ class PltGot {
 	};
 
 	bool new_entry( void** plt, void** got ) {
-		auto entry = used_entries++;
-		if ( entry > MAX_CALLBACK_FORWARDERS_PER_PAGE ) {
+		uint32_t entry = 0;
+		size_t   i     = 0;
+		for ( ; i != usage_markers.size(); i++ ) {
+			if ( usage_markers[ i ] != uint8_t( ~0 ) ) {
+				// we will return the first usage marker that has a hole in it
+				break;
+			}
+		}
+
+		if ( i == usage_markers.size() ) {
 			return false;
 		}
-		*plt = plt_at( entry );
-		*got = got_at( entry );
+
+		// ---------| invariant: i is the first index in usage_markers that points to a free entry
+
+		for ( uint32_t offset = 0; ( offset + i * 8 ) < MAX_CALLBACK_FORWARDERS_PER_PAGE; offset++ ) {
+			if ( ( usage_markers[ i ] >> offset & uint8_t( 1 ) ) == 0 ) {
+				// we found a free element!
+				entry = offset + i * 8;
+				*plt  = plt_at( entry );
+				*got  = got_at( entry );
+				usage_markers[ i ] |= ( uint8_t( 1 ) << offset ); // flip this bit to used
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool free_entry( void* plt ) {
+		if ( plt < plt_page || plt >= plt_page + 16 * MAX_CALLBACK_FORWARDERS_PER_PAGE ) {
+			// plt cannot be in this table as it is outside our address range
+			return false;
+		}
+
+		// Todo: implement.
+		// first find entry, then set it to unused, zero out the appropriate marker
+		uint32_t entry = ( ( char* )plt - ( char* )plt_page ) / 16;
+
+		usage_markers[ entry / 8 ] &= ~( uint8_t( 1 ) << ( entry % 8 ) );
+
 		return true;
 	}
 
@@ -479,32 +518,65 @@ class PltGotForwardList {
 	void next_entry( void** plt, void** got ) {
 		auto lck = std::unique_lock( mtx );
 		while ( list.get() == nullptr || list.get()->new_entry( plt, got ) == false ) {
-			auto new_entry = std::make_unique<PltGot>();
-			std::swap( new_entry->list_next, list );
-			std::swap( list, new_entry );
+			auto new_table = std::make_unique<PltGot>();
+			std::swap( new_table->list_next, list );
+			std::swap( list, new_table );
 		}
+	}
+
+	// ----------------------------------------------------------------------
+
+	void release_entry( void* plt ) {
+		auto lck = std::unique_lock( mtx );
+
+		if ( list.get() == nullptr ) {
+			// no entries in list, ergo nothing to release.
+			return;
+		}
+
+		PltGot* list_item = list.get();
+
+		while ( list_item != nullptr && ( false == list_item->free_entry( plt ) ) ) {
+			list_item = list_item->list_next.get();
+		};
 	}
 };
 
 // ----------------------------------------------------------------------
 
+static PltGotForwardList* le_core_get_plt_got_forward_list() {
+	// We use a getter function for our static plt_got singleton so that we can guarantee
+	// that this static variable gets instantiated on first use.
+	//
+	// By using it as an object, we can be sure that its destructor will get called
+	// upon program exit.
+	static PltGotForwardList plt_got{};
+	return &plt_got;
+}
+
+// ----------------------------------------------------------------------
+
 void* le_core_get_callback_forwarder_addr_impl( void* callback_addr ) {
 
-	// let's allocate more of these as we need them - we can store them in a vector
-	// and only ever use the last one.
-
-	static PltGotForwardList plt_got{};
+	static PltGotForwardList* plt_got = le_core_get_plt_got_forward_list();
 
 	void* plt_addr = nullptr;
 	void* got_addr = nullptr;
 
-	plt_got.next_entry( &plt_addr, &got_addr );
+	plt_got->next_entry( &plt_addr, &got_addr );
 
 	// copy value of callback pointer into got table
 	memcpy( got_addr, &callback_addr, sizeof( void* ) );
 
 	return plt_addr;
 };
+
+// ----------------------------------------------------------------------
+
+void le_core_release_callback_forwarder_addr_impl( void* plt_addr ) {
+	static PltGotForwardList* plt_got = le_core_get_plt_got_forward_list();
+	plt_got->release_entry( plt_addr );
+}
 
 #endif
 // end callback forwarding-----------------------------------------------

@@ -5,6 +5,14 @@
 
 #include "le_hash_util.h"
 
+constexpr size_t LE_MAX_NUM_GRAPH_RESOURCES = 2048; // Maximum number of unique resources in a Rendergraph. Set this to larger value if you want to deal with a larger number of distinct resources.
+constexpr size_t LE_MAX_NUM_GRAPH_ROOTS     = 64;   // Maximum number of root nodes in a given RenderGraph. We assume this is much smaller than LE_MAX_NUM_GRAPH_RESOURCES, but worst case it would need to be the same size.
+
+namespace le {
+using RootPassesField = uint64_t; // used to express affinity to a root pass - each bit may represent a root pass
+static_assert( sizeof( RootPassesField ) == LE_MAX_NUM_GRAPH_ROOTS / 8, "LeRootPassesField must have enough bits available to cover LE_MAX_NUM_GRAPH_ROOTS" );
+} // namespace le
+
 // Wraps a type (also may also be an enum) in a struct with `struct_name` so
 // that it can be opaquely passed around, then unwrapped.
 #define LE_WRAP_TYPE_IN_STRUCT( type_name, struct_name )              \
@@ -46,15 +54,6 @@ struct le_blas_resource_handle_t : le_resource_handle_t {
 };
 struct le_tlas_resource_handle_t : le_resource_handle_t {
 };
-
-namespace le {
-enum RenderPassType : uint32_t {
-	eUndefined = 0,
-	eDraw      = 1,
-	eTransfer  = 2,
-	eCompute   = 3,
-};
-}
 
 // A graphics pipeline handle is an opaque handle to a *pipeline state* object.
 // Note that the pipeline state is different from the actual pipeline, as the
@@ -168,6 +167,7 @@ struct ClearValue {
 		ClearDepthStencilValue depthStencil;
 	};
 };
+
 } // namespace le
 
 struct le_image_attachment_info_t {
@@ -185,15 +185,6 @@ static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
 	info.clearValue = le_image_attachment_info_t::DefaultClearValueDepthStencil;
 	return info;
 }
-
-typedef uint32_t LeResourceAccessFlags_t;
-LE_WRAP_TYPE_IN_STRUCT( LeResourceAccessFlags_t, LeResourceAccessFlags );
-enum LeResourceAccessFlagBits : LeResourceAccessFlags_t {
-	eLeResourceAccessFlagBitUndefined  = 0x0,
-	eLeResourceAccessFlagBitRead       = 0x1 << 0,
-	eLeResourceAccessFlagBitWrite      = 0x1 << 1,
-	eLeResourceAccessFlagBitsReadWrite = eLeResourceAccessFlagBitRead | eLeResourceAccessFlagBitWrite,
-};
 
 // use le::ImageSamplerBuilder to define texture info
 struct le_sampler_info_t {
@@ -631,31 +622,63 @@ struct le_resource_info_t {
 		uint32_t             sample_count_log2; // sample count as log2, 0 means 1, 1 means 2, 2 means 4...
 		le::ImageTiling      tiling;            // enum VkImageTiling
 		le::ImageUsageFlags  usage;             // usage flags (LeImageUsageFlags : uint32_t)
-		uint32_t             samplesFlags;      // bitfield over all variants of this image resource
+		uint32_t             samplesFlags;      // bitfield over all variants of this image resource- we use this to tell how many multisampling instances this image requires
+
+		//		bool operator==( ImageInfo const& ) const = default;
 	};
 
 	struct BufferInfo {
 		uint32_t             size;
 		le::BufferUsageFlags usage; // usage flags (LeBufferUsageFlags : uint32_t)
+
+		//		bool operator==( BufferInfo const& ) const = default;
 	};
 
 	struct TlasInfo {
 		le_rtx_tlas_info_handle info; // opaque handle, but enough to refer back to original
 		LeRtxTlasUsageFlags     usage;
+
+		//		bool operator==( TlasInfo const& ) const = default;
 	};
 
 	struct BlasInfo {
 		le_rtx_blas_info_handle info; // opaque handle, but enough to refer back to original
 		LeRtxBlasUsageFlags     usage;
+
+		//		bool operator==( BlasInfo const& ) const = default;
 	};
 
 	LeResourceType type;
+
 	union {
 		BufferInfo buffer;
 		ImageInfo  image;
 		BlasInfo   blas;
 		TlasInfo   tlas;
 	};
+
+	//	bool operator==( le_resource_info_t const& lhs ) const {
+	//		if ( type != lhs.type ) {
+	//			return false;
+	//		}
+	//		switch ( type ) {
+	//		case ( LeResourceType::eUndefined ):
+	//			return true;
+	//		case ( LeResourceType::eBuffer ):
+	//			return lhs.buffer == buffer;
+	//		case ( LeResourceType::eImage ):
+	//			return lhs.image == image;
+	//		case ( LeResourceType::eRtxBlas ):
+	//			return lhs.blas == blas;
+	//		case ( LeResourceType::eRtxTlas ):
+	//			return lhs.tlas == tlas;
+	//		}
+
+	//		return false;
+	//	};
+	//	bool operator!=( le_resource_info_t const& lhs ) const {
+	//		return ( !operator==( lhs ) );
+	//	}
 };
 
 enum class le_compound_num_type : uint8_t {
@@ -833,7 +856,7 @@ struct CommandBufferMemoryBarrier {
 	struct {
 		le::PipelineStageFlags2 srcStageMask;
 		le::PipelineStageFlags2 dstStageMask;
-		le::AccessFlags         dstAccessMask;
+		le::AccessFlags2        dstAccessMask;
 		le_buf_resource_handle  buffer;
 		uint64_t                offset;
 		uint64_t                range;

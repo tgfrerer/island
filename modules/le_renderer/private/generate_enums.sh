@@ -2,7 +2,7 @@
 
 ../../../scripts/codegen/gen_le_enums.py <<- "EOF" | clang-format > le_vk_enums.inl
 # Vulkan enum name,         generate to_string()
-VkAccessFlagBits
+VkAccessFlagBits2, yes
 VkAttachmentLoadOp, yes
 VkAttachmentStoreOp,        yes
 VkBlendFactor, yes
@@ -27,6 +27,7 @@ VkIndexType, yes
 VkPipelineStageFlagBits2,
 VkPolygonMode, yes
 VkPrimitiveTopology, yes
+VkQueueFlagBits, yes
 VkSampleCountFlagBits
 VkSamplerAddressMode, yes
 VkSamplerMipmapMode, yes

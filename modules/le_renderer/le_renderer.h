@@ -70,30 +70,26 @@ struct le_renderer_api {
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
-		le_renderpass_o *               ( *create               )( const char *renderpass_name, const le::RenderPassType &type_ );
+		le_renderpass_o *               ( *create               )( const char *renderpass_name, const le::QueueFlagBits &type_ );
 		void                            ( *destroy              )( le_renderpass_o *obj );
 		le_renderpass_o *               ( *clone                )( const le_renderpass_o *obj );
         void                            ( *set_setup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_setup_t setup_fun );
 		bool                            ( *has_setup_callback   )( const le_renderpass_o* obj);
 		void                            ( *add_color_attachment )( le_renderpass_o *obj, le_img_resource_handle resource_id, le_image_attachment_info_t const *info );
 		void                            ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_img_resource_handle resource_id, le_image_attachment_info_t const *info );
-		uint32_t                        ( *get_width            )( le_renderpass_o const * obj);
-		uint32_t                        ( *get_height           )( le_renderpass_o const * obj);
 		void                            ( *set_width            )( le_renderpass_o* obj, uint32_t width);
 		void                            ( *set_height           )( le_renderpass_o* obj, uint32_t height);
 		void                            ( *set_sample_count     ) (le_renderpass_o* obj, le::SampleCountFlagBits const & sampleCount);
-		le::SampleCountFlagBits const & ( *get_sample_count     ) (const le_renderpass_o* obj ); 
+		bool                            ( *get_framebuffer_settings)(le_renderpass_o const * obj, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count);
 		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                            ( *use_img_resource         )( le_renderpass_o *obj, const le_img_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
-		void                            ( *use_buf_resource         )( le_renderpass_o *obj, const le_buf_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
-		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
+		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id,  le::AccessFlags2 const& access_flags);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);
-		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
+		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds,  le::AccessFlags2 const ** pResourcesAccess, size_t *count );
 		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
-		le::RenderPassType              ( *get_type             )( const le_renderpass_o* obj );
+		void                            ( *get_queue_sumbission_info)( const le_renderpass_o* obj, le::QueueFlagBits* pass_type, le::RootPassesField * queue_submission_id);
 		le_command_buffer_encoder_o*    ( *steal_encoder        )( le_renderpass_o* obj );
 		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_img_resource_handle ** pResourceIds, size_t* numAttachments);
 
@@ -124,6 +120,7 @@ struct le_renderer_api {
 		void                 ( *setup_passes           ) ( le_rendergraph_o *self, le_rendergraph_o *gb );
 		void                 ( *get_passes             ) ( le_rendergraph_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses );
 		void                 ( *get_declared_resources ) ( le_rendergraph_o *self, le_resource_handle const **p_resource_handles, le_resource_info_t const **p_resource_infos, size_t *p_resource_count );
+        void                 ( *get_p_affinity_masks   ) ( le_rendergraph_o* self, le::RootPassesField const **p_affinity_masks, uint32_t *num_affinity_masks );
 
     };
 
@@ -143,7 +140,7 @@ struct le_renderer_api {
 		void                         ( *draw_mesh_tasks        )( le_command_buffer_encoder_o *self, uint32_t taskCount, uint32_t fistTask);
 
 		void                         (* dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
-		void                         (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const &srcStageMask, le::PipelineStageFlags2 const &dstStageMask, le::AccessFlags const & dstAccessMask, le_buf_resource_handle const &buffer, uint64_t const & offset, uint64_t const & range );
+		void                         (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const &srcStageMask, le::PipelineStageFlags2 const &dstStageMask, le::AccessFlags2 const & dstAccessMask, le_buf_resource_handle const &buffer, uint64_t const & offset, uint64_t const & range );
 
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
@@ -244,6 +241,7 @@ class Renderer {
 		le_renderer::renderer_i.setup( self, le::RendererInfoBuilder( window ).build() );
 	}
 
+	/// Call this method exactly once per Frame - this is where rendergraph execution callbacks are triggered.
 	void update( le_rendergraph_o* rendergraph ) {
 		le_renderer::renderer_i.update( self, rendergraph );
 	}
@@ -296,11 +294,11 @@ class RenderPass {
 	le_renderpass_o* self;
 
   public:
-	RenderPass( const char* name_, const le::RenderPassType& type_ = le::RenderPassType::eDraw )
+	RenderPass( const char* name_, const le::QueueFlagBits& type_ = le::QueueFlagBits::eGraphics )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 	}
 
-	RenderPass( const char* name_, const le::RenderPassType& type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void* user_data )
+	RenderPass( const char* name_, const le::QueueFlagBits& type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void* user_data )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 		le_renderer::renderpass_i.set_setup_callback( self, user_data, fun_setup );
 		le_renderer::renderpass_i.set_execute_callback( self, user_data, fun_exec );
@@ -382,23 +380,23 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass& useImageResource( le_img_resource_handle resource_id, le::ImageUsageFlags const& usage_flags ) {
-		le_renderer::renderpass_i.use_img_resource( self, resource_id, { LeResourceType::eImage, { usage_flags } } );
+	RenderPass& useImageResource( le_img_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
 		return *this;
 	}
 
-	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::BufferUsageFlags const& usage_flags ) {
-		le_renderer::renderpass_i.use_buf_resource( self, resource_id, { LeResourceType::eBuffer, { usage_flags } } );
+	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
 		return *this;
 	}
 
-	RenderPass& useRtxBlasResource( le_resource_handle resource_id, const LeRtxBlasUsageFlags& usage_flags = { LE_RTX_BLAS_USAGE_READ_BIT } ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxBlas, { { usage_flags } } } );
+	RenderPass& useRtxBlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
 		return *this;
 	}
 
-	RenderPass& useRtxTlasResource( le_resource_handle resource_id, const LeRtxTlasUsageFlags& usage_flags = { LE_RTX_TLAS_USAGE_READ_BIT } ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxTlas, { { usage_flags } } } );
+	RenderPass& useRtxTlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
 		return *this;
 	}
 
@@ -489,7 +487,7 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder& setCreateFlags( le::ImageCreateFlags flags = 0 ) {
+	ImageInfoBuilder& setCreateFlags( le::ImageCreateFlags flags = ImageCreateFlagBits() ) {
 		img.flags = flags;
 		return *this;
 	}
@@ -596,7 +594,7 @@ class Encoder {
 	Encoder& bufferMemoryBarrier(
 	    le::PipelineStageFlags2 const& srcStageMask,
 	    le::PipelineStageFlags2 const& dstStageMask,
-	    le::AccessFlags const&         dstAccessMask,
+	    le::AccessFlags2 const&        dstAccessMask,
 	    le_buf_resource_handle const&  buffer,
 	    uint64_t const&                offset = 0,
 	    uint64_t const&                range  = ~( 0ull ) ) {

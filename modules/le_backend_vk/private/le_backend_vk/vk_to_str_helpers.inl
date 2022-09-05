@@ -6,8 +6,76 @@
 //
 
 #include <stdint.h>
-#include <vulkan/vulkan.h>
-#include <string>
+
+// ----------------------------------------------------------------------
+
+static constexpr char const* to_str_vk_access_flag_bits2( const VkAccessFlagBits2& tp ) {
+	switch ( static_cast<int64_t>( tp ) ) {
+		// clang-format off
+	     case 0         : return "None";
+	     case 0x00000001ULL: return "IndirectCommandRead";
+	     case 0x00000002ULL: return "IndexRead";
+	     case 0x00000004ULL: return "VertexAttributeRead";
+	     case 0x00000008ULL: return "UniformRead";
+	     case 0x00000010ULL: return "InputAttachmentRead";
+	     case 0x00000020ULL: return "ShaderRead";
+	     case 0x00000040ULL: return "ShaderWrite";
+	     case 0x00000080ULL: return "ColorAttachmentRead";
+	     case 0x00000100ULL: return "ColorAttachmentWrite";
+	     case 0x00000200ULL: return "DepthStencilAttachmentRead";
+	     case 0x00000400ULL: return "DepthStencilAttachmentWrite";
+	     case 0x00000800ULL: return "TransferRead";
+	     case 0x00001000ULL: return "TransferWrite";
+	     case 0x00002000ULL: return "HostRead";
+	     case 0x00004000ULL: return "HostWrite";
+	     case 0x00008000ULL: return "MemoryRead";
+	     case 0x00010000ULL: return "MemoryWrite";
+	     case 0x00020000ULL: return "CommandPreprocessReadBitNv";
+	     case 0x00040000ULL: return "CommandPreprocessWriteBitNv";
+	     case 0x00080000ULL: return "ColorAttachmentReadNoncoherentBitExt";
+	     case 0x00100000ULL: return "ConditionalRenderingReadBitExt";
+	     case 0x00200000ULL: return "AccelerationStructureReadBitKhr";
+	     case 0x00400000ULL: return "AccelerationStructureWriteBitKhr";
+	     case 0x00800000ULL: return "FragmentShadingRateAttachmentReadBitKhr";
+	     case 0x01000000ULL: return "FragmentDensityMapReadBitExt";
+	     case 0x02000000ULL: return "TransformFeedbackWriteBitExt";
+	     case 0x04000000ULL: return "TransformFeedbackCounterReadBitExt";
+	     case 0x08000000ULL: return "TransformFeedbackCounterWriteBitExt";
+	     case 0x100000000000ULL: return "Reserved44BitNv";
+	     case 0x10000000000ULL: return "Reserved387BitKhr";
+	     case 0x1000000000ULL: return "VideoDecodeWriteBitKhr";
+	     case 0x100000000ULL: return "ShaderSampledRead";
+	     case 0x200000000000ULL: return "Reserved45BitNv";
+	     case 0x20000000000ULL: return "Reserved41BitAmd";
+	     case 0x2000000000ULL: return "VideoEncodeReadBitKhr";
+	     case 0x200000000ULL: return "ShaderStorageRead";
+	     case 0x40000000000ULL: return "Reserved42BitNv";
+	     case 0x4000000000ULL: return "VideoEncodeWriteBitKhr";
+	     case 0x400000000ULL: return "ShaderStorageWrite";
+	     case 0x80000000000ULL: return "Reserved43BitNv";
+	     case 0x8000000000ULL: return "InvocationMaskReadBitHuawei";
+	     case 0x800000000ULL: return "VideoDecodeReadBitKhr";
+	          default     : return "";
+		// clang-format on
+	};
+}
+
+static std::string to_string_vk_access_flags2( const VkAccessFlags2& tp ) {
+	uint64_t    flags = tp;
+	std::string result;
+	int         bit_pos = 0;
+	while ( flags ) {
+		if ( flags & 1 ) {
+			if ( false == result.empty() ) {
+				result.append( " | " );
+			}
+			result.append( to_str_vk_access_flag_bits2( VkAccessFlagBits2( 1ULL << bit_pos ) ) );
+		}
+		flags >>= 1;
+		bit_pos++;
+	}
+	return result;
+}
 
 // ----------------------------------------------------------------------
 
@@ -53,7 +121,7 @@ static std::string to_string_vk_buffer_usage_flags( const VkBufferUsageFlags& tp
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str_vk_buffer_usage_flag_bits( VkBufferUsageFlagBits( 1 << bit_pos ) ) );
+			result.append( to_str_vk_buffer_usage_flag_bits( VkBufferUsageFlagBits( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
@@ -350,6 +418,43 @@ static constexpr char const* to_str_vk_format( const VkFormat& tp ) {
 
 // ----------------------------------------------------------------------
 
+static constexpr char const* to_str_vk_image_layout( const VkImageLayout& tp ) {
+	switch ( static_cast<int32_t>( tp ) ) {
+		// clang-format off
+	     case 0         : return "Undefined";
+	     case 1         : return "General";
+	     case 2         : return "ColorAttachmentOptimal";
+	     case 3         : return "DepthStencilAttachmentOptimal";
+	     case 4         : return "DepthStencilReadOnlyOptimal";
+	     case 5         : return "ShaderReadOnlyOptimal";
+	     case 6         : return "TransferSrcOptimal";
+	     case 7         : return "TransferDstOptimal";
+	     case 8         : return "Preinitialized";
+	     case 1000001002: return "PresentSrcKhr";
+	     case 1000024000: return "VideoDecodeDstKhr";
+	     case 1000024001: return "VideoDecodeSrcKhr";
+	     case 1000024002: return "VideoDecodeDpbKhr";
+	     case 1000111000: return "SharedPresentKhr";
+	     case 1000117000: return "DepthReadOnlyStencilAttachmentOptimal";
+	     case 1000117001: return "DepthAttachmentStencilReadOnlyOptimal";
+	     case 1000164003: return "FragmentShadingRateAttachmentOptimalKhr";
+	     case 1000218000: return "FragmentDensityMapOptimalExt";
+	     case 1000241000: return "DepthAttachmentOptimal";
+	     case 1000241001: return "DepthReadOnlyOptimal";
+	     case 1000241002: return "StencilAttachmentOptimal";
+	     case 1000241003: return "StencilReadOnlyOptimal";
+	     case 1000299000: return "VideoEncodeDstKhr";
+	     case 1000299001: return "VideoEncodeSrcKhr";
+	     case 1000299002: return "VideoEncodeDpbKhr";
+	     case 1000314000: return "ReadOnlyOptimal";
+	     case 1000314001: return "AttachmentOptimal";
+	          default     : return "";
+		// clang-format on
+	};
+}
+
+// ----------------------------------------------------------------------
+
 static constexpr char const* to_str_vk_image_usage_flag_bits( const VkImageUsageFlagBits& tp ) {
 	switch ( static_cast<int32_t>( tp ) ) {
 		// clang-format off
@@ -390,125 +495,7 @@ static std::string to_string_vk_image_usage_flags( const VkImageUsageFlags& tp )
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str_vk_image_usage_flag_bits( VkImageUsageFlagBits( 1 << bit_pos ) ) );
-		}
-		flags >>= 1;
-		bit_pos++;
-	}
-	return result;
-}
-
-// ----------------------------------------------------------------------
-
-static constexpr char const* to_str_vk_result( const VkResult& tp ) {
-	switch ( static_cast<int32_t>( tp ) ) {
-		// clang-format off
-	     case -1        : return "VkErrorOutOfHostMemory";
-	     case -10       : return "VkErrorTooManyObjects";
-	     case -1000000000: return "VkErrorSurfaceLostKhr";
-	     case -1000000001: return "VkErrorNativeWindowInUseKhr";
-	     case -1000001004: return "VkErrorOutOfDateKhr";
-	     case -1000003001: return "VkErrorIncompatibleDisplayKhr";
-	     case -1000011001: return "VkErrorValidationFailedExt";
-	     case -1000012000: return "VkErrorInvalidShaderNv";
-	     case -1000069000: return "VkErrorOutOfPoolMemory";
-	     case -1000072003: return "VkErrorInvalidExternalHandle";
-	     case -1000158000: return "VkErrorInvalidDrmFormatModifierPlaneLayoutExt";
-	     case -1000161000: return "VkErrorFragmentation";
-	     case -1000174001: return "VkErrorNotPermittedKhr";
-	     case -1000255000: return "VkErrorFullScreenExclusiveModeLostExt";
-	     case -1000257000: return "VkErrorInvalidOpaqueCaptureAddress";
-	     case -11       : return "VkErrorFormatNotSupported";
-	     case -12       : return "VkErrorFragmentedPool";
-	     case -13       : return "VkErrorUnknown";
-	     case -2        : return "VkErrorOutOfDeviceMemory";
-	     case -3        : return "VkErrorInitializationFailed";
-	     case -4        : return "VkErrorDeviceLost";
-	     case -5        : return "VkErrorMemoryMapFailed";
-	     case -6        : return "VkErrorLayerNotPresent";
-	     case -7        : return "VkErrorExtensionNotPresent";
-	     case -8        : return "VkErrorFeatureNotPresent";
-	     case -9        : return "VkErrorIncompatibleDriver";
-	     case 0         : return "VkSuccess";
-	     case 1         : return "VkNotReady";
-	     case 2         : return "VkTimeout";
-	     case 3         : return "VkEventSet";
-	     case 4         : return "VkEventReset";
-	     case 5         : return "VkIncomplete";
-	     case 1000001003: return "VkSuboptimalKhr";
-	     case 1000268000: return "VkThreadIdleKhr";
-	     case 1000268001: return "VkThreadDoneKhr";
-	     case 1000268002: return "VkOperationDeferredKhr";
-	     case 1000268003: return "VkOperationNotDeferredKhr";
-	     case 1000297000: return "VkPipelineCompileRequired";
-	          default     : return "";
-		// clang-format on
-	};
-}
-
-// ----------------------------------------------------------------------
-
-static constexpr char const* to_str_vk_access_flag_bits2( const VkAccessFlagBits2& tp ) {
-	switch ( static_cast<int64_t>( tp ) ) {
-		// clang-format off
-	     case 0         : return "None";
-	     case 0x00000001ULL: return "IndirectCommandRead";
-	     case 0x00000002ULL: return "IndexRead";
-	     case 0x00000004ULL: return "VertexAttributeRead";
-	     case 0x00000008ULL: return "UniformRead";
-	     case 0x00000010ULL: return "InputAttachmentRead";
-	     case 0x00000020ULL: return "ShaderRead";
-	     case 0x00000040ULL: return "ShaderWrite";
-	     case 0x00000080ULL: return "ColorAttachmentRead";
-	     case 0x00000100ULL: return "ColorAttachmentWrite";
-	     case 0x00000200ULL: return "DepthStencilAttachmentRead";
-	     case 0x00000400ULL: return "DepthStencilAttachmentWrite";
-	     case 0x00000800ULL: return "TransferRead";
-	     case 0x00001000ULL: return "TransferWrite";
-	     case 0x00002000ULL: return "HostRead";
-	     case 0x00004000ULL: return "HostWrite";
-	     case 0x00008000ULL: return "MemoryRead";
-	     case 0x00010000ULL: return "MemoryWrite";
-	     case 0x00020000ULL: return "CommandPreprocessReadBitNv";
-	     case 0x00040000ULL: return "CommandPreprocessWriteBitNv";
-	     case 0x00080000ULL: return "ColorAttachmentReadNoncoherentBitExt";
-	     case 0x00100000ULL: return "ConditionalRenderingReadBitExt";
-	     case 0x00200000ULL: return "AccelerationStructureReadBitKhr";
-	     case 0x00400000ULL: return "AccelerationStructureWriteBitKhr";
-	     case 0x00800000ULL: return "FragmentShadingRateAttachmentReadBitKhr";
-	     case 0x01000000ULL: return "FragmentDensityMapReadBitExt";
-	     case 0x02000000ULL: return "TransformFeedbackWriteBitExt";
-	     case 0x04000000ULL: return "TransformFeedbackCounterReadBitExt";
-	     case 0x08000000ULL: return "TransformFeedbackCounterWriteBitExt";
-	     case 0x100000000000ULL: return "Reserved44BitNv";
-	     case 0x10000000000ULL: return "Reserved387BitKhr";
-	     case 0x1000000000ULL: return "VideoDecodeWriteBitKhr";
-	     case 0x100000000ULL: return "ShaderSampledRead";
-	     case 0x200000000000ULL: return "Reserved45BitNv";
-	     case 0x20000000000ULL: return "Reserved41BitAmd";
-	     case 0x2000000000ULL: return "VideoEncodeReadBitKhr";
-	     case 0x200000000ULL: return "ShaderStorageRead";
-	     case 0x40000000000ULL: return "Reserved42BitNv";
-	     case 0x4000000000ULL: return "VideoEncodeWriteBitKhr";
-	     case 0x400000000ULL: return "ShaderStorageWrite";
-	     case 0x80000000000ULL: return "Reserved43BitNv";
-	     case 0x8000000000ULL: return "InvocationMaskReadBitHuawei";
-	     case 0x800000000ULL: return "VideoDecodeReadBitKhr";
-	          default     : return "";
-		// clang-format on
-	};
-}
-
-static std::string to_string_vk_access_flags2( const VkAccessFlags2& tp ) {
-	uint64_t    flags = tp;
-	std::string result;
-	int         bit_pos = 0;
-	while ( flags ) {
-		if ( flags & 1 ) {
-			if ( false == result.empty() ) {
-				result.append( " | " );
-			}
-			result.append( to_str_vk_access_flag_bits2( VkAccessFlagBits2( 1 << bit_pos ) ) );
+			result.append( to_str_vk_image_usage_flag_bits( VkImageUsageFlagBits( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
@@ -576,7 +563,7 @@ static std::string to_string_vk_pipeline_stage_flags2( const VkPipelineStageFlag
 			if ( false == result.empty() ) {
 				result.append( " | " );
 			}
-			result.append( to_str_vk_pipeline_stage_flag_bits2( VkPipelineStageFlagBits2( 1 << bit_pos ) ) );
+			result.append( to_str_vk_pipeline_stage_flag_bits2( VkPipelineStageFlagBits2( 1ULL << bit_pos ) ) );
 		}
 		flags >>= 1;
 		bit_pos++;
@@ -586,36 +573,83 @@ static std::string to_string_vk_pipeline_stage_flags2( const VkPipelineStageFlag
 
 // ----------------------------------------------------------------------
 
-static constexpr char const* to_str_vk_image_layout( const VkImageLayout& tp ) {
+static constexpr char const* to_str_vk_queue_flag_bits( const VkQueueFlagBits& tp ) {
 	switch ( static_cast<int32_t>( tp ) ) {
 		// clang-format off
-	     case 0         : return "Undefined";
-	     case 1         : return "General";
-	     case 2         : return "ColorAttachmentOptimal";
-	     case 3         : return "DepthStencilAttachmentOptimal";
-	     case 4         : return "DepthStencilReadOnlyOptimal";
-	     case 5         : return "ShaderReadOnlyOptimal";
-	     case 6         : return "TransferSrcOptimal";
-	     case 7         : return "TransferDstOptimal";
-	     case 8         : return "Preinitialized";
-	     case 1000001002: return "PresentSrcKhr";
-	     case 1000024000: return "VideoDecodeDstKhr";
-	     case 1000024001: return "VideoDecodeSrcKhr";
-	     case 1000024002: return "VideoDecodeDpbKhr";
-	     case 1000111000: return "SharedPresentKhr";
-	     case 1000117000: return "DepthReadOnlyStencilAttachmentOptimal";
-	     case 1000117001: return "DepthAttachmentStencilReadOnlyOptimal";
-	     case 1000164003: return "FragmentShadingRateAttachmentOptimalKhr";
-	     case 1000218000: return "FragmentDensityMapOptimalExt";
-	     case 1000241000: return "DepthAttachmentOptimal";
-	     case 1000241001: return "DepthReadOnlyOptimal";
-	     case 1000241002: return "StencilAttachmentOptimal";
-	     case 1000241003: return "StencilReadOnlyOptimal";
-	     case 1000299000: return "VideoEncodeDstKhr";
-	     case 1000299001: return "VideoEncodeSrcKhr";
-	     case 1000299002: return "VideoEncodeDpbKhr";
-	     case 1000314000: return "ReadOnlyOptimal";
-	     case 1000314001: return "AttachmentOptimal";
+	     case 0x00000001: return "Graphics";
+	     case 0x00000002: return "Compute";
+	     case 0x00000004: return "Transfer";
+	     case 0x00000008: return "SparseBinding";
+	     case 0x00000010: return "Protected";
+	     case 0x00000020: return "VideoDecodeBitKhr";
+	     case 0x00000040: return "VideoEncodeBitKhr";
+	     case 0x00000080: return "Reserved7BitQcom";
+	     case 0x00000100: return "Reserved8BitNv";
+	          default     : return "";
+		// clang-format on
+	};
+}
+
+static std::string to_string_vk_queue_flags( const VkQueueFlags& tp ) {
+	uint64_t    flags = tp;
+	std::string result;
+	int         bit_pos = 0;
+	while ( flags ) {
+		if ( flags & 1 ) {
+			if ( false == result.empty() ) {
+				result.append( " | " );
+			}
+			result.append( to_str_vk_queue_flag_bits( VkQueueFlagBits( 1ULL << bit_pos ) ) );
+		}
+		flags >>= 1;
+		bit_pos++;
+	}
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+static constexpr char const* to_str_vk_result( const VkResult& tp ) {
+	switch ( static_cast<int32_t>( tp ) ) {
+		// clang-format off
+	     case -1        : return "VkErrorOutOfHostMemory";
+	     case -10       : return "VkErrorTooManyObjects";
+	     case -1000000000: return "VkErrorSurfaceLostKhr";
+	     case -1000000001: return "VkErrorNativeWindowInUseKhr";
+	     case -1000001004: return "VkErrorOutOfDateKhr";
+	     case -1000003001: return "VkErrorIncompatibleDisplayKhr";
+	     case -1000011001: return "VkErrorValidationFailedExt";
+	     case -1000012000: return "VkErrorInvalidShaderNv";
+	     case -1000069000: return "VkErrorOutOfPoolMemory";
+	     case -1000072003: return "VkErrorInvalidExternalHandle";
+	     case -1000158000: return "VkErrorInvalidDrmFormatModifierPlaneLayoutExt";
+	     case -1000161000: return "VkErrorFragmentation";
+	     case -1000174001: return "VkErrorNotPermittedKhr";
+	     case -1000255000: return "VkErrorFullScreenExclusiveModeLostExt";
+	     case -1000257000: return "VkErrorInvalidOpaqueCaptureAddress";
+	     case -11       : return "VkErrorFormatNotSupported";
+	     case -12       : return "VkErrorFragmentedPool";
+	     case -13       : return "VkErrorUnknown";
+	     case -2        : return "VkErrorOutOfDeviceMemory";
+	     case -3        : return "VkErrorInitializationFailed";
+	     case -4        : return "VkErrorDeviceLost";
+	     case -5        : return "VkErrorMemoryMapFailed";
+	     case -6        : return "VkErrorLayerNotPresent";
+	     case -7        : return "VkErrorExtensionNotPresent";
+	     case -8        : return "VkErrorFeatureNotPresent";
+	     case -9        : return "VkErrorIncompatibleDriver";
+	     case 0         : return "VkSuccess";
+	     case 1         : return "VkNotReady";
+	     case 2         : return "VkTimeout";
+	     case 3         : return "VkEventSet";
+	     case 4         : return "VkEventReset";
+	     case 5         : return "VkIncomplete";
+	     case 1000001003: return "VkSuboptimalKhr";
+	     case 1000268000: return "VkThreadIdleKhr";
+	     case 1000268001: return "VkThreadDoneKhr";
+	     case 1000268002: return "VkOperationDeferredKhr";
+	     case 1000268003: return "VkOperationNotDeferredKhr";
+	     case 1000297000: return "VkPipelineCompileRequired";
 	          default     : return "";
 		// clang-format on
 	};

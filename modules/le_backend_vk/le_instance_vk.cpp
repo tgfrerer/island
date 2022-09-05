@@ -12,6 +12,12 @@
 #include <set>
 #include <string>
 
+#ifdef _MSC_VER
+#	include <intrin.h> // for debugbreak()
+#else
+#	include <csignal> // for std::raise
+#endif
+
 static constexpr auto LOGGER_LABEL = "le_instance_vk";
 
 // Automatically disable Validation Layers for Release Builds
@@ -141,6 +147,17 @@ static VkBool32 debugUtilsMessengerCallback(
 
 	log_fun( logger, "vk validation: {%10s | %7s} %s", msgType.c_str(), logLevel.c_str(), pCallbackData->pMessage );
 
+#ifndef NDEBUG
+	// Raise a breakpoint on ERROR in case we're running in debug mode.
+	if ( shouldBailout ) {
+#	ifdef _MSC_VER
+		__debugbreak(); // see: https://docs.microsoft.com/en-us/cpp/intrinsics/debugbreak?view=msvc-170
+#	else
+		std::raise( SIGINT );
+#	endif
+	}
+#endif
+
 	return shouldBailout;
 }
 // ----------------------------------------------------------------------
@@ -208,7 +225,7 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 	    .applicationVersion = VK_MAKE_API_VERSION( 0, 0, 0, 0 ),
 	    .pEngineName        = ISL_ENGINE_NAME, // optional
 	    .engineVersion      = ISL_ENGINE_VERSION,
-	    .apiVersion         = ( VK_MAKE_API_VERSION( 0, 1, 3, 211 ) ),
+	    .apiVersion         = ( VK_MAKE_API_VERSION( 0, 1, 3, 224 ) ),
 	};
 
 	// -- create a vector of unique requested instance extension names
@@ -304,6 +321,10 @@ static bool instance_is_extension_available( le_backend_vk_instance_o* self, cha
 static void instance_post_reload_hook( le_backend_vk_instance_o* obj ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	logger.debug( "post reload hook triggered." );
+
+	VkResult result = volkInitialize();
+	assert( result == VK_SUCCESS && "Volk must successfully load instance" );
+
 	patchExtProcAddrs( obj );
 	destroy_debug_messenger_callback( obj );
 	logger.debug( "Removed debug report callback." );

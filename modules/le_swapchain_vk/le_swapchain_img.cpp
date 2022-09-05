@@ -1,12 +1,12 @@
 #include "le_swapchain_vk.h"
-#include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
-#include "util/volk/volk.h"
-#include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include "le_backend_vk.h"
+#include "le_backend_types_internal.h"
+
+#include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
+#include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include <cassert>
-#include "private/le_renderer_types.h" // for le_swapchain_settings_t, and le::Format
 #include "util/vk_mem_alloc/vk_mem_alloc.h"
 #include "le_log.h"
 
@@ -16,7 +16,6 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
-#include <vector>
 
 static constexpr auto LOGGER_LABEL = "le_swapchain_img";
 
@@ -34,20 +33,21 @@ struct TransferFrame {
 
 struct img_data_o {
 	le_swapchain_settings_t    mSettings;
-	uint32_t                   mImagecount;                    // Number of images in swapchain
-	uint32_t                   totalImages;                    // total number of produced images
-	uint32_t                   mImageIndex;                    // current image index
-	uint32_t                   vk_graphics_queue_family_index; //
-	VkExtent3D                 mSwapchainExtent;               //
-	VkSurfaceFormatKHR         windowSurfaceFormat;            //
-	uint32_t                   reserved__;                     // RESERVED for packing this struct
-	VkDevice                   device;                         // Owned by backend
-	VkPhysicalDevice           physicalDevice;                 // Owned by backend
-	VkCommandPool              vkCommandPool;                  // Command pool from wich we allocate present and acquire command buffers
-	le_backend_o*              backend = nullptr;              // Not owned. Backend owns swapchain.
-	std::vector<TransferFrame> transferFrames;                 //
-	FILE*                      pipe = nullptr;                 // Pipe to ffmpeg. Owned. must be closed if opened
-	std::string                pipe_cmd;                       // command line
+	uint32_t                   mImagecount;           // Number of images in swapchain
+	uint32_t                   totalImages;           // total number of produced images
+	uint32_t                   mImageIndex;           // current image index
+	uint32_t                   vk_queue_family_index; // queue family index for the queue which this swapchain will use
+	VkExtent3D                 mSwapchainExtent;      //
+	VkSurfaceFormatKHR         windowSurfaceFormat;   //
+	uint32_t                   reserved__;            // RESERVED for packing this struct
+	VkDevice                   device;                // Owned by backend
+	VkPhysicalDevice           physicalDevice;        // Owned by backend
+	VkCommandPool              vkCommandPool;         // Command pool from wich we allocate present and acquire command buffers
+	le_backend_o*              backend = nullptr;     // Not owned. Backend owns swapchain.
+	std::vector<TransferFrame> transferFrames;        //
+	FILE*                      pipe = nullptr;        // Pipe to ffmpeg. Owned. must be closed if opened
+	std::string                pipe_cmd;              // command line
+	BackendQueueInfo*          queue_info = nullptr;  // Non-owning. Present-enabled queue, initially null, set at create
 };
 
 // ----------------------------------------------------------------------
@@ -96,7 +96,7 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			    .usage                 = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 			    .queueFamilyIndexCount = 1, // optional
-			    .pQueueFamilyIndices   = &self->vk_graphics_queue_family_index,
+			    .pQueueFamilyIndices   = &self->vk_queue_family_index,
 			    .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
 			};
 
@@ -132,7 +132,7 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 			    .usage                 = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 			    .queueFamilyIndexCount = 1, // optional
-			    .pQueueFamilyIndices   = &self->vk_graphics_queue_family_index,
+			    .pQueueFamilyIndices   = &self->vk_queue_family_index,
 			};
 
 			VmaAllocationCreateInfo allocationCreateInfo{};
@@ -217,8 +217,8 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 				    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make memory visible to transfer read (after layout transition)
 				    .oldLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,      // transition from present_src
 				    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to transfer_src optimal
-				    .srcQueueFamilyIndex = self->vk_graphics_queue_family_index,
-				    .dstQueueFamilyIndex = self->vk_graphics_queue_family_index,
+				    .srcQueueFamilyIndex = self->vk_queue_family_index,
+				    .dstQueueFamilyIndex = self->vk_queue_family_index,
 				    .image               = frame.image,
 				    .subresourceRange    = {
 				           .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -293,8 +293,8 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 				    .dstAccessMask       = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,          // make image memory visible to attachment write (after layout transition)
 				    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,                       // transition from undefined to
 				    .newLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,        // attachment optimal
-				    .srcQueueFamilyIndex = self->vk_graphics_queue_family_index,
-				    .dstQueueFamilyIndex = self->vk_graphics_queue_family_index,
+				    .srcQueueFamilyIndex = self->vk_queue_family_index,
+				    .dstQueueFamilyIndex = self->vk_queue_family_index,
 				    .image               = frame.image,
 				    .subresourceRange    = {
 				           .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -341,10 +341,9 @@ static le_swapchain_o* swapchain_img_create( const le_swapchain_vk_api::swapchai
 	{
 
 		using namespace le_backend_vk;
-		self->device                         = private_backend_vk_i.get_vk_device( backend );
-		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
-		auto le_device                       = private_backend_vk_i.get_le_device( backend );
-		self->vk_graphics_queue_family_index = vk_device_i.get_default_graphics_queue_family_index( le_device );
+		self->device         = private_backend_vk_i.get_vk_device( backend );
+		self->physicalDevice = private_backend_vk_i.get_vk_physical_device( backend );
+		self->queue_info     = private_backend_vk_i.get_default_graphics_queue_info( backend );
 	}
 
 	{
@@ -354,7 +353,7 @@ static le_swapchain_o* swapchain_img_create( const le_swapchain_vk_api::swapchai
 		    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		    .pNext            = nullptr,                                         // optional
 		    .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, // optional
-		    .queueFamilyIndex = self->vk_graphics_queue_family_index,
+		    .queueFamilyIndex = self->vk_queue_family_index,
 		};
 
 		vkCreateCommandPool( self->device, &createInfo, nullptr, &self->vkCommandPool );
@@ -527,8 +526,6 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// mask specifies what the semaphore is waiting for.
 	// std::array<VkPipelineStageFlags, 1> wait_dst_stage_mask = { VkPipelineStageFlagBits::eTransfer };
 
-	auto presentCompleteSemaphore = VkSemaphore{ semaphorePresentComplete };
-
 	VkSubmitInfo submitInfo{
 	    .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 	    .pNext                = nullptr, // optional
@@ -538,14 +535,10 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	    .commandBufferCount   = 1, // optional
 	    .pCommandBuffers      = &self->transferFrames[ imageIndex ].cmdAcquire,
 	    .signalSemaphoreCount = 1, // optional
-	    .pSignalSemaphores    = &presentCompleteSemaphore,
+	    .pSignalSemaphores    = &semaphorePresentComplete,
 	};
 
-	// !TODO: instead of submitting to the default graphics queue, this needs to go to the transfer queue.
-
 	{
-		// We must fetch the default queue via the backend.
-		//
 		// Submitting directly via the queue is not very elegant, as the queue must be exernally synchronised, and
 		// by submitting to the queue here we are living on the edge if we ever wanted
 		// to have more than one thread producing frames.
@@ -553,12 +546,12 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 		// We should be fine - just make sure that acquire_next_frame (this method) gets called after all
 		// frame producers have submitted their payloads to the queue.
 
-		using namespace le_backend_vk;
-		auto le_device_o = private_backend_vk_i.get_le_device( self->backend );
-		auto queue       = VkQueue{ vk_device_i.get_default_graphics_queue( le_device_o ) };
-
-		auto result = vkQueueSubmit( queue, 1, &submitInfo, nullptr );
-		assert( result == VK_SUCCESS );
+		if ( self->queue_info ) {
+			auto result = vkQueueSubmit( self->queue_info->queue, 1, &submitInfo, nullptr );
+			assert( result == VK_SUCCESS );
+		} else {
+			le::Log( LOGGER_LABEL ).error( "queue was not set when acquiring image for image swapchain." );
+		}
 	}
 
 	return true;
@@ -566,7 +559,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t* pImageIndex ) {
+static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue, VkSemaphore renderCompleteSemaphore_, uint32_t* pImageIndex ) {
 
 	auto self = static_cast<img_data_o* const>( base->data );
 
@@ -584,10 +577,7 @@ static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	    .pSignalSemaphores    = 0,
 	};
 
-	// Todo: submit to this to a transfer queue, not main queue, if possible
-
-	vkQueueSubmit( queue_, 1, &submitInfo, self->transferFrames[ *pImageIndex ].frameFence );
-
+	vkQueueSubmit( queue, 1, &submitInfo, self->transferFrames[ *pImageIndex ].frameFence );
 	return true;
 };
 

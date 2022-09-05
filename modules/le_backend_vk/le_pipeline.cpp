@@ -29,6 +29,8 @@ static constexpr auto LOGGER_LABEL = "le_pipeline";
 #include <vulkan/vulkan.h>
 #include "private/le_backend_vk/le_backend_types_pipeline.inl"
 
+typedef void ( *file_watcher_callback_fun_t )( char const*, void* );
+
 struct specialization_map_info_t {
 	std::vector<VkSpecializationMapEntry> entries;
 	std::vector<char>                     data;
@@ -203,6 +205,7 @@ struct ProtectedModuleDependencies {
 	std::mutex                                                         mtx;
 	std::unordered_map<std::string, std::set<le_shader_module_handle>> moduleDependencies; // map 'canonical shader source file path, watch_id' -> [shader modules]
 	std::unordered_map<std::string, int>                               moduleWatchIds;
+	std::unordered_map<std::string, file_watcher_callback_fun_t>       moduleWatchCallbackAddrs; // we store this so that we can release the callback forwarder when resetting the watcher.
 };
 
 struct le_shader_manager_o {
@@ -645,11 +648,14 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 			// this is the first time this file appears on our radar. Let's create a file watcher for it.
 
 			le_file_watcher_watch_settings settings;
-			settings.filePath                                       = s.c_str();
-			settings.callback_user_data                             = self;
-			settings.callback_fun                                   = ( void ( * )( char const*, void* ) )( le_core_forward_callback( le_backend_vk_api_i->private_shader_file_watcher_i.on_callback_addr ) );
-			auto watch_id                                           = le_file_watcher::le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
-			self->protected_module_dependencies.moduleWatchIds[ s ] = watch_id;
+			settings.filePath                                                 = s.c_str();
+			settings.callback_user_data                                       = self;
+			settings.callback_fun                                             = ( file_watcher_callback_fun_t )( le_core_forward_callback( le_backend_vk_api_i->private_shader_file_watcher_i.on_callback_addr ) );
+			auto watch_id                                                     = le_file_watcher::le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
+			self->protected_module_dependencies.moduleWatchIds[ s ]           = watch_id;
+			self->protected_module_dependencies.moduleWatchCallbackAddrs[ s ] = settings.callback_fun;
+
+			logger.info( "\t + added watch for file '%s'", std::filesystem::relative( s ).c_str() );
 		}
 
 		logger.debug( "\t + '%s'", std::filesystem::relative( s ).c_str() );
@@ -679,8 +685,16 @@ static void le_pipeline_cache_remove_module_from_dependencies( le_shader_manager
 			le_file_watcher::le_file_watcher_i.remove_watch( self->shaderFileWatcher, watch_id );
 			// remove watcher handle
 			self->protected_module_dependencies.moduleWatchIds.erase( d->first );
+
+			// Remove the callback forwarder from our list of callback forwarders
+			le_core_forward_callback_release( self->protected_module_dependencies.moduleWatchCallbackAddrs.at( d->first ) );
+			// remove the entry which refers to the callback forwarder
+			self->protected_module_dependencies.moduleWatchCallbackAddrs.erase( d->first );
+
 			// remove file entry
 			d = self->protected_module_dependencies.moduleDependencies.erase( d ); // must do this because we're erasing from within
+
+			// FIXME: we must also tell the core that the callback forwarder is not used anymore - it gets allocated when we set the callback fun.
 		} else {
 			d++;
 		}
@@ -1381,7 +1395,7 @@ static VkPipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_man
 // ----------------------------------------------------------------------
 // Creates a vulkan graphics pipeline based on a shader state object and a given renderpass and subpass index.
 //
-static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o* self, graphics_pipeline_state_o const* pso, const LeRenderPass& pass, uint32_t subpass ) {
+static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o* self, graphics_pipeline_state_o const* pso, const BackendRenderPass& pass, uint32_t subpass ) {
 
 	std::vector<VkPipelineShaderStageCreateInfo> pipelineStages;
 	pipelineStages.reserve( pso->shaderModules.size() );
@@ -2022,9 +2036,9 @@ static inline void le_pipeline_manager_produce_pipeline_layout_info(
 // + NOTE: Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeline(
-    le_pipeline_manager_o* self,
-    le_gpso_handle         gpso_handle,
-    const LeRenderPass& pass, uint32_t subpass ) {
+    le_pipeline_manager_o*   self,
+    le_gpso_handle           gpso_handle,
+    const BackendRenderPass& pass, uint32_t subpass ) {
 
 	// TODO: Do we need this lock, or are the try_finds with their internal mutexes enough?
 	auto lock = std::unique_lock( self->mtx ); // Enforce sequentiality via scoped lock: no two renderpasses may access cache concurrently.

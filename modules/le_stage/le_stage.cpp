@@ -1513,7 +1513,7 @@ static void le_stage_update_render_module( le_stage_o* stage, le_rendergraph_o* 
 
 	using namespace le_renderer;
 
-	auto rp = le::RenderPass( "Stage_Xfer", le::RenderPassType::eTransfer )
+	auto rp = le::RenderPass( "Stage_Xfer", le::QueueFlagBits::eTransfer )
 	              .setSetupCallback( stage, pass_xfer_setup_resources )
 	              .setExecuteCallback( stage, pass_xfer_resources )
 	              .setIsRoot( true );
@@ -1551,7 +1551,7 @@ static void le_stage_update_render_module( le_stage_o* stage, le_rendergraph_o* 
 
 	auto cp =
 	    le::RenderPass(
-	        "Create Accel Structures", le::RenderPassType::eCompute )
+	        "Create Accel Structures", le::QueueFlagBits::eCompute )
 	        .setSetupCallback( stage, []( le_renderpass_o* pRp, void* user_data ) -> bool {
 		        // we need to return false after the first time that this pass has been executed,
 		        // unless we want to update our bottom level acceleration structures.
@@ -2001,7 +2001,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 	{
 
 		auto rtx_pass =
-		    le::RenderPass( "Stage Rtx", le::RenderPassType::eCompute )
+		    le::RenderPass( "Stage Rtx", le::QueueFlagBits::eCompute )
 		        .setExecuteCallback( draw_params, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 			        auto draw_params = static_cast<le_stage_api::draw_params_t*>( user_data );
 			        auto camera      = draw_params->camera;
@@ -2145,7 +2145,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_
 #endif
 
 	auto stage_draw_pass =
-	    le::RenderPass( "Stage Draw", le::RenderPassType::eDraw )
+	    le::RenderPass( "Stage Draw", le::QueueFlagBits::eGraphics )
 	        .setExecuteCallback( draw_params, pass_draw )
 	        .addColorAttachment(
 	            color_attachment_image,

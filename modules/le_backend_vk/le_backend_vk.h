@@ -62,16 +62,20 @@ struct VkSpecializationMapEntry;
 struct VkPhysicalDeviceFeatures2;
 
 struct VkFormatEnum;
-struct LeRenderPass;
+struct BackendRenderPass;
+struct BackendQueueInfo;
 
 struct VmaAllocator_T;
 struct VmaAllocation_T;
 struct VmaAllocationCreateInfo;
 struct VmaAllocationInfo;
 
+typedef uint32_t VkFlags;
+typedef VkFlags  VkQueueFlags;
+
 namespace le {
 enum class ShaderStageFlagBits : uint32_t;
-using BuildAccelerationStructureFlagsKHR = uint32_t;
+struct BuildAccelerationStructureFlagsKHR;
 } // namespace le
 
 struct LeShaderSourceLanguageEnum;
@@ -105,7 +109,9 @@ struct le_backend_vk_api {
 		bool ( *add_swapchain_setting )( le_swapchain_settings_t const* settings );           // gets cloned
 
 		void ( *set_concurrency_count )( uint32_t concurrency_count );
-		// we could expand this with requests for queues.
+
+		void ( *get_requested_queue_capabilities )( VkQueueFlags* queues, uint32_t* num_queues );
+		bool ( *set_requested_queue_capabilities )( VkQueueFlags* queues, uint32_t num_queues );
 	};
 
 	// clang-format off
@@ -119,6 +125,8 @@ struct le_backend_vk_api {
 		bool                   ( *clear_frame                ) ( le_backend_o *self, size_t frameIndex );
 		void                   ( *process_frame              ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses, le_resource_handle const * declared_resources, le_resource_info_t const * declared_resources_infos, size_t const & declared_resources_count );
+		void                   ( *set_frame_queue_submission_keys ) ( le_backend_o *self, size_t frameIndex, void const * p_affinity_masks, uint32_t num_affinity_masks ); // void* p_affinity_masks must be cast to le::RootPassesField, we can't forward-declare a using declaration
+
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
@@ -145,6 +153,8 @@ struct le_backend_vk_api {
 		le_backend_vk_instance_o* ( *get_instance             )(le_backend_o* self);
 		VkDevice_T*               ( *get_vk_device            )(le_backend_o const * self);
 		VkPhysicalDevice_T*       ( *get_vk_physical_device   )(le_backend_o const * self);
+
+        BackendQueueInfo*         ( *get_default_graphics_queue_info )(le_backend_o* self);
 
 		int32_t ( *allocate_image )
 		(
@@ -189,10 +199,8 @@ struct le_backend_vk_api {
 		le_device_o *			    ( *increase_reference_count                ) ( le_device_o* self_ );
 		uint32_t                    ( *get_reference_count                     ) ( le_device_o* self_ );
 
-		uint32_t                    ( *get_default_graphics_queue_family_index ) ( le_device_o* self_ );
-		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_device_o* self_ );
-		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_device_o* self_ );
-		VkQueue_T *                 ( *get_default_compute_queue               ) ( le_device_o* self_ );
+        void                        ( *get_queue_family_indices                ) ( le_device_o* self, uint32_t * family_indices, uint32_t* num_family_indices);
+        void                        (* get_queues_info                         ) ( le_device_o* self, uint32_t* queue_count, VkQueue_T** queues, uint32_t* queues_family_index, VkQueueFlags* queues_flags);
 		VkFormatEnum const*         ( *get_default_depth_stencil_format        ) ( le_device_o* self_ );
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_device_o* self_ );
@@ -212,7 +220,7 @@ struct le_backend_vk_api {
 		bool                                     ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso, le_cpso_handle *cpsoHandle);
 		bool                                     ( *introduce_rtx_pipeline_state      ) ( le_pipeline_manager_o *self, rtx_pipeline_state_o* cpso, le_rtxpso_handle *cpsoHandle);
 
-		le_pipeline_and_layout_info_t            ( *produce_graphics_pipeline         ) ( le_pipeline_manager_o *self, le_gpso_handle gpsoHandle, const LeRenderPass &pass, uint32_t subpass ) ;
+		le_pipeline_and_layout_info_t            ( *produce_graphics_pipeline         ) ( le_pipeline_manager_o *self, le_gpso_handle gpsoHandle, const BackendRenderPass &pass, uint32_t subpass ) ;
 		le_pipeline_and_layout_info_t            ( *produce_rtx_pipeline              ) ( le_pipeline_manager_o *self, le_rtxpso_handle rtxpsoHandle, char ** shader_group_data);
 		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle cpsoHandle);
 
@@ -366,26 +374,9 @@ class Device : NoCopy, NoMove {
 		return le_backend_vk::vk_device_i.get_vk_physical_device( self );
 	}
 
-	uint32_t getDefaultGraphicsQueueFamilyIndex() const {
-		return le_backend_vk::vk_device_i.get_default_graphics_queue_family_index( self );
-	}
-
 	void getRaytracingProperties( struct VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
 		le_backend_vk::vk_device_i.get_vk_physical_device_ray_tracing_properties( self, properties );
 	}
-
-	uint32_t getDefaultComputeQueueFamilyIndex() const {
-		return le_backend_vk::vk_device_i.get_default_compute_queue_family_index( self );
-	}
-
-	VkQueue_T* getDefaultGraphicsQueue() const {
-		return le_backend_vk::vk_device_i.get_default_graphics_queue( self );
-	}
-
-	VkQueue_T* getDefaultComputeQueue() const {
-		return le_backend_vk::vk_device_i.get_default_compute_queue( self );
-	}
-
 	bool isExtensionAvailable( char const* extensionName ) const {
 		return le_backend_vk::vk_device_i.is_extension_available( self, extensionName );
 	}

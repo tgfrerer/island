@@ -175,7 +175,7 @@ static bool imgui_example_app_update( imgui_example_app_o* self ) {
 
 		le_imgui::le_imgui_i.setup_resources( self->gui, renderGraph, float( swapchainWidth ), float( swapchainHeight ) );
 
-		le::RenderPass passToScreen( "root", le::RenderPassType::eDraw );
+		le::RenderPass passToScreen( "root", le::QueueFlagBits::eGraphics );
 
 		le_imgui::le_imgui_i.begin_frame( self->gui );
 

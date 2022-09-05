@@ -9,11 +9,14 @@
 #include "private/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
+#include <bitset>
 #include <cassert>
+#include <filesystem>
 #include <vector>
+#include <string>
 #include <unordered_map>
 #include <forward_list>
-#include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <list>
 #include <set>
@@ -30,13 +33,19 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 #include "le_backend_vk_settings.inl"
 #include "private/le_backend_vk/vk_to_str_helpers.inl"
 
+#ifdef _MSC_VER
+#	include <Windows.h> // for getModule
+#else
+#	include <unistd.h> // for getexepath
+#endif
+
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
 #	include <intrin.h> // for __lzcnt
 #endif
 
-#ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES false
+#ifndef LE_PRINT_DEBUG_MESSAGES
+#	define LE_PRINT_DEBUG_MESSAGES false
 #endif
 
 #ifndef DEBUG_TAG_RESOURCES
@@ -55,11 +64,30 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 		returnVkenum_name( rhs );                                          \
 	}
 
+// Persistent settings that can be shared among modules.
+// this is not yet production-ready, as it does not protect against race-conditions etc.e
+#define LE_GET_SETTING( SETTING_NAME, SETTING_TYPE, SETTING_DEFAULT_VALUE )                                   \
+	static SETTING_TYPE* SETTING_NAME = []() -> bool* {                                                       \
+		void** p_addr = le_core_produce_dictionary_entry( hash_64_fnv1a( #SETTING_NAME "_" #SETTING_TYPE ) ); \
+		if ( nullptr == *p_addr ) {                                                                           \
+			*p_addr = new SETTING_TYPE( SETTING_DEFAULT_VALUE );                                              \
+		}                                                                                                     \
+		return ( ( SETTING_TYPE* )( *p_addr ) );                                                              \
+	}()
+
 LE_WRAP_ENUM_IN_STRUCT( VkFormat, VkFormatEnum ); // define wrapper struct `VkFormatEnum`
 
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 1;
 constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
+
+static constexpr VkImageSubresourceRange LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS{
+    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+    .baseMipLevel   = 0,
+    .levelCount     = VK_REMAINING_MIP_LEVELS,
+    .baseArrayLayer = 0,
+    .layerCount     = VK_REMAINING_ARRAY_LAYERS,
+};
 
 struct LeRtxBlasCreateInfo {
 	le_rtx_blas_info_handle handle;
@@ -114,9 +142,9 @@ struct ResourceCreateInfo {
 			return ( bufferInfo.flags == rhs.bufferInfo.flags &&
 			         bufferInfo.size == rhs.bufferInfo.size &&
 			         bufferInfo.usage == rhs.bufferInfo.usage &&
-			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
-			         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-			         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
+			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode
+			         // bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+			         // bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // these two entries are ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 
 		} else if ( isImage() ) {
@@ -133,9 +161,9 @@ struct ResourceCreateInfo {
 			         imageInfo.tiling == rhs.imageInfo.tiling &&
 			         imageInfo.usage == rhs.imageInfo.usage &&
 			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
-			         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-			         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+			         imageInfo.initialLayout == rhs.imageInfo.initialLayout
+			         // imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
+			         //  imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // these two entries are ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 		} else if ( isBlas() ) {
 			return blasInfo.handle == rhs.blasInfo.handle &&
@@ -168,9 +196,9 @@ struct ResourceCreateInfo {
 			return ( bufferInfo.flags == rhs.bufferInfo.flags &&
 			         bufferInfo.size == rhs.bufferInfo.size &&
 			         ( ( bufferInfo.usage & rhs.bufferInfo.usage ) == rhs.bufferInfo.usage ) &&
-			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
-			         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-			         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
+			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode
+			         // bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+			         // bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 
 		} else if ( isImage() ) {
@@ -195,9 +223,9 @@ struct ResourceCreateInfo {
 			         imageInfo.tiling == rhs.imageInfo.tiling &&
 			         ( ( imageInfo.usage & rhs.imageInfo.usage ) == rhs.imageInfo.usage ) &&
 			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
-			         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-			         ( void* )imageInfo.pQueueFamilyIndices == ( void* )rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+			         imageInfo.initialLayout == rhs.imageInfo.initialLayout
+			         // imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
+			         //( void* )imageInfo.pQueueFamilyIndices == ( void* )rhs.imageInfo.pQueueFamilyIndices // ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 		} else if ( isBlas() ) {
 			// NOTE: we don't compare scratch_buffer_sz, as scratch buffer sz is only available
@@ -233,7 +261,7 @@ struct ResourceCreateInfo {
 		return type == LeResourceType::eRtxTlas;
 	}
 
-	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t& info, uint32_t* pQueueFamilyIndices, uint32_t queueFamilyindexCount );
+	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t& info );
 };
 
 // ----------------------------------------------------------------------
@@ -304,7 +332,7 @@ inline uint16_t get_sample_count_log_2( uint32_t const& sample_count ) {
 
 // ----------------------------------------------------------------------
 
-ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t& info, uint32_t* pQueueFamilyIndices, uint32_t queueFamilyIndexCount ) {
+ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t& info ) {
 	ResourceCreateInfo res{};
 
 	res.type = info.type;
@@ -318,8 +346,8 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		    .size                  = info.buffer.size,
 		    .usage                 = VkBufferUsageFlags( info.buffer.usage ),
 		    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		    .queueFamilyIndexCount = queueFamilyIndexCount, // optional
-		    .pQueueFamilyIndices   = pQueueFamilyIndices,
+		    .queueFamilyIndexCount = 0, // optional
+		    .pQueueFamilyIndices   = nullptr,
 		};
 
 	} break;
@@ -338,8 +366,8 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		      .tiling                = VkImageTiling( img.tiling ),
 		      .usage                 = VkImageUsageFlags( img.usage ),
 		      .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		      .queueFamilyIndexCount = queueFamilyIndexCount, // optional
-		      .pQueueFamilyIndices   = pQueueFamilyIndices,
+		      .queueFamilyIndexCount = 0, // optional
+		      .pQueueFamilyIndices   = nullptr,
 		      .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
         };
 
@@ -374,9 +402,12 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 // of the second ResourceState becomes scope 2 for the barrier between them.
 //
 struct ResourceState {
-	VkPipelineStageFlags2 stage;          // pipeline stage (implies earlier logical stages) that needs to happen-before
-	VkAccessFlags2        visible_access; // which memory access in this stage currenty has visible memory - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
-	VkImageLayout         layout;         // current layout (for images)
+	VkPipelineStageFlags2 stage;          // Pipeline stage (implies earlier logical stages) that needs to happen-before
+	VkAccessFlags2        visible_access; // Which memory access in this stage currenty has visible memory -
+	                                      // if any of these are WRITE accesses, these must be made available(flushed)
+	                                      // before next access - for the next src access we can OR this with ANY_WRITES
+	VkImageLayout layout;                 // Current layout (for images)
+	uint32_t      renderpass_index;       // which renderpass currently uses this resource  -1 being outside of scope (e.g. swapchain)
 
 	bool operator==( const ResourceState& rhs ) const {
 		return visible_access == rhs.visible_access &&
@@ -434,11 +465,27 @@ struct swapchain_state_t {
 // frame only operates only on its own memory, it will never see contention
 // with other threads processing other frames concurrently.
 struct BackendFrameData {
-	VkFence       frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
-	VkCommandPool commandPool = nullptr;
+
+	VkFence  frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
+	uint64_t frameNumber = 0;       // current frame number
+
+	struct CommandPool {
+		VkCommandPool                pool;                // One pool per submission - must be allocated from the same queue the commands get submitted to.
+		std::vector<VkCommandBuffer> buffers;             // Allocated from pool, reset when frame gets recycled via pool.reset
+		uint32_t                     vk_queue_family_idx; // vulkan queue family index from which pool was allocated
+		bool                         is_used = false;
+	};
+
+	struct PerQueueSubmissionData {
+		uint32_t              queue_idx;    // backend device queue index
+		VkQueueFlags          queue_flags;  // queue flags for this submission
+		std::vector<uint32_t> pass_indices; // which passes from the current frame to add to this submission, count tells us about number of command buffers that need to be alloated
+		CommandPool*          command_pool; // non-owning. which command pool from the list of available command pools
+	};                                      //
+	std::vector<PerQueueSubmissionData> queue_submission_data;
+	std::vector<CommandPool*>           available_command_pools; // Owning. reset on frame recycle, delete all objects on BackendFrameData::destroy
 
 	std::vector<swapchain_state_t> swapchain_state;
-	std::vector<VkCommandBuffer>   commandBuffers;
 
 	struct Texture {
 		VkSampler   sampler;
@@ -470,10 +517,17 @@ struct BackendFrameData {
 
 	/// \brief if user provides explicit resource info, we collect this here, so that we can make sure
 	/// that any inferred resourceInfo is compatible with what the user selected.
-	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
+	/// there is no guarantee that declared resources are unique, which means we must consolidate.
+	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (explicitly declared via rendergraph)
+	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (explicitly declared via rendergraph)
 
-	std::vector<LeRenderPass>  passes;
+	std::vector<BackendRenderPass>   passes;
+	std::vector<le::RootPassesField> queue_submission_keys; // One key per isolated queue invocation,
+	                                                        // each key represents an isolated tree from the graph,
+	                                                        // with each bit representing a contributing root node index.
+	                                                        // Passes internally store to which root node they contribute,
+	                                                        // which allows us to associate passes with each entry in this vector.
+
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass
@@ -508,6 +562,11 @@ struct le_backend_o {
 	le_backend_vk_instance_o*   instance;
 	std::unique_ptr<le::Device> device;
 
+	std::vector<BackendQueueInfo*>         queues;                                              // queues which were created via device
+	std::unordered_map<uint32_t, uint32_t> default_queue_for_family_index;                      // map from queue_family index to index of default queue in queues for this queue family
+	uint32_t                               queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
+	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
+
 	std::vector<le_swapchain_o*> swapchains; // Owning.
 
 	std::vector<VkSurfaceKHR> windowSurfaces; // owning. one per window swapchain.
@@ -527,13 +586,13 @@ struct le_backend_o {
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
+	uint64_t                      totalFrameCount = 0; // total number of rendered or in-flight frames
 
 	le_pipeline_manager_o* pipelineCache = nullptr;
 
 	VmaAllocator mAllocator = nullptr;
 
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
-	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
 
 	KillList<le_rtx_blas_info_o> rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
 	KillList<le_rtx_tlas_info_o> rtx_tlas_info_kill_list; // used to keep track rtx_blas_infos.
@@ -544,6 +603,8 @@ struct le_backend_o {
 	struct {
 		std::unordered_map<le_resource_handle, AllocatedResourceVk> allocatedResources; // Allocated resources, indexed by resource name hash
 	} only_backend_allocate_resources_may_access;                                       // Only acquire_physical_resources may read/write
+
+	std::unordered_map<le_resource_handle, uint64_t> resource_queue_family_ownership[ 2 ]; // per-resource queue family ownership - we use this to detect queue family ownership change for resources
 };
 
 // State of arguments for currently bound pipeline - we keep this here,
@@ -563,6 +624,22 @@ struct ArgumentState {
 struct DescriptorSetState {
 	VkDescriptorSetLayout       setLayout;
 	std::vector<DescriptorData> setData;
+};
+
+struct RtxState {
+	bool               is_set;
+	le_resource_handle sbt_buffer; // shader binding table buffer
+	uint64_t           ray_gen_sbt_offset;
+	uint64_t           ray_gen_sbt_size;
+	uint64_t           miss_sbt_offset;
+	uint64_t           miss_sbt_stride;
+	uint64_t           miss_sbt_size;
+	uint64_t           hit_sbt_offset;
+	uint64_t           hit_sbt_stride;
+	uint64_t           hit_sbt_size;
+	uint64_t           callable_sbt_offset;
+	uint64_t           callable_sbt_stride;
+	uint64_t           callable_sbt_size;
 };
 
 // ----------------------------------------------------------------------
@@ -685,7 +762,14 @@ static void backend_destroy( le_backend_o* self ) {
 		}
 		frameData.swapchain_state.clear();
 
-		vkDestroyCommandPool( device, frameData.commandPool, nullptr );
+		{
+			for ( auto& cp : frameData.available_command_pools ) {
+				vkDestroyCommandPool( device, cp->pool, nullptr );
+				delete cp;
+			}
+			frameData.queue_submission_data.clear();
+			frameData.available_command_pools.clear(); // cleanup stale pointers
+		}
 
 		for ( auto& d : frameData.descriptorPools ) {
 			vkDestroyDescriptorPool( device, d, nullptr );
@@ -776,6 +860,17 @@ static void backend_destroy( le_backend_o* self ) {
 	// destroy window surface if there was a window surface
 	backend_destroy_window_surfaces( self );
 
+	{
+		// destroy timeline semaphores which were allocated per-queue
+		// and destroy BackendQueueInfo objects which were allocated on the free store
+		for ( auto& q : self->queues ) {
+			vkDestroySemaphore( self->device->getVkDevice(), q->semaphore, nullptr );
+			q->semaphore = nullptr;
+			delete ( q );
+		}
+		self->queues.clear();
+	}
+
 	// we must delete the device which was allocated from an instance
 	// before we destroy the instance.
 	self->device.reset();
@@ -854,13 +949,13 @@ static void backend_get_swapchain_extent( le_backend_o* self, uint32_t index, ui
 bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
 	if ( *count < self->swapchain_resources.size() ) {
-		*count = self->swapchain_resources.size();
+		*count = uint32_t(self->swapchain_resources.size());
 		return false;
 	}
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
 
-	size_t num_items = *count = self->swapchain_resources.size();
+	uint32_t num_items = *count = uint32_t(self->swapchain_resources.size());
 
 	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * num_items );
 	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * num_items );
@@ -877,7 +972,7 @@ static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self
 // ----------------------------------------------------------------------
 
 static uint32_t backend_get_swapchain_count( le_backend_o* self ) {
-	return self->swapchain_resources.size();
+	return uint32_t(self->swapchain_resources.size());
 }
 
 // ----------------------------------------------------------------------
@@ -973,8 +1068,8 @@ static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator cons
 	    .size                  = 1,
 	    .usage                 = BUFFER_USAGE_FLAGS_SCRATCH,
 	    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-	    .queueFamilyIndexCount = 1, // optional
-	    .pQueueFamilyIndices   = &queueFamilyGraphics,
+	    .queueFamilyIndexCount = 0, // optional
+	    .pQueueFamilyIndices   = nullptr,
 	};
 
 	VmaAllocationCreateInfo allocInfo{};
@@ -998,8 +1093,8 @@ static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator cons
 	    .size                  = 1,
 	    .usage                 = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 	    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-	    .queueFamilyIndexCount = 1, // optional
-	    .pQueueFamilyIndices   = &queueFamilyGraphics,
+	    .queueFamilyIndexCount = 0, // optional
+	    .pQueueFamilyIndices   = nullptr,
 	};
 
 	VmaAllocationCreateInfo allocInfo{};
@@ -1015,8 +1110,68 @@ static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator cons
 
 static void backend_initialise( le_backend_o* self, std::vector<char const*> requested_instance_extensions, std::vector<char const*> requested_device_extensions ) {
 	using namespace le_backend_vk;
-	self->instance      = vk_instance_i.create( requested_instance_extensions.data(), uint32_t( requested_instance_extensions.size() ) );
-	self->device        = std::make_unique<le::Device>( self->instance, requested_device_extensions.data(), uint32_t( requested_device_extensions.size() ) );
+	self->instance = vk_instance_i.create( requested_instance_extensions.data(), uint32_t( requested_instance_extensions.size() ) );
+	self->device   = std::make_unique<le::Device>( self->instance, requested_device_extensions.data(), uint32_t( requested_device_extensions.size() ) );
+
+	{ // initialise queues
+		uint32_t num_queues = 0;
+		uint32_t previous_queue_family_index;
+		vk_device_i.get_queues_info( *self->device, &num_queues, nullptr, nullptr, nullptr );
+		std::vector<VkQueue>      queues( num_queues );
+		std::vector<uint32_t>     queues_family_index( num_queues );
+		std::vector<VkQueueFlags> queues_flags( num_queues );
+
+		vk_device_i.get_queues_info( *self->device, &num_queues, queues.data(), queues_family_index.data(), queues_flags.data() );
+
+		VkSemaphoreTypeCreateInfo type_info = {
+		    .sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+		    .pNext         = nullptr, // optional
+		    .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+		    .initialValue  = 0,
+		};
+		VkSemaphoreCreateInfo semaphore_create_info = {
+		    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		    .pNext = &type_info, // optional
+		    .flags = 0,          // optional
+		};
+
+		for ( uint32_t i = 0; i != num_queues; i++ ) {
+			BackendQueueInfo* queue_info = new BackendQueueInfo{
+			    .queue                = queues[ i ],
+			    .queue_flags          = queues_flags[ i ],
+			    .semaphore            = nullptr,
+			    .semaphore_wait_value = 0,
+			    .queue_family_index   = queues_family_index[ i ],
+			};
+
+			{
+				// If not all queues are from the same queue family, then we must
+				// keep track of queue ownership for resources
+				if ( i > 0 && queues_family_index[ i ] != previous_queue_family_index ) {
+					self->must_track_resources_queue_family_ownership = true;
+				}
+				previous_queue_family_index = queues_family_index[ i ];
+			}
+
+			// Fetch the first graphics enabled queue and make this our default graphics queue -
+			// this queue will be used for swapchain present.
+			if ( self->queueFamilyIndexGraphics == uint32_t( ~0 ) && ( queues_flags[ i ] & VK_QUEUE_GRAPHICS_BIT ) ) {
+				self->queue_default_graphics_idx = i;
+				self->queueFamilyIndexGraphics   = queues_family_index[ i ];
+			}
+			// create one timeline semaphore for every queue.
+			vkCreateSemaphore( self->device->getVkDevice(), &semaphore_create_info, nullptr, &queue_info->semaphore );
+			self->queues.push_back( queue_info );
+
+			// try to store the queue index together with the queue family index - this will
+			// only add an element if a queue family is not already present in the map.
+			self->default_queue_for_family_index.try_emplace( queue_info->queue_family_index, i );
+		}
+	}
+
+	if ( self->must_track_resources_queue_family_ownership ) {
+		le::Log( LOGGER_LABEL ).info( "Multiple queue families detected - tracking queue ownership per-resource." );
+	}
 	self->pipelineCache = le_pipeline_manager_i.create( *self->device );
 }
 // ----------------------------------------------------------------------
@@ -1048,8 +1203,7 @@ static void backend_setup( le_backend_o* self ) {
 
 	assert( settings );
 	if ( settings == nullptr ) {
-		std::cerr << "FATAL: Must specify settings for backend." << std::endl
-		          << std::flush;
+		le::Log( LOGGER_LABEL ).error( "FATAL: Must specify settings for backend." );
 		exit( 1 );
 	} else {
 		// Freeze settings, as these will be the settings that apply for the lifetime of the backend.
@@ -1074,7 +1228,7 @@ static void backend_setup( le_backend_o* self ) {
 
 	// -- create swapchain if requested
 
-	backend_create_swapchains( self, settings->swapchain_settings.size(), settings->swapchain_settings.data() );
+	backend_create_swapchains( self, uint32_t(settings->swapchain_settings.size()), settings->swapchain_settings.data() );
 
 	// -- setup backend memory objects
 
@@ -1082,11 +1236,7 @@ static void backend_setup( le_backend_o* self ) {
 
 	self->mFrames.reserve( frameCount );
 
-	self->queueFamilyIndexGraphics = self->device->getDefaultGraphicsQueueFamilyIndex();
-	self->queueFamilyIndexCompute  = self->device->getDefaultComputeQueueFamilyIndex();
-
 	uint32_t memIndexScratchBufferGraphics = getMemoryIndexForGraphicsScratchBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used for transient command buffer allocations
-	uint32_t memIndexStagingBufferGraphics = getMemoryIndexForGraphicsStagingBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used to stage transfers to persistent memory
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
@@ -1109,6 +1259,7 @@ static void backend_setup( le_backend_o* self ) {
 		// -- Set up per-frame resources
 
 		BackendFrameData frameData{};
+		frameData.frameNumber = i;
 
 		frameData.swapchain_state.resize( self->swapchains.size() );
 
@@ -1133,16 +1284,7 @@ static void backend_setup( le_backend_o* self ) {
 
 			vkCreateFence( vkDevice, &create_info, nullptr, &frameData.frameFence ); // frence starts out as sigmalled
 		}
-		{
-			VkCommandPoolCreateInfo create_info = {
-			    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-			    .pNext            = nullptr,                              // optional
-			    .flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, // optional
-			    .queueFamilyIndex = self->device->getDefaultGraphicsQueueFamilyIndex(),
-			};
 
-			vkCreateCommandPool( vkDevice, &create_info, nullptr, &frameData.commandPool );
-		}
 		{
 			// -- set up an allocation pool for each frame
 			// so that each frame can create sub-allocators
@@ -1163,6 +1305,8 @@ static void backend_setup( le_backend_o* self ) {
 
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
+
+	self->totalFrameCount = frameCount; // running total of frames
 
 	{
 		// We want to make sure to have at least one allocator.
@@ -1194,7 +1338,7 @@ static void backend_setup( le_backend_o* self ) {
 // ----------------------------------------------------------------------
 // Add image attachments to leRenderPass
 // Update syncchain for images affected.
-static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRenderPass& currentPass, BackendFrameData& frame, le::SampleCountFlagBits const& sampleCount ) {
+static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendRenderPass& currentPass, BackendFrameData& frame, le::SampleCountFlagBits const& sampleCount ) {
 
 	using namespace le_renderer;
 
@@ -1222,7 +1366,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 		//
 		if ( numSamplesLog2 != 0 ) {
 			img_resource = le_renderer::renderer_i.produce_img_resource_handle(
-			    img_resource->data->debug_name, numSamplesLog2, img_resource, 0 );
+			    img_resource->data->debug_name, uint8_t(numSamplesLog2), img_resource, 0 );
 		}
 
 		auto& syncChain = frame.syncChainTable[ img_resource ];
@@ -1260,7 +1404,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 			// track resource state before entering a subpass
 
 			auto& previousSyncState = syncChain.back();
-			auto  beforeFirstUse{ previousSyncState };
+			ResourceState beforeFirstUse{ previousSyncState };
 
 			if ( currentAttachment->loadOp == le::AttachmentLoadOp::eLoad ) {
 				// we must now specify which stages need to be visible for which coming memory access
@@ -1291,7 +1435,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 			// track resource state before subpass
 
 			auto& previousSyncState = syncChain.back();
-			auto  beforeSubpass{ previousSyncState };
+			ResourceState beforeSubpass{ previousSyncState };
 
 			if ( image_attachment_info.loadOp == le::AttachmentLoadOp::eLoad ) {
 				// resource.loadOp most be LOAD
@@ -1424,26 +1568,44 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, LeRender
 	} // end foreach image attachment
 }
 
+static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
+	uint64_t    flags = tp;
+	std::string result;
+	int         bit_pos = 0;
+	while ( flags ) {
+		if ( flags & 1 ) {
+			if ( false == result.empty() ) {
+				result.append( " | " );
+			}
+			result.append( to_str( le::AccessFlagBits2( 1ULL << bit_pos ) ) );
+		}
+		flags >>= 1;
+		bit_pos++;
+	}
+	return result;
+}
 // ----------------------------------------------------------------------
 // Updates sync chain for resourcess referenced in rendergraph
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
 // resource sync state for images used as renderpass attachments is chosen so that they
 // can be implicitly synced using subpass dependencies.
-static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, LeRenderPass& currentPass, BackendFrameData::sync_chain_table_t& syncChainTable ) {
+static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, BackendRenderPass& currentPass, BackendFrameData::sync_chain_table_t& syncChainTable ) {
 	using namespace le_renderer;
-	le_resource_handle const*   resources       = nullptr;
-	LeResourceUsageFlags const* resources_usage = nullptr;
-	size_t                      resources_count = 0;
-	renderpass_i.get_used_resources( pass, &resources, &resources_usage, &resources_count );
+	le_resource_handle const* resources        = nullptr;
+	le::AccessFlags2 const*   resources_access = nullptr;
+	size_t                    resources_count  = 0;
+	renderpass_i.get_used_resources( pass, &resources, &resources_access, &resources_count );
 
-	auto get_stage_flags_based_on_renderpass_type = []( le::RenderPassType const& rp_type ) -> VkPipelineStageFlags2 {
+	currentPass.resources.assign( resources, resources + resources_count );
+
+	auto get_stage_flags_based_on_renderpass_type = []( le::QueueFlagBits const& rp_type ) -> VkPipelineStageFlags2 {
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
-		case le::RenderPassType::eTransfer:
+		case le::QueueFlagBits::eTransfer:
 			return VK_PIPELINE_STAGE_2_TRANSFER_BIT; // stage for transfer pass
-		case le::RenderPassType::eDraw:
+		case le::QueueFlagBits::eGraphics:
 			return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; // earliest stage for draw pass
-		case le::RenderPassType::eCompute:
+		case le::QueueFlagBits::eCompute:
 			return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // stage for compute pass
 
 		default:
@@ -1454,12 +1616,11 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, LeRend
 
 	for ( size_t i = 0; i != resources_count; ++i ) {
 		auto const& resource = resources[ i ];
-		auto const& usage    = resources_usage[ i ];
 
 		auto& syncChain = syncChainTable[ resource ];
 		assert( !syncChain.empty() ); // must not be empty - this resource must exist, and have an initial sync state
 
-		LeRenderPass::ExplicitSyncOp syncOp{};
+		ExplicitSyncOp syncOp{};
 
 		syncOp.resource                  = resource;
 		syncOp.active                    = true;
@@ -1467,30 +1628,28 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, LeRend
 
 		ResourceState requestedState{}; // State we want our image to be in when pass begins.
 
-		// Define synchronisation requirements for each resource based on resource type,
-		// and resource usage.
+		// If resource is an image and it either gets sampled or used as storage,
+		// add an entry to the sync chain for this resource representing the state
+		// that we expect the resource to be in when the pass begins.
 		//
-		if ( usage.type == LeResourceType::eImage ) {
+		if ( resource->data->type == LeResourceType::eImage ) {
 
-			if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) ) {
+			// le::Log( LOGGER_LABEL ).info( " resource: %40s, access { %-60s }", resource->data->debug_name, to_string_le_access_flags2( resources_access[ i ] ).c_str() );
 
-				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
+			if ( resources_access[ i ] & VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ) {
+				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-			} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eStorage ) ) {
-
-				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
+			                                      VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT |
+			                                      VK_ACCESS_2_SHADER_READ_BIT |
+			                                      VK_ACCESS_2_SHADER_WRITE_BIT ) ) {
+				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
+			}
 
-			} else if ( usage.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) ) {
-				// this is an image write operation.
-				requestedState.visible_access = VK_ACCESS_2_SHADER_READ_BIT;
-				requestedState.stage          = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-			} else {
+			else {
 				continue;
 			}
 
@@ -1565,14 +1724,13 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
 
-		LeRenderPass currentPass{};
+		BackendRenderPass currentPass{};
 
-		currentPass.type = renderpass_i.get_type( *pass );
+		renderpass_i.get_queue_sumbission_info( *pass, &currentPass.type, &currentPass.root_passes_affinity );
+
 		memcpy( currentPass.debugName, renderpass_i.get_debug_name( *pass ), sizeof( currentPass.debugName ) );
 
-		currentPass.width       = renderpass_i.get_width( *pass );
-		currentPass.height      = renderpass_i.get_height( *pass );
-		currentPass.sampleCount = renderpass_i.get_sample_count( *pass );
+		renderpass_i.get_framebuffer_settings( *pass, &currentPass.width, &currentPass.height, &currentPass.sampleCount );
 
 		// Find explicit sync ops needed for resources which are not attachments
 		//
@@ -1688,6 +1846,7 @@ static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 
 	// NOTE: this may block.
 	auto result = vkWaitForFences( device, 1, &frame.frameFence, true, 100'000'000 );
+	// le::Log( LOGGER_LABEL ).info( "=[%3d]== frame fence cleared", frameIndex );
 
 	if ( result != VK_SUCCESS ) {
 		return false;
@@ -1708,11 +1867,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	auto&    frame  = self->mFrames[ frameIndex ];
 	VkDevice device = self->device->getVkDevice();
 
-	//	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
-
-	//	if ( result !=VkResult::eSuccess ) {
-	//		return false;
-	//	}
+	// le::Log( LOGGER_LABEL ).info( "=[%3d]== clear frame ", frameIndex );
 
 	// -------- Invariant: fence has been crossed, all resources protected by fence
 	//          can now be claimed back.
@@ -1771,8 +1926,16 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 		frame.ownedResources.clear();
 	}
 
-	vkFreeCommandBuffers( device, frame.commandPool, uint32_t( frame.commandBuffers.size() ), frame.commandBuffers.data() );
-	frame.commandBuffers.clear();
+	for ( auto& cp : frame.available_command_pools ) {
+		if ( cp->is_used ) {
+			vkFreeCommandBuffers( device, cp->pool, uint32_t( cp->buffers.size() ), cp->buffers.data() ); // shouldn't clearing the pool implicitly free all command buffers allocated from the pool?
+			vkResetCommandPool( device, cp->pool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT );
+			cp->is_used = false; // mark this command pool as available for recycling.
+		}
+		// Note that we don't clear `cp->buffers` - no need to do this as buffers
+		// get resized and overwritten whenever a pool gets re-used.
+	}
+	frame.queue_submission_data.clear();
 
 	frame.physicalResources.clear();
 	frame.syncChainTable.clear();
@@ -1785,12 +1948,22 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 	}
 	frame.passes.clear();
-
-	vkResetCommandPool( device, frame.commandPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT );
+	frame.frameNumber = self->totalFrameCount++; // note post-increment
 
 	return true;
 };
 // ----------------------------------------------------------------------
+// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
+static constexpr auto ANY_WRITE_VK_ACCESS_2_FLAGS =
+    ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+      VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+      VK_ACCESS_2_HOST_WRITE_BIT |
+      VK_ACCESS_2_MEMORY_WRITE_BIT |
+      VK_ACCESS_2_SHADER_WRITE_BIT |
+      VK_ACCESS_2_TRANSFER_WRITE_BIT |
+      VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
+      VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT );
 
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 
@@ -1799,23 +1972,12 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 	// create renderpasses
 	const auto& syncChainTable = frame.syncChainTable;
 
-	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
-	const auto ANY_WRITE_ACCESS_FLAGS = ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
-	                                      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-	                                      VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
-	                                      VK_ACCESS_2_HOST_WRITE_BIT |
-	                                      VK_ACCESS_2_MEMORY_WRITE_BIT |
-	                                      VK_ACCESS_2_SHADER_WRITE_BIT |
-	                                      VK_ACCESS_2_TRANSFER_WRITE_BIT |
-	                                      VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
-	                                      VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT );
-
 	// Note: This should be trivial to parallelize.
 	for ( auto& pass : frame.passes ) {
 
 		// The rest of this loop only concerns draw passes
 		//
-		if ( pass.type != le::RenderPassType::eDraw ) {
+		if ( pass.type != le::QueueFlagBits::eGraphics ) {
 			continue;
 		}
 
@@ -1840,7 +2002,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		VkAccessFlags2        srcAccessToExternalFlags = 0;
 		VkAccessFlags2        dstAccessToExternalFlags = 0;
 
-		if ( PRINT_DEBUG_MESSAGES ) {
+		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger.info( "* Renderpass: '%s'", pass.debugName );
 			logger.info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
 		}
@@ -1876,7 +2038,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			    .finalLayout    = syncFinal.layout,
 			};
 
-			if ( PRINT_DEBUG_MESSAGES ) {
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger.info( " %38s@%d : %30s → %30s → %30s | sync chain indices: %4d : %4d : %4d",
 				             attachment->resource->data->debug_name, 1 << attachment->resource->data->num_samples,
 				             to_str_vk_image_layout( syncInitial.layout ),
@@ -1921,7 +2083,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 			srcStageFromExternalFlags |= syncInitial.stage;
 			dstStageFromExternalFlags |= syncSubpass.stage;
-			srcAccessFromExternalFlags |= ( syncInitial.visible_access & ANY_WRITE_ACCESS_FLAGS );
+			srcAccessFromExternalFlags |= ( syncInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS );
 			dstAccessFromExternalFlags |= syncSubpass.visible_access; // & ~(syncInitial.visible_access );
 			// this would make only changes in availability operations happen. it should only happen if there are no src write_access_flags. we leave this out so as to give the driver more info
 
@@ -1929,7 +2091,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 			srcStageToExternalFlags |= syncChain.at( attachment->finalStateOffset - 1 ).stage;
 			dstStageToExternalFlags |= syncFinal.stage;
-			srcAccessToExternalFlags |= ( syncChain.at( attachment->finalStateOffset - 1 ).visible_access & ANY_WRITE_ACCESS_FLAGS );
+			srcAccessToExternalFlags |= ( syncChain.at( attachment->finalStateOffset - 1 ).visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS );
 			dstAccessToExternalFlags |= syncFinal.visible_access;
 
 			if ( 0 == uint64_t( srcStageFromExternalFlags ) ) {
@@ -1938,7 +2100,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			}
 		}
 
-		if ( PRINT_DEBUG_MESSAGES ) {
+		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger.info( "" );
 		}
 
@@ -1969,7 +2131,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		VkSubpassDependency2 dependencies[ 2 ];
 
 		{
-			if ( PRINT_DEBUG_MESSAGES ) {
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
 
 				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName );
 				logger.info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", to_string_vk_pipeline_stage_flags2( srcStageFromExternalFlags ).c_str() );
@@ -2020,7 +2182,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			    .viewOffset      = 0,
 			};
 			dependencies[ 1 ] = {
-			    // external to subpass
+			    // subpass to external
 			    .sType           = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
 			    .pNext           = memoryBarriers + 1,          // optional
 			    .srcSubpass      = 0,                           // last subpass
@@ -2223,7 +2385,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 
 	for ( auto& pass : frame.passes ) {
 
-		if ( pass.type != le::RenderPassType::eDraw ) {
+		if ( pass.type != le::QueueFlagBits::eGraphics ) {
 			continue;
 		}
 
@@ -2772,7 +2934,7 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 			staging_buffers.emplace_back(
 			    le_renderer::renderer_i.produce_buf_resource_handle(
 			        "Le-Staging-Buffer",
-			        le_buf_resource_usage_flags_t::eIsStaging, index ) );
+			        le_buf_resource_usage_flags_t::eIsStaging, uint32_t(index) ) );
 		}
 
 		*resource_handle = staging_buffers[ allocationIndex ];
@@ -2834,77 +2996,122 @@ inline void frame_release_binned_resources( BackendFrameData& frame, VmaAllocato
 }
 
 // ----------------------------------------------------------------------
+
+static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_resource_info_t const& rhs ) {
+
+	// return superset of lhs and rhs in lhs
+	assert( lhs.type == rhs.type );
+
+	switch ( lhs.type ) {
+	case LeResourceType::eBuffer: {
+
+		lhs.buffer.size = std::max( lhs.buffer.size, rhs.buffer.size );
+		lhs.buffer.usage |= rhs.buffer.usage;
+
+		return;
+	}
+	case LeResourceType::eImage: {
+		// TODO (tim): check how we can enforce correct number of array layers and mip levels
+
+		lhs.image.samplesFlags |= rhs.image.samplesFlags;
+		assert( lhs.image.sample_count_log2 == 0 ); // NOTE: we expect sample_count_log2 not to be set at this point
+		assert( rhs.image.sample_count_log2 == 0 ); // NOTE: we expect sample_count_log2 not to be set at this point
+
+		if ( rhs.image.arrayLayers > lhs.image.arrayLayers ) {
+			lhs.image.arrayLayers = rhs.image.arrayLayers;
+		}
+
+		if ( rhs.image.mipLevels > lhs.image.mipLevels ) {
+			lhs.image.mipLevels = rhs.image.mipLevels;
+		}
+
+		if ( uint32_t( rhs.image.imageType ) > uint32_t( lhs.image.imageType ) ) {
+			// this is a bit sketchy.
+			lhs.image.imageType = rhs.image.imageType;
+		}
+
+		lhs.image.flags |= rhs.image.flags;
+		lhs.image.usage |= rhs.image.usage;
+
+		// If an image format was explictly set, this takes precedence over eUndefined.
+		// Note that we skip this block if both infos have the same format, so if both
+		// infos are eUndefined, format stays undefined.
+
+		if ( rhs.image.format != le::Format::eUndefined && rhs.image.format != lhs.image.format ) {
+
+			// ----------| invariant: both formats differ, and second format is not undefined
+
+			if ( lhs.image.format == le::Format::eUndefined ) {
+				lhs.image.format = rhs.image.format;
+			} else {
+				// Houston, we have a problem!
+				// Two different formats were explicitly specified for this image.
+				assert( false );
+			}
+		}
+
+		// Make sure the image is as large as it needs to be
+
+		lhs.image.extent.width  = std::max( lhs.image.extent.width, rhs.image.extent.width );
+		lhs.image.extent.height = std::max( lhs.image.extent.height, rhs.image.extent.height );
+		lhs.image.extent.depth  = std::max( lhs.image.extent.depth, rhs.image.extent.depth );
+
+		lhs.image.extent_from_pass.width  = std::max( lhs.image.extent_from_pass.width, rhs.image.extent_from_pass.width );
+		lhs.image.extent_from_pass.height = std::max( lhs.image.extent_from_pass.height, rhs.image.extent_from_pass.height );
+		lhs.image.extent_from_pass.depth  = std::max( lhs.image.extent_from_pass.depth, rhs.image.extent_from_pass.depth );
+		return;
+	}
+	case LeResourceType::eRtxBlas: {
+		return;
+	}
+	case LeResourceType::eRtxTlas: {
+		return;
+	}
+
+	case LeResourceType::eUndefined: {
+		assert( false ); // unreachable
+		return;
+	}
+	}
+}
+
+// ----------------------------------------------------------------------
+// TODO: don't use vectors for resourceInfos, consolidate in-place.
 //
+// should return a map of all resources used in all passes, with consolidated infos per-resource.
 static void collect_resource_infos_per_resource(
-    le_renderpass_o const* const*                 passes,
-    size_t                                        numRenderPasses,
-    std::vector<le_resource_handle> const&        frame_declared_resources_id,   // | pre-declared resources (declared via module)
-    std::vector<le_resource_info_t> const&        frame_declared_resources_info, // | info for each pre-declared resource
-    std::vector<le_resource_handle>&              usedResources,
-    std::vector<std::vector<le_resource_info_t>>& usedResourcesInfos ) {
+    le_renderpass_o const* const*                               passes,
+    size_t                                                      numRenderPasses,
+    std::vector<le_resource_handle> const&                      frame_declared_resources_id,   // | pre-declared resources (declared via module)
+    std::vector<le_resource_info_t> const&                      frame_declared_resources_info, // | info for each pre-declared resource
+    std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
 
 	using namespace le_renderer;
 
 	for ( auto rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
-		auto pass_width            = renderpass_i.get_width( *rp );
-		auto pass_height           = renderpass_i.get_height( *rp );
-		auto pass_num_samples_log2 = get_sample_count_log_2( uint32_t( renderpass_i.get_sample_count( *rp ) ) );
+		uint32_t                pass_width        = 0;
+		uint32_t                pass_height       = 0;
+		le::SampleCountFlagBits pass_sample_count = {};
 
-		le_resource_handle const*   p_resources             = nullptr;
-		LeResourceUsageFlags const* p_resources_usage_flags = nullptr;
-		size_t                      resources_count         = 0;
+		renderpass_i.get_framebuffer_settings( *rp, &pass_width, &pass_height, &pass_sample_count );
 
-		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_usage_flags, &resources_count );
+		uint16_t pass_num_samples_log2 = get_sample_count_log_2( uint32_t( pass_sample_count ) );
+
+		le_resource_handle const* p_resources              = nullptr;
+		le::AccessFlags2 const*   p_resources_access_flags = nullptr;
+		size_t                    resources_count          = 0;
+
+		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_access_flags, &resources_count );
 
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
-			le_resource_handle const&   resource             = p_resources[ i ];             // Resource handle
-			LeResourceUsageFlags const& resource_usage_flags = p_resources_usage_flags[ i ]; // Resource usage flags
-
-			assert( resource_usage_flags.type == resource->data->type ); // Resource Usage Flags must be for matching resource type.
+			le_resource_handle const& resource = p_resources[ i ]; // Resource handle
 
 			// Test whether a resource with this id is already in usedResources -
 			// if not, resource_index will be identical to usedResource vector size,
 			// which is useful, because as soon as we add an element to the vector
 			// resource_index will index the correct element.
-
-			auto resource_index = static_cast<size_t>( std::find( usedResources.begin(), usedResources.end(), resource ) - usedResources.begin() );
-
-			if ( resource_index == usedResources.size() ) {
-
-				// Resource not found - we must insert a resource, and an empty vector, to fullfil the invariant
-				// that resource_index points at the correct elements
-
-				// Check if resource was declared explicitly via module - if yes,
-				// insert resource info from there - otherwise insert an
-				// empty entry to indicate that for this resource there are no previous
-				// resource infos.
-
-				// We only want to add resources which are actually used in the frame to
-				// used_resources, which is why we keep declared resources separate, and
-				// only copy their resource info as needed.
-
-				size_t found_resource_index = 0;
-				// search for resource id in vector of declared resources.
-				for ( auto const& id : frame_declared_resources_id ) {
-					if ( id == resource ) {
-						// resource found, let's use this declared_resource_index.
-						break;
-					}
-					found_resource_index++;
-				}
-
-				if ( found_resource_index == frame_declared_resources_id.size() ) {
-					// Nothing found. Insert empty entry
-					usedResources.push_back( resource );
-					usedResourcesInfos.push_back( {} );
-				} else {
-					// Explicitly declared resource found. Insert declaration info.
-					usedResources.push_back( frame_declared_resources_id[ found_resource_index ] );
-					usedResourcesInfos.push_back( { frame_declared_resources_info[ found_resource_index ] } );
-				}
-			}
 
 			// We must ensure that images which are used as Color, or DepthStencil attachments
 			// fit the extents of their renderpass - as this is a Vulkan requirement.
@@ -2913,256 +3120,125 @@ static void collect_resource_infos_per_resource(
 			//
 			// We also need to ensure that the extent has 1 as depth value by default.
 
-			le_resource_info_t resourceInfo = {}; // empty resource info
-			resourceInfo.type               = resource_usage_flags.type;
+			le_resource_info_t resourceInfo = {
+			    .type = resource->data->type, // empty resource info, but with type set according to resource type
+			};
 
 			if ( resourceInfo.type == LeResourceType::eImage ) {
 
-				resourceInfo.image.usage = resource_usage_flags.as.image_usage_flags;
-
-				auto& imgInfo   = resourceInfo.image;
-				auto& imgExtent = imgInfo.extent;
+				auto& imgInfo = resourceInfo.image;
 
 				imgInfo.extent_from_pass = { pass_width, pass_height, 1 };
 
-				if ( imgInfo.usage & ( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eDepthStencilAttachment ) ) {
+				if ( ( p_resources_access_flags[ i ] &
+				       ( le::AccessFlagBits2::eColorAttachmentWrite |
+				         le::AccessFlagBits2::eColorAttachmentRead |
+				         le::AccessFlagBits2::eDepthStencilAttachmentWrite |
+				         le::AccessFlagBits2::eDepthStencilAttachmentRead ) ) ) {
 
-					imgInfo.mipLevels         = 1;
-					imgInfo.imageType         = le::ImageType::e2D;
-					imgInfo.tiling            = le::ImageTiling::eOptimal;
-					imgInfo.arrayLayers       = 1;
-					imgInfo.sample_count_log2 = pass_num_samples_log2;
+					// ---------- | resource is either used as a depth stencil attachment, or a color attachment
 
-					imgExtent.width  = pass_width;
-					imgExtent.height = pass_height;
+					imgInfo.mipLevels    = 1;
+					imgInfo.imageType    = le::ImageType::e2D;
+					imgInfo.tiling       = le::ImageTiling::eOptimal;
+					imgInfo.arrayLayers  = 1;
+					imgInfo.samplesFlags = uint32_t( 1 ) << pass_num_samples_log2; // note we set sample count as a flag so that it can be consolidated -
+					// imgInfo.sample_count_log2 = 0; // note that we leave sample_count_log2 untouched.
+					imgInfo.extent = { pass_width, pass_height, 1 };
 				}
 
-				// depth must be at least 1, but may arrive zero-initialised.
-				imgExtent.depth = std::max<uint32_t>( imgExtent.depth, 1 );
-
 			} else if ( resourceInfo.type == LeResourceType::eBuffer ) {
-				resourceInfo.buffer.usage = resource_usage_flags.as.buffer_usage_flags;
 			} else if ( resourceInfo.type == LeResourceType::eRtxBlas ) {
-				resourceInfo.blas.usage = resource_usage_flags.as.rtx_blas_usage_flags;
 			} else if ( resourceInfo.type == LeResourceType::eRtxTlas ) {
-				resourceInfo.tlas.usage = resource_usage_flags.as.rtx_tlas_usage_flags;
 			} else {
 				assert( false ); // unreachable
 			}
 
-			usedResourcesInfos[ resource_index ].emplace_back( resourceInfo );
-
+			{
+				auto emplace_result = active_resources.try_emplace( resource, std::move( resourceInfo ) );
+				if ( !emplace_result.second ) {
+					// entry was not assigned, result.first will hold an iterator to the current element
+					consolidate_resource_info_into( emplace_result.first->second, resourceInfo );
+				}
+			}
 		} // end for all resources
 
 	} // end for all passes
-}
 
-// ----------------------------------------------------------------------
+	// -- Consolidate resources with pre-declared resources
+	//
+	// If any of our active resources has been pre-declared explicitly via the rendergraph,
+	// consolidate its info with the pre-declared resource's info.
+	//
+	// As a side-effect this will also consolidate any frame-declared resources which
+	// are declared more than once and used in the current rendergraph.
 
-static void patch_renderpass_extents(
-    le_renderpass_o** passes,
-    size_t            numRenderPasses,
-    uint32_t          swapchainWidth,
-    uint32_t          swapchainHeight ) {
-	using namespace le_renderer;
+	for ( size_t i = 0; i != frame_declared_resources_id.size(); i++ ) {
+		auto const& resource     = frame_declared_resources_id[ i ];
+		auto const& resourceInfo = frame_declared_resources_info[ i ];
 
-	auto passes_begin = passes;
-	auto passes_end   = passes + numRenderPasses;
+		auto find_result = active_resources.find( resource );
+		if ( find_result != active_resources.end() ) {
+			// a declared resource was found for an used resource - we must consolidate the two.
 
-	for ( auto rp = passes; rp != passes_end; rp++ ) {
-		auto pass_width  = renderpass_i.get_width( *rp );
-		auto pass_height = renderpass_i.get_height( *rp );
-		if ( pass_width == 0 ) {
-			// if zero was chosen this means to use the default extents values for a
-			// renderpass, which is to use the frame's current swapchain extents.
-			pass_width = swapchainWidth;
-			renderpass_i.set_width( *rp, pass_width );
+			consolidate_resource_info_into( find_result->second, resourceInfo );
 		}
-
-		if ( pass_height == 0 ) {
-			// if zero was chosen this means to use the default extents values for a
-			// renderpass, which is to use the frame's current swapchain extents.
-			pass_height = swapchainHeight;
-			renderpass_i.set_height( *rp, pass_height );
-		}
-	}
-}
-
-// ----------------------------------------------------------------------
-
-// per resource, combine resource_infos so that first element in resource infos
-// contains superset of all resource_infos available for this particular resource
-static void consolidate_resource_infos(
-    std::vector<le_resource_info_t>& resourceInfoVersions ) {
-
-	if ( resourceInfoVersions.empty() )
-		return;
-
-	// ---------| invariant: there is at least a first element.
-
-	le_resource_info_t* const       first_info = resourceInfoVersions.data();
-	le_resource_info_t const* const info_end   = first_info + resourceInfoVersions.size();
-
-	switch ( first_info->type ) {
-	case LeResourceType::eBuffer: {
-		// Consolidate into first_info, beginning with the second element
-		for ( auto* info = first_info + 1; info != info_end; info++ ) {
-			first_info->buffer.usage |= info->buffer.usage;
-
-			// Make sure buffer can hold maximum of requested number of bytes.
-			if ( info->buffer.size != 0 && info->buffer.size > first_info->buffer.size ) {
-				first_info->buffer.size = info->buffer.size;
-			}
-		}
-
-		// Now, we must make sure that the buffer info contains sane values.
-
-		// TODO: emit an error message and emit sane defaults if values fail this test.
-		assert( first_info->buffer.usage != 0 );
-		assert( first_info->buffer.size != 0 );
-
-	} break;
-	case LeResourceType::eImage: {
-
-		first_info->image.samplesFlags |= uint32_t( 1 << first_info->image.sample_count_log2 );
-
-		// Consolidate into first_info, beginning with the second element
-		for ( auto* info = first_info + 1; info != info_end; info++ ) {
-
-			// TODO (tim): check how we can enforce correct number of array layers and mip levels
-
-			if ( info->image.arrayLayers > first_info->image.arrayLayers ) {
-				first_info->image.arrayLayers = info->image.arrayLayers;
-			}
-
-			if ( info->image.mipLevels > first_info->image.mipLevels ) {
-				first_info->image.mipLevels = info->image.mipLevels;
-			}
-
-			if ( uint32_t( info->image.imageType ) > uint32_t( first_info->image.imageType ) ) {
-				// this is a bit sketchy.
-				first_info->image.imageType = info->image.imageType;
-			}
-
-			first_info->image.flags |= info->image.flags;
-			first_info->image.usage |= info->image.usage;
-			first_info->image.samplesFlags |= uint32_t( 1 << info->image.sample_count_log2 );
-
-			// If an image format was explictly set, this takes precedence over eUndefined.
-			// Note that we skip this block if both infos have the same format, so if both
-			// infos are eUndefined, format stays undefined.
-
-			if ( info->image.format != le::Format::eUndefined && info->image.format != first_info->image.format ) {
-
-				// ----------| invariant: both formats differ, and second format is not undefined
-
-				if ( first_info->image.format == le::Format::eUndefined ) {
-					first_info->image.format = info->image.format;
-				} else {
-					// Houston, we have a problem!
-					// Two different formats were explicitly specified for this image.
-					assert( false );
-				}
-			}
-
-			// Make sure the image is as large as it needs to be
-
-			first_info->image.extent.width  = std::max( first_info->image.extent.width, info->image.extent.width );
-			first_info->image.extent.height = std::max( first_info->image.extent.height, info->image.extent.height );
-			first_info->image.extent.depth  = std::max( first_info->image.extent.depth, info->image.extent.depth );
-
-			first_info->image.extent_from_pass.width  = std::max( first_info->image.extent_from_pass.width, info->image.extent_from_pass.width );
-			first_info->image.extent_from_pass.height = std::max( first_info->image.extent_from_pass.height, info->image.extent_from_pass.height );
-			first_info->image.extent_from_pass.depth  = std::max( first_info->image.extent_from_pass.depth, info->image.extent_from_pass.depth );
-		}
-
-		// If extents for first_info are zero, this means extents have not been explicitly specified.
-		// We therefore will fall back to setting extents from pass extents.
-
-		if ( first_info->image.extent.width == 0 ||
-		     first_info->image.extent.height == 0 ||
-		     first_info->image.extent.depth == 0 ) {
-			first_info->image.extent = first_info->image.extent_from_pass;
-		}
-
-		// Do a final sanity check to make sure all required fields are valid.
-
-		assert( first_info->image.extent.width * first_info->image.extent.height * first_info->image.extent.depth != 0 &&
-		        "Extents with zero volume are illegal. You must specify depth, width, and height to be > 0" ); // Extents with zero volume are illegal.
-		assert( first_info->image.usage != 0 );                                                                // Some kind of usage must be specified.
-
-	} break;
-	case LeResourceType::eRtxBlas: {
-		for ( auto* info = first_info + 1; info != info_end; info++ ) {
-			first_info->blas.usage |= info->blas.usage;
-		}
-		break;
-	}
-	case LeResourceType::eRtxTlas: {
-		for ( auto* info = first_info + 1; info != info_end; info++ ) {
-			first_info->tlas.usage |= info->tlas.usage;
-		}
-		break;
-	}
-	default:
-		assert( false && "unhandled resource type" );
-		break;
 	}
 }
 
 // ----------------------------------------------------------------------
 
 static void insert_msaa_versions(
-    std::vector<le_resource_handle>&              usedResources,
-    std::vector<std::vector<le_resource_info_t>>& usedResourcesInfos ) {
+    std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
 	// For each image resource which is specified with versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
+	std::unordered_map<le_resource_handle, le_resource_info_t> extra_resources;
 
-	const size_t usedResourcesSize = usedResources.size();
-
-	std::vector<le_resource_handle>              msaa_resources;
-	std::vector<std::vector<le_resource_info_t>> msaa_resource_infos;
-
-	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
-
-		le_resource_handle& resource = usedResources[ i ];
-
-		if ( resource->data->type != LeResourceType::eImage ) {
+	for ( auto const& ar : active_resources ) {
+		if ( ar.first->data->type != LeResourceType::eImage ) {
 			continue;
 		}
-		le_resource_info_t& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
-		// --------| invariant: resource is image
+		// ----------| Invariant: resource is an image
 
-		if ( resourceInfo.image.samplesFlags & ~uint32( le::SampleCountFlagBits::e1 ) ) {
+		// For any samplesFlags, we must create a matching msaa version of the image.
+		std::bitset<sizeof( ar.second.image.samplesFlags ) * 8> samples_flags( ar.second.image.samplesFlags );
 
-			// We found a resource with flags requesting more than just single sample.
-			// for each flag we must clone the current resource and add to extra resources
+		uint32_t sample_count_log_2 = 1;                  // 2^1 evaluates to 2
+		samples_flags               = samples_flags >> 1; // we remove the single-sampled image, as we assume it already exists.
 
-			uint16_t current_sample_count_log_2 = get_sample_count_log_2( resourceInfo.image.samplesFlags );
+		while ( samples_flags.count() ) {
 
-			le_resource_handle resource_copy =
-			    le_renderer::renderer_i.produce_img_resource_handle(
-			        resource->data->debug_name, current_sample_count_log_2, static_cast<le_img_resource_handle>( resource ), 0 );
+			if ( samples_flags.test( 0 ) ) {
+				// we must create a resource copy with this sample count
+				le_resource_handle resource_copy =
+				    le_renderer::renderer_i.produce_img_resource_handle(
+				        ar.first->data->debug_name, sample_count_log_2, static_cast<le_img_resource_handle>( ar.first ), 0 );
+				le_resource_info_t resource_info_copy      = ar.second;
+				resource_info_copy.image.sample_count_log2 = sample_count_log_2;
 
-			le_resource_info_t resource_info_copy = resourceInfo;
+				// insert extra resource into extra msaa resources
+				auto result = extra_resources.try_emplace( resource_copy, resource_info_copy );
+				if ( result.second == false ) {
+					// key already existed, must be consolidated
+					consolidate_resource_info_into( result.first->second, resource_info_copy );
+				}
+			}
 
-			// Patch original resource info to note 1 sample - we do this because
-			// handle and info must be in sync.
-			//
-			resourceInfo.image.sample_count_log2 = 0;
-
-			msaa_resources.push_back( resource_copy );
-			msaa_resource_infos.push_back( { resource_info_copy } );
+			samples_flags = samples_flags >> 1;
+			sample_count_log_2++;
 		}
 	}
 
-	// -- Insert additional msaa resources into usedResources
-	// -- Insert additional msaa resource infos into usedResourceInfos
-
-	usedResources.insert( usedResources.end(), msaa_resources.begin(), msaa_resources.end() );
-	usedResourcesInfos.insert( usedResourcesInfos.end(), msaa_resource_infos.begin(), msaa_resource_infos.end() );
+	// append extra resources to active resources
+	for ( auto& er : extra_resources ) {
+		auto result = active_resources.try_emplace( er.first, er.second );
+		if ( result.second == false ) {
+			// key already existed, must be consolidated
+			consolidate_resource_info_into( result.first->second, er.second );
+		}
+	}
 }
 
 static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info, const char* prefix = "" ) {
@@ -3198,6 +3274,37 @@ static void printResourceInfo( le_resource_handle const& handle, ResourceCreateI
 		             info.tlasInfo.buffer_size,
 		             info.tlasInfo.scratch_buffer_size,
 		             "-" );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void patch_renderpass_extents(
+    le_renderpass_o** passes,
+    size_t            numRenderPasses,
+    uint32_t          swapchainWidth,
+    uint32_t          swapchainHeight ) {
+	using namespace le_renderer;
+
+	auto passes_end = passes + numRenderPasses;
+
+	for ( auto rp = passes; rp != passes_end; rp++ ) {
+		uint32_t pass_width  = 0;
+		uint32_t pass_height = 0;
+		renderpass_i.get_framebuffer_settings( *rp, &pass_width, &pass_height, nullptr );
+		if ( pass_width == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			pass_width = swapchainWidth;
+			renderpass_i.set_width( *rp, pass_width );
+		}
+
+		if ( pass_height == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			pass_height = swapchainHeight;
+			renderpass_i.set_height( *rp, pass_height );
+		}
 	}
 }
 
@@ -3337,38 +3444,37 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	// in a separate step. That way, we can first make sure all flags are combined,
 	// before we make sure to we find a valid image format which matches all uses...
 	//
-	std::vector<le_resource_handle>              usedResources;      // (
-	std::vector<std::vector<le_resource_info_t>> usedResourcesInfos; // ( usedResourceInfos[index] contains vector of usages for usedResource[index]
+
+	std::unordered_map<le_resource_handle, le_resource_info_t> active_resources;
 
 	collect_resource_infos_per_resource(
 	    passes, numRenderPasses,
 	    frame.declared_resources_id, frame.declared_resources_info,
-	    usedResources, usedResourcesInfos );
+	    active_resources );
 
-	assert( usedResources.size() == usedResourcesInfos.size() );
-
-	// For each resource, consolidate infos so that the first element in the vector of
-	// resourceInfos for a resource covers all intended usages of a resource.
-	//
-	for ( auto& versions : usedResourcesInfos ) {
-		consolidate_resource_infos( versions );
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
+		for ( auto const& r : active_resources ) {
+			logger.info( "resource [ %-30s ] : [ %-50s ]", r.first->data->debug_name,
+			             r.second.type == LeResourceType::eImage
+			                 ? to_string_vk_image_usage_flags( r.second.image.usage ).c_str()
+			                 : to_string_vk_buffer_usage_flags( r.second.buffer.usage ).c_str() );
+		}
 	}
 
 	// For each image resource which has versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
-	insert_msaa_versions( usedResources, usedResourcesInfos );
+	insert_msaa_versions( active_resources );
 
 	// Check if all resources declared in this frame are already available in backend.
 	// If a resource is not available yet, this resource must be allocated.
 
 	auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
-	const size_t usedResourcesCount = usedResources.size();
-	for ( size_t i = 0; i != usedResourcesCount; ++i ) {
+	for ( auto const& ar : active_resources ) {
 
-		le_resource_handle const& resource     = usedResources[ i ];
-		le_resource_info_t const& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+		le_resource_handle const& resource     = ar.first;
+		le_resource_info_t const& resourceInfo = ar.second; ///< consolidated resource info for this resource over all passes
 
 		// See if a resource with this id is already available to the frame
 		// This may be the case with a swapchain image resource for example,
@@ -3384,7 +3490,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 		// first check if the resource is available to the frame,
 		// if that is not the chase, check if the resource is available to the frame.
 
-		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
+		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo );
 		auto       foundIt            = backendResources.find( resource );
 		const bool resourceIdNotFound = ( foundIt == backendResources.end() );
 
@@ -3404,7 +3510,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 
-			if ( PRINT_DEBUG_MESSAGES || true ) {
+			if ( LE_PRINT_DEBUG_MESSAGES || true ) {
 				printResourceInfo( resource, allocatedResource.info, "ALLOC" );
 			}
 
@@ -3450,7 +3556,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
-				if ( PRINT_DEBUG_MESSAGES || true ) {
+				if ( LE_PRINT_DEBUG_MESSAGES || true ) {
 					printResourceInfo( resource, allocatedResource.info, "RE-ALLOC" );
 				}
 
@@ -3470,7 +3576,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			}
 		}
 	} // end for all used resources
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.info( "" );
 	}
 
@@ -3485,11 +3591,10 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 		uint64_t scratchbuffer_max_size = 0;
 
-		const size_t usedResourcesCount = usedResources.size();
-		for ( size_t i = 0; i != usedResourcesCount; ++i ) {
+		for ( auto const& ar : active_resources ) {
 
-			le_resource_handle const& resourceId   = usedResources[ i ];
-			le_resource_info_t const& resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+			le_resource_handle const& resourceId   = ar.first;
+			le_resource_info_t const& resourceInfo = ar.second; ///< consolidated resource info for this resource over all passes
 
 			if ( resourceInfo.type == LeResourceType::eRtxBlas &&
 			     ( resourceInfo.blas.usage & LE_RTX_BLAS_BUILD_BIT ) ) {
@@ -3508,7 +3613,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			resourceInfo.buffer.size              = uint32_t( scratchbuffer_max_size );
 			resourceInfo.buffer.usage             = le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eShaderDeviceAddress );
 			resourceInfo.type                     = LeResourceType::eBuffer;
-			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
+			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo );
 			auto               resource_id        = LE_RTX_SCRATCH_BUFFER_HANDLE;
 			auto               allocated_resource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 			frame.availableResources.insert_or_assign( resource_id, allocated_resource );
@@ -3520,21 +3625,36 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.info( "Available Resources" );
 		logger.info( "%10s : %38s : %30s", "Type", "debugName", "Vk Handle" );
 		for ( auto const& r : frame.availableResources ) {
-			if ( r.second.info.isBuffer() ) {
+			switch ( r.second.info.type ) {
+			case ( LeResourceType::eUndefined ):
+				break;
+			case ( LeResourceType::eBuffer ):
 				logger.info( "%10s : %38s : %30p",
 				             "Buffer",
 				             r.first->data->debug_name,
 				             r.second.as.buffer );
-			} else {
+				break;
+			case ( LeResourceType::eImage ):
 				logger.info( "%10s : %36s@%d : %30p",
 				             "Image",
 				             r.first->data->debug_name,
 				             1 << r.first->data->num_samples,
 				             r.second.as.buffer );
+				break;
+			case ( LeResourceType::eRtxBlas ):
+				logger.info( "%10s : %36s@%d",
+				             "RtxBLAS",
+				             r.first->data->debug_name );
+				break;
+			case ( LeResourceType::eRtxTlas ):
+				logger.info( "%10s : %36s@%d",
+				             "RtxTLAS",
+				             r.first->data->debug_name );
+				break;
 			}
 		}
 	}
@@ -3551,7 +3671,8 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
 
 	using namespace le_renderer;
-	static auto logger = LeLog( LOGGER_LABEL );
+	static auto       logger = LeLog( LOGGER_LABEL );
+	le::QueueFlagBits pass_type{};
 
 	// Only for compute passes: Create imageviews for all available
 	// resources which are of type image and which have usage
@@ -3559,22 +3680,23 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 
-		if ( renderpass_i.get_type( *p ) != le::RenderPassType::eCompute ) {
+		// fetch pass type from this passes' queue sumbission info
+		renderpass_i.get_queue_sumbission_info( *p, &pass_type, nullptr );
+
+		if ( pass_type != le::QueueFlagBits::eCompute ) {
 			continue;
 		}
 
-		const le_resource_handle*   resources      = nullptr;
-		const LeResourceUsageFlags* resource_usage = nullptr;
-		size_t                      resource_count = 0;
+		const le_resource_handle* resources        = nullptr;
+		const le::AccessFlags2*   resources_access = nullptr;
+		size_t                    resource_count   = 0;
 
-		renderpass_i.get_used_resources( *p, &resources, &resource_usage, &resource_count );
+		renderpass_i.get_used_resources( *p, &resources, &resources_access, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
-			auto const& r_usage_flags = resource_usage[ i ];
+			auto const& r = static_cast<le_img_resource_handle>( resources[ i ] );
 
-			if ( r_usage_flags.type == LeResourceType::eImage &&
-			     ( r_usage_flags.as.image_usage_flags & le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage ) ) ) {
-				auto const& r = static_cast<le_img_resource_handle>( resources[ i ] );
+			if ( r->data->type == LeResourceType::eImage ) {
 
 				// We create a default image view for this image and store it with the frame. If no explicit image view
 				// for a particular operation has been specified, this default image view is used.
@@ -3797,6 +3919,13 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// ----------| invariant: swapchain image acquisition was successful.
 
+	// Setup declared resources per frame - These are resources declared using resource infos
+	// which are explicitly declared by user via the rendergraph, but which may or may not be
+	// actually used in the frame.
+	//
+	frame.declared_resources_id   = { declared_resources, declared_resources + declared_resources_count };
+	frame.declared_resources_info = { declared_resources_infos, declared_resources_infos + declared_resources_count };
+
 	for ( size_t i = 0; i != self->swapchains.size(); ++i ) {
 		// Acquire swapchain image
 
@@ -3805,14 +3934,12 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		frame.swapchain_state[ i ].surface_width  = swapchain_i.get_image_width( self->swapchains[ i ] );
 		frame.swapchain_state[ i ].surface_height = swapchain_i.get_image_height( self->swapchains[ i ] );
 
-		// TODO: we should be able to query swapchain image info so that we can mark the
-		// swapchain image as a frame available resource.
-
 		auto const& img_resource_handle = self->swapchain_resources[ i ];
 
-		frame.availableResources[ img_resource_handle ].as.image = swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
+		frame.availableResources[ img_resource_handle ].as.image =
+		    swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
+
 		{
-			// FIXME: check that refactor did the right thing here
 			auto& backbufferInfo = frame.availableResources[ img_resource_handle ].info.imageInfo;
 			backbufferInfo       = {
 			          .sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -3829,19 +3956,31 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 			          .arrayLayers           = 1,
 			          .samples               = VK_SAMPLE_COUNT_1_BIT,
 			          .tiling                = VK_IMAGE_TILING_OPTIMAL,
-			          .usage                 = VkImageUsageFlags( VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ),
+			          .usage                 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			          .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 			          .queueFamilyIndexCount = 0, // optional
 			          .pQueueFamilyIndices   = nullptr,
 			          .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
             };
 		}
-	}
 
-	// For all passes - set pass width/height to swapchain width/height if not known.
+		// Add swapchain resource to automatically- declared resources
+		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
+
+		frame.declared_resources_id.push_back( img_resource_handle );
+		frame.declared_resources_info.push_back(
+		    le::ImageInfoBuilder()
+		        .addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
+		        .setExtent(
+		            frame.swapchain_state[ i ].surface_width,
+		            frame.swapchain_state[ i ].surface_height,
+		            1 )
+		        .build() );
+	}
 
 	assert( !frame.swapchain_state.empty() && "frame.swapchains_state must not be empty" );
 
+	// For all passes - set pass width/height to swapchain width/height if not known.
 	// Only extents of swapchain[0] are used to infer extents for renderpasses which lack extents info
 	patch_renderpass_extents(
 	    passes,
@@ -3849,64 +3988,62 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	    frame.swapchain_state[ 0 ].surface_width,
 	    frame.swapchain_state[ 0 ].surface_height );
 
-	// Setup declared resources per frame - These are resources declared using resource infos
-	// which are explicitly declared by user via the rendermodule, but which may or may not be
-	// actually used in the frame.
-
-	frame.declared_resources_id   = { declared_resources, declared_resources + declared_resources_count };
-	frame.declared_resources_info = { declared_resources_infos, declared_resources_infos + declared_resources_count };
-
+	// Note: this consumes frame.declared_resources
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
-	// Initialise sync chain table - each resource receives initial state
-	// from current entry in frame.availableResources resource map.
-	frame.syncChainTable.clear();
-	for ( auto const& res : frame.availableResources ) {
-		frame.syncChainTable.insert( { res.first, { res.second.state } } );
-	}
-
-	// -- build sync chain for each resource, create explicit sync barrier requests for resources
-	// which cannot be impliciltly synced.
-	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchain_resources );
-
-	// At this point we know the state for each resource at the end of the sync chain.
-	// this state will be the initial state for the resource
-
 	{
+		// Initialise, then build sync chain table - each resource receives initial state
+		// from current entry in frame.availableResources resource map -
 
-		static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
-		// Update final sync state for each pre-existing backend resource.
-		// fixme: this breaks the promise that no-one but allocate resources is writing to allocatedResources.
-		auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
-		for ( auto const& tbl : frame.syncChainTable ) {
-			auto& resId       = tbl.first;
-			auto& resSyncList = tbl.second;
-
-			assert( !resSyncList.empty() ); // sync list must have entries
-
-			// find element with matching resource ID in list of backend resources
-
-			auto res = backendResources.find( resId );
-			if ( res != backendResources.end() ) {
-				// Element found.
-				// Set sync state for this resource to value of last elment in the sync chain.
-				res->second.state = resSyncList.back();
-			} else {
-
-				assert( std::find( self->swapchain_resources.begin(), self->swapchain_resources.end(), resId ) != self->swapchain_resources.end() ||
-				        resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
-
-				// Frame local resource must be available as a backend resource,
-				// unless the resource is the swapchain image handle, which is owned and managed
-				// by the swapchain.
-				// Another exception is LE_RTX_SCRATCH_BUFFER, which is a transient resource,
-				// and as such does not end up in backendResources, but starts out directly
-				// as a binned resource.
-				// Otherwise something fishy is going on.
-			}
+		frame.syncChainTable.clear();
+		for ( auto const& res : frame.availableResources ) {
+			frame.syncChainTable.insert( { res.first, { res.second.state } } );
 		}
 
-		// If we use a mutex to protect backend-wide resources, we can release it now.
+		// -- build sync chain for each resource, create explicit sync barrier requests for resources
+		// which cannot be impliciltly synced.
+		frame_track_resource_state( frame, passes, numRenderPasses, self->swapchain_resources );
+
+		// At this point we know the state for each resource at the end of the sync chain.
+		// this state will be the initial state for the resource
+
+		{
+			// Update final sync state for each pre-existing backend resource.
+			// fixme: this breaks the promise that no-one but allocate resources is writing to allocatedResources.
+
+			static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
+
+			auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
+			for ( auto const& tbl : frame.syncChainTable ) {
+				auto const& resId       = tbl.first;
+				auto const& resSyncList = tbl.second;
+
+				assert( !resSyncList.empty() ); // sync list must have entries
+
+				// find element with matching resource ID in list of backend resources
+
+				auto res = backendResources.find( resId );
+				if ( res != backendResources.end() ) {
+					// Element found.
+					// Set sync state for this resource to value of last elment in the sync chain.
+					res->second.state = resSyncList.back();
+				} else {
+
+					assert( std::find( self->swapchain_resources.begin(), self->swapchain_resources.end(), resId ) != self->swapchain_resources.end() ||
+					        resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
+
+					// Frame local resource must be available as a backend resource,
+					// unless the resource is the swapchain image handle, which is owned and managed
+					// by the swapchain.
+					// Another exception is LE_RTX_SCRATCH_BUFFER, which is a transient resource,
+					// and as such does not end up in backendResources, but starts out directly
+					// as a binned resource.
+					// Otherwise something fishy is going on.
+				}
+			}
+
+			// If we use a mutex to protect backend-wide resources, we can release it now.
+		}
 	}
 
 	VkDevice device = self->device->getVkDevice();
@@ -3964,8 +4101,8 @@ static le_allocator_o** backend_create_transient_allocators( le_backend_o* self,
 		    .size                  = LE_LINEAR_ALLOCATOR_SIZE,
 		    .usage                 = LE_BUFFER_USAGE_FLAGS_SCRATCH,
 		    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		    .queueFamilyIndexCount = 1,
-		    .pQueueFamilyIndices   = &self->queueFamilyIndexGraphics,
+		    .queueFamilyIndexCount = 0,
+		    .pQueueFamilyIndices   = nullptr,
 		};
 
 		auto result = vmaCreateBuffer( self->mAllocator, &bufferCreateInfo, &createInfo, &buffer, &allocation, &allocationInfo );
@@ -4287,6 +4424,48 @@ constexpr static std::array<float, 4> hex_rgba_to_float_colour( uint32_t const& 
 	return result;
 }
 
+static BackendFrameData::CommandPool* backend_frame_data_produce_command_pool(
+    BackendFrameData& frame,
+    uint32_t          queue_family_index,
+    VkDevice          device ) {
+
+	BackendFrameData::CommandPool* pool = nullptr;
+
+	// search through available command pools to see if we could recycle one with a matching
+	// queue family index.
+
+	for ( auto& existing_pool : frame.available_command_pools ) {
+		if ( false == existing_pool->is_used && existing_pool->vk_queue_family_idx == queue_family_index ) {
+			pool          = existing_pool;
+			pool->is_used = true; // mark this command pool as used
+			break;
+		}
+	}
+
+	if ( pool == nullptr ) {
+		// we couldn't find a command pool, we must allocate a new one.
+
+		pool = new BackendFrameData::CommandPool{};
+
+		VkCommandPoolCreateInfo create_info = {
+		    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		    .pNext            = nullptr,                              // optional
+		    .flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, // optional
+		    .queueFamilyIndex = queue_family_index,
+		};
+
+		vkCreateCommandPool( device, &create_info, nullptr, &pool->pool );
+		le::Log( LOGGER_LABEL ).info( "Created CommandPool %p", pool->pool );
+
+		frame.available_command_pools.push_back( pool );
+		pool->vk_queue_family_idx = queue_family_index;
+		pool->is_used             = true; // mark this command pool as used
+	}
+
+	assert( pool && "must either find or create valid command pool" );
+	return pool;
+}
+
 // ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
@@ -4294,7 +4473,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.debug( "** Process Frame #%8d **", frameIndex );
 	}
 
@@ -4315,1232 +4494,1282 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties( *self->device )->limits.maxVertexInputBindings;
 
-	// TODO: (parallelize) when going wide, there needs to be a commandPool for each execution context so that
-	// command buffer generation may be free-threaded.
-	auto                         numCommandBuffers = uint32_t( frame.passes.size() );
-	std::vector<VkCommandBuffer> cmdBufs( numCommandBuffers );
-
 	{
-		VkCommandBufferAllocateInfo info = {
-		    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		    .pNext              = nullptr, // optional
-		    .commandPool        = frame.commandPool,
-		    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		    .commandBufferCount = numCommandBuffers,
-		};
 
-		vkAllocateCommandBuffers( device, &info, cmdBufs.data() );
+		// -- Collect command buffers for each queue submission by testing against queue submission key.
+		//    if a pass's affinity matches the submission key, it belongs to that particular queue submission.
+		// -- And collect pass indices per queue submission
+
+		size_t num_invocation_keys = frame.queue_submission_keys.size();
+
+		for ( size_t i = 0; i != num_invocation_keys; i++ ) {
+
+			auto const& key = frame.queue_submission_keys[ i ];
+
+			BackendFrameData::PerQueueSubmissionData submission_data{};
+
+			for ( size_t pi = 0; pi != frame.passes.size(); pi++ ) {
+
+				auto const& pass = frame.passes[ pi ];
+
+				if ( key & pass.root_passes_affinity ) {
+					submission_data.queue_flags |= VkQueueFlags( pass.type ); // Accumulate queue flags over submission - queue capabilities must be superset
+					submission_data.pass_indices.push_back( uint32_t(pi) );
+				}
+			}
+			if ( !submission_data.pass_indices.empty() ) {
+				frame.queue_submission_data.push_back( submission_data );
+			}
+		}
+
+		assert( num_invocation_keys == frame.queue_submission_data.size() && "must have one submission data element per invocaton key" );
+
+		// -- Control that resources may only be used by the same queue family per-frame.
+		// we adjust for this by making the queue requirements a superset of all resource queue usages,
+		// and accumulating all queue usages per-resource first.
+
+		if ( self->must_track_resources_queue_family_ownership ) {
+			// We only must do this if we have multiple queue families active
+			// as this can get pretty expensive if there are many resources flying around.
+
+			// We do this to prevent a situation where a resource is claimed by two or more queue families
+			// Ideally, this
+
+			// for each resource, accumulate all queue type flags that it gets used with over all submissions
+
+			std::unordered_map<le_resource_handle, VkQueueFlags> resource_queue_flags;
+
+			for ( auto const& qs : frame.queue_submission_data ) {
+				for ( auto const& pi : qs.pass_indices ) {
+					for ( auto const& r : frame.passes[ pi ].resources ) {
+						resource_queue_flags[ r ] |= qs.queue_flags;
+					}
+				}
+			}
+
+			// now accumulate submission's queue flags based on the queue flags that all its resources have
+
+			for ( auto& qs : frame.queue_submission_data ) {
+				for ( auto const& pi : qs.pass_indices ) {
+					VkQueueFlags flags = qs.queue_flags;
+					for ( auto const& r : frame.passes[ pi ].resources ) {
+						flags |= resource_queue_flags.at( r );
+					}
+					qs.queue_flags = flags;
+				}
+			}
+		}
+
+		{
+			/// Assign queues to each submission:
+			///
+			/// * Find exactly matching queue with the lowest number of submissions that matches.
+			///
+			/// If this fails:
+			///
+			/// * Find approximately matching queue with the lowest number of submissions that matches.
+			///
+			std::vector<uint32_t> num_submissions_per_queue( num_invocation_keys, 0 );
+			for ( size_t i = 0; i != num_invocation_keys; i++ ) {
+
+				auto const& queues = self->queues;
+				auto const& flags  = frame.queue_submission_data[ i ].queue_flags;
+
+				int      matching_queue          = -1;
+				uint32_t lowest_submission_count = uint32_t( ~0 );
+
+				// try to find an exact match with the lowest submissions to it
+				for ( uint32_t j = 0; j != queues.size(); j++ ) {
+					if ( ( queues[ j ]->queue_flags ) == flags ) {
+						// all flags are contained in q.queue_flags
+						if ( num_submissions_per_queue[ j ] < lowest_submission_count ) {
+							matching_queue          = j;
+							lowest_submission_count = num_submissions_per_queue[ j ];
+						}
+					}
+				}
+
+				if ( matching_queue == -1 ) {
+					// find an approximately-matching queue with the fewest submissions to it
+					for ( uint32_t j = 0; j != queues.size(); j++ ) {
+						if ( ( queues[ j ]->queue_flags & flags ) == flags ) {
+							// all flags are contained in q.queue_flags
+							if ( num_submissions_per_queue[ j ] < lowest_submission_count ) {
+								matching_queue          = j;
+								lowest_submission_count = num_submissions_per_queue[ j ];
+							}
+						}
+					}
+				}
+
+				if ( matching_queue == -1 ) {
+					le::Log( LOGGER_LABEL ).error( "Could not find matching queue with capability: %s\n"
+					                               "This could be caused by one or more queue families claiming ownership of the same resource.",
+					                               to_string_vk_queue_flags( flags ).c_str() );
+				}
+
+				assert( matching_queue != -1 && "must have found matching queue" );
+
+				num_submissions_per_queue[ matching_queue ]++;
+
+				frame.queue_submission_data[ i ].queue_idx = matching_queue;
+			}
+		}
+
+		// for each submission data, allocate pool from the correct queue
+
+		for ( auto& data : frame.queue_submission_data ) {
+			// this submission has passes
+			// find available command pool which has the correct queue family.
+
+			data.command_pool = backend_frame_data_produce_command_pool( frame, self->queues[ data.queue_idx ]->queue_family_index, self->device->getVkDevice() );
+			{
+				VkCommandBufferAllocateInfo info = {
+				    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+				    .pNext              = nullptr, // optional
+				    .commandPool        = data.command_pool->pool,
+				    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+				    .commandBufferCount = uint32_t( data.pass_indices.size() ),
+				};
+
+				data.command_pool->buffers.resize( info.commandBufferCount );
+				vkAllocateCommandBuffers( device, &info, data.command_pool->buffers.data() );
+			}
+		}
+
+		if ( LE_PRINT_DEBUG_MESSAGES ) {
+			logger.info( "Listing queue batches and their queue affinity:" );
+			int i = 0;
+			for ( auto const& qf : frame.queue_submission_data ) {
+				logger.info( "#%i, [%-50s]", i, to_string_vk_queue_flags( qf.queue_flags ).c_str() );
+				i++;
+			}
+			logger.info( "" );
+		}
 	}
 
-	std::array<VkClearValue, 16> clearValues{};
-
-	// TODO: (parallel for)
-	// note that access to any caches when creating pipelines and layouts and descriptorsets must be
-	// mutex-controlled when processing happens concurrently.
-	for ( size_t passIndex = 0; passIndex != frame.passes.size(); ++passIndex ) {
-
-		auto& pass           = frame.passes[ passIndex ];
-		auto& cmd            = cmdBufs[ passIndex ];
-		auto& descriptorPool = frame.descriptorPools[ passIndex ];
-
-		// create frame buffer, based on swapchain and renderpass
-
-		{
-			VkCommandBufferBeginInfo info = {
-			    .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-			    .pNext            = nullptr,                                     // optional
-			    .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, // optional
-			    .pInheritanceInfo = 0,                                           // optional
-			};
-
-			vkBeginCommandBuffer( cmd, &info );
-		}
-
-		if ( should_insert_debug_labels ) {
-			VkDebugUtilsLabelEXT labelInfo{
-			    .sType      = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-			    .pNext      = nullptr, // optional
-			    .pLabelName = pass.debugName,
-			    .color      = {},
-			};
-
-			static constexpr auto LE_COLOUR_LIGHTBLUE    = hex_rgba_to_float_colour( 0x61BBEFFF );
-			static constexpr auto LE_COLOUR_GREENY_BLUE  = hex_rgba_to_float_colour( 0x4EC9B0FF );
-			static constexpr auto LE_COLOUR_BRICK_ORANGE = hex_rgba_to_float_colour( 0xCE4B0EFF );
-			static constexpr auto LE_COLOUR_PALE_PEACH   = hex_rgba_to_float_colour( 0xFFDBA3FF );
-
-			switch ( pass.type ) {
-			case le::RenderPassType::eCompute:
-				memcpy( labelInfo.color, LE_COLOUR_LIGHTBLUE.data(), sizeof( float ) * 4 );
-				break;
-			case le::RenderPassType::eDraw:
-				memcpy( labelInfo.color, LE_COLOUR_GREENY_BLUE.data(), sizeof( float ) * 4 );
-				break;
-			case le::RenderPassType::eTransfer:
-				memcpy( labelInfo.color, LE_COLOUR_BRICK_ORANGE.data(), sizeof( float ) * 4 );
-				break;
-			default:
-				break;
-			}
-
-			vkCmdBeginDebugUtilsLabelEXT( cmd, &labelInfo );
-		}
-
-		{
-
-			if ( PRINT_DEBUG_MESSAGES ) {
-				logger.debug( "Renderpass '%s'", pass.debugName );
-			}
-
-			// -- Issue sync barriers for all resources which require explicit sync.
-			//
-			// We must to this here, as the spec requires barriers to happen
-			// before renderpass begin.
-			//
-			for ( auto const& op : pass.explicit_sync_ops ) {
-				// fill in sync op
-
-				if ( op.active == false ) {
-					continue;
-				}
-
-				// ---------| invariant: barrier is active.
-
-				auto const& syncChain = frame.syncChainTable[ op.resource ];
-
-				auto const& stateInitial = syncChain[ op.sync_chain_offset_initial ];
-				auto const& stateFinal   = syncChain[ op.sync_chain_offset_final ];
-
-				if ( stateInitial != stateFinal ) {
-					// we must issue an image barrier
-
-					if ( PRINT_DEBUG_MESSAGES ) {
-
-						// --------| invariant: barrier is active.
-
-						// print out sync chain for sampled image
-						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
-						logger.debug( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
-
-						auto const& syncChain = frame.syncChainTable.at( op.resource );
-
-						for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
-							auto const& s = syncChain[ i ];
-							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i,
-							              to_string_vk_access_flags2( s.visible_access ).c_str(),
-							              to_string_vk_pipeline_stage_flags2( s.stage ).c_str(),
-							              to_str_vk_image_layout( s.layout ) );
-						}
-					}
-
-					auto dstImage = frame_data_get_image_from_le_resource_id( frame, static_cast<le_img_resource_handle>( op.resource ) );
-
-					VkImageSubresourceRange rangeAllMiplevels{
-					    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-					    .baseMipLevel   = 0,
-					    .levelCount     = VK_REMAINING_MIP_LEVELS,
-					    .baseArrayLayer = 0,
-					    .layerCount     = VK_REMAINING_ARRAY_LAYERS,
-					};
-
-					VkImageMemoryBarrier2 imageLayoutTransfer{
-					    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-					    .pNext               = nullptr,
-					    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
-					    .srcAccessMask       = stateInitial.visible_access,                                                                    // make available memory update from operation (in case it was a write operation, otherwise don't wait)
-					    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
-					    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
-					    .oldLayout           = stateInitial.layout,
-					    .newLayout           = stateFinal.layout,
-					    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					    .image               = dstImage,
-					    .subresourceRange    = rangeAllMiplevels,
-					};
-
-					VkDependencyInfo dependencyInfo = {
-					    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-					    .pNext                    = nullptr, // optional
-					    .dependencyFlags          = 0,       // optional
-					    .memoryBarrierCount       = 0,       // optional
-					    .pMemoryBarriers          = 0,
-					    .bufferMemoryBarrierCount = 0, // optional
-					    .pBufferMemoryBarriers    = 0,
-					    .imageMemoryBarrierCount  = 1, // optional
-					    .pImageMemoryBarriers     = &imageLayoutTransfer,
-					};
-
-					vkCmdPipelineBarrier2( cmd, &dependencyInfo );
-				}
-			} // end for all explicit sync ops.
-		}
-
-		// Draw passes must begin by opening a Renderpass context.
-		if ( pass.type == le::RenderPassType::eDraw && pass.renderPass ) {
-
-			for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
-				clearValues[ i ] = reinterpret_cast<VkClearValue&>( pass.attachments[ i ].clearValue );
-			}
-
-			VkRenderPassBeginInfo renderPassBeginInfo{
-			    .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-			    .pNext       = nullptr, // optional
-			    .renderPass  = pass.renderPass,
-			    .framebuffer = pass.framebuffer,
-			    .renderArea  = {
-			         .offset = { 0, 0 },
-			         .extent = { pass.width, pass.height },
-                },
-			    .clearValueCount = uint32_t( pass.numColorAttachments + pass.numDepthStencilAttachments ), // optional
-			    .pClearValues    = clearValues.data(),
-			};
-
-			vkCmdBeginRenderPass( cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE );
-		}
-
-		// -- Translate intermediary command stream data to api-native instructions
-
-		void*    commandStream = nullptr;
-		size_t   dataSize      = 0;
-		size_t   numCommands   = 0;
-		size_t   commandIndex  = 0;
-		uint32_t subpassIndex  = 0;
-
-		VkPipelineLayout currentPipelineLayout                          = nullptr;
-		VkDescriptorSet  descriptorSets[ LE_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
-
-		// We store currently bound descriptors so that we only allocate new DescriptorSets
-		// if the descriptors really change. With dynamic descriptors, it is very likely
-		// that we don't need to allocate new descriptors, as the same descriptors are used
-		// for different accessors, only with different dynamic binding offsets.
+	for ( auto const& submission : frame.queue_submission_data ) {
+		std::array<VkClearValue, 16> clearValues{};
+		// split graph into separate submissions by filtering by submission key
+		// accumulate pass types to find out the needed queue flags for the
 		//
-		//
-		std::array<DescriptorSetState, 8> previousSetState; ///< currently bound descriptorSetLayout+Data for each set
-
-		ArgumentState argumentState{};
-
-		struct RtxState {
-			bool               is_set;
-			le_resource_handle sbt_buffer; // shader binding table buffer
-			uint64_t           ray_gen_sbt_offset;
-			uint64_t           ray_gen_sbt_size;
-			uint64_t           miss_sbt_offset;
-			uint64_t           miss_sbt_stride;
-			uint64_t           miss_sbt_size;
-			uint64_t           hit_sbt_offset;
-			uint64_t           hit_sbt_stride;
-			uint64_t           hit_sbt_size;
-			uint64_t           callable_sbt_offset;
-			uint64_t           callable_sbt_stride;
-			uint64_t           callable_sbt_size;
-		};
-
-		RtxState                      rtx_state{};                                                                      // used to keep track of shader binding tables bound with rtx pipelines.
-		static le_buf_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
-
-		if ( pass.encoder ) {
-			encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
-		} else {
-			// This is legit behaviour for draw passes which are used only to clear attachments,
-			// in which case they don't need to include any draw commands.
-		}
-
-		if ( commandStream != nullptr && numCommands > 0 ) {
-
-			le_pipeline_manager_o* pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
-
-			std::vector<VkBuffer>         vertexInputBindings( maxVertexInputBindings, nullptr );
-			void*                         dataIt = commandStream;
-			le_pipeline_and_layout_info_t currentPipeline{};
-
-			while ( commandIndex != numCommands ) {
-
-				auto header = static_cast<le::CommandHeader*>( dataIt );
-
-				if ( /* DISABLES CODE */ ( false ) ) {
-					// Print the command stream to stdout.
-					debug_print_command( dataIt );
-				}
-
-				switch ( header->info.type ) {
-
-				case le::CommandType::eBindGraphicsPipeline: {
-					auto* le_cmd = static_cast<le::CommandBindGraphicsPipeline*>( dataIt );
-
-					if ( pass.type == le::RenderPassType::eDraw ) {
-						// at this point, a valid renderpass must be bound
-
-						using namespace le_backend_vk;
-						// -- potentially compile and create pipeline here, based on current pass and subpass
-						auto requestedPipeline = le_pipeline_manager_i.produce_graphics_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
-
-						if ( /* DISABLES CODE */ ( false ) ) {
-
-							// Print pipeline debug info when a new pipeline gets bound.
-
-							logger.debug( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
-							debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
-						}
-
-						if ( !is_equal( currentPipeline, requestedPipeline ) ) {
-							// update current pipeline
-							currentPipeline = requestedPipeline;
-							// -- grab current pipeline layout from cache
-							currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
-							// -- update pipelineData - that's the data values for all descriptors which are currently bound
-
-							argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
-							argumentState.binding_infos.clear();
-
-							// -- reset dynamic offset count
-							argumentState.dynamicOffsetCount = 0;
-
-							// let's create descriptorData vector based on current bindings-
-							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
-
-								// look up set layout info via set layout key
-								auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
-
-								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
-
-								auto& setData = argumentState.setData[ setId ];
-
-								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
-								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
-
-								setData.clear();
-								setData.reserve( setLayoutInfo->binding_info.size() );
-
-								for ( auto b : setLayoutInfo->binding_info ) {
-
-									// add an entry for each array element with this binding to setData
-									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-										DescriptorData descriptorData{};
-
-										descriptorData.type          = b.type;
-										descriptorData.bindingNumber = uint32_t( b.binding );
-										descriptorData.arrayIndex    = uint32_t( arrayIndex );
-
-										if ( b.type == le::DescriptorType::eStorageBuffer ||
-										     b.type == le::DescriptorType::eUniformBuffer ||
-										     b.type == le::DescriptorType::eStorageBufferDynamic ||
-										     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-
-											descriptorData.bufferInfo.range = b.range;
-										}
-
-										setData.emplace_back( descriptorData );
-									}
-
-									if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
-									     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-										assert( b.count != 0 ); // count cannot be 0
-
-										// store dynamic offset index for this element
-										b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
-
-										// increase dynamic offset count by number of elements in this binding
-										argumentState.dynamicOffsetCount += b.count;
-									}
-
-									// add this binding to list of current bindings
-									argumentState.binding_infos.push_back( b );
-								}
-							}
-
-							vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline.pipeline );
-						} else {
-							// Re-using previously bound pipeline. We may keep argumentState state as it is.
-						}
-
-						// -- Reset dynamic offsets in argumentState:
-						// we do this regardless of whether pipeline was already bound,
-						// because binding a pipeline should always reset parameters associated
-						// with the pipeline.
-
-						memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
-
-					} else {
-						// -- TODO: warn that graphics pipelines may only be bound within
-						// draw passes.
-					}
-				} break;
-
-				case le::CommandType::eBindComputePipeline: {
-					auto* le_cmd = static_cast<le::CommandBindComputePipeline*>( dataIt );
-					if ( pass.type == le::RenderPassType::eCompute ) {
-						// at this point, a valid renderpass must be bound
-
-						using namespace le_backend_vk;
-						// -- potentially compile and create pipeline here, based on current pass and subpass
-						currentPipeline = le_pipeline_manager_i.produce_compute_pipeline( pipelineManager, le_cmd->info.cpsoHandle );
-
-						// -- grab current pipeline layout from cache
-						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
-
-						{
-							// -- update pipelineData - that's the data values for all descriptors which are currently bound
-
-							argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
-							argumentState.binding_infos.clear();
-
-							// -- reset dynamic offset count
-							argumentState.dynamicOffsetCount = 0;
-
-							// let's create descriptorData vector based on current bindings-
-							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
-
-								// look up set layout info via set layout key
-								auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
-
-								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
-
-								auto& setData = argumentState.setData[ setId ];
-
-								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
-								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
-
-								setData.clear();
-								setData.reserve( setLayoutInfo->binding_info.size() );
-
-								for ( auto b : setLayoutInfo->binding_info ) {
-
-									// add an entry for each array element with this binding to setData
-									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-										DescriptorData descriptorData{};
-
-										descriptorData.type          = b.type;
-										descriptorData.bindingNumber = uint32_t( b.binding );
-										descriptorData.arrayIndex    = uint32_t( arrayIndex );
-
-										descriptorData.bufferInfo.range = b.range;
-
-										setData.emplace_back( std::move( descriptorData ) );
-									}
-
-									if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
-									     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-										assert( b.count != 0 ); // count cannot be 0
-
-										// store dynamic offset index for this element
-										b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
-
-										// increase dynamic offset count by number of elements in this binding
-										argumentState.dynamicOffsetCount += b.count;
-									}
-
-									// add this binding to list of current bindings
-									argumentState.binding_infos.emplace_back( std::move( b ) );
-								}
-							}
-
-							// -- reset dynamic offsets
-							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
-
-							// we write directly into descriptorsetstate when we update descriptors.
-							// when we bind a pipeline, we update the descriptorsetstate based
-							// on what the pipeline requires.
-						}
-						vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, currentPipeline.pipeline );
-
-					} else {
-						// -- TODO: warn that compute pipelines may only be bound within
-						// compute passes.
-					}
-
-				} break;
-
-				case le::CommandType::eBindRtxPipeline: {
-					auto* le_cmd = static_cast<le::CommandBindRtxPipeline*>( dataIt );
-					if ( pass.type == le::RenderPassType::eCompute ) {
-						// at this point, a valid renderpass must be bound
-
-						using namespace le_backend_vk;
-
-						// -- fetch pipeline from pipeline cache, also fetch shader group data, so that
-						// we can verify that the current pipeline state matches the pipeline state which
-						// was used to create the pipeline. The pipeline state may change if pipeline gets recompiled.
-
-						{
-							currentPipeline.pipeline                        = static_cast<VkPipeline>( le_cmd->info.pipeline_native_handle );
-							currentPipeline.layout_info.pipeline_layout_key = le_cmd->info.pipeline_layout_key;
-
-							memcpy( currentPipeline.layout_info.set_layout_keys, le_cmd->info.descriptor_set_layout_keys, sizeof( currentPipeline.layout_info.set_layout_keys ) );
-
-							currentPipeline.layout_info.set_layout_count = le_cmd->info.descriptor_set_layout_count;
-						}
-
-						// -- grab current pipeline layout from cache
-						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
-
-						{
-							// -- update pipelineData - that's the data values for all descriptors which are currently bound
-
-							argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
-							argumentState.binding_infos.clear();
-
-							// -- reset dynamic offset count
-							argumentState.dynamicOffsetCount = 0;
-
-							// let's create descriptorData vector based on current bindings-
-							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
-
-								// look up set layout info via set layout key
-								auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
-
-								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
-
-								auto& setData = argumentState.setData[ setId ];
-
-								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
-								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
-
-								setData.clear();
-								setData.reserve( setLayoutInfo->binding_info.size() );
-
-								for ( auto b : setLayoutInfo->binding_info ) {
-
-									// add an entry for each array element with this binding to setData
-									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-										DescriptorData descriptorData{};
-
-										descriptorData.type          = le::DescriptorType( b.type );
-										descriptorData.bindingNumber = uint32_t( b.binding );
-										descriptorData.arrayIndex    = uint32_t( arrayIndex );
-
-										if ( b.type == le::DescriptorType::eStorageBuffer ||
-										     b.type == le::DescriptorType::eUniformBuffer ||
-										     b.type == le::DescriptorType::eStorageBufferDynamic ||
-										     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-
-											descriptorData.bufferInfo.range = b.range;
-										}
-
-										setData.emplace_back( std::move( descriptorData ) );
-									}
-
-									if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
-									     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-										assert( b.count != 0 ); // count cannot be 0
-
-										// store dynamic offset index for this element
-										b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
-
-										// increase dynamic offset count by number of elements in this binding
-										argumentState.dynamicOffsetCount += b.count;
-									}
-
-									// add this binding to list of current bindings
-									argumentState.binding_infos.emplace_back( std::move( b ) );
-								}
-							}
-
-							// -- reset dynamic offsets
-							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
-						}
-
-						vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, currentPipeline.pipeline );
-						// -- "bind" shader binding table state
-
-						{
-							rtx_state.sbt_buffer = le_cmd->info.sbt_buffer;
-
-							VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.sbt_buffer );
-
-							VkBufferDeviceAddressInfo info = {
-							    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-							    .pNext  = nullptr, // optional
-							    .buffer = vk_buffer,
-							};
-							uint64_t offset               = vkGetBufferDeviceAddress( device, &info );
-							rtx_state.ray_gen_sbt_offset  = offset + le_cmd->info.ray_gen_sbt_offset;
-							rtx_state.ray_gen_sbt_size    = le_cmd->info.ray_gen_sbt_size;
-							rtx_state.miss_sbt_offset     = offset + le_cmd->info.miss_sbt_offset;
-							rtx_state.miss_sbt_stride     = le_cmd->info.miss_sbt_stride;
-							rtx_state.miss_sbt_size       = le_cmd->info.miss_sbt_size;
-							rtx_state.hit_sbt_offset      = offset + le_cmd->info.hit_sbt_offset;
-							rtx_state.hit_sbt_stride      = le_cmd->info.hit_sbt_stride;
-							rtx_state.hit_sbt_size        = le_cmd->info.hit_sbt_size;
-							rtx_state.callable_sbt_offset = offset + le_cmd->info.callable_sbt_offset;
-							rtx_state.callable_sbt_stride = le_cmd->info.callable_sbt_stride;
-							rtx_state.callable_sbt_size   = le_cmd->info.callable_sbt_size;
-							rtx_state.is_set              = true;
-						}
-
-					} else {
-						// -- TODO: warn that rtx pipelines may only be bound within
-						// compute passes.
-					}
-
-				} break;
-				case le::CommandType::eTraceRays: {
-					auto* le_cmd = static_cast<le::CommandTraceRays*>( dataIt );
-
-					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
-
-					if ( false == argumentsOk ) {
-						break;
-					}
-
-					// --------| invariant: arguments were updated successfully
-
-					if ( argumentState.setCount > 0 ) {
-
-						vkCmdBindDescriptorSets(
-						    cmd,
-						    VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-						    currentPipelineLayout,
-						    0,
-						    argumentState.setCount,
-						    descriptorSets,
-						    argumentState.dynamicOffsetCount,
-						    argumentState.dynamicOffsets.data() );
-					}
-
-					assert( rtx_state.is_set && "sbt state must have been set before calling traceRays" );
-
-					// VkBuffer sbt_vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, rtx_state.sbt_buffer );
-
-					//					std::cout << "sbt buffer: " << std::hex << sbt_vk_buffer << std::endl
-					//					          << std::flush;
-					//					std::cout << "sbt buffer raygen offset: " << std::dec << rtx_state.ray_gen_sbt_offset << std::endl
-					//					          << std::flush;
-
-					// buffer, offset, stride, size
-					VkStridedDeviceAddressRegionKHR sbt_ray_gen{ rtx_state.ray_gen_sbt_offset, rtx_state.ray_gen_sbt_size, rtx_state.ray_gen_sbt_size };
-					VkStridedDeviceAddressRegionKHR sbt_miss{ rtx_state.miss_sbt_offset, rtx_state.miss_sbt_stride, rtx_state.miss_sbt_size };
-					VkStridedDeviceAddressRegionKHR sbt_hit{ rtx_state.hit_sbt_offset, rtx_state.hit_sbt_stride, rtx_state.hit_sbt_size };
-					VkStridedDeviceAddressRegionKHR sbt_callable{ rtx_state.callable_sbt_offset, rtx_state.callable_sbt_stride, rtx_state.callable_sbt_size };
-
-					vkCmdTraceRaysKHR(
-					    cmd,
-					    &sbt_ray_gen,
-					    &sbt_miss,
-					    &sbt_hit,
-					    &sbt_callable,
-					    le_cmd->info.width,
-					    le_cmd->info.height,
-					    le_cmd->info.depth //
-					);
-
-				} break;
-				case le::CommandType::eDispatch: {
-					auto* le_cmd = static_cast<le::CommandDispatch*>( dataIt );
-
-					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
-
-					if ( false == argumentsOk ) {
-						break;
-					}
-
-					// --------| invariant: arguments were updated successfully
-
-					if ( argumentState.setCount > 0 ) {
-
-						vkCmdBindDescriptorSets( cmd,
-						                         VK_PIPELINE_BIND_POINT_COMPUTE,
-						                         currentPipelineLayout,
-						                         0,
-						                         argumentState.setCount,
-						                         descriptorSets,
-						                         argumentState.dynamicOffsetCount,
-						                         argumentState.dynamicOffsets.data() );
-					}
-
-					vkCmdDispatch( cmd, le_cmd->info.groupCountX, le_cmd->info.groupCountY, le_cmd->info.groupCountZ );
-
-				} break;
-				case le::CommandType::eBufferMemoryBarrier: {
-					auto*                  le_cmd = static_cast<le::CommandBufferMemoryBarrier*>( dataIt );
-					VkBufferMemoryBarrier2 bufferMemoryBarrier{
-					    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
-					    .pNext               = nullptr,
-					    .srcStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.srcStageMask ), // happens-before
-					    .srcAccessMask       = 0,                                                               // FIXME: no memory is made available from src stage ?!
-					    .dstStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.dstStageMask ), // before continuing with dst stage
-					    .dstAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.dstAccessMask ),    // and making memory visible to dst stage
-					    .srcQueueFamilyIndex = 0,
-					    .dstQueueFamilyIndex = 0,
-					    .buffer              = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ),
-					    .offset              = le_cmd->info.offset,
-					    .size                = le_cmd->info.range,
-					};
-
-					VkDependencyInfo dependency_info{
-					    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-					    .pNext                    = nullptr, // optional
-					    .dependencyFlags          = 0,       // optional
-					    .memoryBarrierCount       = 0,       // optional
-					    .pMemoryBarriers          = 0,
-					    .bufferMemoryBarrierCount = 1, // optional
-					    .pBufferMemoryBarriers    = &bufferMemoryBarrier,
-					    .imageMemoryBarrierCount  = 0, // optional
-					    .pImageMemoryBarriers     = 0,
-					};
-
-					vkCmdPipelineBarrier2( cmd, &dependency_info );
-
-				} break;
-				case le::CommandType::eDraw: {
-					auto* le_cmd = static_cast<le::CommandDraw*>( dataIt );
-
-					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
-
-					if ( false == argumentsOk ) {
-						break;
-					}
-
-					// --------| invariant: arguments were updated successfully
-
-					if ( argumentState.setCount > 0 ) {
-
-						vkCmdBindDescriptorSets(
-						    cmd,
-						    VK_PIPELINE_BIND_POINT_GRAPHICS,
-						    currentPipelineLayout,
-						    0,
-						    argumentState.setCount,
-						    descriptorSets,
-						    argumentState.dynamicOffsetCount,
-						    argumentState.dynamicOffsets.data() );
-					}
-
-					vkCmdDraw( cmd, le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
-				} break;
-
-				case le::CommandType::eDrawIndexed: {
-					auto* le_cmd = static_cast<le::CommandDrawIndexed*>( dataIt );
-
-					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
-
-					if ( false == argumentsOk ) {
-						break;
-					}
-
-					// --------| invariant: arguments were updated successfully
-
-					if ( argumentState.setCount > 0 ) {
-
-						vkCmdBindDescriptorSets(
-						    cmd,
-						    VK_PIPELINE_BIND_POINT_GRAPHICS,
-						    currentPipelineLayout,
-						    0,
-						    argumentState.setCount,
-						    descriptorSets,
-						    argumentState.dynamicOffsetCount,
-						    argumentState.dynamicOffsets.data() );
-					}
-
-					vkCmdDrawIndexed(
-					    cmd,
-					    le_cmd->info.indexCount,
-					    le_cmd->info.instanceCount,
-					    le_cmd->info.firstIndex,
-					    le_cmd->info.vertexOffset,
-					    le_cmd->info.firstInstance );
-				} break;
-
-				case le::CommandType::eDrawMeshTasks: {
-					auto* le_cmd = static_cast<le::CommandDrawMeshTasks*>( dataIt );
-
-					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
-
-					if ( false == argumentsOk ) {
-						break;
-					}
-
-					// --------| invariant: arguments were updated successfully
-
-					if ( argumentState.setCount > 0 ) {
-
-						vkCmdBindDescriptorSets( cmd,
-						                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-						                         currentPipelineLayout,
-						                         0,
-						                         argumentState.setCount,
-						                         descriptorSets,
-						                         argumentState.dynamicOffsetCount,
-						                         argumentState.dynamicOffsets.data() );
-					}
-
-					vkCmdDrawMeshTasksNV( cmd, le_cmd->info.taskCount, le_cmd->info.firstTask );
-				} break;
-
-				case le::CommandType::eSetLineWidth: {
-					auto* le_cmd = static_cast<le::CommandSetLineWidth*>( dataIt );
-					vkCmdSetLineWidth( cmd, le_cmd->info.width );
-				} break;
-
-				case le::CommandType::eSetViewport: {
-					auto* le_cmd = static_cast<le::CommandSetViewport*>( dataIt );
-					// Since data for viewports *is stored inline*, we increment the typed pointer
-					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
-					vkCmdSetViewport( cmd, le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<VkViewport*>( le_cmd + 1 ) );
-				} break;
-
-				case le::CommandType::eSetScissor: {
-					auto* le_cmd = static_cast<le::CommandSetScissor*>( dataIt );
-					// Since data for scissors *is stored inline*, we increment the typed pointer
-					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
-					vkCmdSetScissor( cmd, le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<VkRect2D*>( le_cmd + 1 ) );
-				} break;
-
-				case le::CommandType::eSetPushConstantData: {
-					if ( currentPipelineLayout ) {
-						auto*              le_cmd               = static_cast<le::CommandSetPushConstantData*>( dataIt );
-						VkShaderStageFlags active_shader_stages = VkShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
-						vkCmdPushConstants( cmd, currentPipelineLayout, active_shader_stages, 0, le_cmd->info.num_bytes, ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
-					}
+		// create vectors of pass indices per submission
+		// then assign each submission based on best-match to queues
+		// submit submissions to queues in-order.
+
+		// TODO: (parallel for)
+		// note that access to any caches when creating pipelines and layouts and descriptorsets must be
+		// mutex-controlled when processing happens concurrently.
+		uint32_t buffer_index = 0;
+		for ( auto const& passIndex : submission.pass_indices ) {
+
+			auto& pass           = frame.passes[ passIndex ];
+			auto& cmd            = submission.command_pool->buffers[ buffer_index++ ]; // note that we post-increment, so that next iteration will get next command buffer.
+			auto& descriptorPool = frame.descriptorPools[ passIndex ];
+
+			// create frame buffer, based on swapchain and renderpass
+
+			{
+				VkCommandBufferBeginInfo info = {
+				    .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+				    .pNext            = nullptr,                                     // optional
+				    .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, // optional
+				    .pInheritanceInfo = 0,                                           // optional
+				};
+
+				vkBeginCommandBuffer( cmd, &info );
+			}
+
+			if ( should_insert_debug_labels ) {
+				VkDebugUtilsLabelEXT labelInfo{
+				    .sType      = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+				    .pNext      = nullptr, // optional
+				    .pLabelName = pass.debugName,
+				    .color      = {},
+				};
+
+				static constexpr auto LE_COLOUR_LIGHTBLUE    = hex_rgba_to_float_colour( 0x61BBEFFF );
+				static constexpr auto LE_COLOUR_GREENY_BLUE  = hex_rgba_to_float_colour( 0x4EC9B0FF );
+				static constexpr auto LE_COLOUR_BRICK_ORANGE = hex_rgba_to_float_colour( 0xCE4B0EFF );
+				static constexpr auto LE_COLOUR_PALE_PEACH   = hex_rgba_to_float_colour( 0xFFDBA3FF );
+
+				switch ( pass.type ) {
+				case le::QueueFlagBits::eCompute:
+					memcpy( labelInfo.color, LE_COLOUR_LIGHTBLUE.data(), sizeof( float ) * 4 );
+					break;
+				case le::QueueFlagBits::eGraphics:
+					memcpy( labelInfo.color, LE_COLOUR_GREENY_BLUE.data(), sizeof( float ) * 4 );
+					break;
+				case le::QueueFlagBits::eTransfer:
+					memcpy( labelInfo.color, LE_COLOUR_BRICK_ORANGE.data(), sizeof( float ) * 4 );
+					break;
+				default:
 					break;
 				}
 
-				case le::CommandType::eBindArgumentBuffer: {
-					// we need to store the data for the dynamic binding which was set as an argument to the ubo
-					// this alters our internal state
-					auto* le_cmd = static_cast<le::CommandBindArgumentBuffer*>( dataIt );
+				vkCmdBeginDebugUtilsLabelEXT( cmd, &labelInfo );
+			}
 
-					uint64_t argument_name_id = le_cmd->info.argument_name_id;
+			{
 
-					// find binding info with name referenced in command
-
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(),
-					                       [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
-						                       return e.name_hash == argument_name_id;
-					                       } );
-
-					if ( b == argumentState.binding_infos.end() ) {
-						static uint64_t wrong_argument = argument_name_id;
-						[]( uint64_t argument ) {
-							static uint64_t argument_id_local = 0;
-							if ( argument_id_local == wrong_argument )
-								return;
-							logger.warn( "process_frame: \x1b[38;5;209mInvalid argument name: '%s'\x1b[0m id: %x", le_get_argument_name_from_hash( argument ), argument );
-							argument_id_local = argument;
-						}( argument_name_id );
-						break;
-					}
-
-					// ---------| invariant: we found an argument name that matches
-					auto setIndex = b->setIndex;
-					auto binding  = b->binding;
-
-					auto& bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
-
-					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
-					bindingData.range  = le_cmd->info.range;
-
-					if ( bindingData.range == 0 ) {
-
-						// If no range was specified, we must default to VK_WHOLE_SIZE,
-						// as a range setting of 0 is not allowed in Vulkan.
-
-						bindingData.range = VK_WHOLE_SIZE;
-					}
-
-					// If binding is in fact a dynamic binding, set the corresponding dynamic offset
-					// and set the buffer offset to 0.
-					if ( b->type == le::DescriptorType::eStorageBufferDynamic ||
-					     b->type == le::DescriptorType::eUniformBufferDynamic ) {
-						auto dynamicOffset                            = b->dynamic_offset_idx;
-						bindingData.offset                            = 0;
-						argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );
-					} else {
-						bindingData.offset = le_cmd->info.offset;
-					}
-
-				} break;
-
-				case le::CommandType::eSetArgumentTexture: {
-					auto*    le_cmd           = static_cast<le::CommandSetArgumentTexture*>( dataIt );
-					uint64_t argument_name_id = le_cmd->info.argument_name_id;
-
-					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
-						return e.name_hash == argument_name_id;
-					} );
-
-					if ( b == argumentState.binding_infos.end() ) {
-						logger.warn( "Invalid texture argument name id: %x", argument_name_id );
-						break;
-					}
-
-					// ---------| invariant: we found an argument name that matches
-
-					auto setIndex      = b->setIndex;
-					auto bindingNumber = b->binding;
-					auto arrayIndex    = uint32_t( le_cmd->info.array_index );
-
-					auto       bindingData      = argumentState.setData[ setIndex ].data();
-					auto const binding_data_end = bindingData + argumentState.setData[ setIndex ].size();
-
-					// Descriptors are stored as flat arrays; we cannot assume that binding number matches
-					// index of descriptor in set, because some types of uniforms may be arrays, and these
-					// arrays will be stored flat in the vector of per-set descriptors.
-					//
-					// Imagine these were bindings for a set: a b c0 c1 c2 c3 c4 d
-					// a(0), b(1), would have their own binding number, but c0(2), c1(2), c2(2), c3(2), c4(2)
-					// would share a single binding number, 2, until d(3), which would have binding number 3.
-					//
-					// To find the correct descriptor, we must therefore iterate over descriptors in-set
-					// until we find one that matches the correct array index.
-					//
-					for ( ; bindingData != binding_data_end; bindingData++ ) {
-						if ( bindingData->bindingNumber == bindingNumber &&
-						     bindingData->arrayIndex == arrayIndex ) {
-							break;
-						}
-					}
-
-					assert( bindingData != binding_data_end && "could not find specified binding." );
-
-					// fetch texture information based on texture id from command
-
-					auto foundTex = frame.textures_per_pass[ passIndex ].find( le_cmd->info.texture_id );
-					if ( foundTex == frame.textures_per_pass[ passIndex ].end() ) {
-						using namespace le_renderer;
-						logger.error( "Could not find requested texture: '%s', ignoring texture binding command",
-						              renderer_i.texture_handle_get_name( le_cmd->info.texture_id ) );
-						break;
-					}
-
-					// ----------| invariant: texture has been found
-
-					bindingData->imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
-					bindingData->imageInfo.sampler     = foundTex->second.sampler;
-					bindingData->imageInfo.imageView   = foundTex->second.imageView;
-					bindingData->type                  = le::DescriptorType::eCombinedImageSampler;
-
-				} break;
-
-				case le::CommandType::eSetArgumentImage: {
-					auto*    le_cmd           = static_cast<le::CommandSetArgumentImage*>( dataIt );
-					uint64_t argument_name_id = le_cmd->info.argument_name_id;
-
-					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
-						return e.name_hash == argument_name_id;
-					} );
-
-					if ( b == argumentState.binding_infos.end() ) {
-						logger.warn( "Warning: Invalid image argument name id: %x", argument_name_id );
-						break;
-					}
-
-					// ---------| invariant: we found an argument name that matches
-					auto setIndex = b->setIndex;
-					auto binding  = b->binding;
-
-					auto& bindingData = argumentState.setData[ setIndex ][ binding ];
-
-					// fetch texture information based on texture id from command
-
-					auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
-					if ( foundImgView == frame.imageViews.end() ) {
-						logger.error( "Could not find image view for image: '%s', ignoring image binding command.",
-						              le_cmd->info.image_id->data->debug_name );
-						break;
-					}
-
-					// ----------| invariant: image view has been found
-
-					// FIXME: (sync) image layout at this point *must* be general, if we wanted to write to this image.
-					bindingData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
-					bindingData.imageInfo.imageView   = foundImgView->second;
-
-					bindingData.type       = le::DescriptorType::eStorageImage;
-					bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
-
-				} break;
-				case le::CommandType::eSetArgumentTlas: {
-					auto*    le_cmd           = static_cast<le::CommandSetArgumentTlas*>( dataIt );
-					uint64_t argument_name_id = le_cmd->info.argument_name_id;
-
-					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
-						return e.name_hash == argument_name_id;
-					} );
-
-					if ( b == argumentState.binding_infos.end() ) {
-						logger.warn( "Invalid tlas argument name id: %x", argument_name_id );
-						break;
-					}
-
-					// ---------| invariant: we found an argument name that matches
-					auto setIndex = b->setIndex;
-					auto binding  = b->binding;
-
-					auto& bindingData = argumentState.setData[ setIndex ][ binding ];
-
-					auto found_resource = frame.availableResources.find( le_cmd->info.tlas_id );
-					if ( found_resource == frame.availableResources.end() ) {
-						logger.error( "Could not find acceleration structure: '%s'. Ignoring top level acceleration structure binding command.", le_cmd->info.tlas_id->data->debug_name );
-						break;
-					}
-
-					// ----------| invariant: acceleration structure has been found
-
-					bindingData.accelerationStructureInfo.accelerationStructure = found_resource->second.as.tlas;
-					bindingData.type                                            = le::DescriptorType::eAccelerationStructureKhr;
-					bindingData.arrayIndex                                      = uint32_t( le_cmd->info.array_index );
-
-				} break;
-				case le::CommandType::eBindIndexBuffer: {
-					auto* le_cmd = static_cast<le::CommandBindIndexBuffer*>( dataIt );
-					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
-					vkCmdBindIndexBuffer( cmd, buffer, le_cmd->info.offset, static_cast<VkIndexType>( le_cmd->info.indexType ) );
-				} break;
-
-				case le::CommandType::eBindVertexBuffers: {
-					auto* le_cmd = static_cast<le::CommandBindVertexBuffers*>( dataIt );
-
-					uint32_t firstBinding = le_cmd->info.firstBinding;
-					uint32_t numBuffers   = le_cmd->info.bindingCount;
-
-					assert( numBuffers && "must at least have one buffer to bind." );
-
-					// Bind vertex buffers by looking up le resources and matching them with their corresponding
-					// vk resources.
-					// We optimise for the likely case that the same resource is given a number of times:
-					// we cache the last lookup of a vk_resource, and if the same le_resource is requested again,
-					// we can use the cached value instead of having to do a lookup.
-
-					le_buf_resource_handle le_buffer    = le_cmd->info.pBuffers[ 0 ];
-					VkBuffer               vk_buffer    = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
-					vertexInputBindings[ firstBinding ] = vk_buffer;
-
-					for ( uint32_t b = 1; b != numBuffers; ++b ) {
-						le_buf_resource_handle next_buffer = le_cmd->info.pBuffers[ b ];
-						if ( next_buffer != le_buffer ) {
-							le_buffer = next_buffer;
-							vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
-						}
-						vertexInputBindings[ b + firstBinding ] = vk_buffer;
-					}
-
-					vkCmdBindVertexBuffers( cmd, le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
-				} break;
-
-				case le::CommandType::eWriteToBuffer: {
-
-					// Enqueue copy buffer command
-					// TODO: we must sync this before the next read.
-					auto* le_cmd = static_cast<le::CommandWriteToBuffer*>( dataIt );
-
-					VkBufferCopy region{
-					    .srcOffset = le_cmd->info.src_offset,
-					    .dstOffset = le_cmd->info.dst_offset,
-					    .size      = le_cmd->info.numBytes,
-					};
-
-					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
-					auto dstBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.dst_buffer_id );
-
-					vkCmdCopyBuffer( cmd, srcBuffer, dstBuffer, 1, &region );
-
-					break;
+				if ( LE_PRINT_DEBUG_MESSAGES ) {
+					logger.info( "*** Frame %d *** Queue %d *** Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 				}
 
-				case le::CommandType::eWriteToImage: {
+				// -- Issue sync barriers for all resources which require explicit sync.
+				//
+				// We must to this here, as the spec requires barriers to happen
+				// before renderpass begin.
+				//
+				for ( auto const& op : pass.explicit_sync_ops ) {
+					// fill in sync op
 
-					auto* le_cmd = static_cast<le::CommandWriteToImage*>( dataIt );
+					if ( op.active == false ) {
+						continue;
+					}
 
-					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
-					auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
+					// ---------| invariant: barrier is active.
 
-					// We define a range that covers all miplevels. this is useful as it allows us to transform
-					// Image layouts in bulk, covering the full mip chain.
-					VkImageSubresourceRange rangeAllRemainingMiplevels{
-					    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-					    .baseMipLevel   = le_cmd->info.dst_miplevel,
-					    .levelCount     = VK_REMAINING_MIP_LEVELS, // we want all miplevels to be in transferDstOptimal.
-					    .baseArrayLayer = le_cmd->info.dst_array_layer,
-					    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // we want the range to encompass all layers
-					};
+					auto const& syncChain = frame.syncChainTable[ op.resource ];
 
-					{
+					auto const& stateInitial = syncChain[ op.sync_chain_offset_initial ];
+					auto const& stateFinal   = syncChain[ op.sync_chain_offset_final ];
 
-						// Note: this barrier prepares the buffer resource for transfer read
-						VkBufferMemoryBarrier2 bufferTransferBarrier{
-						    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
-						    .pNext               = nullptr,                          // optional
-						    .srcStageMask        = VK_PIPELINE_STAGE_2_HOST_BIT,     // any host operation
-						    .srcAccessMask       = VK_ACCESS_2_HOST_WRITE_BIT,       // make HostWrite memory available (flush host-write)
-						    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT, // must complete before transfer operation
-						    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,    // and it must be visible for transferRead - so that we might read
-						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-						    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-						    .buffer              = srcBuffer,
-						    .offset              = 0, // we assume a fresh buffer was allocated, so offset must be 0
-						    .size                = le_cmd->info.numBytes,
-						};
+					if ( stateInitial != stateFinal ) {
+						// we must issue an image barrier
 
-						// Note: this barrier is to prepare the image resource for receiving data
-						VkImageMemoryBarrier2 imageLayoutToTransferDstOptimal{
+						if ( LE_PRINT_DEBUG_MESSAGES ) {
+
+							// --------| invariant: barrier is active.
+
+							// print out sync chain for sampled image
+							logger.info( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
+							logger.info( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
+
+							auto const& syncChain = frame.syncChainTable.at( op.resource );
+
+							for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
+								auto const& s = syncChain[ i ];
+								logger.info( "\t % 3d : % 30s : % 30s : % 10s", i,
+								             to_string_vk_access_flags2( s.visible_access ).c_str(),
+								             to_string_vk_pipeline_stage_flags2( s.stage ).c_str(),
+								             to_str_vk_image_layout( s.layout ) );
+							}
+						}
+
+						auto dstImage = frame_data_get_image_from_le_resource_id( frame, static_cast<le_img_resource_handle>( op.resource ) );
+
+						VkImageMemoryBarrier2 imageLayoutTransfer{
 						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-						    .pNext               = nullptr,                             // optional
-						    .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, // wait for nothing as no memory must be made available
-						    .srcAccessMask       = {},                                  // no memory must be made available - our image is garbage data at first
-						    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,    // layout transiton must complete before transfer operation
-						    .dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,      // make memory visible to transferWrite - so that we may write
-						    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-						    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+						    .pNext               = nullptr,
+						    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
+						    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
+						    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
+						    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
+						    .oldLayout           = stateInitial.layout,
+						    .newLayout           = stateFinal.layout,
 						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 						    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 						    .image               = dstImage,
-						    .subresourceRange    = rangeAllRemainingMiplevels,
+						    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
 						};
+
+						VkDependencyInfo dependencyInfo = {
+						    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+						    .pNext                    = nullptr, // optional
+						    .dependencyFlags          = 0,       // optional
+						    .memoryBarrierCount       = 0,       // optional
+						    .pMemoryBarriers          = 0,
+						    .bufferMemoryBarrierCount = 0, // optional
+						    .pBufferMemoryBarriers    = 0,
+						    .imageMemoryBarrierCount  = 1, // optional
+						    .pImageMemoryBarriers     = &imageLayoutTransfer,
+						};
+
+						vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+					}
+				} // end for all explicit sync ops.
+			}
+
+			// Draw passes must begin by opening a Renderpass context.
+			if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
+
+				for ( uint32_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
+					clearValues[ i ] = reinterpret_cast<VkClearValue&>( pass.attachments[ i ].clearValue );
+				}
+
+				VkRenderPassBeginInfo renderPassBeginInfo{
+				    .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+				    .pNext       = nullptr, // optional
+				    .renderPass  = pass.renderPass,
+				    .framebuffer = pass.framebuffer,
+				    .renderArea  = {
+				         .offset = { 0, 0 },
+				         .extent = { pass.width, pass.height },
+                    },
+				    .clearValueCount = uint32_t( pass.numColorAttachments + pass.numDepthStencilAttachments ), // optional
+				    .pClearValues    = clearValues.data(),
+				};
+
+				vkCmdBeginRenderPass( cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE );
+			}
+
+			// -- Translate intermediary command stream data to api-native instructions
+
+			void*    commandStream = nullptr;
+			size_t   dataSize      = 0;
+			size_t   numCommands   = 0;
+			size_t   commandIndex  = 0;
+			uint32_t subpassIndex  = 0;
+
+			VkPipelineLayout currentPipelineLayout                          = nullptr;
+			VkDescriptorSet  descriptorSets[ LE_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
+
+			// We store currently bound descriptors so that we only allocate new DescriptorSets
+			// if the descriptors really change. With dynamic descriptors, it is very likely
+			// that we don't need to allocate new descriptors, as the same descriptors are used
+			// for different accessors, only with different dynamic binding offsets.
+			//
+			//
+			std::array<DescriptorSetState, 8> previousSetState; // currently bound descriptorSetLayout+Data for each set
+			ArgumentState                     argumentState{};  //
+			RtxState                          rtx_state{};      // used to keep track of shader binding tables bound with rtx pipelines.
+
+			static le_buf_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
+
+			if ( pass.encoder ) {
+				encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
+			} else {
+				// This is legit behaviour for draw passes which are used only to clear attachments,
+				// in which case they don't need to include any draw commands.
+			}
+
+			if ( commandStream != nullptr && numCommands > 0 ) {
+
+				le_pipeline_manager_o* pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
+
+				std::vector<VkBuffer>         vertexInputBindings( maxVertexInputBindings, nullptr );
+				void*                         dataIt = commandStream;
+				le_pipeline_and_layout_info_t currentPipeline{};
+
+				while ( commandIndex != numCommands ) {
+
+					auto header = static_cast<le::CommandHeader*>( dataIt );
+
+					if ( /* DISABLES CODE */ ( false ) ) {
+						// Print the command stream to stdout.
+						debug_print_command( dataIt );
+					}
+
+					switch ( header->info.type ) {
+
+					case le::CommandType::eBindGraphicsPipeline: {
+						auto* le_cmd = static_cast<le::CommandBindGraphicsPipeline*>( dataIt );
+
+						if ( pass.type == le::QueueFlagBits::eGraphics ) {
+							// at this point, a valid renderpass must be bound
+
+							using namespace le_backend_vk;
+							// -- potentially compile and create pipeline here, based on current pass and subpass
+							auto requestedPipeline = le_pipeline_manager_i.produce_graphics_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
+
+							if ( /* DISABLES CODE */ ( false ) ) {
+
+								// Print pipeline debug info when a new pipeline gets bound.
+
+								logger.debug( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
+								debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
+							}
+
+							if ( !is_equal( currentPipeline, requestedPipeline ) ) {
+								// update current pipeline
+								currentPipeline = requestedPipeline;
+								// -- grab current pipeline layout from cache
+								currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
+								// -- update pipelineData - that's the data values for all descriptors which are currently bound
+
+								argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
+								argumentState.binding_infos.clear();
+
+								// -- reset dynamic offset count
+								argumentState.dynamicOffsetCount = 0;
+
+								// let's create descriptorData vector based on current bindings-
+								for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
+
+									// look up set layout info via set layout key
+									auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+
+									auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
+
+									auto& setData = argumentState.setData[ setId ];
+
+									argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
+									argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
+
+									setData.clear();
+									setData.reserve( setLayoutInfo->binding_info.size() );
+
+									for ( auto b : setLayoutInfo->binding_info ) {
+
+										// add an entry for each array element with this binding to setData
+										for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
+											DescriptorData descriptorData{};
+
+											descriptorData.type          = b.type;
+											descriptorData.bindingNumber = uint32_t( b.binding );
+											descriptorData.arrayIndex    = uint32_t( arrayIndex );
+
+											if ( b.type == le::DescriptorType::eStorageBuffer ||
+											     b.type == le::DescriptorType::eUniformBuffer ||
+											     b.type == le::DescriptorType::eStorageBufferDynamic ||
+											     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+
+												descriptorData.bufferInfo.range = b.range;
+											}
+
+											setData.emplace_back( descriptorData );
+										}
+
+										if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+										     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+											assert( b.count != 0 ); // count cannot be 0
+
+											// store dynamic offset index for this element
+											b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
+
+											// increase dynamic offset count by number of elements in this binding
+											argumentState.dynamicOffsetCount += b.count;
+										}
+
+										// add this binding to list of current bindings
+										argumentState.binding_infos.push_back( b );
+									}
+								}
+
+								vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline.pipeline );
+							} else {
+								// Re-using previously bound pipeline. We may keep argumentState state as it is.
+							}
+
+							// -- Reset dynamic offsets in argumentState:
+							// we do this regardless of whether pipeline was already bound,
+							// because binding a pipeline should always reset parameters associated
+							// with the pipeline.
+
+							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
+
+						} else {
+							// -- TODO: warn that graphics pipelines may only be bound within
+							// draw passes.
+						}
+					} break;
+
+					case le::CommandType::eBindComputePipeline: {
+						auto* le_cmd = static_cast<le::CommandBindComputePipeline*>( dataIt );
+						if ( pass.type == le::QueueFlagBits::eCompute ) {
+							// at this point, a valid renderpass must be bound
+
+							using namespace le_backend_vk;
+							// -- potentially compile and create pipeline here, based on current pass and subpass
+							currentPipeline = le_pipeline_manager_i.produce_compute_pipeline( pipelineManager, le_cmd->info.cpsoHandle );
+
+							// -- grab current pipeline layout from cache
+							currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
+
+							{
+								// -- update pipelineData - that's the data values for all descriptors which are currently bound
+
+								argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
+								argumentState.binding_infos.clear();
+
+								// -- reset dynamic offset count
+								argumentState.dynamicOffsetCount = 0;
+
+								// let's create descriptorData vector based on current bindings-
+								for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
+
+									// look up set layout info via set layout key
+									auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+
+									auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
+
+									auto& setData = argumentState.setData[ setId ];
+
+									argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
+									argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
+
+									setData.clear();
+									setData.reserve( setLayoutInfo->binding_info.size() );
+
+									for ( auto b : setLayoutInfo->binding_info ) {
+
+										// add an entry for each array element with this binding to setData
+										for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
+											DescriptorData descriptorData{};
+
+											descriptorData.type          = b.type;
+											descriptorData.bindingNumber = uint32_t( b.binding );
+											descriptorData.arrayIndex    = uint32_t( arrayIndex );
+
+											descriptorData.bufferInfo.range = b.range;
+
+											setData.emplace_back( std::move( descriptorData ) );
+										}
+
+										if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+										     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+											assert( b.count != 0 ); // count cannot be 0
+
+											// store dynamic offset index for this element
+											b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
+
+											// increase dynamic offset count by number of elements in this binding
+											argumentState.dynamicOffsetCount += b.count;
+										}
+
+										// add this binding to list of current bindings
+										argumentState.binding_infos.emplace_back( std::move( b ) );
+									}
+								}
+
+								// -- reset dynamic offsets
+								memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
+
+								// we write directly into descriptorsetstate when we update descriptors.
+								// when we bind a pipeline, we update the descriptorsetstate based
+								// on what the pipeline requires.
+							}
+							vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, currentPipeline.pipeline );
+
+						} else {
+							// -- TODO: warn that compute pipelines may only be bound within
+							// compute passes.
+						}
+
+					} break;
+
+					case le::CommandType::eBindRtxPipeline: {
+						auto* le_cmd = static_cast<le::CommandBindRtxPipeline*>( dataIt );
+						if ( pass.type == le::QueueFlagBits::eCompute ) {
+							// at this point, a valid renderpass must be bound
+
+							using namespace le_backend_vk;
+
+							// -- fetch pipeline from pipeline cache, also fetch shader group data, so that
+							// we can verify that the current pipeline state matches the pipeline state which
+							// was used to create the pipeline. The pipeline state may change if pipeline gets recompiled.
+
+							{
+								currentPipeline.pipeline                        = static_cast<VkPipeline>( le_cmd->info.pipeline_native_handle );
+								currentPipeline.layout_info.pipeline_layout_key = le_cmd->info.pipeline_layout_key;
+
+								memcpy( currentPipeline.layout_info.set_layout_keys, le_cmd->info.descriptor_set_layout_keys, sizeof( currentPipeline.layout_info.set_layout_keys ) );
+
+								currentPipeline.layout_info.set_layout_count = le_cmd->info.descriptor_set_layout_count;
+							}
+
+							// -- grab current pipeline layout from cache
+							currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
+
+							{
+								// -- update pipelineData - that's the data values for all descriptors which are currently bound
+
+								argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
+								argumentState.binding_infos.clear();
+
+								// -- reset dynamic offset count
+								argumentState.dynamicOffsetCount = 0;
+
+								// let's create descriptorData vector based on current bindings-
+								for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
+
+									// look up set layout info via set layout key
+									auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+
+									auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
+
+									auto& setData = argumentState.setData[ setId ];
+
+									argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
+									argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
+
+									setData.clear();
+									setData.reserve( setLayoutInfo->binding_info.size() );
+
+									for ( auto b : setLayoutInfo->binding_info ) {
+
+										// add an entry for each array element with this binding to setData
+										for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
+											DescriptorData descriptorData{};
+
+											descriptorData.type          = le::DescriptorType( b.type );
+											descriptorData.bindingNumber = uint32_t( b.binding );
+											descriptorData.arrayIndex    = uint32_t( arrayIndex );
+
+											if ( b.type == le::DescriptorType::eStorageBuffer ||
+											     b.type == le::DescriptorType::eUniformBuffer ||
+											     b.type == le::DescriptorType::eStorageBufferDynamic ||
+											     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+
+												descriptorData.bufferInfo.range = b.range;
+											}
+
+											setData.emplace_back( std::move( descriptorData ) );
+										}
+
+										if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+										     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+											assert( b.count != 0 ); // count cannot be 0
+
+											// store dynamic offset index for this element
+											b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
+
+											// increase dynamic offset count by number of elements in this binding
+											argumentState.dynamicOffsetCount += b.count;
+										}
+
+										// add this binding to list of current bindings
+										argumentState.binding_infos.emplace_back( std::move( b ) );
+									}
+								}
+
+								// -- reset dynamic offsets
+								memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
+							}
+
+							vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, currentPipeline.pipeline );
+							// -- "bind" shader binding table state
+
+							{
+								rtx_state.sbt_buffer = le_cmd->info.sbt_buffer;
+
+								VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.sbt_buffer );
+
+								VkBufferDeviceAddressInfo info = {
+								    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+								    .pNext  = nullptr, // optional
+								    .buffer = vk_buffer,
+								};
+								uint64_t offset               = vkGetBufferDeviceAddress( device, &info );
+								rtx_state.ray_gen_sbt_offset  = offset + le_cmd->info.ray_gen_sbt_offset;
+								rtx_state.ray_gen_sbt_size    = le_cmd->info.ray_gen_sbt_size;
+								rtx_state.miss_sbt_offset     = offset + le_cmd->info.miss_sbt_offset;
+								rtx_state.miss_sbt_stride     = le_cmd->info.miss_sbt_stride;
+								rtx_state.miss_sbt_size       = le_cmd->info.miss_sbt_size;
+								rtx_state.hit_sbt_offset      = offset + le_cmd->info.hit_sbt_offset;
+								rtx_state.hit_sbt_stride      = le_cmd->info.hit_sbt_stride;
+								rtx_state.hit_sbt_size        = le_cmd->info.hit_sbt_size;
+								rtx_state.callable_sbt_offset = offset + le_cmd->info.callable_sbt_offset;
+								rtx_state.callable_sbt_stride = le_cmd->info.callable_sbt_stride;
+								rtx_state.callable_sbt_size   = le_cmd->info.callable_sbt_size;
+								rtx_state.is_set              = true;
+							}
+
+						} else {
+							// -- TODO: warn that rtx pipelines may only be bound within
+							// compute passes.
+						}
+
+					} break;
+					case le::CommandType::eTraceRays: {
+						auto* le_cmd = static_cast<le::CommandTraceRays*>( dataIt );
+
+						// -- update descriptorsets via template if tainted
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+
+						if ( false == argumentsOk ) {
+							break;
+						}
+
+						// --------| invariant: arguments were updated successfully
+
+						if ( argumentState.setCount > 0 ) {
+
+							vkCmdBindDescriptorSets(
+							    cmd,
+							    VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+							    currentPipelineLayout,
+							    0,
+							    argumentState.setCount,
+							    descriptorSets,
+							    argumentState.dynamicOffsetCount,
+							    argumentState.dynamicOffsets.data() );
+						}
+
+						assert( rtx_state.is_set && "sbt state must have been set before calling traceRays" );
+
+						// VkBuffer sbt_vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, rtx_state.sbt_buffer );
+
+						//					std::cout << "sbt buffer: " << std::hex << sbt_vk_buffer << std::endl
+						//					          << std::flush;
+						//					std::cout << "sbt buffer raygen offset: " << std::dec << rtx_state.ray_gen_sbt_offset << std::endl
+						//					          << std::flush;
+
+						// buffer, offset, stride, size
+						VkStridedDeviceAddressRegionKHR sbt_ray_gen{ rtx_state.ray_gen_sbt_offset, rtx_state.ray_gen_sbt_size, rtx_state.ray_gen_sbt_size };
+						VkStridedDeviceAddressRegionKHR sbt_miss{ rtx_state.miss_sbt_offset, rtx_state.miss_sbt_stride, rtx_state.miss_sbt_size };
+						VkStridedDeviceAddressRegionKHR sbt_hit{ rtx_state.hit_sbt_offset, rtx_state.hit_sbt_stride, rtx_state.hit_sbt_size };
+						VkStridedDeviceAddressRegionKHR sbt_callable{ rtx_state.callable_sbt_offset, rtx_state.callable_sbt_stride, rtx_state.callable_sbt_size };
+
+						vkCmdTraceRaysKHR(
+						    cmd,
+						    &sbt_ray_gen,
+						    &sbt_miss,
+						    &sbt_hit,
+						    &sbt_callable,
+						    le_cmd->info.width,
+						    le_cmd->info.height,
+						    le_cmd->info.depth //
+						);
+
+					} break;
+					case le::CommandType::eDispatch: {
+						auto* le_cmd = static_cast<le::CommandDispatch*>( dataIt );
+
+						// -- update descriptorsets via template if tainted
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+
+						if ( false == argumentsOk ) {
+							break;
+						}
+
+						// --------| invariant: arguments were updated successfully
+
+						if ( argumentState.setCount > 0 ) {
+
+							vkCmdBindDescriptorSets( cmd,
+							                         VK_PIPELINE_BIND_POINT_COMPUTE,
+							                         currentPipelineLayout,
+							                         0,
+							                         argumentState.setCount,
+							                         descriptorSets,
+							                         argumentState.dynamicOffsetCount,
+							                         argumentState.dynamicOffsets.data() );
+						}
+
+						vkCmdDispatch( cmd, le_cmd->info.groupCountX, le_cmd->info.groupCountY, le_cmd->info.groupCountZ );
+
+					} break;
+					case le::CommandType::eBufferMemoryBarrier: {
+						auto*                  le_cmd = static_cast<le::CommandBufferMemoryBarrier*>( dataIt );
+						VkBufferMemoryBarrier2 bufferMemoryBarrier{
+						    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+						    .pNext               = nullptr,
+						    .srcStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.srcStageMask ), // happens-before
+						    .srcAccessMask       = 0,                                                               // FIXME: no memory is made available from src stage ?!
+						    .dstStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.dstStageMask ), // before continuing with dst stage
+						    .dstAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.dstAccessMask ),    // and making memory visible to dst stage
+						    .srcQueueFamilyIndex = 0,
+						    .dstQueueFamilyIndex = 0,
+						    .buffer              = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ),
+						    .offset              = le_cmd->info.offset,
+						    .size                = le_cmd->info.range,
+						};
+
 						VkDependencyInfo dependency_info{
 						    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-						    .pNext                    = nullptr,
-						    .dependencyFlags          = 0,
-						    .memoryBarrierCount       = 0,
+						    .pNext                    = nullptr, // optional
+						    .dependencyFlags          = 0,       // optional
+						    .memoryBarrierCount       = 0,       // optional
 						    .pMemoryBarriers          = 0,
-						    .bufferMemoryBarrierCount = 1,
-						    .pBufferMemoryBarriers    = &bufferTransferBarrier,
-						    .imageMemoryBarrierCount  = 1,
-						    .pImageMemoryBarriers     = &imageLayoutToTransferDstOptimal,
+						    .bufferMemoryBarrierCount = 1, // optional
+						    .pBufferMemoryBarriers    = &bufferMemoryBarrier,
+						    .imageMemoryBarrierCount  = 0, // optional
+						    .pImageMemoryBarriers     = 0,
 						};
 
 						vkCmdPipelineBarrier2( cmd, &dependency_info );
+
+					} break;
+					case le::CommandType::eDraw: {
+						auto* le_cmd = static_cast<le::CommandDraw*>( dataIt );
+
+						// -- update descriptorsets via template if tainted
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+
+						if ( false == argumentsOk ) {
+							break;
+						}
+
+						// --------| invariant: arguments were updated successfully
+
+						if ( argumentState.setCount > 0 ) {
+
+							vkCmdBindDescriptorSets(
+							    cmd,
+							    VK_PIPELINE_BIND_POINT_GRAPHICS,
+							    currentPipelineLayout,
+							    0,
+							    argumentState.setCount,
+							    descriptorSets,
+							    argumentState.dynamicOffsetCount,
+							    argumentState.dynamicOffsets.data() );
+						}
+
+						vkCmdDraw( cmd, le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
+					} break;
+
+					case le::CommandType::eDrawIndexed: {
+						auto* le_cmd = static_cast<le::CommandDrawIndexed*>( dataIt );
+
+						// -- update descriptorsets via template if tainted
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+
+						if ( false == argumentsOk ) {
+							break;
+						}
+
+						// --------| invariant: arguments were updated successfully
+
+						if ( argumentState.setCount > 0 ) {
+
+							vkCmdBindDescriptorSets(
+							    cmd,
+							    VK_PIPELINE_BIND_POINT_GRAPHICS,
+							    currentPipelineLayout,
+							    0,
+							    argumentState.setCount,
+							    descriptorSets,
+							    argumentState.dynamicOffsetCount,
+							    argumentState.dynamicOffsets.data() );
+						}
+
+						vkCmdDrawIndexed(
+						    cmd,
+						    le_cmd->info.indexCount,
+						    le_cmd->info.instanceCount,
+						    le_cmd->info.firstIndex,
+						    le_cmd->info.vertexOffset,
+						    le_cmd->info.firstInstance );
+					} break;
+
+					case le::CommandType::eDrawMeshTasks: {
+						auto* le_cmd = static_cast<le::CommandDrawMeshTasks*>( dataIt );
+
+						// -- update descriptorsets via template if tainted
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+
+						if ( false == argumentsOk ) {
+							break;
+						}
+
+						// --------| invariant: arguments were updated successfully
+
+						if ( argumentState.setCount > 0 ) {
+
+							vkCmdBindDescriptorSets( cmd,
+							                         VK_PIPELINE_BIND_POINT_GRAPHICS,
+							                         currentPipelineLayout,
+							                         0,
+							                         argumentState.setCount,
+							                         descriptorSets,
+							                         argumentState.dynamicOffsetCount,
+							                         argumentState.dynamicOffsets.data() );
+						}
+
+						vkCmdDrawMeshTasksNV( cmd, le_cmd->info.taskCount, le_cmd->info.firstTask );
+					} break;
+
+					case le::CommandType::eSetLineWidth: {
+						auto* le_cmd = static_cast<le::CommandSetLineWidth*>( dataIt );
+						vkCmdSetLineWidth( cmd, le_cmd->info.width );
+					} break;
+
+					case le::CommandType::eSetViewport: {
+						auto* le_cmd = static_cast<le::CommandSetViewport*>( dataIt );
+						// Since data for viewports *is stored inline*, we increment the typed pointer
+						// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
+						vkCmdSetViewport( cmd, le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<VkViewport*>( le_cmd + 1 ) );
+					} break;
+
+					case le::CommandType::eSetScissor: {
+						auto* le_cmd = static_cast<le::CommandSetScissor*>( dataIt );
+						// Since data for scissors *is stored inline*, we increment the typed pointer
+						// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
+						vkCmdSetScissor( cmd, le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<VkRect2D*>( le_cmd + 1 ) );
+					} break;
+
+					case le::CommandType::eSetPushConstantData: {
+						if ( currentPipelineLayout ) {
+							auto*              le_cmd               = static_cast<le::CommandSetPushConstantData*>( dataIt );
+							VkShaderStageFlags active_shader_stages = VkShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
+							vkCmdPushConstants( cmd, currentPipelineLayout, active_shader_stages, 0, uint32_t(le_cmd->info.num_bytes), ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
+						}
+						break;
 					}
 
-					{
-						// Copy data for first mip level from buffer to image.
-						//
-						// Then use the first mip level as a source for subsequent mip levels.
-						// When copying from a lower mip level to a higher mip level, we must make
-						// sure to add barriers, as these blit operations are transfers.
-						//
+					case le::CommandType::eBindArgumentBuffer: {
+						// we need to store the data for the dynamic binding which was set as an argument to the ubo
+						// this alters our internal state
+						auto* le_cmd = static_cast<le::CommandBindArgumentBuffer*>( dataIt );
 
-						VkImageSubresourceLayers imageSubresourceLayers{
-						    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-						    .mipLevel       = 0,
-						    .baseArrayLayer = le_cmd->info.dst_array_layer,
-						    .layerCount     = 1,
+						uint64_t argument_name_id = le_cmd->info.argument_name_id;
+
+						// find binding info with name referenced in command
+
+						auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(),
+						                       [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
+							                       return e.name_hash == argument_name_id;
+						                       } );
+
+						if ( b == argumentState.binding_infos.end() ) {
+							static uint64_t wrong_argument = argument_name_id;
+							[]( uint64_t argument ) {
+								static uint64_t argument_id_local = 0;
+								if ( argument_id_local == wrong_argument )
+									return;
+								logger.warn( "process_frame: \x1b[38;5;209mInvalid argument name: '%s'\x1b[0m id: %x", le_get_argument_name_from_hash( argument ), argument );
+								argument_id_local = argument;
+							}( argument_name_id );
+							break;
+						}
+
+						// ---------| invariant: we found an argument name that matches
+						auto setIndex = b->setIndex;
+						auto binding  = b->binding;
+
+						auto& bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
+
+						bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
+						bindingData.range  = le_cmd->info.range;
+
+						if ( bindingData.range == 0 ) {
+
+							// If no range was specified, we must default to VK_WHOLE_SIZE,
+							// as a range setting of 0 is not allowed in Vulkan.
+
+							bindingData.range = VK_WHOLE_SIZE;
+						}
+
+						// If binding is in fact a dynamic binding, set the corresponding dynamic offset
+						// and set the buffer offset to 0.
+						if ( b->type == le::DescriptorType::eStorageBufferDynamic ||
+						     b->type == le::DescriptorType::eUniformBufferDynamic ) {
+							auto dynamicOffset                            = b->dynamic_offset_idx;
+							bindingData.offset                            = 0;
+							argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );
+						} else {
+							bindingData.offset = le_cmd->info.offset;
+						}
+
+					} break;
+
+					case le::CommandType::eSetArgumentTexture: {
+						auto*    le_cmd           = static_cast<le::CommandSetArgumentTexture*>( dataIt );
+						uint64_t argument_name_id = le_cmd->info.argument_name_id;
+
+						// Find binding info with name referenced in command
+						auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
+							return e.name_hash == argument_name_id;
+						} );
+
+						if ( b == argumentState.binding_infos.end() ) {
+							logger.warn( "Invalid texture argument name id: %x", argument_name_id );
+							break;
+						}
+
+						// ---------| invariant: we found an argument name that matches
+
+						auto setIndex      = b->setIndex;
+						auto bindingNumber = b->binding;
+						auto arrayIndex    = uint32_t( le_cmd->info.array_index );
+
+						auto       bindingData      = argumentState.setData[ setIndex ].data();
+						auto const binding_data_end = bindingData + argumentState.setData[ setIndex ].size();
+
+						// Descriptors are stored as flat arrays; we cannot assume that binding number matches
+						// index of descriptor in set, because some types of uniforms may be arrays, and these
+						// arrays will be stored flat in the vector of per-set descriptors.
+						//
+						// Imagine these were bindings for a set: a b c0 c1 c2 c3 c4 d
+						// a(0), b(1), would have their own binding number, but c0(2), c1(2), c2(2), c3(2), c4(2)
+						// would share a single binding number, 2, until d(3), which would have binding number 3.
+						//
+						// To find the correct descriptor, we must therefore iterate over descriptors in-set
+						// until we find one that matches the correct array index.
+						//
+						for ( ; bindingData != binding_data_end; bindingData++ ) {
+							if ( bindingData->bindingNumber == bindingNumber &&
+							     bindingData->arrayIndex == arrayIndex ) {
+								break;
+							}
+						}
+
+						assert( bindingData != binding_data_end && "could not find specified binding." );
+
+						// fetch texture information based on texture id from command
+
+						auto foundTex = frame.textures_per_pass[ passIndex ].find( le_cmd->info.texture_id );
+						if ( foundTex == frame.textures_per_pass[ passIndex ].end() ) {
+							using namespace le_renderer;
+							logger.error( "Could not find requested texture: '%s', ignoring texture binding command",
+							              renderer_i.texture_handle_get_name( le_cmd->info.texture_id ) );
+							break;
+						}
+
+						// ----------| invariant: texture has been found
+
+						bindingData->imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
+						bindingData->imageInfo.sampler     = foundTex->second.sampler;
+						bindingData->imageInfo.imageView   = foundTex->second.imageView;
+						bindingData->type                  = le::DescriptorType::eCombinedImageSampler;
+
+					} break;
+
+					case le::CommandType::eSetArgumentImage: {
+						auto*    le_cmd           = static_cast<le::CommandSetArgumentImage*>( dataIt );
+						uint64_t argument_name_id = le_cmd->info.argument_name_id;
+
+						// Find binding info with name referenced in command
+						auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
+							return e.name_hash == argument_name_id;
+						} );
+
+						if ( b == argumentState.binding_infos.end() ) {
+							logger.warn( "Warning: Invalid image argument name id: %x", argument_name_id );
+							break;
+						}
+
+						// ---------| invariant: we found an argument name that matches
+						auto setIndex = b->setIndex;
+						auto binding  = b->binding;
+
+						auto& bindingData = argumentState.setData[ setIndex ][ binding ];
+
+						// fetch texture information based on texture id from command
+
+						auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
+						if ( foundImgView == frame.imageViews.end() ) {
+							logger.error( "Could not find image view for image: '%s', ignoring image binding command.",
+							              le_cmd->info.image_id->data->debug_name );
+							break;
+						}
+
+						// ----------| invariant: image view has been found
+
+						// FIXME: (sync) image layout at this point *must* be general, if we wanted to write to this image.
+						bindingData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
+						bindingData.imageInfo.imageView   = foundImgView->second;
+
+						bindingData.type       = le::DescriptorType::eStorageImage;
+						bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
+
+					} break;
+					case le::CommandType::eSetArgumentTlas: {
+						auto*    le_cmd           = static_cast<le::CommandSetArgumentTlas*>( dataIt );
+						uint64_t argument_name_id = le_cmd->info.argument_name_id;
+
+						// Find binding info with name referenced in command
+						auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
+							return e.name_hash == argument_name_id;
+						} );
+
+						if ( b == argumentState.binding_infos.end() ) {
+							logger.warn( "Invalid tlas argument name id: %x", argument_name_id );
+							break;
+						}
+
+						// ---------| invariant: we found an argument name that matches
+						auto setIndex = b->setIndex;
+						auto binding  = b->binding;
+
+						auto& bindingData = argumentState.setData[ setIndex ][ binding ];
+
+						auto found_resource = frame.availableResources.find( le_cmd->info.tlas_id );
+						if ( found_resource == frame.availableResources.end() ) {
+							logger.error( "Could not find acceleration structure: '%s'. Ignoring top level acceleration structure binding command.", le_cmd->info.tlas_id->data->debug_name );
+							break;
+						}
+
+						// ----------| invariant: acceleration structure has been found
+
+						bindingData.accelerationStructureInfo.accelerationStructure = found_resource->second.as.tlas;
+						bindingData.type                                            = le::DescriptorType::eAccelerationStructureKhr;
+						bindingData.arrayIndex                                      = uint32_t( le_cmd->info.array_index );
+
+					} break;
+					case le::CommandType::eBindIndexBuffer: {
+						auto* le_cmd = static_cast<le::CommandBindIndexBuffer*>( dataIt );
+						auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
+						vkCmdBindIndexBuffer( cmd, buffer, le_cmd->info.offset, static_cast<VkIndexType>( le_cmd->info.indexType ) );
+					} break;
+
+					case le::CommandType::eBindVertexBuffers: {
+						auto* le_cmd = static_cast<le::CommandBindVertexBuffers*>( dataIt );
+
+						uint32_t firstBinding = le_cmd->info.firstBinding;
+						uint32_t numBuffers   = le_cmd->info.bindingCount;
+
+						assert( numBuffers && "must at least have one buffer to bind." );
+
+						// Bind vertex buffers by looking up le resources and matching them with their corresponding
+						// vk resources.
+						// We optimise for the likely case that the same resource is given a number of times:
+						// we cache the last lookup of a vk_resource, and if the same le_resource is requested again,
+						// we can use the cached value instead of having to do a lookup.
+
+						le_buf_resource_handle le_buffer    = le_cmd->info.pBuffers[ 0 ];
+						VkBuffer               vk_buffer    = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+						vertexInputBindings[ firstBinding ] = vk_buffer;
+
+						for ( uint32_t b = 1; b != numBuffers; ++b ) {
+							le_buf_resource_handle next_buffer = le_cmd->info.pBuffers[ b ];
+							if ( next_buffer != le_buffer ) {
+								le_buffer = next_buffer;
+								vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+							}
+							vertexInputBindings[ b + firstBinding ] = vk_buffer;
+						}
+
+						vkCmdBindVertexBuffers( cmd, le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
+					} break;
+
+					case le::CommandType::eWriteToBuffer: {
+
+						// Enqueue copy buffer command
+						// TODO: we must sync this before the next read.
+						auto* le_cmd = static_cast<le::CommandWriteToBuffer*>( dataIt );
+
+						VkBufferCopy region{
+						    .srcOffset = le_cmd->info.src_offset,
+						    .dstOffset = le_cmd->info.dst_offset,
+						    .size      = le_cmd->info.numBytes,
 						};
 
-						VkBufferImageCopy region{
-						    .bufferOffset      = 0,                                   // buffer offset is 0, since staging buffer is a fresh, specially allocated buffer
-						    .bufferRowLength   = 0,                                   // 0 means tightly packed
-						    .bufferImageHeight = 0,                                   // 0 means tightly packed
-						    .imageSubresource  = std::move( imageSubresourceLayers ), // stored inline
-						    .imageOffset =
-						        { .x = le_cmd->info.offset_x,
-						          .y = le_cmd->info.offset_y,
-						          .z = le_cmd->info.offset_z },
-						    .imageExtent =
-						        { .width  = le_cmd->info.image_w,
-						          .height = le_cmd->info.image_h,
-						          .depth  = le_cmd->info.image_d } };
-						;
+						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
+						auto dstBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.dst_buffer_id );
 
-						vkCmdCopyBufferToImage( cmd, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region );
+						vkCmdCopyBuffer( cmd, srcBuffer, dstBuffer, 1, &region );
+
+						break;
 					}
 
-					if ( le_cmd->info.num_miplevels > 1 ) {
+					case le::CommandType::eWriteToImage: {
 
-						// We generate additional miplevels by issueing scaled blits from one image subresource to the
-						// next higher mip level subresource.
+						auto* le_cmd = static_cast<le::CommandWriteToImage*>( dataIt );
 
-						// For this to work, we must first make sure that the image subresource we just wrote to
-						// is ready to be read back. We do this by issueing a read-after-write barrier, and with
-						// the same barrier we also transition the source subresource image to transfer_src_optimal
-						// layout (which is a requirement for blitting operations)
-						//
-						// The target image subresource is already in layout transfer_dst_optimal, as this is the
-						// layout we applied to the whole mip chain when
+						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
+						auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
 
-						const uint32_t base_miplevel = le_cmd->info.dst_miplevel;
+						// We define a range that covers all miplevels. this is useful as it allows us to transform
+						// Image layouts in bulk, covering the full mip chain.
+						VkImageSubresourceRange rangeAllRemainingMiplevels{
+						    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+						    .baseMipLevel   = le_cmd->info.dst_miplevel,
+						    .levelCount     = VK_REMAINING_MIP_LEVELS, // we want all miplevels to be in transferDstOptimal.
+						    .baseArrayLayer = le_cmd->info.dst_array_layer,
+						    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // we want the range to encompass all layers
+						};
+
 						{
-							VkImageMemoryBarrier2 prepareBlit{
+
+							// Note: this barrier prepares the buffer resource for transfer read
+							VkBufferMemoryBarrier2 bufferTransferBarrier{
+							    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+							    .pNext               = nullptr,                          // optional
+							    .srcStageMask        = VK_PIPELINE_STAGE_2_HOST_BIT,     // any host operation
+							    .srcAccessMask       = VK_ACCESS_2_HOST_WRITE_BIT,       // make HostWrite memory available (flush host-write)
+							    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT, // must complete before transfer operation
+							    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,    // and it must be visible for transferRead - so that we might read
+							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+							    .buffer              = srcBuffer,
+							    .offset              = 0, // we assume a fresh buffer was allocated, so offset must be 0
+							    .size                = le_cmd->info.numBytes,
+							};
+
+							// Note: this barrier is to prepare the image resource for receiving data
+							VkImageMemoryBarrier2 imageLayoutToTransferDstOptimal{
 							    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-							    .pNext               = nullptr,                              //
-							    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
-							    .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // make transfer write memory available (flush) to layout transition
-							    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
-							    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make cache (after layout transition) visible to transferRead op
-							    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // layout transition from transfer dst optimal,
-							    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
+							    .pNext               = nullptr,                             // optional
+							    .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, // wait for nothing as no memory must be made available
+							    .srcAccessMask       = {},                                  // no memory must be made available - our image is garbage data at first
+							    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,    // layout transiton must complete before transfer operation
+							    .dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,      // make memory visible to transferWrite - so that we may write
+							    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+							    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 							    .image               = dstImage,
-							    .subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
+							    .subresourceRange    = rangeAllRemainingMiplevels,
 							};
-
 							VkDependencyInfo dependency_info{
 							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
 							    .pNext                    = nullptr,
 							    .dependencyFlags          = 0,
 							    .memoryBarrierCount       = 0,
 							    .pMemoryBarriers          = 0,
-							    .bufferMemoryBarrierCount = 0,
-							    .pBufferMemoryBarriers    = 0,
+							    .bufferMemoryBarrierCount = 1,
+							    .pBufferMemoryBarriers    = &bufferTransferBarrier,
 							    .imageMemoryBarrierCount  = 1,
-							    .pImageMemoryBarriers     = &prepareBlit,
+							    .pImageMemoryBarriers     = &imageLayoutToTransferDstOptimal,
 							};
 
 							vkCmdPipelineBarrier2( cmd, &dependency_info );
 						}
-						// Now blit from the srcMipLevel to dstMipLevel
 
-						int32_t srcImgWidth  = int32_t( le_cmd->info.image_w );
-						int32_t srcImgHeight = int32_t( le_cmd->info.image_h );
+						{
+							// Copy data for first mip level from buffer to image.
+							//
+							// Then use the first mip level as a source for subsequent mip levels.
+							// When copying from a lower mip level to a higher mip level, we must make
+							// sure to add barriers, as these blit operations are transfers.
+							//
 
-						for ( uint32_t dstMipLevel = le_cmd->info.dst_miplevel + 1; dstMipLevel < le_cmd->info.num_miplevels; dstMipLevel++ ) {
-
-							// Blit from lower mip level into next higher mip level
-							auto srcMipLevel = dstMipLevel - 1;
-
-							// Calculate width and height for next image in mip chain as half the corresponding source
-							// image dimension, unless dimension is smaller or equal to 2, in which case clamp to 1.
-							auto dstImgWidth  = srcImgWidth > 2 ? srcImgWidth >> 1 : 1;
-							auto dstImgHeight = srcImgHeight > 2 ? srcImgHeight >> 1 : 1;
-
-							VkOffset3D  offsetZero = { .x = 0, .y = 0, .z = 0 };
-							VkOffset3D  offsetSrc  = { .x = srcImgWidth, .y = srcImgHeight, .z = 1 };
-							VkOffset3D  offsetDst  = { .x = dstImgWidth, .y = dstImgHeight, .z = 1 };
-							VkImageBlit region{
-							    .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, srcMipLevel, 0, 1 },
-							    .srcOffsets     = { offsetZero, offsetSrc },
-							    .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, dstMipLevel, 0, 1 },
-							    .dstOffsets     = { offsetZero, offsetDst },
+							VkImageSubresourceLayers imageSubresourceLayers{
+							    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+							    .mipLevel       = 0,
+							    .baseArrayLayer = le_cmd->info.dst_array_layer,
+							    .layerCount     = 1,
 							};
 
-							vkCmdBlitImage(
-							    cmd,
-							    dstImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-							    dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-							    1, &region, VK_FILTER_LINEAR );
+							VkBufferImageCopy region{
+							    .bufferOffset      = 0,                                   // buffer offset is 0, since staging buffer is a fresh, specially allocated buffer
+							    .bufferRowLength   = 0,                                   // 0 means tightly packed
+							    .bufferImageHeight = 0,                                   // 0 means tightly packed
+							    .imageSubresource  = std::move( imageSubresourceLayers ), // stored inline
+							    .imageOffset =
+							        { .x = le_cmd->info.offset_x,
+							          .y = le_cmd->info.offset_y,
+							          .z = le_cmd->info.offset_z },
+							    .imageExtent =
+							        { .width  = le_cmd->info.image_w,
+							          .height = le_cmd->info.image_h,
+							          .depth  = le_cmd->info.image_d } };
+							;
 
-							// Now we barrier Read after Write, and transition our freshly blitted subresource to transferSrc,
-							// so that the next iteration may read from it.
+							vkCmdCopyBufferToImage( cmd, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region );
+						}
 
+						if ( le_cmd->info.num_miplevels > 1 ) {
+
+							// We generate additional miplevels by issueing scaled blits from one image subresource to the
+							// next higher mip level subresource.
+
+							// For this to work, we must first make sure that the image subresource we just wrote to
+							// is ready to be read back. We do this by issueing a read-after-write barrier, and with
+							// the same barrier we also transition the source subresource image to transfer_src_optimal
+							// layout (which is a requirement for blitting operations)
+							//
+							// The target image subresource is already in layout transfer_dst_optimal, as this is the
+							// layout we applied to the whole mip chain when
+
+							const uint32_t base_miplevel = le_cmd->info.dst_miplevel;
 							{
-								VkImageMemoryBarrier2 finishBlit{
+								VkImageMemoryBarrier2 prepareBlit{
 								    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-								    .pNext               = nullptr,                              // optional
-								    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // wait on transfer op
-								    .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // flush transfer writes so that memory becomes available to layout transition
-								    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // before next transfer op
-								    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make transitioned image visible to subsequent transfer read ops
-								    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // transition from transfer dst optimal
-								    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal
+								    .pNext               = nullptr,                              //
+								    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
+								    .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // make transfer write memory available (flush) to layout transition
+								    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
+								    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make cache (after layout transition) visible to transferRead op
+								    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // layout transition from transfer dst optimal,
+								    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
 								    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 								    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 								    .image               = dstImage,
-								    .subresourceRange    = {
-								           .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-								           .baseMipLevel   = dstMipLevel,
-								           .levelCount     = 1,
-								           .baseArrayLayer = 0,
-								           .layerCount     = 1,
-                                    },
+								    .subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
 								};
 
 								VkDependencyInfo dependency_info{
@@ -5552,219 +5781,348 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 								    .bufferMemoryBarrierCount = 0,
 								    .pBufferMemoryBarriers    = 0,
 								    .imageMemoryBarrierCount  = 1,
-								    .pImageMemoryBarriers     = &finishBlit,
+								    .pImageMemoryBarriers     = &prepareBlit,
+								};
+
+								vkCmdPipelineBarrier2( cmd, &dependency_info );
+							}
+							// Now blit from the srcMipLevel to dstMipLevel
+
+							int32_t srcImgWidth  = int32_t( le_cmd->info.image_w );
+							int32_t srcImgHeight = int32_t( le_cmd->info.image_h );
+
+							for ( uint32_t dstMipLevel = le_cmd->info.dst_miplevel + 1; dstMipLevel < le_cmd->info.num_miplevels; dstMipLevel++ ) {
+
+								// Blit from lower mip level into next higher mip level
+								auto srcMipLevel = dstMipLevel - 1;
+
+								// Calculate width and height for next image in mip chain as half the corresponding source
+								// image dimension, unless dimension is smaller or equal to 2, in which case clamp to 1.
+								auto dstImgWidth  = srcImgWidth > 2 ? srcImgWidth >> 1 : 1;
+								auto dstImgHeight = srcImgHeight > 2 ? srcImgHeight >> 1 : 1;
+
+								VkOffset3D  offsetZero = { .x = 0, .y = 0, .z = 0 };
+								VkOffset3D  offsetSrc  = { .x = srcImgWidth, .y = srcImgHeight, .z = 1 };
+								VkOffset3D  offsetDst  = { .x = dstImgWidth, .y = dstImgHeight, .z = 1 };
+								VkImageBlit region{
+								    .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, srcMipLevel, 0, 1 },
+								    .srcOffsets     = { offsetZero, offsetSrc },
+								    .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, dstMipLevel, 0, 1 },
+								    .dstOffsets     = { offsetZero, offsetDst },
+								};
+
+								vkCmdBlitImage(
+								    cmd,
+								    dstImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+								    dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+								    1, &region, VK_FILTER_LINEAR );
+
+								// Now we barrier Read after Write, and transition our freshly blitted subresource to transferSrc,
+								// so that the next iteration may read from it.
+
+								{
+									VkImageMemoryBarrier2 finishBlit{
+									    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+									    .pNext               = nullptr,                              // optional
+									    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // wait on transfer op
+									    .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // flush transfer writes so that memory becomes available to layout transition
+									    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     // before next transfer op
+									    .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,        // make transitioned image visible to subsequent transfer read ops
+									    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // transition from transfer dst optimal
+									    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to shader readonly optimal
+									    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									    .image               = dstImage,
+									    .subresourceRange    = {
+									           .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+									           .baseMipLevel   = dstMipLevel,
+									           .levelCount     = 1,
+									           .baseArrayLayer = 0,
+									           .layerCount     = 1,
+                                        },
+									};
+
+									VkDependencyInfo dependency_info{
+									    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+									    .pNext                    = nullptr,
+									    .dependencyFlags          = 0,
+									    .memoryBarrierCount       = 0,
+									    .pMemoryBarriers          = 0,
+									    .bufferMemoryBarrierCount = 0,
+									    .pBufferMemoryBarriers    = 0,
+									    .imageMemoryBarrierCount  = 1,
+									    .pImageMemoryBarriers     = &finishBlit,
+									};
+
+									vkCmdPipelineBarrier2( cmd, &dependency_info );
+								}
+
+								// Store this miplevel image's dimensions for next iteration
+								srcImgHeight = dstImgHeight;
+								srcImgWidth  = dstImgWidth;
+							}
+
+						} // end if mipLevelCount > 1
+
+						// Transition image from transfer src optimal to shader read only optimal layout
+
+						{
+							VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
+							    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+							    .pNext               = nullptr,
+							    .srcStageMask        = 0,
+							    .srcAccessMask       = 0,
+							    .dstStageMask        = 0,
+							    .dstAccessMask       = 0,
+							    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+							    .newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+							    .image               = dstImage,
+							    .subresourceRange    = rangeAllRemainingMiplevels,
+							};
+							;
+
+							if ( le_cmd->info.num_miplevels > 1 ) {
+
+								// If there were additional miplevels, the miplevel generation logic ensures that all subresources
+								// are left in transfer_src layout.
+
+								imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
+								imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything that fragment shader does
+								imageLayoutToShaderReadOptimal.srcAccessMask = {};                                       // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
+								imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make layout transitioned image visible to shader read in FragmentShader stage
+								imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;     // transition from transfer src optimal
+								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ...to shader readonly optimal -and make transitioned image available;
+							} else {
+
+								// If there are no additional miplevels, the single subresource will still be in
+								// transfer_dst layout after pixel data was uploaded to it.
+
+								imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
+								imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything in fragment shader
+								imageLayoutToShaderReadOptimal.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;           // make available what is in transferwrite - image layout transition will need it
+								imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make visible the result of the image layout transition to shader read in FragmentShader stage
+								imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;     // transition the single one subresource , which is in transfer dst optimal...
+								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ... to shader readonly optimal -and make the transitioned image available;
+								;
+							}
+
+							VkDependencyInfo dependency_info{
+							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+							    .pNext                    = nullptr,
+							    .dependencyFlags          = 0,
+							    .memoryBarrierCount       = 0,
+							    .pMemoryBarriers          = 0,
+							    .bufferMemoryBarrierCount = 0,
+							    .pBufferMemoryBarriers    = 0,
+							    .imageMemoryBarrierCount  = 1,
+							    .pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
+							};
+
+							vkCmdPipelineBarrier2( cmd, &dependency_info ); // images: prepare for shader read
+						}
+
+						break;
+					}
+					case le::CommandType::eBuildRtxBlas: {
+						auto* le_cmd = static_cast<le::CommandBuildRtxBlas*>( dataIt );
+
+						size_t     num_blas_handles  = le_cmd->info.blas_handles_count;
+						auto const blas_handle_begin = reinterpret_cast<le_resource_handle*>( le_cmd + 1 );
+
+						auto const blas_end = blas_handle_begin + num_blas_handles;
+
+						VkBuffer scratchBuffer = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
+
+						for ( auto blas_handle = blas_handle_begin; blas_handle != blas_end; blas_handle++ ) {
+
+							auto const&                allocated_resource        = frame.availableResources.at( *blas_handle );
+							VkAccelerationStructureKHR vk_acceleration_structure = allocated_resource.as.blas;
+							auto                       blas_info                 = reinterpret_cast<le_rtx_blas_info_o*>( allocated_resource.info.blasInfo.handle );
+
+							// Translate geometry info from internal format toVkgeometryKHR format.
+							// We do this for each blas, which in turn may have an array of geometries.
+
+							std::vector<VkAccelerationStructureGeometryKHR> geometries;
+							geometries.reserve( blas_info->geometries.size() );
+
+							std::vector<VkAccelerationStructureBuildRangeInfoKHR> build_ranges;
+							build_ranges.reserve( blas_info->geometries.size() );
+
+							for ( auto const& g : blas_info->geometries ) {
+
+								// TODO: we may want to cache this - so that we don't have to lookup addresses more than once
+
+								VkBuffer vertex_buffer = frame_data_get_buffer_from_le_resource_id( frame, g.vertex_buffer );
+								VkBuffer index_buffer  = frame_data_get_buffer_from_le_resource_id( frame, g.index_buffer );
+
+								VkDeviceOrHostAddressConstKHR vertex_addr = { .deviceAddress = 0 };
+								VkDeviceOrHostAddressConstKHR index_addr  = { .deviceAddress = 0 };
+
+								{
+									VkBufferDeviceAddressInfo info = {
+									    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+									    .pNext  = nullptr, // optional
+									    .buffer = vertex_buffer,
+									};
+
+									vertex_addr.deviceAddress = g.vertex_offset + vkGetBufferDeviceAddress( device, &info );
+								}
+
+								{
+									VkBufferDeviceAddressInfo info = {
+									    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+									    .pNext  = nullptr, // optional
+									    .buffer = index_buffer,
+									};
+									index_addr.deviceAddress =
+									    g.index_count
+									        ? g.index_offset + vkGetBufferDeviceAddress( device, &info )
+									        : 0;
+								}
+
+								VkAccelerationStructureGeometryKHR geometry = {
+								    .sType        = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+								    .pNext        = nullptr, // optional
+								    .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
+								    .geometry     = {
+								            .triangles = {
+								                .sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
+								                .pNext         = nullptr, // optional
+								                .vertexFormat  = VkFormat( g.vertex_format ),
+								                .vertexData    = vertex_addr,
+								                .vertexStride  = g.vertex_stride,
+								                .maxVertex     = g.vertex_count - 1, // highest index of a vertex that will be accessed via build command
+								                .indexType     = VkIndexType( g.index_type ),
+								                .indexData     = index_addr,
+								                .transformData = {}, // no transform data
+                                        } },
+								    .flags = VK_GEOMETRY_OPAQUE_BIT_KHR, // optional
+								};
+
+								geometries.emplace_back( geometry );
+
+								VkAccelerationStructureBuildRangeInfoKHR build_range = {
+								    .primitiveCount  = 0,
+								    .primitiveOffset = 0,
+								    .firstVertex     = 0,
+								    .transformOffset = 0,
+								};
+
+								if ( g.index_count ) {
+									// indexed geometry
+									build_range.primitiveCount = g.index_count / 3;
+								} else {
+									// non-indexed geometry
+									build_range.primitiveCount = g.vertex_count / 3;
+								}
+
+								build_ranges.emplace_back( build_range );
+							}
+
+							VkAccelerationStructureBuildRangeInfoKHR const* pBuildRangeInfos = build_ranges.data();
+
+							VkDeviceOrHostAddressKHR scratchDataAddr = {};
+							//  We get the device address by querying from the buffer.
+							{
+								VkBufferDeviceAddressInfo info = {
+								    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+								    .pNext  = nullptr, // optional
+								    .buffer = scratchBuffer,
+								};
+
+								scratchDataAddr.deviceAddress = vkGetBufferDeviceAddress( device, &info );
+							}
+
+							VkAccelerationStructureBuildGeometryInfoKHR info = {
+							    .sType                    = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+							    .pNext                    = nullptr, // optional
+							    .type                     = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+							    .flags                    = blas_info->flags, // optional
+							    .mode                     = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+							    .srcAccelerationStructure = nullptr,                       // optional
+							    .dstAccelerationStructure = vk_acceleration_structure,     // optional
+							    .geometryCount            = uint32_t( geometries.size() ), // optional
+							    .pGeometries              = geometries.data(),             // optional
+							    .ppGeometries             = 0,
+							    .scratchData              = scratchDataAddr,
+							};
+
+							vkCmdBuildAccelerationStructuresKHR( cmd, 1, &info, &pBuildRangeInfos );
+
+							// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
+							// is finished before starting the next one - theoretically we could limit this to the scratch
+							// buffer by issueing a buffer memory barrier, but since no one else will probably use the
+							// acceleration structure memory caches, we should be fine with this more general barrier.
+
+							{
+								VkMemoryBarrier2 barrier = {
+								    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+								    .pNext         = nullptr,                                                  // optional
+								    .srcStageMask  = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, //
+								    .srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,         // make anything written in previous acceleration structure build stage available
+								    .dstStageMask  = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, // before the next acceleration build stage
+								    .dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR,          // memory which has been previously written (and made available) must be visible after the barrier
+								};
+								VkDependencyInfo dependency_info = {
+								    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+								    .pNext                    = nullptr, // optional
+								    .dependencyFlags          = 0,       // optional
+								    .memoryBarrierCount       = 1,       // optional
+								    .pMemoryBarriers          = &barrier,
+								    .bufferMemoryBarrierCount = 0, // optional
+								    .pBufferMemoryBarriers    = 0,
+								    .imageMemoryBarrierCount  = 0,
+								    .pImageMemoryBarriers     = 0,
 								};
 
 								vkCmdPipelineBarrier2( cmd, &dependency_info );
 							}
 
-							// Store this miplevel image's dimensions for next iteration
-							srcImgHeight = dstImgHeight;
-							srcImgWidth  = dstImgWidth;
-						}
+						} // end for each blas element in array
 
-					} // end if mipLevelCount > 1
-
-					// Transition image from transfer src optimal to shader read only optimal layout
-
-					{
-						VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
-						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-						    .pNext               = nullptr,
-						    .srcStageMask        = 0,
-						    .srcAccessMask       = 0,
-						    .dstStageMask        = 0,
-						    .dstAccessMask       = 0,
-						    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-						    .newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-						    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-						    .image               = dstImage,
-						    .subresourceRange    = rangeAllRemainingMiplevels,
-						};
-						;
-
-						if ( le_cmd->info.num_miplevels > 1 ) {
-
-							// If there were additional miplevels, the miplevel generation logic ensures that all subresources
-							// are left in transfer_src layout.
-
-							imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
-							imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything that fragment shader does
-							imageLayoutToShaderReadOptimal.srcAccessMask = {};                                       // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
-							imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make layout transitioned image visible to shader read in FragmentShader stage
-							imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;     // transition from transfer src optimal
-							imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ...to shader readonly optimal -and make transitioned image available;
-						} else {
-
-							// If there are no additional miplevels, the single subresource will still be in
-							// transfer_dst layout after pixel data was uploaded to it.
-
-							imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
-							imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything in fragment shader
-							imageLayoutToShaderReadOptimal.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;           // make available what is in transferwrite - image layout transition will need it
-							imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make visible the result of the image layout transition to shader read in FragmentShader stage
-							imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;     // transition the single one subresource , which is in transfer dst optimal...
-							imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ... to shader readonly optimal -and make the transitioned image available;
-							;
-						}
-
-						VkDependencyInfo dependency_info{
-						    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-						    .pNext                    = nullptr,
-						    .dependencyFlags          = 0,
-						    .memoryBarrierCount       = 0,
-						    .pMemoryBarriers          = 0,
-						    .bufferMemoryBarrierCount = 0,
-						    .pBufferMemoryBarriers    = 0,
-						    .imageMemoryBarrierCount  = 1,
-						    .pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
-						};
-
-						vkCmdPipelineBarrier2( cmd, &dependency_info ); // images: prepare for shader read
+						break;
 					}
+					case le::CommandType::eBuildRtxTlas: {
+						auto*                       le_cmd              = static_cast<le::CommandBuildRtxTlas*>( dataIt );
+						void*                       payload_addr        = le_cmd + 1;
+						le_resource_handle const*   resources           = static_cast<le_resource_handle*>( payload_addr );
+						void*                       scratch_memory_addr = le_cmd->info.staging_buffer_mapped_memory;
+						le_rtx_geometry_instance_t* instances           = static_cast<le_rtx_geometry_instance_t*>( scratch_memory_addr );
 
-					break;
-				}
-				case le::CommandType::eBuildRtxBlas: {
-					auto* le_cmd = static_cast<le::CommandBuildRtxBlas*>( dataIt );
+						// Foreach resource, we must patch the corresponding instance
 
-					size_t     num_blas_handles  = le_cmd->info.blas_handles_count;
-					auto const blas_handle_begin = reinterpret_cast<le_resource_handle*>( le_cmd + 1 );
+						const size_t instances_count = le_cmd->info.geometry_instances_count;
 
-					auto const blas_end = blas_handle_begin + num_blas_handles;
+						// TODO: Error checking: we should skip this command and issue a
+						// warning if any blas resource could not be found.
 
-					VkBuffer scratchBuffer = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
-
-					for ( auto blas_handle = blas_handle_begin; blas_handle != blas_end; blas_handle++ ) {
-
-						auto const&                allocated_resource        = frame.availableResources.at( *blas_handle );
-						VkAccelerationStructureKHR vk_acceleration_structure = allocated_resource.as.blas;
-						auto                       blas_info                 = reinterpret_cast<le_rtx_blas_info_o*>( allocated_resource.info.blasInfo.handle );
-
-						// Translate geometry info from internal format toVkgeometryKHR format.
-						// We do this for each blas, which in turn may have an array of geometries.
-
-						std::vector<VkAccelerationStructureGeometryKHR> geometries;
-						geometries.reserve( blas_info->geometries.size() );
-
-						std::vector<VkAccelerationStructureBuildRangeInfoKHR> build_ranges;
-						build_ranges.reserve( blas_info->geometries.size() );
-
-						for ( auto const& g : blas_info->geometries ) {
-
-							// TODO: we may want to cache this - so that we don't have to lookup addresses more than once
-
-							VkBuffer vertex_buffer = frame_data_get_buffer_from_le_resource_id( frame, g.vertex_buffer );
-							VkBuffer index_buffer  = frame_data_get_buffer_from_le_resource_id( frame, g.index_buffer );
-
-							VkDeviceOrHostAddressConstKHR vertex_addr = { .deviceAddress = 0 };
-							VkDeviceOrHostAddressConstKHR index_addr  = { .deviceAddress = 0 };
-
-							{
-								VkBufferDeviceAddressInfo info = {
-								    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-								    .pNext  = nullptr, // optional
-								    .buffer = vertex_buffer,
-								};
-
-								vertex_addr.deviceAddress = g.vertex_offset + vkGetBufferDeviceAddress( device, &info );
-							}
-
-							{
-								VkBufferDeviceAddressInfo info = {
-								    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-								    .pNext  = nullptr, // optional
-								    .buffer = index_buffer,
-								};
-								index_addr.deviceAddress =
-								    g.index_count
-								        ? g.index_offset + vkGetBufferDeviceAddress( device, &info )
-								        : 0;
-							}
-
-							VkAccelerationStructureGeometryKHR geometry = {
-							    .sType        = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
-							    .pNext        = nullptr, // optional
-							    .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
-							    .geometry     = {
-							            .triangles = {
-							                .sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
-							                .pNext         = nullptr, // optional
-							                .vertexFormat  = VkFormat( g.vertex_format ),
-							                .vertexData    = vertex_addr,
-							                .vertexStride  = g.vertex_stride,
-							                .maxVertex     = g.vertex_count - 1, // highest index of a vertex that will be accessed via build command
-							                .indexType     = VkIndexType( g.index_type ),
-							                .indexData     = index_addr,
-							                .transformData = {}, // no transform data
-                                    } },
-							    .flags = VK_GEOMETRY_OPAQUE_BIT_KHR, // optional
-							};
-
-							geometries.emplace_back( geometry );
-
-							VkAccelerationStructureBuildRangeInfoKHR build_range = {
-							    .primitiveCount  = 0,
-							    .primitiveOffset = 0,
-							    .firstVertex     = 0,
-							    .transformOffset = 0,
-							};
-
-							if ( g.index_count ) {
-								// indexed geometry
-								build_range.primitiveCount = g.index_count / 3;
-							} else {
-								// non-indexed geometry
-								build_range.primitiveCount = g.vertex_count / 3;
-							}
-
-							build_ranges.emplace_back( build_range );
+						for ( size_t i = 0; i != instances_count; i++ ) {
+							// Update blas handles in-place on GPU mapped, coherent memory.
+							//
+							// The 64bit integer handles for bottom level acceleration structures were queried from the GPU when
+							// building bottom level acceleration structures.
+							instances[ i ].blas_handle = frame.availableResources.at( resources[ i ] ).info.blasInfo.device_address;
 						}
 
-						VkAccelerationStructureBuildRangeInfoKHR const* pBuildRangeInfos = build_ranges.data();
+						// Invariant: all instances should be patched right now, we can use the buffer at offset as
+						// instance data to build tlas.
+						auto const&                allocated_resource        = frame.availableResources.at( le_cmd->info.tlas_handle );
+						VkAccelerationStructureKHR vk_acceleration_structure = allocated_resource.as.tlas;
+						auto                       tlas_info                 = reinterpret_cast<le_rtx_tlas_info_o*>( allocated_resource.info.tlasInfo.handle );
 
-						VkDeviceOrHostAddressKHR scratchDataAddr = {};
-						//  We get the device address by querying from the buffer.
-						{
-							VkBufferDeviceAddressInfo info = {
-							    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-							    .pNext  = nullptr, // optional
-							    .buffer = scratchBuffer,
-							};
-
-							scratchDataAddr.deviceAddress = vkGetBufferDeviceAddress( device, &info );
-						}
-
-						VkAccelerationStructureBuildGeometryInfoKHR info = {
-						    .sType                    = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
-						    .pNext                    = nullptr, // optional
-						    .type                     = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
-						    .flags                    = blas_info->flags, // optional
-						    .mode                     = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
-						    .srcAccelerationStructure = nullptr,                       // optional
-						    .dstAccelerationStructure = vk_acceleration_structure,     // optional
-						    .geometryCount            = uint32_t( geometries.size() ), // optional
-						    .pGeometries              = geometries.data(),             // optional
-						    .ppGeometries             = 0,
-						    .scratchData              = scratchDataAddr,
-						};
-
-						vkCmdBuildAccelerationStructuresKHR( cmd, 1, &info, &pBuildRangeInfos );
-
-						// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
-						// is finished before starting the next one - theoretically we could limit this to the scratch
-						// buffer by issueing a buffer memory barrier, but since no one else will probably use the
-						// acceleration structure memory caches, we should be fine with this more general barrier.
+						// Issue barrier to make sure that transfer to instances buffer is complete
+						// before building top-level acceleration structure
 
 						{
 							VkMemoryBarrier2 barrier = {
 							    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
-							    .pNext         = nullptr,                                                  // optional
-							    .srcStageMask  = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, //
-							    .srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,         // make anything written in previous acceleration structure build stage available
-							    .dstStageMask  = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, // before the next acceleration build stage
-							    .dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR,          // memory which has been previously written (and made available) must be visible after the barrier
+							    .pNext         = nullptr,                                                  //
+							    .srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT,                         // transfer must happen before barrier
+							    .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,                           // anything written in transfer must have been made available
+							    .dstStageMask  = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, // acceleration structure build must happen-after barrier
+							    .dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,         // and memory must have been made visible to acceleration structure write
 							};
 							VkDependencyInfo dependency_info = {
 							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -5774,170 +6132,107 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .pMemoryBarriers          = &barrier,
 							    .bufferMemoryBarrierCount = 0, // optional
 							    .pBufferMemoryBarriers    = 0,
-							    .imageMemoryBarrierCount  = 0,
+							    .imageMemoryBarrierCount  = 0, // optional
 							    .pImageMemoryBarriers     = 0,
 							};
-
 							vkCmdPipelineBarrier2( cmd, &dependency_info );
 						}
 
-					} // end for each blas element in array
+						// instances information is encoded via buffer, but that buffer is also available as host memory,
+						// because it is held in staging_buffer_mapped_memory...
+						VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id );
+						VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
 
-					break;
-				}
-				case le::CommandType::eBuildRtxTlas: {
-					auto*                       le_cmd              = static_cast<le::CommandBuildRtxTlas*>( dataIt );
-					void*                       payload_addr        = le_cmd + 1;
-					le_resource_handle const*   resources           = static_cast<le_resource_handle*>( payload_addr );
-					void*                       scratch_memory_addr = le_cmd->info.staging_buffer_mapped_memory;
-					le_rtx_geometry_instance_t* instances           = static_cast<le_rtx_geometry_instance_t*>( scratch_memory_addr );
+						VkDeviceOrHostAddressConstKHR instanceBufferDeviceAddress = {};
 
-					// Foreach resource, we must patch the corresponding instance
+						{
+							VkBufferDeviceAddressInfo info = {
+							    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+							    .pNext  = nullptr, // optional
+							    .buffer = instanceBuffer,
+							};
 
-					const size_t instances_count = le_cmd->info.geometry_instances_count;
+							instanceBufferDeviceAddress.deviceAddress =
+							    le_cmd->info.staging_buffer_offset +
+							    vkGetBufferDeviceAddress( device, &info );
+						}
 
-					// TODO: Error checking: we should skip this command and issue a
-					// warning if any blas resource could not be found.
-
-					for ( size_t i = 0; i != instances_count; i++ ) {
-						// Update blas handles in-place on GPU mapped, coherent memory.
-						//
-						// The 64bit integer handles for bottom level acceleration structures were queried from the GPU when
-						// building bottom level acceleration structures.
-						instances[ i ].blas_handle = frame.availableResources.at( resources[ i ] ).info.blasInfo.device_address;
-					}
-
-					// Invariant: all instances should be patched right now, we can use the buffer at offset as
-					// instance data to build tlas.
-					auto const&                allocated_resource        = frame.availableResources.at( le_cmd->info.tlas_handle );
-					VkAccelerationStructureKHR vk_acceleration_structure = allocated_resource.as.tlas;
-					auto                       tlas_info                 = reinterpret_cast<le_rtx_tlas_info_o*>( allocated_resource.info.tlasInfo.handle );
-
-					// Issue barrier to make sure that transfer to instances buffer is complete
-					// before building top-level acceleration structure
-
-					{
-						VkMemoryBarrier2 barrier = {
-						    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
-						    .pNext         = nullptr,                                                  //
-						    .srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT,                         // transfer must happen before barrier
-						    .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,                           // anything written in transfer must have been made available
-						    .dstStageMask  = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, // acceleration structure build must happen-after barrier
-						    .dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,         // and memory must have been made visible to acceleration structure write
+						VkAccelerationStructureGeometryKHR khr_instances_data = {
+						    .sType        = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+						    .pNext        = nullptr, // optional
+						    .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
+						    .geometry     = {
+						            .instances = {
+						                .sType           = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+						                .pNext           = nullptr, // optional
+						                .arrayOfPointers = false,
+						                .data            = instanceBufferDeviceAddress,
+                                } },
+						    .flags = VK_GEOMETRY_OPAQUE_BIT_KHR, // optional
 						};
-						VkDependencyInfo dependency_info = {
-						    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+						// Take pointer to array of khr_instances - we will need one further indirection because reasons.
+
+						//  we get the device address by querying from the buffer.
+						VkDeviceOrHostAddressKHR scratch_data_addr = {};
+						{
+							VkBufferDeviceAddressInfo info = {
+							    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+							    .pNext  = nullptr, // optional
+							    .buffer = scratchBuffer,
+							};
+							scratch_data_addr.deviceAddress = vkGetBufferDeviceAddress( device, &info );
+						}
+						VkAccelerationStructureBuildGeometryInfoKHR info = {
+						    .sType                    = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
 						    .pNext                    = nullptr, // optional
-						    .dependencyFlags          = 0,       // optional
-						    .memoryBarrierCount       = 1,       // optional
-						    .pMemoryBarriers          = &barrier,
-						    .bufferMemoryBarrierCount = 0, // optional
-						    .pBufferMemoryBarriers    = 0,
-						    .imageMemoryBarrierCount  = 0, // optional
-						    .pImageMemoryBarriers     = 0,
-						};
-						vkCmdPipelineBarrier2( cmd, &dependency_info );
-					}
-
-					// instances information is encoded via buffer, but that buffer is also available as host memory,
-					// because it is held in staging_buffer_mapped_memory...
-					VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id );
-					VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
-
-					VkDeviceOrHostAddressConstKHR instanceBufferDeviceAddress = {};
-
-					{
-						VkBufferDeviceAddressInfo info = {
-						    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-						    .pNext  = nullptr, // optional
-						    .buffer = instanceBuffer,
+						    .type                     = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+						    .flags                    = tlas_info->flags, // optional
+						    .mode                     = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+						    .srcAccelerationStructure = 0,                         // optional
+						    .dstAccelerationStructure = vk_acceleration_structure, // optional
+						    .geometryCount            = 1,                         // optional
+						    .pGeometries              = &khr_instances_data,       // optional
+						    .ppGeometries             = 0,
+						    .scratchData              = scratch_data_addr,
 						};
 
-						instanceBufferDeviceAddress.deviceAddress =
-						    le_cmd->info.staging_buffer_offset +
-						    vkGetBufferDeviceAddress( device, &info );
-					}
-
-					VkAccelerationStructureGeometryKHR khr_instances_data = {
-					    .sType        = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
-					    .pNext        = nullptr, // optional
-					    .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
-					    .geometry     = {
-					            .instances = {
-					                .sType           = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
-					                .pNext           = nullptr, // optional
-					                .arrayOfPointers = false,
-					                .data            = instanceBufferDeviceAddress,
-                            } },
-					    .flags = VK_GEOMETRY_OPAQUE_BIT_KHR, // optional
-					};
-					// Take pointer to array of khr_instances - we will need one further indirection because reasons.
-
-					//  we get the device address by querying from the buffer.
-					VkDeviceOrHostAddressKHR scratch_data_addr = {};
-					{
-						VkBufferDeviceAddressInfo info = {
-						    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-						    .pNext  = nullptr, // optional
-						    .buffer = scratchBuffer,
+						VkAccelerationStructureBuildRangeInfoKHR build_ranges = {
+						    .primitiveCount  = tlas_info->instances_count, // This is where we set the number of instances.
+						    .primitiveOffset = 0,                          // spec states: must be a multiple of 16?!!
+						    .firstVertex     = 0,
+						    .transformOffset = 0,
 						};
-						scratch_data_addr.deviceAddress = vkGetBufferDeviceAddress( device, &info );
+
+						VkAccelerationStructureBuildRangeInfoKHR* p_build_ranges = &build_ranges;
+
+						vkCmdBuildAccelerationStructuresKHR( cmd, 1, &info, &p_build_ranges );
+
+						break;
 					}
-					VkAccelerationStructureBuildGeometryInfoKHR info = {
-					    .sType                    = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
-					    .pNext                    = nullptr, // optional
-					    .type                     = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
-					    .flags                    = tlas_info->flags, // optional
-					    .mode                     = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
-					    .srcAccelerationStructure = 0,                         // optional
-					    .dstAccelerationStructure = vk_acceleration_structure, // optional
-					    .geometryCount            = 1,                         // optional
-					    .pGeometries              = &khr_instances_data,       // optional
-					    .ppGeometries             = 0,
-					    .scratchData              = scratch_data_addr,
-					};
+					default: {
+						assert( false && "command not handled" );
+					}
+					} // end switch header.info.type
 
-					VkAccelerationStructureBuildRangeInfoKHR build_ranges = {
-					    .primitiveCount  = tlas_info->instances_count, // This is where we set the number of instances.
-					    .primitiveOffset = 0,                          // spec states: must be a multiple of 16?!!
-					    .firstVertex     = 0,
-					    .transformOffset = 0,
-					};
+					// Move iterator by size of current le_command so that it points
+					// to the next command in the list.
+					dataIt = static_cast<char*>( dataIt ) + header->info.size;
 
-					VkAccelerationStructureBuildRangeInfoKHR* p_build_ranges = &build_ranges;
-
-					vkCmdBuildAccelerationStructuresKHR( cmd, 1, &info, &p_build_ranges );
-
-					break;
+					++commandIndex;
 				}
-				default: {
-					assert( false && "command not handled" );
-				}
-				} // end switch header.info.type
-
-				// Move iterator by size of current le_command so that it points
-				// to the next command in the list.
-				dataIt = static_cast<char*>( dataIt ) + header->info.size;
-
-				++commandIndex;
 			}
+
+			// non-draw passes don't need renderpasses.
+			if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
+				vkCmdEndRenderPass( cmd );
+			}
+
+			if ( should_insert_debug_labels ) {
+				vkCmdEndDebugUtilsLabelEXT( cmd );
+			}
+
+			vkEndCommandBuffer( cmd );
 		}
-
-		// non-draw passes don't need renderpasses.
-		if ( pass.type == le::RenderPassType::eDraw && pass.renderPass ) {
-			vkCmdEndRenderPass( cmd );
-		}
-
-		if ( should_insert_debug_labels ) {
-			vkCmdEndDebugUtilsLabelEXT( cmd );
-		}
-
-		vkEndCommandBuffer( cmd );
-	}
-
-	// place command buffer in frame store so that it can be submitted.
-	for ( auto&& c : cmdBufs ) {
-		frame.commandBuffers.emplace_back( c );
 	}
 }
 
@@ -5983,94 +6278,983 @@ static le_pipeline_manager_o* backend_get_pipeline_cache( le_backend_o* self ) {
 }
 
 // ----------------------------------------------------------------------
+// Return a pointer to a queue info structure holding the queue
+// which we use for default graphics operations. This is also
+// the queue which is used for swapchain present.
+static BackendQueueInfo* backend_get_default_graphics_queue_info( le_backend_o* self ) {
 
+	assert( !self->queues.empty() && "No queues available; Cannot retrieve default graphics queue" );
+	// -----------| Invariant: queue available
+
+	static auto result = self->queues[ self->queue_default_graphics_idx ];
+
+	// It's safe to return a pointer to a vector element, and to cache it here,
+	// as `self->queues` is constant once a device has been created.
+	// There is no way to add or remove queues at a later stage because queues
+	// are owned by device.
+
+	return result;
+}
+
+struct QueueSubmissionLoggerData {
+
+	struct info_t {
+		uint32_t value;
+		uint32_t semaphore_id;
+	};
+
+	struct submission_t {
+		BackendQueueInfo*   queue;
+		std::string         info;
+		std::vector<info_t> wait_semaphores;
+		std::vector<info_t> signal_semaphores;
+	};
+
+	std::vector<submission_t> submissions;
+};
+
+std::unordered_map<VkSemaphore, uint32_t>* get_semaphore_indices() {
+	static std::unordered_map<VkSemaphore, uint32_t> semaphore_index;
+	return &semaphore_index;
+}
+std::vector<std::string>* get_semaphore_names() {
+	static std::vector<std::string> semaphore_names;
+	return &semaphore_names;
+}
+QueueSubmissionLoggerData* get_queue_submission_logger_data() {
+	static QueueSubmissionLoggerData data;
+	return &data;
+}
+
+std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const* backend ) {
+
+	auto semaphore_names   = get_semaphore_names();
+	auto semaphore_indices = get_semaphore_indices();
+
+	uint32_t f_idx = 0;
+	for ( auto const& f : backend->mFrames ) {
+		for ( size_t i = 0; i != f.swapchain_state.size(); i++ ) {
+			{
+				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].presentComplete, uint32_t( semaphore_indices->size() ) );
+				if ( it.second ) {
+					// if an element was inserted
+					semaphore_names->push_back( "PRESENT_COMPLETE@" + std::to_string( i ) );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				} else {
+					( *semaphore_names )[ it.first->second ] = "PRESENT_COMPLETE@" + std::to_string( i );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				}
+			}
+			{
+				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].renderComplete, uint32_t( semaphore_indices->size() ) );
+				if ( it.second ) {
+					// if an element was inserted
+					semaphore_names->push_back( "RENDER_COMPLETE@" + std::to_string( i ) );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				} else {
+					( *semaphore_names )[ it.first->second ] = "RENDER_COMPLETE@" + std::to_string( i );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				}
+			}
+		}
+		f_idx++;
+	}
+
+	return get_semaphore_names();
+};
+
+static void backend_emit_queue_submission_log( le_backend_o const* backend, uint64_t frame_number ) {
+
+	static std::filesystem::path exe_path = []() {
+		char result[ 1024 ] = { 0 };
+
+#ifdef _MSC_VER
+
+		// When NULL is passed to GetModuleHandle, the handle of the exe itself is returned
+		HMODULE hModule = GetModuleHandle( NULL );
+		if ( hModule != NULL ) {
+			// Use GetModuleFileName() with module handle to get the path
+			GetModuleFileName( hModule, result, ( sizeof( result ) ) );
+		}
+		size_t count = strnlen_s( result, sizeof( result ) );
+#else
+		ssize_t count = readlink( "/proc/self/exe", result, 1024 );
+#endif
+
+		return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
+	}();
+
+	static QueueSubmissionLoggerData*               data = get_queue_submission_logger_data();
+	static std::unordered_map<VkQueue, std::string> queue_name;
+	static std::vector<std::string>*                semaphore_names = backend_initialise_semaphore_names( backend );
+
+	std::ostringstream                     os;
+	std::unordered_map<uint64_t, uint32_t> wait_info_to_submission; // wait info to submission id
+	std::unordered_map<uint64_t, uint32_t> sign_info_to_submission; // signal info to submission id
+	uint32_t                               submission_id = 0;
+
+	os << "digraph g {\n"
+	      "rankdir = LR;\n"
+	      "node [shape = record; height = 1; fontname = \"IBM Plex Sans\";];\n"
+	      "graph [label = <<table border='0' cellborder='0' cellspacing='0' cellpadding='3'>";
+	for ( size_t i = 0; i != backend->queues.size(); i++ ) {
+
+		os << "<tr><td align='left'>queue_" << i << " : {" << to_string_vk_queue_flags( backend->queues[ i ]->queue_flags ) << "}</td></tr>";
+	}
+	os << "<tr><td align='left'>\"" << exe_path.string() << "\"</td></tr>"
+	   << "<tr><td align='left'>Island Queue Sync @ Frame № " << frame_number << "</td></tr>"
+	   << "</table>>; splines = true; nodesep = 0.7; fontname = \"IBM Plex Sans\"; fontsize = 10; labeljust = \"l\";];";
+	;
+
+	// -- Go through each submission in sequence
+	for ( auto const& submission : data->submissions ) {
+		// each submission represents one queue submission
+
+		os << "struct_" << submission_id << " [\n";
+
+		auto queue_name_it = queue_name.emplace( submission.queue->queue, "" );
+		if ( queue_name_it.second == true ) {
+			// there was no entry there, yet
+
+			std::ostringstream oname;
+			{
+				size_t i = 0;
+				for ( ; i != backend->queues.size(); i++ ) {
+					if ( backend->queues[ i ] == submission.queue ) {
+						break;
+					}
+				}
+				if ( i != backend->queues.size() ) {
+				}
+				oname << "queue_" << i << " : ";
+			}
+
+			queue_name_it.first->second = oname.str();
+		}
+
+		os << "\tlabel = \"<port_struct_" << submission_id << ">" << queue_name_it.first->second;
+		os << "|" << submission.info;
+
+		{
+			auto w_it = submission.wait_semaphores.begin();
+			auto s_it = submission.signal_semaphores.begin();
+			do {
+
+				os << "|";
+				os << "{";
+				if ( w_it != submission.wait_semaphores.end() ) {
+					os << "<port_" << w_it->semaphore_id << "_w_" << w_it->value << ">" << ( *semaphore_names )[ w_it->semaphore_id ] << "_" << w_it->value;
+					wait_info_to_submission.emplace( uint64( w_it->value ) << 32 | w_it->semaphore_id, submission_id );
+					w_it++;
+				}
+				os << "|";
+				if ( s_it != submission.signal_semaphores.end() ) {
+					os << "<port_" << s_it->semaphore_id << "_s_" << s_it->value << ">" << ( *semaphore_names )[ s_it->semaphore_id ] << "_" << s_it->value;
+					sign_info_to_submission.emplace( uint64( s_it->value ) << 32 | s_it->semaphore_id, submission_id );
+					s_it++;
+				}
+				os << "}";
+			} while ( w_it != submission.wait_semaphores.end() || s_it != submission.signal_semaphores.end() );
+		}
+		os << "\";\n];\n";
+		submission_id++;
+	}
+
+	// for all the waits, find a matching signal
+	os << "\n";
+
+	for ( auto const& w : wait_info_to_submission ) {
+		auto it = sign_info_to_submission.find( w.first );
+		if ( it != sign_info_to_submission.end() ) {
+
+			os << "\tstruct_" << it->second << ":port_" << ( it->first & ~uint32_t( 0 ) ) << "_s_" << ( it->first >> 32 ) << " -> "
+			   << "struct_" << w.second << ":port_" << ( w.first & ~uint32_t( 0 ) ) << "_w_" << ( w.first >> 32 ) << "\n";
+		}
+	}
+
+	// we want to link back to the last submission on the same queue
+	{
+		os << "edge [style=dashed;];\n";
+		std::unordered_map<VkQueue, uint32_t> queue_to_last_submission;
+		uint32_t                              i = 0;
+		for ( auto const& s : data->submissions ) {
+
+			auto it = queue_to_last_submission.emplace( s.queue->queue, i );
+
+			if ( it.second == false ) {
+				// there was already a previous entry for this queue
+
+				os << "\tstruct_" << it.first->second << ":port_struct_" << it.first->second << " -> "
+				   << "\tstruct_" << i << ":port_struct_" << i << "\n";
+
+				it.first->second = i;
+			}
+
+			i++;
+		}
+	}
+
+	os << "}\n";
+
+	auto write_to_file = []( char const* filename, std::ostringstream const& os ) {
+		FILE* out_file = fopen( filename, "wb" );
+		fprintf( out_file, "%s\n", os.str().c_str() );
+		fclose( out_file );
+
+		le::Log( LOGGER_LABEL ).info( "Generated .dot file: '%s'", filename );
+	};
+
+	char filename[ 32 ] = "queues.dot";
+
+	std::filesystem::path full_path = exe_path.parent_path() / filename;
+	write_to_file( full_path.string().c_str(), os );
+
+	snprintf( filename, sizeof( filename ), "queues_%08zu.dot", frame_number );
+
+	full_path = exe_path.parent_path() / filename;
+	write_to_file( full_path.string().c_str(), os );
+
+	data->submissions.clear();
+}
+
+// ----------------------------------------------------------------------
+// we wrap queue submissions so that we can log all parameters for a queue submission.
+static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_count, VkSubmitInfo2 const* submitInfo, VkFence fence, std::string const& debug_info = "" ) {
+
+	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
+
+	if ( *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES ) {
+
+		static QueueSubmissionLoggerData* data = get_queue_submission_logger_data();
+
+		VkSemaphoreSubmitInfo const*       wait_info      = submitInfo->pWaitSemaphoreInfos;
+		VkSemaphoreSubmitInfo const* const wait_infos_end = wait_info + submitInfo->waitSemaphoreInfoCount;
+		VkSemaphoreSubmitInfo const*       sign_info      = submitInfo->pSignalSemaphoreInfos;
+		VkSemaphoreSubmitInfo const* const sign_infos_end = sign_info + submitInfo->signalSemaphoreInfoCount;
+
+		static auto semaphore_index = get_semaphore_indices();
+		static auto semaphore_names = get_semaphore_names();
+
+		QueueSubmissionLoggerData::submission_t submission;
+		submission.queue = queue;
+		do {
+			if ( wait_info != wait_infos_end ) {
+				auto it = semaphore_index->emplace( wait_info->semaphore, uint32_t( semaphore_index->size() ) );
+				if ( it.second ) {
+					// if an element was inserted
+					semaphore_names->push_back( std::to_string( semaphore_names->size() ) );
+					assert( semaphore_names->size() == semaphore_index->size() );
+				}
+				uint32_t                          wait_semaphore_id = it.first->second;
+				QueueSubmissionLoggerData::info_t info;
+				info.semaphore_id = wait_semaphore_id;
+				info.value        = uint32_t( wait_info->value & ~uint32_t( 0 ) ); // truncate to 32 bit value
+				submission.wait_semaphores.emplace_back( std::move( info ) );
+				wait_info++;
+			}
+			if ( sign_info != sign_infos_end ) {
+				auto it = semaphore_index->emplace( sign_info->semaphore, uint32_t( semaphore_index->size() ) );
+				if ( it.second ) {
+					// if an element was inserted
+					semaphore_names->push_back( std::to_string( semaphore_names->size() ) );
+					assert( semaphore_names->size() == semaphore_index->size() );
+				}
+				uint32_t                          sign_semaphore_id = it.first->second;
+				QueueSubmissionLoggerData::info_t info;
+				info.semaphore_id = sign_semaphore_id;
+				info.value        = uint32_t( sign_info->value & ~uint32_t( 0 ) ); // truncate to 32bit value
+				submission.signal_semaphores.emplace_back( std::move( info ) );
+				sign_info++;
+			}
+
+		} while ( sign_info != sign_infos_end || wait_info != wait_infos_end );
+		submission.info = debug_info;
+		data->submissions.emplace_back( std::move( submission ) );
+	}
+
+	// --------- the actual queue submission happens here
+
+	vkQueueSubmit2( queue->queue, submission_count, submitInfo, fence );
+};
+
+// ----------------------------------------------------------------------
+static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameIndex ) {
+
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto&       frame  = self->mFrames[ frameIndex ];
+
+	struct ownership_transfer_t {
+		le_resource_handle    resource;
+		uint32_t              src_queue_family_index;
+		uint32_t              dst_queue_family_index;
+		std::vector<uint32_t> dst_queue_index;
+	};
+
+	std::unordered_map<le_resource_handle, ownership_transfer_t> queue_ownership_transfers;     // note that the transfer must happen on both queues - first release, then acquire.
+	bool                                                         must_wait_for_acquire = false; /// signals whether multiple queues of the same family await a resoruce to become acquired
+
+	// Test for all resources test if family ownership matches
+	// since we last used this resource - if not, change it, and note the change.
+	for ( auto const& submission_data : frame.queue_submission_data ) {
+		uint32_t submission_queue_family_idx = self->queues[ submission_data.queue_idx ]->queue_family_index;
+		for ( auto const& i : submission_data.pass_indices ) {
+			for ( auto const& r : frame.passes[ i ].resources ) {
+
+				// Tentatively write to the front buffer
+				auto found_queue_family_ownership = self->resource_queue_family_ownership[ 0 ].find( r );
+				// definitely write to the back buffer
+				self->resource_queue_family_ownership[ 1 ][ r ] = submission_queue_family_idx;
+
+				// There was already an element in there - we must compare
+				if ( found_queue_family_ownership != self->resource_queue_family_ownership[ 0 ].end() &&
+				     submission_queue_family_idx != found_queue_family_ownership->second ) {
+
+					ownership_transfer_t change;
+					change.src_queue_family_index = uint32_t(found_queue_family_ownership->second);
+					change.dst_queue_family_index = uint32_t(submission_queue_family_idx);
+					change.resource               = r;
+					change.dst_queue_index        = { submission_data.queue_idx }; // We keep track of the actual queue (additionally to its queue family)
+					                                                               // that will acquire the resource, as it is this one specifically that
+					                                                               // will need to wait for the release semaphore to signal
+
+					auto transfer_inserted_it = queue_ownership_transfers.emplace( change.resource, change );
+
+					if ( transfer_inserted_it.second == false ) {
+
+						// There was already an ownership change for this resource - make sure that it only differs
+						// in the dst queue, but not in dst queue family.
+
+						if ( change.dst_queue_family_index == transfer_inserted_it.first->second.dst_queue_family_index ) {
+
+							// Add a queue index to the list of queues which wait for this transfer,
+							// the first destination queue will do the acquire, all other destination
+							// queues will have to wait for this acquire to complete in an extra step.
+							transfer_inserted_it.first->second.dst_queue_index.push_back( submission_data.queue_idx );
+							must_wait_for_acquire = true;
+
+						} else {
+							logger.error( "resource `%s` cannot be owned by two differing queue families: %d != %d",
+							              r->data->debug_name,
+							              change.dst_queue_family_index,
+							              transfer_inserted_it.first->second.dst_queue_family_index );
+							assert( change.dst_queue_family_index == transfer_inserted_it.first->second.dst_queue_family_index && "resource cannot be owned by more than one queue family" );
+						}
+					}
+
+					if ( LE_PRINT_DEBUG_MESSAGES ) {
+						// update entry, so that next frame can compare against the current frame.
+						logger.info( "*[%4d]* Resource ownership change: [%s] qf%d -> qf%d (used with queue index:%d)",
+						             frameIndex, r->data->debug_name, found_queue_family_ownership->second, submission_queue_family_idx, submission_data.queue_idx );
+					}
+				}
+			}
+		}
+	}
+
+	// Swap front and back buffer for resource family tracking - we do this because it allows
+	// us to update the new state for resource ownership in one atomic operation - by not
+	// changing it when we detect a change, we allow ourselves to detect further queues which
+	// might need the resource in the changed state.
+	//
+	std::swap( self->resource_queue_family_ownership[ 0 ], self->resource_queue_family_ownership[ 1 ] );
+
+	if ( queue_ownership_transfers.empty() ) {
+		// early-out if there are no queue ownership transfers here.
+		return;
+	}
+
+	// ---------| invariant: there are queue ownership transfer operations which need to be processed.
+
+	// Record into command buffers -
+	// first we release - for which we need to know the queue index of the command buffer.
+	//
+	// Q: Do we want to release/acquire in bulk - that is per queue family - or do we want to
+	//    do it specifically per-queue?
+	//
+	// A: we want to release in bulk, per-queue family, and then acquire specifically per-
+	//    queue. this means that all individual queues must wait for all resources per-queue to
+	//    be released. I think that is a good balance.
+	//
+	//    we also need these acquire semaphores to protect the queues from starting too early,
+	//    when their resources are not yet ready.
+	//
+	// If we had a finer release model, we would use more semaphores, but we would be able to
+	// interleave more, potentially, but I feel that semaphores are quite heavy, and that fewer
+	// of them is better.
+	//
+
+	/* Note that we split out the counting of required command buffers by
+	 * release command buffers and acquire command buffers. This is because
+	 * we accumulate *release* command buffers by common queue family index
+	 * (all release operations for the same queue family index happen in one batch)
+	 * and we accumulate *acquire* command buffers by queue index
+	 * (all resources that are acquired by the same queue get acquired in the same batch)
+	 */
+
+	constexpr uint32_t    MAX_NUM_QUEUE_FAMILY_INDICES = 32;
+	uint32_t              cmd_per_family_counter[ MAX_NUM_QUEUE_FAMILY_INDICES ]{}; // zero-initialised
+	std::vector<uint32_t> cmd_acquire_per_queue_counter( self->queues.size(), 0 );
+
+	{ /*
+
+		 for each queue family, we need one command buffer, which we use to release all
+		 resources that are owned by this queue family.
+
+		 for each queue that acquires resources, we need one command buffer to acquire
+		 all resources that this queue acquires.
+
+	 */
+		for ( auto const& t : queue_ownership_transfers ) {
+			cmd_per_family_counter[ t.second.src_queue_family_index ] |= 1;      // accumulate release command buffer count per family here - if we already have one for this family then we're good.
+			cmd_acquire_per_queue_counter[ t.second.dst_queue_index[ 0 ] ] |= 1; // accumulate command buffer count per queue here, we will need a separate one for this transaction
+		}
+
+		// For each acquire that requested a specific queue, we must
+		// allocate a command buffer with the correct queue family:
+		//
+		for ( uint32_t i = 0; i != cmd_acquire_per_queue_counter.size(); i++ ) {
+			cmd_per_family_counter[ self->queues[ i ]->queue_family_index ] += cmd_acquire_per_queue_counter[ i ];
+		}
+	}
+
+	BackendFrameData::CommandPool* ownership_transfer_cmd_pools[ MAX_NUM_QUEUE_FAMILY_INDICES ]{};           // zero-initialised
+	uint32_t                       ownership_transfer_cmd_bufs_used_count[ MAX_NUM_QUEUE_FAMILY_INDICES ]{}; // zero-initialised. counts used command buffers.
+
+	VkCommandBufferBeginInfo cmd_begin_info = {
+	    .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+	    .pNext            = nullptr,                                     // optional
+	    .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, // optional
+	    .pInheritanceInfo = 0,                                           // optional
+	};
+
+	for ( uint32_t i = 0; i != MAX_NUM_QUEUE_FAMILY_INDICES; i++ ) {
+		if ( cmd_per_family_counter[ i ] != 0 && ownership_transfer_cmd_pools[ i ] == nullptr ) {
+			BackendFrameData::CommandPool* pool = backend_frame_data_produce_command_pool( frame, i, self->device->getVkDevice() );
+			VkCommandBufferAllocateInfo    info = {
+			       .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+			       .pNext              = nullptr,
+			       .commandPool        = pool->pool,
+			       .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+			       .commandBufferCount = cmd_per_family_counter[ i ],
+            };
+			pool->buffers.resize( info.commandBufferCount );
+			vkAllocateCommandBuffers( self->device->getVkDevice(), &info, pool->buffers.data() );
+			// store the pool into our array of pools, so that we can look it up via the family index.
+			ownership_transfer_cmd_pools[ i ] = pool;
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
+				for ( auto const& b : pool->buffers ) {
+					logger.info( "[%3d] allocated command buffer: %p", frame.frameNumber, b );
+				}
+			}
+		}
+	}
+
+	struct Barriers {
+		std::unordered_map<le_resource_handle, VkImageMemoryBarrier2>  img_barriers;       // we use a map here because there an only be one barrier per-resource
+		std::unordered_map<le_resource_handle, VkBufferMemoryBarrier2> buf_barriers;       // --"--
+		std::set<uint32_t>                                             src_family_indices; // which release queues this queue must wait for - only used for acquire barriers
+		std::set<uint32_t>                                             wait_queue_indices; // which acquire queues this queue must wait for - only used for acquire barriers
+	};
+
+	std::unordered_map<uint32_t, Barriers> release_barriers; // map from queue family index to release barrier
+	std::unordered_map<uint32_t, Barriers> acquire_barriers; // map from queue to acquire barrier
+
+	// Group all release barriers together by queue family,
+	// and group all acquire barriers together by queue
+	for ( auto& transfer_it : queue_ownership_transfers ) {
+		auto& transfer = transfer_it.second;
+
+		if ( transfer.resource->data->type == LeResourceType::eImage ) {
+			auto                  image = frame.availableResources.at( transfer.resource );
+			VkImageMemoryBarrier2 imageMemoryBarrier{
+			    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			    .pNext               = nullptr,
+			    .srcStageMask        = image.state.stage == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : image.state.stage, // happens-before
+			    .srcAccessMask       = ( image.state.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                     // make available
+			    .dstStageMask        = 0,                                                                                // happens-after
+			    .dstAccessMask       = 0,                                                                                // make visible
+			    .oldLayout           = image.state.layout,
+			    .newLayout           = image.state.layout,
+			    .srcQueueFamilyIndex = transfer.src_queue_family_index,
+			    .dstQueueFamilyIndex = transfer.dst_queue_family_index,
+			    .image               = image.as.image,
+			    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
+			};
+
+			release_barriers[ transfer.src_queue_family_index ].img_barriers.emplace( transfer.resource, imageMemoryBarrier );
+			imageMemoryBarrier.srcAccessMask = 0;
+			imageMemoryBarrier.srcStageMask  = 0;
+			// imageMemoryBarrier.dstAccessMask = 0; // TODO
+			// imageMemoryBarrier.dstStageMask = 0; // TODO
+			acquire_barriers[ transfer.dst_queue_index[ 0 ] ].img_barriers.emplace( transfer.resource, imageMemoryBarrier );
+		} else if ( transfer.resource->data->type == LeResourceType::eBuffer ) {
+			auto                   buffer = frame.availableResources.at( transfer.resource );
+			VkBufferMemoryBarrier2 bufferMemoryBarrier{
+			    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+			    .pNext               = nullptr,
+			    .srcStageMask        = buffer.state.stage == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : buffer.state.stage, // happens-before
+			    .srcAccessMask       = buffer.state.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS,                          // make available
+			    .dstStageMask        = 0,                                                                                  // before continuing with dst stage
+			    .dstAccessMask       = 0,                                                                                  // and making memory visible to dst stage
+			    .srcQueueFamilyIndex = transfer.src_queue_family_index,
+			    .dstQueueFamilyIndex = transfer.dst_queue_family_index,
+			    .buffer              = buffer.as.buffer,
+			    .offset              = 0,
+			    .size                = buffer.info.bufferInfo.size,
+			};
+			release_barriers[ transfer.src_queue_family_index ].buf_barriers.emplace( transfer.resource, bufferMemoryBarrier );
+			bufferMemoryBarrier.srcAccessMask = 0;
+			bufferMemoryBarrier.srcStageMask  = 0;
+			// bufferMemoryBarrier.dstAccessMask = 0; // TODO
+			// bufferMemoryBarrier.dstStageMask = 0; // TODO
+
+			acquire_barriers[ transfer.dst_queue_index[ 0 ] ].buf_barriers.emplace( transfer.resource, bufferMemoryBarrier );
+		} else {
+			assert( false && "unexpected resource type" );
+		}
+		// store src family index with acquire barrier - so that these barriers know which timeline semaphores to wait for.
+		acquire_barriers[ transfer.dst_queue_index[ 0 ] ].src_family_indices.emplace( transfer.src_queue_family_index );
+	}
+
+	// ----------------------------------------------------------------------
+	// Record and submit all release actions into command buffers which match queue family
+	//
+	for ( auto& rb : release_barriers ) {
+
+		std::vector<VkBufferMemoryBarrier2> buffer_barriers;
+		buffer_barriers.reserve( rb.second.buf_barriers.size() );
+		for ( auto const& b : rb.second.buf_barriers ) {
+			buffer_barriers.push_back( b.second );
+		}
+		std::vector<VkImageMemoryBarrier2> image_barriers;
+		image_barriers.reserve( rb.second.img_barriers.size() );
+		for ( auto const& b : rb.second.img_barriers ) {
+			image_barriers.push_back( b.second );
+		}
+
+		VkDependencyInfo dependencyInfo = {
+		    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		    .pNext                    = nullptr, // optional
+		    .dependencyFlags          = 0,       // optional
+		    .memoryBarrierCount       = 0,       // optional
+		    .pMemoryBarriers          = 0,
+		    .bufferMemoryBarrierCount = uint32_t( buffer_barriers.size() ), // optional
+		    .pBufferMemoryBarriers    = buffer_barriers.data(),
+		    .imageMemoryBarrierCount  = uint32_t( image_barriers.size() ), // optional
+		    .pImageMemoryBarriers     = image_barriers.data(),
+		};
+
+		uint32_t queue_family_index = rb.first;
+		uint32_t queue_index        = self->default_queue_for_family_index.at( queue_family_index );
+		uint32_t buffer_idx         = ownership_transfer_cmd_bufs_used_count[ queue_family_index ]++; // note post-increment
+		auto     cmd                = ownership_transfer_cmd_pools[ rb.first ]->buffers[ buffer_idx ];
+
+		vkBeginCommandBuffer( cmd, &cmd_begin_info );
+		// record consolidated barrier into release command buffer for this queue family.
+		vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+		vkEndCommandBuffer( cmd );
+
+		auto& queue = self->queues[ queue_index ];
+
+		VkCommandBufferSubmitInfo cmdSubmitInfo{
+		    .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+		    .pNext         = nullptr,
+		    .commandBuffer = cmd,
+		    .deviceMask    = 0, // replaces vkDeviceGroupSubmitInfo
+		};
+
+		VkSemaphoreSubmitInfo signal_timeline_semaphore_release_complete = {
+		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+		    .pNext       = nullptr,
+		    .semaphore   = queue->semaphore,
+		    .value       = queue->semaphore_get_next_signal_value(),
+		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
+		    .deviceIndex = 0,
+		};
+
+		{
+			VkSubmitInfo2 submitInfo{
+			    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+			    .pNext                    = nullptr,
+			    .flags                    = 0,
+			    .waitSemaphoreInfoCount   = 0,
+			    .pWaitSemaphoreInfos      = nullptr,
+			    .commandBufferInfoCount   = 1,
+			    .pCommandBufferInfos      = &cmdSubmitInfo,
+			    .signalSemaphoreInfoCount = 1,
+			    .pSignalSemaphoreInfos    = &signal_timeline_semaphore_release_complete,
+			};
+
+			// submit on the default queue for this queue family
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, "release" );
+		}
+	}
+
+	// ----------------------------------------------------------------------
+	// Record and submit all acquire actions grouped by queue -
+	// each acquire submission waits for any release actions that it depends on.
+
+	for ( auto& ab : acquire_barriers ) {
+		std::vector<VkBufferMemoryBarrier2> buffer_barriers;
+		buffer_barriers.reserve( ab.second.buf_barriers.size() );
+		for ( auto const& b : ab.second.buf_barriers ) {
+			buffer_barriers.push_back( b.second );
+		}
+		std::vector<VkImageMemoryBarrier2> image_barriers;
+		image_barriers.reserve( ab.second.img_barriers.size() );
+		for ( auto const& b : ab.second.img_barriers ) {
+			image_barriers.push_back( b.second );
+		}
+
+		VkDependencyInfo dependencyInfo = {
+		    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		    .pNext                    = nullptr, // optional
+		    .dependencyFlags          = 0,       // optional
+		    .memoryBarrierCount       = 0,       // optional
+		    .pMemoryBarriers          = 0,
+		    .bufferMemoryBarrierCount = uint32_t( buffer_barriers.size() ), // optional
+		    .pBufferMemoryBarriers    = buffer_barriers.data(),
+		    .imageMemoryBarrierCount  = uint32_t( image_barriers.size() ), // optional
+		    .pImageMemoryBarriers     = image_barriers.data(),
+		};
+		;
+
+		uint32_t queue_index      = ab.first;
+		uint32_t queue_family_idx = self->queues[ queue_index ]->queue_family_index;
+		uint32_t buffer_idx       = ownership_transfer_cmd_bufs_used_count[ queue_family_idx ]++; // note post-increment
+
+		auto cmd = ownership_transfer_cmd_pools[ queue_family_idx ]->buffers[ buffer_idx ];
+
+		vkBeginCommandBuffer( cmd, &cmd_begin_info );
+		vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+		vkEndCommandBuffer( cmd );
+
+		auto& queue = self->queues[ queue_index ];
+
+		VkCommandBufferSubmitInfo cmdSubmitInfo{
+		    .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+		    .pNext         = nullptr,
+		    .commandBuffer = cmd,
+		    .deviceMask    = 0, // replaces vkDeviceGroupSubmitInfo
+		};
+
+		// We want to signal a timeline semaphore for each queue submission so that any batch submitted to a queue can be waited upon
+		std::vector<VkSemaphoreSubmitInfo> wait_semaphore_timeline_complete;
+
+		for ( auto& wait : ab.second.src_family_indices ) {
+
+			uint32_t    src_queue_family_idx = wait;
+			uint32_t    src_queue_idx        = self->default_queue_for_family_index[ src_queue_family_idx ];
+			auto const& queue                = self->queues[ src_queue_idx ];
+
+			VkSemaphoreSubmitInfo info{
+			    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			    .pNext       = nullptr,
+			    .semaphore   = queue->semaphore,
+			    .value       = queue->semaphore_wait_value,
+			    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			    .deviceIndex = 0,
+			};
+			wait_semaphore_timeline_complete.emplace_back( info );
+		};
+
+		VkSemaphoreSubmitInfo signal_timeline_semaphore_acquire_complete = {
+		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+		    .pNext       = nullptr,
+		    .semaphore   = queue->semaphore,
+		    .value       = queue->semaphore_wait_value + 1,    // note that we don't immediately update the wait value for this queue itself.
+		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
+		    .deviceIndex = 0,
+		};
+
+		{
+			VkSubmitInfo2 submitInfo{
+			    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+			    .pNext                    = nullptr,
+			    .flags                    = 0,
+			    .waitSemaphoreInfoCount   = uint32_t( wait_semaphore_timeline_complete.size() ),
+			    .pWaitSemaphoreInfos      = wait_semaphore_timeline_complete.data(),
+			    .commandBufferInfoCount   = 1,
+			    .pCommandBufferInfos      = &cmdSubmitInfo,
+			    .signalSemaphoreInfoCount = 1,
+			    .pSignalSemaphoreInfos    = &signal_timeline_semaphore_acquire_complete,
+			};
+
+			// submit on the queue chosen for this acquire barrier
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, "acquire" );
+		}
+	}
+
+	// We increase the semaphore wait values for all queues that did have an acquire step,
+	// so that acquire operations don't wait for each other - we know that acquire steps
+	// don't depend on each other because all that acquires have to wait for is any release.
+	// step that they depend on.
+	for ( auto& ab : acquire_barriers ) {
+		uint32_t          queue_index = ab.first;
+		BackendQueueInfo* queue       = self->queues[ queue_index ];
+		queue->semaphore_wait_value++;
+	}
+	// ---------------------------------------------------------------------
+	// submit semaphore waits for queues which wait for acquire -
+	//
+	// If more than one queue of the same family want to acquire the same resource, then all but the first queue
+	// must wait for the first queue to complete acquire before they can read from the resource.
+	// Otherwise we would end up with a race condition wherein the non-acquiring queue might access
+	// the resource before it has even been acquired, or even released.
+	//
+	// This is not an issue for write resources, as the rendergraph will not allow these to be shared between
+	// distinct queues.
+	//
+	if ( must_wait_for_acquire ) {
+
+		std::unordered_map<uint32_t, std::set<uint32_t>> per_queue_wait_for_queues;
+
+		// First, we group wait operations by queue, so that we only need to issue one sync op per
+		// queue.
+		for ( auto const& transfer_it : queue_ownership_transfers ) {
+			auto const& transfer = transfer_it.second;
+			// If any transfer has multiple destination queues, all but the first must wait for the first.
+			if ( transfer.dst_queue_index.size() > 1 ) {
+				uint32_t wait_for_queue_idx = transfer.dst_queue_index[ 0 ];
+				for ( uint32_t i = 1; i != transfer.dst_queue_index.size(); i++ ) {
+					// each of the dependent queues must wait for the primary queue
+					per_queue_wait_for_queues[ transfer.dst_queue_index[ i ] ].emplace( wait_for_queue_idx );
+				}
+			}
+		}
+
+		for ( auto const& per_queue_wait : per_queue_wait_for_queues ) {
+			uint32_t                  queue_idx        = per_queue_wait.first;
+			std::set<uint32_t> const& waits_for_queues = per_queue_wait.second;
+
+			std::vector<VkSemaphoreSubmitInfo> wait_semaphore_acquire_complete;
+
+			for ( auto& wait_for_queue : waits_for_queues ) {
+
+				auto const& queue = self->queues[ wait_for_queue ];
+
+				VkSemaphoreSubmitInfo info{
+				    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+				    .pNext       = nullptr,
+				    .semaphore   = queue->semaphore,
+				    .value       = queue->semaphore_wait_value,
+				    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+				    .deviceIndex = 0,
+				};
+				wait_semaphore_acquire_complete.emplace_back( info );
+			};
+
+			VkSubmitInfo2 submitInfo{
+			    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+			    .pNext                    = nullptr,
+			    .flags                    = 0,
+			    .waitSemaphoreInfoCount   = uint32_t( wait_semaphore_acquire_complete.size() ),
+			    .pWaitSemaphoreInfos      = wait_semaphore_acquire_complete.data(),
+			    .commandBufferInfoCount   = 0,
+			    .pCommandBufferInfos      = nullptr, // note: we don't submit a command buffer with this submission - it is just there to add synchronisation
+			    .signalSemaphoreInfoCount = 0,
+			    .pSignalSemaphoreInfos    = nullptr,
+			};
+
+			auto const& queue = self->queues[ queue_idx ];
+			// submit on the queue chosen for this acquire barrier
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, "must_wait_acquire" );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
 static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
-	auto& frame = self->mFrames[ frameIndex ];
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto&       frame  = self->mFrames[ frameIndex ];
 
-	std::vector<VkSemaphoreSubmitInfo> present_complete_semaphore_submit_infos;
+	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ]->queue; // will not change for the duration of the program.
+
+	if ( self->must_track_resources_queue_family_ownership ) {
+		// add queue ownership transfer operations for resources which are shared across queue families.
+		backend_submit_queue_transfer_ops( self, frameIndex );
+	}
+
+	std::vector<VkSemaphoreSubmitInfo> wait_present_complete_semaphore_submit_infos;
 	std::vector<VkSemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
 
-	present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
+	wait_present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
-
 	for ( auto const& swp : frame.swapchain_state ) {
-		present_complete_semaphore_submit_infos.push_back(
+		wait_present_complete_semaphore_submit_infos.push_back(
 		    {
 		        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		        .pNext       = nullptr, // optional
+		        .pNext       = nullptr,
 		        .semaphore   = swp.presentComplete,
-		        .value       = 1,
-		        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // ? signal semaphore once ColorAttachmentOutput has completed
+		        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
+		        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
 		        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
 		    } );
 		render_complete_semaphore_submit_infos.push_back(
 		    {
 		        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		        .pNext       = nullptr, // optional
+		        .pNext       = nullptr,
 		        .semaphore   = swp.renderComplete,
-		        .value       = 2,
-		        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // ? signal semaphore once all commands have been processed
+		        .value       = 0,                                  // ignored, as this semaphore is not a timeline semaphore
+		        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 		        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
 		    } );
 	}
 
-	std::vector<VkCommandBufferSubmitInfo> command_buffer_submit_infos;
-	command_buffer_submit_infos.reserve( frame.commandBuffers.size() );
+	bool did_wait_for_present_semaphore = false;
 
-	for ( auto const& c : frame.commandBuffers ) {
-		command_buffer_submit_infos.push_back(
-		    {
-		        .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-		        .pNext         = nullptr, // optional
-		        .commandBuffer = c,
-		        .deviceMask    = 0, // replaces vkDeviceGroupSubmitInfo
-		    } );
+	for ( auto const& current_submission : frame.queue_submission_data ) {
+
+		// the first graphics payload has to wait on present complete.
+		std::vector<VkSemaphoreSubmitInfo> wait_semaphore_infos;
+
+		if ( did_wait_for_present_semaphore == false && current_submission.queue_idx == self->queue_default_graphics_idx ) {
+			wait_semaphore_infos.insert(                              // wait for present complete - it gets signaled once the swapchain image is ready for writing
+			    wait_semaphore_infos.end(),                           //
+			    wait_present_complete_semaphore_submit_infos.begin(), //
+			    wait_present_complete_semaphore_submit_infos.end() ); //
+			did_wait_for_present_semaphore = true;
+		}
+
+		// Prepare command buffers for submission
+		std::vector<VkCommandBufferSubmitInfo> command_buffer_submit_infos;
+		command_buffer_submit_infos.reserve( current_submission.command_pool->buffers.size() ); // one command buffer per pass
+
+		for ( auto const& c : current_submission.command_pool->buffers ) {
+			command_buffer_submit_infos.push_back(
+			    {
+			        .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+			        .pNext         = nullptr,
+			        .commandBuffer = c,
+			        .deviceMask    = 0, // replaces vkDeviceGroupSubmitInfo
+			    } );
+		}
+
+		// We want to signal a timeline semaphore for each queue submission so that any batch submitted to a queue can be waited upon
+		VkSemaphoreSubmitInfo signal_semaphore_timeline_complete = {
+		    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+		    .pNext       = nullptr,
+		    .semaphore   = self->queues[ current_submission.queue_idx ]->semaphore,
+		    .value       = self->queues[ current_submission.queue_idx ]->semaphore_get_next_signal_value(),
+		    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
+		    .deviceIndex = 0,
+		};
+
+		VkSubmitInfo2 submitInfo{
+		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+		    .pNext                    = nullptr,
+		    .flags                    = 0,
+		    .waitSemaphoreInfoCount   = uint32_t( wait_semaphore_infos.size() ),
+		    .pWaitSemaphoreInfos      = wait_semaphore_infos.data(),
+		    .commandBufferInfoCount   = uint32_t( command_buffer_submit_infos.size() ),
+		    .pCommandBufferInfos      = command_buffer_submit_infos.data(),
+		    .signalSemaphoreInfoCount = 1,
+		    .pSignalSemaphoreInfos    = &signal_semaphore_timeline_complete,
+		};
+
+		auto queue = self->queues[ current_submission.queue_idx ];
+
+		backend_queue_submit( queue, 1, &submitInfo, nullptr, "rendergraph" );
 	}
 
-	VkCommandBufferSubmitInfo si;
-	// we need one submit info for each command.
+	assert( did_wait_for_present_semaphore && "Must wait for present semaphore on default graphics queue. Is there a default graphics queue?" );
 
-	VkSubmitInfo2 submitInfo{
-	    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-	    .pNext                    = nullptr,
-	    .flags                    = 0,
-	    .waitSemaphoreInfoCount   = uint32_t( present_complete_semaphore_submit_infos.size() ),
-	    .pWaitSemaphoreInfos      = present_complete_semaphore_submit_infos.data(),
-	    .commandBufferInfoCount   = uint32_t( command_buffer_submit_infos.size() ),
-	    .pCommandBufferInfos      = command_buffer_submit_infos.data(),
-	    .signalSemaphoreInfoCount = uint32_t( render_complete_semaphore_submit_infos.size() ),
-	    .pSignalSemaphoreInfos    = render_complete_semaphore_submit_infos.data(),
-	};
+	{
+		/// Now that we have submitted our payloads, we can wait for any timeline semaphores from this frame.
+		/// This is so that whatever gets executed on parallel queues will have time to complete until draw has completed.
+		///
+		/// Timeline Semaphores may be signalled from other (compute, transfer) queues.
 
-	auto queue = VkQueue{ self->device->getDefaultGraphicsQueue() };
+		/// We first sumbit draw, then wait for timeline semaphores, so that compute and transfer queue operations can happen
+		/// concurrently with the draw queue. The draw queue will then wait for completion.
 
-	vkQueueSubmit2( queue, 1, &submitInfo, frame.frameFence );
+		/// go through all compute queue submission and wait for the timeline semaphore of the highest submission
+		/// go through all transwer queue submissions and wait for the timeline semaphore of the highest submission
 
-	using namespace le_swapchain_vk;
+		/// If there are no submissions on compute or transfer, just signal that the fence was crossed.
+		///
+		/// If submitted on the same queue, Queue submission order means that batch 1 needs to complete before batch 2
+		/// -- see VkSpec 7.2 (Implicit Synchronization Guarantees)
+
+		std::vector<VkSemaphoreSubmitInfo> timeline_wait_semaphores;
+
+		for ( uint32_t i = 0; i != self->queues.size(); i++ ) {
+			timeline_wait_semaphores.push_back( {
+			    .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			    .pNext       = nullptr,
+			    .semaphore   = self->queues[ i ]->semaphore,
+			    .value       = self->queues[ i ]->semaphore_wait_value, // wait for highest value this timeline semaphore will signal
+			    .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,      // signal semaphore once all commands have been processed
+			    .deviceIndex = 0,
+			} );
+		}
+
+		// On default draw queue, wait for all timeline semaphores before signalling render complete.
+
+		VkSubmitInfo2 submitInfo{
+		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+		    .pNext                    = nullptr,
+		    .flags                    = 0,
+		    .waitSemaphoreInfoCount   = uint32_t( timeline_wait_semaphores.size() ), // This is where we wait for the timeline semaphores from other queue invocations from this frame.
+		    .pWaitSemaphoreInfos      = timeline_wait_semaphores.data(),             // Wait for any timeline semaphores from sibling queues here
+		    .commandBufferInfoCount   = 0,                                           // No commands submitted, this submission is purely for synchronisation
+		    .pCommandBufferInfos      = nullptr,
+		    .signalSemaphoreInfoCount = uint32_t( render_complete_semaphore_submit_infos.size() ),
+		    .pSignalSemaphoreInfos    = render_complete_semaphore_submit_infos.data(), // signal render complete once this batch has finished processing
+
+		};
+
+		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, frame.frameFence, "graphics_queue_finalize" );
+	}
 
 	bool overall_result = true;
 
-	for ( size_t i = 0; i != self->swapchains.size(); i++ ) {
+	{
+		// submit frame for present using the graphics queue
+		using namespace le_swapchain_vk;
 
-		bool result =
-		    swapchain_i.present(
-		        self->swapchains[ i ],
-		        self->device->getDefaultGraphicsQueue(),
-		        render_complete_semaphore_submit_infos[ i ].semaphore,
-		        &frame.swapchain_state[ i ].image_idx );
+		for ( size_t i = 0; i != self->swapchains.size(); i++ ) {
 
-		frame.swapchain_state[ i ].present_successful = result;
+			bool result =
+			    swapchain_i.present(
+			        self->swapchains[ i ],
+			        graphics_queue, // we must present on a queue which has present enabled, graphics queue should fit the bill.
+			        render_complete_semaphore_submit_infos[ i ].semaphore,
+			        &frame.swapchain_state[ i ].image_idx );
 
-		overall_result &= result;
+			frame.swapchain_state[ i ].present_successful = result;
+
+			overall_result &= result;
+		}
+	}
+
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
+		logger.info( "*** Dispatched frame %d", frame.frameNumber );
+	}
+
+	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
+
+	if ( *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES ) {
+		backend_emit_queue_submission_log( self, frame.frameNumber );
+		*LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES = false;
 	}
 
 	return overall_result;
 }
 
 // ----------------------------------------------------------------------
+// Copy data from array of affinity masks into this frame's affinity masks array
+static void backend_set_frame_queue_submission_keys( le_backend_o* self, size_t frameIndex, void const* p_affinity_masks, uint32_t num_affinity_masks ) {
+	auto& frame = self->mFrames[ frameIndex ];
 
-le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
+	frame.queue_submission_keys.resize( num_affinity_masks );
+	memcpy( frame.queue_submission_keys.data(), p_affinity_masks, sizeof( le::RootPassesField ) * num_affinity_masks );
+}
+
+// ----------------------------------------------------------------------
+
+static le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
 
 	auto* blas_info = new le_rtx_blas_info_o{};
 
@@ -6089,7 +7273,7 @@ le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx
 
 // ----------------------------------------------------------------------
 
-le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
+static le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
 
 	auto* tlas_info = new le_rtx_tlas_info_o{};
 
@@ -6120,19 +7304,20 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	auto  api_i        = static_cast<le_backend_vk_api*>( api_ );
 	auto& vk_backend_i = api_i->vk_backend_i;
 
-	vk_backend_i.create                     = backend_create;
-	vk_backend_i.destroy                    = backend_destroy;
-	vk_backend_i.setup                      = backend_setup;
-	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
-	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
-	vk_backend_i.reset_failed_swapchains    = backend_reset_failed_swapchains;
-	vk_backend_i.get_transient_allocators   = backend_get_transient_allocators;
-	vk_backend_i.get_staging_allocator      = backend_get_staging_allocator;
-	vk_backend_i.poll_frame_fence           = backend_poll_frame_fence;
-	vk_backend_i.clear_frame                = backend_clear_frame;
-	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
-	vk_backend_i.process_frame              = backend_process_frame;
-	vk_backend_i.dispatch_frame             = backend_dispatch_frame;
+	vk_backend_i.create                          = backend_create;
+	vk_backend_i.destroy                         = backend_destroy;
+	vk_backend_i.setup                           = backend_setup;
+	vk_backend_i.get_num_swapchain_images        = backend_get_num_swapchain_images;
+	vk_backend_i.reset_swapchain                 = backend_reset_swapchain;
+	vk_backend_i.reset_failed_swapchains         = backend_reset_failed_swapchains;
+	vk_backend_i.get_transient_allocators        = backend_get_transient_allocators;
+	vk_backend_i.get_staging_allocator           = backend_get_staging_allocator;
+	vk_backend_i.poll_frame_fence                = backend_poll_frame_fence;
+	vk_backend_i.clear_frame                     = backend_clear_frame;
+	vk_backend_i.acquire_physical_resources      = backend_acquire_physical_resources;
+	vk_backend_i.process_frame                   = backend_process_frame;
+	vk_backend_i.dispatch_frame                  = backend_dispatch_frame;
+	vk_backend_i.set_frame_queue_submission_keys = backend_set_frame_queue_submission_keys;
 
 	vk_backend_i.get_pipeline_cache    = backend_get_pipeline_cache;
 	vk_backend_i.update_shader_modules = backend_update_shader_modules;
@@ -6146,15 +7331,16 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
 
-	auto& private_backend_i                  = api_i->private_backend_vk_i;
-	private_backend_i.get_vk_device          = backend_get_vk_device;
-	private_backend_i.get_vk_physical_device = backend_get_vk_physical_device;
-	private_backend_i.get_le_device          = backend_get_le_device;
-	private_backend_i.get_instance           = backend_get_instance;
-	private_backend_i.allocate_image         = backend_allocate_image;
-	private_backend_i.destroy_image          = backend_destroy_image;
-	private_backend_i.allocate_buffer        = backend_allocate_buffer;
-	private_backend_i.destroy_buffer         = backend_destroy_buffer;
+	auto& private_backend_i                           = api_i->private_backend_vk_i;
+	private_backend_i.get_vk_device                   = backend_get_vk_device;
+	private_backend_i.get_vk_physical_device          = backend_get_vk_physical_device;
+	private_backend_i.get_le_device                   = backend_get_le_device;
+	private_backend_i.get_instance                    = backend_get_instance;
+	private_backend_i.allocate_image                  = backend_allocate_image;
+	private_backend_i.destroy_image                   = backend_destroy_image;
+	private_backend_i.allocate_buffer                 = backend_allocate_buffer;
+	private_backend_i.destroy_buffer                  = backend_destroy_buffer;
+	private_backend_i.get_default_graphics_queue_info = backend_get_default_graphics_queue_info;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;
@@ -6184,6 +7370,8 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	backend_settings_i.add_swapchain_setting                        = le_backend_vk_settings_add_swapchain_setting;
 	backend_settings_i.get_requested_physical_device_features_chain = le_backend_vk_get_requested_physical_device_features_chain;
 	backend_settings_i.set_concurrency_count                        = le_backend_vk_settings_set_concurrency_count;
+	backend_settings_i.get_requested_queue_capabilities             = le_backend_vk_settings_get_requested_queue_capabilities;
+	backend_settings_i.set_requested_queue_capabilities             = le_backend_vk_settings_set_requested_queue_capabilities;
 
 	void** p_settings_singleton_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) );
 

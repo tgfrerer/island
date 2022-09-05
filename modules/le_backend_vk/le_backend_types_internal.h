@@ -143,14 +143,33 @@ struct AttachmentInfo {
 	Type                    type;
 };
 
-struct LeRenderPass {
+struct ExplicitSyncOp {
+	le_resource_handle resource;                  // image used as texture, or buffer resource used in this pass
+	uint32_t           sync_chain_offset_initial; // offset when entering this pass
+	uint32_t           sync_chain_offset_final;   // offset when this pass has completed
+	uint32_t           active;
+};
+
+struct BackendQueueInfo {
+	VkQueue      queue;                // non-owning: owned by device
+	VkQueueFlags queue_flags;          // Capabilities for this particular queue
+	VkSemaphore  semaphore;            // owning, Per-queue timeline semaphore
+	uint64_t     semaphore_wait_value; // Highest value which this semaphore is going to signal - others may wait on this, defaults to 0
+	uint32_t     queue_family_index;   // queue family index for this queue - all queues with the same family index have the same capabilities, multiple queues may share the same family index (when they belong to the same family)
+	uint64_t     semaphore_get_next_signal_value() {
+		    return ++semaphore_wait_value;
+	};
+};
+
+struct BackendRenderPass {
 
 	AttachmentInfo attachments[ LE_MAX_COLOR_ATTACHMENTS ]; // maximum of 16 color output attachments
 	uint16_t       numColorAttachments;                     // 0..VK_MAX_COLOR_ATTACHMENTS
 	uint16_t       numResolveAttachments;                   // 0..8
 	uint16_t       numDepthStencilAttachments;              // 0..1
 
-	le::RenderPassType type;
+	le::QueueFlagBits   type;
+	le::RootPassesField root_passes_affinity; // key used to assign pass to queue submission
 
 	VkFramebuffer           framebuffer;
 	VkRenderPass            renderPass;
@@ -159,14 +178,9 @@ struct LeRenderPass {
 	le::SampleCountFlagBits sampleCount;    // We store this with renderpass, as sampleCount must be same for all color/depth attachments
 	uint64_t                renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
-	struct le_command_buffer_encoder_o* encoder;
+	std::vector<le_resource_handle> resources; // resources used with this renderpass
 
-	struct ExplicitSyncOp {
-		le_resource_handle resource;                  // image used as texture, or buffer resource used in this pass
-		uint32_t           sync_chain_offset_initial; // offset when entering this pass
-		uint32_t           sync_chain_offset_final;   // offset when this pass has completed
-		uint32_t           active;
-	};
+	struct le_command_buffer_encoder_o* encoder;
 
 	char                        debugName[ 256 ] = ""; // Debug name for renderpass
 	std::vector<ExplicitSyncOp> explicit_sync_ops;     // explicit sync operations for renderpass, these execute before renderpass begins.

@@ -162,9 +162,9 @@ static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ); // f
 static le_renderer_o* renderer_create() {
 	auto obj = new le_renderer_o();
 
-#if ( LE_MT > 0 )
-	le_jobs::initialize( LE_MT );
-#endif
+	if ( LE_MT > 0 ) {
+		le_jobs::initialize( LE_MT );
+	}
 
 	return obj;
 }
@@ -479,7 +479,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	le_renderer::api->le_rendergraph_private_i.setup_passes( graph_, frame.rendergraph );
 
 	// find out which renderpasses contribute, only add contributing render passes to
-	// frameBuilder
+	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
 	// Execute callbacks into main application for each render pass,
@@ -540,18 +540,25 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	        declared_resources_infos,
 	        declared_resources_count );
 
+	{
+		// apply root node affinity masks to backend render frame
+		// so that the frame can decide how best to dispatch
+		le::RootPassesField const* p_affinity_masks   = nullptr;
+		uint32_t                   num_affinity_masks = 0;
+
+		le_renderer::api->le_rendergraph_private_i.get_p_affinity_masks( frame.rendergraph, &p_affinity_masks, &num_affinity_masks );
+		vk_backend_i.set_frame_queue_submission_keys( self->backend, frameIndex, reinterpret_cast<void const*>( p_affinity_masks ), num_affinity_masks );
+	}
+
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
 	if ( acquireSuccess ) {
 		frame.state = FrameData::State::eAcquired;
-		//		std::cout << "ACQU FRAME " << frameIndex << std::endl
-		//		          << std::flush;
-
 	} else {
 		frame.state = FrameData::State::eFailedAcquire;
 		// Failure most likely means that the swapchain was reset,
 		// perhaps because of window resize.
-		std::cout << "WARNING: Could not acquire frame." << std::endl;
+		le::Log( "le_renderer" ).warn( "Could not acquire frame" );
 		self->swapchainDirty = true;
 	}
 
@@ -559,7 +566,7 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 }
 
 // ----------------------------------------------------------------------
-
+// translate intermediate draw lists into vk command buffers, and sync primitives
 static const FrameData::State& renderer_process_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	using namespace le_backend_vk; // for vk_bakend_i
@@ -660,24 +667,18 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 	// If necessary, recompile and reload shader modules
 	// - this must be complete before the record_frame step
 
-#if ( LE_MT > 0 )
-
-	auto update_shader_modules_fun = []( void* backend ) {
-		vk_backend_i.update_shader_modules( static_cast<le_backend_o*>( backend ) );
-	};
-
-	le_jobs::job_t      j{ update_shader_modules_fun, self->backend };
-	le_jobs::counter_t* shader_counter;
-
-	le_jobs::run_jobs( &j, 1, &shader_counter );
-
-#else
-	vk_backend_i.update_shader_modules( self->backend );
-#endif
-
 	if ( LE_MT > 0 ) {
-#if ( LE_MT > 0 )
 		// use task system (experimental)
+
+		le_jobs::counter_t* shader_counter;
+
+		le_jobs::job_t j{
+		    []( void* backend ) {
+			    vk_backend_i.update_shader_modules( static_cast<le_backend_o*>( backend ) );
+		    },
+		    self->backend };
+
+		le_jobs::run_jobs( &j, 1, &shader_counter );
 
 		struct frame_params_t {
 			le_renderer_o* renderer;
@@ -746,10 +747,10 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 		// we could theoretically do some more work on the main thread here...
 
 		le_jobs::wait_for_counter_and_free( counter, 0 );
-#endif
-	} else {
 
+	} else {
 		// render on the main thread
+		vk_backend_i.update_shader_modules( self->backend );
 
 		renderer_record_frame( self, ( index + 0 ) % numFrames, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 
@@ -762,7 +763,8 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 
 		renderer_dispatch_frame( self, ( index + 2 ) % numFrames );
 
-		renderer_clear_frame( self, ( index + 1 ) % numFrames ); // wait for frame to come back (important to do this last, as it may block...)
+		// wait for frame to come back (important to do this last, as it may block...)
+		renderer_clear_frame( self, ( index + 1 ) % numFrames );
 	}
 
 	if ( self->swapchainDirty ) {
@@ -794,13 +796,13 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 // ----------------------------------------------------------------------
 
 static le_resource_info_t get_default_resource_info_for_image() {
-	le_resource_info_t res;
+	le_resource_info_t res = {};
 
 	res.type = LeResourceType::eImage;
 	{
 		auto& img                   = res.image;
 		img                         = {};
-		img.flags                   = 0;
+		img.flags                   = le::ImageCreateFlagBits( 0 );
 		img.format                  = le::Format::eUndefined;
 		img.arrayLayers             = 1;
 		img.extent.width            = 0;
@@ -823,10 +825,10 @@ static le_resource_info_t get_default_resource_info_for_image() {
 // ----------------------------------------------------------------------
 
 static le_resource_info_t get_default_resource_info_for_buffer() {
-	le_resource_info_t res;
-	res.type         = LeResourceType::eBuffer;
-	res.buffer.size  = 0;
-	res.buffer.usage = le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst );
+	le_resource_info_t res = {};
+	res.type               = LeResourceType::eBuffer;
+	res.buffer.size        = 0;
+	res.buffer.usage       = le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst );
 	return res;
 }
 

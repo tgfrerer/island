@@ -28,27 +28,119 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
-#ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES false
+#ifndef LE_PRINT_DEBUG_MESSAGES
+#	define LE_PRINT_DEBUG_MESSAGES false
 #endif
 
-#ifndef DEBUG_GENERATE_DOT_GRAPH
+#ifndef LE_GENERATE_DOT_GRAPH
 #	ifndef NDEBUG
-#		define DEBUG_GENERATE_DOT_GRAPH true
+#		define LE_GENERATE_DOT_GRAPH true
 #	else
-#		define DEBUG_GENERATE_DOT_GRAPH false
+#		define LE_GENERATE_DOT_GRAPH false
 #	endif
 #endif
 
 #include <bitset>
-#include <set>
 
-constexpr size_t MAX_NUM_LAYER_RESOURCES = 4096; // set this to larger value if you want to deal with a larger number of distinct resources.
-using BitField                           = std::bitset<MAX_NUM_LAYER_RESOURCES>;
+using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
+// ----------------------------------------------------------------------
 
-struct Task {
-	BitField reads;
-	BitField writes;
+namespace le {
+using RWFlags = uint32_t;
+enum class ResourceAccessFlagBits : RWFlags {
+	eUndefined = 0x0,
+	eRead      = 0x1 << 0,
+	eWrite     = 0x1 << 1,
+	eReadWrite = eRead | eWrite,
+};
+
+constexpr RWFlags operator|( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const RWFlags>( static_cast<RWFlags>( lhs ) | static_cast<RWFlags>( rhs ) );
+};
+
+constexpr RWFlags operator|( RWFlags const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const RWFlags>( lhs | static_cast<RWFlags>( rhs ) );
+};
+
+constexpr RWFlags operator&( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
+	return static_cast<const RWFlags>( static_cast<RWFlags>( lhs ) & static_cast<RWFlags>( rhs ) );
+};
+} // namespace le
+
+// ----------------------------------------------------------------------
+static constexpr le::AccessFlags2 LE_ALL_READ_ACCESS_FLAGS =
+    le::AccessFlagBits2::eIndirectCommandRead |
+    le::AccessFlagBits2::eIndexRead |
+    le::AccessFlagBits2::eVertexAttributeRead |
+    le::AccessFlagBits2::eUniformRead |
+    le::AccessFlagBits2::eInputAttachmentRead |
+    le::AccessFlagBits2::eShaderRead |
+    le::AccessFlagBits2::eColorAttachmentRead |
+    le::AccessFlagBits2::eDepthStencilAttachmentRead |
+    le::AccessFlagBits2::eTransferRead |
+    le::AccessFlagBits2::eHostRead |
+    le::AccessFlagBits2::eMemoryRead |
+    le::AccessFlagBits2::eCommandPreprocessReadBitNv |
+    le::AccessFlagBits2::eColorAttachmentReadNoncoherentBitExt |
+    le::AccessFlagBits2::eConditionalRenderingReadBitExt |
+    le::AccessFlagBits2::eAccelerationStructureReadBitKhr |
+    le::AccessFlagBits2::eTransformFeedbackCounterReadBitExt |
+    le::AccessFlagBits2::eFragmentDensityMapReadBitExt |
+    le::AccessFlagBits2::eFragmentShadingRateAttachmentReadBitKhr |
+    le::AccessFlagBits2::eShaderSampledRead |
+    le::AccessFlagBits2::eShaderStorageRead |
+    le::AccessFlagBits2::eVideoDecodeReadBitKhr |
+    le::AccessFlagBits2::eVideoEncodeReadBitKhr |
+    le::AccessFlagBits2::eInvocationMaskReadBitHuawei;
+
+static constexpr le::AccessFlags2 LE_ALL_WRITE_ACCESS_FLAGS =
+    le::AccessFlagBits2::eShaderWrite |
+    le::AccessFlagBits2::eColorAttachmentWrite |
+    le::AccessFlagBits2::eDepthStencilAttachmentWrite |
+    le::AccessFlagBits2::eTransferWrite |
+    le::AccessFlagBits2::eHostWrite |
+    le::AccessFlagBits2::eMemoryWrite |
+    le::AccessFlagBits2::eCommandPreprocessWriteBitNv |
+    le::AccessFlagBits2::eAccelerationStructureWriteBitKhr |
+    le::AccessFlagBits2::eTransformFeedbackWriteBitExt |
+    le::AccessFlagBits2::eTransformFeedbackCounterWriteBitExt |
+    le::AccessFlagBits2::eVideoDecodeWriteBitKhr |
+    le::AccessFlagBits2::eVideoEncodeWriteBitKhr |
+    le::AccessFlagBits2::eShaderStorageWrite //
+    ;
+static constexpr le::AccessFlags2 LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS =
+    le::AccessFlagBits2::eShaderSampledRead | //
+    le::AccessFlagBits2::eShaderRead |        // shader read is a potential read/write operation, as it might imply a layout transform
+    le::AccessFlagBits2::eShaderStorageRead   // this might mean a read/write in case we are accessing an image as it might imply a layout transform
+    ;
+
+// ----------------------------------------------------------------------
+
+static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
+	uint64_t    flags = tp;
+	std::string result;
+	int         bit_pos = 0;
+	while ( flags ) {
+		if ( flags & 1 ) {
+			if ( false == result.empty() ) {
+				result.append( " | " );
+			}
+			result.append( to_str( le::AccessFlagBits2( 1ULL << bit_pos ) ) );
+		}
+		flags >>= 1;
+		bit_pos++;
+	}
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+struct Node {
+	ResourceField       reads               = 0;
+	ResourceField       writes              = 0;
+	le::RootPassesField root_nodes_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
+	bool                is_root             = false; // whether this node is a root node
+	bool                is_contributing     = false; // whether this node contributes to a root node
 };
 
 // these are some sanity checks for le_renderer_types
@@ -61,17 +153,21 @@ struct ExecuteCallbackInfo {
 
 struct le_renderpass_o {
 
-	le::RenderPassType      type         = le::RenderPassType::eUndefined;
+	le::QueueFlagBits       type         = le::QueueFlagBits{};         // Requirements for a queue to which this pass can be submitted.
 	uint32_t                ref_count    = 0;                           // reference count (we're following an intrusive shared pointer pattern)
 	uint64_t                id           = 0;                           // hash of name
 	uint32_t                width        = 0;                           // < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
-	uint32_t                isRoot       = false;                       // whether pass *must* be processed
 
-	std::vector<le_resource_handle>    resources;              // all resources used in this pass
-	std::vector<LeResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
-	std::vector<LeResourceUsageFlags>  resources_usage;        // declared usage for each resource, in sync with resources
+	uint32_t            is_root = false;      // Whether pass *must* be processed
+	le::RootPassesField root_passes_affinity; // Association of this renderpass with one or more root passes that it contributes to -
+	                                          // this needs to be communicated to backend, so that you may create queue submissions
+	                                          // by filtering via root_passes_affinity_masks
+
+	std::vector<le_resource_handle> resources;                  // all resources used in this pass, contains info about resource type
+	std::vector<le::RWFlags>        resources_read_write_flags; // TODO: get rid of this: we can use resources_access_flags instead. read/write flags for all resources, in sync with resources
+	std::vector<le::AccessFlags2>   resources_access_flags;     // first read | last write access for each resource used in this pass
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_img_resource_handle>     attachmentResources; // kept in sync with imageAttachments, one resource per attachment
@@ -90,15 +186,19 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>   passes;                  //
-	std::vector<uint32_t>           sortIndices;             // One index for each pass
-	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
+	std::vector<le_renderpass_o*>    passes;                     //
+	std::vector<le_resource_handle>  declared_resources_id;      // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>  declared_resources_info;    // | pre-declared resources (declared via module)
+	std::vector<le::RootPassesField> root_passes_affinity_masks; // vector of masks, one per distinct tree within the rendergraph,
+	                                                             // each mask represents a filter: passes whose root_passes_affinity
+	                                                             // match via OR are contributing to the distinct tree whose key it was tested against.
+	                                                             // Each entry represents a distinct tree which can be submitted as a
+	                                                             // separate (and resource-isolated) queue submission.
 };
 
 // ----------------------------------------------------------------------
 
-static le_renderpass_o* renderpass_create( const char* renderpass_name, const le::RenderPassType& type_ ) {
+static le_renderpass_o* renderpass_create( const char* renderpass_name, const le::QueueFlagBits& type_ ) {
 	auto self  = new le_renderpass_o();
 	self->id   = hash_64_fnv1a( renderpass_name );
 	self->type = type_;
@@ -177,18 +277,9 @@ static inline bool resource_is_a_swapchain_handle( const le_img_resource_handle&
 // Associate a resource with a renderpass.
 // Data containted in `resource_info` decides whether the resource
 // is used for read, write, or read/write.
-static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, LeResourceUsageFlags const& usage_flags ) {
+static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
-
-	assert( usage_flags.type == LeResourceType::eBuffer ||
-	        usage_flags.type == LeResourceType::eImage ||
-	        usage_flags.type == LeResourceType::eRtxTlas ||
-	        usage_flags.type == LeResourceType::eRtxBlas );
-
-	assert( resource_id->data->type == usage_flags.type && "usage flags must match resource type" );
-
-	// ---------| Invariant: resource is either an image or buffer
 
 	size_t resource_idx    = 0; // index of matching resource
 	size_t resources_count = self->resources.size();
@@ -206,113 +297,47 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		// Note that we don't immediately set the access flag,
 		// as the correct access flag is calculated based on resource_info
 		// after this block.
-		self->resources_access_flags.push_back( { LeResourceAccessFlagBits::eLeResourceAccessFlagBitUndefined } );
-		self->resources_usage.push_back( usage_flags );
+		self->resources_read_write_flags.push_back( le::RWFlags( le::ResourceAccessFlagBits::eUndefined ) );
+		self->resources_access_flags.push_back( access_flags );
+
 	} else {
 
-		// Resource was already declared - we should aim to consolidate all declarations
-		// unless the declarations are conflicting.
-
-		// What would be conflicting declarations?
-		// -> A resource cannot be declared as an image, and then as a buffer, since resource types must match.
-
-		if ( usage_flags.type != self->resources_usage[ resource_idx ].type ) {
-			logger.error( "FATAL: Resource '%s' declared with conflicting types: '%d != %d'. "
-			              "There can only be one declaration per resource per renderpass.",
-			              resource_id->data->debug_name,
-			              self->resources_usage[ resource_idx ].type,
-			              usage_flags.type );
-			assert( false );
-		}
+		// Resource was already used : this should be fine if declared with identical access_flags,
+		// otherwise it is an error.
+		assert( false );
+		self->resources_access_flags[ resource_idx ] = self->resources_access_flags[ resource_idx ] | access_flags;
 	}
 
-	// Now we check whether there is a read and/or a write operation on
-	// the resource
-	static constexpr auto ALL_IMAGE_WRITE_FLAGS =
-	    le::ImageUsageFlagBits::eTransferDst |            //
-	    le::ImageUsageFlagBits::eStorage |                //
-	    le::ImageUsageFlagBits::eColorAttachment |        //
-	    le::ImageUsageFlagBits::eDepthStencilAttachment | //
-	    le::ImageUsageFlagBits::eTransientAttachment      //
-	    ;
+	//	le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debugName, resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
 
-	static constexpr auto ALL_IMAGE_READ_FLAGS =
-	    le::ImageUsageFlagBits::eTransferSrc |            //
-	    le::ImageUsageFlagBits::eSampled |                //
-	    le::ImageUsageFlagBits::eStorage |                //
-	    le::ImageUsageFlagBits::eColorAttachment |        // assume read+write, although if clear, we wouldn't need read
-	    le::ImageUsageFlagBits::eDepthStencilAttachment | //
-	    le::ImageUsageFlagBits::eTransientAttachment |    //
-	    le::ImageUsageFlagBits::eInputAttachment          //
-	    ;
+	bool detectRead  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
+	bool detectWrite = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
 
-	static constexpr auto ALL_BUFFER_WRITE_FLAGS =
-	    le::BufferUsageFlagBits::eTransferDst |        //
-	    le::BufferUsageFlagBits::eStorageTexelBuffer | // assume read+write
-	    le::BufferUsageFlagBits::eStorageBuffer        // assume read+write
-	    ;
-
-	static constexpr auto ALL_BUFFER_READ_FLAGS =
-	    le::BufferUsageFlagBits::eTransferSrc |
-	    le::BufferUsageFlagBits::eUniformTexelBuffer |
-	    le::BufferUsageFlagBits::eUniformBuffer |
-	    le::BufferUsageFlagBits::eIndexBuffer |
-	    le::BufferUsageFlagBits::eVertexBuffer |
-	    le::BufferUsageFlagBits::eStorageBuffer |
-	    le::BufferUsageFlagBits::eStorageTexelBuffer |
-	    le::BufferUsageFlagBits::eIndirectBuffer |
-	    le::BufferUsageFlagBits::eConditionalRenderingBitExt //
-	    ;
-
-	bool resourceWillBeWrittenTo = false;
-	bool resourceWillBeReadFrom  = false;
-
-	switch ( usage_flags.type ) {
-	case LeResourceType::eBuffer: {
-		resourceWillBeReadFrom  = usage_flags.as.buffer_usage_flags & ALL_BUFFER_READ_FLAGS;
-		resourceWillBeWrittenTo = usage_flags.as.buffer_usage_flags & ALL_BUFFER_WRITE_FLAGS;
-	} break;
-	case LeResourceType::eImage: {
-		resourceWillBeReadFrom  = usage_flags.as.image_usage_flags & ALL_IMAGE_READ_FLAGS;
-		resourceWillBeWrittenTo = usage_flags.as.image_usage_flags & ALL_IMAGE_WRITE_FLAGS;
-	} break;
-	case LeResourceType::eRtxTlas: {
-		resourceWillBeReadFrom  = usage_flags.as.rtx_tlas_usage_flags & LE_RTX_TLAS_USAGE_READ_BIT;
-		resourceWillBeWrittenTo = usage_flags.as.rtx_tlas_usage_flags & LE_RTX_TLAS_USAGE_WRITE_BIT;
-	} break;
-	case LeResourceType::eRtxBlas: {
-		resourceWillBeReadFrom  = usage_flags.as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_READ_BIT;
-		resourceWillBeWrittenTo = usage_flags.as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_WRITE_BIT;
-	} break;
-	default:
-		break;
+	// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
+	// this means that some reads to image resources are implicit read/writes.
+	// we can only get rid of this if we can prove that resources will not undergo a layout transform.
+	//
+	if ( resource_id->data->type == LeResourceType::eImage ) {
+		detectWrite |= ( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 	}
 
 	// update access flags
-	LeResourceAccessFlags& access_flags = self->resources_access_flags[ resource_idx ];
+	le::RWFlags& rw_flags = self->resources_read_write_flags[ resource_idx ];
 
-	if ( resourceWillBeReadFrom ) {
-		access_flags |= LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead;
+	if ( detectRead ) {
+		rw_flags = rw_flags | le::ResourceAccessFlagBits::eRead;
 	}
 
-	if ( resourceWillBeWrittenTo ) {
+	if ( detectWrite ) {
 
-		if ( usage_flags.type == LeResourceType::eImage &&
+		if ( resource_id->data->type == LeResourceType::eImage &&
 		     resource_is_a_swapchain_handle( static_cast<le_img_resource_handle>( resource_id ) ) ) {
 			// A request to write to swapchain image automatically turns a pass into a root pass.
-			self->isRoot = true;
+			self->is_root = true;
 		}
 
-		access_flags |= LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite;
+		rw_flags = rw_flags | le::ResourceAccessFlagBits::eWrite;
 	}
-}
-
-static void renderpass_use_img_resource( le_renderpass_o* self, const le_img_resource_handle& resource_id, LeResourceUsageFlags const& usage_flags ) {
-	renderpass_use_resource( self, resource_id, usage_flags );
-}
-// ----------------------------------------------------------------------
-static void renderpass_use_buf_resource( le_renderpass_o* self, const le_buf_resource_handle& resource_id, LeResourceUsageFlags const& usage_flags ) {
-	renderpass_use_resource( self, resource_id, usage_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -331,10 +356,9 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 	//	self->textureImageIds.push_back( textureInfo->imageView.imageId );
 	self->textureInfos.push_back( *textureInfo ); // store a copy of info
 
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled ) } };
-
+	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags );
+	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -344,11 +368,16 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resou
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
 
-	// Make sure that this imgage can be used as a color attachment,
-	// even if user forgot to specify the flag.
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) } };
+	le::AccessFlags2 access_flags{};
 
-	renderpass_use_resource( self, image_id, required_flags );
+	if ( attachmentInfo->loadOp == le::AttachmentLoadOp::eLoad ) {
+		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentRead );
+	}
+	if ( attachmentInfo->storeOp == le::AttachmentStoreOp::eStore ) {
+		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentWrite );
+	}
+
+	renderpass_use_resource( self, image_id, access_flags );
 }
 
 // ----------------------------------------------------------------------
@@ -358,21 +387,34 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
 
-	// Make sure that this image can be used as a depth stencil attachment,
-	// even if user forgot to specify the flag.
-	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) } };
+	le::AccessFlags2 access_flags{};
 
-	renderpass_use_resource( self, image_id, required_flags );
+	if ( attachmentInfo->loadOp == le::AttachmentLoadOp::eLoad ) {
+		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eDepthStencilAttachmentRead );
+	}
+	if ( attachmentInfo->storeOp == le::AttachmentStoreOp::eStore ) {
+		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eDepthStencilAttachmentWrite );
+	}
+	renderpass_use_resource( self, image_id, access_flags );
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t renderpass_get_width( le_renderpass_o const* self ) {
-	return self->width;
-}
-// ----------------------------------------------------------------------
-static uint32_t renderpass_get_height( le_renderpass_o const* self ) {
-	return self->height;
+static bool renderpass_get_framebuffer_settings( le_renderpass_o const* self, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count ) {
+	if ( self->type != le::QueueFlagBits::eGraphics ) {
+		return false; // only graphics passes have width, height, and sample_count
+	}
+	if ( width ) {
+		*width = self->width;
+	}
+	if ( height ) {
+		*height = self->height;
+	}
+	if ( sample_count ) {
+		*sample_count = self->sample_count;
+	}
+	// only return true if the current pass is graphics pass
+	return true;
 }
 
 static void renderpass_set_width( le_renderpass_o* self, uint32_t width ) {
@@ -387,30 +429,32 @@ static void renderpass_set_sample_count( le_renderpass_o* self, le::SampleCountF
 	self->sample_count = sampleCount;
 }
 
-static le::SampleCountFlagBits const& renderpass_get_sample_count( le_renderpass_o const* self ) {
-	return self->sample_count;
-}
-
 // ----------------------------------------------------------------------
 
-static void renderpass_set_is_root( le_renderpass_o* self, bool isRoot ) {
-	self->isRoot = isRoot;
+static void renderpass_set_is_root( le_renderpass_o* self, bool is_root ) {
+	self->is_root = is_root;
 }
 
 static bool renderpass_get_is_root( le_renderpass_o const* self ) {
-	return self->isRoot;
+	return self->is_root;
 }
 
-static le::RenderPassType renderpass_get_type( le_renderpass_o const* self ) {
-	return self->type;
+static void renderpass_get_queue_submission_info( const le_renderpass_o* self, le::QueueFlagBits* pass_type, le::RootPassesField* queue_submission_id ) {
+	if ( pass_type ) {
+		*pass_type =
+		    self->type;
+	}
+	if ( queue_submission_id ) {
+		*queue_submission_id = self->root_passes_affinity;
+	}
 }
 
-static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, LeResourceUsageFlags const** pResourcesUsage, size_t* count ) {
-	assert( self->resources_usage.size() == self->resources.size() );
+static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, le::AccessFlags2 const** pResourcesAccess, size_t* count ) {
+	assert( self->resources_access_flags.size() == self->resources.size() );
 
-	*count           = self->resources.size();
-	*pResources      = self->resources.data();
-	*pResourcesUsage = self->resources_usage.data();
+	*count            = self->resources.size();
+	*pResources       = self->resources.data();
+	*pResourcesAccess = self->resources_access_flags.data();
 }
 
 static const char* renderpass_get_debug_name( le_renderpass_o const* self ) {
@@ -471,6 +515,7 @@ static void rendergraph_reset( le_rendergraph_o* self ) {
 	}
 	self->passes.clear();
 
+	self->root_passes_affinity_masks.clear();
 	self->declared_resources_id.clear();
 	self->declared_resources_info.clear();
 }
@@ -488,120 +533,62 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the pass here. We must destroy it.
 }
 
-/// \brief Tag any tasks which contribute to any root task
-/// \details We do this so that we can weed out any tasks which are provably
+/// \brief Tag any nodes which contribute to any root nodes
+/// \details We do this so that we can weed out any nodes which are provably
 ///          not contributing - these don't need to be executed at all.
-static void tasks_tag_contributing( Task* const tasks, const size_t numTasks ) {
+static void node_tag_contributing( Node* const nodes, const size_t num_nodes, uint32_t* count_roots = nullptr ) {
 
-	// we must iterate backwards from last layer to first layer
-	Task*             task      = tasks + numTasks;
-	Task const* const task_rend = tasks;
+	// We iterate bottom to top - from last layer to first layer
+	Node*             node      = nodes + num_nodes;
+	Node const* const node_rend = nodes;
 
-	BitField read_accum;
+	ResourceField read_accum;
 
-	// find first root layer
-	//    monitored reads will be from the first root layer
-
-	while ( task != task_rend ) {
-		--task;
-
-		bool isRoot = task->reads[ 0 ]; // any task which has the root signal set in the first read channel is considered a root task
-
-		// If it's a root task, get all reads from (= providers to) this task
-		// If it's not a root task, first see if there are any writes to currently monitored reads
-		//    if yes, add all reads to monitored reads
-
-		if ( isRoot || ( task->writes & read_accum ).any() ) {
-			// If this task is a root task - OR					      ) this means the layer is contributing
-			// If this task writes to any subsequent monitored reads, )
-			// Then we must monitor all reads by this task.
-			read_accum |= task->reads;
-
-			task->reads[ 0 ] = true; // Make sure the task is tagged as contributing
-		} else {
-			// Otherwise - this task does not contribute
-		}
-	} // end for all tasks, backwards iteration
-}
-
-/// Note: `sortIndices` must point to an array of `numtasks` elements of type uint32_t
-static void tasks_calculate_sort_indices( Task const* const tasks, const size_t numTasks, uint32_t* sortIndices ) {
-
-	BitField read_accum{};
-	BitField write_accum{};
-
-	/// Each bit in the task bitfield stands for one resource.
-	/// Bitfield index corresponds to a resource id. Note that
-	/// bitfields are indexed right-to left (index zero is right-most).
-
-	bool needs_barrier = false;
-
-	uint32_t sortIndex = 0;
-
-	{
-		Task const* const tasks_end = tasks + numTasks;
-		uint32_t*         taskOrder = sortIndices;
-		for ( Task const* task = tasks; task != tasks_end; task++, taskOrder++ ) {
-
-			// Weed out any tasks which are marked as non-contributing
-
-			if ( task->reads[ 0 ] == false ) {
-				*taskOrder = ~( 0u ); // tag task as not contributing by marking it with the maximum sort index
-				continue;
-			}
-
-			BitField read_write = ( task->reads & task->writes ); // read_after write in same task - this means a task boundary if it does touch any previously read or written elements
-
-			// A barrier is needed, if:
-			needs_barrier = ( read_accum & read_write ).any() ||    // - any previously read elements are touched by read-write, OR
-			                ( write_accum & read_write ).any() ||   // - any previously written elements are touched by read-write, OR
-			                ( write_accum & task->reads ).any() ||  // - the current task wants to read from a previously written task, OR
-			                ( write_accum & task->writes ).any() || // - the current task writes to a previously written resource, OR
-			                ( read_accum & task->writes ).any();    // - the current task wants to write to a task which was previously read.
-
-			//			std::cout << "Needs barrier: " << ( needs_barrier ? "true" : "false" ) << std::endl
-			//			          << std::flush;
-
-			if ( needs_barrier ) {
-				++sortIndex;         // Barriers are expressed by increasing the sortIndex. tasks with the same sortIndex *may* execute concurrently.
-				read_accum.reset();  // Barriers apply everything before the current task
-				write_accum.reset(); //
-				needs_barrier = false;
-			}
-
-			write_accum |= task->writes;
-			read_accum |= task->reads;
-
-			*taskOrder = sortIndex; // store current sortIndex value with task
-
-			// std::cout << task->reads << " reads" << std::endl
-			//           << std::flush;
-			// std::cout << read_accum << " read accum" << std::endl
-			//           << std::flush;
-			// std::cout << write_accum << " write accum" << std::endl
-			//           << std::flush;
-		}
+	if ( count_roots ) {
+		*count_roots = 0;
 	}
-}
+	// Find first root layer
+	//    Monitored reads will be from the first root layer
+	//
+	// We say "layer" because we place all our nodes on top of each other for the purpose of
+	// this algorithm (order is important!) and then process bottom-to-top
 
-// returns path to current executable.
-std::filesystem::path getexepath() {
-	char result[ 1024 ] = { 0 };
+	while ( node != node_rend ) {
+		--node;
 
-#ifdef _MSC_VER
+		// If it's a root node, get all reads from (= providers to) this node
+		//      if node is tagged being a root node and it writes to any monitored read, it can't be a root node.
+		// If it's not a root node, first see if there are any writes to currently monitored reads
+		//      if yes, add all reads to monitored reads
 
-	// When NULL is passed to GetModuleHandle, the handle of the exe itself is returned
-	HMODULE hModule = GetModuleHandle( NULL );
-	if ( hModule != NULL ) {
-		// Use GetModuleFileName() with module handle to get the path
-		GetModuleFileName( hModule, result, ( sizeof( result ) ) );
-	}
-	size_t count = strnlen_s( result, sizeof( result ) );
-#else
-	ssize_t count = readlink( "/proc/self/exe", result, 1024 );
-#endif
+		bool writes_to_any_monitored_read = ( node->writes & read_accum ).any();
 
-	return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
+		if ( node->is_root || writes_to_any_monitored_read ) {
+
+			// If this node is a root node - OR					      ) this means the layer is contributing
+			// If this node writes to any subsequent monitored reads, )
+			// Then we must monitor all reads by this node.
+			//
+			// If a write has no corresponding read (we see a write-only operation), it will extinguish
+			// the read bit at this place - this makes sense, as any previous writes to this place will
+			// be implicitly discarded by a write-only operation onto this place. (Any previous writes
+			// are never read, and we will need a new read to make this resource active again)
+
+			read_accum = ( read_accum & ( ~node->writes ) ) // Anything written in this node will be extinguished (consumed)
+			             | node->reads;                     // Anything read in this node will be lit up.
+
+			node->is_contributing = true;
+
+			if ( node->is_root && writes_to_any_monitored_read ) {
+				// Node cannot be root if it writes to a monitored read (this means that another more-root node depends on it)
+				node->is_root = false;
+			}
+			if ( node->is_root && count_roots ) {
+				( *count_roots )++;
+			}
+		}
+
+	} // end for all nodes, backwards iteration
 }
 
 // ----------------------------------------------------------------------
@@ -611,16 +598,32 @@ std::filesystem::path getexepath() {
 //
 // The graphviz file is stored as graph.dot in the executable's directory.
 //
-static bool
-generate_dot_file_for_rendergraph(
+static bool generate_dot_file_for_rendergraph(
     le_rendergraph_o*   self,
     le_resource_handle* uniqueResources,
     size_t const&       numUniqueResources,
-    Task const*         tasks,
+    Node const*         nodes,
     size_t              frame_number ) {
 
-	static auto           logger   = LeLog( LOGGER_LABEL );
-	std::filesystem::path exe_path = getexepath();
+	static auto                  logger   = LeLog( LOGGER_LABEL );
+	static std::filesystem::path exe_path = []() {
+		char result[ 1024 ] = { 0 };
+
+#ifdef _MSC_VER
+
+		// When NULL is passed to GetModuleHandle, the handle of the exe itself is returned
+		HMODULE hModule = GetModuleHandle( NULL );
+		if ( hModule != NULL ) {
+			// Use GetModuleFileName() with module handle to get the path
+			GetModuleFileName( hModule, result, ( sizeof( result ) ) );
+		}
+		size_t count = strnlen_s( result, sizeof( result ) );
+#else
+		ssize_t count = readlink( "/proc/self/exe", result, 1024 );
+#endif
+
+		return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
+	}();
 
 	std::ostringstream os;
 
@@ -639,12 +642,20 @@ generate_dot_file_for_rendergraph(
 	for ( size_t i = 0; i != self->passes.size(); ++i ) {
 		auto const& p = self->passes[ i ];
 
-		if ( self->sortIndices[ i ] != ( ~0u ) ) {
+		if ( nodes[ i ].is_contributing ) {
 			os << "\"" << p->debugName << "\""
-			   << "[label = <<table border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
+			   << "[label = <<table border='0' cellborder='1' cellspacing='0'><tr><td border='"
+			   << ( nodes[ i ].is_root ? "10" : "0" )
+			   << "' sides='b' cellpadding='3'><b>"
+			   << ( nodes[ i ].is_root ? "⊥ " : "" )
+			   << p->debugName << "</b></td>";
 		} else {
 			os << "\"" << p->debugName << "\""
-			   << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
+			   << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='"
+			   << ( nodes[ i ].is_root ? "10" : "0" )
+			   << "' sides='b' cellpadding='3'><b>"
+			   << ( nodes[ i ].is_root ? "⊥ " : "" )
+			   << p->debugName << "</b></td>";
 		}
 
 		if ( p->resources.empty() ) {
@@ -669,11 +680,17 @@ generate_dot_file_for_rendergraph(
 				}
 
 				// if resource is being written to, then underline resource name
+				if ( nodes[ i ].reads[ res_idx ] ) {
+					os << "△";
+				}
+				if ( nodes[ i ].writes[ res_idx ] ) {
+					os << "▼";
+				}
 
-				if ( tasks[ i ].writes[ res_idx ] ) {
+				if ( nodes[ i ].writes[ res_idx ] ) {
 					os << "<u>" << r->data->debug_name << "</u>";
 				} else {
-					os << "" << r->data->debug_name << "";
+					os << " " << r->data->debug_name << "";
 				}
 			}
 
@@ -682,34 +699,34 @@ generate_dot_file_for_rendergraph(
 		os << "</tr></table>>];" << std::endl;
 	}
 
-	// Indicate which passes are of the same rank,
-	// which we do by grouping passes by their sort order.
+	//	// Indicate which passes are of the same rank,
+	//	// which we do by grouping passes by their sort order.
 
-	{
-		// we need to group elements with the same sort indices.
+	//	{
+	//		// we need to group elements with the same sort indices.
 
-		// -- get a set of sort indices
-		// -- for each sort index, list passes with this sort index
+	//		// -- get a set of sort indices
+	//		// -- for each sort index, list passes with this sort index
 
-		std::set<uint32_t> unique_sort_indices;
+	//		std::set<uint32_t> unique_sort_indices;
 
-		for ( auto& i : self->sortIndices ) {
-			unique_sort_indices.insert( i );
-		}
+	//		for ( auto& i : self->sortIndices ) {
+	//			unique_sort_indices.insert( i );
+	//		}
 
-		for ( auto const& i : unique_sort_indices ) {
-			if ( i == ( ~0u ) ) {
-				continue;
-			}
-			os << "{rank=same; ";
-			for ( size_t j = 0; j != self->sortIndices.size(); j++ ) {
-				if ( i == self->sortIndices[ j ] ) {
-					os << "\"" << self->passes[ j ]->debugName << "\" ";
-				}
-			}
-			os << "}" << std::endl;
-		}
-	}
+	//		for ( auto const& i : unique_sort_indices ) {
+	//			if ( i == ( ~0u ) ) {
+	//				continue;
+	//			}
+	//			os << "{rank=same; ";
+	//			for ( size_t j = 0; j != self->sortIndices.size(); j++ ) {
+	//				if ( i == self->sortIndices[ j ] ) {
+	//					os << "\"" << self->passes[ j ]->debugName << "\" ";
+	//				}
+	//			}
+	//			os << "}" << std::endl;
+	//		}
+	//	}
 
 	// Draw connections : A connection goes from each resource that
 	// has been written in a pass to all subsequent passes which read
@@ -718,7 +735,7 @@ generate_dot_file_for_rendergraph(
 	for ( size_t i = 0; i != self->passes.size(); ++i ) {
 		auto const& p = self->passes[ i ];
 
-		// For each resource: find passes which read from it subsequently, until
+		// For each resource referenced by this pass: find passes which read from it subsequently, until
 		// the first pass writes to it again.
 
 		for ( size_t j = 0; j != p->resources.size(); j++ ) {
@@ -736,17 +753,17 @@ generate_dot_file_for_rendergraph(
 
 			assert( res_idx != numUniqueResources && "something went wrong, handle could not be found in list of unique handles." );
 
-			if ( !tasks[ i ].writes[ res_idx ] ) {
+			if ( !nodes[ i ].writes[ res_idx ] ) {
 				continue;
 			}
 
-			// now we must find any subsequent tasks which read from this resource.
+			// now we must find any subsequent nodes which read from this resource.
 
-			BitField res_filter = uint64_t( 1 ) << res_idx;
+			ResourceField res_filter = uint64_t( 1 ) << res_idx;
 
 			for ( size_t k = i + 1; k != self->passes.size(); k++ ) {
-				if ( ( tasks[ k ].reads & res_filter ).any() ||
-				     ( tasks[ k ].writes & tasks[ k ].reads & res_filter ).any() ) {
+				if ( ( nodes[ k ].reads & res_filter ).any() ||
+				     ( nodes[ k ].writes & nodes[ k ].reads & res_filter ).any() ) {
 
 					os << "\"" << p->debugName << "\":"
 					   << "\"" << needle->data->debug_name << "\""
@@ -754,10 +771,10 @@ generate_dot_file_for_rendergraph(
 					   << " -> \"" << self->passes[ k ]->debugName << "\":"
 					   << "\"" << needle->data->debug_name << "\""
 					   << ":n"
-					   << ( self->sortIndices[ k ] == ( ~0u ) ? "[style=dashed]" : "" )
+					   << ( nodes[ k ].is_contributing == false ? "[style=dashed]" : "" )
 					   << ";" << std::endl;
 				}
-				if ( ( tasks[ k ].writes & res_filter ).any() ) {
+				if ( ( nodes[ k ].writes & res_filter ).any() ) {
 					break;
 				}
 			}
@@ -818,30 +835,28 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	static auto LE_RENDER_GRAPH_ROOT_LAYER_TAG = renderer_produce_resource_handle( "LE_RENDER_GRAPH_ROOT_LAYER_TAG", LeResourceType::eUndefined );
-	// We must express our list of passes as a list of tasks.
-	// A task holds two bitfields, the bitfield names are: `read` and `write`.
+	// We must express our list of passes as a list of nodes.
+	// A node holds two bitfields, the bitfield names are: `read` and `write`.
 	// Each bit in the bitfield represents a possible resource.
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
 
-	std::vector<Task>                                       tasks;
-	std::array<le_resource_handle, MAX_NUM_LAYER_RESOURCES> uniqueHandles; // lookup for resource handles.
-	uniqueHandles[ 0 ]        = LE_RENDER_GRAPH_ROOT_LAYER_TAG;            // handle with index zero is marker for root tasks
-	size_t numUniqueResources = 1;
+	std::vector<Node>                                          nodes;
+	std::array<le_resource_handle, LE_MAX_NUM_GRAPH_RESOURCES> uniqueHandles; // lookup for resource handles.
+	size_t                                                     numUniqueResources = 0;
 
-	// Translate all passes into a task
-	//   Get list of resources per pass and build task from this
+	// Translate all passes into a node
+	//   Get list of resources per pass and build node from this
 
 	for ( auto const& p : self->passes ) {
 
-		Task task;
+		Node node{};
 
 		const size_t numResources = p->resources.size();
 
 		for ( size_t i = 0; i != numResources; i++ ) {
-			auto const&                  resource_handle = p->resources[ i ];
-			LeResourceAccessFlags const& access_flags    = p->resources_access_flags[ i ];
+			auto const&        resource_handle = p->resources[ i ];
+			le::RWFlags const& access_flags    = p->resources_read_write_flags[ i ];
 
 			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
 			for ( auto r = uniqueHandles.data(); res_idx != numUniqueResources; res_idx++, r++ ) {
@@ -855,34 +870,186 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				// resource was not found, we must add a new resource
 				uniqueHandles[ res_idx ] = resource_handle;
 				numUniqueResources++;
+				assert( numUniqueResources < LE_MAX_NUM_GRAPH_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
 			}
 
 			// --------| invariant: uniqueHandles[res_idx] is valid
 
-			task.reads |= ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead ) << res_idx );
-			task.writes |= ( ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite ) >> 1 ) << res_idx );
+			node.reads.set( res_idx, ( le::ResourceAccessFlagBits( access_flags ) & le::ResourceAccessFlagBits::eRead ) );
+			node.writes.set( res_idx, ( ( le::ResourceAccessFlagBits( access_flags ) & le::ResourceAccessFlagBits::eWrite ) >> 1 ) );
 		}
 
-		if ( p->isRoot ) {
-			// Any task which has reads[0] set to true is marked as a root task.
-			task.reads[ 0 ] = true;
+		if ( p->is_root ) {
+			node.is_root = true;
 		}
 
-		tasks.emplace_back( std::move( task ) );
+		nodes.emplace_back( std::move( node ) );
 	}
 
-	// Tag all tasks which contribute to any root task.
+	// Tag all nodes which contribute to any root node.
 	//
-	// Tasks which don't contribute to any root task
+	// Tasks which don't contribute to any root node
 	// can be disposed, as their products will never be used.
-	tasks_tag_contributing( tasks.data(), tasks.size() );
+	uint32_t root_count = 0; // gets set to number of found root nodes as a side-effect of node_tag_contributing
+	node_tag_contributing( nodes.data(), nodes.size(), &root_count );
 
-	self->sortIndices.resize( tasks.size(), 0 );
+	assert( root_count <= LE_MAX_NUM_GRAPH_ROOTS && "number of nodes must fit LE_MAX_NUM_TREES, otherwise we can't express tree affinity as a bitfield" );
 
-	// Associate sort indices to tasks
-	tasks_calculate_sort_indices( tasks.data(), tasks.size(), self->sortIndices.data() );
+	{
+		std::vector<ResourceField> root_reads_accum( root_count );
+		std::vector<ResourceField> root_writes_accum( root_count );
 
-#if ( DEBUG_GENERATE_DOT_GRAPH )
+		// for each root node, accumulate all reads, and writes from contributing nodes.
+		// we do this so that we can test whether each tree is isolated.
+
+		// a tree is isolated if none of its writes touch any other tree's reads.
+		// - what happens if a tree's reads touch another tree's write?
+		{
+
+			uint64_t root_index = 0;
+
+			// iterating backwards
+			for ( auto r = nodes.rbegin(); r != nodes.rend(); r++ ) {
+				// find bottom-most root node
+				while ( r != nodes.rend() && !r->is_root ) {
+					r++;
+				}
+				if ( r == nodes.rend() ) {
+					break;
+				}
+				ResourceField& read_accum  = root_reads_accum[ root_index ];
+				ResourceField& write_accum = root_writes_accum[ root_index ];
+				// n is a root node.
+				read_accum  = r->reads;
+				write_accum = r->writes;
+				r->root_nodes_affinity |= ( 1ULL << root_index );
+
+				for ( auto n = r + 1; n != nodes.rend(); n++ ) {
+					if ( n->is_root ) {
+						continue;
+					}
+					// if this earlier node writes to any of our subsequent reads, we add it to our
+					// current tree of nodes.
+					if ( ( n->writes & read_accum ).any() ) {
+						read_accum |= n->reads;
+						write_accum |= n->writes;
+						// tag resource as belonging to this particular root node.
+						n->root_nodes_affinity |= ( 1ULL << root_index );
+					}
+				}
+				root_index++;
+			}
+		}
+
+#if ( LE_PRINT_DEBUG_MESSAGES )
+		{
+			logger.info( "Unique resources:" );
+			for ( size_t i = 0; i != numUniqueResources; i++ ) {
+				logger.info( "%3d : %s", i, uniqueHandles[ i ]->data->debug_name );
+			}
+		}
+		for ( size_t i = 0; i < root_count; i++ ) {
+			logger.info( "root node (%2d)", i );
+			logger.info( "reads : %s", root_reads_accum[ i ].to_string().c_str() );
+			logger.info( "writes: %s", root_writes_accum[ i ].to_string().c_str() );
+		}
+
+		logger.info( "" );
+		for ( size_t i = 0; i < self->passes.size(); i++ ) {
+			logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_nodes_affinity );
+		}
+		logger.info( "" );
+#endif
+		// For each root pass, test its accumulated reads against all other root passes' accumulated writes.
+		// if there is an overlap, we know that the two roots which overlap must be combined, as
+		// they are not perfectly resource-isolated (an overlap means that one writes on the other's
+		// read resource).
+		//
+		// No such overlap is detected if both roots in a test only read from the same resource -
+		// this is because two queues may read concurrently from a resource.
+		//
+		// We need to test each root against all other roots - note that we can to two tests at once.
+		// Meaning our complexity for n root elements is ((n^2-n)/2)
+		//
+		// Q: What happens when more than two subgraphs overlap?
+		// A: Exactly what you would expect, all overlapping subgraph form one giant combined subgraph.
+		//
+
+		// Initially, each root starts out on their own subgraph -  each subgraph id is initially
+		// a unique single bit in the subgraph_id bitfield.
+		//
+		// If we detect overlap, roots which overlap will get their subgraph_ids OR'ed
+		// and both roots update the subgraph_id they point to - so that they point to the new,
+		// combined id.
+		//
+		// By the end ot this process we get a list of unique subgraph_ids which have no overlap.
+		//
+		std::vector<le::RootPassesField> subgraph_id( root_count );     // queue id per root - starting out with a single bit
+		std::vector<int>                 subgraph_id_idx( root_count ); // queue id index per root
+		for ( size_t i = 0; i != root_count; i++ ) {
+			subgraph_id[ i ] |= ( 1ULL << i ); // initialise to single bit at bitfield position corresponding to queue id
+			subgraph_id_idx[ i ] = i;          // initialise queue id index to be direct mapping
+		}
+
+		for ( size_t i = 0; i != root_count; i++ ) {
+			for ( size_t j = i + 1; j != root_count; j++ ) {
+				// compare i <-> j
+				// compare j <-> i
+				// If any reads appear in writes, tag both as being part of the same batch.
+				if ( ( root_reads_accum[ i ] & root_writes_accum[ j ] ).any() || // writes from j touch reads from i
+				     ( root_reads_accum[ j ] & root_writes_accum[ i ] ).any() )  // or writes from i touch reads from j
+				{
+
+					// Overlap detectd:
+					logger.info( "RenderGraph trees with roots %d and %d are not isolated and must be combined", i, j );
+
+					// Combine queue ids:
+					// Get current queue ids for i, j,
+					// and combine them in the queue pointed to with the lowest offset
+
+					le::RootPassesField combined_subgraph_id = subgraph_id[ subgraph_id_idx[ j ] ] | subgraph_id[ subgraph_id_idx[ i ] ];
+
+					if ( subgraph_id_idx[ i ] <= subgraph_id_idx[ j ] ) {
+						subgraph_id_idx[ j ] = subgraph_id_idx[ i ];
+					} else {
+						subgraph_id_idx[ i ] = subgraph_id_idx[ j ];
+					}
+
+					// update subgraph_id at newly shared queue position
+					subgraph_id[ subgraph_id_idx[ i ] ] = combined_subgraph_id;
+				}
+			}
+		}
+
+		// Remove any duplicate entries in our indirection table
+		// (if trees get combined they will share the same id)
+		auto it = std::unique( subgraph_id_idx.begin(), subgraph_id_idx.end() );
+		subgraph_id_idx.erase( it, subgraph_id_idx.end() );
+
+		// ---------| invariant: subgraph_id_idx has unique entries,
+
+		// consolidate queue invocation keys, and at the same time test the assertion that no key overlaps
+		//
+		le::RootPassesField check_subgraph_accum = 0;
+		for ( size_t i = 0; i != subgraph_id_idx.size(); i++ ) {
+
+#if ( LE_PRINT_DEBUG_MESSAGES )
+			logger.info( "subgraph key [ %-12d], affinity: %x", i, subgraph_id[ subgraph_id_idx[ i ] ] );
+#endif
+
+			self->root_passes_affinity_masks.push_back( subgraph_id[ subgraph_id_idx[ i ] ] );
+
+			{
+				// Do some error checking: each bit in the RootPassesField bitfield is only allowed
+				// to be used exactly once.
+				le::RootPassesField q = subgraph_id[ subgraph_id_idx[ i ] ];
+				assert( !( q & check_subgraph_accum ) && "subgraph lanes must be independent." );
+				check_subgraph_accum |= q;
+			}
+		}
+	}
+
+#if ( LE_GENERATE_DOT_GRAPH )
 	{
 		// We must check if the renderpass has somehow changed - if we detect change, save out a new .dot file.
 
@@ -890,75 +1057,64 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// whenever something might have changed within the rendergraph, we generate a new .dot file.
 
 		// calculate hash over all unique resources
+		// calculate hash over all nodes, their signatures
 
-		// calculate hash over all tasks, their signatures
+		std::hash<ResourceField> bit_hash;
 
-		std::hash<BitField> bit_hash;
+		std::vector<size_t> node_hashes;
+		node_hashes.reserve( nodes.size() * 2 );
 
-		std::vector<size_t> task_hashes;
-		task_hashes.reserve( tasks.size() * 2 );
-
-		for ( auto& t : tasks ) {
-			task_hashes.emplace_back( bit_hash( t.reads ) );
-			task_hashes.emplace_back( bit_hash( t.writes ) );
+		for ( auto& t : nodes ) {
+			node_hashes.emplace_back( bit_hash( t.reads ) );
+			node_hashes.emplace_back( bit_hash( t.writes ) );
 		}
 
-		uint64_t tasks_hash = SpookyHash::Hash64( task_hashes.data(), sizeof( size_t ) * task_hashes.size(), 0 );
-		SpookyHash::Hash64( uniqueHandles.data(), sizeof( le_resource_handle_t ) * numUniqueResources, tasks_hash );
+		uint64_t nodes_hash = SpookyHash::Hash64( node_hashes.data(), sizeof( size_t ) * node_hashes.size(), 0 );
+		SpookyHash::Hash64( uniqueHandles.data(), sizeof( le_resource_handle_t ) * numUniqueResources, nodes_hash );
 
 		static uint64_t previous_hash = 0;
 
-		if ( previous_hash != tasks_hash ) {
-			generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, tasks.data(), frame_number );
-			previous_hash = tasks_hash;
+		if ( previous_hash != nodes_hash ) {
+			generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, nodes.data(), frame_number );
+			previous_hash = nodes_hash;
 		}
 	}
 #endif
 
-#if ( PRINT_DEBUG_MESSAGES )
-	auto printPassList = [ & ]() -> void {
-		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
-			logger.info( "Pass : %3d sort order: %12d : %s ", i, self->sortIndices[ i ], self->passes[ i ]->debugName );
-		}
-	};
-	printPassList();
-#endif
-
 	{
 		// Remove any passes from rendergraph which do not contribute.
-		// Passes which don't contribute have a sort index of (unsigned) -1.
 		//
-		// We consolidate the list of passes by rebuilding it while only
-		// including passes which contribute (whose sort index != -1)
-
-		size_t numSortIndices = self->sortIndices.size();
+		//
+		size_t num_passes = self->passes.size();
 
 		std::vector<le_renderpass_o*> consolidated_passes;
-		std::vector<uint32_t>         consolidated_sort_indices;
+		consolidated_passes.reserve( num_passes );
 
-		consolidated_passes.reserve( numSortIndices );
-		consolidated_sort_indices.reserve( numSortIndices );
-
-		for ( size_t i = 0; i != self->sortIndices.size(); i++ ) {
-			if ( self->sortIndices[ i ] != ( ~0u ) ) {
-				// valid sort index, add to consolidated passes
+		for ( size_t i = 0; i != num_passes; i++ ) {
+			if ( nodes[ i ].is_contributing ) {
+				// Pass contributes, add it to consolidated passes
+				self->passes[ i ]->is_root              = nodes[ i ].is_root;
+				self->passes[ i ]->root_passes_affinity = nodes[ i ].root_nodes_affinity;
 				consolidated_passes.push_back( self->passes[ i ] );
-				consolidated_sort_indices.push_back( self->sortIndices[ i ] );
 			} else {
-				// Sort index hints that this pass is not used,
-				// since the rendergraph owns the pass at this point,
-				// we must delete it.
+				// Pass is not contributing, we will not keep it.
+				// Since the rendergraph owns this pass at this point,
+				// we must explicitly delete it.
 				delete self->passes[ i ];
 				self->passes[ i ] = nullptr;
 			}
 		}
 
+		// Update self->passes
 		std::swap( self->passes, consolidated_passes );
-		std::swap( self->sortIndices, consolidated_sort_indices );
 
-#if ( PRINT_DEBUG_MESSAGES )
+#if ( LE_PRINT_DEBUG_MESSAGES )
 		logger.info( "* Consolidated Pass List *" );
-		printPassList();
+		int i = 0;
+		for ( auto const& p : self->passes ) {
+			logger.info( "Pass : %3d : %s ", i, p->debugName );
+			i++;
+		}
 		logger.info( "" );
 #endif
 	}
@@ -978,7 +1134,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		std::ostringstream msg;
 		logger.info( "Render graph: " );
 		for ( const auto& pass : self->passes ) {
@@ -1057,15 +1213,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 	const size_t numPasses = self->passes.size();
 
 	for ( size_t i = 0; i != numPasses; ++i ) {
-		auto& pass       = self->passes[ i ];
-		auto& sort_index = self->sortIndices[ i ]; // passes with same sort_index may execute in parallel.
-
-		if ( sort_index == ( ~0u ) ) {
-			// Pass has been marked as non-contributing during rendergraph.build step.
-			continue;
-		}
-
-		// ---------| invariant: pass may contribute
+		auto& pass = self->passes[ i ];
 
 		if ( !pass->executeCallbacks.empty() ) {
 
@@ -1086,7 +1234,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, pass_extents ); // NOTE: we must manually track the lifetime of encoder!
 
-			if ( pass->type == le::RenderPassType::eDraw ) {
+			if ( pass->type == le::QueueFlagBits::eGraphics ) {
 
 				// Set default scissor and viewport to full extent.
 
@@ -1125,6 +1273,12 @@ static void rendergraph_get_declared_resources( le_rendergraph_o* self, le_resou
 	*p_resource_infos   = self->declared_resources_info.data();
 }
 
+// ----------------------------------------------------------------------
+
+static void rendergraph_get_p_affinity_masks( le_rendergraph_o* self, le::RootPassesField const** p_affinity_masks, uint32_t* num_affinity_masks ) {
+	*p_affinity_masks   = self->root_passes_affinity_masks.data();
+	*num_affinity_masks = self->root_passes_affinity_masks.size();
+}
 // ----------------------------------------------------------------------
 // Builds rendergraph from render_module, calls `setup` callbacks on each renderpass which provides a
 // `setup` callback.
@@ -1189,6 +1343,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_private_i.execute                = rendergraph_execute;
 	le_rendergraph_private_i.get_passes             = rendergraph_get_passes;
 	le_rendergraph_private_i.get_declared_resources = rendergraph_get_declared_resources;
+	le_rendergraph_private_i.get_p_affinity_masks   = rendergraph_get_p_affinity_masks;
 
 	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
 	le_renderpass_i.create                       = renderpass_create;
@@ -1196,12 +1351,10 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.destroy                      = renderpass_destroy;
 	le_renderpass_i.get_id                       = renderpass_get_id;
 	le_renderpass_i.get_debug_name               = renderpass_get_debug_name;
-	le_renderpass_i.get_type                     = renderpass_get_type;
-	le_renderpass_i.get_width                    = renderpass_get_width;
+	le_renderpass_i.get_queue_sumbission_info    = renderpass_get_queue_submission_info;
+	le_renderpass_i.get_framebuffer_settings     = renderpass_get_framebuffer_settings;
 	le_renderpass_i.set_width                    = renderpass_set_width;
 	le_renderpass_i.set_sample_count             = renderpass_set_sample_count;
-	le_renderpass_i.get_sample_count             = renderpass_get_sample_count;
-	le_renderpass_i.get_height                   = renderpass_get_height;
 	le_renderpass_i.set_height                   = renderpass_set_height;
 	le_renderpass_i.set_setup_callback           = renderpass_set_setup_callback;
 	le_renderpass_i.has_setup_callback           = renderpass_has_setup_callback;
@@ -1213,8 +1366,6 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.add_depth_stencil_attachment = renderpass_add_depth_stencil_attachment;
 	le_renderpass_i.get_image_attachments        = renderpass_get_image_attachments;
 	le_renderpass_i.use_resource                 = renderpass_use_resource;
-	le_renderpass_i.use_img_resource             = renderpass_use_img_resource;
-	le_renderpass_i.use_buf_resource             = renderpass_use_buf_resource;
 	le_renderpass_i.get_used_resources           = renderpass_get_used_resources;
 	le_renderpass_i.steal_encoder                = renderpass_steal_encoder;
 	le_renderpass_i.sample_texture               = renderpass_sample_texture;

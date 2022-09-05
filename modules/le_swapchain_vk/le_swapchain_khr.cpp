@@ -6,11 +6,10 @@
 #include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include "le_backend_vk.h"
-#include "private/le_renderer_types.h"
+#include "le_backend_types_internal.h"
 #include "le_window.h"
 #include "le_log.h"
 #include <iostream>
-#include <vector>
 
 static constexpr auto LOGGER_LABEL = "le_swapchain_khr";
 
@@ -248,8 +247,7 @@ static le_swapchain_o* swapchain_khr_create( const le_swapchain_vk_api::swapchai
 		using namespace le_backend_vk;
 		self->device                         = private_backend_vk_i.get_vk_device( backend );
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
-		auto le_device                       = private_backend_vk_i.get_le_device( backend );
-		self->vk_graphics_queue_family_index = vk_device_i.get_default_graphics_queue_family_index( le_device );
+		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->queue_family_index;
 	}
 
 	self->swapchainKHR = nullptr;
@@ -276,18 +274,18 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete_, uint32_t& imageIndex_ ) {
+static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore present_complete_semaphore, uint32_t& image_index ) {
 
 	auto self = static_cast<khr_data_o* const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
 
-	auto result = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, semaphorePresentComplete_, nullptr, &imageIndex_ );
+	auto result = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, present_complete_semaphore, nullptr, &image_index );
 
 	switch ( result ) {
 	case VK_SUCCESS:
-		self->mImageIndex = imageIndex_;
+		self->mImageIndex = image_index;
 		return true;
 	case VK_SUBOPTIMAL_KHR:         // | fall-through
 	case VK_ERROR_SURFACE_LOST_KHR: // |

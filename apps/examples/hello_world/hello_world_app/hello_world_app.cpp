@@ -148,11 +148,11 @@ static hello_world_app_o* hello_world_app_create() {
 		app->worldGeometry.vertexCount         = vertexCount;
 		app->worldGeometry.indexCount          = indexCount;
 		app->worldGeometry.index_buffer_info   = le::BufferInfoBuilder()
-		                                           .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer ) )
+		                                           .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer | le::BufferUsageFlagBits::eTransferDst ) )
 		                                           .setSize( uint32_t( indexCount * sizeof( uint16_t ) ) )
 		                                           .build();
 		app->worldGeometry.vertex_buffer_info = le::BufferInfoBuilder()
-		                                            .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer ) )
+		                                            .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer | le::BufferUsageFlagBits::eTransferDst ) )
 		                                            .setSize( uint32_t( app->worldGeometry.vertexDataByteCount ) )
 		                                            .build();
 	}
@@ -266,8 +266,8 @@ static bool pass_resource_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto app = static_cast<hello_world_app_o*>( user_data );
 
 	rp
-	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) )
-	    .useBufferResource( app->worldGeometry.index_buffer_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) ) //
+	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, le::AccessFlagBits2::eTransferWrite )
+	    .useBufferResource( app->worldGeometry.index_buffer_handle, le::AccessFlagBits2::eTransferWrite ) //
 	    ;
 
 	return !app->worldGeometry.wasLoaded;
@@ -386,8 +386,8 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	    .sampleTexture( app->texEarthNight, texInfoNight )
 	    .sampleTexture( app->texEarthNormals, texInfoNormals )
 	    .sampleTexture( app->texEarthClouds, texInfoClouds )
-	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer ) )
-	    .useBufferResource( app->worldGeometry.index_buffer_handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer ) );
+	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, le::AccessFlagBits2::eVertexAttributeRead )
+	    .useBufferResource( app->worldGeometry.index_buffer_handle, le::AccessFlagBits2::eIndexRead );
 
 	return true;
 }
@@ -661,13 +661,13 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 
 		self->resource_manager.update( renderGraph );
 
-		le::RenderPass resourcePass( "resources", le::RenderPassType::eTransfer );
+		le::RenderPass resourcePass( "resources", le::QueueFlagBits::eTransfer );
 		resourcePass
 		    .setSetupCallback( self, pass_resource_setup )
 		    .setExecuteCallback( self, pass_resource_exec ) //
 		    ;
 
-		le::RenderPass renderPassFinal( "mainPass", le::RenderPassType::eDraw );
+		le::RenderPass renderPassFinal( "mainPass", le::QueueFlagBits::eGraphics );
 		renderPassFinal
 		    .setSetupCallback( self, pass_main_setup )
 		    .setSampleCount( le::SampleCountFlagBits::e8 )
@@ -679,7 +679,9 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 		    .addRenderPass( renderPassFinal );
 		renderGraph
 		    .declareResource( self->worldGeometry.index_buffer_handle, self->worldGeometry.index_buffer_info )
-		    .declareResource( self->worldGeometry.vertex_buffer_handle, self->worldGeometry.vertex_buffer_info );
+		    .declareResource( self->worldGeometry.vertex_buffer_handle, self->worldGeometry.vertex_buffer_info )
+		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    ;
 	}
 
 	// Update will call all rendercallbacks in this module.

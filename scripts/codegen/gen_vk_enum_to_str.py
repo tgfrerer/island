@@ -109,7 +109,7 @@ def generate_enum_group(original_enum_name, wants_to_string=False, num_bits=32):
 			if ( false == result.empty() ) {{
 				result.append( " | " );
             }}
-			result.append( to_str_{to_bits_name}( {bits_name}( 1 << bit_pos ) ) );
+			result.append( to_str_{to_bits_name}( {bits_name}( 1ULL << bit_pos ) ) );
         }}
 		flags >>= 1;
 		bit_pos++;

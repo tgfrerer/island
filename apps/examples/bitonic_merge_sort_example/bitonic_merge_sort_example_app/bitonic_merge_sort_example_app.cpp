@@ -179,7 +179,7 @@ static bool pass_noise_setup( le_renderpass_o* renderpass_, void* user_data ) {
 	auto           app = static_cast<app_o*>( user_data );
 
 	if ( app->source_dirty && app->data_source_type == DataSourceType::eNoise ) {
-		rp.useBufferResource( app->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst ) );
+		rp.useBufferResource( app->pixels_data->handle, le::AccessFlagBits2::eTransferWrite );
 		app->pixels_data->unsorted   = true;
 		app->slow_mo.seen_iterations = 0;
 		app->source_dirty            = false;
@@ -196,7 +196,7 @@ static bool pass_upload_image_setup( le_renderpass_o* rp_, void* user_data ) {
 	auto           app = static_cast<app_o*>( user_data );
 
 	if ( app->source_dirty && app->data_source_type == DataSourceType::eImage && !app->dropped_image_path.empty() ) {
-		rp.useBufferResource( app->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) );
+		rp.useBufferResource( app->pixels_data->handle, le::AccessFlagBits2::eTransferWrite );
 		app->pixels_data->unsorted   = true;
 		app->slow_mo.seen_iterations = 0;
 		app->source_dirty            = false;
@@ -213,7 +213,7 @@ static bool pass_sort_setup( le_renderpass_o* rp_, void* user_data ) {
 	le::RenderPass rp{ rp_ };
 
 	if ( app->pixels_data->unsorted == true ) {
-		rp.useBufferResource( app->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) );
+		rp.useBufferResource( app->pixels_data->handle, le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2::eShaderWrite );
 		return true;
 	}
 	return false;
@@ -352,7 +352,7 @@ static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user
 		    .dispatch( workgroup_count )
 		    .bufferMemoryBarrier( le::PipelineStageFlags2( le::PipelineStageFlagBits2::eComputeShader ),
 		                          le::PipelineStageFlags2( le::PipelineStageFlagBits2::eComputeShader ),
-		                          le::AccessFlags( le::AccessFlagBits::eShaderRead ),
+		                          le::AccessFlags2( le::AccessFlagBits2::eShaderRead ),
 		                          app->pixels_data->handle );
 	};
 
@@ -502,23 +502,23 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 	le::RenderGraph renderGraph{};
 	{
 		auto pass_noise =
-		    le::RenderPass( "initialize", le::RenderPassType::eTransfer )
+		    le::RenderPass( "initialize", le::QueueFlagBits::eTransfer )
 		        .setSetupCallback( self, pass_noise_setup )
 		        .setExecuteCallback( self, pass_noise_execute );
 
 		auto pass_upload_image =
-		    le::RenderPass( "upload_image", le::RenderPassType::eTransfer )
+		    le::RenderPass( "upload_image", le::QueueFlagBits::eTransfer )
 		        .setSetupCallback( self, pass_upload_image_setup )
 		        .setExecuteCallback( self, pass_upload_image_execute );
 
 		auto pass_compute =
-		    le::RenderPass( "compute", le::RenderPassType::eCompute )
+		    le::RenderPass( "compute", le::QueueFlagBits::eCompute )
 		        .setSetupCallback( self, pass_sort_setup )
 		        .setExecuteCallback( self, pass_sort_execute );
 
 		auto pass_draw =
-		    le::RenderPass( "root", le::RenderPassType::eDraw )
-		        .useBufferResource( self->pixels_data->handle, le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer ) )
+		    le::RenderPass( "root", le::QueueFlagBits::eGraphics )
+		        .useBufferResource( self->pixels_data->handle, le::AccessFlagBits2::eShaderStorageRead )
 		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
 		        .setExecuteCallback( self, pass_draw_exec );
 
@@ -532,12 +532,18 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 		// pixels data buffer - this is why we explicitly declare this buffer resource:
 		renderGraph
 		    .declareResource(
+		        LE_SWAPCHAIN_IMAGE_HANDLE,
+		        le::ImageInfoBuilder()
+		            .setUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
+		            .build() )
+		    .declareResource(
 		        self->pixels_data->handle,
 		        le::BufferInfoBuilder()
 		            .setSize( self->pixels_data->bytes_per_channel *
 		                      self->pixels_data->num_channels *
 		                      self->pixels_data->w *
 		                      self->pixels_data->h )
+		            .addUsageFlags( le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst )
 		            .build() );
 	}
 

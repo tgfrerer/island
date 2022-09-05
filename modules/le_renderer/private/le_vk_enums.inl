@@ -11,54 +11,166 @@ namespace le {
 
 // ----------------------------------------------------------------------
 
-using AccessFlags = uint32_t;
-enum class AccessFlagBits : AccessFlags {
+enum class AccessFlagBits2 : uint64_t {
 	eNone                                    = 0,
-	eIndirectCommandRead                     = 0x00000001, // Controls coherency of indirect command reads
-	eIndexRead                               = 0x00000002, // Controls coherency of index reads
-	eVertexAttributeRead                     = 0x00000004, // Controls coherency of vertex attribute reads
-	eUniformRead                             = 0x00000008, // Controls coherency of uniform buffer reads
-	eInputAttachmentRead                     = 0x00000010, // Controls coherency of input attachment reads
-	eShaderRead                              = 0x00000020, // Controls coherency of shader reads
-	eShaderWrite                             = 0x00000040, // Controls coherency of shader writes
-	eColorAttachmentRead                     = 0x00000080, // Controls coherency of color attachment reads
-	eColorAttachmentWrite                    = 0x00000100, // Controls coherency of color attachment writes
-	eDepthStencilAttachmentRead              = 0x00000200, // Controls coherency of depth/stencil attachment reads
-	eDepthStencilAttachmentWrite             = 0x00000400, // Controls coherency of depth/stencil attachment writes
-	eTransferRead                            = 0x00000800, // Controls coherency of transfer reads
-	eTransferWrite                           = 0x00001000, // Controls coherency of transfer writes
-	eHostRead                                = 0x00002000, // Controls coherency of host reads
-	eHostWrite                               = 0x00004000, // Controls coherency of host writes
-	eMemoryRead                              = 0x00008000, // Controls coherency of memory reads
-	eMemoryWrite                             = 0x00010000, // Controls coherency of memory writes
-	eCommandPreprocessReadBitNv              = 0x00020000,
-	eCommandPreprocessWriteBitNv             = 0x00040000,
-	eColorAttachmentReadNoncoherentBitExt    = 0x00080000,
-	eConditionalRenderingReadBitExt          = 0x00100000, // read access flag for reading conditional rendering predicate
-	eAccelerationStructureReadBitKhr         = 0x00200000,
-	eAccelerationStructureWriteBitKhr        = 0x00400000,
-	eFragmentShadingRateAttachmentReadBitKhr = 0x00800000,
-	eFragmentDensityMapReadBitExt            = 0x01000000,
-	eTransformFeedbackWriteBitExt            = 0x02000000,
-	eTransformFeedbackCounterReadBitExt      = 0x04000000,
-	eTransformFeedbackCounterWriteBitExt     = 0x08000000,
+	eIndirectCommandRead                     = 0x00000001ULL,
+	eIndexRead                               = 0x00000002ULL,
+	eVertexAttributeRead                     = 0x00000004ULL,
+	eUniformRead                             = 0x00000008ULL,
+	eInputAttachmentRead                     = 0x00000010ULL,
+	eShaderRead                              = 0x00000020ULL,
+	eShaderWrite                             = 0x00000040ULL,
+	eColorAttachmentRead                     = 0x00000080ULL,
+	eColorAttachmentWrite                    = 0x00000100ULL,
+	eDepthStencilAttachmentRead              = 0x00000200ULL,
+	eDepthStencilAttachmentWrite             = 0x00000400ULL,
+	eTransferRead                            = 0x00000800ULL,
+	eTransferWrite                           = 0x00001000ULL,
+	eHostRead                                = 0x00002000ULL,
+	eHostWrite                               = 0x00004000ULL,
+	eMemoryRead                              = 0x00008000ULL,
+	eMemoryWrite                             = 0x00010000ULL,
+	eCommandPreprocessReadBitNv              = 0x00020000ULL,
+	eCommandPreprocessWriteBitNv             = 0x00040000ULL,
+	eColorAttachmentReadNoncoherentBitExt    = 0x00080000ULL,
+	eConditionalRenderingReadBitExt          = 0x00100000ULL, // read access flag for reading conditional rendering predicate
+	eAccelerationStructureReadBitKhr         = 0x00200000ULL,
+	eAccelerationStructureWriteBitKhr        = 0x00400000ULL,
+	eFragmentShadingRateAttachmentReadBitKhr = 0x00800000ULL,
+	eFragmentDensityMapReadBitExt            = 0x01000000ULL,
+	eTransformFeedbackWriteBitExt            = 0x02000000ULL,
+	eTransformFeedbackCounterReadBitExt      = 0x04000000ULL,
+	eTransformFeedbackCounterWriteBitExt     = 0x08000000ULL,
+	eReserved44BitNv                         = 0x100000000000ULL,
+	eReserved387BitKhr                       = 0x10000000000ULL,
+	eVideoDecodeWriteBitKhr                  = 0x1000000000ULL,
+	eShaderSampledRead                       = 0x100000000ULL,
+	eReserved45BitNv                         = 0x200000000000ULL,
+	eReserved41BitAmd                        = 0x20000000000ULL,
+	eVideoEncodeReadBitKhr                   = 0x2000000000ULL,
+	eShaderStorageRead                       = 0x200000000ULL,
+	eReserved42BitNv                         = 0x40000000000ULL,
+	eVideoEncodeWriteBitKhr                  = 0x4000000000ULL,
+	eShaderStorageWrite                      = 0x400000000ULL,
+	eReserved43BitNv                         = 0x80000000000ULL,
+	eInvocationMaskReadBitHuawei             = 0x8000000000ULL,
+	eVideoDecodeReadBitKhr                   = 0x800000000ULL,
 	eAccelerationStructureReadBitNv          = eAccelerationStructureReadBitKhr,
 	eAccelerationStructureWriteBitNv         = eAccelerationStructureWriteBitKhr,
+	eColorAttachmentReadBitKhr               = eColorAttachmentRead,
+	eColorAttachmentWriteBitKhr              = eColorAttachmentWrite,
+	eDepthStencilAttachmentReadBitKhr        = eDepthStencilAttachmentRead,
+	eDepthStencilAttachmentWriteBitKhr       = eDepthStencilAttachmentWrite,
 	eShadingRateImageReadBitNv               = eFragmentShadingRateAttachmentReadBitKhr,
+	eHostReadBitKhr                          = eHostRead,
+	eHostWriteBitKhr                         = eHostWrite,
+	eIndexReadBitKhr                         = eIndexRead,
+	eIndirectCommandReadBitKhr               = eIndirectCommandRead,
+	eInputAttachmentReadBitKhr               = eInputAttachmentRead,
+	eMemoryReadBitKhr                        = eMemoryRead,
+	eMemoryWriteBitKhr                       = eMemoryWrite,
 	eNoneKhr                                 = eNone,
+	eShaderReadBitKhr                        = eShaderRead,
+	eShaderSampledReadBitKhr                 = eShaderSampledRead,
+	eShaderStorageReadBitKhr                 = eShaderStorageRead,
+	eShaderStorageWriteBitKhr                = eShaderStorageWrite,
+	eShaderWriteBitKhr                       = eShaderWrite,
+	eTransferReadBitKhr                      = eTransferRead,
+	eTransferWriteBitKhr                     = eTransferWrite,
+	eUniformReadBitKhr                       = eUniformRead,
+	eVertexAttributeReadBitKhr               = eVertexAttributeRead,
 };
 
-constexpr AccessFlags operator|( AccessFlagBits const& lhs, AccessFlagBits const& rhs ) noexcept {
-	return static_cast<const AccessFlags>( static_cast<AccessFlags>( lhs ) | static_cast<AccessFlags>( rhs ) );
+struct AccessFlags2 {
+	inline constexpr AccessFlags2( AccessFlagBits2 const& rhs = AccessFlagBits2() )
+	    : data( uint64_t( rhs ) ) {
+	}
+	inline constexpr operator const uint64_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint64_t data;
 };
 
-constexpr AccessFlags operator|( AccessFlags const& lhs, AccessFlagBits const& rhs ) noexcept {
-	return static_cast<const AccessFlags>( lhs | static_cast<AccessFlags>( rhs ) );
+inline constexpr AccessFlags2 operator|( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+	return AccessFlagBits2( uint64_t( lhs ) | uint64_t( rhs ) );
 };
 
-constexpr AccessFlags operator&( AccessFlagBits const& lhs, AccessFlagBits const& rhs ) noexcept {
-	return static_cast<const AccessFlags>( static_cast<AccessFlags>( lhs ) & static_cast<AccessFlags>( rhs ) );
+inline constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+	return AccessFlagBits2( lhs | uint64_t( rhs ) );
 };
+
+inline constexpr AccessFlags2 operator|( AccessFlags2 const& lhs, AccessFlags2 const& rhs ) noexcept {
+	return AccessFlagBits2( lhs | uint64_t( rhs ) );
+};
+
+inline constexpr AccessFlags2 operator|=( AccessFlags2& lhs, AccessFlags2 const& rhs ) noexcept {
+	return lhs = AccessFlagBits2( lhs | uint64_t( rhs ) );
+};
+
+inline constexpr AccessFlags2 operator&( AccessFlagBits2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+	return AccessFlagBits2( uint64_t( lhs ) & uint64_t( rhs ) );
+};
+
+inline constexpr AccessFlags2 operator&( AccessFlags2 const& lhs, AccessFlags2 const& rhs ) noexcept {
+	return AccessFlagBits2( lhs & uint64_t( rhs ) );
+};
+
+inline constexpr AccessFlags2 operator&( AccessFlags2 const& lhs, AccessFlagBits2 const& rhs ) noexcept {
+	return AccessFlagBits2( lhs & uint64_t( rhs ) );
+};
+
+static constexpr char const* to_str( const AccessFlagBits2& tp ) {
+	switch ( static_cast<uint64_t>( tp ) ) {
+		// clang-format off
+		case          0: return "None";
+		case 0x00000001ULL: return "IndirectCommandRead";
+		case 0x00000002ULL: return "IndexRead";
+		case 0x00000004ULL: return "VertexAttributeRead";
+		case 0x00000008ULL: return "UniformRead";
+		case 0x00000010ULL: return "InputAttachmentRead";
+		case 0x00000020ULL: return "ShaderRead";
+		case 0x00000040ULL: return "ShaderWrite";
+		case 0x00000080ULL: return "ColorAttachmentRead";
+		case 0x00000100ULL: return "ColorAttachmentWrite";
+		case 0x00000200ULL: return "DepthStencilAttachmentRead";
+		case 0x00000400ULL: return "DepthStencilAttachmentWrite";
+		case 0x00000800ULL: return "TransferRead";
+		case 0x00001000ULL: return "TransferWrite";
+		case 0x00002000ULL: return "HostRead";
+		case 0x00004000ULL: return "HostWrite";
+		case 0x00008000ULL: return "MemoryRead";
+		case 0x00010000ULL: return "MemoryWrite";
+		case 0x00020000ULL: return "CommandPreprocessReadBitNv";
+		case 0x00040000ULL: return "CommandPreprocessWriteBitNv";
+		case 0x00080000ULL: return "ColorAttachmentReadNoncoherentBitExt";
+		case 0x00100000ULL: return "ConditionalRenderingReadBitExt";
+		case 0x00200000ULL: return "AccelerationStructureReadBitKhr";
+		case 0x00400000ULL: return "AccelerationStructureWriteBitKhr";
+		case 0x00800000ULL: return "FragmentShadingRateAttachmentReadBitKhr";
+		case 0x01000000ULL: return "FragmentDensityMapReadBitExt";
+		case 0x02000000ULL: return "TransformFeedbackWriteBitExt";
+		case 0x04000000ULL: return "TransformFeedbackCounterReadBitExt";
+		case 0x08000000ULL: return "TransformFeedbackCounterWriteBitExt";
+		case 0x100000000000ULL: return "Reserved44BitNv";
+		case 0x10000000000ULL: return "Reserved387BitKhr";
+		case 0x1000000000ULL: return "VideoDecodeWriteBitKhr";
+		case 0x100000000ULL: return "ShaderSampledRead";
+		case 0x200000000000ULL: return "Reserved45BitNv";
+		case 0x20000000000ULL: return "Reserved41BitAmd";
+		case 0x2000000000ULL: return "VideoEncodeReadBitKhr";
+		case 0x200000000ULL: return "ShaderStorageRead";
+		case 0x40000000000ULL: return "Reserved42BitNv";
+		case 0x4000000000ULL: return "VideoEncodeWriteBitKhr";
+		case 0x400000000ULL: return "ShaderStorageWrite";
+		case 0x80000000000ULL: return "Reserved43BitNv";
+		case 0x8000000000ULL: return "InvocationMaskReadBitHuawei";
+		case 0x800000000ULL: return "VideoDecodeReadBitKhr";
+		default: return "Unknown";
+		// clang-format on
+	};
+}
 
 // ----------------------------------------------------------------------
 
@@ -300,8 +412,7 @@ static constexpr char const* to_str( const BorderColor& tp ) {
 
 // ----------------------------------------------------------------------
 
-using BufferUsageFlags = uint32_t;
-enum class BufferUsageFlagBits : BufferUsageFlags {
+enum class BufferUsageFlagBits : uint32_t {
 	eTransferSrc                                   = 0x00000001, // Can be used as a source of transfer operations
 	eTransferDst                                   = 0x00000002, // Can be used as a destination of transfer operations
 	eUniformTexelBuffer                            = 0x00000004, // Can be used as TBO
@@ -332,16 +443,44 @@ enum class BufferUsageFlagBits : BufferUsageFlags {
 	eShaderDeviceAddressBitKhr                     = eShaderDeviceAddress,
 };
 
-constexpr BufferUsageFlags operator|( BufferUsageFlagBits const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
-	return static_cast<const BufferUsageFlags>( static_cast<BufferUsageFlags>( lhs ) | static_cast<BufferUsageFlags>( rhs ) );
+struct BufferUsageFlags {
+	inline constexpr BufferUsageFlags( BufferUsageFlagBits const& rhs = BufferUsageFlagBits() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
 };
 
-constexpr BufferUsageFlags operator|( BufferUsageFlags const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
-	return static_cast<const BufferUsageFlags>( lhs | static_cast<BufferUsageFlags>( rhs ) );
+inline constexpr BufferUsageFlags operator|( BufferUsageFlagBits const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
+	return BufferUsageFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr BufferUsageFlags operator&( BufferUsageFlagBits const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
-	return static_cast<const BufferUsageFlags>( static_cast<BufferUsageFlags>( lhs ) & static_cast<BufferUsageFlags>( rhs ) );
+inline constexpr BufferUsageFlags operator|( BufferUsageFlags const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
+	return BufferUsageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr BufferUsageFlags operator|( BufferUsageFlags const& lhs, BufferUsageFlags const& rhs ) noexcept {
+	return BufferUsageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr BufferUsageFlags operator|=( BufferUsageFlags& lhs, BufferUsageFlags const& rhs ) noexcept {
+	return lhs = BufferUsageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr BufferUsageFlags operator&( BufferUsageFlagBits const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
+	return BufferUsageFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr BufferUsageFlags operator&( BufferUsageFlags const& lhs, BufferUsageFlags const& rhs ) noexcept {
+	return BufferUsageFlagBits( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr BufferUsageFlags operator&( BufferUsageFlags const& lhs, BufferUsageFlagBits const& rhs ) noexcept {
+	return BufferUsageFlagBits( lhs & uint32_t( rhs ) );
 };
 
 static constexpr char const* to_str( const BufferUsageFlagBits& tp ) {
@@ -379,8 +518,7 @@ static constexpr char const* to_str( const BufferUsageFlagBits& tp ) {
 
 // ----------------------------------------------------------------------
 
-using BuildAccelerationStructureFlagsKHR = uint32_t;
-enum class BuildAccelerationStructureFlagBitsKHR : BuildAccelerationStructureFlagsKHR {
+enum class BuildAccelerationStructureFlagBitsKHR : uint32_t {
 	eAllowUpdateBitKhr     = 0x00000001,
 	eAllowCompactionBitKhr = 0x00000002,
 	ePreferFastTraceBitKhr = 0x00000004,
@@ -396,16 +534,44 @@ enum class BuildAccelerationStructureFlagBitsKHR : BuildAccelerationStructureFla
 	ePreferFastTraceBitNv  = ePreferFastTraceBitKhr,
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagBitsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
-	return static_cast<const BuildAccelerationStructureFlagsKHR>( static_cast<BuildAccelerationStructureFlagsKHR>( lhs ) | static_cast<BuildAccelerationStructureFlagsKHR>( rhs ) );
+struct BuildAccelerationStructureFlagsKHR {
+	inline constexpr BuildAccelerationStructureFlagsKHR( BuildAccelerationStructureFlagBitsKHR const& rhs = BuildAccelerationStructureFlagBitsKHR() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
-	return static_cast<const BuildAccelerationStructureFlagsKHR>( lhs | static_cast<BuildAccelerationStructureFlagsKHR>( rhs ) );
+inline constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagBitsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
+	return BuildAccelerationStructureFlagBitsKHR( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagBitsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
-	return static_cast<const BuildAccelerationStructureFlagsKHR>( static_cast<BuildAccelerationStructureFlagsKHR>( lhs ) & static_cast<BuildAccelerationStructureFlagsKHR>( rhs ) );
+inline constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
+	return BuildAccelerationStructureFlagBitsKHR( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr BuildAccelerationStructureFlagsKHR operator|( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
+	return BuildAccelerationStructureFlagBitsKHR( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr BuildAccelerationStructureFlagsKHR operator|=( BuildAccelerationStructureFlagsKHR& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
+	return lhs = BuildAccelerationStructureFlagBitsKHR( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagBitsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
+	return BuildAccelerationStructureFlagBitsKHR( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagsKHR const& rhs ) noexcept {
+	return BuildAccelerationStructureFlagBitsKHR( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr BuildAccelerationStructureFlagsKHR operator&( BuildAccelerationStructureFlagsKHR const& lhs, BuildAccelerationStructureFlagBitsKHR const& rhs ) noexcept {
+	return BuildAccelerationStructureFlagBitsKHR( lhs & uint32_t( rhs ) );
 };
 
 static constexpr char const* to_str( const BuildAccelerationStructureFlagBitsKHR& tp ) {
@@ -426,24 +592,51 @@ static constexpr char const* to_str( const BuildAccelerationStructureFlagBitsKHR
 
 // ----------------------------------------------------------------------
 
-using ColorComponentFlags = uint32_t;
-enum class ColorComponentFlagBits : ColorComponentFlags {
+enum class ColorComponentFlagBits : uint32_t {
 	eR = 0x00000001,
 	eG = 0x00000002,
 	eB = 0x00000004,
 	eA = 0x00000008,
 };
 
-constexpr ColorComponentFlags operator|( ColorComponentFlagBits const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
-	return static_cast<const ColorComponentFlags>( static_cast<ColorComponentFlags>( lhs ) | static_cast<ColorComponentFlags>( rhs ) );
+struct ColorComponentFlags {
+	inline constexpr ColorComponentFlags( ColorComponentFlagBits const& rhs = ColorComponentFlagBits() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
 };
 
-constexpr ColorComponentFlags operator|( ColorComponentFlags const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
-	return static_cast<const ColorComponentFlags>( lhs | static_cast<ColorComponentFlags>( rhs ) );
+inline constexpr ColorComponentFlags operator|( ColorComponentFlagBits const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
+	return ColorComponentFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr ColorComponentFlags operator&( ColorComponentFlagBits const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
-	return static_cast<const ColorComponentFlags>( static_cast<ColorComponentFlags>( lhs ) & static_cast<ColorComponentFlags>( rhs ) );
+inline constexpr ColorComponentFlags operator|( ColorComponentFlags const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
+	return ColorComponentFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ColorComponentFlags operator|( ColorComponentFlags const& lhs, ColorComponentFlags const& rhs ) noexcept {
+	return ColorComponentFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ColorComponentFlags operator|=( ColorComponentFlags& lhs, ColorComponentFlags const& rhs ) noexcept {
+	return lhs = ColorComponentFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ColorComponentFlags operator&( ColorComponentFlagBits const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
+	return ColorComponentFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr ColorComponentFlags operator&( ColorComponentFlags const& lhs, ColorComponentFlags const& rhs ) noexcept {
+	return ColorComponentFlagBits( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr ColorComponentFlags operator&( ColorComponentFlags const& lhs, ColorComponentFlagBits const& rhs ) noexcept {
+	return ColorComponentFlagBits( lhs & uint32_t( rhs ) );
 };
 
 // ----------------------------------------------------------------------
@@ -477,24 +670,51 @@ static constexpr char const* to_str( const CompareOp& tp ) {
 
 // ----------------------------------------------------------------------
 
-using CullModeFlags = uint32_t;
-enum class CullModeFlagBits : CullModeFlags {
+enum class CullModeFlagBits : uint32_t {
 	eNone         = 0,
 	eFront        = 0x00000001,
 	eBack         = 0x00000002,
 	eFrontAndBack = 0x00000003,
 };
 
-constexpr CullModeFlags operator|( CullModeFlagBits const& lhs, CullModeFlagBits const& rhs ) noexcept {
-	return static_cast<const CullModeFlags>( static_cast<CullModeFlags>( lhs ) | static_cast<CullModeFlags>( rhs ) );
+struct CullModeFlags {
+	inline constexpr CullModeFlags( CullModeFlagBits const& rhs = CullModeFlagBits() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
 };
 
-constexpr CullModeFlags operator|( CullModeFlags const& lhs, CullModeFlagBits const& rhs ) noexcept {
-	return static_cast<const CullModeFlags>( lhs | static_cast<CullModeFlags>( rhs ) );
+inline constexpr CullModeFlags operator|( CullModeFlagBits const& lhs, CullModeFlagBits const& rhs ) noexcept {
+	return CullModeFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr CullModeFlags operator&( CullModeFlagBits const& lhs, CullModeFlagBits const& rhs ) noexcept {
-	return static_cast<const CullModeFlags>( static_cast<CullModeFlags>( lhs ) & static_cast<CullModeFlags>( rhs ) );
+inline constexpr CullModeFlags operator|( CullModeFlags const& lhs, CullModeFlagBits const& rhs ) noexcept {
+	return CullModeFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr CullModeFlags operator|( CullModeFlags const& lhs, CullModeFlags const& rhs ) noexcept {
+	return CullModeFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr CullModeFlags operator|=( CullModeFlags& lhs, CullModeFlags const& rhs ) noexcept {
+	return lhs = CullModeFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr CullModeFlags operator&( CullModeFlagBits const& lhs, CullModeFlagBits const& rhs ) noexcept {
+	return CullModeFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr CullModeFlags operator&( CullModeFlags const& lhs, CullModeFlags const& rhs ) noexcept {
+	return CullModeFlagBits( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr CullModeFlags operator&( CullModeFlags const& lhs, CullModeFlagBits const& rhs ) noexcept {
+	return CullModeFlagBits( lhs & uint32_t( rhs ) );
 };
 
 // ----------------------------------------------------------------------
@@ -1178,8 +1398,7 @@ static constexpr char const* to_str( const FrontFace& tp ) {
 
 // ----------------------------------------------------------------------
 
-using ImageCreateFlags = uint32_t;
-enum class ImageCreateFlagBits : ImageCreateFlags {
+enum class ImageCreateFlagBits : uint32_t {
 	eSparseBinding                        = 0x00000001, // Image should support sparse backing
 	eSparseResidency                      = 0x00000002, // Image should support sparse backing with partial residency
 	eSparseAliased                        = 0x00000004, // Image should support constant data access to physical memory ranges mapped into multiple locations of sparse images
@@ -1207,16 +1426,44 @@ enum class ImageCreateFlagBits : ImageCreateFlags {
 	eSplitInstanceBindRegionsBitKhr       = eSplitInstanceBindRegions,
 };
 
-constexpr ImageCreateFlags operator|( ImageCreateFlagBits const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
-	return static_cast<const ImageCreateFlags>( static_cast<ImageCreateFlags>( lhs ) | static_cast<ImageCreateFlags>( rhs ) );
+struct ImageCreateFlags {
+	inline constexpr ImageCreateFlags( ImageCreateFlagBits const& rhs = ImageCreateFlagBits() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
 };
 
-constexpr ImageCreateFlags operator|( ImageCreateFlags const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
-	return static_cast<const ImageCreateFlags>( lhs | static_cast<ImageCreateFlags>( rhs ) );
+inline constexpr ImageCreateFlags operator|( ImageCreateFlagBits const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
+	return ImageCreateFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr ImageCreateFlags operator&( ImageCreateFlagBits const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
-	return static_cast<const ImageCreateFlags>( static_cast<ImageCreateFlags>( lhs ) & static_cast<ImageCreateFlags>( rhs ) );
+inline constexpr ImageCreateFlags operator|( ImageCreateFlags const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
+	return ImageCreateFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ImageCreateFlags operator|( ImageCreateFlags const& lhs, ImageCreateFlags const& rhs ) noexcept {
+	return ImageCreateFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ImageCreateFlags operator|=( ImageCreateFlags& lhs, ImageCreateFlags const& rhs ) noexcept {
+	return lhs = ImageCreateFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ImageCreateFlags operator&( ImageCreateFlagBits const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
+	return ImageCreateFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr ImageCreateFlags operator&( ImageCreateFlags const& lhs, ImageCreateFlags const& rhs ) noexcept {
+	return ImageCreateFlagBits( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr ImageCreateFlags operator&( ImageCreateFlags const& lhs, ImageCreateFlagBits const& rhs ) noexcept {
+	return ImageCreateFlagBits( lhs & uint32_t( rhs ) );
 };
 
 // ----------------------------------------------------------------------
@@ -1335,8 +1582,7 @@ static constexpr char const* to_str( const ImageType& tp ) {
 
 // ----------------------------------------------------------------------
 
-using ImageUsageFlags = uint32_t;
-enum class ImageUsageFlagBits : ImageUsageFlags {
+enum class ImageUsageFlagBits : uint32_t {
 	eTransferSrc                         = 0x00000001, // Can be used as a source of transfer operations
 	eTransferDst                         = 0x00000002, // Can be used as a destination of transfer operations
 	eSampled                             = 0x00000004, // Can be sampled from (SAMPLED_IMAGE and COMBINED_IMAGE_SAMPLER descriptor types)
@@ -1363,16 +1609,44 @@ enum class ImageUsageFlagBits : ImageUsageFlags {
 	eShadingRateImageBitNv               = eFragmentShadingRateAttachmentBitKhr,
 };
 
-constexpr ImageUsageFlags operator|( ImageUsageFlagBits const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
-	return static_cast<const ImageUsageFlags>( static_cast<ImageUsageFlags>( lhs ) | static_cast<ImageUsageFlags>( rhs ) );
+struct ImageUsageFlags {
+	inline constexpr ImageUsageFlags( ImageUsageFlagBits const& rhs = ImageUsageFlagBits() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
 };
 
-constexpr ImageUsageFlags operator|( ImageUsageFlags const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
-	return static_cast<const ImageUsageFlags>( lhs | static_cast<ImageUsageFlags>( rhs ) );
+inline constexpr ImageUsageFlags operator|( ImageUsageFlagBits const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
+	return ImageUsageFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr ImageUsageFlags operator&( ImageUsageFlagBits const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
-	return static_cast<const ImageUsageFlags>( static_cast<ImageUsageFlags>( lhs ) & static_cast<ImageUsageFlags>( rhs ) );
+inline constexpr ImageUsageFlags operator|( ImageUsageFlags const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
+	return ImageUsageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ImageUsageFlags operator|( ImageUsageFlags const& lhs, ImageUsageFlags const& rhs ) noexcept {
+	return ImageUsageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ImageUsageFlags operator|=( ImageUsageFlags& lhs, ImageUsageFlags const& rhs ) noexcept {
+	return lhs = ImageUsageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ImageUsageFlags operator&( ImageUsageFlagBits const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
+	return ImageUsageFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr ImageUsageFlags operator&( ImageUsageFlags const& lhs, ImageUsageFlags const& rhs ) noexcept {
+	return ImageUsageFlagBits( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr ImageUsageFlags operator&( ImageUsageFlags const& lhs, ImageUsageFlagBits const& rhs ) noexcept {
+	return ImageUsageFlagBits( lhs & uint32_t( rhs ) );
 };
 
 static constexpr char const* to_str( const ImageUsageFlagBits& tp ) {
@@ -1457,8 +1731,7 @@ static constexpr char const* to_str( const IndexType& tp ) {
 
 // ----------------------------------------------------------------------
 
-using PipelineStageFlags2 = uint64_t;
-enum class PipelineStageFlagBits2 : PipelineStageFlags2 {
+enum class PipelineStageFlagBits2 : uint64_t {
 	eNone                                = 0,
 	eTopOfPipe                           = 0x00000001ULL,
 	eDrawIndirect                        = 0x00000002ULL,
@@ -1532,16 +1805,44 @@ enum class PipelineStageFlagBits2 : PipelineStageFlags2 {
 	eVertexShaderBitKhr                  = eVertexShader,
 };
 
-constexpr PipelineStageFlags2 operator|( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
-	return static_cast<const PipelineStageFlags2>( static_cast<PipelineStageFlags2>( lhs ) | static_cast<PipelineStageFlags2>( rhs ) );
+struct PipelineStageFlags2 {
+	inline constexpr PipelineStageFlags2( PipelineStageFlagBits2 const& rhs = PipelineStageFlagBits2() )
+	    : data( uint64_t( rhs ) ) {
+	}
+	inline constexpr operator const uint64_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint64_t data;
 };
 
-constexpr PipelineStageFlags2 operator|( PipelineStageFlags2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
-	return static_cast<const PipelineStageFlags2>( lhs | static_cast<PipelineStageFlags2>( rhs ) );
+inline constexpr PipelineStageFlags2 operator|( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+	return PipelineStageFlagBits2( uint64_t( lhs ) | uint64_t( rhs ) );
 };
 
-constexpr PipelineStageFlags2 operator&( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
-	return static_cast<const PipelineStageFlags2>( static_cast<PipelineStageFlags2>( lhs ) & static_cast<PipelineStageFlags2>( rhs ) );
+inline constexpr PipelineStageFlags2 operator|( PipelineStageFlags2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+	return PipelineStageFlagBits2( lhs | uint64_t( rhs ) );
+};
+
+inline constexpr PipelineStageFlags2 operator|( PipelineStageFlags2 const& lhs, PipelineStageFlags2 const& rhs ) noexcept {
+	return PipelineStageFlagBits2( lhs | uint64_t( rhs ) );
+};
+
+inline constexpr PipelineStageFlags2 operator|=( PipelineStageFlags2& lhs, PipelineStageFlags2 const& rhs ) noexcept {
+	return lhs = PipelineStageFlagBits2( lhs | uint64_t( rhs ) );
+};
+
+inline constexpr PipelineStageFlags2 operator&( PipelineStageFlagBits2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+	return PipelineStageFlagBits2( uint64_t( lhs ) & uint64_t( rhs ) );
+};
+
+inline constexpr PipelineStageFlags2 operator&( PipelineStageFlags2 const& lhs, PipelineStageFlags2 const& rhs ) noexcept {
+	return PipelineStageFlagBits2( lhs & uint64_t( rhs ) );
+};
+
+inline constexpr PipelineStageFlags2 operator&( PipelineStageFlags2 const& lhs, PipelineStageFlagBits2 const& rhs ) noexcept {
+	return PipelineStageFlagBits2( lhs & uint64_t( rhs ) );
 };
 
 // ----------------------------------------------------------------------
@@ -1602,8 +1903,78 @@ static constexpr char const* to_str( const PrimitiveTopology& tp ) {
 
 // ----------------------------------------------------------------------
 
-using SampleCountFlags = uint32_t;
-enum class SampleCountFlagBits : SampleCountFlags {
+enum class QueueFlagBits : uint32_t {
+	eGraphics          = 0x00000001, // Queue supports graphics operations
+	eCompute           = 0x00000002, // Queue supports compute operations
+	eTransfer          = 0x00000004, // Queue supports transfer operations
+	eSparseBinding     = 0x00000008, // Queue supports sparse resource memory management operations
+	eProtected         = 0x00000010, // Queues may support protected operations
+	eVideoDecodeBitKhr = 0x00000020,
+	eVideoEncodeBitKhr = 0x00000040,
+	eReserved7BitQcom  = 0x00000080,
+	eReserved8BitNv    = 0x00000100,
+};
+
+struct QueueFlags {
+	inline constexpr QueueFlags( QueueFlagBits const& rhs = QueueFlagBits() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
+};
+
+inline constexpr QueueFlags operator|( QueueFlagBits const& lhs, QueueFlagBits const& rhs ) noexcept {
+	return QueueFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
+};
+
+inline constexpr QueueFlags operator|( QueueFlags const& lhs, QueueFlagBits const& rhs ) noexcept {
+	return QueueFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr QueueFlags operator|( QueueFlags const& lhs, QueueFlags const& rhs ) noexcept {
+	return QueueFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr QueueFlags operator|=( QueueFlags& lhs, QueueFlags const& rhs ) noexcept {
+	return lhs = QueueFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr QueueFlags operator&( QueueFlagBits const& lhs, QueueFlagBits const& rhs ) noexcept {
+	return QueueFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr QueueFlags operator&( QueueFlags const& lhs, QueueFlags const& rhs ) noexcept {
+	return QueueFlagBits( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr QueueFlags operator&( QueueFlags const& lhs, QueueFlagBits const& rhs ) noexcept {
+	return QueueFlagBits( lhs & uint32_t( rhs ) );
+};
+
+static constexpr char const* to_str( const QueueFlagBits& tp ) {
+	switch ( static_cast<uint32_t>( tp ) ) {
+		// clang-format off
+		case 0x00000001: return "Graphics";
+		case 0x00000002: return "Compute";
+		case 0x00000004: return "Transfer";
+		case 0x00000008: return "SparseBinding";
+		case 0x00000010: return "Protected";
+		case 0x00000020: return "VideoDecodeBitKhr";
+		case 0x00000040: return "VideoEncodeBitKhr";
+		case 0x00000080: return "Reserved7BitQcom";
+		case 0x00000100: return "Reserved8BitNv";
+		default: return "Unknown";
+		// clang-format on
+	};
+}
+
+// ----------------------------------------------------------------------
+
+enum class SampleCountFlagBits : uint32_t {
 	e1  = 0x00000001, // Sample count 1 supported
 	e2  = 0x00000002, // Sample count 2 supported
 	e4  = 0x00000004, // Sample count 4 supported
@@ -1613,16 +1984,44 @@ enum class SampleCountFlagBits : SampleCountFlags {
 	e64 = 0x00000040, // Sample count 64 supported
 };
 
-constexpr SampleCountFlags operator|( SampleCountFlagBits const& lhs, SampleCountFlagBits const& rhs ) noexcept {
-	return static_cast<const SampleCountFlags>( static_cast<SampleCountFlags>( lhs ) | static_cast<SampleCountFlags>( rhs ) );
+struct SampleCountFlags {
+	inline constexpr SampleCountFlags( SampleCountFlagBits const& rhs = SampleCountFlagBits() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
 };
 
-constexpr SampleCountFlags operator|( SampleCountFlags const& lhs, SampleCountFlagBits const& rhs ) noexcept {
-	return static_cast<const SampleCountFlags>( lhs | static_cast<SampleCountFlags>( rhs ) );
+inline constexpr SampleCountFlags operator|( SampleCountFlagBits const& lhs, SampleCountFlagBits const& rhs ) noexcept {
+	return SampleCountFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr SampleCountFlags operator&( SampleCountFlagBits const& lhs, SampleCountFlagBits const& rhs ) noexcept {
-	return static_cast<const SampleCountFlags>( static_cast<SampleCountFlags>( lhs ) & static_cast<SampleCountFlags>( rhs ) );
+inline constexpr SampleCountFlags operator|( SampleCountFlags const& lhs, SampleCountFlagBits const& rhs ) noexcept {
+	return SampleCountFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr SampleCountFlags operator|( SampleCountFlags const& lhs, SampleCountFlags const& rhs ) noexcept {
+	return SampleCountFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr SampleCountFlags operator|=( SampleCountFlags& lhs, SampleCountFlags const& rhs ) noexcept {
+	return lhs = SampleCountFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr SampleCountFlags operator&( SampleCountFlagBits const& lhs, SampleCountFlagBits const& rhs ) noexcept {
+	return SampleCountFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr SampleCountFlags operator&( SampleCountFlags const& lhs, SampleCountFlags const& rhs ) noexcept {
+	return SampleCountFlagBits( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr SampleCountFlags operator&( SampleCountFlags const& lhs, SampleCountFlagBits const& rhs ) noexcept {
+	return SampleCountFlagBits( lhs & uint32_t( rhs ) );
 };
 
 // ----------------------------------------------------------------------
@@ -1668,8 +2067,7 @@ static constexpr char const* to_str( const SamplerMipmapMode& tp ) {
 
 // ----------------------------------------------------------------------
 
-using ShaderStageFlags = uint32_t;
-enum class ShaderStageFlagBits : ShaderStageFlags {
+enum class ShaderStageFlagBits : uint32_t {
 	eVertex                  = 0x00000001,
 	eTessellationControl     = 0x00000002,
 	eTessellationEvaluation  = 0x00000004,
@@ -1695,16 +2093,44 @@ enum class ShaderStageFlagBits : ShaderStageFlags {
 	eRaygenBitNv             = eRaygenBitKhr,
 };
 
-constexpr ShaderStageFlags operator|( ShaderStageFlagBits const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
-	return static_cast<const ShaderStageFlags>( static_cast<ShaderStageFlags>( lhs ) | static_cast<ShaderStageFlags>( rhs ) );
+struct ShaderStageFlags {
+	inline constexpr ShaderStageFlags( ShaderStageFlagBits const& rhs = ShaderStageFlagBits() )
+	    : data( uint32_t( rhs ) ) {
+	}
+	inline constexpr operator const uint32_t() const noexcept {
+		return data;
+	};
+
+  private:
+	uint32_t data;
 };
 
-constexpr ShaderStageFlags operator|( ShaderStageFlags const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
-	return static_cast<const ShaderStageFlags>( lhs | static_cast<ShaderStageFlags>( rhs ) );
+inline constexpr ShaderStageFlags operator|( ShaderStageFlagBits const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
+	return ShaderStageFlagBits( uint32_t( lhs ) | uint32_t( rhs ) );
 };
 
-constexpr ShaderStageFlags operator&( ShaderStageFlagBits const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
-	return static_cast<const ShaderStageFlags>( static_cast<ShaderStageFlags>( lhs ) & static_cast<ShaderStageFlags>( rhs ) );
+inline constexpr ShaderStageFlags operator|( ShaderStageFlags const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
+	return ShaderStageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ShaderStageFlags operator|( ShaderStageFlags const& lhs, ShaderStageFlags const& rhs ) noexcept {
+	return ShaderStageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ShaderStageFlags operator|=( ShaderStageFlags& lhs, ShaderStageFlags const& rhs ) noexcept {
+	return lhs = ShaderStageFlagBits( lhs | uint32_t( rhs ) );
+};
+
+inline constexpr ShaderStageFlags operator&( ShaderStageFlagBits const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
+	return ShaderStageFlagBits( uint32_t( lhs ) & uint32_t( rhs ) );
+};
+
+inline constexpr ShaderStageFlags operator&( ShaderStageFlags const& lhs, ShaderStageFlags const& rhs ) noexcept {
+	return ShaderStageFlagBits( lhs & uint32_t( rhs ) );
+};
+
+inline constexpr ShaderStageFlags operator&( ShaderStageFlags const& lhs, ShaderStageFlagBits const& rhs ) noexcept {
+	return ShaderStageFlagBits( lhs & uint32_t( rhs ) );
 };
 
 static constexpr char const* to_str( const ShaderStageFlagBits& tp ) {
