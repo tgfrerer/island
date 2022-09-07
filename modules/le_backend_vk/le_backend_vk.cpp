@@ -949,13 +949,13 @@ static void backend_get_swapchain_extent( le_backend_o* self, uint32_t index, ui
 bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
 	if ( *count < self->swapchain_resources.size() ) {
-		*count = uint32_t(self->swapchain_resources.size());
+		*count = uint32_t( self->swapchain_resources.size() );
 		return false;
 	}
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
 
-	uint32_t num_items = *count = uint32_t(self->swapchain_resources.size());
+	uint32_t num_items = *count = uint32_t( self->swapchain_resources.size() );
 
 	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * num_items );
 	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * num_items );
@@ -972,7 +972,7 @@ static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self
 // ----------------------------------------------------------------------
 
 static uint32_t backend_get_swapchain_count( le_backend_o* self ) {
-	return uint32_t(self->swapchain_resources.size());
+	return uint32_t( self->swapchain_resources.size() );
 }
 
 // ----------------------------------------------------------------------
@@ -1228,7 +1228,7 @@ static void backend_setup( le_backend_o* self ) {
 
 	// -- create swapchain if requested
 
-	backend_create_swapchains( self, uint32_t(settings->swapchain_settings.size()), settings->swapchain_settings.data() );
+	backend_create_swapchains( self, uint32_t( settings->swapchain_settings.size() ), settings->swapchain_settings.data() );
 
 	// -- setup backend memory objects
 
@@ -1366,7 +1366,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		//
 		if ( numSamplesLog2 != 0 ) {
 			img_resource = le_renderer::renderer_i.produce_img_resource_handle(
-			    img_resource->data->debug_name, uint8_t(numSamplesLog2), img_resource, 0 );
+			    img_resource->data->debug_name, uint8_t( numSamplesLog2 ), img_resource, 0 );
 		}
 
 		auto& syncChain = frame.syncChainTable[ img_resource ];
@@ -1403,7 +1403,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		{
 			// track resource state before entering a subpass
 
-			auto& previousSyncState = syncChain.back();
+			auto&         previousSyncState = syncChain.back();
 			ResourceState beforeFirstUse{ previousSyncState };
 
 			if ( currentAttachment->loadOp == le::AttachmentLoadOp::eLoad ) {
@@ -1434,7 +1434,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		{
 			// track resource state before subpass
 
-			auto& previousSyncState = syncChain.back();
+			auto&         previousSyncState = syncChain.back();
 			ResourceState beforeSubpass{ previousSyncState };
 
 			if ( image_attachment_info.loadOp == le::AttachmentLoadOp::eLoad ) {
@@ -2934,7 +2934,7 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 			staging_buffers.emplace_back(
 			    le_renderer::renderer_i.produce_buf_resource_handle(
 			        "Le-Staging-Buffer",
-			        le_buf_resource_usage_flags_t::eIsStaging, uint32_t(index) ) );
+			        le_buf_resource_usage_flags_t::eIsStaging, uint32_t( index ) ) );
 		}
 
 		*resource_handle = staging_buffers[ allocationIndex ];
@@ -4514,7 +4514,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				if ( key & pass.root_passes_affinity ) {
 					submission_data.queue_flags |= VkQueueFlags( pass.type ); // Accumulate queue flags over submission - queue capabilities must be superset
-					submission_data.pass_indices.push_back( uint32_t(pi) );
+					submission_data.pass_indices.push_back( uint32_t( pi ) );
 				}
 			}
 			if ( !submission_data.pass_indices.empty() ) {
@@ -5394,7 +5394,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						if ( currentPipelineLayout ) {
 							auto*              le_cmd               = static_cast<le::CommandSetPushConstantData*>( dataIt );
 							VkShaderStageFlags active_shader_stages = VkShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
-							vkCmdPushConstants( cmd, currentPipelineLayout, active_shader_stages, 0, uint32_t(le_cmd->info.num_bytes), ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
+							vkCmdPushConstants( cmd, currentPipelineLayout, active_shader_stages, 0, uint32_t( le_cmd->info.num_bytes ), ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
 						}
 						break;
 					}
@@ -6363,7 +6363,7 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 	return get_semaphore_names();
 };
 
-static void backend_emit_queue_submission_log( le_backend_o const* backend, uint64_t frame_number ) {
+static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint64_t frame_number ) {
 
 	static std::filesystem::path exe_path = []() {
 		char result[ 1024 ] = { 0 };
@@ -6519,11 +6519,9 @@ static void backend_emit_queue_submission_log( le_backend_o const* backend, uint
 
 // ----------------------------------------------------------------------
 // we wrap queue submissions so that we can log all parameters for a queue submission.
-static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_count, VkSubmitInfo2 const* submitInfo, VkFence fence, std::string const& debug_info = "" ) {
+static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_count, VkSubmitInfo2 const* submitInfo, VkFence fence, bool should_generate_dot_files, std::string const& debug_info ) {
 
-	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
-
-	if ( *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES ) {
+	if ( should_generate_dot_files ) {
 
 		static QueueSubmissionLoggerData* data = get_queue_submission_logger_data();
 
@@ -6578,7 +6576,7 @@ static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_c
 };
 
 // ----------------------------------------------------------------------
-static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameIndex ) {
+static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameIndex, bool should_generate_queue_sync_dot_files ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto&       frame  = self->mFrames[ frameIndex ];
@@ -6610,8 +6608,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 				     submission_queue_family_idx != found_queue_family_ownership->second ) {
 
 					ownership_transfer_t change;
-					change.src_queue_family_index = uint32_t(found_queue_family_ownership->second);
-					change.dst_queue_family_index = uint32_t(submission_queue_family_idx);
+					change.src_queue_family_index = uint32_t( found_queue_family_ownership->second );
+					change.dst_queue_family_index = uint32_t( submission_queue_family_idx );
 					change.resource               = r;
 					change.dst_queue_index        = { submission_data.queue_idx }; // We keep track of the actual queue (additionally to its queue family)
 					                                                               // that will acquire the resource, as it is this one specifically that
@@ -6886,7 +6884,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			};
 
 			// submit on the default queue for this queue family
-			backend_queue_submit( queue, 1, &submitInfo, nullptr, "release" );
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, should_generate_queue_sync_dot_files, "release" );
 		}
 	}
 
@@ -6981,7 +6979,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			};
 
 			// submit on the queue chosen for this acquire barrier
-			backend_queue_submit( queue, 1, &submitInfo, nullptr, "acquire" );
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, should_generate_queue_sync_dot_files, "acquire" );
 		}
 	}
 
@@ -7058,7 +7056,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 
 			auto const& queue = self->queues[ queue_idx ];
 			// submit on the queue chosen for this acquire barrier
-			backend_queue_submit( queue, 1, &submitInfo, nullptr, "must_wait_acquire" );
+			backend_queue_submit( queue, 1, &submitInfo, nullptr, should_generate_queue_sync_dot_files, "must_wait_acquire" );
 		}
 	}
 }
@@ -7066,14 +7064,18 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 // ----------------------------------------------------------------------
 static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
-	static auto logger = LeLog( LOGGER_LABEL );
-	auto&       frame  = self->mFrames[ frameIndex ];
-
+	static auto logger         = LeLog( LOGGER_LABEL );
+	auto&       frame          = self->mFrames[ frameIndex ];
 	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ]->queue; // will not change for the duration of the program.
+
+	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
+	// we fetch this variable to a local coyp, and only once, so that there is no risk that the value of the
+	// variable is changed on another thread while the dot graph is being generated
+	bool should_generate_queue_sync_dot_files = *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES;
 
 	if ( self->must_track_resources_queue_family_ownership ) {
 		// add queue ownership transfer operations for resources which are shared across queue families.
-		backend_submit_queue_transfer_ops( self, frameIndex );
+		backend_submit_queue_transfer_ops( self, frameIndex, should_generate_queue_sync_dot_files );
 	}
 
 	std::vector<VkSemaphoreSubmitInfo> wait_present_complete_semaphore_submit_infos;
@@ -7155,7 +7157,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 		auto queue = self->queues[ current_submission.queue_idx ];
 
-		backend_queue_submit( queue, 1, &submitInfo, nullptr, "rendergraph" );
+		backend_queue_submit( queue, 1, &submitInfo, nullptr, should_generate_queue_sync_dot_files, "rendergraph" );
 	}
 
 	assert( did_wait_for_present_semaphore && "Must wait for present semaphore on default graphics queue. Is there a default graphics queue?" );
@@ -7205,7 +7207,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 		};
 
-		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, frame.frameFence, "graphics_queue_finalize" );
+		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, frame.frameFence, should_generate_queue_sync_dot_files, "graphics_queue_finalize" );
 	}
 
 	bool overall_result = true;
@@ -7233,10 +7235,8 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		logger.info( "*** Dispatched frame %d", frame.frameNumber );
 	}
 
-	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
-
-	if ( *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES ) {
-		backend_emit_queue_submission_log( self, frame.frameNumber );
+	if ( should_generate_queue_sync_dot_files ) {
+		backend_emit_queue_sync_dot_file( self, frame.frameNumber );
 		*LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES = false;
 	}
 
