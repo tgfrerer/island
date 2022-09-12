@@ -49,6 +49,52 @@ ISL_API_ATTR void** le_core_produce_dictionary_entry( uint64_t key ) {
 	return &store[ key ];
 }
 
+// ----------------------------------------------------------------------
+
+struct SettingEntry {
+	std::string name;
+	uint64_t    type_hash; // unique hash based on textual representation of type name. This is not perfect (no type aliasing possible), but should work with basic types
+	void*       p_opj;     // pointer that may be set by the setter of this setting - it is their responsibility to delete this object
+};
+
+struct le_settings_map_t {
+	std::unordered_map<uint64_t, SettingEntry> map;
+};
+
+// mutex that protects our main settings map - if you change the map structure, you
+// must first lock this mutex
+static std::mutex& get_settings_store_mutex() {
+	static std::mutex mtx;
+	return mtx;
+}
+// our global settings map structure
+static le_settings_map_t& get_global_settings_store() {
+	static le_settings_map_t store{ {} };
+	return store;
+};
+
+ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const* type_name ) {
+	std::scoped_lock          lock( get_settings_store_mutex() );
+	static le_settings_map_t& store = get_global_settings_store();
+
+	SettingEntry& e = store.map[ hash_64_fnv1a( name ) ];
+	e.type_hash     = hash_64_fnv1a( type_name );
+	e.name          = name;
+	return &store.map[ hash_64_fnv1a( name ) ].p_opj;
+}
+
+// Create a copy of the current settings map - this will hold pointers to the actual settings,
+// and it will protect us against iterating over a map that might change in structure, in case
+// another thread adds a new entry to the map whilst the map gets enumerated.
+// Note that the settings that are pointed to are not explicitly thread-safe -
+// (but you could use std::atomic<T> types for settings that need thread-safety).
+ISL_API_ATTR void le_core_copy_settings_entries( le_settings_map_t* settings_map_ptr ) {
+	std::scoped_lock lock( get_settings_store_mutex() );
+	*( le_settings_map_t* )( settings_map_ptr ) = get_global_settings_store();
+}
+
+// ----------------------------------------------------------------------
+
 struct loader_callback_params_o {
 	le_module_loader_o* loader;
 	void*               api;      // address of api interface struct

@@ -52,8 +52,24 @@ ISL_API_ATTR DLL_CORE_API void* le_core_load_library_persistently( char const* l
 // across module reloads, for example.
 ISL_API_ATTR DLL_CORE_API void** le_core_produce_dictionary_entry( uint64_t key );
 
-// For debug purposes
+// Globally available, persistent name-setting store - use this for settings that all modules need
+// to have access to.
+ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name, char const* type_name );
+// Persistent settings that can be shared among modules.
+// this is not yet production-ready, as it does not protect against race-conditions etc.
+#define LE_GET_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                                   \
+	static SETTING_TYPE* SETTING_NAME = []() -> SETTING_TYPE* {                                               \
+		void** p_addr = le_core_produce_setting_entry( ( #SETTING_NAME "__" #SETTING_TYPE ), #SETTING_TYPE ); \
+		if ( nullptr == *p_addr ) {                                                                           \
+			*p_addr = new SETTING_TYPE( SETTING_DEFAULT_VALUE );                                              \
+		}                                                                                                     \
+		return ( ( SETTING_TYPE* )( *p_addr ) );                                                              \
+	}()
 
+// used by settings_module - which shares the correct type for settings
+ISL_API_ATTR DLL_CORE_API void le_core_copy_settings_entries( struct le_settings_map_t* settings_map_ptr );
+
+// For debug purposes
 ISL_API_ATTR DLL_CORE_API void        le_update_argument_name_table( const char* source, uint64_t value );
 ISL_API_ATTR DLL_CORE_API char const* le_get_argument_name_from_hash( uint64_t value );
 

@@ -64,17 +64,6 @@ static constexpr auto LOGGER_LABEL = "le_backend";
 		returnVkenum_name( rhs );                                          \
 	}
 
-// Persistent settings that can be shared among modules.
-// this is not yet production-ready, as it does not protect against race-conditions etc.e
-#define LE_GET_SETTING( SETTING_NAME, SETTING_TYPE, SETTING_DEFAULT_VALUE )                                   \
-	static SETTING_TYPE* SETTING_NAME = []() -> bool* {                                                       \
-		void** p_addr = le_core_produce_dictionary_entry( hash_64_fnv1a( #SETTING_NAME "_" #SETTING_TYPE ) ); \
-		if ( nullptr == *p_addr ) {                                                                           \
-			*p_addr = new SETTING_TYPE( SETTING_DEFAULT_VALUE );                                              \
-		}                                                                                                     \
-		return ( ( SETTING_TYPE* )( *p_addr ) );                                                              \
-	}()
-
 LE_WRAP_ENUM_IN_STRUCT( VkFormat, VkFormatEnum ); // define wrapper struct `VkFormatEnum`
 
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
@@ -7068,8 +7057,8 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	auto&       frame          = self->mFrames[ frameIndex ];
 	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ]->queue; // will not change for the duration of the program.
 
-	LE_GET_SETTING( LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, bool, false );
-	// we fetch this variable to a local coyp, and only once, so that there is no risk that the value of the
+	LE_GET_SETTING( bool, LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, false );
+	// we fetch this variable to a local copy, and only once, so that there is no risk that the value of the
 	// variable is changed on another thread while the dot graph is being generated
 	bool should_generate_queue_sync_dot_files = *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES;
 
@@ -7237,7 +7226,6 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	if ( should_generate_queue_sync_dot_files ) {
 		backend_emit_queue_sync_dot_file( self, frame.frameNumber );
-		*LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES = false;
 	}
 
 	return overall_result;

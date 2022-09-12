@@ -32,14 +32,6 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 #	define LE_PRINT_DEBUG_MESSAGES false
 #endif
 
-#ifndef LE_GENERATE_DOT_GRAPH
-#	ifndef NDEBUG
-#		define LE_GENERATE_DOT_GRAPH true
-#	else
-#		define LE_GENERATE_DOT_GRAPH false
-#	endif
-#endif
-
 #include <bitset>
 
 using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
@@ -651,35 +643,6 @@ static bool generate_dot_file_for_rendergraph(
 		os << "</tr></table>>];" << std::endl;
 	}
 
-	//	// Indicate which passes are of the same rank,
-	//	// which we do by grouping passes by their sort order.
-
-	//	{
-	//		// we need to group elements with the same sort indices.
-
-	//		// -- get a set of sort indices
-	//		// -- for each sort index, list passes with this sort index
-
-	//		std::set<uint32_t> unique_sort_indices;
-
-	//		for ( auto& i : self->sortIndices ) {
-	//			unique_sort_indices.insert( i );
-	//		}
-
-	//		for ( auto const& i : unique_sort_indices ) {
-	//			if ( i == ( ~0u ) ) {
-	//				continue;
-	//			}
-	//			os << "{rank=same; ";
-	//			for ( size_t j = 0; j != self->sortIndices.size(); j++ ) {
-	//				if ( i == self->sortIndices[ j ] ) {
-	//					os << "\"" << self->passes[ j ]->debugName << "\" ";
-	//				}
-	//			}
-	//			os << "}" << std::endl;
-	//		}
-	//	}
-
 	// Draw connections : A connection goes from each resource that
 	// has been written in a pass to all subsequent passes which read
 	// from this resource, until a pass writes to the resource again.
@@ -1046,8 +1009,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		}
 	}
 
-#if ( LE_GENERATE_DOT_GRAPH )
-	{
+	LE_GET_SETTING( bool, LE_SETTING_SHOULD_GENERATE_RENDERGRAPH_DOT_FILES, false );
+
+	if ( *LE_SETTING_SHOULD_GENERATE_RENDERGRAPH_DOT_FILES ) {
 		// We must check if the renderpass has somehow changed - if we detect change, save out a new .dot file.
 
 		// For the hash, we don't need it to be perfect, we just want to make sure that
@@ -1076,7 +1040,6 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			previous_hash = nodes_hash;
 		}
 	}
-#endif
 
 	{
 		// Remove any passes from rendergraph which do not contribute.
