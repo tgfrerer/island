@@ -6327,10 +6327,10 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].presentComplete, uint32_t( semaphore_indices->size() ) );
 				if ( it.second ) {
 					// if an element was inserted
-					semaphore_names->push_back( "PRESENT_COMPLETE@" + std::to_string( i ) );
+					semaphore_names->push_back( "PRESENT_COMPLETE" );
 					assert( semaphore_names->size() == semaphore_indices->size() );
 				} else {
-					( *semaphore_names )[ it.first->second ] = "PRESENT_COMPLETE@" + std::to_string( i );
+					( *semaphore_names )[ it.first->second ] = "PRESENT_COMPLETE";
 					assert( semaphore_names->size() == semaphore_indices->size() );
 				}
 			}
@@ -6338,10 +6338,10 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].renderComplete, uint32_t( semaphore_indices->size() ) );
 				if ( it.second ) {
 					// if an element was inserted
-					semaphore_names->push_back( "RENDER_COMPLETE@" + std::to_string( i ) );
+					semaphore_names->push_back( "RENDER_COMPLETE" );
 					assert( semaphore_names->size() == semaphore_indices->size() );
 				} else {
-					( *semaphore_names )[ it.first->second ] = "RENDER_COMPLETE@" + std::to_string( i );
+					( *semaphore_names )[ it.first->second ] = "RENDER_COMPLETE";
 					assert( semaphore_names->size() == semaphore_indices->size() );
 				}
 			}
@@ -6433,8 +6433,13 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 
 				os << "\n\t<tr>";
 				if ( w_it != submission.wait_semaphores.end() ) {
-					os << "<td port=\"port_" << w_it->semaphore_id << "_w_" << w_it->value << "\">"
-					   << "S<sub><font point-size='9'>" << ( *semaphore_names )[ w_it->semaphore_id ] << "</font></sub> ⌛" << w_it->value << " ";
+					os << "<td port=\"port_" << w_it->semaphore_id << "_w_" << w_it->value << "\">";
+					os << "S<sub><font point-size='9'>" << ( *semaphore_names )[ w_it->semaphore_id ] << "</font></sub> ⌛";
+					if ( ( *semaphore_names )[ w_it->semaphore_id ][ 0 ] <= '9' ) {
+						// only show value if we have a non-binary semaphore (that's a semaphore with an alphanumeric name)
+						os << w_it->value;
+					}
+					os << " ";
 					wait_info_to_submission.emplace( uint64( w_it->value ) << 32 | w_it->semaphore_id, submission_id );
 					w_it++;
 				} else {
@@ -6443,7 +6448,11 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 				os << "</td>";
 				if ( s_it != submission.signal_semaphores.end() ) {
 					os << "<td port=\"port_" << s_it->semaphore_id << "_s_" << s_it->value << "\">"
-					   << "S<sub><font point-size='9'>" << ( *semaphore_names )[ s_it->semaphore_id ] << "</font></sub> 🏁 " << s_it->value << "";
+					   << "S<sub><font point-size='9'>" << ( *semaphore_names )[ s_it->semaphore_id ] << "</font></sub> 🏁 ";
+					if ( ( *semaphore_names )[ s_it->semaphore_id ][ 0 ] <= '9' ) {
+						// only show value if we have a non-binary semaphore (that's a semaphore with an alphanumeric name)
+						os << s_it->value << "";
+					}
 					sign_info_to_submission.emplace( uint64( s_it->value ) << 32 | s_it->semaphore_id, submission_id );
 					s_it++;
 				} else {
