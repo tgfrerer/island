@@ -6294,7 +6294,7 @@ struct QueueSubmissionLoggerData {
 
 	struct submission_t {
 		BackendQueueInfo*   queue;
-		std::string         info;
+		std::string         label;
 		std::vector<info_t> wait_semaphores;
 		std::vector<info_t> signal_semaphores;
 	};
@@ -6384,7 +6384,7 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 
 	os << "digraph g {\n"
 	      "rankdir = LR;\n"
-	      "node [shape = record; height = 1; fontname = \"IBM Plex Sans\";];\n"
+	      "node [shape = plaintext; margin=0; height = 1; fontname = \"IBM Plex Sans\";];\n"
 	      "graph [label = <<table border='0' cellborder='0' cellspacing='0' cellpadding='3'>";
 	for ( size_t i = 0; i != backend->queues.size(); i++ ) {
 
@@ -6392,7 +6392,7 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 	}
 	os << "<tr><td align='left'>\"" << exe_path.string() << "\"</td></tr>"
 	   << "<tr><td align='left'>Island Queue Sync @ Frame № " << frame_number << "</td></tr>"
-	   << "</table>>; splines = true; nodesep = 0.7; fontname = \"IBM Plex Sans\"; fontsize = 10; labeljust = \"l\";];";
+	   << "</table>>; splines = true; nodesep = 0.7; fontname = \"IBM Plex Sans\"; fontsize = 10; labeljust = \"l\";];\n";
 	;
 
 	// -- Go through each submission in sequence
@@ -6421,31 +6421,38 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 			queue_name_it.first->second = oname.str();
 		}
 
-		os << "\tlabel = \"<port_struct_" << submission_id << ">" << queue_name_it.first->second;
-		os << "|" << submission.info;
+		os << "\tlabel = <\n";
+		os << "<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" cellpadding=\"4\">\n\t<tr>";
+		os << "<td colspan=\"2\" port=\"port_struct_" << submission_id << "\">" << queue_name_it.first->second << "</td></tr>";
+		os << "\n\t<tr><td colspan=\"2\">" << submission.label << "</td></tr>";
 
 		{
 			auto w_it = submission.wait_semaphores.begin();
 			auto s_it = submission.signal_semaphores.begin();
 			do {
 
-				os << "|";
-				os << "{";
+				os << "\n\t<tr>";
 				if ( w_it != submission.wait_semaphores.end() ) {
-					os << "<port_" << w_it->semaphore_id << "_w_" << w_it->value << ">" << ( *semaphore_names )[ w_it->semaphore_id ] << "_" << w_it->value;
+					os << "<td port=\"port_" << w_it->semaphore_id << "_w_" << w_it->value << "\">"
+					   << "S<sub><font point-size='9'>" << ( *semaphore_names )[ w_it->semaphore_id ] << "</font></sub> ⌛" << w_it->value << " ";
 					wait_info_to_submission.emplace( uint64( w_it->value ) << 32 | w_it->semaphore_id, submission_id );
 					w_it++;
+				} else {
+					os << "<td>";
 				}
-				os << "|";
+				os << "</td>";
 				if ( s_it != submission.signal_semaphores.end() ) {
-					os << "<port_" << s_it->semaphore_id << "_s_" << s_it->value << ">" << ( *semaphore_names )[ s_it->semaphore_id ] << "_" << s_it->value;
+					os << "<td port=\"port_" << s_it->semaphore_id << "_s_" << s_it->value << "\">"
+					   << "S<sub><font point-size='9'>" << ( *semaphore_names )[ s_it->semaphore_id ] << "</font></sub> 🏁 " << s_it->value << "";
 					sign_info_to_submission.emplace( uint64( s_it->value ) << 32 | s_it->semaphore_id, submission_id );
 					s_it++;
+				} else {
+					os << "<td>";
 				}
-				os << "}";
+				os << "</td></tr>";
 			} while ( w_it != submission.wait_semaphores.end() || s_it != submission.signal_semaphores.end() );
 		}
-		os << "\";\n];\n";
+		os << "\n</table>>];\n";
 		submission_id++;
 	}
 
@@ -6555,7 +6562,7 @@ static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_c
 			}
 
 		} while ( sign_info != sign_infos_end || wait_info != wait_infos_end );
-		submission.info = debug_info;
+		submission.label = debug_info;
 		data->submissions.emplace_back( std::move( submission ) );
 	}
 
