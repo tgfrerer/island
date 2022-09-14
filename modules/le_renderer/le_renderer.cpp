@@ -540,7 +540,10 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 		le::RootPassesField const* p_affinity_masks   = frame.rendergraph->root_passes_affinity_masks.data();
 		uint32_t                   num_affinity_masks = frame.rendergraph->root_passes_affinity_masks.size();
 
-		vk_backend_i.set_frame_queue_submission_keys( self->backend, frameIndex, reinterpret_cast<void const*>( p_affinity_masks ), num_affinity_masks );
+		vk_backend_i.set_frame_queue_submission_keys(
+		    self->backend, frameIndex,
+		    reinterpret_cast<void const*>( p_affinity_masks ), num_affinity_masks,
+		    frame.rendergraph->root_debug_names.data(), frame.rendergraph->root_debug_names.size() );
 	}
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();

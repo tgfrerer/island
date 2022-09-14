@@ -466,11 +466,12 @@ struct BackendFrameData {
 	};
 
 	struct PerQueueSubmissionData {
-		uint32_t              queue_idx;    // backend device queue index
-		VkQueueFlags          queue_flags;  // queue flags for this submission
-		std::vector<uint32_t> pass_indices; // which passes from the current frame to add to this submission, count tells us about number of command buffers that need to be alloated
-		CommandPool*          command_pool; // non-owning. which command pool from the list of available command pools
-	};                                      //
+		uint32_t              queue_idx;               // backend device queue index
+		VkQueueFlags          queue_flags;             // queue flags for this submission
+		std::vector<uint32_t> pass_indices;            // which passes from the current frame to add to this submission, count tells us about number of command buffers that need to be alloated
+		CommandPool*          command_pool;            // non-owning. which command pool from the list of available command pools
+		std::string           debug_root_passes_names; // name of root passes
+	};                                                 //
 	std::vector<PerQueueSubmissionData> queue_submission_data;
 	std::vector<CommandPool*>           available_command_pools; // Owning. reset on frame recycle, delete all objects on BackendFrameData::destroy
 
@@ -516,6 +517,7 @@ struct BackendFrameData {
 	                                                        // with each bit representing a contributing root node index.
 	                                                        // Passes internally store to which root node they contribute,
 	                                                        // which allows us to associate passes with each entry in this vector.
+	std::vector<std::string> debug_root_passes_names;       // names for root passis in RootPassesField
 
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
@@ -543,6 +545,8 @@ struct BackendFrameData {
 	std::vector<VmaAllocationInfo> allocationInfos;  // per allocator: one allocationInfo
 
 	le_staging_allocator_o* stagingAllocator; // owning: allocator for large objects to GPU memory
+
+	bool must_create_queues_dot_graph = false;
 };
 
 /// \brief backend data object
@@ -1879,6 +1883,9 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	// -- remove any frame-local copy of allocated resources
 	frame.availableResources.clear();
+
+	frame.must_create_queues_dot_graph = false;
+	frame.debug_root_passes_names.clear();
 
 	for ( auto& d : frame.descriptorPools ) {
 		vkResetDescriptorPool( device, d, VkDescriptorPoolResetFlags() );
@@ -3908,6 +3915,16 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// ----------| invariant: swapchain image acquisition was successful.
 
+#ifndef NDEBUG
+	// If we're running in debug, there is a chance that we might want to print out
+	// dot graph diagrams for queue sync - in which case we should fetch the global
+	// setting telling us whether to do so or not.
+	LE_GET_SETTING( bool, LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, false );
+	// we fetch this variable to a local copy, and only at a single point, here, so that there is no risk that the value of the
+	// variable is changed on another thread while the dot graph is being generated
+	frame.must_create_queues_dot_graph = *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES;
+#endif
+
 	// Setup declared resources per frame - These are resources declared using resource infos
 	// which are explicitly declared by user via the rendergraph, but which may or may not be
 	// actually used in the frame.
@@ -4483,6 +4500,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties( *self->device )->limits.maxVertexInputBindings;
 
+	bool needs_to_collect_root_pass_names = frame.must_create_queues_dot_graph; // only collect root pass names when these are needed, for example in order to create dot graphs or debug printouts
+
 	{
 
 		// -- Collect command buffers for each queue submission by testing against queue submission key.
@@ -4506,6 +4525,18 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					submission_data.pass_indices.push_back( uint32_t( pi ) );
 				}
 			}
+
+			if ( needs_to_collect_root_pass_names ) {
+				for ( size_t j = 0; j != frame.debug_root_passes_names.size(); j++ ) {
+					if ( key & ( uint64_t( 1 ) << j ) ) {
+						if ( !submission_data.debug_root_passes_names.empty() ) {
+							submission_data.debug_root_passes_names.append( " | " );
+						}
+						submission_data.debug_root_passes_names.append( frame.debug_root_passes_names[ j ] );
+					}
+				}
+			}
+
 			if ( !submission_data.pass_indices.empty() ) {
 				frame.queue_submission_data.push_back( submission_data );
 			}
@@ -6352,6 +6383,8 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 	return get_semaphore_names();
 };
 
+// ----------------------------------------------------------------------
+
 static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint64_t frame_number ) {
 
 	static std::filesystem::path exe_path = []() {
@@ -7073,14 +7106,9 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	auto&       frame          = self->mFrames[ frameIndex ];
 	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ]->queue; // will not change for the duration of the program.
 
-	LE_GET_SETTING( bool, LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, false );
-	// we fetch this variable to a local copy, and only at a single point, here, so that there is no risk that the value of the
-	// variable is changed on another thread while the dot graph is being generated
-	bool should_generate_queue_sync_dot_files = *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES;
-
 	if ( self->must_track_resources_queue_family_ownership ) {
 		// add queue ownership transfer operations for resources which are shared across queue families.
-		backend_submit_queue_transfer_ops( self, frameIndex, should_generate_queue_sync_dot_files );
+		backend_submit_queue_transfer_ops( self, frameIndex, frame.must_create_queues_dot_graph );
 	}
 
 	std::vector<VkSemaphoreSubmitInfo> wait_present_complete_semaphore_submit_infos;
@@ -7162,7 +7190,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 		auto queue = self->queues[ current_submission.queue_idx ];
 
-		backend_queue_submit( queue, 1, &submitInfo, nullptr, should_generate_queue_sync_dot_files, "rendergraph" );
+		backend_queue_submit( queue, 1, &submitInfo, nullptr, frame.must_create_queues_dot_graph, " subgraph { " + current_submission.debug_root_passes_names + " }" );
 	}
 
 	assert( did_wait_for_present_semaphore && "Must wait for present semaphore on default graphics queue. Is there a default graphics queue?" );
@@ -7212,7 +7240,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 		};
 
-		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, frame.frameFence, should_generate_queue_sync_dot_files, "graphics_queue_finalize" );
+		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, frame.frameFence, frame.must_create_queues_dot_graph, "graphics_queue_finalize" );
 	}
 
 	bool overall_result = true;
@@ -7240,7 +7268,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		logger.info( "*** Dispatched frame %d", frame.frameNumber );
 	}
 
-	if ( should_generate_queue_sync_dot_files ) {
+	if ( frame.must_create_queues_dot_graph ) {
 		backend_emit_queue_sync_dot_file( self, frame.frameNumber );
 	}
 
@@ -7249,8 +7277,15 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 // Copy data from array of affinity masks into this frame's affinity masks array
-static void backend_set_frame_queue_submission_keys( le_backend_o* self, size_t frameIndex, void const* p_affinity_masks, uint32_t num_affinity_masks ) {
+static void backend_set_frame_queue_submission_keys( le_backend_o* self, size_t frameIndex, void const* p_affinity_masks, uint32_t num_affinity_masks, char const** root_names, uint32_t root_names_count ) {
 	auto& frame = self->mFrames[ frameIndex ];
+
+	if ( frame.must_create_queues_dot_graph ) {
+		// only harvest root passes names if we're going to generate a diagram.
+		for ( uint32_t i = 0; i != root_names_count; i++ ) {
+			frame.debug_root_passes_names.emplace_back( std::string( std::string( root_names[ i ] ), 0, 255 ) );
+		}
+	}
 
 	frame.queue_submission_keys.resize( num_affinity_masks );
 	memcpy( frame.queue_submission_keys.data(), p_affinity_masks, sizeof( le::RootPassesField ) * num_affinity_masks );

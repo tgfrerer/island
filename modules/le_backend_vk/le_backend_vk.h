@@ -125,7 +125,7 @@ struct le_backend_vk_api {
 		bool                   ( *clear_frame                ) ( le_backend_o *self, size_t frameIndex );
 		void                   ( *process_frame              ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses, le_resource_handle const * declared_resources, le_resource_info_t const * declared_resources_infos, size_t const & declared_resources_count );
-		void                   ( *set_frame_queue_submission_keys ) ( le_backend_o *self, size_t frameIndex, void const * p_affinity_masks, uint32_t num_affinity_masks ); // void* p_affinity_masks must be cast to le::RootPassesField, we can't forward-declare a using declaration
+		void                   ( *set_frame_queue_submission_keys ) ( le_backend_o *self, size_t frameIndex, void const * p_affinity_masks, uint32_t num_affinity_masks, char const** root_names, uint32_t root_names_count); // void* p_affinity_masks must be cast to le::RootPassesField, we can't forward-declare a using declaration
 
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
