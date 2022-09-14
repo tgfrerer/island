@@ -4472,6 +4472,38 @@ static BackendFrameData::CommandPool* backend_frame_data_produce_command_pool(
 	return pool;
 }
 
+// predictable, repeatable response given queue flags
+static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o* self, VkQueueFlags flags ) {
+
+	uint32_t lowest_num_extra_bits = ~uint32_t( 0 );
+	uint32_t found_family          = ~uint32_t( 0 );
+
+	static std::unordered_map<VkQueueFlags, uint32_t> cache;
+
+	auto cache_entry = cache.emplace( flags, 0 );
+
+	if ( cache_entry.second == true ) {
+		// element was inserted, this was not a cache hit
+		for ( BackendQueueInfo const* info : self->queues ) {
+			VkQueueFlags available_flags = info->queue_flags;
+			VkQueueFlags requested_flags = flags;
+
+			if ( ( available_flags & requested_flags ) == requested_flags ) {
+				// requested_flags are contained in available flags
+				VkQueueFlags leftover_flags = ( available_flags & ( ~requested_flags ) ); // flags which only appear in available_flags
+				size_t       num_extra_bits = std::bitset<sizeof( VkQueueFlags ) * 8>( leftover_flags ).count();
+				if ( num_extra_bits < lowest_num_extra_bits ) {
+					found_family          = info->queue_family_index;
+					lowest_num_extra_bits = num_extra_bits;
+				}
+			}
+		}
+		cache_entry.first->second = found_family;
+	}
+
+	return cache_entry.first->second;
+}
+
 // ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
@@ -4583,11 +4615,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 		{
 			/// Assign queues to each submission:
 			///
-			/// * Find exactly matching queue with the lowest number of submissions that matches.
+			/// we must have a unique mapping from queue_flags to queue family.
 			///
-			/// If this fails:
-			///
-			/// * Find approximately matching queue with the lowest number of submissions that matches.
+			/// from this, we can then go through all queues of the queue family
+			/// and pick the queue with the least submissions.
 			///
 			std::vector<uint32_t> num_submissions_per_queue( num_invocation_keys, 0 );
 			for ( size_t i = 0; i != num_invocation_keys; i++ ) {
@@ -4598,26 +4629,15 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				int      matching_queue          = -1;
 				uint32_t lowest_submission_count = uint32_t( ~0 );
 
+				uint32_t matching_queue_family_index = backend_find_queue_family_index_from_requirements( self, flags );
+
 				// try to find an exact match with the lowest submissions to it
 				for ( uint32_t j = 0; j != queues.size(); j++ ) {
-					if ( ( queues[ j ]->queue_flags ) == flags ) {
+					if ( queues[ j ]->queue_family_index == matching_queue_family_index ) {
 						// all flags are contained in q.queue_flags
 						if ( num_submissions_per_queue[ j ] < lowest_submission_count ) {
 							matching_queue          = j;
 							lowest_submission_count = num_submissions_per_queue[ j ];
-						}
-					}
-				}
-
-				if ( matching_queue == -1 ) {
-					// find an approximately-matching queue with the fewest submissions to it
-					for ( uint32_t j = 0; j != queues.size(); j++ ) {
-						if ( ( queues[ j ]->queue_flags & flags ) == flags ) {
-							// all flags are contained in q.queue_flags
-							if ( num_submissions_per_queue[ j ] < lowest_submission_count ) {
-								matching_queue          = j;
-								lowest_submission_count = num_submissions_per_queue[ j ];
-							}
 						}
 					}
 				}
