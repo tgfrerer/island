@@ -6649,7 +6649,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 	std::unordered_map<le_resource_handle, ownership_transfer_t> queue_ownership_transfers;     // note that the transfer must happen on both queues - first release, then acquire.
 	bool                                                         must_wait_for_acquire = false; /// signals whether multiple queues of the same family await a resoruce to become acquired
 
-	// Test for all resources test if family ownership matches
+	// For all resources test if family ownership matches
 	// since we last used this resource - if not, change it, and note the change.
 	for ( auto const& submission_data : frame.queue_submission_data ) {
 		uint32_t submission_queue_family_idx = self->queues[ submission_data.queue_idx ]->queue_family_index;
@@ -6686,7 +6686,10 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 							// the first destination queue will do the acquire, all other destination
 							// queues will have to wait for this acquire to complete in an extra step.
 							transfer_inserted_it.first->second.dst_queue_index.push_back( submission_data.queue_idx );
-							must_wait_for_acquire = true;
+							if ( submission_data.queue_idx != transfer_inserted_it.first->second.dst_queue_index[ 0 ] ) {
+								// only wait for acquire if it's a different queue than the first queue
+								must_wait_for_acquire = true;
+							}
 
 						} else {
 							logger.error( "resource `%s` cannot be owned by two differing queue families: %d != %d",
@@ -7074,7 +7077,9 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 				uint32_t wait_for_queue_idx = transfer.dst_queue_index[ 0 ];
 				for ( uint32_t i = 1; i != transfer.dst_queue_index.size(); i++ ) {
 					// each of the dependent queues must wait for the primary queue
-					per_queue_wait_for_queues[ transfer.dst_queue_index[ i ] ].emplace( wait_for_queue_idx );
+					if ( wait_for_queue_idx != transfer.dst_queue_index[ i ] ) {
+						per_queue_wait_for_queues[ transfer.dst_queue_index[ i ] ].emplace( wait_for_queue_idx );
+					}
 				}
 			}
 		}
