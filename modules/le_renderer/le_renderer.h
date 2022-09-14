@@ -118,10 +118,6 @@ struct le_renderer_api {
 		void                 ( *build                  ) ( le_rendergraph_o *self, size_t frameNumber );
 		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
 		void                 ( *setup_passes           ) ( le_rendergraph_o *self, le_rendergraph_o *gb );
-		void                 ( *get_passes             ) ( le_rendergraph_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses );
-		void                 ( *get_declared_resources ) ( le_rendergraph_o *self, le_resource_handle const **p_resource_handles, le_resource_info_t const **p_resource_infos, size_t *p_resource_count );
-        void                 ( *get_p_affinity_masks   ) ( le_rendergraph_o* self, le::RootPassesField const **p_affinity_masks, uint32_t *num_affinity_masks );
-
     };
 
 	struct command_buffer_encoder_interface_t {

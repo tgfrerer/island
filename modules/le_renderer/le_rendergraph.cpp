@@ -1,7 +1,3 @@
-#include "le_renderer.h"
-
-#include "le_backend_vk.h"
-
 #include <cstring>
 #include <vector>
 #include <string>
@@ -13,10 +9,12 @@
 #include <filesystem>
 #include <sstream>
 #include <array>
+#include <bitset>
+
+#include "le_renderer.h"
+#include "le_backend_vk.h"
 
 #include "private/le_resource_handle_t.inl"
-
-#include "le_log.h"
 
 static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
@@ -32,171 +30,9 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 #	define LE_PRINT_DEBUG_MESSAGES false
 #endif
 
-#include <bitset>
+#include "private/le_rendergraph.h"
 
-using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
-// ----------------------------------------------------------------------
-
-namespace le {
-using RWFlags = uint32_t;
-enum class ResourceAccessFlagBits : RWFlags {
-	eUndefined = 0x0,
-	eRead      = 0x1 << 0,
-	eWrite     = 0x1 << 1,
-	eReadWrite = eRead | eWrite,
-};
-
-constexpr RWFlags operator|( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const RWFlags>( static_cast<RWFlags>( lhs ) | static_cast<RWFlags>( rhs ) );
-};
-
-constexpr RWFlags operator|( RWFlags const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const RWFlags>( lhs | static_cast<RWFlags>( rhs ) );
-};
-
-constexpr RWFlags operator&( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const RWFlags>( static_cast<RWFlags>( lhs ) & static_cast<RWFlags>( rhs ) );
-};
-} // namespace le
-
-// ----------------------------------------------------------------------
-static constexpr le::AccessFlags2 LE_ALL_READ_ACCESS_FLAGS =
-    le::AccessFlagBits2::eIndirectCommandRead |
-    le::AccessFlagBits2::eIndexRead |
-    le::AccessFlagBits2::eVertexAttributeRead |
-    le::AccessFlagBits2::eUniformRead |
-    le::AccessFlagBits2::eInputAttachmentRead |
-    le::AccessFlagBits2::eShaderRead |
-    le::AccessFlagBits2::eColorAttachmentRead |
-    le::AccessFlagBits2::eDepthStencilAttachmentRead |
-    le::AccessFlagBits2::eTransferRead |
-    le::AccessFlagBits2::eHostRead |
-    le::AccessFlagBits2::eMemoryRead |
-    le::AccessFlagBits2::eCommandPreprocessReadBitNv |
-    le::AccessFlagBits2::eColorAttachmentReadNoncoherentBitExt |
-    le::AccessFlagBits2::eConditionalRenderingReadBitExt |
-    le::AccessFlagBits2::eAccelerationStructureReadBitKhr |
-    le::AccessFlagBits2::eTransformFeedbackCounterReadBitExt |
-    le::AccessFlagBits2::eFragmentDensityMapReadBitExt |
-    le::AccessFlagBits2::eFragmentShadingRateAttachmentReadBitKhr |
-    le::AccessFlagBits2::eShaderSampledRead |
-    le::AccessFlagBits2::eShaderStorageRead |
-    le::AccessFlagBits2::eVideoDecodeReadBitKhr |
-    le::AccessFlagBits2::eVideoEncodeReadBitKhr |
-    le::AccessFlagBits2::eInvocationMaskReadBitHuawei;
-
-static constexpr le::AccessFlags2 LE_ALL_WRITE_ACCESS_FLAGS =
-    le::AccessFlagBits2::eShaderWrite |
-    le::AccessFlagBits2::eColorAttachmentWrite |
-    le::AccessFlagBits2::eDepthStencilAttachmentWrite |
-    le::AccessFlagBits2::eTransferWrite |
-    le::AccessFlagBits2::eHostWrite |
-    le::AccessFlagBits2::eMemoryWrite |
-    le::AccessFlagBits2::eCommandPreprocessWriteBitNv |
-    le::AccessFlagBits2::eAccelerationStructureWriteBitKhr |
-    le::AccessFlagBits2::eTransformFeedbackWriteBitExt |
-    le::AccessFlagBits2::eTransformFeedbackCounterWriteBitExt |
-    le::AccessFlagBits2::eVideoDecodeWriteBitKhr |
-    le::AccessFlagBits2::eVideoEncodeWriteBitKhr |
-    le::AccessFlagBits2::eShaderStorageWrite //
-    ;
-static constexpr le::AccessFlags2 LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS =
-    le::AccessFlagBits2::eShaderSampledRead | //
-    le::AccessFlagBits2::eShaderRead |        // shader read is a potential read/write operation, as it might imply a layout transform
-    le::AccessFlagBits2::eShaderStorageRead   // this might mean a read/write in case we are accessing an image as it might imply a layout transform
-    ;
-
-// ----------------------------------------------------------------------
-
-extern le_resource_handle renderer_produce_resource_handle(
-    char const*           maybe_name,
-    LeResourceType const& resource_type,
-    uint8_t               num_samples      = 0,
-    uint8_t               flags            = 0,
-    uint16_t              index            = 0,
-    le_resource_handle    reference_handle = nullptr );
-
-// ----------------------------------------------------------------------
-
-static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
-	uint64_t    flags = tp;
-	std::string result;
-	int         bit_pos = 0;
-	while ( flags ) {
-		if ( flags & 1 ) {
-			if ( false == result.empty() ) {
-				result.append( " | " );
-			}
-			result.append( to_str( le::AccessFlagBits2( 1ULL << bit_pos ) ) );
-		}
-		flags >>= 1;
-		bit_pos++;
-	}
-	return result;
-}
-
-// ----------------------------------------------------------------------
-
-struct Node {
-	ResourceField       reads               = 0;
-	ResourceField       writes              = 0;
-	le::RootPassesField root_nodes_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
-	bool                is_root             = false; // whether this node is a root node
-	bool                is_contributing     = false; // whether this node contributes to a root node
-};
-
-// these are some sanity checks for le_renderer_types
-static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );
-
-struct ExecuteCallbackInfo {
-	le_renderer_api::pfn_renderpass_execute_t fn        = nullptr;
-	void*                                     user_data = nullptr;
-};
-
-struct le_renderpass_o {
-
-	le::QueueFlagBits       type         = le::QueueFlagBits{};         // Requirements for a queue to which this pass can be submitted.
-	uint32_t                ref_count    = 0;                           // reference count (we're following an intrusive shared pointer pattern)
-	uint64_t                id           = 0;                           // hash of name
-	uint32_t                width        = 0;                           // < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
-	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
-	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
-
-	uint32_t            is_root = false;      // Whether pass *must* be processed
-	le::RootPassesField root_passes_affinity; // Association of this renderpass with one or more root passes that it contributes to -
-	                                          // this needs to be communicated to backend, so that you may create queue submissions
-	                                          // by filtering via root_passes_affinity_masks
-
-	std::vector<le_resource_handle> resources;                  // all resources used in this pass, contains info about resource type
-	std::vector<le::RWFlags>        resources_read_write_flags; // TODO: get rid of this: we can use resources_access_flags instead. read/write flags for all resources, in sync with resources
-	std::vector<le::AccessFlags2>   resources_access_flags;     // first read | last write access for each resource used in this pass
-
-	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
-	std::vector<le_img_resource_handle>     attachmentResources; // kept in sync with imageAttachments, one resource per attachment
-
-	std::vector<le_texture_handle>       textureIds;   // imageSampler resource infos
-	std::vector<le_image_sampler_info_t> textureInfos; // kept in sync with texture id: info for corresponding texture id
-
-	le_renderer_api::pfn_renderpass_setup_t callbackSetup            = nullptr;
-	void*                                   setup_callback_user_data = nullptr;
-	std::vector<ExecuteCallbackInfo>        executeCallbacks;
-
-	le_command_buffer_encoder_o* encoder = nullptr;
-	char                         debugName[ 256 ];
-};
-
-// ----------------------------------------------------------------------
-
-struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>    passes;                     //
-	std::vector<le_resource_handle>  declared_resources_id;      // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t>  declared_resources_info;    // | pre-declared resources (declared via module)
-	std::vector<le::RootPassesField> root_passes_affinity_masks; // vector of masks, one per distinct tree within the rendergraph,
-	                                                             // each mask represents a filter: passes whose root_passes_affinity
-	                                                             // match via OR are contributing to the distinct tree whose key it was tested against.
-	                                                             // Each entry represents a distinct tree which can be submitted as a
-	                                                             // separate (and resource-isolated) queue submission.
-};
+#include "le_log.h"
 
 // ----------------------------------------------------------------------
 
@@ -843,6 +679,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			node.is_root = true;
 		}
 
+		node.debug_name = p->debugName;
 		nodes.emplace_back( std::move( node ) );
 	}
 
@@ -852,6 +689,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// can be disposed, as their products will never be used.
 	uint32_t root_count = 0; // gets set to number of found root nodes as a side-effect of node_tag_contributing
 	node_tag_contributing( nodes.data(), nodes.size(), &root_count );
+
+	// non-owning pointers to debug names within passes which are root, in the same order as RootPassesField is constructed
+	std::vector<char const*> root_debug_names( root_count );
 
 	assert( root_count <= LE_MAX_NUM_GRAPH_ROOTS && "number of nodes must fit LE_MAX_NUM_TREES, otherwise we can't express tree affinity as a bitfield" );
 
@@ -897,6 +737,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 						n->root_nodes_affinity |= ( 1ULL << root_index );
 					}
 				}
+				root_debug_names[ root_index ] = r->debug_name; // owned by pass, will stay alive and in-place until frame gets cleared
 				root_index++;
 			}
 		}
@@ -1068,6 +909,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// Update self->passes
 		std::swap( self->passes, consolidated_passes );
 
+		// Update debug root names
+		std::swap( self->root_debug_names, root_debug_names );
+
 #if ( LE_PRINT_DEBUG_MESSAGES )
 		logger.info( "* Consolidated Pass List *" );
 		int i = 0;
@@ -1219,27 +1063,6 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 }
 
 // ----------------------------------------------------------------------
-
-static void rendergraph_get_passes( le_rendergraph_o* self, le_renderpass_o*** pPasses, size_t* pNumPasses ) {
-	*pPasses    = self->passes.data();
-	*pNumPasses = self->passes.size();
-}
-
-// ----------------------------------------------------------------------
-
-static void rendergraph_get_declared_resources( le_rendergraph_o* self, le_resource_handle const** p_resource_handles, le_resource_info_t const** p_resource_infos, size_t* p_resource_count ) {
-	*p_resource_count   = self->declared_resources_id.size();
-	*p_resource_handles = self->declared_resources_id.data();
-	*p_resource_infos   = self->declared_resources_info.data();
-}
-
-// ----------------------------------------------------------------------
-
-static void rendergraph_get_p_affinity_masks( le_rendergraph_o* self, le::RootPassesField const** p_affinity_masks, uint32_t* num_affinity_masks ) {
-	*p_affinity_masks   = self->root_passes_affinity_masks.data();
-	*num_affinity_masks = self->root_passes_affinity_masks.size();
-}
-// ----------------------------------------------------------------------
 // Builds rendergraph from render_module, calls `setup` callbacks on each renderpass which provides a
 // `setup` callback.
 // If renderpass provides a setup method, pass is only added to rendergraph if its setup
@@ -1297,13 +1120,10 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_i.add_renderpass   = rendergraph_add_renderpass;
 	le_rendergraph_i.declare_resource = rendergraph_declare_resource;
 
-	auto& le_rendergraph_private_i                  = le_renderer_api_i->le_rendergraph_private_i;
-	le_rendergraph_private_i.setup_passes           = rendergraph_setup_passes;
-	le_rendergraph_private_i.build                  = rendergraph_build;
-	le_rendergraph_private_i.execute                = rendergraph_execute;
-	le_rendergraph_private_i.get_passes             = rendergraph_get_passes;
-	le_rendergraph_private_i.get_declared_resources = rendergraph_get_declared_resources;
-	le_rendergraph_private_i.get_p_affinity_masks   = rendergraph_get_p_affinity_masks;
+	auto& le_rendergraph_private_i        = le_renderer_api_i->le_rendergraph_private_i;
+	le_rendergraph_private_i.setup_passes = rendergraph_setup_passes;
+	le_rendergraph_private_i.build        = rendergraph_build;
+	le_rendergraph_private_i.execute      = rendergraph_execute;
 
 	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
 	le_renderpass_i.create                       = renderpass_create;

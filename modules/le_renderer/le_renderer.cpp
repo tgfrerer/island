@@ -17,8 +17,10 @@
 #include <algorithm>
 #include <string>
 #include <cstring> // for memcpy
+#include <bitset>
 
 #include "private/le_resource_handle_t.inl"
+#include "private/le_rendergraph.h"
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 
@@ -515,20 +517,12 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 
 	// ----------| invariant: frame is either initial, or cleared.
 
-	le_renderpass_o** passes          = nullptr;
-	size_t            numRenderPasses = 0;
+	le_renderpass_o** passes          = frame.rendergraph->passes.data();
+	size_t            numRenderPasses = frame.rendergraph->passes.size();
 
-	le_renderer::api->le_rendergraph_private_i.get_passes( frame.rendergraph, &passes, &numRenderPasses );
-
-	le_resource_handle const* declared_resources;
-	le_resource_info_t const* declared_resources_infos;
-	size_t                    declared_resources_count = 0;
-
-	le_renderer::api->le_rendergraph_private_i.get_declared_resources(
-	    frame.rendergraph,
-	    &declared_resources,
-	    &declared_resources_infos,
-	    &declared_resources_count );
+	le_resource_handle const* declared_resources       = frame.rendergraph->declared_resources_id.data();
+	le_resource_info_t const* declared_resources_infos = frame.rendergraph->declared_resources_info.data();
+	size_t                    declared_resources_count = frame.rendergraph->declared_resources_id.size();
 
 	auto acquireSuccess =
 	    vk_backend_i.acquire_physical_resources(
@@ -543,10 +537,9 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	{
 		// apply root node affinity masks to backend render frame
 		// so that the frame can decide how best to dispatch
-		le::RootPassesField const* p_affinity_masks   = nullptr;
-		uint32_t                   num_affinity_masks = 0;
+		le::RootPassesField const* p_affinity_masks   = frame.rendergraph->root_passes_affinity_masks.data();
+		uint32_t                   num_affinity_masks = frame.rendergraph->root_passes_affinity_masks.size();
 
-		le_renderer::api->le_rendergraph_private_i.get_p_affinity_masks( frame.rendergraph, &p_affinity_masks, &num_affinity_masks );
 		vk_backend_i.set_frame_queue_submission_keys( self->backend, frameIndex, reinterpret_cast<void const*>( p_affinity_masks ), num_affinity_masks );
 	}
 
