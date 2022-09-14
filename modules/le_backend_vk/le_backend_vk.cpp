@@ -7060,7 +7060,7 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 			};
 
 			auto const& queue = self->queues[ queue_idx ];
-			// submit on the queue chosen for this acquire barrier
+			// submit on the nd queue chosen for this acquire barrier
 			backend_queue_submit( queue, 1, &submitInfo, nullptr, should_generate_queue_sync_dot_files, "must_wait_acquire" );
 		}
 	}
@@ -7074,7 +7074,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ]->queue; // will not change for the duration of the program.
 
 	LE_GET_SETTING( bool, LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, false );
-	// we fetch this variable to a local copy, and only once, so that there is no risk that the value of the
+	// we fetch this variable to a local copy, and only at a single point, here, so that there is no risk that the value of the
 	// variable is changed on another thread while the dot graph is being generated
 	bool should_generate_queue_sync_dot_files = *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES;
 
