@@ -6391,7 +6391,7 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 		os << "<tr><td align='left'>queue_" << i << " : {" << to_string_vk_queue_flags( backend->queues[ i ]->queue_flags ) << "}</td></tr>";
 	}
 	os << "<tr><td align='left'>\"" << exe_path.string() << "\"</td></tr>"
-	   << "<tr><td align='left'>Island Queue Sync @ Frame № " << frame_number << "</td></tr>"
+	   << "<tr><td align='left'>Island Queue Sync @ Frame \xe2\x84\x96" << frame_number << "</td></tr>"
 	   << "</table>>; splines = true; nodesep = 0.7; fontname = \"IBM Plex Sans\"; fontsize = 10; labeljust = \"l\";];\n";
 	;
 
@@ -6434,7 +6434,7 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 				os << "\n\t<tr>";
 				if ( w_it != submission.wait_semaphores.end() ) {
 					os << "<td port=\"port_" << w_it->semaphore_id << "_w_" << w_it->value << "\">";
-					os << "S<sub><font point-size='9'>" << ( *semaphore_names )[ w_it->semaphore_id ] << "</font></sub> ⌛";
+					os << "S<sub><font point-size='9'>" << ( *semaphore_names )[ w_it->semaphore_id ] << "</font></sub> \xe2\x8c\x9b";
 					if ( ( *semaphore_names )[ w_it->semaphore_id ][ 0 ] <= '9' ) {
 						// only show value if we have a non-binary semaphore (that's a semaphore with an alphanumeric name)
 						os << w_it->value;
@@ -6448,7 +6448,7 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 				os << "</td>";
 				if ( s_it != submission.signal_semaphores.end() ) {
 					os << "<td port=\"port_" << s_it->semaphore_id << "_s_" << s_it->value << "\">"
-					   << "S<sub><font point-size='9'>" << ( *semaphore_names )[ s_it->semaphore_id ] << "</font></sub> 🏁 ";
+					   << "S<sub><font point-size='9'>" << ( *semaphore_names )[ s_it->semaphore_id ] << "</font></sub> \xf0\x9f\x8f\x81 ";
 					if ( ( *semaphore_names )[ s_it->semaphore_id ][ 0 ] <= '9' ) {
 						// only show value if we have a non-binary semaphore (that's a semaphore with an alphanumeric name)
 						os << s_it->value << "";

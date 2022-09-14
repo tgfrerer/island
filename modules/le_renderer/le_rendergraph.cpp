@@ -414,7 +414,7 @@ static bool generate_dot_file_for_rendergraph(
 	   << "<table border='0' cellborder='0' cellspacing='0' cellpadding='3'>"
 	   << "<tr><td align='left'>Island Rendergraph</td></tr>"
 	   << "<tr><td align='left'>" << exe_path << "</td></tr>"
-	   << "<tr><td align='left'>Frame № " << frame_number << "</td></tr>"
+	   << "<tr><td align='left'>Frame \xe2\x84\x96 " << frame_number << "</td></tr>"
 	   << "</table>"
 	   << ">"
 	   << ", splines=true, nodesep=0.7, fontname=\"IBM Plex Sans\", fontsize=10, labeljust=\"l\"];" << std::endl;
