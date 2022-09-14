@@ -879,7 +879,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				}
 				ResourceField& read_accum  = root_reads_accum[ root_index ];
 				ResourceField& write_accum = root_writes_accum[ root_index ];
-				// n is a root node.
+				// r is a root node.
 				read_accum  = r->reads;
 				write_accum = r->writes;
 				r->root_nodes_affinity |= ( 1ULL << root_index );
@@ -928,13 +928,13 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// No such overlap is detected if both roots in a test only read from the same resource -
 		// this is because two queues may read concurrently from a resource.
 		//
-		// We need to test each root against all other roots - note that we can to two tests at once.
+		// We need to test each root against all other roots - note that we can do two tests at once.
 		// Meaning our complexity for n root elements is ((n^2-n)/2)
 		//
 		// Q: What happens when more than two subgraphs overlap?
 		// A: Exactly what you would expect, all overlapping subgraph form one giant combined subgraph.
 		//
-
+		//
 		// Initially, each root starts out on their own subgraph -  each subgraph id is initially
 		// a unique single bit in the subgraph_id bitfield.
 		//
@@ -982,7 +982,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		}
 
 		// Remove any duplicate entries in our indirection table
-		// (if trees get combined they will share the same id)
+		// (if subgraphs get combined they will share the same id)
 		auto it = std::unique( subgraph_id_idx.begin(), subgraph_id_idx.end() );
 		subgraph_id_idx.erase( it, subgraph_id_idx.end() );
 
