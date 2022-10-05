@@ -97,7 +97,7 @@ def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None, co
     try:
         copystat(src, dst)
     except OSError as why:
-        if WindowsError is not None and isinstance(why, WindowsError):
+        if OSError is not None and isinstance(why, OSError):
             # Copying file access times may fail on Windows
             pass
         else:
