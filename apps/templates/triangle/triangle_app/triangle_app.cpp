@@ -144,8 +144,8 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 	MvpUbo mvp;
 	mvp.model = glm::mat4( 1.f ); // identity matrix
 	mvp.model = glm::scale( mvp.model, glm::vec3( 4.5 ) ); // note scale by factor 4.5
-	app->camera.getViewMatrix((float*)(&mvp.view));
-	app->camera.getProjectionMatrix((float*)(&mvp.view));
+	app->camera.getViewMatrix( ( float* )( &mvp.view ) );
+	app->camera.getProjectionMatrix( ( float* )( &mvp.projection ) );
 
 	glm::vec3 vertexPositions[] = {
 	    { -50, -50, 0 },
