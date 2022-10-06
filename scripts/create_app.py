@@ -9,8 +9,10 @@ from os import listdir
 import os
 import shutil
 from shutil import copystat
-import stat
-import errno
+
+
+SCRIPTS_PATH = os.path.dirname(os.path.realpath(__file__))
+CWD_PATH = os.path.realpath(os.getcwd())
 
 
 class Error(EnvironmentError):
@@ -20,33 +22,36 @@ class Error(EnvironmentError):
 
 
 parser = ArgumentParser(
-    description='Create a new Island application based on application template')
+    description='Create a new Island application based on application template.')
 parser.add_argument('-a', '--app', dest='app_name', required=True,
                     help='Specify the name for new application to create from template.')
-parser.add_argument('-t', '--template-name', dest='template_name',
-                    help='Specify the name for template.', default='triangle')
 parser.add_argument('-T', '--template-dir', dest='template_dir',
-                    help='Specify a path relative to this script in which to look for app templates.', default='../apps/templates')
-
+                    help='Specify a path *relative to the current directory* in which to look for project template directories. Use dot (".") to search for project directories within the current directory - for example if you wish to duplicate an existing project as a starting point for a new project.', default="{scripts_path}/../apps/templates".format(scripts_path=SCRIPTS_PATH))
+parser.add_argument('-t', '--template-name', dest='template_name',
+                    help='Specify the name for template. This can be the name of any project directory within TEMPLATE_DIR.', default='triangle')
 
 args = parser.parse_args()
 
 
-def to_camel_case(snake_str):
-    components = snake_str.split('_')
-    # We capitalize the first letter of each component except the first one
-    # with the 'title' method and join them together.
-    return components[0] + ''.join(x.title() for x in components[1:])
+def copy_function_wrapper(src, dst, copy_function=None, replacements=None):
+    # in case we have a text file, we want to do a line-by-line
+    # search-and-replace for the template terms, otherwise we
+    # just use the fastest method to copy the file across.
+    if (os.path.splitext(src)[1] in [".cpp", ".h", ".txt"]):
+        with open(src, 'r') as infile, open(dst, 'w') as outfile:
+            for line in infile:
+                for src, target in replacements.items():
+                    line = line.replace(src, target)
+                outfile.write(line)
+    elif copy_function is not None:
+        # if file is not a templated file, then we just copy it across
+        copy_function(src, dst)
 
 
-def to_titled_camel_case(snake_str):
-    components = snake_str.split('_')
-    # We capitalize the first letter of each component.
-    return ''.join(x.title() for x in components)
-
-
-def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None, copy_function=shutil.copy2,
-              ignore_dangling_symlinks=False):
+def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None,
+              copy_function=shutil.copy2,
+              ignore_dangling_symlinks=False,
+              replacements=None):
 
     names = os.listdir(src)
 
@@ -80,14 +85,19 @@ def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None, co
                     if not os.path.exists(linkto) and ignore_dangling_symlinks:
                         continue
                     # otherwise let the copy occur. copy2 will raise an error
-                    copy_function(srcname, dstname)
+                    copy_function_wrapper(srcname, dstname,
+                                          copy_function=copy_function,
+                                          replacements=replacements)
             elif os.path.isdir(srcname):
                 copy_tree(srcname, dstname, template_name,
-                          app_name, symlinks, ignore, copy_function)
+                          app_name, symlinks, ignore,
+                          copy_function, replacements=replacements)
             else:
                 # Will raise a SpecialFileError for unsupported file types
                 # copy file
-                copy_function(srcname, dstname)
+                copy_function_wrapper(srcname, dstname,
+                                      copy_function=copy_function,
+                                      replacements=replacements)
         # catch the Error from the recursive copytree so that we can
         # continue with other files
         except Error as err:
@@ -107,20 +117,43 @@ def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None, co
     return dst
 
 
+def to_camel_case(snake_str):
+    components = snake_str.split('_')
+    # We capitalize the first letter of each component except the first one
+    # with the 'title' method and join them together.
+    return components[0] + ''.join(x.title() for x in components[1:])
+
+
+def to_titled_camel_case(snake_str):
+    components = snake_str.split('_')
+    # We capitalize the first letter of each component.
+    return ''.join(x.title() for x in components)
+
+
 app_name = args.app_name
 app_module_name = app_name + '_app'
-template_dir = args.template_dir
+
+template_source_dir = args.template_dir
+
+if (os.path.isabs(template_source_dir) is False):
+    # we have a relative path given for template dir, we must prepend
+    # the CWD_PATH to the relative path given, as all relative paths
+    # are relative to where the script was executed
+    template_source_dir = os.path.join(CWD_PATH, template_source_dir)
+
+
 template_name = args.template_name
 app_name_camelcase_capitalised = to_titled_camel_case(app_name)
 template_name_camelcase_capitalised = to_titled_camel_case(template_name)
+
 app_dir = ('./%s' % app_name)
-app_module_dir = ('%s/%s' % (app_dir, app_module_name))
+app_module_dir = os.path.normpath(os.path.join(app_dir, app_module_name))
 
-# directory where this script lives
-script_dir = path.split(path.realpath(__file__))[0]
-
-template_source_dir = ('%s/%s/%s' % (script_dir, template_dir, template_name))
-
+template_source_dir = os.path.normpath(
+        os.path.relpath(
+            os.path.join(template_source_dir, template_name),
+            CWD_PATH
+        ))
 
 print('App name: %s' % app_name)
 print('App module directory: %s' % app_module_dir)
@@ -128,12 +161,6 @@ print('Template source directory: %s' % template_source_dir)
 
 # Go through all files in target directory recursively,
 # and apply replacements to their contents
-
-
-def process_directory_recursively(dir_path, replacements):
-    for item in replacements:
-        system("find -P %s -type f -exec sed -i 's/%s/g' {} +" %
-               (dir_path, item))
 
 
 # check if directory with given module name exists
@@ -155,14 +182,17 @@ else:
 
     # ---------- invariant template source dir exists.
 
+    # Replace template names with app names in all target files
+    replacements = {}
+    replacements[template_name] = app_name
+    replacements[template_name_camelcase_capitalised] = app_name_camelcase_capitalised
+
     # Create a copy of the template in our target directory.
     # While copying template_name is substituted for app_name
     copy_tree(template_source_dir, app_dir, template_name, app_name,
-              ignore=shutil.ignore_patterns('CMakeLists.txt.user', 'build'))
+              ignore=shutil.ignore_patterns('CMakeLists.txt.user', 'build'),
+              replacements=replacements)
 
-    # Replace template names with app names in all target files
-    replacements = {'%s/%s' % (template_name, app_name),
-                    '%s/%s' % (template_name_camelcase_capitalised, app_name_camelcase_capitalised)}
-    process_directory_recursively(app_dir, replacements)
+    # process_directory_recursively(app_dir, replacements)
 
     print('Done.')
