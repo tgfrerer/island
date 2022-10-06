@@ -69,7 +69,7 @@ static void app_reset_camera( app_o* self ) {
 	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 view_matrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
-	self->camera.setViewMatrix( (float*)(&view_matrix) );
+	self->camera.setViewMatrix( ( float* )( &view_matrix ) );
 }
 
 // ----------------------------------------------------------------------
@@ -142,7 +142,7 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 	        .build();
 
 	MvpUbo mvp;
-	mvp.model = glm::mat4( 1.f ); // identity matrix
+	mvp.model = glm::mat4( 1.f );                          // identity matrix
 	mvp.model = glm::scale( mvp.model, glm::vec3( 4.5 ) ); // note scale by factor 4.5
 	app->camera.getViewMatrix( ( float* )( &mvp.view ) );
 	app->camera.getProjectionMatrix( ( float* )( &mvp.projection ) );
@@ -187,7 +187,7 @@ static void app_process_ui_events( app_o* self ) {
 					wantsToggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
 					glm::mat4 view_matrix;
-					self->camera.getViewMatrix((float*)(&view_matrix));
+					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
 					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
 					self->cameraController.setPivotDistance( distance_to_origin );
 				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
@@ -195,7 +195,7 @@ static void app_process_ui_events( app_o* self ) {
 				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
 					app_reset_camera( self );
 					glm::mat4 view_matrix;
-					self->camera.getViewMatrix((float*)(&view_matrix));
+					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
 					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
 					self->cameraController.setPivotDistance( distance_to_origin );
 				}
