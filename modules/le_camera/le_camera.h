@@ -19,24 +19,24 @@ struct le_camera_api {
 	struct le_camera_interface_t {
 
 		le_camera_o *    ( * create                   ) ( );
-		void             ( * destroy                  ) ( le_camera_o* self );
         le_camera_o *    ( * clone                    ) ( le_camera_o const * self );
-
+		void             ( * destroy                  ) ( le_camera_o* self );
 		void             ( * update                   ) ( le_camera_o* self );
+
+		void             ( * set_clip_distances       ) ( le_camera_o* self, float nearClip, float farClip);
+		void             ( * set_fov_radians          ) ( le_camera_o* self, float fov_radians);
+        void             ( * set_is_orthographic      ) ( le_camera_o* self, bool is_ortographic);
 		void             ( * set_view_matrix          ) ( le_camera_o* self, float const * view_matrix);
 		void             ( * set_viewport             ) ( le_camera_o* self, le::Viewport const & viewport);
-		le::Viewport const & ( * get_viewport         ) ( le_camera_o* self);
-		void             ( * set_fov_radians          ) ( le_camera_o* self, float fov_radians);
+
+		void             ( * get_clip_distances       ) ( le_camera_o* self, float *nearClip, float *farClip);
 		float            ( * get_fov_radians          ) ( le_camera_o* self );
 		void             ( * get_view_matrix          ) ( le_camera_o* self, float * p_matrix_4x4 );
-        void             ( * set_is_orthographic      ) ( le_camera_o* self, bool is_ortographic);
-
-
 		void             ( * get_projection_matrix    ) ( le_camera_o* self, float * p_matrix_4x4 );
-		float            ( * get_unit_distance        ) ( le_camera_o* self );
-		void             ( * set_clip_distances       ) ( le_camera_o* self, float nearClip, float farClip);
-		void             ( * get_clip_distances       ) ( le_camera_o* self, float *nearClip, float *farClip);
 		bool             ( * get_sphere_in_frustum    ) ( le_camera_o *self, float const *pSphereCentreInCameraSpaceFloat3, float sphereRadius );
+		float            ( * get_unit_distance        ) ( le_camera_o* self );
+		le::Viewport const & ( * get_viewport         ) ( le_camera_o* self);
+
 	};
 
 	struct le_camera_controller_interface_t {
