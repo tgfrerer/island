@@ -1,4 +1,4 @@
-![title-image](resources/readme/title.png)
+<img width="100%" src="resources/readme/title.png" />
 
 # Project Island 🌋🐎 
 
@@ -19,6 +19,7 @@ build a single, statically linked and optimised binary.
 
 
 [![C/C++ CI](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml)
+
 
 ## Main Features:
 
@@ -57,10 +58,12 @@ build a single, statically linked and optimised binary.
   renderpasses. Renderpasses are executed on-demand and synchronised
   automatically by evaluating a rendergraph. If a renderpass is
   detected to have no effect on the final image, it is automatically
-  pruned. For Debug targets, the rendergraph generates `.dot` files,
-  which can be drawn using graphviz.  
-
-  ![graphviz-screenshot](resources/readme/graph_screenshot.png)
+  pruned. When requested, the rendergraph generates `.dot` files,
+  which can be drawn using graphviz. More about how Island builds its rendergraph in [this blog post][rendergraph-blog].
+  
+  <img width="350" src="resources/readme/graph_screenshot.png" align="right" />
+  
+* **Automatic GPU multiqueue**: renderpasses are automatically distributed onto any avaliable render queues - if resources need to be transferred between queue families, this happens automatically. More about how Island distributes workloads across renderqueues and synchronises them in [this blog post][rendergraph-syn-blog].
   
 * **Static release binaries**: While Island is highly modular and
   dynamic when compiled for Debug, it can compile into a single,
@@ -78,14 +81,14 @@ build a single, statically linked and optimised binary.
   specialisation.
 
 * **Helpers**: minimal effort to enable multisampling, import images,
-  fonts
+  import and display fonts
 
-* **2d drawing context**: Draw thick lines and curves using
-  `le_paths`, which specialises in 2d meshes. This module implements
+* **2D drawing context**: Draw thick lines and curves using
+  `le_paths`, which specialises in 2D meshes. This module implements
   a useful subset of the SVG command palette, and includes some extras
   like for example a command to smoothen open or closed Bézier curves
   by applying the [Hobby algorithm][hobby]. Thick Bézier curves are
-  drawn using [an algorithm outlined by T. F. Hain][hain].
+  drawn using [an algorithm after T. F. Hain][hain].
 
 * **glTF** Island wraps [cgltf][cgltf-link] for gltf file import, and
   the `le_stage` module can display and render most features found in
@@ -110,25 +113,75 @@ build a single, statically linked and optimised binary.
 [hobby]: http://weitz.de/hobby/
 [cgltf-link]: https://github.com/jkuhlmann/cgltf
 [example-multiwindow]: apps/examples/multi_window_example/
+[rendergraph-blog]: https://poniesandlight.co.uk/reflect/island_rendergraph_1/
+[rendergraph-sync-blog]: https://poniesandlight.co.uk/reflect/island_rendergraph_2/
 
-## Tools
-
-+ [Project generator][app-generator]: Generates scaffolding for new
-  apps, based on project templates
-+ [Module generator][module-generator]: Generates scaffolding for new
-  modules.
 
 ## Examples ([more examples](apps/examples/))
 
 Island comes with a number of examples. No collection of examples
-would be complete without a [hello
-triangle](apps/examples/hello_triangle/) example, and a [hello
-world](apps/examples/hello_world/) example.
+would be complete without a 
 
-![Hello triangle example](apps/examples/hello_triangle/screenshot.png)
-![Hello world example](apps/examples/hello_world/screenshot.jpg)
+| [Hello Triangle](apps/examples/hello_triangle/) | and a [Hello World](apps/examples/hello_world/) example |
+| --- | --- | 
+|<img width="350" src="apps/examples/hello_triangle/screenshot.png" />|<img width="350" align="right" src="apps/examples/hello_world/screenshot.jpg" />|
 
-A full list of examples can be found [here](apps/examples/). More examples to come.
+A full list of examples can be found [here](apps/examples/). Examples can be used as starting point for new projects by using the project generator.
+
+## Tools
+
++ [Project generator][project-generator]: Generates scaffolding for new
+  projects, based on project templates
++ [Module generator][module-generator]: Generates scaffolding for new
+  modules.
+
+## Project Generator
+
+Island projects can be scaffolded from templates (or from other, existing projects) by invoking the project generator python script. This script lives in the `scripts` folder, but can be invoked from anywhere. 
+
+```bash
+# say myapps is where I want to place a new island project
+cd island/apps/myapps
+
+# this will create a new project based on the "hello triangle" template
+../../scripts/create_project.py mynewproject
+
+# this will create a new project based on the "full screen quad" template
+../../scripts/create_project.py mynewquadproject -t quad_template
+
+# this will create a new project based on the project "myoldproject", if it can be found in the current directory
+../../scripts/create_project.py anotherproject -T . -t myoldproject
+```
+```bash
+# print options and help for project generator via 
+../../scripts/create_project.py -h
+```
+```txt
+usage: create_project.py [-h] [-T TEMPLATE_DIR] [-t TEMPLATE_NAME]
+                         project_name
+
+Create a new Island project based on a template / or an existing
+project.
+
+positional arguments:
+  project_name          Specify the name for new project to create
+                        from template.
+
+options:
+  -h, --help            show this help message and exit
+  -T TEMPLATE_DIR, --template-dir TEMPLATE_DIR
+                        Specify a path *relative to the current
+                        directory* in which to look for project
+                        template directories. Use dot (".") to search
+                        for project directories within the current
+                        directory - for example if you wish to
+                        duplicate an existing project as a starting
+                        point for a new project.
+  -t TEMPLATE_NAME, --template-name TEMPLATE_NAME
+                        Specify the name for template. This can be
+                        the name of any project directory within
+                        TEMPLATE_DIR.
+```
 
 ## Modules
 
@@ -175,11 +228,11 @@ provides you with a scaffold to start from.
 [link-stb_truetype]: https://github.com/nothings/stb/blob/master/stb_truetype.h
 [link-cgltf]: https://github.com/nothings/stb/blob/master/stb_truetype.h
 [module-generator]: scripts/create_module.py
-[app-generator]: scripts/create_app.py
+[project-generator]: scripts/create_project.py
 [link-shaderc]: https://github.com/google/shaderc/
 [glfw]: https://github.com/glfw/glfw
 
-# Installation instructions
+# Setup instructions
 
 Island should run out of the box on a modern Linux system with the
 current Vulkan SDK and build tools installed. For Windows, build
@@ -283,13 +336,6 @@ The initial motivation for writing Island was to experiment with
 a modern rendering API (Vulkan), to learn by trying out ideas around
 modern realtime-rendering, and to have a framework to create [visual
 experiments](http://instagram.com/tgfrerer) with.
-
-
-## Acknowledgements
-
-I would like to thank the folks at [our machinery][our_machinery] for
-their wonderful [blog posts][our_mach_blog] on engine architecture and hot
-reloading, these were a big initial inspiration for this project. 
 
 [our_machinery]: https://ourmachinery.com/ 
 [our_mach_blog]: https://ourmachinery.com/post/little-machines-working-together-part-1/
