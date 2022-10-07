@@ -1,12 +1,8 @@
 #!/usr/bin/python3
 
 from argparse import ArgumentParser
-from os import path
-from os import makedirs
-from os import rename
-from os import system
-from os import listdir
 import os
+from os import path
 import shutil
 from shutil import copystat
 
@@ -22,9 +18,9 @@ class Error(EnvironmentError):
 
 
 parser = ArgumentParser(
-    description='Create a new Island application based on application template.')
-parser.add_argument('-a', '--app', dest='app_name', required=True,
-                    help='Specify the name for new application to create from template.')
+    description='Create a new Island project based on a template / or an existing project.')
+parser.add_argument('-a', '--app', dest='project_name', required=True,
+                    help='Specify the name for new project to create from template.')
 parser.add_argument('-T', '--template-dir', dest='template_dir',
                     help='Specify a path *relative to the current directory* in which to look for project template directories. Use dot (".") to search for project directories within the current directory - for example if you wish to duplicate an existing project as a starting point for a new project.', default="{scripts_path}/../apps/templates".format(scripts_path=SCRIPTS_PATH))
 parser.add_argument('-t', '--template-name', dest='template_name',
@@ -48,7 +44,7 @@ def copy_function_wrapper(src, dst, copy_function=None, replacements=None):
         copy_function(src, dst)
 
 
-def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None,
+def copy_tree(src, dst, template_name, project_name, symlinks=False, ignore=None,
               copy_function=shutil.copy2,
               ignore_dangling_symlinks=False,
               replacements=None):
@@ -68,7 +64,7 @@ def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None,
             continue
         # print("name: %s" % name)
         srcname = os.path.join(src, name)
-        dstname = os.path.join(dst, name.replace(template_name, app_name, 1))
+        dstname = os.path.join(dst, name.replace(template_name, project_name, 1))
         # print ("dstname: %s" % dstname)
         try:
             if os.path.islink(srcname):
@@ -90,7 +86,7 @@ def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None,
                                           replacements=replacements)
             elif os.path.isdir(srcname):
                 copy_tree(srcname, dstname, template_name,
-                          app_name, symlinks, ignore,
+                          project_name, symlinks, ignore,
                           copy_function, replacements=replacements)
             else:
                 # Will raise a SpecialFileError for unsupported file types
@@ -130,8 +126,8 @@ def to_titled_camel_case(snake_str):
     return ''.join(x.title() for x in components)
 
 
-app_name = args.app_name
-app_module_name = app_name + '_app'
+project_name = args.project_name
+app_module_name = project_name + '_app'
 
 template_source_dir = args.template_dir
 
@@ -143,10 +139,10 @@ if (os.path.isabs(template_source_dir) is False):
 
 
 template_name = args.template_name
-app_name_camelcase_capitalised = to_titled_camel_case(app_name)
+project_name_camelcase_capitalised = to_titled_camel_case(project_name)
 template_name_camelcase_capitalised = to_titled_camel_case(template_name)
 
-app_dir = ('./%s' % app_name)
+app_dir = ('./%s' % project_name)
 app_module_dir = os.path.normpath(os.path.join(app_dir, app_module_name))
 
 template_source_dir = os.path.normpath(
@@ -155,7 +151,7 @@ template_source_dir = os.path.normpath(
             CWD_PATH
         ))
 
-print('App name: %s' % app_name)
+print('App name: %s' % project_name)
 print('App module directory: %s' % app_module_dir)
 print('Template source directory: %s' % template_source_dir)
 
@@ -172,7 +168,7 @@ if (path.isdir(app_dir)):
     exit
     pass
 else:
-    print('Creating Application `%s`' % app_name)
+    print('Creating Application `%s`' % project_name)
     # create directory for storing the module
 
     if not path.isdir(template_source_dir):
@@ -184,12 +180,12 @@ else:
 
     # Replace template names with app names in all target files
     replacements = {}
-    replacements[template_name] = app_name
-    replacements[template_name_camelcase_capitalised] = app_name_camelcase_capitalised
+    replacements[template_name] = project_name
+    replacements[template_name_camelcase_capitalised] = project_name_camelcase_capitalised
 
     # Create a copy of the template in our target directory.
-    # While copying template_name is substituted for app_name
-    copy_tree(template_source_dir, app_dir, template_name, app_name,
+    # While copying template_name is substituted for project_name
+    copy_tree(template_source_dir, app_dir, template_name, project_name,
               ignore=shutil.ignore_patterns('CMakeLists.txt.user', 'build'),
               replacements=replacements)
 
