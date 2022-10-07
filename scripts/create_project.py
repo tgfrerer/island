@@ -19,7 +19,7 @@ class Error(EnvironmentError):
 
 parser = ArgumentParser(
     description='Create a new Island project based on a template / or an existing project.')
-parser.add_argument('-a', '--app', dest='project_name', required=True,
+parser.add_argument('project_name',
                     help='Specify the name for new project to create from template.')
 parser.add_argument('-T', '--template-dir', dest='template_dir',
                     help='Specify a path *relative to the current directory* in which to look for project template directories. Use dot (".") to search for project directories within the current directory - for example if you wish to duplicate an existing project as a starting point for a new project.', default="{scripts_path}/../apps/templates".format(scripts_path=SCRIPTS_PATH))
