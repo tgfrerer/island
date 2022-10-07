@@ -238,7 +238,7 @@ Island should run out of the box on a modern Linux system with the
 current Vulkan SDK and build tools installed. For Windows, build
 instructions are collected in a [separate readme][readme-win].
 
-## Depencencies
+## Dependencies
 
 Island depends on a few common development tools: CMake, gcc, git,
 ninja. These are commonly found on a development machine. Island also
