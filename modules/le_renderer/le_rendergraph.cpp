@@ -850,7 +850,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		}
 	}
 
-	LE_GET_SETTING( bool, LE_SETTING_SHOULD_GENERATE_RENDERGRAPH_DOT_FILES, false );
+	LE_SETTING( bool, LE_SETTING_SHOULD_GENERATE_RENDERGRAPH_DOT_FILES, false );
 
 	if ( *LE_SETTING_SHOULD_GENERATE_RENDERGRAPH_DOT_FILES ) {
 		// We must check if the renderpass has somehow changed - if we detect change, save out a new .dot file.
