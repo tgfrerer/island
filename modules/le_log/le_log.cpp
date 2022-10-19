@@ -14,23 +14,24 @@ struct le_log_channel_o {
 #if defined( LE_LOG_LEVEL )
 	std::atomic_int log_level = LE_LOG_LEVEL;
 #else
-	std::atomic_int log_level = 1;
+	std::atomic_int log_level = LE_LOG_LEVEL_INFO;
 #endif
 };
 
 struct subscriber_entry {
-	uint64_t                          unique_id           = 0;
-	le_log_api::subscriber_push_chars receive_chars       = nullptr;
-	void*                             user_data           = nullptr;
-	uint32_t                          log_level_flag_mask = 0; // mask for which log levels to accept data for this subscriber
+	uint64_t                             unique_id           = 0;
+	le_log_api::fn_subscriber_push_chars push_chars          = nullptr;
+	void*                                user_data           = nullptr;
+	uint32_t                             log_level_flag_mask = 0; // mask for which log levels to accept data for this subscriber
 };
 
 struct le_log_context_o {
 	le_log_channel_o                                   channel_default;
 	std::unordered_map<std::string, le_log_channel_o*> channels;
-	std::mutex                                         mtx;
+	std::mutex                                         channels_mtx;
 	std::vector<subscriber_entry>                      subscribers;
-	std::atomic<uint64_t>                              subscriber_id_next = 0; // ever-increasing number
+	std::mutex                                         subscribers_mtx;
+	uint64_t                                           subscriber_id_next = 1; // ever-increasing number, Note that we start handing out subscriber ids at 1, so that 0 can stand for no subscriber
 };
 
 static le_log_context_o* ctx;
@@ -44,7 +45,7 @@ static le_log_channel_o* le_log_get_module( const char* name ) {
 		return le_log_channel_default();
 	}
 
-	std::scoped_lock g( ctx->mtx );
+	std::scoped_lock g( ctx->channels_mtx );
 	if ( ctx->channels.find( name ) == ctx->channels.end() ) {
 		auto module           = new le_log_channel_o();
 		module->name          = name;
@@ -90,8 +91,8 @@ static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, 
 	// thread-safe region follows
 
 	{
-		static std::mutex mtx;
-		auto              lock = std::scoped_lock( mtx ); // lock protecting this whole function
+		static std::mutex print_mtx;
+		auto              lock = std::scoped_lock( print_mtx ); // lock protecting this whole function
 
 		static size_t      num_bytes_buffer_1 = 16;
 		static size_t      num_bytes_buffer_2 = 0;
@@ -119,10 +120,13 @@ static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, 
 			num_bytes_buffer_2++; // make space for final \0 byte
 		} while ( num_bytes_buffer_1 + num_bytes_buffer_2 > buffer.size() );
 
+		num_bytes_buffer_2--; // remove last \0 byte
+
+		auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
 		for ( auto& s : ctx->subscribers ) {
 			// only callback subscribers if they have the correct log level flag set in their mask
 			if ( uint32_t( level ) & s.log_level_flag_mask ) {
-				s.receive_chars( buffer.data(), buffer.size(), s.user_data );
+				s.push_chars( buffer.data(), num_bytes_buffer_1 + num_bytes_buffer_2, s.user_data );
 			}
 		}
 
@@ -141,26 +145,41 @@ static void le_log_implementation( const le_log_channel_o* channel, const char* 
 
 // ----------------------------------------------------------------------
 
-static uint64_t api_add_subscriber( le_log_api::subscriber_push_chars pfun_receive_chars, void* user_data, uint32_t mask ) {
-	uint64_t unique_id = ctx->subscriber_id_next.fetch_add( 1 );
-	ctx->subscribers.push_back( { .unique_id = unique_id, .receive_chars = pfun_receive_chars, .user_data = user_data, .log_level_flag_mask = mask } );
+static uint64_t api_add_subscriber( le_log_api::fn_subscriber_push_chars pfun_receive_chars, void* user_data, uint32_t mask ) {
+	auto     subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
+	uint64_t unique_id        = ctx->subscriber_id_next++;
+	ctx->subscribers.push_back( { .unique_id = unique_id, .push_chars = pfun_receive_chars, .user_data = user_data, .log_level_flag_mask = mask } );
 	return unique_id;
 };
 
 // ----------------------------------------------------------------------
 
-static int default_subscriber_cout( char* chars, uint32_t num_chars, void* user_data ) {
+static void api_remove_subscriber( uint64_t handle ) {
+	auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
+
+	size_t num_subscribers = ctx->subscribers.size();
+	for ( size_t i = 0; i != num_subscribers; ) {
+		if ( ctx->subscribers[ i ].unique_id == handle ) {
+			ctx->subscribers.erase( ctx->subscribers.begin() + i );
+			num_subscribers--;
+			return; // we can return early here as there is only ever one subscriber
+		}
+		i++;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void default_subscriber_cout( char* chars, uint32_t num_chars, void* user_data ) {
 	std::cout << chars << std::endl
 	          << std::flush;
-	return num_chars;
 };
 
 // ----------------------------------------------------------------------
 
-static int default_subscriber_cerr( char* chars, uint32_t num_chars, void* user_data ) {
+static void default_subscriber_cerr( char* chars, uint32_t num_chars, void* user_data ) {
 	std::cerr << chars << std::endl
 	          << std::flush;
-	return num_chars;
 };
 
 // ----------------------------------------------------------------------
@@ -175,8 +194,9 @@ static void setup_basic_cout_subscriber() {
 LE_MODULE_REGISTER_IMPL( le_log, api ) {
 	auto le_api = static_cast<le_log_api*>( api );
 
-	le_api->get_channel    = le_log_get_module;
-	le_api->add_subscriber = api_add_subscriber;
+	le_api->get_channel       = le_log_get_module;
+	le_api->add_subscriber    = api_add_subscriber;
+	le_api->remove_subscriber = api_remove_subscriber;
 
 	auto& le_api_channel_i     = le_api->le_log_channel_i;
 	le_api_channel_i.debug     = le_log_implementation<LeLog::Level::eDebug>;

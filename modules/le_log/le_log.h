@@ -44,15 +44,19 @@ struct le_log_api {
 		eError = LE_LOG_LEVEL_ERROR,
 	};
 
-    // return number of chars printed
+
     // callback signature for a log printout event subscriber.
     // You must make a local copy of the chars array  
-    typedef int (*subscriber_push_chars)(char* chars, uint32_t num_chars, void * user_data); // user_data will be set to owner on callback
+    typedef void (*fn_subscriber_push_chars)(char* chars, uint32_t num_chars, void * user_data); // user_data will be set to owner on callback
 
 
-    // callback to trigger when printing log.
+    // Callback to trigger when printing log.
     // debug_level_mask is logical or of LE_LOG_LEVEL_[DEBUG|INFO|WARN|ERROR] that this callback subscribes to.
-    uint64_t (*add_subscriber)(subscriber_push_chars subscriber, void* user_data, uint32_t debug_level_mask);
+    //
+    // Returns a unique 64 bit handle which you can use to subsequently remove a subscriber
+    uint64_t (*add_subscriber)(fn_subscriber_push_chars subscriber, void* user_data, uint32_t debug_level_mask);
+    // 
+    void (*remove_subscriber)(uint64_t handle);
 
     le_log_channel_o *( * get_channel )(const char *name);
 

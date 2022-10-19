@@ -27,7 +27,13 @@ struct le_console_api {
 
 	};
 
+    struct log_callbacks_interface_t {
+        void * push_chars_callback_addr;
+        uint64_t le_log_callback_handle; // remote handle used to remove callback from log
+    };
+
 	le_console_interface_t       le_console_i;
+	log_callbacks_interface_t    log_callbacks_i;
 };
 // clang-format on
 
