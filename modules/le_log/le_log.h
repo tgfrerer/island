@@ -3,10 +3,10 @@
 
 #include "le_core.h"
 
-#define LE_LOG_LEVEL_DEBUG 0
-#define LE_LOG_LEVEL_INFO 1
-#define LE_LOG_LEVEL_WARN 2
-#define LE_LOG_LEVEL_ERROR 4
+#define LE_LOG_LEVEL_DEBUG ( 1 << 0 )
+#define LE_LOG_LEVEL_INFO ( 1 << 1 )
+#define LE_LOG_LEVEL_WARN ( 1 << 2 )
+#define LE_LOG_LEVEL_ERROR ( 1 << 4 )
 
 #ifdef NDEBUG
 //
@@ -26,7 +26,7 @@
 // explicitly and globally disable all logging.
 
 #	ifndef LE_LOG_LEVEL
-#		define LE_LOG_LEVEL 2
+#		define LE_LOG_LEVEL LE_LOG_LEVEL_WARN
 #	endif
 
 #endif
@@ -37,12 +37,22 @@ struct le_log_context_o;
 // clang-format off
 struct le_log_api {
 
-	enum class Level : int {
+	enum class Level : uint32_t {
 		eDebug = LE_LOG_LEVEL_DEBUG,
 		eInfo  = LE_LOG_LEVEL_INFO,
 		eWarn  = LE_LOG_LEVEL_WARN,
 		eError = LE_LOG_LEVEL_ERROR,
 	};
+
+    // return number of chars printed
+    // callback signature for a log printout event subscriber.
+    // You must make a local copy of the chars array  
+    typedef int (*subscriber_push_chars)(char* chars, uint32_t num_chars, void * user_data); // user_data will be set to owner on callback
+
+
+    // callback to trigger when printing log.
+    // debug_level_mask is logical or of LE_LOG_LEVEL_[DEBUG|INFO|WARN|ERROR] that this callback subscribes to.
+    uint64_t (*add_subscriber)(subscriber_push_chars subscriber, void* user_data, uint32_t debug_level_mask);
 
     le_log_channel_o *( * get_channel )(const char *name);
 
@@ -70,7 +80,7 @@ LE_MODULE_LOAD_DEFAULT( le_log );
 namespace le_log {
 
 static const auto& api              = le_log_api_i;
-static const auto& le_log_channel_i = api -> le_log_channel_i;
+static const auto& le_log_channel_i = api->le_log_channel_i;
 } // namespace le_log
 
 class LeLog {
