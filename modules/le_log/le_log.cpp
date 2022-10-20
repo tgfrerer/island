@@ -107,19 +107,21 @@ static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, 
 		num_bytes_buffer_1--; // remove last \0 byte
 
 		// We must store state of va_args as this may get changed as a side-effect of a call to vsnprintf()
-		va_list old_args;
-		va_copy( old_args, args );
-		va_end( old_args );
+		{
+			va_list old_args;
+			va_copy( old_args, args );
 
-		do {
-			va_list args;
-			va_copy( args, old_args );
-			va_end( args );
-			buffer.resize( num_bytes_buffer_1 + num_bytes_buffer_2 );
-			num_bytes_buffer_2 = vsnprintf( buffer.data() + num_bytes_buffer_1, buffer.size() - num_bytes_buffer_1, msg, args );
-			num_bytes_buffer_2++; // make space for final \0 byte
-		} while ( num_bytes_buffer_1 + num_bytes_buffer_2 > buffer.size() );
+			do {
+				va_list args;
+				va_copy( args, old_args );
+				buffer.resize( num_bytes_buffer_1 + num_bytes_buffer_2 );
+				num_bytes_buffer_2 = vsnprintf( buffer.data() + num_bytes_buffer_1, buffer.size() - num_bytes_buffer_1, msg, args );
+				num_bytes_buffer_2++; // make space for final \0 byte
+				va_end( args );
+			} while ( num_bytes_buffer_1 + num_bytes_buffer_2 > buffer.size() );
 
+			va_end( old_args );
+		}
 		num_bytes_buffer_2--; // remove last \0 byte
 
 		auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
