@@ -8,19 +8,34 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/wait.h>
+
+#ifndef WIN32
+#	include <sys/socket.h>
+#	include <netinet/in.h>
+#	include <netdb.h>
+#	include <arpa/inet.h>
+#	include <sys/wait.h>
+#	include <poll.h>
+#else
+#	include <WinSock2.h>
+#	include <WS2tcpip.h>
+#endif
+
 #include <vector>
 #include <iostream>
 #include <fstream>
 #include <condition_variable>
 
-#include <poll.h>
-
 #include <deque>
+
+// Translation between winsock and posix sockets
+#ifdef WIN32
+#	define poll_sockets WSAPoll
+#	define close_socket closesocket
+#else
+#	define poll_sockets poll
+#	define close_socket close
+#endif
 
 /*
 
@@ -77,24 +92,19 @@ static void* get_in_addr( struct sockaddr* sa ) {
 	return &( ( ( struct sockaddr_in6* )sa )->sin6_addr );
 }
 
-class RAIITest {
-  public:
-	RAIITest() {
-		static auto logger = le::Log( LOG_CHANNEL );
-		logger.info( "created thread-owned object" );
-	};
-
-	~RAIITest() {
-		static auto logger = le::Log( LOG_CHANNEL );
-		logger.info( "destroyed thread-owned object" );
-	}
-};
 
 static void server_thread( le_console_o* self ) {
 	static auto logger = le::Log( LOG_CHANNEL );
 	logger.info( "initializing server thread" );
 
-	RAIITest testobj;
+
+	#ifdef WIN32
+	WSADATA wsa;
+	if ( WSAStartup(MAKEWORD(2,2),&wsa) != 0 ) {
+		logger.error( "could not start winsock2" );
+		exit( 1 );
+	}
+	#endif
 
 	int              listener                      = 0; // listen on sock_fd
 	addrinfo         hints                         = {};
@@ -122,13 +132,13 @@ static void server_thread( le_console_o* self ) {
 			continue;
 		}
 
-		if ( setsockopt( listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof( int ) ) == -1 ) {
+		if ( setsockopt( listener, SOL_SOCKET, SO_REUSEADDR, ( char* )&yes, sizeof( int ) ) == -1 ) {
 			perror( "setsockopt" );
 			exit( 1 );
 		}
 
 		if ( bind( listener, p->ai_addr, p->ai_addrlen ) == -1 ) {
-			close( listener );
+			close_socket( listener );
 			perror( "server: bind" );
 			continue;
 		}
@@ -156,7 +166,7 @@ static void server_thread( le_console_o* self ) {
 
 	logger.info( "server ready to accept connections" );
 	while ( self->should_run ) {
-		int poll_count = poll( fds.data(), fds.size(), 60 ); // 60 ms timeout
+		int poll_count = WSAPoll( fds.data(), fds.size(), 60 ); // 60 ms timeout
 
 		if ( poll_count == -1 ) {
 			perror( "poll" );
@@ -181,7 +191,7 @@ static void server_thread( le_console_o* self ) {
 					if ( newfd == -1 ) {
 						perror( "accept" );
 					} else {
-						fds.push_back( { .fd = newfd, .events = POLLIN, .revents = 0 } );
+						fds.push_back( pollfd( newfd, POLLIN, 0 ) );
 
 						logger.info( "pollserver: new connection from %s on socket %d\n",
 						             inet_ntop( remote_addr.ss_family,
@@ -197,7 +207,7 @@ static void server_thread( le_console_o* self ) {
 						// error or connection closed
 						if ( received_bytes_count == 0 ) {
 							// connection closed
-							close( fds[ i ].fd );
+							close_socket( fds[ i ].fd );
 							logger.info( "closed connection on file descriptor %d", fds[ i ].fd );
 							fds[ i ].fd = -1; // set file descriptor to -1 - this is a signal to remove it from the vector of watched file descriptors
 						} else {
@@ -236,7 +246,7 @@ static void server_thread( le_console_o* self ) {
 					if ( fds[ i ].fd != listener )
 						// repeat until all bytes sent, or result <= 0
 						for ( size_t num_bytes_sent = 0; num_bytes_sent < str.size(); ) {
-							ssize_t result = send( fds[ i ].fd, str.data() + num_bytes_sent, str.size() - num_bytes_sent, 0 );
+							int result = send( fds[ i ].fd, str.data() + num_bytes_sent, str.size() - num_bytes_sent, 0 );
 							if ( result <= 0 ) {
 								logger.error( "Could not send message, result code: %d", result );
 							} else {
@@ -251,29 +261,12 @@ static void server_thread( le_console_o* self ) {
 	// TODO: do not close all connections when reloading this module
 	// close all open file descriptors
 	for ( auto& fd : fds ) {
-		close( fd.fd ); // close file descriptor
+		close_socket( fd.fd ); // close file descriptor
 	}
 
 	logger.info( "leaving server thread" );
 }
-// ----------------------------------------------------------------------
 
-static bool le_console_server_stop( le_console_o* self ) {
-
-	static auto logger = le::Log( LOG_CHANNEL );
-	if ( self->is_running ) {
-		self->should_run = false;
-		if ( self->server_thread.joinable() ) {
-			self->server_thread.join();
-			logger.info( "joined server thread" );
-		} else {
-			logger.error( "could not join server thread" );
-			return false;
-		}
-		logger.info( "stopped server" );
-	}
-	return true;
-}
 // ----------------------------------------------------------------------
 static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) {
 	static std::string msg;
@@ -290,6 +283,7 @@ static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) 
 }
 
 // ----------------------------------------------------------------------
+static bool le_console_server_stop( le_console_o* self ); // ffdecl.
 
 // if we initialize an object from this and store it static,
 // the destructor will get called when this module is being unloaded
@@ -313,6 +307,7 @@ class RaiiSubscriber : NoCopy {
 		// we might be able to keep the connection alive.
 		le_log::api->remove_subscriber( handle );
 		static auto logger = le::Log( LOG_CHANNEL );
+		le_core_forward_callback_release( fun );
 		logger.warn( "removed subscriber" );
 		le_console_server_stop( self );
 	};
@@ -350,6 +345,24 @@ static bool le_console_server_start( le_console_o* self ) {
 	return true;
 }
 
+// ----------------------------------------------------------------------
+
+static bool le_console_server_stop( le_console_o* self ) {
+
+	static auto logger = le::Log( LOG_CHANNEL );
+	if ( self->is_running ) {
+		self->should_run = false;
+		if ( self->server_thread.joinable() ) {
+			self->server_thread.join();
+			logger.info( "joined server thread" );
+		} else {
+			logger.error( "could not join server thread" );
+			return false;
+		}
+		logger.info( "stopped server" );
+	}
+	return true;
+}
 // ----------------------------------------------------------------------
 
 static void le_console_destroy( le_console_o* self ) {
