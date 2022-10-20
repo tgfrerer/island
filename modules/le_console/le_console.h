@@ -18,22 +18,22 @@ struct le_console_api {
 
 	struct le_console_interface_t {
 
-		le_console_o *    ( * create                   ) ( );
+		void    ( * inc_use_count ) ( );
+		void    ( * dec_use_count ) ( );
         
-        bool (* server_start)( le_console_o* self );
-        bool (* server_stop)( le_console_o* self );
-
-		void              ( * destroy                  ) ( le_console_o* self );
+        bool (* server_start)();
+        bool (* server_stop)();
 
 	};
 
     struct log_callbacks_interface_t {
         void * push_chars_callback_addr;
-        uint64_t le_log_callback_handle; // remote handle used to remove callback from log
     };
 
 	le_console_interface_t       le_console_i;
 	log_callbacks_interface_t    log_callbacks_i;
+
+   
 };
 // clang-format on
 
@@ -49,27 +49,21 @@ static const auto& le_console_i = api->le_console_i;
 
 class LeConsole : NoCopy, NoMove {
 
-	le_console_o* self;
-
   public:
-	LeConsole()
-	    : self( le_console::le_console_i.create() ) {
+	LeConsole() {
+		le_console::le_console_i.inc_use_count();
 	}
 
 	~LeConsole() {
-		le_console::le_console_i.destroy( self );
+		le_console::le_console_i.dec_use_count();
 	}
 
 	bool serverStart() {
-		return le_console::le_console_i.server_start( self );
+		return le_console::le_console_i.server_start();
 	}
 
 	bool serverStop() {
-		return le_console::le_console_i.server_stop( self );
-	}
-
-	operator auto() {
-		return self;
+		return le_console::le_console_i.server_stop();
 	}
 };
 

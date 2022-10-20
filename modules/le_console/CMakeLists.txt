@@ -8,6 +8,9 @@ set (TARGET le_console)
 
 set (SOURCES "le_console.cpp")
 set (SOURCES ${SOURCES} "le_console.h")
+set (SOURCES ${SOURCES} "private/le_console/le_console_types.h")
+set (SOURCES ${SOURCES} "private/le_console/le_console_server.h")
+set (SOURCES ${SOURCES} "private/le_console/le_console_server.cpp")
 
 if (${PLUGINS_DYNAMIC})
 
@@ -29,7 +32,7 @@ endif()
 IF (WIN32)
     set (LINKER_FLAGS ${LINKER_FLAGS} Ws2_32.lib)
 ELSE()
-    set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
+    # set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
 ENDIF()    
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
