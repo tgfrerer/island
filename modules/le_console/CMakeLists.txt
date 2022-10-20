@@ -25,7 +25,12 @@ else()
 
 endif()
 
-set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
+
+IF (WIN32)
+    set (LINKER_FLAGS ${LINKER_FLAGS} Ws2_32.lib)
+ELSE()
+    set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
+ENDIF()    
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
