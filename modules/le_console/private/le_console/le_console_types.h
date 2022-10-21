@@ -9,9 +9,9 @@ struct le_console_o {
 	uint32_t use_count = 0;
 
 	bool wants_log_subscriber = false;
-	bool wants_server         = false;
-	bool is_server_running    = false;
 
 	std::mutex              messages_mtx;
 	std::deque<std::string> messages;
+
+	struct le_console_server_o* server = nullptr;
 };

@@ -1,33 +1,14 @@
 #pragma once
 
-class Server : NoCopy {
+struct le_console_server_o;
 
-  public:
-	explicit Server( le_console_o* self_ )
-	    : self( self_ ){};
-	~Server() {
-		stopThread(); // blocks until thread has finished
-		stopServer();
-	};
+struct le_console_server_api_t {
 
-	void startServer();
+	le_console_server_o* ( *create )( struct le_console_o* console );
+	void ( *destroy )( le_console_server_o* self );
 
-	void stopServer();
-
-	void startThread();
-
-	void stopThread();
-
-  private:
-	le_console_o* self;
-	std::thread   threaded_function;
-	bool          thread_should_run = false;
-	bool          is_running        = false;
-
-	bool                connection_established = false;
-	int                 listener               = 0; // listener socket on sock_fd
-	addrinfo*           servinfo               = nullptr;
-	std::vector<pollfd> sockets;
-
-	le::Log logger = le::Log( LOG_CHANNEL );
+	void ( *start )( le_console_server_o* self );
+	void ( *start_thread )( le_console_server_o* self );
+	void ( *stop_thread )( le_console_server_o* self );
+	void ( *stop )( le_console_server_o* self );
 };

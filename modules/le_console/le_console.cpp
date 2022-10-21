@@ -1,38 +1,25 @@
-#include "le_console.h"
 #include "le_core.h"
-#include "le_log.h"
 #include "le_hash_util.h"
+
+#include "le_log.h"
+#include "le_console.h"
 
 #include <mutex>
 #include <thread>
+#include <deque>
 
 #include <errno.h>
 #include <string.h>
-#include <sys/types.h>
-
-#ifndef WIN32
-#	include <sys/socket.h>
-#	include <netinet/in.h>
-#	include <netdb.h>
-#	include <arpa/inet.h>
-#	include <sys/wait.h>
-#	include <poll.h>
-#else
-#	include <WinSock2.h>
-#	include <WS2tcpip.h>
-#endif
 
 #include <memory>
 #include <vector>
 #include <iostream>
 #include <fstream>
-#include <condition_variable>
-
-#include <deque>
 
 #include "private/le_console/le_console_types.h"
 #include "private/le_console/le_console_server.h"
 
+extern void le_console_server_register_api( void* api ); // in le_console_server
 /*
 
 Hot-reloading is more complicated for this module.
@@ -56,7 +43,8 @@ is this a general problem with hot-reloading and multi-threading?
 
 */
 
-static void** PP_CONSOLE_SINGLETON = nullptr; // set via registration method
+static void**                  PP_CONSOLE_SINGLETON  = nullptr; // set via registration method
+static le_console_server_api_t le_console_server_api = {};
 
 static le_console_o* produce_console() {
 	return static_cast<le_console_o*>( *PP_CONSOLE_SINGLETON );
@@ -73,9 +61,6 @@ static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) 
 	while ( self->messages.size() >= 20 ) {
 		self->messages.pop_front();
 	} // make sure there are at most 19 lines waiting
-
-	fprintf( stdout, ">>> %s\n", chars );
-	fflush( stdout );
 
 	self->messages.emplace_back( chars, num_chars );
 }
@@ -130,6 +115,40 @@ static std::unique_ptr<LeLogSubscriber>& le_console_produce_log_subscriber( le_c
 
 // ----------------------------------------------------------------------
 
+// we want to start the server on-demand.
+// if the module gets unloaded, the server thread needs to be first stopped
+// if the module gets reloaded, the server thread needs to be resumed
+class ServerWatcher : NoCopy {
+  public:
+	ServerWatcher( le_console_o* console_ )
+	    : console( console_ ) {
+		if ( console && console->server ) {
+			le_console_server_api.start_thread( console->server );
+		}
+	};
+	~ServerWatcher() {
+		if ( console && console->server ) {
+			// we must stop server
+			le_console_server_api.stop_thread( console->server );
+		}
+	};
+
+  private:
+	le_console_o* console = nullptr;
+};
+
+// ----------------------------------------------------------------------
+
+static std::unique_ptr<ServerWatcher>& le_console_produce_server_watcher( le_console_o* console = nullptr ) {
+	static std::unique_ptr<ServerWatcher> SERVER_WATCHER = {};
+
+	if ( nullptr == SERVER_WATCHER.get() && console != nullptr ) {
+		SERVER_WATCHER = std::make_unique<ServerWatcher>( console );
+	}
+	return SERVER_WATCHER;
+}
+// ----------------------------------------------------------------------
+
 static bool le_console_server_start() {
 	static auto logger = le::Log( LOG_CHANNEL );
 
@@ -138,6 +157,10 @@ static bool le_console_server_start() {
 
 	self->wants_log_subscriber = true;         // Set flag so that when reloading, we know that subscriber needs to be activated
 	le_console_produce_log_subscriber( self ); // Registers subscriber in case subscriber is not yet registered
+
+	self->server = le_console_server_api.create( self ); // destroy server
+	le_console_server_api.start( self->server );         // start server
+	le_console_produce_server_watcher( self );           // Implicitly starts server thread
 
 	return true;
 }
@@ -149,10 +172,19 @@ static bool le_console_server_stop() {
 
 	le_console_o* self = produce_console();
 
-	logger.info( "* Stopping server..." );
+	if ( le_console_produce_log_subscriber().get() ) {
+		logger.info( "* Unregistering Log subscriber ..." );
+		le_console_produce_log_subscriber().reset( nullptr ); // Force the subscriber to be de-registered.
+		self->wants_log_subscriber = false;                   // Set flag so that we know that subscriber was de-activated explicitly
+	}
 
-	self->wants_log_subscriber = false;                   // Set flag so that we know that subscriber was de-activated explicitly
-	le_console_produce_log_subscriber().reset( nullptr ); // Force the subscriber to be de-registered.
+	if ( self->server ) {
+		logger.info( "* Stopping server..." );
+		le_console_produce_server_watcher().reset( nullptr ); // explicitly call destructor on server watcher - this will join the server thread
+		le_console_server_api.stop( self->server );           // start server
+		le_console_server_api.destroy( self->server );        // destroy server
+		self->server = nullptr;
+	}
 
 	return true;
 }
@@ -168,11 +200,12 @@ static le_console_o* le_console_create() {
 
 static void le_console_destroy( le_console_o* self ) {
 	static auto logger = le::Log( LOG_CHANNEL );
-	le_console_server_stop();
 
+	// Tear-down and delete server in case there was a server
+	le_console_server_stop();
 	// we can do this because le_log will never be reloaded as it is part of the core.
 
-	logger.info( "Destroying Console..." );
+	logger.info( "Destroying console..." );
 	delete self;
 }
 
@@ -217,6 +250,9 @@ LE_MODULE_REGISTER_IMPL( le_console, api_ ) {
 	auto& log_callbacks_i                    = api->log_callbacks_i;
 	log_callbacks_i.push_chars_callback_addr = ( void* )logger_callback;
 
+	// Load function pointers for private server object
+	le_console_server_register_api( &le_console_server_api );
+
 	PP_CONSOLE_SINGLETON = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_console_singleton" ) );
 
 	if ( *PP_CONSOLE_SINGLETON ) {
@@ -225,6 +261,9 @@ LE_MODULE_REGISTER_IMPL( le_console, api_ ) {
 		le_console_o* console = produce_console();
 		if ( console->wants_log_subscriber ) {
 			le_console_produce_log_subscriber( console );
+		}
+		if ( console->server ) {
+			le_console_produce_server_watcher( console );
 		}
 	}
 }
