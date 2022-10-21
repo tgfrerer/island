@@ -56,13 +56,13 @@ static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) 
 
 	auto self = ( le_console_o* )user_data;
 
-	auto lock = std::unique_lock( self->messages_mtx );
+	auto lock = std::unique_lock( self->channel_out.messages_mtx );
 
-	while ( self->messages.size() >= 20 ) {
-		self->messages.pop_front();
+	while ( self->channel_out.messages.size() >= 20 ) {
+		self->channel_out.messages.pop_front();
 	} // make sure there are at most 19 lines waiting
 
-	self->messages.emplace_back( chars, num_chars );
+	self->channel_out.messages.emplace_back( chars, num_chars );
 }
 
 // ----------------------------------------------------------------------

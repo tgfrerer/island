@@ -10,8 +10,13 @@ struct le_console_o {
 
 	bool wants_log_subscriber = false;
 
-	std::mutex              messages_mtx;
-	std::deque<std::string> messages;
+	struct channel {
+		std::mutex              messages_mtx;
+		std::deque<std::string> messages;
+	};
+
+	channel channel_out;
+	channel channel_in;
 
 	struct le_console_server_o* server = nullptr;
 };

@@ -252,12 +252,12 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 				i++;
 			}
 			{
-				auto lock = std::unique_lock( server->console->messages_mtx );
-				while ( !server->console->messages.empty() ) {
+				auto lock = std::unique_lock( server->console->channel_out.messages_mtx );
+				while ( !server->console->channel_out.messages.empty() ) {
 
 					std::string str;
-					std::swap( str, server->console->messages.front() ); // fetch by swapping
-					server->console->messages.pop_front();
+					std::swap( str, server->console->channel_out.messages.front() ); // fetch by swapping
+					server->console->channel_out.messages.pop_front();
 					str.append( "\n" ); // we must add a carriage return
 					for ( size_t i = 0; i != fd_count; i++ ) {
 						// send to all listeners
