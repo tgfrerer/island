@@ -28,26 +28,26 @@
 #endif
 
 extern void le_console_server_register_api( void* api ); // in le_console_server
+
 /*
 
-Hot-reloading is more complicated for this module.
+Ideas for this module:
 
-What we are doing is that we use a static Raii object to detect if the module is being destroyed,
-in which case we use this Raii object to first remove us as a listener from the log object, and
-then we end and join the server thread.
+we want to have more than one console - perhaps one console per connection.
 
-once that is done, this module can be safely hot-reloaded.
+Right now we have a situation where we have a console that is always-on,
+and subscribes to log messages as soon as its server starts.
 
-another thing we must do is that we want to restart the server once that the module has been reloaded.
-we can do this by adding a singleton object and thereby detecting the state of play.
+Any connections to the console receive the same answer - there is only one channel for
+input and one channel for output. All connections feed their commands into the same
+channel for commands.
 
-Ideally we find out whether we are hot-reloading or actually closing, and we close the network
-connection only when we are really closing. that way we can keep clients connected during the
-hot-reloading process.
+commands get processed when explicitly requested.
 
+*
 
-is this a general problem with hot-reloading and multi-threading?
-- quite possibly, we need to look more into this.
+A console is something that can subscribe to messages from the log for example,
+but most importantly it can read commands from a socket and write responses back to that socket.
 
 */
 
@@ -318,7 +318,7 @@ LE_MODULE_REGISTER_IMPL( le_console, api_ ) {
 	le_console_i.dec_use_count    = le_console_dec_use_count;
 	le_console_i.server_start     = le_console_server_start;
 	le_console_i.server_stop      = le_console_server_stop;
-	le_console_i.process_commands = le_console_process_input;
+	le_console_i.process_input = le_console_process_input;
 
 	auto& log_callbacks_i                    = api->log_callbacks_i;
 	log_callbacks_i.push_chars_callback_addr = ( void* )logger_callback;
