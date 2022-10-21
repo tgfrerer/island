@@ -70,17 +70,15 @@ static void le_settings_list_all_settings( le_settings_o* self ) {
 		auto it = type_lookup.find( s.second.type_hash );
 		if ( it != type_lookup.end() ) {
 
-			int name_len = s.second.name.rfind( "__" );
-
 			switch ( it->second ) {
 			case ( SettingType::eBool ):
-				logger.info( "setting '%.*s' type: '%s', value: '%d'", name_len, s.second.name.c_str(), "bool", *( ( bool* )s.second.p_opj ) );
+				logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "bool", *( ( bool* )s.second.p_opj ) );
 				break;
 			case ( SettingType::eInt ):
-				logger.info( "setting '%.*s' type: '%s', value: '%d'", name_len, s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
+				logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
 				break;
 			case ( SettingType::eStdString ):
-				logger.info( "setting '%.*s' type: '%s', value: '%s'", name_len, s.second.name.c_str(), "std::string", ( ( std::string* )s.second.p_opj )->c_str() );
+				logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "std::string", ( ( std::string* )s.second.p_opj )->c_str() );
 				break;
 			default:
 				break;
