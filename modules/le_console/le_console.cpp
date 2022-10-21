@@ -58,17 +58,19 @@ static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) 
 
 	auto lock = std::unique_lock( self->channel_out.messages_mtx );
 
-	while ( self->channel_out.messages.size() >= 20 ) {
+	// Make sure that there is space for at least one message
+	// on the queue by discarding old messages if necessary
+	while ( self->channel_out.messages.size() >= self->channel_out.max_messages_count ) {
 		self->channel_out.messages.pop_front();
-	} // make sure there are at most 19 lines waiting
+	}
 
 	self->channel_out.messages.emplace_back( chars, num_chars );
 }
 
 // ----------------------------------------------------------------------
 
-// if we initialize an object from this and store it static,
-// the destructor will get called when this module is being unloaded
+// If we initialize an object from this and store it static,
+// then the destructor will get called when this module is being unloaded
 // this allows us to remove ourselves from listeners before the listener
 // gets destroyed.
 class LeLogSubscriber : NoCopy {
@@ -110,7 +112,7 @@ static std::unique_ptr<LeLogSubscriber>& le_console_produce_log_subscriber( le_c
 
 // ----------------------------------------------------------------------
 
-// we want to start the server on-demand.
+// We want to start the server on-demand.
 // if the module gets unloaded, the server thread needs to be first stopped
 // if the module gets reloaded, the server thread needs to be resumed
 class ServerWatcher : NoCopy {

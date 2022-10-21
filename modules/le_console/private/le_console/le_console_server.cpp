@@ -62,7 +62,7 @@ static void                 le_console_server_start( le_console_server_o* self )
 static void                 le_console_server_stop( le_console_server_o* self );
 static void                 le_console_server_start_thread( le_console_server_o* self );
 static void                 le_console_server_stop_thread( le_console_server_o* self );
-static le_console_server_o* le_console_server_create();
+static le_console_server_o* le_console_server_create( le_console_o* console );
 static void                 le_console_server_destroy( le_console_server_o* self );
 
 // ----------------------------------------------------------------------
@@ -77,6 +77,7 @@ static void* get_in_addr( struct sockaddr* sa ) {
 // ----------------------------------------------------------------------
 
 static void le_console_server_start( le_console_server_o* self ) {
+
 #ifdef WIN32
 	WSADATA wsa;
 	if ( WSAStartup( MAKEWORD( 2, 2 ), &wsa ) != 0 ) {
@@ -233,7 +234,16 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 							}
 						} else {
 							// we received some bytes -- we must process these bytes
-							logger.info( ">> %.*s", received_bytes_count, buf );
+
+							// logger.info( ">> %.*s", received_bytes_count, buf );
+							auto lock = std::unique_lock( server->console->channel_in.messages_mtx );
+							// Ensure that there is space for at least one message by discarding
+							// oldest message if there are more than max_messages_count messages
+							// waiting
+							while ( server->console->channel_in.messages.size() >= server->console->channel_in.max_messages_count ) {
+								server->console->channel_in.messages.pop_front();
+							}
+							server->console->channel_in.messages.emplace_back( buf, received_bytes_count );
 						}
 
 					} // end: if fd==listener
@@ -308,8 +318,7 @@ static void le_console_server_destroy( le_console_server_o* self ) {
 // ----------------------------------------------------------------------
 
 void le_console_server_register_api( void* api_ ) {
-	auto api = ( le_console_server_api_t* )( api_ );
-
+	auto api          = ( le_console_server_api_t* )( api_ );
 	api->create       = le_console_server_create;
 	api->destroy      = le_console_server_destroy;
 	api->start        = le_console_server_start;

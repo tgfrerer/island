@@ -13,6 +13,7 @@ struct le_console_o {
 	struct channel {
 		std::mutex              messages_mtx;
 		std::deque<std::string> messages;
+		uint32_t                max_messages_count = 32; // maximum number of messages to wait on this channel
 	};
 
 	channel channel_out;
