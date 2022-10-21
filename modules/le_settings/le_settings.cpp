@@ -6,8 +6,12 @@
 
 #include <unordered_map>
 
-// the main issue with this architecture is that settings will still compete for the same
+// The main issue with this architecture is that settings will still compete for the same
 // pointer target.
+
+// Ideas for this module:
+// we can load settings from a file - any matching settings values get overwritten / set
+//
 
 struct SettingEntry {
 	std::string name;
