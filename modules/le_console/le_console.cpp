@@ -74,17 +74,12 @@ static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) 
 class LeLogSubscriber : NoCopy {
   public:
 	explicit LeLogSubscriber( le_console_o* console )
-	    : handle( le_log::api->add_subscriber( logger_callback, console, ~uint32_t( 0 ) ) ) {
-		fprintf( stdout, " *** Added Log subscriber %p\n", this );
-		fflush( stdout );
-	};
+	    : handle( le_log::api->add_subscriber( logger_callback, console, ~uint32_t( 0 ) ) ){};
 	~LeLogSubscriber() {
 		// we must remove the subscriber because it may get called before we have a chance to change the callback address -
 		// even callback forwarding won't help, because the reloader will log- and this log event will happen while the
 		// current module is not yet loaded, which means there is no valid code to run for the subscriber.
 		le_log::api->remove_subscriber( handle );
-		fprintf( stdout, " *** Removed Log subscriber %p\n", this );
-		fflush( stdout );
 	};
 
   private:
