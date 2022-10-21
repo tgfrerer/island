@@ -135,6 +135,10 @@ class LeLog {
 		le_log::le_log_channel_i.error( channel, msg, static_cast<Args&&>( args )... );
 #	endif
 	}
+
+	le_log_channel_o* getChannel() {
+		return channel;
+	}
 };
 
 namespace le {
