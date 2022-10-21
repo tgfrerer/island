@@ -221,9 +221,11 @@ static void* le_core_create_api( uint64_t id, size_t apiStructSize, const char* 
 
 	if ( apiPtr == nullptr ) {
 
-		// api struct has not yet been allocated, we must do so now.
+		// Api struct has not yet been allocated, we must do so now.
 
-		void* apiMemory = calloc( 1, apiStructSize ); // allocate space for api pointers on heap
+		// Allocate space for api pointers on heap -
+		// Note that calloc will zero-initialise this freshly allocated memory.
+		void* apiMemory = calloc( 1, apiStructSize );
 		assert( apiMemory && "Could not allocate memory for API struct." );
 
 		apiPtr = apiMemory; // Store updated address for api - this address won't change for the
