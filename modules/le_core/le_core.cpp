@@ -51,14 +51,14 @@ ISL_API_ATTR void** le_core_produce_dictionary_entry( uint64_t key ) {
 
 // ----------------------------------------------------------------------
 
-struct SettingEntry {
+struct LeSettingEntry {
 	std::string name;
 	uint64_t    type_hash; // unique hash based on textual representation of type name. This is not perfect (no type aliasing possible), but should work with basic types
 	void*       p_opj;     // pointer that may be set by the setter of this setting - it is their responsibility to delete this object
 };
 
 struct le_settings_map_t {
-	std::unordered_map<uint64_t, SettingEntry> map;
+	std::unordered_map<uint64_t, LeSettingEntry> map;
 };
 
 // mutex that protects our main settings map - if you change the map structure, you
@@ -77,10 +77,19 @@ ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const*
 	std::scoped_lock          lock( get_settings_store_mutex() );
 	static le_settings_map_t& store = get_global_settings_store();
 
-	SettingEntry& e = store.map[ hash_64_fnv1a( name ) ];
-	e.type_hash     = hash_64_fnv1a( type_name );
-	e.name          = name;
-	return &store.map[ hash_64_fnv1a( name ) ].p_opj;
+	// Key consists of hash of name and typename, and ___ in between.
+	// Chain the two elements into the hash, so that type becomes part of the lookup
+	// and settings with different type names can be disambiguated
+	const uint64_t type_name_hash = hash_64_fnv1a( type_name );
+	const uint64_t key            = hash_64_fnv1a_const( name, type_name_hash );
+
+	// std::string test_str = std::string( type_name ) + std::string( name );
+	// assert( key == hash_64_fnv1a( test_str.c_str() ) && "keys must match" );
+
+	LeSettingEntry& e = store.map[ key ];
+	e.type_hash       = type_name_hash;
+	e.name            = name;
+	return &e.p_opj;
 }
 
 // Create a copy of the current settings map - this will hold pointers to the actual settings,

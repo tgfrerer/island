@@ -57,13 +57,13 @@ ISL_API_ATTR DLL_CORE_API void** le_core_produce_dictionary_entry( uint64_t key 
 ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name, char const* type_name );
 // Persistent settings that can be shared among modules.
 // this is not yet production-ready, as it does not protect against race-conditions etc.
-#define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                                       \
-	static SETTING_TYPE* SETTING_NAME = []() -> SETTING_TYPE* {                                               \
-		void** p_addr = le_core_produce_setting_entry( ( #SETTING_NAME "__" #SETTING_TYPE ), #SETTING_TYPE ); \
-		if ( nullptr == *p_addr ) {                                                                           \
-			*p_addr = new SETTING_TYPE( SETTING_DEFAULT_VALUE );                                              \
-		}                                                                                                     \
-		return ( ( SETTING_TYPE* )( *p_addr ) );                                                              \
+#define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                \
+	static SETTING_TYPE* SETTING_NAME = []() -> SETTING_TYPE* {                        \
+		void** p_addr = le_core_produce_setting_entry( #SETTING_NAME, #SETTING_TYPE ); \
+		if ( nullptr == *p_addr ) {                                                    \
+			*p_addr = new SETTING_TYPE( SETTING_DEFAULT_VALUE );                       \
+		}                                                                              \
+		return ( ( SETTING_TYPE* )( *p_addr ) );                                       \
 	}()
 //
 // Used by settings_module - which shares the correct type for settings
