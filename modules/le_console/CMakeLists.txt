@@ -1,4 +1,5 @@
 depends_on_island_module(le_log)
+depends_on_island_module(le_settings)
 
 
 set (TARGET le_console)

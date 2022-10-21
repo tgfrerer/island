@@ -24,6 +24,7 @@ struct le_console_api {
         bool (* server_start)();
         bool (* server_stop)();
 
+        void (* process_commands )(); // process input from connected clients
 	};
 
     struct log_callbacks_interface_t {
@@ -64,6 +65,10 @@ class LeConsole : NoCopy, NoMove {
 
 	bool serverStop() {
 		return le_console::le_console_i.server_stop();
+	}
+
+	void processCommands() {
+		le_console::le_console_i.process_commands();
 	}
 };
 

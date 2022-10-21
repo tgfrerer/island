@@ -3,6 +3,7 @@
 
 #include "le_log.h"
 #include "le_console.h"
+#include "le_settings.h"
 
 #include <mutex>
 #include <thread>
@@ -18,6 +19,13 @@
 
 #include "private/le_console/le_console_types.h"
 #include "private/le_console/le_console_server.h"
+
+// Translation between winsock and posix sockets
+#ifdef WIN32
+#	define strtok_reentrant strtok_s
+#else
+#	define strtok_reentrant strtok_r
+#endif
 
 extern void le_console_server_register_api( void* api ); // in le_console_server
 /*
@@ -76,7 +84,8 @@ static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) 
 class LeLogSubscriber : NoCopy {
   public:
 	explicit LeLogSubscriber( le_console_o* console )
-	    : handle( le_log::api->add_subscriber( logger_callback, console, ~uint32_t( 0 ) ) ){};
+	    : handle( le_log::api->add_subscriber( logger_callback, console, console->log_level_mask ) ) {
+	}
 	~LeLogSubscriber() {
 		// we must remove the subscriber because it may get called before we have a chance to change the callback address -
 		// even callback forwarding won't help, because the reloader will log- and this log event will happen while the
@@ -186,9 +195,75 @@ static bool le_console_server_stop() {
 	return true;
 }
 
+static void le_console_process_input() {
+
+	static auto logger = le::Log( LOG_CHANNEL );
+
+	le_console_o* self = produce_console();
+
+	std::string msg;
+
+	{
+		auto lock = std::unique_lock( self->channel_in.messages_mtx );
+
+		if ( !self->channel_in.messages.empty() ) {
+			std::swap( msg, self->channel_in.messages.front() );
+			self->channel_in.messages.pop_front();
+		}
+	}
+
+	if ( !msg.empty() ) {
+		// todo: we need to update messages
+
+		char const* delim   = "\n\r= ";
+		char*       context = nullptr;
+
+		char* token = strtok_reentrant( msg.data(), delim, &context );
+
+		// le_log::le_log_channel_i.debug( logger.getChannel(), "Console: received message" );
+
+		std::vector<std::string> tokens;
+
+		while ( token != nullptr ) {
+			// le_log::le_log_channel_i.debug( logger.getChannel(), "Parsed token: [%s]", token );
+			tokens.emplace_back( token );
+			token = strtok_reentrant( nullptr, delim, &context );
+		}
+
+		// process tokens
+		if ( !tokens.empty() ) {
+			switch ( hash_32_fnv1a( tokens[ 0 ].c_str() ) ) {
+			case hash_32_fnv1a_const( "settings" ):
+				le_log::le_log_channel_i.info( logger.getChannel(), "Listing Settings" );
+				le::Settings().list();
+				break;
+			case hash_32_fnv1a_const( "json" ): {
+				// directly put a message onto the output buffer - without mirroring it to the console
+				auto lock = std::unique_lock( self->channel_out.messages_mtx );
+				self->channel_out.messages.emplace_back( R"({ "token": "This message should pass through unfiltered" })" );
+			} break;
+			case hash_32_fnv1a_const( "log_level_mask" ):
+				// If you set log_level_mask to 0, this means that log messages will be mirrored to console
+				// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
+				if ( tokens.size() == 2 ) {
+					le_console_produce_log_subscriber().reset( nullptr ); // Force the subscriber to be de-registered.
+					self->log_level_mask = strtol( tokens[ 1 ].c_str(), nullptr, 0 );
+					le_console_produce_log_subscriber( self ); // Force the subscriber to be re-registered.
+					le_log::le_log_channel_i.info( logger.getChannel(), "Updated console log level mask to 0x%x", self->log_level_mask );
+				}
+				break;
+			default:
+				le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ].c_str() );
+				break;
+			}
+		}
+	}
+}
 // ----------------------------------------------------------------------
 
 static le_console_o* le_console_create() {
+	static auto logger = le::Log( LOG_CHANNEL );
+	logger.set_level( le::Log::Level::eDebug );
 	auto self = new le_console_o();
 	return self;
 }
@@ -239,10 +314,11 @@ LE_MODULE_REGISTER_IMPL( le_console, api_ ) {
 	auto  api          = static_cast<le_console_api*>( api_ );
 	auto& le_console_i = api->le_console_i;
 
-	le_console_i.inc_use_count = le_console_inc_use_count;
-	le_console_i.dec_use_count = le_console_dec_use_count;
-	le_console_i.server_start  = le_console_server_start;
-	le_console_i.server_stop   = le_console_server_stop;
+	le_console_i.inc_use_count    = le_console_inc_use_count;
+	le_console_i.dec_use_count    = le_console_dec_use_count;
+	le_console_i.server_start     = le_console_server_start;
+	le_console_i.server_stop      = le_console_server_stop;
+	le_console_i.process_commands = le_console_process_input;
 
 	auto& log_callbacks_i                    = api->log_callbacks_i;
 	log_callbacks_i.push_chars_callback_addr = ( void* )logger_callback;

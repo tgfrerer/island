@@ -8,7 +8,8 @@ struct le_console_o {
 	// members
 	uint32_t use_count = 0;
 
-	bool wants_log_subscriber = false;
+	bool     wants_log_subscriber = false;
+	uint32_t log_level_mask       = ~( uint32_t( 0 ) );
 
 	struct channel {
 		std::mutex              messages_mtx;
