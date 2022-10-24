@@ -20,8 +20,10 @@
 #include "private/le_console/le_console_types.h"
 #include "private/le_console/le_console_server.h"
 
+
+
 // Translation between winsock and posix sockets
-#ifdef WIN32
+#ifdef _WIN32
 #	define strtok_reentrant strtok_s
 #else
 #	define strtok_reentrant strtok_r

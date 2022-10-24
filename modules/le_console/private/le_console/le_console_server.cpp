@@ -8,16 +8,16 @@
 #include <string.h>
 #include <sys/types.h>
 
-#ifndef WIN32
+#if defined( _WIN32 )
+#	include <WinSock2.h>
+#	include <WS2tcpip.h>
+#else
 #	include <sys/socket.h>
 #	include <netinet/in.h>
 #	include <netdb.h>
 #	include <arpa/inet.h>
 #	include <sys/wait.h>
 #	include <poll.h>
-#else
-#	include <WinSock2.h>
-#	include <WS2tcpip.h>
 #endif
 
 #include <memory>
@@ -32,7 +32,7 @@
 #include "le_console_server.h"
 
 // Translation between winsock and posix sockets
-#ifdef WIN32
+#if defined( _WIN32 )
 #	define poll_sockets WSAPoll
 #	define close_socket closesocket
 #else
@@ -78,7 +78,7 @@ static void* get_in_addr( struct sockaddr* sa ) {
 
 static void le_console_server_start( le_console_server_o* self ) {
 
-#ifdef WIN32
+#ifdef _WIN32
 	WSADATA wsa;
 	if ( WSAStartup( MAKEWORD( 2, 2 ), &wsa ) != 0 ) {
 		logger.error( "could not start winsock2" );
