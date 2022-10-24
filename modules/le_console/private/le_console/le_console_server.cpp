@@ -26,6 +26,7 @@
 #include <fstream>
 #include <condition_variable>
 
+#include <unordered_map>
 #include <deque>
 
 #include "le_console_types.h"
@@ -206,11 +207,15 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 						if ( newfd == -1 ) {
 							perror( "accept" );
 						} else {
+							pollfd tmp_pollfd = {};
+							tmp_pollfd.fd     = newfd;
+							tmp_pollfd.events = POLLIN;
+							server->sockets.emplace_back( tmp_pollfd );
 							{
-								pollfd tmp_pollfd = {};
-								tmp_pollfd.fd     = newfd;
-								tmp_pollfd.events = POLLIN;
-								server->sockets.emplace_back( tmp_pollfd );
+								// Create a new connection - this means we must protect our map of connections
+								auto connections_lock = std::scoped_lock( server->console->connections_mutex );
+
+								server->console->connections[ uint32_t( tmp_pollfd.fd ) ] = std::make_unique<le_console_o::connection_t>();
 							}
 							logger.info( "Pollserver: New connection from %s on socket %d\n",
 							             inet_ntop( remote_addr.ss_family,
@@ -227,23 +232,25 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 							if ( received_bytes_count == 0 ) {
 								// connection closed
 								close_socket( server->sockets[ i ].fd );
+
+								{
+									auto connections_lock = std::scoped_lock( server->console->connections_mutex );
+									server->console->connections.erase( server->sockets[ i ].fd );
+								}
+
 								logger.info( "Closed connection on file descriptor %d", server->sockets[ i ].fd );
 								server->sockets[ i ].fd = -1; // set file descriptor to -1 - this is a signal to remove it from the vector of watched file descriptors
+
 							} else {
 								perror( "recv" );
 							}
 						} else {
 							// we received some bytes -- we must process these bytes
 
-							// logger.info( ">> %.*s", received_bytes_count, buf );
-							auto lock = std::unique_lock( server->console->channel_in.messages_mtx );
-							// Ensure that there is space for at least one message by discarding
-							// oldest message if there are more than max_messages_count messages
-							// waiting
-							while ( server->console->channel_in.messages.size() >= server->console->channel_in.max_messages_count ) {
-								server->console->channel_in.messages.pop_front();
-							}
-							server->console->channel_in.messages.emplace_back( buf, received_bytes_count );
+							auto  connections_lock = std::scoped_lock( server->console->connections_mutex );
+							auto& connection       = server->console->connections[ server->sockets[ i ].fd ];
+
+							connection->channel_in.post( std::string( buf, received_bytes_count ) );
 						}
 
 					} // end: if fd==listener
@@ -262,19 +269,26 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 				i++;
 			}
 			{
-				auto lock = std::unique_lock( server->console->channel_out.messages_mtx );
-				while ( !server->console->channel_out.messages.empty() ) {
+				// Pump out messages
 
+				auto connections_lock = std::scoped_lock( server->console->connections_mutex );
+				for ( auto& c : server->console->connections ) {
+					auto& connection = c.second;
+					if ( c.first == server->listener ) {
+						continue;
+					}
 					std::string str;
-					std::swap( str, server->console->channel_out.messages.front() ); // fetch by swapping
-					server->console->channel_out.messages.pop_front();
-					str.append( "\n" ); // we must add a carriage return
-					for ( size_t i = 0; i != fd_count; i++ ) {
+
+					while ( connection->channel_out.fetch( str ) ) {
+
+						// logger.info( "found message" );
+						str.append( "\n" ); // we must add a carriage return
+
 						// send to all listeners
-						if ( server->sockets[ i ].fd != server->listener )
+						if ( c.first != server->listener )
 							// repeat until all bytes sent, or result <= 0
 							for ( size_t num_bytes_sent = 0; num_bytes_sent < str.size(); ) {
-								int result = send( server->sockets[ i ].fd, str.data() + num_bytes_sent, str.size() - num_bytes_sent, 0 );
+								int result = send( c.first, str.data() + num_bytes_sent, str.size() - num_bytes_sent, 0 );
 								if ( result <= 0 ) {
 									logger.error( "Could not send message, result code: %d", result );
 								} else {

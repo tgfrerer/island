@@ -16,11 +16,10 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <unordered_map>
 
 #include "private/le_console/le_console_types.h"
 #include "private/le_console/le_console_server.h"
-
-
 
 // Translation between winsock and posix sockets
 #ifdef _WIN32
@@ -61,20 +60,13 @@ static le_console_o* produce_console() {
 }
 
 // ----------------------------------------------------------------------
+// this method may not call le::log logging, because otherwise there is a
+// chance of a deadlock.
 static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) {
 	static std::string msg;
 
-	auto self = ( le_console_o* )user_data;
-
-	auto lock = std::unique_lock( self->channel_out.messages_mtx );
-
-	// Make sure that there is space for at least one message
-	// on the queue by discarding old messages if necessary
-	while ( self->channel_out.messages.size() >= self->channel_out.max_messages_count ) {
-		self->channel_out.messages.pop_front();
-	}
-
-	self->channel_out.messages.emplace_back( chars, num_chars );
+	auto connection = ( le_console_o::connection_t* )user_data;
+	connection->channel_out.post( std::string( chars, num_chars ) );
 }
 
 // ----------------------------------------------------------------------
@@ -85,8 +77,8 @@ static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) 
 // gets destroyed.
 class LeLogSubscriber : NoCopy {
   public:
-	explicit LeLogSubscriber( le_console_o* console )
-	    : handle( le_log::api->add_subscriber( logger_callback, console, console->log_level_mask ) ) {
+	explicit LeLogSubscriber( le_console_o::connection_t* connection )
+	    : handle( le_log::api->add_subscriber( logger_callback, connection, connection->log_level_mask ) ) {
 	}
 	~LeLogSubscriber() {
 		// we must remove the subscriber because it may get called before we have a chance to change the callback address -
@@ -112,12 +104,9 @@ class LeLogSubscriber : NoCopy {
 // liminal stage where this module has been unloaded, and its next version
 // has not yet been loaded.
 //
-static std::unique_ptr<LeLogSubscriber>& le_console_produce_log_subscriber( le_console_o* console = nullptr ) {
-	static std::unique_ptr<LeLogSubscriber> LOG_SUBSCRIBER = {};
+static std::unordered_map<uint32_t, std::unique_ptr<LeLogSubscriber>>& le_console_produce_log_subscribers() {
+	static std::unordered_map<uint32_t, std::unique_ptr<LeLogSubscriber>> LOG_SUBSCRIBER = {};
 
-	if ( nullptr == LOG_SUBSCRIBER.get() && console != nullptr ) {
-		LOG_SUBSCRIBER = std::make_unique<LeLogSubscriber>( console );
-	}
 	return LOG_SUBSCRIBER;
 }
 
@@ -163,9 +152,6 @@ static bool le_console_server_start() {
 	le_console_o* self = produce_console();
 	logger.info( "* Starting Server..." );
 
-	self->wants_log_subscriber = true;         // Set flag so that when reloading, we know that subscriber needs to be activated
-	le_console_produce_log_subscriber( self ); // Registers subscriber in case subscriber is not yet registered
-
 	self->server = le_console_server_api.create( self ); // destroy server
 	le_console_server_api.start( self->server );         // start server
 	le_console_produce_server_watcher( self );           // Implicitly starts server thread
@@ -180,11 +166,8 @@ static bool le_console_server_stop() {
 
 	le_console_o* self = produce_console();
 
-	if ( le_console_produce_log_subscriber().get() ) {
-		logger.info( "* Unregistering Log subscriber ..." );
-		le_console_produce_log_subscriber().reset( nullptr ); // Force the subscriber to be de-registered.
-		self->wants_log_subscriber = false;                   // Set flag so that we know that subscriber was de-activated explicitly
-	}
+	logger.info( "Unregistering Log subscribers" );
+	le_console_produce_log_subscribers().clear();
 
 	if ( self->server ) {
 		logger.info( "* Stopping server..." );
@@ -203,60 +186,62 @@ static void le_console_process_input() {
 
 	le_console_o* self = produce_console();
 
-	std::string msg;
+	auto connections_lock = std::scoped_lock( self->connections_mutex );
 
-	{
-		auto lock = std::unique_lock( self->channel_in.messages_mtx );
+	for ( auto& c : self->connections ) {
 
-		if ( !self->channel_in.messages.empty() ) {
-			std::swap( msg, self->channel_in.messages.front() );
-			self->channel_in.messages.pop_front();
-		}
-	}
+		auto& connection = c.second;
 
-	if ( !msg.empty() ) {
-		// todo: we need to update messages
+		std::string msg;
 
-		char const* delim   = "\n\r= ";
-		char*       context = nullptr;
+		connection->channel_in.fetch( msg );
 
-		char* token = strtok_reentrant( msg.data(), delim, &context );
+		if ( !msg.empty() ) {
+			// todo: we need to update messages
 
-		// le_log::le_log_channel_i.debug( logger.getChannel(), "Console: received message" );
+			char const* delim   = "\n\r= ";
+			char*       context = nullptr;
 
-		std::vector<std::string> tokens;
+			char* token = strtok_reentrant( msg.data(), delim, &context );
 
-		while ( token != nullptr ) {
-			// le_log::le_log_channel_i.debug( logger.getChannel(), "Parsed token: [%s]", token );
-			tokens.emplace_back( token );
-			token = strtok_reentrant( nullptr, delim, &context );
-		}
+			// le_log::le_log_channel_i.debug( logger.getChannel(), "Console: received message" );
 
-		// process tokens
-		if ( !tokens.empty() ) {
-			switch ( hash_32_fnv1a( tokens[ 0 ].c_str() ) ) {
-			case hash_32_fnv1a_const( "settings" ):
-				le_log::le_log_channel_i.info( logger.getChannel(), "Listing Settings" );
-				le::Settings().list();
-				break;
-			case hash_32_fnv1a_const( "json" ): {
-				// directly put a message onto the output buffer - without mirroring it to the console
-				auto lock = std::unique_lock( self->channel_out.messages_mtx );
-				self->channel_out.messages.emplace_back( R"({ "token": "This message should pass through unfiltered" })" );
-			} break;
-			case hash_32_fnv1a_const( "log_level_mask" ):
-				// If you set log_level_mask to 0, this means that log messages will be mirrored to console
-				// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
-				if ( tokens.size() == 2 ) {
-					le_console_produce_log_subscriber().reset( nullptr ); // Force the subscriber to be de-registered.
-					self->log_level_mask = strtol( tokens[ 1 ].c_str(), nullptr, 0 );
-					le_console_produce_log_subscriber( self ); // Force the subscriber to be re-registered.
-					le_log::le_log_channel_i.info( logger.getChannel(), "Updated console log level mask to 0x%x", self->log_level_mask );
+			std::vector<std::string> tokens;
+
+			while ( token != nullptr ) {
+				// le_log::le_log_channel_i.debug( logger.getChannel(), "Parsed token: [%s]", token );
+				tokens.emplace_back( token );
+				token = strtok_reentrant( nullptr, delim, &context );
+			}
+
+			// process tokens
+			if ( !tokens.empty() ) {
+				switch ( hash_32_fnv1a( tokens[ 0 ].c_str() ) ) {
+				case hash_32_fnv1a_const( "settings" ):
+					le_log::le_log_channel_i.info( logger.getChannel(), "Listing Settings" );
+					le::Settings().list();
+					break;
+				case hash_32_fnv1a_const( "json" ): {
+					// directly put a message onto the output buffer - without mirroring it to the console
+					connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })" );
+				} break;
+				case hash_32_fnv1a_const( "log_level_mask" ):
+					// If you set log_level_mask to 0, this means that log messages will be mirrored to console
+					// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
+					if ( tokens.size() == 2 ) {
+						le_console_produce_log_subscribers().erase( c.first ); // Force the subscriber to be de-registered.
+						connection->log_level_mask = strtol( tokens[ 1 ].c_str(), nullptr, 0 );
+						if ( connection->log_level_mask > 0 ) {
+							le_console_produce_log_subscribers()[ c.first ] = std::make_unique<LeLogSubscriber>( connection.get() ); // Force the subscriber to be re-registered.
+							connection->wants_log_subscriber                = true;
+						}
+						le_log::le_log_channel_i.info( logger.getChannel(), "Updated console log level mask to 0x%x", connection->log_level_mask );
+					}
+					break;
+				default:
+					le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ].c_str() );
+					break;
 				}
-				break;
-			default:
-				le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ].c_str() );
-				break;
 			}
 		}
 	}
@@ -316,10 +301,10 @@ LE_MODULE_REGISTER_IMPL( le_console, api_ ) {
 	auto  api          = static_cast<le_console_api*>( api_ );
 	auto& le_console_i = api->le_console_i;
 
-	le_console_i.inc_use_count    = le_console_inc_use_count;
-	le_console_i.dec_use_count    = le_console_dec_use_count;
-	le_console_i.server_start     = le_console_server_start;
-	le_console_i.server_stop      = le_console_server_stop;
+	le_console_i.inc_use_count = le_console_inc_use_count;
+	le_console_i.dec_use_count = le_console_dec_use_count;
+	le_console_i.server_start  = le_console_server_start;
+	le_console_i.server_stop   = le_console_server_stop;
 	le_console_i.process_input = le_console_process_input;
 
 	auto& log_callbacks_i                    = api->log_callbacks_i;
@@ -334,11 +319,17 @@ LE_MODULE_REGISTER_IMPL( le_console, api_ ) {
 		// if a console already exists, this is a sign that this module has been
 		// reloaded - in which case we want to re-register the subscriber to the log.
 		le_console_o* console = produce_console();
-		if ( console->wants_log_subscriber ) {
-			le_console_produce_log_subscriber( console );
-		}
 		if ( console->server ) {
 			le_console_produce_server_watcher( console );
+		}
+		if ( !console->connections.empty() ) {
+			auto  lock        = std::scoped_lock( console->connections_mutex );
+			auto& subscribers = le_console_produce_log_subscribers();
+			for ( auto& c : console->connections ) {
+				if ( c.second->wants_log_subscriber ) {
+					subscribers[ c.first ] = std::make_unique<LeLogSubscriber>( c.second.get() );
+				}
+			}
 		}
 	}
 }
