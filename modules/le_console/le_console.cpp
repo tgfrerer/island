@@ -221,6 +221,11 @@ static void le_console_process_input() {
 					le_log::le_log_channel_i.info( logger.getChannel(), "Listing Settings" );
 					le::Settings().list();
 					break;
+				case hash_32_fnv1a_const( "set" ):
+					if ( tokens.size() == 3 ) {
+						le::Settings().set( tokens[ 1 ], tokens[ 2 ] );
+					}
+					break;
 				case hash_32_fnv1a_const( "json" ): {
 					// directly put a message onto the output buffer - without mirroring it to the console
 					connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })" );
