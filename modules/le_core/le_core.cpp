@@ -73,24 +73,40 @@ static le_settings_map_t& get_global_settings_store() {
 	return store;
 };
 
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const* type_name ) {
 	std::scoped_lock          lock( get_settings_store_mutex() );
 	static le_settings_map_t& store = get_global_settings_store();
 
-	// Key consists of hash of name and typename, and ___ in between.
-	// Chain the two elements into the hash, so that type becomes part of the lookup
-	// and settings with different type names can be disambiguated
+	// Setting names must be unique - and their types must match.
 	const uint64_t type_name_hash = hash_64_fnv1a( type_name );
-	const uint64_t key            = hash_64_fnv1a_const( name, type_name_hash );
+	const uint64_t key            = hash_64_fnv1a( name );
+	// const uint64_t key            = hash_64_fnv1a_const( name, type_name_hash );
 
 	// std::string test_str = std::string( type_name ) + std::string( name );
 	// assert( key == hash_64_fnv1a( test_str.c_str() ) && "keys must match" );
 
-	LeSettingEntry& e = store.map[ key ];
-	e.type_hash       = type_name_hash;
-	e.name            = name;
-	return &e.p_opj;
+	auto result = store.map.emplace( key, LeSettingEntry() );
+
+	// Test if anything was actually inserted to the map:
+	if ( result.second == true ) {
+		// Element was newly inserted.
+		result.first->second.type_hash = type_name_hash;
+		result.first->second.name      = name;
+	} else {
+		// There was already an entry - This is a lookup
+		if ( type_name != nullptr ) {
+			// In case an alternative typename was given, we must perform a test
+			// to see whether the correct type was chosen for this setting.
+			assert( result.first->second.type_hash == type_name_hash && "Settings with identical name must match type" );
+		}
+	}
+
+	return ( &result.first->second.p_opj );
 }
+
+// ----------------------------------------------------------------------
 
 // Create a copy of the current settings map - this will hold pointers to the actual settings,
 // and it will protect us against iterating over a map that might change in structure, in case
