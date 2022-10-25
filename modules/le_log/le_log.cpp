@@ -90,7 +90,6 @@ static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, 
 
 	// thread-safe region follows
 
-	std::string print_string;
 	{
 		static std::mutex print_mtx;
 		auto              lock = std::scoped_lock( print_mtx ); // lock protecting this whole function
@@ -124,17 +123,16 @@ static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, 
 			va_end( old_args );
 		}
 		num_bytes_buffer_2--; // remove last \0 byte
-		print_string = std::string( buffer.data(), buffer.data() + num_bytes_buffer_1 + num_bytes_buffer_2 );
-	} // end thread-safe region
 
-	auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
-	for ( auto& s : ctx->subscribers ) {
-		// call back subscribers iff they have matching log level flags set in their mask
-		// careful - if this method calls the log itself then we may end up with a deadlock.
-		// FIXME: make sure that we don't end up with a deadlock.
-		if ( uint32_t( level ) & s.log_level_flag_mask ) {
-			s.push_chars( print_string.data(), print_string.size(), s.user_data );
-		}
+		auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
+		for ( auto& s : ctx->subscribers ) {
+			// call back subscribers iff they have matching log level flags set in their mask
+			// careful - if this method calls the log itself then we may end up with a deadlock.
+			// FIXME: make sure that we don't end up with a deadlock.
+			if ( uint32_t( level ) & s.log_level_flag_mask ) {
+				s.push_chars( buffer.data(), num_bytes_buffer_1 + num_bytes_buffer_2, s.user_data );
+			}
+		} // end thread-safe region
 	}
 }
 
