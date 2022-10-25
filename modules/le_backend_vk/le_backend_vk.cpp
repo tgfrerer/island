@@ -3923,6 +3923,8 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	// we fetch this variable to a local copy, and only at a single point, here, so that there is no risk that the value of the
 	// variable is changed on another thread while the dot graph is being generated
 	frame.must_create_queues_dot_graph = *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES;
+	// then, we set the value to false, so that we only generate a single dot graph per-shot
+	*LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES = false;
 #endif
 
 	// Setup declared resources per frame - These are resources declared using resource infos
