@@ -47,7 +47,7 @@ struct le_log_api {
 
     // callback signature for a log printout event subscriber.
     // You must make a local copy of the chars array  
-    typedef void (*fn_subscriber_push_chars)(char* chars, uint32_t num_chars, void * user_data); // user_data will be set to owner on callback
+    typedef void (*fn_subscriber_push_chars)(char const* chars, uint32_t num_chars, void * user_data); // user_data will be set to owner on callback
 
 
     // Callback to trigger when printing log.

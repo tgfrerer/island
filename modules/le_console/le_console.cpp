@@ -62,7 +62,7 @@ static le_console_o* produce_console() {
 // ----------------------------------------------------------------------
 // this method may not call le::log logging, because otherwise there is a
 // chance of a deadlock.
-static void logger_callback( char* chars, uint32_t num_chars, void* user_data ) {
+static void logger_callback( char const* chars, uint32_t num_chars, void* user_data ) {
 	static std::string msg;
 
 	auto connection = ( le_console_o::connection_t* )user_data;
