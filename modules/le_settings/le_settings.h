@@ -14,6 +14,7 @@ struct le_settings_api {
 		void                 ( * destroy                  ) ( le_settings_o* self );
 		void                 ( * list_all_settings) ( le_settings_o* self );
 
+        void (*setting_set)( const char* setting_name, const char* setting_value );
 	};
 
 	le_settings_interface_t       le_settings_i;
@@ -46,6 +47,10 @@ class Settings : NoCopy, NoMove {
 
 	void list() {
 		le_settings::le_settings_i.list_all_settings( self );
+	}
+
+	void set( char const* settings_name, char const* setting_value ) {
+		le_settings::le_settings_i.setting_set( settings_name, setting_value );
 	}
 
 	operator auto() {
