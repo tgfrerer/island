@@ -49,41 +49,11 @@ static void le_settings_destroy( le_settings_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_settings_set( const char* setting_name, const char* setting_value ) {
+static void le_setting_set( const char* setting_name, const char* setting_value ) {
 	static auto logger = le::Log( "settings" );
-
-	le_settings_map_t current_settings;
-	le_core_copy_settings_entries( &current_settings );
-
-	// find setting with given name
-	uint64_t name_hash     = hash_64_fnv1a( setting_name );
-	auto     found_setting = current_settings.map.find( name_hash );
-
-	void** setting = le_core_produce_setting_entry( setting_name, nullptr );
-
-	if ( found_setting != current_settings.map.end() ) {
-		switch ( found_setting->second.type_hash ) {
-		case SettingType::eBool:
-			*( bool* )( *setting ) = bool( std::strtoul( setting_value, nullptr, 10 ) );
-			break;
-		case SettingType::eUint32_t:
-			*( uint32_t* )( *setting ) = bool( strtoul( setting_value, nullptr, 10 ) );
-			break;
-		case SettingType::eInt32_t:
-			*( int32_t* )( *setting ) = int32_t( strtoul( setting_value, nullptr, 10 ) );
-			break;
-		case SettingType::eInt:
-			*( int* )( *setting ) = int( strtoul( setting_value, nullptr, 10 ) );
-			break;
-		case SettingType::eStdString:
-			*( std::string* )( *setting ) = std::string( setting_value );
-			break;
-		default:
-			logger.warn( "Cannot set setting of unknown type." );
-			break;
-		}
-	} else {
-		logger.warn( "Could not find setting '%s' - cannot set it to value '%s'", setting_name, setting_value );
+	bool        result = le_core_update_setting_value( setting_name, setting_value );
+	if ( false == result ) {
+		logger.warn( "Could not update setting '%s' value to '%s'", setting_name, setting_value );
 	}
 }
 
@@ -127,5 +97,5 @@ LE_MODULE_REGISTER_IMPL( le_settings, api ) {
 	le_settings_i.create            = le_settings_create;
 	le_settings_i.destroy           = le_settings_destroy;
 	le_settings_i.list_all_settings = le_settings_list_all_settings;
-	le_settings_i.setting_set       = le_settings_set;
+	le_settings_i.setting_set       = le_setting_set;
 }

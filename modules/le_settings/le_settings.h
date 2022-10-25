@@ -49,7 +49,7 @@ class Settings : NoCopy, NoMove {
 		le_settings::le_settings_i.list_all_settings( self );
 	}
 
-	void set( char const* settings_name, char const* setting_value ) {
+	static void set( char const* settings_name, char const* setting_value ) {
 		le_settings::le_settings_i.setting_set( settings_name, setting_value );
 	}
 

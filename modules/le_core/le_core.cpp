@@ -120,6 +120,53 @@ ISL_API_ATTR void le_core_copy_settings_entries( le_settings_map_t* settings_map
 
 // ----------------------------------------------------------------------
 
+ISL_API_ATTR bool le_core_update_setting_value( char const* setting_name, char const* setting_value ) {
+
+	enum SettingType {
+		eInt       = hash_64_fnv1a_const( "int" ),
+		eUint32_t  = hash_64_fnv1a_const( "uint32_t" ),
+		eInt32_t   = hash_64_fnv1a_const( "int32_t" ),
+		eStdString = hash_64_fnv1a_const( "std::string" ),
+		eBool      = hash_64_fnv1a_const( "bool" ),
+	};
+
+	// Find entry in map - if we can find it, attempt to set it
+	if ( nullptr == setting_name ) {
+		return false;
+	}
+
+	// ---------- invariant: name is valid
+
+	auto found_setting = get_global_settings_store().map.find( hash_64_fnv1a( setting_name ) );
+
+	if ( found_setting != get_global_settings_store().map.end() ) {
+		void* setting = found_setting->second.p_opj;
+		switch ( found_setting->second.type_hash ) {
+		case SettingType::eBool:
+			*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 10 ) );
+			break;
+		case SettingType::eUint32_t:
+			*( uint32_t* )( setting ) = bool( strtoul( setting_value, nullptr, 10 ) );
+			break;
+		case SettingType::eInt32_t:
+			*( int32_t* )( setting ) = int32_t( strtoul( setting_value, nullptr, 10 ) );
+			break;
+		case SettingType::eInt:
+			*( int* )( setting ) = int( strtoul( setting_value, nullptr, 10 ) );
+			break;
+		case SettingType::eStdString:
+			*( std::string* )( setting ) = std::string( setting_value );
+			break;
+		default:
+			return false;
+			break;
+		}
+	}
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
 struct loader_callback_params_o {
 	le_module_loader_o* loader;
 	void*               api;      // address of api interface struct

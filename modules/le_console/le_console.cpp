@@ -223,7 +223,7 @@ static void le_console_process_input() {
 					break;
 				case hash_32_fnv1a_const( "set" ):
 					if ( tokens.size() == 3 ) {
-						le::Settings().set( tokens[ 1 ], tokens[ 2 ] );
+						le::Settings::set( tokens[ 1 ], tokens[ 2 ] );
 					}
 					break;
 				case hash_32_fnv1a_const( "json" ): {
