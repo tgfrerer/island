@@ -180,6 +180,8 @@ static bool le_console_server_stop() {
 	return true;
 }
 
+// ----------------------------------------------------------------------
+
 static void le_console_process_input() {
 
 	static auto logger = le::Log( LOG_CHANNEL );
@@ -203,8 +205,6 @@ static void le_console_process_input() {
 			char*       context = nullptr;
 
 			char* token = strtok_reentrant( msg.data(), delim, &context );
-
-			// le_log::le_log_channel_i.debug( logger.getChannel(), "Console: received message" );
 
 			std::vector<std::string> tokens;
 
@@ -246,6 +246,7 @@ static void le_console_process_input() {
 		}
 	}
 }
+
 // ----------------------------------------------------------------------
 
 static le_console_o* le_console_create() {
