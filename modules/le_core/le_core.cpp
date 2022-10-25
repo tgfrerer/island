@@ -80,7 +80,7 @@ ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const*
 	static le_settings_map_t& store = get_global_settings_store();
 
 	// Setting names must be unique - and their types must match.
-	const uint64_t type_name_hash = hash_64_fnv1a( type_name );
+	const uint64_t type_name_hash = type_name ? hash_64_fnv1a( type_name ) : 0;
 	const uint64_t key            = hash_64_fnv1a( name );
 	// const uint64_t key            = hash_64_fnv1a_const( name, type_name_hash );
 
