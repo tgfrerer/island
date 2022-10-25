@@ -51,40 +51,28 @@ static void le_settings_list_all_settings( le_settings_o* self ) {
 
 	// this should have copied all settings to our current settings
 	enum SettingType {
-		eInt,
-		eUint32_t,
-		eInt32_t,
-		eStdString,
-		eBool,
-	};
-
-	static const std::unordered_map<uint64_t, SettingType> type_lookup = {
-	    { hash_64_fnv1a_const( "uint32_t" ), SettingType::eUint32_t },
-	    { hash_64_fnv1a_const( "int32_t" ), SettingType::eInt32_t },
-	    { hash_64_fnv1a_const( "int" ), SettingType::eInt },
-	    { hash_64_fnv1a_const( "std::string" ), SettingType::eStdString },
-	    { hash_64_fnv1a_const( "bool" ), SettingType::eBool },
+		eInt       = hash_64_fnv1a_const( "int" ),
+		eUint32_t  = hash_64_fnv1a_const( "uint32_t" ),
+		eInt32_t   = hash_64_fnv1a_const( "int32_t" ),
+		eStdString = hash_64_fnv1a_const( "std::string" ),
+		eBool      = hash_64_fnv1a_const( "bool" ),
 	};
 
 	for ( auto& s : self->current_settings.map ) {
-		auto it = type_lookup.find( s.second.type_hash );
-		if ( it != type_lookup.end() ) {
 
-			switch ( it->second ) {
-			case ( SettingType::eBool ):
-				logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "bool", *( ( bool* )s.second.p_opj ) );
-				break;
-			case ( SettingType::eInt ):
-				logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
-				break;
-			case ( SettingType::eStdString ):
-				logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "std::string", ( ( std::string* )s.second.p_opj )->c_str() );
-				break;
-			default:
-				break;
-			}
-		} else {
+		switch ( s.second.type_hash ) {
+		case ( SettingType::eBool ):
+			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "bool", *( ( bool* )s.second.p_opj ) );
+			break;
+		case ( SettingType::eInt ):
+			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
+			break;
+		case ( SettingType::eStdString ):
+			logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "std::string", ( ( std::string* )s.second.p_opj )->c_str() );
+			break;
+		default:
 			logger.warn( "setting '%30s' has unknown type.", s.second.name.c_str() );
+			break;
 		}
 	}
 
