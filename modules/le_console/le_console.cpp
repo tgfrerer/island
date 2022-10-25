@@ -206,7 +206,7 @@ static void le_console_process_input() {
 
 			char* token = strtok_reentrant( msg.data(), delim, &context );
 
-			std::vector<std::string> tokens;
+			std::vector<char const*> tokens;
 
 			while ( token != nullptr ) {
 				// le_log::le_log_channel_i.debug( logger.getChannel(), "Parsed token: [%s]", token );
@@ -216,7 +216,7 @@ static void le_console_process_input() {
 
 			// process tokens
 			if ( !tokens.empty() ) {
-				switch ( hash_32_fnv1a( tokens[ 0 ].c_str() ) ) {
+				switch ( hash_32_fnv1a( tokens[ 0 ] ) ) {
 				case hash_32_fnv1a_const( "settings" ):
 					le_log::le_log_channel_i.info( logger.getChannel(), "Listing Settings" );
 					le::Settings().list();
@@ -230,7 +230,7 @@ static void le_console_process_input() {
 					// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
 					if ( tokens.size() == 2 ) {
 						le_console_produce_log_subscribers().erase( c.first ); // Force the subscriber to be de-registered.
-						connection->log_level_mask = strtol( tokens[ 1 ].c_str(), nullptr, 0 );
+						connection->log_level_mask = strtol( tokens[ 1 ], nullptr, 0 );
 						if ( connection->log_level_mask > 0 ) {
 							le_console_produce_log_subscribers()[ c.first ] = std::make_unique<LeLogSubscriber>( connection.get() ); // Force the subscriber to be re-registered.
 							connection->wants_log_subscriber                = true;
@@ -239,7 +239,7 @@ static void le_console_process_input() {
 					}
 					break;
 				default:
-					le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ].c_str() );
+					le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
 					break;
 				}
 			}
