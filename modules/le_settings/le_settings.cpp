@@ -2,8 +2,8 @@
 #include "le_core.h"
 #include "le_hash_util.h"
 #include "le_log.h"
-#include <string>
 
+#include <string>
 #include <unordered_map>
 
 // The main issue with this architecture is that settings will still compete for the same
@@ -31,7 +31,6 @@ struct le_settings_map_t {
 };
 
 struct le_settings_o {
-	le_settings_map_t current_settings;
 };
 
 // ----------------------------------------------------------------------
@@ -60,15 +59,16 @@ static void le_setting_set( const char* setting_name, const char* setting_value 
 // ----------------------------------------------------------------------
 
 static void le_settings_list_all_settings( le_settings_o* self ) {
+	le_settings_map_t current_settings;
 
 	// create a local copy of global settings
-	le_core_copy_settings_entries( &self->current_settings );
+	le_core_copy_settings_entries( &current_settings );
 
 	static auto logger = le::Log( "settings" );
 
 	// this should have copied all settings to our current settings
 
-	for ( auto& s : self->current_settings.map ) {
+	for ( auto& s : current_settings.map ) {
 
 		switch ( s.second.type_hash ) {
 		case ( SettingType::eBool ):
