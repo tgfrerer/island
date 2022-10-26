@@ -740,7 +740,9 @@ static void backend_destroy( le_backend_o* self ) {
 		swapchain_i.destroy( s );
 	}
 	self->swapchains.clear();
-
+	
+	vkDeviceWaitIdle(self->device.get()->getVkDevice());
+	
 	for ( auto& frameData : self->mFrames ) {
 
 		using namespace le_backend_vk;
