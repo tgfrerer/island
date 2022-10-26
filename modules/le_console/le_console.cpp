@@ -230,7 +230,7 @@ static void le_console_process_input() {
 					// directly put a message onto the output buffer - without mirroring it to the console
 					connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })" );
 				} break;
-				case hash_32_fnv1a_const( "log_level_mask" ):
+				case hash_32_fnv1a_const( "log" ):
 					// If you set log_level_mask to 0, this means that log messages will be mirrored to console
 					// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
 					if ( tokens.size() == 2 ) {
