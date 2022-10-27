@@ -28,13 +28,12 @@
 
 #include "util/volk/volk.h"
 
-static constexpr auto LOGGER_LABEL = "le_backend";
-
 #include "le_backend_vk_settings.inl"
 #include "private/le_backend_vk/vk_to_str_helpers.inl"
 
 #include "private/le_backend_vk/le_backend_vk_instance.inl"
 
+static constexpr auto LOGGER_LABEL = "le_backend";
 #ifdef _MSC_VER
 #	include <Windows.h> // for getModule
 #else
@@ -316,7 +315,7 @@ inline uint16_t get_sample_count_log_2( uint32_t const& sample_count ) {
 #if defined( _MSC_VER )
 	auto lz = __lzcnt( sample_count );
 #else
-	auto lz                         = __builtin_clz( sample_count );
+	auto lz = __builtin_clz( sample_count );
 #endif
 	return 31 - lz;
 }
@@ -742,9 +741,9 @@ static void backend_destroy( le_backend_o* self ) {
 		swapchain_i.destroy( s );
 	}
 	self->swapchains.clear();
-	
-	vkDeviceWaitIdle(self->device.get()->getVkDevice());
-	
+
+	vkDeviceWaitIdle( self->device.get()->getVkDevice() );
+
 	for ( auto& frameData : self->mFrames ) {
 
 		using namespace le_backend_vk;
