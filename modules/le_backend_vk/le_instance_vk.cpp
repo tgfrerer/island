@@ -20,15 +20,17 @@
 
 static constexpr auto LOGGER_LABEL = "le_instance_vk";
 
-// Automatically disable Validation Layers for Release Builds
-
-#ifndef SHOULD_USE_VALIDATION_LAYERS
-#	ifdef NDEBUG
-#		define SHOULD_USE_VALIDATION_LAYERS false
-#	else
-#		define SHOULD_USE_VALIDATION_LAYERS true
-#	endif
+static bool should_use_validation_layers() {
+// Disable Validation Layers for Release Builds by default,
+// and enable Validation Layers for Debug Builds by default,
+// unless explicitly set via LE_SETTING on startup.
+#ifdef NDEBUG
+	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, false );
+#else
+	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
 #endif
+	return *LE_SETTING_SHOULD_USE_VALIDATION_LAYERS;
+}
 
 // ----------------------------------------------------------------------
 
@@ -159,7 +161,7 @@ static VkBool32 debugUtilsMessengerCallback(
 
 static void create_debug_messenger_callback( le_backend_vk_instance_o* obj ) {
 
-	if ( false == SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( false == obj->is_using_validation_layers ) {
 		return;
 	}
 
@@ -191,7 +193,7 @@ static void create_debug_messenger_callback( le_backend_vk_instance_o* obj ) {
 
 static void destroy_debug_messenger_callback( le_backend_vk_instance_o* obj ) {
 
-	if ( false == SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( false == obj->is_using_validation_layers ) {
 		return;
 	}
 
@@ -213,6 +215,8 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 	auto        self   = new le_backend_vk_instance_o();
 	static auto logger = LeLog( LOGGER_LABEL );
 
+	self->is_using_validation_layers = should_use_validation_layers();
+
 	VkApplicationInfo appInfo{
 	    .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 	    .pNext              = nullptr,      // optional
@@ -225,7 +229,7 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 
 	// -- create a vector of unique requested instance extension names
 
-	if ( true == SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( self->is_using_validation_layers ) {
 		self->instanceExtensionSet.insert( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
 	}
 
@@ -244,7 +248,7 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 
 	std::vector<const char*> instanceLayerNames = {};
 
-	if ( true == SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( self->is_using_validation_layers ) {
 		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
 		logger.info( "Debug instance layers added." );
 	}
@@ -261,10 +265,10 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 
 	VkInstanceCreateInfo info{
 	    .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-	    .pNext                   = SHOULD_USE_VALIDATION_LAYERS ? &validationFeatures : nullptr, // optional
-	    .flags                   = 0,                                                            // optional
-	    .pApplicationInfo        = &appInfo,                                                     // optional
-	    .enabledLayerCount       = uint32_t( instanceLayerNames.size() ),                        // optional
+	    .pNext                   = self->is_using_validation_layers ? &validationFeatures : nullptr, // optional
+	    .flags                   = 0,                                                                // optional
+	    .pApplicationInfo        = &appInfo,                                                         // optional
+	    .enabledLayerCount       = uint32_t( instanceLayerNames.size() ),                            // optional
 	    .ppEnabledLayerNames     = instanceLayerNames.data(),
 	    .enabledExtensionCount   = uint32_t( instanceExtensionCstr.size() ), // optional
 	    .ppEnabledExtensionNames = instanceExtensionCstr.data(),
@@ -280,7 +284,7 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 
 	patchExtProcAddrs( self );
 
-	if ( SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( self->is_using_validation_layers ) {
 		create_debug_messenger_callback( self );
 		logger.info( "Vulkan Validation Layers Active." );
 	}

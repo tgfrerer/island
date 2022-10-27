@@ -4524,12 +4524,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 	using namespace le_renderer;   // for encoder
 	using namespace le_backend_vk; // for device
 
-#ifdef NDEBUG
-	bool should_insert_debug_labels = false; // whether we want to insert debug labels into the command stream (useful for renderdoc)
-#else
-	bool should_insert_debug_labels = true; // whether we want to insert debug labels into the command stream (useful for renderdoc)
-#endif
 	auto& frame = self->mFrames[ frameIndex ];
+
+	// Only insert debug labels iff validation layers are active - otherwise we will get errors.
+	// Debug labels are useful for RenderDoc, for example.
+	bool const SHOULD_INSERT_DEBUG_LABELS = self->instance->is_using_validation_layers;
 
 	VkDevice device = self->device->getVkDevice();
 
@@ -4726,7 +4725,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				vkBeginCommandBuffer( cmd, &info );
 			}
 
-			if ( should_insert_debug_labels ) {
+			if ( SHOULD_INSERT_DEBUG_LABELS ) {
 				VkDebugUtilsLabelEXT labelInfo{
 				    .sType      = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
 				    .pNext      = nullptr, // optional
@@ -6273,7 +6272,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				vkCmdEndRenderPass( cmd );
 			}
 
-			if ( should_insert_debug_labels ) {
+			if ( SHOULD_INSERT_DEBUG_LABELS ) {
 				vkCmdEndDebugUtilsLabelEXT( cmd );
 			}
 
