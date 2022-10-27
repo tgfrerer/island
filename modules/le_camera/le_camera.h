@@ -171,6 +171,11 @@ class LeCameraController : NoCopy, NoMove {
 	}
 };
 
+namespace le {
+using Camera           = LeCamera;
+using CameraController = LeCameraController;
+} // namespace le
+
 #endif // __cplusplus
 
 #endif
