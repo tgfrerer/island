@@ -30,22 +30,6 @@ struct le_settings_map_t {
 	std::unordered_map<uint64_t, LeSettingEntry> map;
 };
 
-struct le_settings_o {
-};
-
-// ----------------------------------------------------------------------
-
-static le_settings_o* le_settings_create() {
-	auto self = new le_settings_o();
-	return self;
-}
-
-// ----------------------------------------------------------------------
-
-static void le_settings_destroy( le_settings_o* self ) {
-	delete self;
-}
-
 // ----------------------------------------------------------------------
 
 static void le_setting_set( const char* setting_name, const char* setting_value ) {
@@ -58,7 +42,7 @@ static void le_setting_set( const char* setting_name, const char* setting_value 
 
 // ----------------------------------------------------------------------
 
-static void le_settings_list_all_settings( le_settings_o* self ) {
+static void le_settings_list_all_settings() {
 	le_settings_map_t current_settings;
 
 	// create a local copy of global settings
@@ -94,8 +78,6 @@ static void le_settings_list_all_settings( le_settings_o* self ) {
 LE_MODULE_REGISTER_IMPL( le_settings, api ) {
 	auto& le_settings_i = static_cast<le_settings_api*>( api )->le_settings_i;
 
-	le_settings_i.create            = le_settings_create;
-	le_settings_i.destroy           = le_settings_destroy;
 	le_settings_i.list_all_settings = le_settings_list_all_settings;
 	le_settings_i.setting_set       = le_setting_set;
 }

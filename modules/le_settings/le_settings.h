@@ -9,11 +9,7 @@ struct le_settings_o;
 struct le_settings_api {
 
 	struct le_settings_interface_t {
-
-		le_settings_o *    ( * create                   ) ( );
-		void                 ( * destroy                  ) ( le_settings_o* self );
-		void                 ( * list_all_settings) ( le_settings_o* self );
-
+		void                 ( * list_all_settings) ();
         void (*setting_set)( const char* setting_name, const char* setting_value );
 	};
 
@@ -34,27 +30,13 @@ static const auto& le_settings_i = api->le_settings_i;
 namespace le {
 class Settings : NoCopy, NoMove {
 
-	le_settings_o* self;
-
   public:
-	Settings()
-	    : self( le_settings::le_settings_i.create() ) {
-	}
-
-	~Settings() {
-		le_settings::le_settings_i.destroy( self );
-	}
-
-	void list() {
-		le_settings::le_settings_i.list_all_settings( self );
+	static void list() {
+		le_settings::le_settings_i.list_all_settings();
 	}
 
 	static void set( char const* settings_name, char const* setting_value ) {
 		le_settings::le_settings_i.setting_set( settings_name, setting_value );
-	}
-
-	operator auto() {
-		return self;
 	}
 };
 } // namespace le
