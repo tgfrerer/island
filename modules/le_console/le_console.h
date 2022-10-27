@@ -67,7 +67,7 @@ class LeConsole : NoCopy, NoMove {
 		return le_console::le_console_i.server_stop();
 	}
 
-	void processInput() {
+	static void processInput() {
 		le_console::le_console_i.process_input();
 	}
 };
