@@ -55,6 +55,8 @@ but most importantly it can read commands from a socket and write responses back
 static void**                  PP_CONSOLE_SINGLETON  = nullptr; // set via registration method
 static le_console_server_api_t le_console_server_api = {};
 
+static constexpr auto NO_CONSOLE_MSG = "Could not find console. You must create at least one console object.";
+
 static le_console_o* produce_console() {
 	return static_cast<le_console_o*>( *PP_CONSOLE_SINGLETON );
 }
@@ -150,6 +152,12 @@ static bool le_console_server_start() {
 	static auto logger = le::Log( LOG_CHANNEL );
 
 	le_console_o* self = produce_console();
+
+	if ( self == nullptr ) {
+		logger.error( NO_CONSOLE_MSG );
+		return false;
+	}
+
 	logger.info( "* Starting Server..." );
 
 	self->server = le_console_server_api.create( self ); // destroy server
@@ -165,6 +173,11 @@ static bool le_console_server_stop() {
 	static auto logger = le::Log( LOG_CHANNEL );
 
 	le_console_o* self = produce_console();
+
+	if ( self == nullptr ) {
+		logger.error( NO_CONSOLE_MSG );
+		return false;
+	}
 
 	logger.info( "Unregistering Log subscribers" );
 	le_console_produce_log_subscribers().clear();
@@ -183,10 +196,14 @@ static bool le_console_server_stop() {
 // ----------------------------------------------------------------------
 
 static void le_console_process_input() {
-
 	static auto logger = le::Log( LOG_CHANNEL );
 
 	le_console_o* self = produce_console();
+
+	if ( self == nullptr ) {
+		logger.error( NO_CONSOLE_MSG );
+		return;
+	}
 
 	auto connections_lock = std::scoped_lock( self->connections_mutex );
 
@@ -312,9 +329,6 @@ LE_MODULE_REGISTER_IMPL( le_console, api_ ) {
 	le_console_i.server_start  = le_console_server_start;
 	le_console_i.server_stop   = le_console_server_stop;
 	le_console_i.process_input = le_console_process_input;
-
-	auto& log_callbacks_i                    = api->log_callbacks_i;
-	log_callbacks_i.push_chars_callback_addr = ( void* )logger_callback;
 
 	// Load function pointers for private server object
 	le_console_server_register_api( &le_console_server_api );

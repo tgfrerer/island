@@ -5,11 +5,11 @@
 
 // This module allows you to remote-control an island app -
 // It will listen for connections on port 3535/tcp.
-// The console will run on its own thread.
-
-// The console should also be able to mirror log messages
-// - std::out and std::err should be mirrored to the console.
-// see: https://wordaligned.org/articles/cpp-streambufs
+//
+// The console server runs on its own thread, and it
+// communicates with the console over thread-safe channels.
+//
+// The console server is only started on-demand.
 
 struct le_console_o;
 
@@ -18,22 +18,16 @@ struct le_console_api {
 
 	struct le_console_interface_t {
 
-		void    ( * inc_use_count ) ( );
-		void    ( * dec_use_count ) ( );
+		void ( * inc_use_count ) ( );
+		void ( * dec_use_count ) ( );
         
-        bool (* server_start)();
-        bool (* server_stop)();
+        bool ( * server_start)();
+        bool ( * server_stop)();
 
-        void (* process_input )(); // process input from connected clients
+        void ( * process_input )(); // process input from connected clients
 	};
 
-    struct log_callbacks_interface_t {
-        void * push_chars_callback_addr;
-    };
-
 	le_console_interface_t       le_console_i;
-	log_callbacks_interface_t    log_callbacks_i;
-
    
 };
 // clang-format on
