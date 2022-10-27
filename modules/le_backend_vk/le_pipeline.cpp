@@ -15,6 +15,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <atomic>
+#include <algorithm>
 
 #include "le_shader_compiler.h"
 

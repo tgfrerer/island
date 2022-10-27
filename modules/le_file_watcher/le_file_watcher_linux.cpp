@@ -19,6 +19,7 @@
 #	include <mutex>
 #	include <cassert>
 #	include <atomic>
+#	include <vector>
 
 static constexpr auto LOGGER_LABEL = "le_file_watcher_linux";
 

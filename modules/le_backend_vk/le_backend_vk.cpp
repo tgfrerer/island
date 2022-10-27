@@ -25,6 +25,7 @@
 #include <memory>
 #include <cstring> // for memcpy
 #include <array>
+#include <algorithm> // for std::find
 
 #include "util/volk/volk.h"
 
