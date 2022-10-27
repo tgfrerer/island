@@ -72,6 +72,10 @@ class LeConsole : NoCopy, NoMove {
 	}
 };
 
+namespace le {
+using Console = LeConsole;
+}
+
 #endif // __cplusplus
 
 #endif
