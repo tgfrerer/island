@@ -32,12 +32,7 @@ static constexpr auto LOGGER_LABEL = "le_instance_vk";
 
 // ----------------------------------------------------------------------
 
-struct le_backend_vk_instance_o {
-	VkInstance               vkInstance     = nullptr;
-	VkDebugUtilsMessengerEXT debugMessenger = nullptr;
-
-	std::set<std::string> instanceExtensionSet{};
-};
+#include "private/le_backend_vk/le_backend_vk_instance.inl"
 
 /*
  * Specify which validation layers to enable within Khronos validation
