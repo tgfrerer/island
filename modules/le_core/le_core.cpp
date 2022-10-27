@@ -75,20 +75,18 @@ static le_settings_map_t& get_global_settings_store() {
 
 // ----------------------------------------------------------------------
 
+// Setting names must be unique - and their types must match.
 ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const* type_name ) {
-	// Setting names must be unique - and their types must match.
 	const uint64_t type_name_hash = type_name ? hash_64_fnv1a( type_name ) : 0;
 	const uint64_t key            = hash_64_fnv1a( name );
-	// const uint64_t key            = hash_64_fnv1a_const( name, type_name_hash );
-	// std::string test_str = std::string( type_name ) + std::string( name );
-	// assert( key == hash_64_fnv1a( test_str.c_str() ) && "keys must match" );
 
+	// Fetch (or create and fetch) an entry from the store.
 	auto result = [ & ]() -> auto{
 		std::scoped_lock          lock( get_settings_store_mutex() );
 		static le_settings_map_t& store = get_global_settings_store();
 		return store.map.emplace( key, LeSettingEntry() );
 	}
-	(); // Note: this immediately evaluate the lambda.
+	(); // Note: this immediately evaluates the lambda.
 	    // We do this to that we can have the shortest possible lock on le_settings_store_mutex
 
 	// Test if anything was actually inserted to the map:
