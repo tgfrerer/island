@@ -10,7 +10,7 @@ struct le_settings_api {
 
 	struct le_settings_interface_t {
 		void                 ( * list_all_settings) ();
-        void (*setting_set)( const char* setting_name, const char* setting_value );
+        bool (*setting_set)( const char* setting_name, const char* setting_value );
 	};
 
 	le_settings_interface_t       le_settings_i;

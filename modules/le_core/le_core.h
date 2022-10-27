@@ -68,8 +68,8 @@ ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name
 //
 // Used by settings_module - which shares the correct type for settings
 ISL_API_ATTR DLL_CORE_API void le_core_copy_settings_entries( struct le_settings_map_t* settings_map_ptr );
-// Update a setting if it aready exists - return false if setting does not exist
-ISL_API_ATTR DLL_CORE_API bool le_core_update_setting_value( char const* setting_name, char const* setting_value );
+// lookup settings entry, and if found, return pointer to existing entry, nullptr otherwise.
+ISL_API_ATTR DLL_CORE_API struct LeSettingEntry* le_core_get_setting_entry( char const* setting_name );
 
 // For debug purposes - shader arguments
 ISL_API_ATTR DLL_CORE_API void        le_update_argument_name_table( const char* source, uint64_t value );

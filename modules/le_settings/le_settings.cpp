@@ -24,14 +24,42 @@ enum SettingType {
 
 // ----------------------------------------------------------------------
 
-static void le_setting_set( const char* setting_name, const char* setting_value ) {
-	static auto logger = le::Log( "settings" );
-	bool        result = le_core_update_setting_value( setting_name, setting_value );
-	if ( false == result ) {
-		logger.warn( "Could not update setting '%s' value to '%s'", setting_name, setting_value );
-	}
-}
+static bool le_setting_set( const char* setting_name, const char* setting_value ) {
 
+	// Find entry in map - if we can find it, attempt to set it
+	if ( nullptr == setting_name ) {
+		return false;
+	}
+
+	// ---------- invariant: name is valid
+
+	auto found_setting = le_core_get_setting_entry( setting_name );
+
+	if ( found_setting != nullptr ) {
+		void* setting = found_setting->p_opj;
+		switch ( found_setting->type_hash ) {
+		case SettingType::eBool:
+			*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 10 ) );
+			break;
+		case SettingType::eUint32_t:
+			*( uint32_t* )( setting ) = bool( strtoul( setting_value, nullptr, 10 ) );
+			break;
+		case SettingType::eInt32_t:
+			*( int32_t* )( setting ) = int32_t( strtoul( setting_value, nullptr, 10 ) );
+			break;
+		case SettingType::eInt:
+			*( int* )( setting ) = int( strtoul( setting_value, nullptr, 10 ) );
+			break;
+		case SettingType::eStdString:
+			*( std::string* )( setting ) = std::string( setting_value );
+			break;
+		default:
+			return false;
+			break;
+		}
+	}
+	return true;
+}
 // ----------------------------------------------------------------------
 
 static void le_settings_list_all_settings() {
