@@ -12,7 +12,7 @@
 // Ideas for this module:
 // we can load settings from a file - any matching settings values get overwritten / set
 //
-enum SettingType {
+enum SettingType : uint64_t {
 	eInt       = hash_64_fnv1a_const( "int" ),
 	eUint32_t  = hash_64_fnv1a_const( "uint32_t" ),
 	eInt32_t   = hash_64_fnv1a_const( "int32_t" ),
