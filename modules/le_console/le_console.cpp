@@ -215,56 +215,90 @@ static void le_console_process_input() {
 
 		connection->channel_in.fetch( msg );
 
-		if ( !msg.empty() ) {
-			// todo: we need to update messages
+		if ( msg.empty() || msg[ 0 ] == '\0' ) {
+			continue;
+		}
 
-			char const* delim   = "\n\r= ";
-			char*       context = nullptr;
+		// --------| invariant: msg is not empty
 
-			char* token = strtok_reentrant( msg.data(), delim, &context );
+		// todo: we need to update messages
+		if ( msg[ 0 ] == '\xff' || msg[ 0 ] == '\x1b' ) {
 
-			std::vector<char const*> tokens;
+			// ---------| invariant: msg begins with a control character
 
-			while ( token != nullptr ) {
-				// le_log::le_log_channel_i.debug( logger.getChannel(), "Parsed token: [%s]", token );
-				tokens.emplace_back( token );
-				token = strtok_reentrant( nullptr, delim, &context );
+			logger.info( "received control string: '%s'", msg.c_str() );
+			for ( auto const& c : msg ) {
+				le_log::le_log_channel_i.info( logger.getChannel(), "%1$3d - %1$3x - '%1$c'", ( unsigned char )( c ) );
 			}
 
-			// process tokens
-			if ( !tokens.empty() ) {
-				switch ( hash_32_fnv1a( tokens[ 0 ] ) ) {
-				case hash_32_fnv1a_const( "settings" ):
-					le_log::le_log_channel_i.info( logger.getChannel(), "Listing Settings" );
-					le::Settings().list();
-					break;
-				case hash_32_fnv1a_const( "set" ):
-					if ( tokens.size() == 3 ) {
-						le::Settings::set( tokens[ 1 ], tokens[ 2 ] );
-					}
-					break;
-				case hash_32_fnv1a_const( "json" ): {
-					// directly put a message onto the output buffer - without mirroring it to the console
-					connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })" );
-				} break;
-				case hash_32_fnv1a_const( "log" ):
-					// If you set log_level_mask to 0, this means that log messages will be mirrored to console
-					// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
-					if ( tokens.size() == 2 ) {
-						le_console_produce_log_subscribers().erase( c.first ); // Force the subscriber to be de-registered.
-						connection->log_level_mask = strtol( tokens[ 1 ], nullptr, 0 );
-						if ( connection->log_level_mask > 0 ) {
-							le_console_produce_log_subscribers()[ c.first ] = std::make_unique<LeLogSubscriber>( connection.get() ); // Force the subscriber to be re-registered.
-							connection->wants_log_subscriber                = true;
-						}
-						le_log::le_log_channel_i.info( logger.getChannel(), "Updated console log level mask to 0x%x", connection->log_level_mask );
-					}
-					break;
-				default:
-					le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
-					break;
+			continue;
+		}
+
+		// --------| invariant: message does not begin with \xff or \x1b
+
+		char const* delim   = "\n\r= ";
+		char*       context = nullptr;
+
+		char* token = strtok_reentrant( msg.data(), delim, &context );
+
+		std::vector<char const*> tokens;
+
+		while ( token != nullptr ) {
+			tokens.emplace_back( token );
+			token = strtok_reentrant( nullptr, delim, &context );
+		}
+
+		if ( tokens.empty() ) {
+			continue;
+		}
+
+		// ---------| invariant: tokens are not empty: process tokens
+
+		switch ( hash_32_fnv1a( tokens[ 0 ] ) ) {
+		case hash_32_fnv1a_const( "settings" ):
+			le_log::le_log_channel_i.info( logger.getChannel(), "Listing Settings" );
+			le::Settings().list();
+			break;
+		case hash_32_fnv1a_const( "set" ):
+			if ( tokens.size() == 3 ) {
+				le::Settings::set( tokens[ 1 ], tokens[ 2 ] );
+			}
+			break;
+		case hash_32_fnv1a_const( "json" ): {
+			// directly put a message onto the output buffer - without mirroring it to the console
+			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })" );
+		} break;
+		case hash_32_fnv1a_const( "cls" ): {
+			connection->channel_out.post( "\xff\xfd\x22"    // IAC DO LINEMODE
+			                              "\xff\xfb\x01" ); // IAC WILL ECHO
+
+			// connection->channel_out.post( "\x1b[38;5;220mIsland Console.\nWelcome.\x1b[0m" );
+			// connection->channel_out.post( "\x1b[H\x1b[2J" );
+			connection->channel_out.post( "\x1b[6n" ); // query current cursor position -- not yet sure how to interpret response.
+
+			// connection->channel_out.post( "\x1b[4B" ); // move cursor down by 4 rows
+
+		} break;
+		case hash_32_fnv1a_const( "log" ):
+			// If you set log_level_mask to 0, this means that log messages will be mirrored to console
+			// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
+			if ( tokens.size() == 2 ) {
+				le_console_produce_log_subscribers().erase( c.first ); // Force the subscriber to be de-registered.
+				connection->log_level_mask = strtol( tokens[ 1 ], nullptr, 0 );
+				if ( connection->log_level_mask != 0 ) {
+					le_console_produce_log_subscribers()[ c.first ] = std::make_unique<LeLogSubscriber>( connection.get() ); // Force the subscriber to be re-registered.
+					connection->wants_log_subscriber                = true;
+				} else {
+					// if we don't subscribe to any messages, we might as well remove the subscriber from the log
+					le_console_produce_log_subscribers()[ c.first ].reset( nullptr );
+					connection->wants_log_subscriber = false;
 				}
+				le_log::le_log_channel_i.info( logger.getChannel(), "Updated console log level mask to 0x%x", connection->log_level_mask );
 			}
+			break;
+		default:
+			le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
+			break;
 		}
 	}
 }
