@@ -9,6 +9,7 @@
 #include <thread>
 #include <deque>
 
+#include <assert.h>
 #include <errno.h>
 #include <string.h>
 
@@ -193,7 +194,235 @@ static bool le_console_server_stop() {
 	return true;
 }
 
+std::string telnet_get_suboption( std::string::iterator& it, std::string::iterator str_end ) {
+	// suboption is anything that is
+
+	constexpr auto NVT_SB = char( 250 );
+	constexpr auto NVT_SE = char( 240 );
+
+	while ( it != str_end && *it != NVT_SB ) {
+		it++;
+	}
+
+	auto sub_start = ++it;
+
+	for ( ;
+	      it != str_end && *it != NVT_SE;
+	      it++ ) {
+	}
+
+	return std::string( sub_start, it );
+};
+
 // ----------------------------------------------------------------------
+
+void telnet_interpret( std::string const& stream ) {
+	static auto logger = le::Log( LOG_CHANNEL );
+
+	// find next command
+	// set it to one past next IAC byte. starts search at position it
+	static auto find_next_command = []( std::string::const_iterator& it, std::string::const_iterator const& it_end ) -> bool {
+		if ( it == it_end ) {
+			return false;
+		}
+		const uint8_t IAC = '\xff';
+		while ( it != it_end ) {
+			if ( uint8_t( *it ) == IAC ) {
+
+				// if there is a lookahead character, and it is in
+				// fact a IAC character, this means that IAC is meant
+				// to be escaped and interpreted literally.
+				if ( it + 1 != it_end && ( uint8_t( *( it + 1 ) ) == IAC ) ) {
+					it = it + 2;
+					continue;
+				}
+
+				++it;
+				return true;
+			}
+			it++;
+		}
+		return false;
+	};
+
+	enum class TEL_OPT : uint8_t {
+		SB   = 0xfa, // suboption begin
+		SE   = 0xf0, // suboption end
+		WILL = 0xfb,
+		WONT = 0xfc,
+		DO   = 0xfd,
+		DONT = 0xfe,
+	};
+
+	// if is_option, returns true and sets it_end to one past the last character that is part of the option
+	// otherwise return false and leave it_end untouched.
+	static auto is_option = []( std::string::const_iterator const it, std::string::const_iterator& it_end ) -> bool {
+		if ( it == it_end ) {
+			return false;
+		}
+		// ---------| invariant: we are not at the end of the stream
+
+		if ( it + 1 == it_end ) {
+			return false;
+		}
+		// ----------| invariant: there is a next byte available
+
+		if ( uint8_t( *it ) >= uint8_t( TEL_OPT::WILL ) &&
+		     uint8_t( *it ) <= uint8_t( TEL_OPT::DONT ) ) {
+			it_end = it + 2;
+			return true;
+		}
+
+		return false;
+	};
+
+	// if is_option, returns true and sets it_end to one past the last character that is part of the option
+	// if is not a sub option, return false, don't touch it_end
+	static auto is_sub_option = []( std::string::const_iterator const it, std::string::const_iterator& it_end ) -> bool {
+		if ( it == it_end ) {
+			return false;
+		}
+		// ---------| invariant: we are not at the end of the stream
+
+		if ( uint8_t( *it ) != uint8_t( TEL_OPT::SB ) ) { // suboption start
+			return false;
+		}
+
+		auto sub_option_end = it + 1; // start our search for suboption end command one byte past the current byte
+
+		if ( !find_next_command( sub_option_end, it_end ) ) {
+			return false;
+		}
+
+		// ---------| invariant: we managed to find the next IAC byte
+
+		if ( sub_option_end == it_end ) {
+			return false;
+		}
+
+		// ----------| invariant: there is a next byte available
+		// look for "suboption end byte"
+		if ( uint8_t( TEL_OPT::SE ) == uint8_t( *( sub_option_end ) ) ) {
+			it_end = sub_option_end + 1;
+			return true;
+		}
+
+		return false;
+	};
+
+	static auto process_sub_option = []( std::string::const_iterator it, std::string::const_iterator const it_end ) -> bool {
+		it++; // Move past the SB Byte
+		logger.info( "Suboption x%02x (%1$03u)", *it );
+
+		// LINEMODE SUBOPTION
+		if ( uint8_t( *it ) == 34 ) {
+			logger.info( "\t Suboption LINEMODE" );
+
+			it++; // Move past the suboption specifier
+
+			if ( uint8_t( *it ) == 3 ) { // SLC = set local characters
+				it++;
+				logger.info( "\t LINEMODE suboption SLC" );
+				enum class SLC_LEVEL : uint8_t {
+					NOSUPPORT  = 0,
+					CANTCHANGE = 1,
+					VALUE      = 2,
+					DEFAULT    = 3,
+				};
+				static constexpr uint8_t SLC_LEVEL_BITS = 3; // mask for the level bits
+				static constexpr uint8_t IAC            = '\xff';
+
+				char const* level_str[ 4 ] = {
+				    "NOSUPPORT  ",
+				    "CANTCHANGE ",
+				    "VALUE      ",
+				    "DEFAULT    ",
+				};
+
+				while ( it < it_end ) {
+					uint8_t triplet[ 3 ] = {};
+
+					triplet[ 0 ] = *it;
+					uint8_t( *it ) == IAC ? it += 2 : it++;
+					if ( it >= it_end ) {
+						break;
+					}
+					triplet[ 1 ] = *( it );
+					uint8_t( *it ) == IAC ? it += 2 : it++;
+					if ( it >= it_end ) {
+						break;
+					}
+					triplet[ 2 ] = *( it );
+					uint8_t( *it ) == IAC ? it += 2 : it++;
+					if ( it >= it_end ) {
+						break;
+					}
+
+					switch ( triplet[ 1 ] & SLC_LEVEL_BITS ) {
+
+					case ( uint8_t( SLC_LEVEL::CANTCHANGE ) ):
+						break;
+					case ( uint8_t( SLC_LEVEL::DEFAULT ) ):
+						break;
+					case ( uint8_t( SLC_LEVEL::NOSUPPORT ) ):
+						break;
+					case ( uint8_t( SLC_LEVEL::VALUE ) ):
+						break;
+					default:
+						break;
+					}
+
+					logger.info( "\t\t x%02x : %- 10s : x%02x", triplet[ 0 ], level_str[ triplet[ 1 ] & SLC_LEVEL_BITS ], triplet[ 2 ] );
+				}
+			}
+		}
+
+		return false;
+	};
+
+	static auto process_option = []( std::string::const_iterator it, std::string::const_iterator const it_end ) -> bool {
+		if ( it + 1 >= it_end ) {
+			return false;
+		}
+
+		// ----------| invariant: there is an option specifier available
+
+		switch ( uint8_t( *it ) ) {
+		case ( uint8_t( TEL_OPT::WILL ) ):
+			logger.info( "WILL x%02x (%1$03u)", *( it + 1 ) );
+			break;
+		case ( uint8_t( TEL_OPT::WONT ) ):
+			logger.info( "WONT x%02x (%1$03u)", *( it + 1 ) );
+			break;
+		case ( uint8_t( TEL_OPT::DO ) ):
+			logger.info( "DO   x%02x (%1$03u)", *( it + 1 ) );
+			break;
+		case ( uint8_t( TEL_OPT::DONT ) ):
+			logger.info( "DONT x%02x (%1$03u)", *( it + 1 ) );
+			break;
+		}
+
+		return true;
+	};
+	//	std::string test_str = "this is a test \xff\xff hello, well \xffhere";
+	//
+	//	auto x = test_str.begin();
+	//	find_next_iac( x, test_str.end() );
+
+	auto it = stream.begin();
+	while ( find_next_command( it, stream.end() ) ) {
+		auto sub_range_end = stream.end();
+		// check for possible commands:
+		if ( is_option( it, sub_range_end ) ) {
+			process_option( it, sub_range_end );
+			it = sub_range_end; // move it to end of the current range
+		} else if ( is_sub_option( it, sub_range_end ) ) {
+			process_sub_option( it, sub_range_end );
+			it = sub_range_end;
+			// do something with suboption
+		};
+	};
+}
 
 static void le_console_process_input() {
 	static auto logger = le::Log( LOG_CHANNEL );
@@ -228,8 +457,13 @@ static void le_console_process_input() {
 
 			logger.info( "received control string: '%s'", msg.c_str() );
 			for ( auto const& c : msg ) {
-				le_log::le_log_channel_i.info( logger.getChannel(), "%1$3d - %1$3x - '%1$c'", ( unsigned char )( c ) );
+				le_log::le_log_channel_i.info( logger.getChannel(), "%1$3d - \\x%1$.2x", ( unsigned char )( c ) );
 			}
+			// auto        it_subopt = msg.begin();
+			// std::string suboption = telnet_get_suboption( it_subopt, msg.end() );
+			logger.info( "" );
+			logger.info( "***** parsing telnet stream ***** " );
+			telnet_interpret( msg );
 
 			continue;
 		}
@@ -269,12 +503,21 @@ static void le_console_process_input() {
 			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })" );
 		} break;
 		case hash_32_fnv1a_const( "cls" ): {
-			connection->channel_out.post( "\xff\xfd\x22"    // IAC DO LINEMODE
+
+			constexpr auto IAC  = "\xff";
+			constexpr auto WILL = "\xfb";
+			constexpr auto WONT = "\xfc";
+			constexpr auto DO   = "\xfd";
+			constexpr auto DONT = "\xfe";
+
+			connection->channel_out.post( "\xff"
+			                              "\xfd"
+			                              "\x22"            // IAC DO LINEMODE
 			                              "\xff\xfb\x01" ); // IAC WILL ECHO
 
 			// connection->channel_out.post( "\x1b[38;5;220mIsland Console.\nWelcome.\x1b[0m" );
 			// connection->channel_out.post( "\x1b[H\x1b[2J" );
-			connection->channel_out.post( "\x1b[6n" ); // query current cursor position -- not yet sure how to interpret response.
+			// connection->channel_out.post( "\x1b[6n" ); // query current cursor position -- not yet sure how to interpret response.
 
 			// connection->channel_out.post( "\x1b[4B" ); // move cursor down by 4 rows
 

@@ -25,7 +25,7 @@ struct le_console_o {
 			return true;
 		}
 
-		bool post( std::string const& msg ) {
+		bool post( std::string const&& msg ) {
 
 			bool enough_space = true;
 			auto lock         = std::scoped_lock( messages_mtx );
@@ -33,7 +33,7 @@ struct le_console_o {
 				messages.pop_front();
 				enough_space = false;
 			}
-			messages.emplace_back( msg );
+			messages.emplace_back( std::move( msg ) );
 			return enough_space;
 		}
 	};
@@ -43,8 +43,11 @@ struct le_console_o {
 		uint32_t log_level_mask       = ~( uint32_t( 0 ) );
 		channel  channel_out;
 		channel  channel_in;
-		//	uint32_t fd = 0;
-		// le_console_o* parent_console; // non-owning
+
+		// TODO: add state - we want each connection to have a small state
+		// machine embedded, so that we can implement negociations
+		// and other aspects of the terminal protocol that require
+		// back-and-forth communications.
 	};
 
 	std::mutex                                                                connections_mutex;

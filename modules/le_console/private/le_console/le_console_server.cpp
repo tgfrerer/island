@@ -227,6 +227,7 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 						// fd != listener, this is a regular client
 
 						int received_bytes_count = recv( server->sockets[ i ].fd, buf, sizeof( buf ), 0 );
+
 						if ( received_bytes_count <= 0 ) {
 							// error or connection closed
 							if ( received_bytes_count == 0 ) {
