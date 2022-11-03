@@ -39,19 +39,29 @@ struct le_console_o {
 	};
 
 	struct connection_t {
-		bool     wants_log_subscriber = false;
-		uint32_t log_level_mask       = ~( uint32_t( 0 ) );
-		channel  channel_out;
-		channel  channel_in;
+		channel channel_out;
+		channel channel_in;
 
-		// TODO: add state - we want each connection to have a small state
-		// machine embedded, so that we can implement negociations
-		// and other aspects of the terminal protocol that require
-		// back-and-forth communications.
+		bool     wants_log_subscriber = false;
+		bool     wants_close          = false; // to signal that we want to close this connection
+		uint32_t log_level_mask       = 0;     // -1 means everything 0, means nothing
+
+		enum class State {
+			ePlain = 0,      // plain socket - this is how we start up
+			eTelnetLineMode, // user-requested. telnet line mode
+		};
+
+		State state = State::ePlain;
+
+		std::string input_buffer; // used for linemode
+
+		// In case we have linemode active,
+		// we must respect SLC, substitute local characters
+		// for which we must keep around a mapping table.
 	};
 
-	std::mutex                                                                connections_mutex;
-	std::unordered_map<uint32_t, std::unique_ptr<le_console_o::connection_t>> connections;
+	std::mutex                                                           connections_mutex;
+	std::unordered_map<int, std::unique_ptr<le_console_o::connection_t>> connections; // socket filedescriptor -> connection
 
 	struct le_console_server_o* server = nullptr;
 };

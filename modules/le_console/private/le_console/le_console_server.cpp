@@ -142,6 +142,7 @@ static void le_console_server_stop( le_console_server_o* self ) {
 		close_socket( fd.fd ); // close file descriptor
 	}
 }
+
 // ----------------------------------------------------------------------
 
 static void le_console_server_start_thread( le_console_server_o* self ) {
@@ -182,6 +183,20 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 
 		logger.info( "Server ready to accept connections" );
 		while ( server->thread_should_run ) {
+
+			// Runs on server thread
+			static auto close_connection = []( le_console_server_o* self, uint32_t i ) {
+				close_socket( self->sockets[ i ].fd );
+				{
+					auto connections_lock = std::scoped_lock( self->console->connections_mutex );
+					self->console->connections.erase( self->sockets[ i ].fd );
+				}
+
+				logger.info( "Closed connection on file descriptor %d", self->sockets[ i ].fd );
+
+				self->sockets[ i ].fd = -1; // set file descriptor to -1 - this is a signal to remove it from the vector of watched file descriptors
+			};
+
 			int poll_count = poll_sockets( server->sockets.data(), server->sockets.size(), 60 ); // 60 ms timeout
 
 			if ( poll_count == -1 ) {
@@ -194,6 +209,21 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 			// added.
 			size_t fd_count = server->sockets.size();
 			for ( size_t i = 0; i != fd_count; ) {
+
+				// check if any of our client connections want to close
+				if ( server->sockets[ i ].fd != server->listener ) {
+
+					bool wants_close = false;
+					{
+						auto  connections_lock = std::scoped_lock( server->console->connections_mutex );
+						auto& connection       = server->console->connections.at( server->sockets[ i ].fd );
+						wants_close            = connection->wants_close;
+					}
+
+					if ( wants_close ) {
+						close_connection( server, i );
+					}
+				}
 
 				if ( server->sockets[ i ].revents & POLLIN ) {
 
@@ -215,7 +245,7 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 								// Create a new connection - this means we must protect our map of connections
 								auto connections_lock = std::scoped_lock( server->console->connections_mutex );
 
-								server->console->connections[ uint32_t( tmp_pollfd.fd ) ] = std::make_unique<le_console_o::connection_t>();
+								server->console->connections[ tmp_pollfd.fd ] = std::make_unique<le_console_o::connection_t>();
 							}
 							logger.info( "Pollserver: New connection from %s on socket %d\n",
 							             inet_ntop( remote_addr.ss_family,
@@ -226,22 +256,12 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 					} else {
 						// fd != listener, this is a regular client
 
-						int received_bytes_count = recv( server->sockets[ i ].fd, buf, sizeof( buf ), 0 );
+						int32_t received_bytes_count = recv( server->sockets[ i ].fd, buf, sizeof( buf ), 0 );
 
 						if ( received_bytes_count <= 0 ) {
 							// error or connection closed
 							if ( received_bytes_count == 0 ) {
-								// connection closed
-								close_socket( server->sockets[ i ].fd );
-
-								{
-									auto connections_lock = std::scoped_lock( server->console->connections_mutex );
-									server->console->connections.erase( server->sockets[ i ].fd );
-								}
-
-								logger.info( "Closed connection on file descriptor %d", server->sockets[ i ].fd );
-								server->sockets[ i ].fd = -1; // set file descriptor to -1 - this is a signal to remove it from the vector of watched file descriptors
-
+								close_connection( server, i );
 							} else {
 								perror( "recv" );
 							}
@@ -273,6 +293,7 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 				// Pump out messages
 
 				auto connections_lock = std::scoped_lock( server->console->connections_mutex );
+
 				for ( auto& c : server->console->connections ) {
 					auto& connection = c.second;
 					if ( c.first == server->listener ) {
@@ -282,10 +303,6 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 
 					while ( connection->channel_out.fetch( str ) ) {
 
-						// logger.info( "found message" );
-						str.append( "\n" ); // we must add a carriage return
-
-						// send to all listeners
 						if ( c.first != server->listener )
 							// repeat until all bytes sent, or result <= 0
 							for ( size_t num_bytes_sent = 0; num_bytes_sent < str.size(); ) {

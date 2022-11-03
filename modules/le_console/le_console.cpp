@@ -63,13 +63,11 @@ static le_console_o* produce_console() {
 }
 
 // ----------------------------------------------------------------------
-// this method may not call le::log logging, because otherwise there is a
+// This method may not log via le::log, because otherwise there is a
 // chance of a deadlock.
 static void logger_callback( char const* chars, uint32_t num_chars, void* user_data ) {
-	static std::string msg;
-
 	auto connection = ( le_console_o::connection_t* )user_data;
-	connection->channel_out.post( std::string( chars, num_chars ) );
+	connection->channel_out.post( std::string( chars, num_chars ) + "\r\n" );
 }
 
 // ----------------------------------------------------------------------
@@ -216,11 +214,19 @@ std::string telnet_get_suboption( std::string::iterator& it, std::string::iterat
 
 // ----------------------------------------------------------------------
 
-void telnet_interpret( std::string const& stream ) {
+void telnet_interpret( le_console_o::connection_t* connection, std::string::const_iterator const& stream_begin, std::string::const_iterator const& stream_end ) {
 	static auto logger = le::Log( LOG_CHANNEL );
 
-	// find next command
-	// set it to one past next IAC byte. starts search at position it
+	if ( connection == nullptr ) {
+		assert( false && "Must have valid connection" );
+		return;
+	}
+
+	// ----------| invariant: connection is not nullptr
+
+	// Find next command
+	// Set iterator `it` to one past next IAC byte. starts search at iterator position `it`
+	// return true if a command was found
 	static auto find_next_command = []( std::string::const_iterator& it, std::string::const_iterator const& it_end ) -> bool {
 		if ( it == it_end ) {
 			return false;
@@ -310,7 +316,7 @@ void telnet_interpret( std::string const& stream ) {
 		return false;
 	};
 
-	static auto process_sub_option = []( std::string::const_iterator it, std::string::const_iterator const it_end ) -> bool {
+	static auto process_sub_option = []( le_console_o::connection_t* connection, std::string::const_iterator it, std::string::const_iterator const it_end ) -> bool {
 		it++; // Move past the SB Byte
 		logger.info( "Suboption x%02x (%1$03u)", *it );
 
@@ -380,7 +386,7 @@ void telnet_interpret( std::string const& stream ) {
 		return false;
 	};
 
-	static auto process_option = []( std::string::const_iterator it, std::string::const_iterator const it_end ) -> bool {
+	static auto process_option = []( le_console_o::connection_t* connection, std::string::const_iterator it, std::string::const_iterator const it_end ) -> bool {
 		if ( it + 1 >= it_end ) {
 			return false;
 		}
@@ -390,12 +396,21 @@ void telnet_interpret( std::string const& stream ) {
 		switch ( uint8_t( *it ) ) {
 		case ( uint8_t( TEL_OPT::WILL ) ):
 			logger.info( "WILL x%02x (%1$03u)", *( it + 1 ) );
+
+			// client will do something
+			if ( uint8_t( *( it + 1 ) ) == 0x22 ) {
+				// linemode activated on client -- we will operate in linemode from now on
+				connection->state = le_console_o::connection_t::State::eTelnetLineMode;
+				logger.info( "LINEMODE activated on connection" );
+			}
+
 			break;
 		case ( uint8_t( TEL_OPT::WONT ) ):
 			logger.info( "WONT x%02x (%1$03u)", *( it + 1 ) );
 			break;
 		case ( uint8_t( TEL_OPT::DO ) ):
 			logger.info( "DO   x%02x (%1$03u)", *( it + 1 ) );
+			// client requests something from us
 			break;
 		case ( uint8_t( TEL_OPT::DONT ) ):
 			logger.info( "DONT x%02x (%1$03u)", *( it + 1 ) );
@@ -409,15 +424,15 @@ void telnet_interpret( std::string const& stream ) {
 	//	auto x = test_str.begin();
 	//	find_next_iac( x, test_str.end() );
 
-	auto it = stream.begin();
-	while ( find_next_command( it, stream.end() ) ) {
-		auto sub_range_end = stream.end();
+	auto it = stream_begin;
+	while ( find_next_command( it, stream_end ) ) {
+		auto sub_range_end = stream_end;
 		// check for possible commands:
 		if ( is_option( it, sub_range_end ) ) {
-			process_option( it, sub_range_end );
+			process_option( connection, it, sub_range_end );
 			it = sub_range_end; // move it to end of the current range
 		} else if ( is_sub_option( it, sub_range_end ) ) {
-			process_sub_option( it, sub_range_end );
+			process_sub_option( connection, it, sub_range_end );
 			it = sub_range_end;
 			// do something with suboption
 		};
@@ -440,6 +455,11 @@ static void le_console_process_input() {
 
 		auto& connection = c.second;
 
+		if ( connection->wants_close ) {
+			// do no more processing if this connection wants to close
+			continue;
+		}
+
 		std::string msg;
 
 		connection->channel_in.fetch( msg );
@@ -448,22 +468,63 @@ static void le_console_process_input() {
 			continue;
 		}
 
+		if ( connection->state == le_console_o::connection_t::State::eTelnetLineMode ) {
+
+			std::string out_msg;
+
+			for ( auto const& m : msg ) {
+				switch ( m ) {
+				case ( 0x1f ):
+					connection->input_buffer.resize( connection->input_buffer.size() - 1 );
+					break;
+				case ( '\r' ):
+					out_msg += connection->input_buffer + m;
+					connection->input_buffer.clear();
+					break;
+				case ( 0x03 ):
+					connection->wants_close = true;
+					break;
+				case ( 0x00 ):
+					if ( !connection->input_buffer.empty() ) {
+						connection->input_buffer += m;
+						connection->channel_out.post( std::string( 1, m ) );
+					}
+					break;
+				default:
+					connection->input_buffer += m;
+					// TODO: Translate to local chars if needed
+					connection->channel_out.post( std::string( 1, m ) );
+					break;
+				}
+			}
+
+			if ( connection->wants_close ) {
+
+				// remove subscribers if there were any
+				le_console_produce_log_subscribers()[ c.first ].reset( nullptr );
+				connection->wants_log_subscriber = false;
+
+				// do no more processing if this connection wants to close
+				continue;
+			}
+
+			// We're done with processing this connection
+			if ( !out_msg.empty() ) {
+				msg = out_msg;
+			} else {
+				continue;
+			}
+		}
+
 		// --------| invariant: msg is not empty
 
-		// todo: we need to update messages
 		if ( msg[ 0 ] == '\xff' || msg[ 0 ] == '\x1b' ) {
 
 			// ---------| invariant: msg begins with a control character
 
-			logger.info( "received control string: '%s'", msg.c_str() );
-			for ( auto const& c : msg ) {
-				le_log::le_log_channel_i.info( logger.getChannel(), "%1$3d - \\x%1$.2x", ( unsigned char )( c ) );
-			}
-			// auto        it_subopt = msg.begin();
-			// std::string suboption = telnet_get_suboption( it_subopt, msg.end() );
 			logger.info( "" );
 			logger.info( "***** parsing telnet stream ***** " );
-			telnet_interpret( msg );
+			telnet_interpret( connection.get(), msg.begin(), msg.end() );
 
 			continue;
 		}
@@ -500,7 +561,7 @@ static void le_console_process_input() {
 			break;
 		case hash_32_fnv1a_const( "json" ): {
 			// directly put a message onto the output buffer - without mirroring it to the console
-			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })" );
+			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" }\r\n)" );
 		} break;
 		case hash_32_fnv1a_const( "cls" ): {
 
@@ -510,12 +571,17 @@ static void le_console_process_input() {
 			constexpr auto DO   = "\xfd";
 			constexpr auto DONT = "\xfe";
 
-			connection->channel_out.post( "\xff"
-			                              "\xfd"
-			                              "\x22"            // IAC DO LINEMODE
-			                              "\xff\xfb\x01" ); // IAC WILL ECHO
+			connection->channel_out.post(
+			    "\xff" // IAC
+			    "\xfd" // DO
+			    "\x22" // LINEMODE
+			    ""
+			    "\xff" // IAC
+			    "\xfb" // WILL
+			    "\x01" // ECHO
+			);
 
-			// connection->channel_out.post( "\x1b[38;5;220mIsland Console.\nWelcome.\x1b[0m" );
+			connection->channel_out.post( "\x1b[38;5;220mIsland Console.\r\nWelcome.\x1b[0m\r\n" );
 			// connection->channel_out.post( "\x1b[H\x1b[2J" );
 			// connection->channel_out.post( "\x1b[6n" ); // query current cursor position -- not yet sure how to interpret response.
 
