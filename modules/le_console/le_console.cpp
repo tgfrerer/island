@@ -160,7 +160,7 @@ static bool le_console_server_start() {
 	logger.info( "* Starting Server..." );
 
 	self->server = le_console_server_api.create( self ); // destroy server
-	le_console_server_api.start( self->server );         // start server
+	le_console_server_api.start( self->server );         // setup server
 	le_console_produce_server_watcher( self );           // Implicitly starts server thread
 
 	return true;
@@ -184,7 +184,7 @@ static bool le_console_server_stop() {
 	if ( self->server ) {
 		logger.info( "* Stopping server..." );
 		le_console_produce_server_watcher().reset( nullptr ); // explicitly call destructor on server watcher - this will join the server thread
-		le_console_server_api.stop( self->server );           // start server
+		le_console_server_api.stop( self->server );           // stop server
 		le_console_server_api.destroy( self->server );        // destroy server
 		self->server = nullptr;
 	}

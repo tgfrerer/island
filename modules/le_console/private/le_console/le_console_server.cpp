@@ -50,7 +50,7 @@ struct le_console_server_o {
 	bool                connection_established = false;
 	int                 listener               = 0; // listener socket on sock_fd
 	addrinfo*           servinfo               = nullptr;
-	std::vector<pollfd> sockets;
+	std::vector<pollfd> poll_requests;
 };
 
 // ----------------------------------------------------------------------
@@ -138,7 +138,7 @@ static void le_console_server_stop( le_console_server_o* self ) {
 	}
 
 	// close all open sockets
-	for ( auto& fd : self->sockets ) {
+	for ( auto& fd : self->poll_requests ) {
 		close_socket( fd.fd ); // close file descriptor
 	}
 }
@@ -163,12 +163,12 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 	self->threaded_function = std::thread( [ server = self ]() {
 		server->is_running = true;
 
-		if ( server->sockets.size() < 1 ) {
-			server->sockets.resize( 1 );
+		if ( server->poll_requests.size() < 1 ) {
+			server->poll_requests.resize( 1 );
 		}
-		server->sockets[ 0 ].fd      = server->listener;
-		server->sockets[ 0 ].events  = POLLIN;
-		server->sockets[ 0 ].revents = 0;
+		server->poll_requests[ 0 ].fd      = server->listener;
+		server->poll_requests[ 0 ].events  = POLLIN;
+		server->poll_requests[ 0 ].revents = 0;
 
 		sockaddr_storage remote_addr                   = {}; // connector's address information
 		socklen_t        remote_addr_len               = 0;
@@ -181,53 +181,52 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 			return;
 		}
 
+		// May only run on server thread
+		static auto close_connection = []( le_console_server_o* self, std::vector<pollfd>::iterator it ) {
+			close_socket( it->fd );
+			{
+				auto connections_lock = std::scoped_lock( self->console->connections_mutex );
+				self->console->connections.erase( it->fd );
+			}
+			logger.info( "Closed connection on file descriptor %d", it->fd );
+			it->fd = -1; // set file descriptor to -1 - this is a signal to remove it from server->poll_requests
+		};
+
+		// ----------------------------------------------------------------------
 		logger.info( "Server ready to accept connections" );
+		// ----------------------------------------------------------------------
+		//
 		while ( server->thread_should_run ) {
 
-			// Runs on server thread
-			static auto close_connection = []( le_console_server_o* self, uint32_t i ) {
-				close_socket( self->sockets[ i ].fd );
-				{
-					auto connections_lock = std::scoped_lock( self->console->connections_mutex );
-					self->console->connections.erase( self->sockets[ i ].fd );
-				}
-
-				logger.info( "Closed connection on file descriptor %d", self->sockets[ i ].fd );
-
-				self->sockets[ i ].fd = -1; // set file descriptor to -1 - this is a signal to remove it from the vector of watched file descriptors
-			};
-
-			int poll_count = poll_sockets( server->sockets.data(), server->sockets.size(), 60 ); // 60 ms timeout
+			int poll_count = poll_sockets( server->poll_requests.data(), server->poll_requests.size(), 60 ); // 60 ms timeout
 
 			if ( poll_count == -1 ) {
 				perror( "poll" );
 				exit( 1 );
 			}
 
-			// Store size of file descriptors here, so that we don't
-			// end up checking any file descriptors which are dynamically
-			// added.
-			size_t fd_count = server->sockets.size();
-			for ( size_t i = 0; i != fd_count; ) {
+			std::vector<pollfd> new_poll_requests;
+
+			for ( auto request = server->poll_requests.begin(); request != server->poll_requests.end(); ) {
 
 				// check if any of our client connections want to close
-				if ( server->sockets[ i ].fd != server->listener ) {
+				if ( request->fd != server->listener ) {
 
 					bool wants_close = false;
 					{
 						auto  connections_lock = std::scoped_lock( server->console->connections_mutex );
-						auto& connection       = server->console->connections.at( server->sockets[ i ].fd );
+						auto& connection       = server->console->connections.at( request->fd );
 						wants_close            = connection->wants_close;
 					}
 
 					if ( wants_close ) {
-						close_connection( server, i );
+						close_connection( server, request );
 					}
 				}
 
-				if ( server->sockets[ i ].revents & POLLIN ) {
+				if ( request->revents & POLLIN ) {
 
-					if ( server->sockets[ i ].fd == server->listener ) {
+					if ( request->fd == server->listener ) {
 						// this is the listening socket - we want to open a new connection
 						remote_addr_len = sizeof remote_addr;
 						int newfd       = accept( server->listener,
@@ -240,7 +239,7 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 							pollfd tmp_pollfd = {};
 							tmp_pollfd.fd     = newfd;
 							tmp_pollfd.events = POLLIN;
-							server->sockets.emplace_back( tmp_pollfd );
+							new_poll_requests.emplace_back( tmp_pollfd );
 							{
 								// Create a new connection - this means we must protect our map of connections
 								auto connections_lock = std::scoped_lock( server->console->connections_mutex );
@@ -256,12 +255,12 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 					} else {
 						// fd != listener, this is a regular client
 
-						int32_t received_bytes_count = recv( server->sockets[ i ].fd, buf, sizeof( buf ), 0 );
+						int32_t received_bytes_count = recv( request->fd, buf, sizeof( buf ), 0 );
 
 						if ( received_bytes_count <= 0 ) {
 							// error or connection closed
 							if ( received_bytes_count == 0 ) {
-								close_connection( server, i );
+								close_connection( server, request );
 							} else {
 								perror( "recv" );
 							}
@@ -269,26 +268,29 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 							// we received some bytes -- we must process these bytes
 
 							auto  connections_lock = std::scoped_lock( server->console->connections_mutex );
-							auto& connection       = server->console->connections[ server->sockets[ i ].fd ];
+							auto& connection       = server->console->connections[ request->fd ];
 
 							connection->channel_in.post( std::string( buf, received_bytes_count ) );
 						}
 
-					} // end: if fd==listener
+					} // end: if fd != listener
 				}     // end: revents & POLLIN
 
-				if ( server->sockets[ i ].fd == -1 ) {
+				if ( request->fd == -1 ) {
 					// File descriptor has been invalidated
-					// We must delete the element at i
-					server->sockets.erase( server->sockets.begin() + i );
-
-					// Reduce total number of elements to iterate over
-					--fd_count;
-
-					continue; // Note that this *does not increment* i
+					// We must delete the current poll request
+					request = server->poll_requests.erase( request );
+				} else {
+					request++;
 				}
-				i++;
+
+			} // end for all poll requests
+
+			if ( !new_poll_requests.empty() ) {
+				// Add any newly created sockets to the list of sockets that get polled
+				server->poll_requests.insert( server->poll_requests.end(), new_poll_requests.begin(), new_poll_requests.end() );
 			}
+
 			{
 				// Pump out messages
 
