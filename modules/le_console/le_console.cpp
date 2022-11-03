@@ -371,8 +371,10 @@ void telnet_interpret( le_console_o::connection_t* connection, std::string::cons
 					case ( uint8_t( SLC_LEVEL::DEFAULT ) ):
 						break;
 					case ( uint8_t( SLC_LEVEL::NOSUPPORT ) ):
+						connection->slc_remote[ triplet[ 0 ] ] = 0;
 						break;
 					case ( uint8_t( SLC_LEVEL::VALUE ) ):
+						connection->slc_remote[ triplet[ 0 ] ] = triplet[ 2 ];
 						break;
 					default:
 						break;
@@ -464,7 +466,7 @@ static void le_console_process_input() {
 
 		connection->channel_in.fetch( msg );
 
-		if ( msg.empty() || msg[ 0 ] == '\0' ) {
+		if ( msg.empty() ) {
 			continue;
 		}
 
@@ -473,29 +475,51 @@ static void le_console_process_input() {
 			std::string out_msg;
 
 			for ( auto const& m : msg ) {
-				switch ( m ) {
-				case ( 0x1f ):
-					connection->input_buffer.resize( connection->input_buffer.size() - 1 );
-					break;
-				case ( '\r' ):
-					out_msg += connection->input_buffer + m;
-					connection->input_buffer.clear();
-					break;
-				case ( 0x03 ):
-					connection->wants_close = true;
-					break;
-				case ( 0x00 ):
-					if ( !connection->input_buffer.empty() ) {
-						connection->input_buffer += m;
-						connection->channel_out.post( std::string( 1, m ) );
+
+				uint32_t slc_index = 0;
+
+				for ( auto slc_c : connection->slc_remote ) {
+					if ( slc_c == m ) {
+						break;
 					}
-					break;
-				default:
-					connection->input_buffer += m;
-					// TODO: Translate to local chars if needed
-					connection->channel_out.post( std::string( 1, m ) );
-					break;
+					slc_index++;
 				}
+
+				if ( slc_index > 0 && slc_index < sizeof( connection->slc_remote ) ) {
+					logger.info( "\tcontrol character x%02x (%1$03u)", m );
+					// we have a control character which we must translate
+				} else {
+					logger.info( "character x%02x (%1$03u)", m );
+					// we have a normal character
+				}
+
+				// switch ( m ) {
+				//				case ( 0x1f ):
+				//					connection->input_buffer.resize( connection->input_buffer.size() - 1 );
+				//					break;
+				//				case ( '\r' ):
+				//					out_msg += connection->input_buffer + m;
+				//					connection->input_buffer.clear();
+				//					break;
+				//				case ( 0x03 ):
+				//					connection->wants_close = true;
+				//					break;
+				//				case ( 0x00 ):
+				//					if ( !connection->input_buffer.empty() ) {
+				//						connection->input_buffer += m;
+				//						connection->channel_out.post( std::string( 1, m ) );
+				//					}
+				//					break;
+				// case ( uint32_t( connection->slc_remote[ 1 ] ) ):
+				//	logger.info( "ec" );
+				//	break;
+				// default:
+				//	logger.info( "input x%02x (%1$03u)", m );
+				//	// connection->input_buffer += m;
+				//	//  TODO: Translate to local chars if needed
+				//	//  connection->channel_out.post( std::string( 1, m ) );
+				//	break;
+				//}
 			}
 
 			if ( connection->wants_close ) {

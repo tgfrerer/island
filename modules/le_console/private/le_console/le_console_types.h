@@ -55,6 +55,44 @@ struct le_console_o {
 
 		std::string input_buffer; // used for linemode
 
+		enum class CharTable : uint32_t { // substitute local characters table
+			CharTable_invalid,
+			synch = 0x01, // synch
+			brk   = 0x02, // break
+			ip    = 0x03, // interrupt process
+			ao    = 0x04, // abort output
+			ayt   = 0x05, // are you there?
+			eor   = 0x06, // end of record
+			abort = 0x07, // abort
+			eof   = 0x08, // end of file
+			susp  = 0x09, // suspend
+			ec    = 0x0a, // erase character (to the left)
+			el    = 0x0b, // erase line
+			ew    = 0x0c, // erase word
+			rp    = 0x0d, // reprint line
+			lnext = 0x0e, // literal next: next character to be taken literally, no mapping should be done
+			xon   = 0x0f,
+			xoff  = 0x10,
+			forw1 = 0x11,
+			forw2 = 0x12,
+			mcl   = 0x13,
+			mcr   = 0x14,
+			mcwl  = 0x15,
+			mcwr  = 0x16,
+			mcboL = 0x17,
+			mceoL = 0x18,
+			insrT = 0x19,
+			over  = 0x1a,
+			ecr   = 0x1b,
+			ewr   = 0x1c,
+			ebol  = 0x1d,
+			eeol  = 0x1e,
+			CharTable_last,
+		};
+
+		char slc_remote[ uint32_t( CharTable::CharTable_last ) ] = {};
+		// char slc_local[ uint32_t( CharTable::CharTable_last ) ]  = {};
+
 		// In case we have linemode active,
 		// we must respect SLC, substitute local characters
 		// for which we must keep around a mapping table.
