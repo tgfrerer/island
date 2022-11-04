@@ -6,6 +6,7 @@
 #include "le_settings.h"
 
 #include <mutex>
+#include <sstream>
 #include <thread>
 #include <deque>
 
@@ -80,8 +81,12 @@ class LeLogSubscriber : NoCopy {
   public:
 	explicit LeLogSubscriber( le_console_o::connection_t* connection )
 	    : handle( le_log::api->add_subscriber( logger_callback, connection, connection->log_level_mask ) ) {
+		static auto logger = le::Log( LOG_CHANNEL );
+		logger.debug( "Adding Log subscriber with mask 0x%x", connection->log_level_mask );
 	}
 	~LeLogSubscriber() {
+		static auto logger = le::Log( LOG_CHANNEL );
+		logger.debug( "Removing Log subscriber" );
 		// we must remove the subscriber because it may get called before we have a chance to change the callback address -
 		// even callback forwarding won't help, because the reloader will log- and this log event will happen while the
 		// current module is not yet loaded, which means there is no valid code to run for the subscriber.
@@ -109,6 +114,14 @@ static std::unordered_map<uint32_t, std::unique_ptr<LeLogSubscriber>>& le_consol
 	static std::unordered_map<uint32_t, std::unique_ptr<LeLogSubscriber>> LOG_SUBSCRIBER = {};
 
 	return LOG_SUBSCRIBER;
+}
+
+// ----------------------------------------------------------------------
+
+le_console_o::connection_t::~connection_t() {
+	// Remove subscribers if there were any
+	this->wants_log_subscriber = false;
+	le_console_produce_log_subscribers()[ this->fd ].reset( nullptr );
 }
 
 // ----------------------------------------------------------------------
@@ -178,7 +191,6 @@ static bool le_console_server_stop() {
 		return false;
 	}
 
-	logger.info( "Unregistering Log subscribers" );
 	le_console_produce_log_subscribers().clear();
 
 	if ( self->server ) {
@@ -214,15 +226,27 @@ std::string telnet_get_suboption( std::string::iterator& it, std::string::iterat
 
 // ----------------------------------------------------------------------
 
-void telnet_interpret( le_console_o::connection_t* connection, std::string::const_iterator const& stream_begin, std::string::const_iterator const& stream_end ) {
+// will update stream_begin to point at one part the last character of the last command
+// that was interpreted
+std::string telnet_filter( le_console_o::connection_t*       connection,
+                           std::string::const_iterator       stream_begin,
+                           std::string::const_iterator const stream_end ) {
+
 	static auto logger = le::Log( LOG_CHANNEL );
 
 	if ( connection == nullptr ) {
 		assert( false && "Must have valid connection" );
-		return;
+		return "";
+	}
+	// ----------| invariant: connection is not nullptr
+
+	if ( stream_end - stream_begin <= 0 ) {
+		// no characters to process.
+		return "";
 	}
 
-	// ----------| invariant: connection is not nullptr
+	std::string result;
+	result.reserve( stream_end - stream_begin ); // pre-allocate maximum possible chars that this operation might need
 
 	// Find next command
 	// Set iterator `it` to one past next IAC byte. starts search at iterator position `it`
@@ -364,20 +388,24 @@ void telnet_interpret( le_console_o::connection_t* connection, std::string::cons
 						break;
 					}
 
-					switch ( triplet[ 1 ] & SLC_LEVEL_BITS ) {
+					if ( triplet[ 0 ] > uint8_t( le_console_o::connection_t::CharTable::CharTable_invalid ) &&
+					     triplet[ 0 ] < uint8_t( le_console_o::connection_t::CharTable::CharTable_last ) - 1 ) {
 
-					case ( uint8_t( SLC_LEVEL::CANTCHANGE ) ):
-						break;
-					case ( uint8_t( SLC_LEVEL::DEFAULT ) ):
-						break;
-					case ( uint8_t( SLC_LEVEL::NOSUPPORT ) ):
-						connection->slc_remote[ triplet[ 0 ] ] = 0;
-						break;
-					case ( uint8_t( SLC_LEVEL::VALUE ) ):
-						connection->slc_remote[ triplet[ 0 ] ] = triplet[ 2 ];
-						break;
-					default:
-						break;
+						switch ( triplet[ 1 ] & SLC_LEVEL_BITS ) {
+
+						case ( uint8_t( SLC_LEVEL::CANTCHANGE ) ):
+							break;
+						case ( uint8_t( SLC_LEVEL::DEFAULT ) ):
+							break;
+						case ( uint8_t( SLC_LEVEL::NOSUPPORT ) ):
+							connection->slc_remote[ triplet[ 0 ] ] = 0;
+							break;
+						case ( uint8_t( SLC_LEVEL::VALUE ) ):
+							connection->slc_remote[ triplet[ 0 ] ] = triplet[ 2 ];
+							break;
+						default:
+							break;
+						}
 					}
 
 					logger.info( "\t\t x%02x : %- 10s : x%02x", triplet[ 0 ], level_str[ triplet[ 1 ] & SLC_LEVEL_BITS ], triplet[ 2 ] );
@@ -421,25 +449,58 @@ void telnet_interpret( le_console_o::connection_t* connection, std::string::cons
 
 		return true;
 	};
-	//	std::string test_str = "this is a test \xff\xff hello, well \xffhere";
-	//
-	//	auto x = test_str.begin();
-	//	find_next_iac( x, test_str.end() );
 
-	auto it = stream_begin;
-	while ( find_next_command( it, stream_end ) ) {
+	// std::string test_str = "this is \xff\xff\xff\xff a test \xff\xff hello, well \xffhere";
+	// stream_begin                                      = test_str.begin();
+	// std::string::const_iterator const test_stream_end = test_str.end();
+
+	while ( true ) {
+
+		auto prev_stream_begin = stream_begin;
+		find_next_command( stream_begin, stream_end );
+
+		{
+			// add all characters which are not commands to the result stream
+			// until we hit stream_begin
+			bool iac_flip_flop = false;
+			for ( auto c = prev_stream_begin; c != stream_begin; c++ ) {
+				if ( *c == '\xff' ) {
+					iac_flip_flop ^= true;
+				}
+				if ( !iac_flip_flop ) {
+
+					if ( *c == '\x03' ) {
+						connection->wants_close = true;
+						return result;
+					}
+
+					result.push_back( *c );
+				}
+			}
+		}
+
+		if ( stream_begin == stream_end ) {
+			break;
+		}
+
 		auto sub_range_end = stream_end;
 		// check for possible commands:
-		if ( is_option( it, sub_range_end ) ) {
-			process_option( connection, it, sub_range_end );
-			it = sub_range_end; // move it to end of the current range
-		} else if ( is_sub_option( it, sub_range_end ) ) {
-			process_sub_option( connection, it, sub_range_end );
-			it = sub_range_end;
+		if ( is_option( stream_begin, sub_range_end ) ) {
+			process_option( connection, stream_begin, sub_range_end );
+			stream_begin = sub_range_end; // move it to end of the current range
+		} else if ( is_sub_option( stream_begin, sub_range_end ) ) {
+			process_sub_option( connection, stream_begin, sub_range_end );
+			stream_begin = sub_range_end;
 			// do something with suboption
+		} else {
+			// this is neither a suboption not an option
 		};
 	};
+
+	return result;
 }
+
+// --------------------------------------------------------------------------------
 
 static void le_console_process_input() {
 	static auto logger = le::Log( LOG_CHANNEL );
@@ -470,86 +531,94 @@ static void le_console_process_input() {
 			continue;
 		}
 
-		if ( connection->state == le_console_o::connection_t::State::eTelnetLineMode ) {
-
-			std::string out_msg;
-
-			for ( auto const& m : msg ) {
-
-				uint32_t slc_index = 0;
-
-				for ( auto slc_c : connection->slc_remote ) {
-					if ( slc_c == m ) {
-						break;
-					}
-					slc_index++;
-				}
-
-				if ( slc_index > 0 && slc_index < sizeof( connection->slc_remote ) ) {
-					logger.info( "\tcontrol character x%02x (%1$03u)", m );
-					// we have a control character which we must translate
-				} else {
-					logger.info( "character x%02x (%1$03u)", m );
-					// we have a normal character
-				}
-
-				// switch ( m ) {
-				//				case ( 0x1f ):
-				//					connection->input_buffer.resize( connection->input_buffer.size() - 1 );
-				//					break;
-				//				case ( '\r' ):
-				//					out_msg += connection->input_buffer + m;
-				//					connection->input_buffer.clear();
-				//					break;
-				//				case ( 0x03 ):
-				//					connection->wants_close = true;
-				//					break;
-				//				case ( 0x00 ):
-				//					if ( !connection->input_buffer.empty() ) {
-				//						connection->input_buffer += m;
-				//						connection->channel_out.post( std::string( 1, m ) );
-				//					}
-				//					break;
-				// case ( uint32_t( connection->slc_remote[ 1 ] ) ):
-				//	logger.info( "ec" );
-				//	break;
-				// default:
-				//	logger.info( "input x%02x (%1$03u)", m );
-				//	// connection->input_buffer += m;
-				//	//  TODO: Translate to local chars if needed
-				//	//  connection->channel_out.post( std::string( 1, m ) );
-				//	break;
-				//}
-			}
-
-			if ( connection->wants_close ) {
-
-				// remove subscribers if there were any
-				le_console_produce_log_subscribers()[ c.first ].reset( nullptr );
-				connection->wants_log_subscriber = false;
-
-				// do no more processing if this connection wants to close
-				continue;
-			}
-
-			// We're done with processing this connection
-			if ( !out_msg.empty() ) {
-				msg = out_msg;
-			} else {
-				continue;
-			}
-		}
-
 		// --------| invariant: msg is not empty
 
-		if ( msg[ 0 ] == '\xff' || msg[ 0 ] == '\x1b' ) {
-
+		if ( true ) {
 			// ---------| invariant: msg begins with a control character
-
 			logger.info( "" );
 			logger.info( "***** parsing telnet stream ***** " );
-			telnet_interpret( connection.get(), msg.begin(), msg.end() );
+			// Apply the telnet protocol - this means interpreting (updating the connection's telnet state)
+			// and removing telnet commands from the message stream, and unescaping double-\xff "IAC" bytes to \xff.
+			//
+			msg = telnet_filter( connection.get(), msg.begin(), msg.end() );
+		}
 
+		if ( msg.empty() ) {
+			continue;
+		}
+
+		// first, we want to process telnet control
+		//      Telnet control means to respond to telnet events, and the IAC byte (255)
+		// it also means to translate erase character and erase line etc. to local terminal
+		//
+		// then we want to process terminal control.
+		//
+		// how do we know if a message was user-initiated?
+		if ( false )
+			if ( connection->state == le_console_o::connection_t::State::eTelnetLineMode ) {
+
+				std::string out_msg;
+
+				for ( auto m = msg.begin(); m != msg.end(); m++ ) {
+
+					uint32_t slc_index = 0;
+
+					// find if character is a control character
+					for ( auto slc_c : connection->slc_remote ) {
+						if ( slc_c == *m ) {
+							break;
+						}
+						slc_index++;
+					}
+
+					if ( slc_index > 0 && slc_index < sizeof( connection->slc_remote ) ) {
+						logger.info( "\tcontrol character x%02x (%1$03u)", *m );
+						// we have a control character which we must translate
+					} else {
+						logger.info( "character x%02x (%1$03u)", *m );
+						// we have a normal character
+					}
+
+					// switch ( m ) {
+					//				case ( 0x1f ):
+					//					connection->input_buffer.resize( connection->input_buffer.size() - 1 );
+					//					break;
+					//				case ( '\r' ):
+					//					out_msg += connection->input_buffer + m;
+					//					connection->input_buffer.clear();
+					//					break;
+					//				case ( 0x03 ):
+					//					connection->wants_close = true;
+					//					break;
+					//				case ( 0x00 ):
+					//					if ( !connection->input_buffer.empty() ) {
+					//						connection->input_buffer += m;
+					//						connection->channel_out.post( std::string( 1, m ) );
+					//					}
+					//					break;
+					// case ( uint32_t( connection->slc_remote[ 1 ] ) ):
+					//	logger.info( "ec" );
+					//	break;
+					// default:
+					//	logger.info( "input x%02x (%1$03u)", m );
+					//	// connection->input_buffer += m;
+					//	//  TODO: Translate to local chars if needed
+					//	//  connection->channel_out.post( std::string( 1, m ) );
+					//	break;
+					//}
+				}
+
+				// We're done with processing this connection
+				if ( !out_msg.empty() ) {
+					msg = out_msg;
+				} else {
+					continue;
+				}
+			}
+
+		if ( connection->wants_close ) {
+
+			// Do no more processing if this connection wants to close
 			continue;
 		}
 
@@ -557,8 +626,7 @@ static void le_console_process_input() {
 
 		char const* delim   = "\n\r= ";
 		char*       context = nullptr;
-
-		char* token = strtok_reentrant( msg.data(), delim, &context );
+		char*       token   = strtok_reentrant( msg.data(), delim, &context );
 
 		std::vector<char const*> tokens;
 

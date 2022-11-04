@@ -212,14 +212,9 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 				// check if any of our client connections want to close
 				if ( request->fd != server->listener ) {
 
-					bool wants_close = false;
-					{
-						auto  connections_lock = std::scoped_lock( server->console->connections_mutex );
-						auto& connection       = server->console->connections.at( request->fd );
-						wants_close            = connection->wants_close;
-					}
+					auto& connection = server->console->connections.at( request->fd );
 
-					if ( wants_close ) {
+					if ( connection->wants_close ) {
 						close_connection( server, request );
 					}
 				}
@@ -244,7 +239,7 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 								// Create a new connection - this means we must protect our map of connections
 								auto connections_lock = std::scoped_lock( server->console->connections_mutex );
 
-								server->console->connections[ tmp_pollfd.fd ] = std::make_unique<le_console_o::connection_t>();
+								server->console->connections[ tmp_pollfd.fd ] = std::make_unique<le_console_o::connection_t>( tmp_pollfd.fd );
 							}
 							logger.info( "Pollserver: New connection from %s on socket %d\n",
 							             inet_ntop( remote_addr.ss_family,

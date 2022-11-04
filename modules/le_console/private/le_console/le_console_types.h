@@ -42,9 +42,17 @@ struct le_console_o {
 		channel channel_out;
 		channel channel_in;
 
-		bool     wants_log_subscriber = false;
-		bool     wants_close          = false; // to signal that we want to close this connection
-		uint32_t log_level_mask       = 0;     // -1 means everything 0, means nothing
+		bool wants_log_subscriber = false;
+		bool wants_close          = false; // to signal that we want to close this connection
+		int  fd;                           // file descriptor for the socket associated with this connection
+
+		uint32_t log_level_mask = 0; // -1 means everything 0, means nothing
+
+		explicit connection_t( int fd_ )
+		    : fd( fd_ ){};
+
+		~connection_t(); // implementation must live in same compilation unit which provides access to  `le_console_produce_log_subscribers()`
+		                 // so that we can remove any subscribers that are owned by this connection if needed
 
 		enum class State {
 			ePlain = 0,      // plain socket - this is how we start up
