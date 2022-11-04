@@ -578,7 +578,7 @@ static void le_console_process_input() {
 
 			static auto execute_control_function = []( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
 				// execute control function on connection based
-				logger.debug( "executing control function: 0x%02x, with parameters: '%s' and final byte: %02x", f.bytes.intro, parameters.c_str(), f.bytes.final );
+				logger.debug( "executing control function: 0x%02x ('%1$c'), with parameters: '%2$s' and final byte: 0x%3$02x ('%3$c')", f.bytes.intro, parameters.c_str(), f.bytes.final );
 			};
 
 			for ( auto c : msg ) {
@@ -597,7 +597,7 @@ static void le_console_process_input() {
 								// remove last character if not empty
 								connection->input_buffer.resize( connection->input_buffer.size() - 1 );
 								// todo: we must delete the character on the tty.
-								connection->channel_out.post( std::string( 1, c ) );
+								connection->channel_out.post( "\b \b" );
 								// connection->channel_out.post( "\x1b[6n" ); // query cursor position
 							}
 						} else {
@@ -700,12 +700,6 @@ static void le_console_process_input() {
 			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" }\r\n)" );
 		} break;
 		case hash_32_fnv1a_const( "cls" ): {
-
-			constexpr auto IAC  = "\xff";
-			constexpr auto WILL = "\xfb";
-			constexpr auto WONT = "\xfc";
-			constexpr auto DO   = "\xfd";
-			constexpr auto DONT = "\xfe";
 
 			connection->channel_out.post(
 			    "\xff" // IAC
