@@ -346,13 +346,13 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 
 		// LINEMODE SUBOPTION
 		if ( uint8_t( *it ) == 34 ) {
-			logger.info( "\t Suboption LINEMODE" );
+			logger.debug( "\t Suboption LINEMODE" );
 
 			it++; // Move past the suboption specifier
 
 			if ( uint8_t( *it ) == 3 ) { // SLC = set local characters
 				it++;
-				logger.info( "\t LINEMODE suboption SLC" );
+				logger.debug( "\t LINEMODE suboption SLC" );
 				enum class SLC_LEVEL : uint8_t {
 					NOSUPPORT  = 0,
 					CANTCHANGE = 1,
@@ -408,7 +408,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 						}
 					}
 
-					logger.info( "\t\t x%02x : %- 10s : x%02x", triplet[ 0 ], level_str[ triplet[ 1 ] & SLC_LEVEL_BITS ], triplet[ 2 ] );
+					logger.debug( "\t\t x%02x : %- 10s : x%02x", triplet[ 0 ], level_str[ triplet[ 1 ] & SLC_LEVEL_BITS ], triplet[ 2 ] );
 				}
 			}
 		}
@@ -425,25 +425,25 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 
 		switch ( uint8_t( *it ) ) {
 		case ( uint8_t( TEL_OPT::WILL ) ):
-			logger.info( "WILL x%02x (%1$03u)", *( it + 1 ) );
+			logger.debug( "WILL x%02x (%1$03u)", *( it + 1 ) );
 
 			// client will do something
 			if ( uint8_t( *( it + 1 ) ) == 0x22 ) {
 				// linemode activated on client -- we will operate in linemode from now on
 				connection->state = le_console_o::connection_t::State::eTelnetLineMode;
-				logger.info( "LINEMODE activated on connection" );
+				logger.debug( "LINEMODE activated on connection" );
 			}
 
 			break;
 		case ( uint8_t( TEL_OPT::WONT ) ):
-			logger.info( "WONT x%02x (%1$03u)", *( it + 1 ) );
+			logger.debug( "WONT x%02x (%1$03u)", *( it + 1 ) );
 			break;
 		case ( uint8_t( TEL_OPT::DO ) ):
-			logger.info( "DO   x%02x (%1$03u)", *( it + 1 ) );
+			logger.debug( "DO   x%02x (%1$03u)", *( it + 1 ) );
 			// client requests something from us
 			break;
 		case ( uint8_t( TEL_OPT::DONT ) ):
-			logger.info( "DONT x%02x (%1$03u)", *( it + 1 ) );
+			logger.debug( "DONT x%02x (%1$03u)", *( it + 1 ) );
 			break;
 		}
 
@@ -533,18 +533,129 @@ static void le_console_process_input() {
 
 		// --------| invariant: msg is not empty
 
-		if ( true ) {
-			// ---------| invariant: msg begins with a control character
-			logger.info( "" );
-			logger.info( "***** parsing telnet stream ***** " );
-			// Apply the telnet protocol - this means interpreting (updating the connection's telnet state)
-			// and removing telnet commands from the message stream, and unescaping double-\xff "IAC" bytes to \xff.
-			//
-			msg = telnet_filter( connection.get(), msg.begin(), msg.end() );
+		// Apply the telnet protocol - this means interpreting (updating the connection's telnet state)
+		// and removing telnet commands from the message stream, and unescaping double-\xff "IAC" bytes to \xff.
+		//
+		msg = telnet_filter( connection.get(), msg.begin(), msg.end() );
+
+		if ( connection->wants_close ) {
+			// Do no more processing if this connection wants to close
+			continue;
 		}
 
 		if ( msg.empty() ) {
 			continue;
+		}
+
+		// Then, check if we are running in linemode
+		if ( connection->state == le_console_o::connection_t::State::eTelnetLineMode ) {
+
+			// Process virtual terminal control sequences - if we're in line mode we have to do these things
+			// on the server-side.
+			//
+			// See: ECMA-48, <https://www.ecma-international.org/publications-and-standards/standards/ecma-48/>
+
+			enum State {
+				DATA,  // plain data
+				ESC,   //
+				CSI,   // ESC [
+				ENTER, // '\r'
+			};
+
+			State state = State::DATA;
+
+			union control_function_t {
+				struct Bytes {
+					char intro;
+					char final;
+				} bytes;
+				uint16_t data = {};
+			} control_function = {};
+
+			// introducer and end byte of control function
+			std::string parameters;
+			bool        enter_user_input = false;
+
+			static auto execute_control_function = []( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
+				// execute control function on connection based
+				logger.debug( "executing control function: 0x%02x, with parameters: '%s' and final byte: %02x", f.bytes.intro, parameters.c_str(), f.bytes.final );
+			};
+
+			for ( auto c : msg ) {
+
+				switch ( state ) {
+				case DATA:
+					if ( c == '\x1b' ) {
+						state = ESC;
+					}
+					if ( c == '\r' ) {
+						state = ENTER;
+					} else {
+
+						if ( c == '\x7f' ) { // delete
+							if ( !connection->input_buffer.empty() ) {
+								// remove last character if not empty
+								connection->input_buffer.resize( connection->input_buffer.size() - 1 );
+								// todo: we must delete the character on the tty.
+								connection->channel_out.post( std::string( 1, c ) );
+								// connection->channel_out.post( "\x1b[6n" ); // query cursor position
+							}
+						} else {
+
+							// TODO: Do something with plain data
+							connection->input_buffer.push_back( c );
+							connection->channel_out.post( std::string( 1, c ) );
+						}
+					}
+					break;
+				case ENTER:
+					if ( c == 0x00 ) {
+						enter_user_input = true;
+						state            = DATA;
+						connection->channel_out.post( "\r\n" ); // carriage-return+newline
+					} else {
+						connection->input_buffer.push_back( '\r' );
+						state = DATA;
+					}
+					break;
+				case ESC:
+					if ( c == '\x5b' || c == '\x9b' ) { // 7-bit or 8 bit representation of control sequence
+						state                        = CSI;
+						control_function.bytes.intro = c;
+					} else {
+					}
+					break;
+				case CSI:
+					if ( c >= '\x30' && c <= '\x3f' ) { // parameter bytes
+						parameters.push_back( c );
+					} else if ( c >= '\x20' && c <= '\x2f' ) { // intermediary bytes (' ' to '/')
+						// we want to add these to the parameter string that we capture
+						parameters.push_back( c );
+					} else if ( c >= '\x40' && c <= '\x7e' ) { // final byte of a control sequence
+						// todo: we must do something with this control sequence
+						control_function.bytes.final = c;
+						execute_control_function( connection.get(), control_function, parameters );
+						state            = DATA;
+						control_function = {};
+					}
+					// if end of command
+					// if parameter byte
+					break;
+				}
+				if ( enter_user_input ) {
+					break;
+				}
+			}
+
+			if ( enter_user_input ) {
+				std::swap( connection->input_buffer, msg );
+				connection->input_buffer.clear();
+			} else {
+				msg.clear();
+				continue; // this stops processing the message any further.
+			}
+
+			// echo input if needed
 		}
 
 		// first, we want to process telnet control
@@ -554,73 +665,6 @@ static void le_console_process_input() {
 		// then we want to process terminal control.
 		//
 		// how do we know if a message was user-initiated?
-		if ( false )
-			if ( connection->state == le_console_o::connection_t::State::eTelnetLineMode ) {
-
-				std::string out_msg;
-
-				for ( auto m = msg.begin(); m != msg.end(); m++ ) {
-
-					uint32_t slc_index = 0;
-
-					// find if character is a control character
-					for ( auto slc_c : connection->slc_remote ) {
-						if ( slc_c == *m ) {
-							break;
-						}
-						slc_index++;
-					}
-
-					if ( slc_index > 0 && slc_index < sizeof( connection->slc_remote ) ) {
-						logger.info( "\tcontrol character x%02x (%1$03u)", *m );
-						// we have a control character which we must translate
-					} else {
-						logger.info( "character x%02x (%1$03u)", *m );
-						// we have a normal character
-					}
-
-					// switch ( m ) {
-					//				case ( 0x1f ):
-					//					connection->input_buffer.resize( connection->input_buffer.size() - 1 );
-					//					break;
-					//				case ( '\r' ):
-					//					out_msg += connection->input_buffer + m;
-					//					connection->input_buffer.clear();
-					//					break;
-					//				case ( 0x03 ):
-					//					connection->wants_close = true;
-					//					break;
-					//				case ( 0x00 ):
-					//					if ( !connection->input_buffer.empty() ) {
-					//						connection->input_buffer += m;
-					//						connection->channel_out.post( std::string( 1, m ) );
-					//					}
-					//					break;
-					// case ( uint32_t( connection->slc_remote[ 1 ] ) ):
-					//	logger.info( "ec" );
-					//	break;
-					// default:
-					//	logger.info( "input x%02x (%1$03u)", m );
-					//	// connection->input_buffer += m;
-					//	//  TODO: Translate to local chars if needed
-					//	//  connection->channel_out.post( std::string( 1, m ) );
-					//	break;
-					//}
-				}
-
-				// We're done with processing this connection
-				if ( !out_msg.empty() ) {
-					msg = out_msg;
-				} else {
-					continue;
-				}
-			}
-
-		if ( connection->wants_close ) {
-
-			// Do no more processing if this connection wants to close
-			continue;
-		}
 
 		// --------| invariant: message does not begin with \xff or \x1b
 
