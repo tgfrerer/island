@@ -61,7 +61,8 @@ struct le_console_o {
 
 		State state = State::ePlain;
 
-		std::string input_buffer; // used for linemode
+		std::string input_buffer;         // used for linemode
+		uint32_t    input_cursor_pos = 0; // position of linemode cursor (one past last element if at end)
 
 		enum class CharTable : uint32_t { // substitute local characters table
 			CharTable_invalid,

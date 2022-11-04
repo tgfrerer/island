@@ -566,8 +566,8 @@ static void le_console_process_input() {
 
 			union control_function_t {
 				struct Bytes {
-					char intro;
-					char final;
+					char intro; // store in lower byte
+					char final; // store in upper byte
 				} bytes;
 				uint16_t data = {};
 			} control_function = {};
@@ -575,10 +575,38 @@ static void le_console_process_input() {
 			// introducer and end byte of control function
 			std::string parameters;
 			bool        enter_user_input = false;
+			char        out_buf[ 2048 ]; // buffer for printf ops
+			bool        wants_redraw = false;
 
-			static auto execute_control_function = []( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
+			static auto execute_control_function = [ &wants_redraw ]( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
 				// execute control function on connection based
-				logger.debug( "executing control function: 0x%02x ('%1$c'), with parameters: '%2$s' and final byte: 0x%3$02x ('%3$c')", f.bytes.intro, parameters.c_str(), f.bytes.final );
+				switch ( f.data ) {
+				case ( '[' | 'D' << 8 ):
+					if ( connection->input_cursor_pos > 0 ) {
+						connection->input_cursor_pos--;
+						connection->channel_out.post( "\x1b[D" ); // cursor left
+					}
+					// FIXME: we must update our insertion index for where to insert into the string
+					break;
+				case ( '[' | 'C' << 8 ):
+					if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
+						connection->input_cursor_pos++;
+						connection->channel_out.post( "\x1b[C" ); // cursor right
+					}
+					// FIXME: we must update our insertion index for where to insert into the string
+					break;
+				case ( '[' | '~' << 8 ): {
+					if ( !parameters.empty() && parameters[ 0 ] == '3' ) {
+						if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
+							connection->input_buffer.erase( connection->input_buffer.begin() + connection->input_cursor_pos );
+							wants_redraw = true;
+						}
+					}
+					break;
+				}
+				default:
+					logger.debug( "executing control function: 0x%02x ('%1$c'), with parameters: '%2$s' and final byte: 0x%3$02x ('%3$c')", f.bytes.intro, parameters.c_str(), f.bytes.final );
+				}
 			};
 
 			for ( auto c : msg ) {
@@ -587,24 +615,29 @@ static void le_console_process_input() {
 				case DATA:
 					if ( c == '\x1b' ) {
 						state = ESC;
-					}
-					if ( c == '\r' ) {
+					} else if ( c == '\r' ) {
 						state = ENTER;
 					} else {
 
-						if ( c == '\x7f' ) { // delete
+						if ( c == '\x17' ) {
+							// delete word TODO: implement
+							logger.debug( "Unhandled character: 0x%02x ('%1$c')", c );
+							wants_redraw = true;
+						} else if ( c == '\x7f' ) { // delete
 							if ( !connection->input_buffer.empty() ) {
 								// remove last character if not empty
-								connection->input_buffer.resize( connection->input_buffer.size() - 1 );
-								// todo: we must delete the character on the tty.
-								connection->channel_out.post( "\b \b" );
-								// connection->channel_out.post( "\x1b[6n" ); // query cursor position
+								if ( connection->input_cursor_pos > 0 ) {
+									connection->input_buffer.erase( connection->input_buffer.begin() + --connection->input_cursor_pos );
+									wants_redraw = true;
+								}
 							}
-						} else {
+						} else if ( c > '\x1f' ) {
 
 							// TODO: Do something with plain data
-							connection->input_buffer.push_back( c );
-							connection->channel_out.post( std::string( 1, c ) );
+							connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, c );
+							wants_redraw = true;
+						} else {
+							logger.debug( "Unhandled character: 0x%02x ('%1$c')", c );
 						}
 					}
 					break;
@@ -614,7 +647,7 @@ static void le_console_process_input() {
 						state            = DATA;
 						connection->channel_out.post( "\r\n" ); // carriage-return+newline
 					} else {
-						connection->input_buffer.push_back( '\r' );
+						connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, '\r' );
 						state = DATA;
 					}
 					break;
@@ -623,6 +656,8 @@ static void le_console_process_input() {
 						state                        = CSI;
 						control_function.bytes.intro = c;
 					} else {
+						connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, '\x1b' );
+						state = DATA; // FIXME: is this correct? this is what we do if ESC is *not* followed by a control sequence character
 					}
 					break;
 				case CSI:
@@ -647,9 +682,18 @@ static void le_console_process_input() {
 				}
 			}
 
+			if ( wants_redraw ) {
+				// clear line, reposition cursor
+				int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r%s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 1 );
+				if ( num_bytes > 1 ) {
+					connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
+				}
+			}
+
 			if ( enter_user_input ) {
 				std::swap( connection->input_buffer, msg );
 				connection->input_buffer.clear();
+				connection->input_cursor_pos = 0;
 			} else {
 				msg.clear();
 				continue; // this stops processing the message any further.
@@ -709,6 +753,9 @@ static void le_console_process_input() {
 			    "\xff" // IAC
 			    "\xfb" // WILL
 			    "\x01" // ECHO
+			    ""
+			    "\x1b" // ESC
+			    "c"    // clear screen
 			);
 
 			connection->channel_out.post( "\x1b[38;5;220mIsland Console.\r\nWelcome.\x1b[0m\r\n" );
