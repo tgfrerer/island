@@ -18,6 +18,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <unordered_map>
 
 #include "private/le_console/le_console_types.h"
@@ -345,12 +346,12 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		logger.info( "Suboption x%02x (%1$03u)", *it );
 
 		// LINEMODE SUBOPTION
-		if ( uint8_t( *it ) == 34 ) {
+		if ( uint8_t( *it ) == '\x22' ) {
 			logger.debug( "\t Suboption LINEMODE" );
 
 			it++; // Move past the suboption specifier
 
-			if ( uint8_t( *it ) == 3 ) { // SLC = set local characters
+			if ( uint8_t( *it ) == '\x03' ) { // SLC = set local characters
 				it++;
 				logger.debug( "\t LINEMODE suboption SLC" );
 				enum class SLC_LEVEL : uint8_t {
@@ -359,7 +360,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 					VALUE      = 2,
 					DEFAULT    = 3,
 				};
-				static constexpr uint8_t SLC_LEVEL_BITS = 3; // mask for the level bits
+				static constexpr uint8_t SLC_LEVEL_BITS = 0b11; // mask for the level bits
 				static constexpr uint8_t IAC            = '\xff';
 
 				char const* level_str[ 4 ] = {
@@ -469,7 +470,8 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 				}
 				if ( !iac_flip_flop ) {
 
-					if ( *c == '\x03' ) {
+					if ( *c == '\x03' || *c == '\x04' ) {
+						// CTRL+C || CTRL+D
 						connection->wants_close = true;
 						return result;
 					}
@@ -579,7 +581,12 @@ static void le_console_process_input() {
 			bool        wants_redraw = false;
 
 			static auto execute_control_function = [ &wants_redraw ]( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
-				// execute control function on connection based
+				// Execute control function on connection
+				//
+				// We encode the control function (which is identified by its start and end byte)
+				// as a uint16_t which consists of (start_byte | end_byte << 8) so that we can
+				// switch on it:
+				//
 				switch ( f.data ) {
 				case ( '[' | 'D' << 8 ):
 					if ( connection->input_cursor_pos > 0 ) {
@@ -632,8 +639,7 @@ static void le_console_process_input() {
 								}
 							}
 						} else if ( c > '\x1f' ) {
-
-							// TODO: Do something with plain data
+							// insert plain data
 							connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, c );
 							wants_redraw = true;
 						} else {
@@ -745,18 +751,28 @@ static void le_console_process_input() {
 		} break;
 		case hash_32_fnv1a_const( "cls" ): {
 
-			connection->channel_out.post(
-			    "\xff" // IAC
-			    "\xfd" // DO
-			    "\x22" // LINEMODE
-			    ""
-			    "\xff" // IAC
-			    "\xfb" // WILL
-			    "\x01" // ECHO
-			    ""
-			    "\x1b" // ESC
-			    "c"    // clear screen
-			);
+			constexpr auto IAC      = "\xff";
+			constexpr auto DO       = "\xfd";
+			constexpr auto WILL     = "\xfb";
+			constexpr auto LINEMODE = "\x22";
+			constexpr auto ECHO     = '\x01';
+			constexpr auto SB       = '\xfa';
+			constexpr auto SE       = '\xf0';
+			constexpr auto SLC      = '\x03'; // substitute local characters
+			constexpr auto MODE     = '\x01';
+
+			std::ostringstream msg;
+
+			msg
+			    << IAC
+			    << DO
+			    << LINEMODE
+			    //
+			    << IAC
+			    << WILL
+			    << ECHO;
+
+			connection->channel_out.post( msg.str() );
 
 			connection->channel_out.post( "\x1b[38;5;220mIsland Console.\r\nWelcome.\x1b[0m\r\n" );
 			// connection->channel_out.post( "\x1b[H\x1b[2J" );
