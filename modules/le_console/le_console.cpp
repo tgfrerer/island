@@ -626,9 +626,40 @@ static void le_console_process_input() {
 						state = ENTER;
 					} else {
 
-						if ( c == '\x17' ) {
+						if ( c == '\x01' ) {
+							// goto first char
+							connection->input_cursor_pos = 0;
+							wants_redraw                 = true;
+						} else if ( c == '\x05' ) {
+							// goto last char
+							connection->input_cursor_pos = connection->input_buffer.size();
+							wants_redraw                 = true;
+						} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
 							// delete word TODO: implement
-							logger.debug( "Unhandled character: 0x%02x ('%1$c')", c );
+
+							auto       it_end   = connection->input_buffer.begin() + connection->input_cursor_pos;
+							auto const it_begin = connection->input_buffer.begin();
+							auto       it       = it_end;
+							it--;
+							while ( true ) {
+								if ( it != it_begin &&
+								     *it != ' ' &&
+								     ( it - 1 != it_begin ) &&
+								     *( it - 1 ) == ' ' ) {
+									// found first space-before-non-space
+									break;
+								} else if ( it != it_begin ) {
+									it--;
+								} else {
+									break;
+								}
+							}
+							if ( it_end != it ) {
+								connection->input_buffer.erase( it, it_end );
+								connection->input_cursor_pos = connection->input_cursor_pos - ( it_end - it );
+								logger.debug( "removing %d characters", ( it_end - it ) );
+							}
+
 							wants_redraw = true;
 						} else if ( c == '\x7f' ) { // delete
 							if ( !connection->input_buffer.empty() ) {
