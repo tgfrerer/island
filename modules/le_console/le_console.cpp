@@ -345,75 +345,22 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		it++; // Move past the SB Byte
 		logger.info( "Suboption x%02x (%1$03u)", *it );
 
-		// LINEMODE SUBOPTION
-		if ( uint8_t( *it ) == '\x22' ) {
-			logger.debug( "\t Suboption LINEMODE" );
+		if ( uint8_t( *it ) == 0x1f ) {
+			logger.debug( "\t Suboption NAWS (Negociate window size)" );
 
 			it++; // Move past the suboption specifier
 
-			if ( uint8_t( *it ) == '\x03' ) { // SLC = set local characters
-				it++;
-				logger.debug( "\t LINEMODE suboption SLC" );
-				enum class SLC_LEVEL : uint8_t {
-					NOSUPPORT  = 0,
-					CANTCHANGE = 1,
-					VALUE      = 2,
-					DEFAULT    = 3,
-				};
-				static constexpr uint8_t SLC_LEVEL_BITS = 0b11; // mask for the level bits
-				static constexpr uint8_t IAC            = '\xff';
+			// the next four bytes are width and height
 
-				char const* level_str[ 4 ] = {
-				    "NOSUPPORT  ",
-				    "CANTCHANGE ",
-				    "VALUE      ",
-				    "DEFAULT    ",
-				};
-
-				while ( it < it_end ) {
-					uint8_t triplet[ 3 ] = {};
-
-					triplet[ 0 ] = *it;
-					uint8_t( *it ) == IAC ? it += 2 : it++;
-					if ( it >= it_end ) {
-						break;
-					}
-					triplet[ 1 ] = *( it );
-					uint8_t( *it ) == IAC ? it += 2 : it++;
-					if ( it >= it_end ) {
-						break;
-					}
-					triplet[ 2 ] = *( it );
-					uint8_t( *it ) == IAC ? it += 2 : it++;
-					if ( it >= it_end ) {
-						break;
-					}
-
-					if ( triplet[ 0 ] > uint8_t( le_console_o::connection_t::CharTable::CharTable_invalid ) &&
-					     triplet[ 0 ] < uint8_t( le_console_o::connection_t::CharTable::CharTable_last ) - 1 ) {
-
-						switch ( triplet[ 1 ] & SLC_LEVEL_BITS ) {
-
-						case ( uint8_t( SLC_LEVEL::CANTCHANGE ) ):
-							break;
-						case ( uint8_t( SLC_LEVEL::DEFAULT ) ):
-							break;
-						case ( uint8_t( SLC_LEVEL::NOSUPPORT ) ):
-							connection->slc_remote[ triplet[ 0 ] ] = 0;
-							break;
-						case ( uint8_t( SLC_LEVEL::VALUE ) ):
-							connection->slc_remote[ triplet[ 0 ] ] = triplet[ 2 ];
-							break;
-						default:
-							break;
-						}
-					}
-
-					logger.debug( "\t\t x%02x : %- 10s : x%02x", triplet[ 0 ], level_str[ triplet[ 1 ] & SLC_LEVEL_BITS ], triplet[ 2 ] );
-				}
+			if ( it_end - it == 4 + 2 ) {
+				connection->console_width = uint8_t( *it++ ) << 8; // msb first
+				connection->console_width |= uint8_t( *it++ );
+				connection->console_height = uint8_t( *it++ ) << 8; // msb first
+				connection->console_height |= uint8_t( *it++ );
+				logger.debug( "\t Setting Console window to %dx%d (w x h)", connection->console_width, connection->console_height );
+				connection->wants_redraw = true;
 			}
 		}
-
 		return false;
 	};
 
@@ -428,20 +375,19 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		case ( uint8_t( TEL_OPT::WILL ) ):
 			logger.debug( "WILL x%02x (%1$03u)", *( it + 1 ) );
 
-			// client will do something
-			if ( uint8_t( *( it + 1 ) ) == 0x22 ) {
-				// linemode activated on client -- we will operate in linemode from now on
-				connection->state = le_console_o::connection_t::State::eTelnetLineMode;
-				logger.debug( "LINEMODE activated on connection" );
-			}
-
 			break;
 		case ( uint8_t( TEL_OPT::WONT ) ):
 			logger.debug( "WONT x%02x (%1$03u)", *( it + 1 ) );
 			break;
 		case ( uint8_t( TEL_OPT::DO ) ):
 			logger.debug( "DO   x%02x (%1$03u)", *( it + 1 ) );
+			// client will ignore goahead
 			// client requests something from us
+			if ( uint8_t( *( it + 1 ) ) == '\x03' ) {
+				// linemode activated on client -- we will operate in linemode from now on
+				connection->state = le_console_o::connection_t::State::eSuppressGoahead;
+				logger.debug( "We will suppress Goahead" );
+			}
 			break;
 		case ( uint8_t( TEL_OPT::DONT ) ):
 			logger.debug( "DONT x%02x (%1$03u)", *( it + 1 ) );
@@ -502,6 +448,34 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 	return result;
 }
 
+// will set it_end to one past the previous word boundary if found,
+// otherwise will leave it_end untouched and return false
+static bool find_previous_word_boundary(
+    std::string::const_iterator const it_begin,
+    std::string::const_iterator&      it_end ) {
+
+	auto it = it_end;
+	it--;
+	while ( true ) {
+		if ( it != it_begin &&
+		     *it != ' ' &&
+		     ( it - 1 != it_begin ) &&
+		     *( it - 1 ) == ' ' ) {
+			// found first space-before-non-space
+			break;
+		} else if ( it != it_begin ) {
+			it--;
+		} else {
+			break;
+		}
+	}
+	if ( it_end != it ) {
+		it_end = it;
+		return true;
+	}
+	return false;
+}
+
 // --------------------------------------------------------------------------------
 
 static void le_console_process_input() {
@@ -550,7 +524,7 @@ static void le_console_process_input() {
 		}
 
 		// Then, check if we are running in linemode
-		if ( connection->state == le_console_o::connection_t::State::eTelnetLineMode ) {
+		if ( connection->state == le_console_o::connection_t::State::eSuppressGoahead ) {
 
 			// Process virtual terminal control sequences - if we're in line mode we have to do these things
 			// on the server-side.
@@ -578,9 +552,8 @@ static void le_console_process_input() {
 			std::string parameters;
 			bool        enter_user_input = false;
 			char        out_buf[ 2048 ]; // buffer for printf ops
-			bool        wants_redraw = false;
 
-			static auto execute_control_function = [ &wants_redraw ]( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
+			static auto execute_control_function = []( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
 				// Execute control function on connection
 				//
 				// We encode the control function (which is identified by its start and end byte)
@@ -590,23 +563,34 @@ static void le_console_process_input() {
 				switch ( f.data ) {
 				case ( '[' | 'D' << 8 ):
 					if ( connection->input_cursor_pos > 0 ) {
-						connection->input_cursor_pos--;
-						connection->channel_out.post( "\x1b[D" ); // cursor left
+						if ( parameters.size() == 3 && parameters[ 2 ] == '5' ) {
+							// CTRL+LEFT
+							auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
+							std::string::const_iterator it        = it_cursor;
+
+							if ( find_previous_word_boundary( connection->input_buffer.begin(), it ) ) {
+								connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
+								connection->wants_redraw     = true;
+							}
+						} else {
+							// LEFT
+							connection->input_cursor_pos--;
+							// update
+							connection->channel_out.post( "\x1b[D" ); // cursor left
+						}
 					}
-					// FIXME: we must update our insertion index for where to insert into the string
 					break;
 				case ( '[' | 'C' << 8 ):
 					if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
 						connection->input_cursor_pos++;
 						connection->channel_out.post( "\x1b[C" ); // cursor right
 					}
-					// FIXME: we must update our insertion index for where to insert into the string
 					break;
 				case ( '[' | '~' << 8 ): {
 					if ( !parameters.empty() && parameters[ 0 ] == '3' ) {
 						if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
 							connection->input_buffer.erase( connection->input_buffer.begin() + connection->input_cursor_pos );
-							wants_redraw = true;
+							connection->wants_redraw = true;
 						}
 					}
 					break;
@@ -629,57 +613,43 @@ static void le_console_process_input() {
 						if ( c == '\x01' ) {
 							// goto first char
 							connection->input_cursor_pos = 0;
-							wants_redraw                 = true;
+							connection->wants_redraw     = true;
 						} else if ( c == '\x05' ) {
 							// goto last char
 							connection->input_cursor_pos = connection->input_buffer.size();
-							wants_redraw                 = true;
+							connection->wants_redraw     = true;
 						} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
 							// delete word TODO: implement
 
-							auto       it_end   = connection->input_buffer.begin() + connection->input_cursor_pos;
-							auto const it_begin = connection->input_buffer.begin();
-							auto       it       = it_end;
-							it--;
-							while ( true ) {
-								if ( it != it_begin &&
-								     *it != ' ' &&
-								     ( it - 1 != it_begin ) &&
-								     *( it - 1 ) == ' ' ) {
-									// found first space-before-non-space
-									break;
-								} else if ( it != it_begin ) {
-									it--;
-								} else {
-									break;
-								}
-							}
-							if ( it_end != it ) {
-								connection->input_buffer.erase( it, it_end );
-								connection->input_cursor_pos = connection->input_cursor_pos - ( it_end - it );
-								logger.debug( "removing %d characters", ( it_end - it ) );
+							auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
+							std::string::const_iterator it        = it_cursor;
+
+							if ( find_previous_word_boundary( connection->input_buffer.begin(), it ) ) {
+								connection->input_buffer.erase( it, it_cursor );
+								connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
+								logger.debug( "removing %d characters", ( it_cursor - it ) );
 							}
 
-							wants_redraw = true;
+							connection->wants_redraw = true;
 						} else if ( c == '\x7f' ) { // delete
 							if ( !connection->input_buffer.empty() ) {
 								// remove last character if not empty
 								if ( connection->input_cursor_pos > 0 ) {
 									connection->input_buffer.erase( connection->input_buffer.begin() + --connection->input_cursor_pos );
-									wants_redraw = true;
+									connection->wants_redraw = true;
 								}
 							}
 						} else if ( c > '\x1f' ) {
 							// insert plain data
 							connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, c );
-							wants_redraw = true;
+							connection->wants_redraw = true;
 						} else {
 							logger.debug( "Unhandled character: 0x%02x ('%1$c')", c );
 						}
 					}
 					break;
 				case ENTER:
-					if ( c == 0x00 ) {
+					if ( c == 0x00 || c == '\n' ) {
 						enter_user_input = true;
 						state            = DATA;
 						connection->channel_out.post( "\r\n" ); // carriage-return+newline
@@ -719,24 +689,25 @@ static void le_console_process_input() {
 				}
 			}
 
-			if ( wants_redraw ) {
+			if ( connection->wants_redraw ) {
 				// clear line, reposition cursor
-				int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r%s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 1 );
+				int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r> %s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
 				if ( num_bytes > 1 ) {
 					connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
 				}
+				connection->wants_redraw = false;
 			}
 
 			if ( enter_user_input ) {
 				std::swap( connection->input_buffer, msg );
 				connection->input_buffer.clear();
 				connection->input_cursor_pos = 0;
+
+				connection->wants_redraw = true;
 			} else {
 				msg.clear();
 				continue; // this stops processing the message any further.
 			}
-
-			// echo input if needed
 		}
 
 		// first, we want to process telnet control
@@ -784,6 +755,7 @@ static void le_console_process_input() {
 
 			constexpr auto IAC      = "\xff";
 			constexpr auto DO       = "\xfd";
+			constexpr auto DONT     = "\xfe";
 			constexpr auto WILL     = "\xfb";
 			constexpr auto LINEMODE = "\x22";
 			constexpr auto ECHO     = '\x01';
@@ -796,12 +768,20 @@ static void le_console_process_input() {
 
 			msg
 			    << IAC
-			    << DO
-			    << LINEMODE
+			    << DONT
+			    << ECHO
 			    //
 			    << IAC
 			    << WILL
-			    << ECHO;
+			    << ECHO
+			    //
+			    << IAC
+			    << DO
+			    << '\x1f' // negotiate about window size
+			    //
+			    << IAC
+			    << WILL
+			    << "\x03"; // suppress goahead
 
 			connection->channel_out.post( msg.str() );
 

@@ -44,6 +44,7 @@ struct le_console_o {
 
 		bool wants_log_subscriber = false;
 		bool wants_close          = false; // to signal that we want to close this connection
+		bool wants_redraw         = false; // to signal whether the console window must be refreshed
 		int  fd;                           // file descriptor for the socket associated with this connection
 
 		uint32_t log_level_mask = 0; // -1 means everything 0, means nothing
@@ -55,56 +56,16 @@ struct le_console_o {
 		                 // so that we can remove any subscribers that are owned by this connection if needed
 
 		enum class State {
-			ePlain = 0,      // plain socket - this is how we start up
-			eTelnetLineMode, // user-requested. telnet line mode
+			ePlain = 0,       // plain socket - this is how we start up
+			eSuppressGoahead, // user-requested. telnet line mode
 		};
 
 		State state = State::ePlain;
 
 		std::string input_buffer;         // used for linemode
 		uint32_t    input_cursor_pos = 0; // position of linemode cursor (one past last element if at end)
-
-		enum class CharTable : uint32_t { // substitute local characters table
-			CharTable_invalid,
-			synch = 0x01, // synch
-			brk   = 0x02, // break
-			ip    = 0x03, // interrupt process
-			ao    = 0x04, // abort output
-			ayt   = 0x05, // are you there?
-			eor   = 0x06, // end of record
-			abort = 0x07, // abort
-			eof   = 0x08, // end of file
-			susp  = 0x09, // suspend
-			ec    = 0x0a, // erase character (to the left)
-			el    = 0x0b, // erase line
-			ew    = 0x0c, // erase word
-			rp    = 0x0d, // reprint line
-			lnext = 0x0e, // literal next: next character to be taken literally, no mapping should be done
-			xon   = 0x0f,
-			xoff  = 0x10,
-			forw1 = 0x11,
-			forw2 = 0x12,
-			mcl   = 0x13,
-			mcr   = 0x14,
-			mcwl  = 0x15,
-			mcwr  = 0x16,
-			mcboL = 0x17,
-			mceoL = 0x18,
-			insrT = 0x19,
-			over  = 0x1a,
-			ecr   = 0x1b,
-			ewr   = 0x1c,
-			ebol  = 0x1d,
-			eeol  = 0x1e,
-			CharTable_last,
-		};
-
-		char slc_remote[ uint32_t( CharTable::CharTable_last ) ] = {};
-		// char slc_local[ uint32_t( CharTable::CharTable_last ) ]  = {};
-
-		// In case we have linemode active,
-		// we must respect SLC, substitute local characters
-		// for which we must keep around a mapping table.
+		uint16_t    console_width    = 0; // window width of console
+		uint16_t    console_height   = 0; // window height of console
 	};
 
 	std::mutex                                                           connections_mutex;
