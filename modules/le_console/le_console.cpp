@@ -454,6 +454,34 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 	return result;
 }
 
+// find one-past the first next space that is followed by
+// a non-space
+static bool find_next_word_boundary(
+    std::string::const_iterator&       it_begin,
+    std::string::const_iterator const& it_end ) {
+
+	auto it = it_begin;
+	while ( true ) {
+		if ( it != it_end &&
+		     *it == ' ' &&
+		     ( it + 1 != it_end ) &&
+		     *( it + 1 ) != ' ' ) {
+			// found first space after-a-non-space
+			++it; // move cursor to first space after non-space
+			break;
+		} else if ( it != it_end ) {
+			it++;
+		} else {
+			break;
+		}
+	}
+	if ( it_begin != it ) {
+		it_begin = it;
+		return true;
+	}
+	return false;
+}
+
 // will set it_end to one past the previous word boundary if found,
 // otherwise will leave it_end untouched and return false
 static bool find_previous_word_boundary(
@@ -528,10 +556,37 @@ std::string process_terminal_input( le_console_o::connection_t* connection, std:
 		// switch on it:
 		//
 		switch ( f.data ) {
+		case ( '[' | 'A' << 8 ):
+			if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
+				// cursor up: history back
+			}
+			break;
+		case ( '[' | 'B' << 8 ):
+			if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
+				// cursor down: history forward
+			}
+			break;
+		case ( '[' | 'C' << 8 ):
+			if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
+				if ( parameters.size() == 3 && parameters[ 2 ] == '5' ) {
+					// CTRL+RIGHT: ^[1;5D
+					auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
+					std::string::const_iterator it        = it_cursor;
+
+					if ( find_next_word_boundary( it, connection->input_buffer.end() ) ) {
+						connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
+						connection->wants_redraw     = true;
+					}
+				} else {
+					connection->input_cursor_pos++;
+					connection->channel_out.post( "\x1b[C" ); // cursor right
+				}
+			}
+			break;
 		case ( '[' | 'D' << 8 ):
 			if ( connection->input_cursor_pos > 0 ) {
 				if ( parameters.size() == 3 && parameters[ 2 ] == '5' ) {
-					// CTRL+LEFT
+					// CTRL+LEFT: ^[1;5D
 					auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
 					std::string::const_iterator it        = it_cursor;
 
@@ -545,12 +600,6 @@ std::string process_terminal_input( le_console_o::connection_t* connection, std:
 					// update
 					connection->channel_out.post( "\x1b[D" ); // cursor left
 				}
-			}
-			break;
-		case ( '[' | 'C' << 8 ):
-			if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
-				connection->input_cursor_pos++;
-				connection->channel_out.post( "\x1b[C" ); // cursor right
 			}
 			break;
 		case ( '[' | '~' << 8 ): {
