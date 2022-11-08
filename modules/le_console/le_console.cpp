@@ -74,7 +74,7 @@ class LeLogSubscriber : NoCopy {
 	explicit LeLogSubscriber( le_console_o::connection_t* connection )
 	    : handle( le_log::api->add_subscriber( logger_callback, connection, connection->log_level_mask ) ) {
 		static auto logger = le::Log( LOG_CHANNEL );
-		logger.debug( "Adding Log subscriber with mask 0x%x", connection->log_level_mask );
+		logger.debug( "Adding Log subscriber for %s with mask 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
 	}
 	~LeLogSubscriber() {
 		static auto logger = le::Log( LOG_CHANNEL );
@@ -680,15 +680,12 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 				} else if ( c == '\x0c' ) {
 					tty_clear_screen( connection );
 				} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
-					// delete word TODO: implement
-
 					auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
 					std::string::const_iterator it        = it_cursor;
 
 					if ( find_previous_word_boundary( connection->input_buffer.begin(), it ) ) {
 						connection->input_buffer.erase( it, it_cursor );
 						connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
-						logger.debug( "removing %d characters", ( it_cursor - it ) );
 					}
 					connection->wants_redraw = true;
 
@@ -809,6 +806,7 @@ static void le_console_process_input() {
 		std::string msg;
 
 		connection->channel_in.fetch( msg );
+
 		// redraw if requested
 		if ( connection->wants_redraw ) {
 			char out_buf[ 2048 ]; // buffer for printf ops
@@ -819,6 +817,7 @@ static void le_console_process_input() {
 			}
 			connection->wants_redraw = false;
 		}
+
 		if ( msg.empty() ) {
 			continue;
 		}
@@ -840,14 +839,6 @@ static void le_console_process_input() {
 		if ( msg.empty() ) {
 			continue;
 		}
-
-		// first, we want to process telnet control
-		//      Telnet control means to respond to telnet events, and the IAC byte (255)
-		// it also means to translate erase character and erase line etc. to local terminal
-		//
-		// then we want to process terminal control.
-		//
-		// how do we know if a message was user-initiated?
 
 		// --------| invariant: message does not begin with \xff or \x1b
 
@@ -943,7 +934,7 @@ static void le_console_process_input() {
 					le_console_produce_log_subscribers()[ c.first ].reset( nullptr );
 					connection->wants_log_subscriber = false;
 				}
-				le_log::le_log_channel_i.info( logger.getChannel(), "Updated console log level mask to 0x%x", connection->log_level_mask );
+				le_log::le_log_channel_i.info( logger.getChannel(), "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
 			}
 			break;
 		default:
