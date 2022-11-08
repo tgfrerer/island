@@ -4,9 +4,9 @@
 #include "le_core.h"
 
 struct le_imgui_o;
-struct le_renderpass_o;    // declared in le_renderer.h
+struct le_renderpass_o;  // declared in le_renderer.h
 struct le_rendergraph_o; // declared in le_renderer.h
-struct LeUiEvent;          // declared in le_ui_event.h
+struct LeUiEvent;        // declared in le_ui_event.h
 
 // clang-format off
 struct le_imgui_api {
@@ -20,7 +20,7 @@ struct le_imgui_api {
 		void            ( * begin_frame             ) ( le_imgui_o* self);
 		void            ( * end_frame               ) ( le_imgui_o* self);
 
-		void            ( * setup_resources )( le_imgui_o *self, le_rendergraph_o *p_render_module, float display_width, float display_height );
+		void            ( * setup_resources )( le_imgui_o *self, le_rendergraph_o *p_rendergraph, float display_width, float display_height );
 		void            ( * draw            )( le_imgui_o* self, le_renderpass_o* renderpass);
 
 
