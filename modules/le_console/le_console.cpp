@@ -645,8 +645,8 @@ std::string process_terminal_input( le_console_o::connection_t* connection, std:
 						connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
 						logger.debug( "removing %d characters", ( it_cursor - it ) );
 					}
-
 					connection->wants_redraw = true;
+
 				} else if ( c == '\x7f' ) { // delete
 					if ( !connection->input_buffer.empty() ) {
 						// remove last character if not empty
@@ -705,6 +705,7 @@ std::string process_terminal_input( le_console_o::connection_t* connection, std:
 		}
 	}
 
+	// redraw if requested
 	if ( connection->wants_redraw ) {
 		// clear line, reposition cursor
 		int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r> %s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
@@ -713,7 +714,6 @@ std::string process_terminal_input( le_console_o::connection_t* connection, std:
 		}
 		connection->wants_redraw = false;
 	}
-
 	if ( enter_user_input ) {
 		std::string result( std::move( connection->input_buffer ) );
 		connection->input_buffer.clear();
