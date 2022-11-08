@@ -50,8 +50,11 @@ struct le_console_o {
 
 		uint32_t log_level_mask = 0; // -1 means everything 0, means nothing
 
-		explicit connection_t( int fd_ )
-		    : fd( fd_ ){};
+		explicit connection_t( int fd_, char const* remote_ip_ )
+		    : fd( fd_ )
+		    , remote_ip( remote_ip_ ) {
+			this->session_history_it = this->session_history.end();
+		};
 
 		~connection_t(); // implementation must live in same compilation unit which provides access to  `le_console_produce_log_subscribers()`
 		                 // so that we can remove any subscribers that are owned by this connection if needed
@@ -67,6 +70,10 @@ struct le_console_o {
 		uint32_t    input_cursor_pos = 0; // position of linemode cursor (one past last element if at end)
 		uint16_t    console_width    = 0; // window width of console
 		uint16_t    console_height   = 0; // window height of console
+
+		std::deque<std::string>           history;            // history as it happened
+		std::deque<std::string>           session_history;    // editable copy of history - reset on submit
+		std::deque<std::string>::iterator session_history_it; // position 0 is
 	};
 
 	std::mutex                                                           connections_mutex;
