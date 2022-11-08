@@ -37,21 +37,9 @@ extern void le_console_server_register_api( void* api ); // in le_console_server
 
 Ideas for this module:
 
-we want to have more than one console - perhaps one console per connection.
+A console is an interactive session which has its own state and its own history.
+Each sessino is Modal, it can run as an interactive TTY-like session (enter "tty")
 
-Right now we have a situation where we have a console that is always-on,
-and subscribes to log messages as soon as its server starts.
-
-Any connections to the console receive the same answer - there is only one channel for
-input and one channel for output. All connections feed their commands into the same
-channel for commands.
-
-commands get processed when explicitly requested.
-
-*
-
-A console is something that can subscribe to messages from the log for example,
-but most importantly it can read commands from a socket and write responses back to that socket.
 
 */
 
@@ -715,10 +703,20 @@ std::string process_terminal_input( le_console_o::connection_t* connection, std:
 		connection->wants_redraw = false;
 	}
 	if ( enter_user_input ) {
+		// submit
 		std::string result( std::move( connection->input_buffer ) );
 		connection->input_buffer.clear();
 		connection->input_cursor_pos = 0;
 		connection->wants_redraw     = true;
+
+		while ( connection->history.size() >= 20 ) {
+			connection->history.pop_front();
+		}
+		connection->history.push_back( result );
+		connection->session_history = connection->history;
+		connection->session_history.push_back( connection->input_buffer );
+		connection->session_history_it = connection->session_history.end() - 1;
+
 		return result;
 	} else {
 		return "";
@@ -816,7 +814,7 @@ static void le_console_process_input() {
 			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })"
 			                              "\r\n" );
 		} break;
-		case hash_32_fnv1a_const( "cls" ): {
+		case hash_32_fnv1a_const( "tty" ): {
 
 			constexpr auto IAC      = "\xff";
 			constexpr auto DO       = "\xfd";
@@ -827,7 +825,6 @@ static void le_console_process_input() {
 			constexpr auto SB       = '\xfa';
 			constexpr auto SE       = '\xf0';
 			constexpr auto SLC      = '\x03'; // substitute local characters
-			constexpr auto MODE     = '\x01';
 
 			std::ostringstream msg;
 
