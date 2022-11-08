@@ -34,6 +34,7 @@
 
 extern void le_console_server_register_api( void* api ); // in le_console_server
 
+static constexpr auto ISL_TTY_COLOR = "\x1b[38;2;204;203;164m";
 /*
 
 Ideas for this module:
@@ -58,7 +59,8 @@ static le_console_o* produce_console() {
 // chance of a deadlock.
 static void logger_callback( char const* chars, uint32_t num_chars, void* user_data ) {
 	auto connection = ( le_console_o::connection_t* )user_data;
-	connection->channel_out.post( std::string( chars, num_chars ) + "\r\n" );
+	connection->channel_out.post( "\r" + std::string( chars, num_chars ) + "\r\n" );
+	connection->wants_redraw = true;
 }
 
 // ----------------------------------------------------------------------
@@ -499,6 +501,15 @@ static bool find_previous_word_boundary(
 	return false;
 }
 
+static void tty_clear_screen( le_console_o::connection_t* connection ) {
+	std::ostringstream msg;
+	msg << "\x1b[2J"    // clear screen
+	    << "\x1b[\x48"; // position cursor to 1,1
+
+	connection->channel_out.post( msg.str() );
+	connection->wants_redraw = true;
+}
+
 // --------------------------------------------------------------------------------
 
 std::string process_tty_input( le_console_o::connection_t* connection, std::string const& msg ) {
@@ -630,7 +641,6 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 				} else {
 					// LEFT
 					connection->input_cursor_pos--;
-					// update
 					connection->channel_out.post( "\x1b[D" ); // cursor left
 				}
 			}
@@ -667,6 +677,8 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					// goto last char
 					connection->input_cursor_pos = connection->input_buffer.size();
 					connection->wants_redraw     = true;
+				} else if ( c == '\x0c' ) {
+					tty_clear_screen( connection );
 				} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
 					// delete word TODO: implement
 
@@ -739,14 +751,14 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 	}
 
 	// redraw if requested
-	if ( connection->wants_redraw ) {
-		// clear line, reposition cursor
-		int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r> %s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
-		if ( num_bytes > 1 ) {
-			connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
-		}
-		connection->wants_redraw = false;
-	}
+	// if ( false && connection->wants_redraw ) {
+	//	// clear line, reposition cursor
+	//	int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r\x1b[4m>\x1b[0m %s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
+	//	if ( num_bytes > 1 ) {
+	//		connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
+	//	}
+	//	connection->wants_redraw = false;
+	//}
 	if ( enter_user_input ) {
 		// submit
 		std::string result( std::move( connection->input_buffer ) );
@@ -797,7 +809,16 @@ static void le_console_process_input() {
 		std::string msg;
 
 		connection->channel_in.fetch( msg );
-
+		// redraw if requested
+		if ( connection->wants_redraw ) {
+			char out_buf[ 2048 ]; // buffer for printf ops
+			// clear line, reposition cursor
+			int num_bytes = snprintf( out_buf, sizeof( out_buf ), "%s\r\x1b[1M\x1b[1m>\x1b[0m %s\x1b[%dG", ISL_TTY_COLOR, connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
+			if ( num_bytes > 1 ) {
+				connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
+			}
+			connection->wants_redraw = false;
+		}
 		if ( msg.empty() ) {
 			continue;
 		}
@@ -862,6 +883,10 @@ static void le_console_process_input() {
 			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })"
 			                              "\r\n" );
 		} break;
+		case hash_32_fnv1a_const( "cls" ): {
+			// directly put a message onto the output buffer - without mirroring it to the console
+			tty_clear_screen( connection.get() );
+		} break;
 		case hash_32_fnv1a_const( "tty" ): {
 
 			constexpr auto IAC      = "\xff";
@@ -894,8 +919,10 @@ static void le_console_process_input() {
 			    << "\x03"; // suppress goahead
 
 			connection->channel_out.post( msg.str() );
-
-			connection->channel_out.post( "\x1b[38;5;220mIsland Console.\r\nWelcome.\x1b[0m\r\n" );
+			msg.clear();
+			msg << ISL_TTY_COLOR
+			    << "Island Console.\r\nWelcome.\x1b[0m\r\n";
+			connection->channel_out.post( msg.str() );
 			// connection->channel_out.post( "\x1b[H\x1b[2J" );
 			// connection->channel_out.post( "\x1b[6n" ); // query current cursor position -- not yet sure how to interpret response.
 
