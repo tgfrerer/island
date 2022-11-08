@@ -224,9 +224,9 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 					if ( request->fd == server->listener ) {
 						// this is the listening socket - we want to open a new connection
 						remote_addr_len = sizeof remote_addr;
-						int newfd       = accept( server->listener,
-						                          ( struct sockaddr* )&remote_addr,
-						                          &remote_addr_len );
+						int newfd       = accept( server->listener, ( struct sockaddr* )&remote_addr, &remote_addr_len );
+						// convert remote address name to string
+						inet_ntop( remote_addr.ss_family, get_in_addr( ( struct sockaddr* )&remote_addr ), remote_ip, INET6_ADDRSTRLEN );
 
 						if ( newfd == -1 ) {
 							perror( "accept" );
@@ -238,14 +238,10 @@ static void le_console_server_start_thread( le_console_server_o* self ) {
 							{
 								// Create a new connection - this means we must protect our map of connections
 								auto connections_lock = std::scoped_lock( server->console->connections_mutex );
-
-								server->console->connections[ tmp_pollfd.fd ] = std::make_unique<le_console_o::connection_t>( tmp_pollfd.fd );
+								server->console->connections[ tmp_pollfd.fd ] =
+								    std::make_unique<le_console_o::connection_t>( tmp_pollfd.fd, remote_ip );
 							}
-							logger.info( "Pollserver: New connection from %s on socket %d\n",
-							             inet_ntop( remote_addr.ss_family,
-							                        get_in_addr( ( struct sockaddr* )&remote_addr ),
-							                        remote_ip, INET6_ADDRSTRLEN ),
-							             newfd );
+							logger.info( "Pollserver: New connection from %s on socket %d\n", remote_ip, newfd );
 						}
 					} else {
 						// fd != listener, this is a regular client

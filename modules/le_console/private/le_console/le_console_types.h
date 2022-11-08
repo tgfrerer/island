@@ -42,10 +42,11 @@ struct le_console_o {
 		channel channel_out;
 		channel channel_in;
 
-		bool wants_log_subscriber = false;
-		bool wants_close          = false; // to signal that we want to close this connection
-		bool wants_redraw         = false; // to signal whether the console window must be refreshed
-		int  fd;                           // file descriptor for the socket associated with this connection
+		bool        wants_log_subscriber = false;
+		bool        wants_close          = false; // to signal that we want to close this connection
+		bool        wants_redraw         = false; // to signal whether the console window must be refreshed
+		int         fd;                           // file descriptor for the socket associated with this connection
+		std::string remote_ip;
 
 		uint32_t log_level_mask = 0; // -1 means everything 0, means nothing
 
