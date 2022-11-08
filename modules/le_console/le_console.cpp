@@ -500,7 +500,7 @@ static bool find_previous_word_boundary(
 
 // --------------------------------------------------------------------------------
 
-std::string process_terminal_input( le_console_o::connection_t* connection, std::string const& msg ) {
+std::string process_tty_input( le_console_o::connection_t* connection, std::string const& msg ) {
 
 	static auto logger = le::Log( LOG_CHANNEL );
 
@@ -766,7 +766,7 @@ static void le_console_process_input() {
 			continue;
 		}
 
-		msg = process_terminal_input( connection.get(), msg );
+		msg = process_tty_input( connection.get(), msg );
 
 		if ( msg.empty() ) {
 			continue;
