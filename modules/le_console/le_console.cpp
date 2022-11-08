@@ -416,7 +416,13 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 				}
 				if ( !iac_flip_flop ) {
 
-					if ( *c == '\x03' || *c == '\x04' ) {
+					if ( *c == '\x03' ) {
+						// CTRL+C : reset current input
+						connection->input_buffer.clear();
+						connection->input_cursor_pos = 0;
+						connection->wants_redraw     = true;
+						return result;
+					} else if ( *c == '\x04' ) {
 						// CTRL+C || CTRL+D
 						connection->wants_close = true;
 						return result;
