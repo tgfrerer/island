@@ -346,7 +346,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		logger.info( "Suboption x%02x (%1$03u)", *it );
 
 		if ( uint8_t( *it ) == 0x1f ) {
-			logger.debug( "\t Suboption NAWS (Negociate window size)" );
+			logger.debug( "\t Suboption NAWS (Negotiate window size)" );
 
 			it++; // Move past the suboption specifier
 
@@ -813,7 +813,8 @@ static void le_console_process_input() {
 			break;
 		case hash_32_fnv1a_const( "json" ): {
 			// directly put a message onto the output buffer - without mirroring it to the console
-			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" }\r\n)" );
+			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })"
+			                              "\r\n" );
 		} break;
 		case hash_32_fnv1a_const( "cls" ): {
 
