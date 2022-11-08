@@ -5,6 +5,7 @@
 #include "le_console.h"
 #include "le_settings.h"
 
+#include <algorithm>
 #include <mutex>
 #include <sstream>
 #include <thread>
@@ -545,13 +546,57 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 		//
 		switch ( f.data ) {
 		case ( '[' | 'A' << 8 ):
-			if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
-				// cursor up: history back
+			// cursor up
+			if ( connection->session_history_it != connection->session_history.end() &&
+			     connection->session_history_it != connection->session_history.begin() ) {
+
+				constexpr auto CURSOR_POS_BYTE_COUNT               = sizeof( connection->input_cursor_pos ) + 2;
+				char           cursor_pos[ CURSOR_POS_BYTE_COUNT ] = {};
+
+				memcpy( cursor_pos + 2, &connection->input_cursor_pos, CURSOR_POS_BYTE_COUNT - 2 );
+
+				*connection->session_history_it = connection->input_buffer.append( cursor_pos, CURSOR_POS_BYTE_COUNT ); // append the cursor pos
+				connection->session_history_it--;
+
+				connection->input_buffer = *connection->session_history_it;
+
+				if ( connection->input_buffer.size() >= CURSOR_POS_BYTE_COUNT &&
+				     *( connection->input_buffer.end() - CURSOR_POS_BYTE_COUNT ) == 0x00 ) {
+					memcpy( &connection->input_cursor_pos,
+					        connection->input_buffer.data() + connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT + 2,
+					        CURSOR_POS_BYTE_COUNT - 2 );
+					connection->input_buffer.resize( connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT );
+				} else {
+					connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, connection->input_buffer.size() );
+				}
+				connection->wants_redraw = true;
 			}
 			break;
 		case ( '[' | 'B' << 8 ):
-			if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
-				// cursor down: history forward
+			// cursor down
+			if (
+			    connection->session_history_it < connection->session_history.end() - 1 ) {
+
+				constexpr auto CURSOR_POS_BYTE_COUNT               = sizeof( connection->input_cursor_pos ) + 2;
+				char           cursor_pos[ CURSOR_POS_BYTE_COUNT ] = {};
+
+				memcpy( cursor_pos + 2, &connection->input_cursor_pos, CURSOR_POS_BYTE_COUNT - 2 );
+
+				*connection->session_history_it = connection->input_buffer.append( cursor_pos, CURSOR_POS_BYTE_COUNT ); // append the cursor pos
+				connection->session_history_it++;
+
+				connection->input_buffer = *connection->session_history_it;
+
+				if ( connection->input_buffer.size() >= CURSOR_POS_BYTE_COUNT &&
+				     *( connection->input_buffer.end() - CURSOR_POS_BYTE_COUNT ) == 0x00 ) {
+					memcpy( &connection->input_cursor_pos,
+					        connection->input_buffer.data() + connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT + 2,
+					        CURSOR_POS_BYTE_COUNT - 2 );
+					connection->input_buffer.resize( connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT );
+				} else {
+					connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, connection->input_buffer.size() );
+				}
+				connection->wants_redraw = true;
 			}
 			break;
 		case ( '[' | 'C' << 8 ):
@@ -709,13 +754,16 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 		connection->input_cursor_pos = 0;
 		connection->wants_redraw     = true;
 
-		while ( connection->history.size() >= 20 ) {
-			connection->history.pop_front();
+		if ( !result.empty() ) {
+			// only add to history if there was a non-empty submission
+			while ( connection->history.size() >= 20 ) {
+				connection->history.pop_front();
+			}
+			connection->history.push_back( result );
+			connection->session_history = connection->history;
+			connection->session_history.push_back( connection->input_buffer );
+			connection->session_history_it = connection->session_history.end() - 1;
 		}
-		connection->history.push_back( result );
-		connection->session_history = connection->history;
-		connection->session_history.push_back( connection->input_buffer );
-		connection->session_history_it = connection->session_history.end() - 1;
 
 		return result;
 	} else {
