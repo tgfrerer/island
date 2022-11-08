@@ -478,6 +478,200 @@ static bool find_previous_word_boundary(
 
 // --------------------------------------------------------------------------------
 
+std::string process_terminal_input( le_console_o::connection_t* connection, std::string const& msg ) {
+
+	static auto logger = le::Log( LOG_CHANNEL );
+
+	if ( connection->state != le_console_o::connection_t::State::eSuppressGoahead ) {
+		// we return early if we're not supposed to interpret character-by-character.
+		return msg;
+	}
+
+	// Process virtual terminal control sequences - if we're in line mode we have to do these things
+	// on the server-side.
+	//
+	// See: ECMA-48, <https://www.ecma-international.org/publications-and-standards/standards/ecma-48/>
+
+	enum State {
+		DATA,  // plain data
+		ESC,   //
+		CSI,   // ESC [
+		ENTER, // '\r'
+	};
+
+	State state = State::DATA;
+
+	union control_function_t {
+		struct Bytes {
+			char intro; // store in lower byte
+			char final; // store in upper byte
+		} bytes;
+		uint16_t data = {};
+	} control_function = {};
+
+	// introducer and end byte of control function
+	std::string parameters;
+	bool        enter_user_input = false;
+	char        out_buf[ 2048 ]; // buffer for printf ops
+
+	static auto execute_control_function = []( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
+		// Execute control function on connection
+		//
+		// We encode the control function (which is identified by its start and end byte)
+		// as a uint16_t which consists of (start_byte | end_byte << 8) so that we can
+		// switch on it:
+		//
+		switch ( f.data ) {
+		case ( '[' | 'D' << 8 ):
+			if ( connection->input_cursor_pos > 0 ) {
+				if ( parameters.size() == 3 && parameters[ 2 ] == '5' ) {
+					// CTRL+LEFT
+					auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
+					std::string::const_iterator it        = it_cursor;
+
+					if ( find_previous_word_boundary( connection->input_buffer.begin(), it ) ) {
+						connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
+						connection->wants_redraw     = true;
+					}
+				} else {
+					// LEFT
+					connection->input_cursor_pos--;
+					// update
+					connection->channel_out.post( "\x1b[D" ); // cursor left
+				}
+			}
+			break;
+		case ( '[' | 'C' << 8 ):
+			if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
+				connection->input_cursor_pos++;
+				connection->channel_out.post( "\x1b[C" ); // cursor right
+			}
+			break;
+		case ( '[' | '~' << 8 ): {
+			if ( !parameters.empty() && parameters[ 0 ] == '3' ) {
+				if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
+					connection->input_buffer.erase( connection->input_buffer.begin() + connection->input_cursor_pos );
+					connection->wants_redraw = true;
+				}
+			}
+			break;
+		}
+		default:
+			logger.debug( "executing control function: 0x%02x ('%1$c'), with parameters: '%2$s' and final byte: 0x%3$02x ('%3$c')", f.bytes.intro, parameters.c_str(), f.bytes.final );
+		}
+	};
+
+	for ( auto c : msg ) {
+
+		switch ( state ) {
+		case DATA:
+			if ( c == '\x1b' ) {
+				state = ESC;
+			} else if ( c == '\r' ) {
+				state = ENTER;
+			} else {
+
+				if ( c == '\x01' ) {
+					// goto first char
+					connection->input_cursor_pos = 0;
+					connection->wants_redraw     = true;
+				} else if ( c == '\x05' ) {
+					// goto last char
+					connection->input_cursor_pos = connection->input_buffer.size();
+					connection->wants_redraw     = true;
+				} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
+					// delete word TODO: implement
+
+					auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
+					std::string::const_iterator it        = it_cursor;
+
+					if ( find_previous_word_boundary( connection->input_buffer.begin(), it ) ) {
+						connection->input_buffer.erase( it, it_cursor );
+						connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
+						logger.debug( "removing %d characters", ( it_cursor - it ) );
+					}
+
+					connection->wants_redraw = true;
+				} else if ( c == '\x7f' ) { // delete
+					if ( !connection->input_buffer.empty() ) {
+						// remove last character if not empty
+						if ( connection->input_cursor_pos > 0 ) {
+							connection->input_buffer.erase( connection->input_buffer.begin() + --connection->input_cursor_pos );
+							connection->wants_redraw = true;
+						}
+					}
+				} else if ( c > '\x1f' ) {
+					// insert plain data
+					connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, c );
+					connection->wants_redraw = true;
+				} else {
+					logger.debug( "Unhandled character: 0x%02x ('%1$c')", c );
+				}
+			}
+			break;
+		case ENTER:
+			if ( c == 0x00 || c == '\n' ) {
+				enter_user_input = true;
+				state            = DATA;
+				connection->channel_out.post( "\r\n" ); // carriage-return+newline
+			} else {
+				connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, '\r' );
+				state = DATA;
+			}
+			break;
+		case ESC:
+			if ( c == '\x5b' || c == '\x9b' ) { // 7-bit or 8 bit representation of control sequence
+				state                        = CSI;
+				control_function.bytes.intro = c;
+			} else {
+				connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, '\x1b' );
+				state = DATA; // FIXME: is this correct? this is what we do if ESC is *not* followed by a control sequence character
+			}
+			break;
+		case CSI:
+			if ( c >= '\x30' && c <= '\x3f' ) { // parameter bytes
+				parameters.push_back( c );
+			} else if ( c >= '\x20' && c <= '\x2f' ) { // intermediary bytes (' ' to '/')
+				// we want to add these to the parameter string that we capture
+				parameters.push_back( c );
+			} else if ( c >= '\x40' && c <= '\x7e' ) { // final byte of a control sequence
+				// todo: we must do something with this control sequence
+				control_function.bytes.final = c;
+				execute_control_function( connection, control_function, parameters );
+				state            = DATA;
+				control_function = {};
+			}
+			// if end of command
+			// if parameter byte
+			break;
+		}
+		if ( enter_user_input ) {
+			break;
+		}
+	}
+
+	if ( connection->wants_redraw ) {
+		// clear line, reposition cursor
+		int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r> %s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
+		if ( num_bytes > 1 ) {
+			connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
+		}
+		connection->wants_redraw = false;
+	}
+
+	if ( enter_user_input ) {
+		std::string result( std::move( connection->input_buffer ) );
+		connection->input_buffer.clear();
+		connection->input_cursor_pos = 0;
+		connection->wants_redraw     = true;
+		return result;
+	} else {
+		return "";
+	}
+}
+
+// ------------------------------------------------------------------------------------------
+
 static void le_console_process_input() {
 	static auto logger = le::Log( LOG_CHANNEL );
 
@@ -519,195 +713,10 @@ static void le_console_process_input() {
 			continue;
 		}
 
+		msg = process_terminal_input( connection.get(), msg );
+
 		if ( msg.empty() ) {
 			continue;
-		}
-
-		// Then, check if we are running in linemode
-		if ( connection->state == le_console_o::connection_t::State::eSuppressGoahead ) {
-
-			// Process virtual terminal control sequences - if we're in line mode we have to do these things
-			// on the server-side.
-			//
-			// See: ECMA-48, <https://www.ecma-international.org/publications-and-standards/standards/ecma-48/>
-
-			enum State {
-				DATA,  // plain data
-				ESC,   //
-				CSI,   // ESC [
-				ENTER, // '\r'
-			};
-
-			State state = State::DATA;
-
-			union control_function_t {
-				struct Bytes {
-					char intro; // store in lower byte
-					char final; // store in upper byte
-				} bytes;
-				uint16_t data = {};
-			} control_function = {};
-
-			// introducer and end byte of control function
-			std::string parameters;
-			bool        enter_user_input = false;
-			char        out_buf[ 2048 ]; // buffer for printf ops
-
-			static auto execute_control_function = []( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
-				// Execute control function on connection
-				//
-				// We encode the control function (which is identified by its start and end byte)
-				// as a uint16_t which consists of (start_byte | end_byte << 8) so that we can
-				// switch on it:
-				//
-				switch ( f.data ) {
-				case ( '[' | 'D' << 8 ):
-					if ( connection->input_cursor_pos > 0 ) {
-						if ( parameters.size() == 3 && parameters[ 2 ] == '5' ) {
-							// CTRL+LEFT
-							auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
-							std::string::const_iterator it        = it_cursor;
-
-							if ( find_previous_word_boundary( connection->input_buffer.begin(), it ) ) {
-								connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
-								connection->wants_redraw     = true;
-							}
-						} else {
-							// LEFT
-							connection->input_cursor_pos--;
-							// update
-							connection->channel_out.post( "\x1b[D" ); // cursor left
-						}
-					}
-					break;
-				case ( '[' | 'C' << 8 ):
-					if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
-						connection->input_cursor_pos++;
-						connection->channel_out.post( "\x1b[C" ); // cursor right
-					}
-					break;
-				case ( '[' | '~' << 8 ): {
-					if ( !parameters.empty() && parameters[ 0 ] == '3' ) {
-						if ( connection->input_cursor_pos < connection->input_buffer.size() ) {
-							connection->input_buffer.erase( connection->input_buffer.begin() + connection->input_cursor_pos );
-							connection->wants_redraw = true;
-						}
-					}
-					break;
-				}
-				default:
-					logger.debug( "executing control function: 0x%02x ('%1$c'), with parameters: '%2$s' and final byte: 0x%3$02x ('%3$c')", f.bytes.intro, parameters.c_str(), f.bytes.final );
-				}
-			};
-
-			for ( auto c : msg ) {
-
-				switch ( state ) {
-				case DATA:
-					if ( c == '\x1b' ) {
-						state = ESC;
-					} else if ( c == '\r' ) {
-						state = ENTER;
-					} else {
-
-						if ( c == '\x01' ) {
-							// goto first char
-							connection->input_cursor_pos = 0;
-							connection->wants_redraw     = true;
-						} else if ( c == '\x05' ) {
-							// goto last char
-							connection->input_cursor_pos = connection->input_buffer.size();
-							connection->wants_redraw     = true;
-						} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
-							// delete word TODO: implement
-
-							auto const                  it_cursor = connection->input_buffer.begin() + connection->input_cursor_pos;
-							std::string::const_iterator it        = it_cursor;
-
-							if ( find_previous_word_boundary( connection->input_buffer.begin(), it ) ) {
-								connection->input_buffer.erase( it, it_cursor );
-								connection->input_cursor_pos = connection->input_cursor_pos - ( it_cursor - it );
-								logger.debug( "removing %d characters", ( it_cursor - it ) );
-							}
-
-							connection->wants_redraw = true;
-						} else if ( c == '\x7f' ) { // delete
-							if ( !connection->input_buffer.empty() ) {
-								// remove last character if not empty
-								if ( connection->input_cursor_pos > 0 ) {
-									connection->input_buffer.erase( connection->input_buffer.begin() + --connection->input_cursor_pos );
-									connection->wants_redraw = true;
-								}
-							}
-						} else if ( c > '\x1f' ) {
-							// insert plain data
-							connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, c );
-							connection->wants_redraw = true;
-						} else {
-							logger.debug( "Unhandled character: 0x%02x ('%1$c')", c );
-						}
-					}
-					break;
-				case ENTER:
-					if ( c == 0x00 || c == '\n' ) {
-						enter_user_input = true;
-						state            = DATA;
-						connection->channel_out.post( "\r\n" ); // carriage-return+newline
-					} else {
-						connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, '\r' );
-						state = DATA;
-					}
-					break;
-				case ESC:
-					if ( c == '\x5b' || c == '\x9b' ) { // 7-bit or 8 bit representation of control sequence
-						state                        = CSI;
-						control_function.bytes.intro = c;
-					} else {
-						connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, '\x1b' );
-						state = DATA; // FIXME: is this correct? this is what we do if ESC is *not* followed by a control sequence character
-					}
-					break;
-				case CSI:
-					if ( c >= '\x30' && c <= '\x3f' ) { // parameter bytes
-						parameters.push_back( c );
-					} else if ( c >= '\x20' && c <= '\x2f' ) { // intermediary bytes (' ' to '/')
-						// we want to add these to the parameter string that we capture
-						parameters.push_back( c );
-					} else if ( c >= '\x40' && c <= '\x7e' ) { // final byte of a control sequence
-						// todo: we must do something with this control sequence
-						control_function.bytes.final = c;
-						execute_control_function( connection.get(), control_function, parameters );
-						state            = DATA;
-						control_function = {};
-					}
-					// if end of command
-					// if parameter byte
-					break;
-				}
-				if ( enter_user_input ) {
-					break;
-				}
-			}
-
-			if ( connection->wants_redraw ) {
-				// clear line, reposition cursor
-				int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r> %s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
-				if ( num_bytes > 1 ) {
-					connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
-				}
-				connection->wants_redraw = false;
-			}
-
-			if ( enter_user_input ) {
-				std::swap( connection->input_buffer, msg );
-				connection->input_buffer.clear();
-				connection->input_cursor_pos = 0;
-
-				connection->wants_redraw = true;
-			} else {
-				msg.clear();
-				continue; // this stops processing the message any further.
-			}
 		}
 
 		// first, we want to process telnet control
