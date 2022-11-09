@@ -392,13 +392,18 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 			// client will ignore goahead
 			// client requests something from us
 			if ( uint8_t( *( it + 1 ) ) == '\x03' ) {
-				// linemode activated on client -- we will operate in linemode from now on
+				// Do Suppress goahead
 				connection->state = le_console_o::connection_t::State::eSuppressGoahead;
 				logger.debug( "We will suppress Goahead" );
 			}
 			break;
 		case ( uint8_t( TEL_OPT::DONT ) ):
 			logger.debug( "DONT x%02x (%1$03u)", *( it + 1 ) );
+			if ( uint8_t( *( it + 1 ) ) == '\x03' ) {
+				// Don't Suppress goahead
+				connection->state = le_console_o::connection_t::State::ePlain;
+				logger.debug( "We won't suppress Goahead" );
+			}
 			break;
 		}
 
@@ -519,11 +524,6 @@ static void tty_clear_screen( le_console_o::connection_t* connection ) {
 std::string process_tty_input( le_console_o::connection_t* connection, std::string const& msg ) {
 
 	static auto logger = le::Log( LOG_CHANNEL );
-
-	if ( connection->state != le_console_o::connection_t::State::eSuppressGoahead ) {
-		// we return early if we're not supposed to interpret character-by-character.
-		return msg;
-	}
 
 	// Process virtual terminal control sequences - if we're in line mode we have to do these things
 	// on the server-side.
@@ -811,7 +811,7 @@ static void le_console_process_input() {
 		connection->channel_in.fetch( msg );
 
 		// redraw if requested
-		if ( connection->wants_redraw ) {
+		if ( connection->wants_redraw && connection->state == le_console_o::connection_t::State::eSuppressGoahead ) {
 			char out_buf[ 2048 ]; // buffer for printf ops
 			// clear line, reposition cursor
 			int num_bytes = snprintf( out_buf, sizeof( out_buf ), "%s\r\x1b[1M\x1b[1m>\x1b[0m %s\x1b[%dG", ISL_TTY_COLOR, connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
@@ -837,7 +837,10 @@ static void le_console_process_input() {
 			continue;
 		}
 
-		msg = process_tty_input( connection.get(), msg );
+		if ( connection->state == le_console_o::connection_t::State::eSuppressGoahead ) {
+			// if we're supposed to process character-by-character, we do so here
+			msg = process_tty_input( connection.get(), msg );
+		}
 
 		if ( msg.empty() ) {
 			continue;
@@ -853,6 +856,17 @@ static void le_console_process_input() {
 		}
 
 		// ---------| invariant: tokens are not empty: process tokens
+
+		constexpr auto IAC      = "\xff";
+		constexpr auto DO       = "\xfd";
+		constexpr auto DONT     = "\xfe";
+		constexpr auto WILL     = "\xfb";
+		constexpr auto WONT     = "\xfc";
+		constexpr auto LINEMODE = "\x22";
+		constexpr auto ECHO     = '\x01';
+		constexpr auto SB       = '\xfa';
+		constexpr auto SE       = '\xf0';
+		constexpr auto SLC      = '\x03'; // substitute local characters
 
 		switch ( hash_32_fnv1a( tokens[ 0 ] ) ) {
 		case hash_32_fnv1a_const( "settings" ):
@@ -874,16 +888,6 @@ static void le_console_process_input() {
 			tty_clear_screen( connection.get() );
 		} break;
 		case hash_32_fnv1a_const( "tty" ): {
-
-			constexpr auto IAC      = "\xff";
-			constexpr auto DO       = "\xfd";
-			constexpr auto DONT     = "\xfe";
-			constexpr auto WILL     = "\xfb";
-			constexpr auto LINEMODE = "\x22";
-			constexpr auto ECHO     = '\x01';
-			constexpr auto SB       = '\xfa';
-			constexpr auto SE       = '\xf0';
-			constexpr auto SLC      = '\x03'; // substitute local characters
 
 			std::ostringstream msg;
 
@@ -928,6 +932,24 @@ static void le_console_process_input() {
 				le_log::le_log_channel_i.info( logger.getChannel(), "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
 			}
 			break;
+		case hash_32_fnv1a_const( "exit" ): {
+			std::ostringstream msg;
+			msg
+
+			    << IAC
+			    << DO
+			    << ECHO
+			    //
+			    << IAC
+			    << WONT
+			    << ECHO
+			    //
+			    << IAC
+			    << WONT
+			    << "\x03";
+			connection->channel_out.post( msg.str() );
+			connection->wants_redraw = false;
+		} break;
 		default:
 			le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
 			break;
