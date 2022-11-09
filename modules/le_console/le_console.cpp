@@ -423,19 +423,6 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 					iac_flip_flop ^= true;
 				}
 				if ( !iac_flip_flop ) {
-
-					if ( *c == '\x03' ) {
-						// CTRL+C : reset current input
-						connection->input_buffer.clear();
-						connection->input_cursor_pos = 0;
-						connection->wants_redraw     = true;
-						return result;
-					} else if ( *c == '\x04' ) {
-						// CTRL+C || CTRL+D
-						connection->wants_close = true;
-						return result;
-					}
-
 					result.push_back( *c );
 				}
 			}
@@ -690,6 +677,14 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					// goto first char
 					connection->input_cursor_pos = 0;
 					connection->wants_redraw     = true;
+				} else if ( c == '\x03' ) {
+					// CTRL+C
+					connection->input_buffer.clear();
+					connection->input_cursor_pos = 0;
+					connection->wants_redraw     = true;
+				} else if ( c == '\x04' ) {
+					// CTRL+D
+					connection->wants_close = true;
 				} else if ( c == '\x05' ) {
 					// goto last char
 					connection->input_cursor_pos = connection->input_buffer.size();
