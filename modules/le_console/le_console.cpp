@@ -235,7 +235,7 @@ std::string telnet_get_suboption( std::string::iterator& it, std::string::iterat
 
 // ----------------------------------------------------------------------
 
-// will update stream_begin to point at one part the last character of the last command
+// Will update stream_begin to point at one part the last character of the last command
 // that was interpreted
 std::string telnet_filter( le_console_o::connection_t*       connection,
                            std::string::const_iterator       stream_begin,
@@ -453,6 +453,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 
 	return result;
 }
+// --------------------------------------------------------------------------------
 
 // find one-past the first next space that is followed by
 // a non-space
@@ -482,6 +483,8 @@ static bool find_next_word_boundary(
 	return false;
 }
 
+// --------------------------------------------------------------------------------
+
 // will set it_end to one past the previous word boundary if found,
 // otherwise will leave it_end untouched and return false
 static bool find_previous_word_boundary(
@@ -509,6 +512,7 @@ static bool find_previous_word_boundary(
 	}
 	return false;
 }
+// --------------------------------------------------------------------------------
 
 static void tty_clear_screen( le_console_o::connection_t* connection ) {
 	std::ostringstream msg;
@@ -518,6 +522,7 @@ static void tty_clear_screen( le_console_o::connection_t* connection ) {
 	connection->channel_out.post( msg.str() );
 	connection->wants_redraw = true;
 }
+// --------------------------------------------------------------------------------
 
 // --------------------------------------------------------------------------------
 
