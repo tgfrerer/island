@@ -393,7 +393,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 			// client requests something from us
 			if ( uint8_t( *( it + 1 ) ) == '\x03' ) {
 				// Do Suppress goahead
-				connection->state = le_console_o::connection_t::State::eSuppressGoahead;
+				connection->state = le_console_o::connection_t::State::eTTY;
 				logger.debug( "We will suppress Goahead" );
 			}
 			break;
@@ -689,6 +689,8 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					// goto last char
 					connection->input_cursor_pos = connection->input_buffer.size();
 					connection->wants_redraw     = true;
+				} else if ( c == '\x08' ) {
+					logger.info( "tab character pressed." );
 				} else if ( c == '\x0c' ) {
 					tty_clear_screen( connection );
 				} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
@@ -811,7 +813,7 @@ static void le_console_process_input() {
 		connection->channel_in.fetch( msg );
 
 		// redraw if requested
-		if ( connection->wants_redraw && connection->state == le_console_o::connection_t::State::eSuppressGoahead ) {
+		if ( connection->wants_redraw && connection->state == le_console_o::connection_t::State::eTTY ) {
 			char out_buf[ 2048 ]; // buffer for printf ops
 			// clear line, reposition cursor
 			int num_bytes = snprintf( out_buf, sizeof( out_buf ), "%s\r\x1b[1M\x1b[1m>\x1b[0m %s\x1b[%dG", ISL_TTY_COLOR, connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
@@ -837,7 +839,7 @@ static void le_console_process_input() {
 			continue;
 		}
 
-		if ( connection->state == le_console_o::connection_t::State::eSuppressGoahead ) {
+		if ( connection->state == le_console_o::connection_t::State::eTTY ) {
 			// if we're supposed to process character-by-character, we do so here
 			msg = process_tty_input( connection.get(), msg );
 		}

@@ -61,7 +61,7 @@ struct le_console_o {
 
 		enum class State {
 			ePlain = 0,       // plain socket - this is how we start up
-			eSuppressGoahead, // user-requested. telnet line mode
+			eTTY, // user-requested. telnet line mode
 		};
 
 		State state = State::ePlain;
