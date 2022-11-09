@@ -689,7 +689,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					// goto last char
 					connection->input_cursor_pos = connection->input_buffer.size();
 					connection->wants_redraw     = true;
-				} else if ( c == '\x08' ) {
+				} else if ( c == '\x09' ) {
 					logger.info( "tab character pressed." );
 				} else if ( c == '\x0c' ) {
 					tty_clear_screen( connection );
@@ -890,7 +890,6 @@ static void le_console_process_input() {
 			tty_clear_screen( connection.get() );
 		} break;
 		case hash_32_fnv1a_const( "tty" ): {
-
 			std::ostringstream msg;
 
 			msg
