@@ -759,15 +759,6 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 		}
 	}
 
-	// redraw if requested
-	// if ( false && connection->wants_redraw ) {
-	//	// clear line, reposition cursor
-	//	int num_bytes = snprintf( out_buf, sizeof( out_buf ), "\x1b[1M\r\x1b[4m>\x1b[0m %s\x1b[%dG", connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
-	//	if ( num_bytes > 1 ) {
-	//		connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
-	//	}
-	//	connection->wants_redraw = false;
-	//}
 	if ( enter_user_input ) {
 		// submit
 		std::string result( std::move( connection->input_buffer ) );
