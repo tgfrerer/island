@@ -914,10 +914,6 @@ static void le_console_process_input() {
 			msg << ISL_TTY_COLOR
 			    << "Island Console.\r\nWelcome.\x1b[0m\r\n";
 			connection->channel_out.post( msg.str() );
-			// connection->channel_out.post( "\x1b[H\x1b[2J" );
-			// connection->channel_out.post( "\x1b[6n" ); // query current cursor position -- not yet sure how to interpret response.
-
-			// connection->channel_out.post( "\x1b[4B" ); // move cursor down by 4 rows
 
 		} break;
 		case hash_32_fnv1a_const( "log" ):
@@ -960,8 +956,8 @@ static void le_console_destroy( le_console_o* self ) {
 
 	// Tear-down and delete server in case there was a server
 	le_console_server_stop();
-	// we can do this because le_log will never be reloaded as it is part of the core.
 
+	// We can do this because le_log will never be reloaded as it is part of the core.
 	logger.info( "Destroying console..." );
 	delete self;
 }
