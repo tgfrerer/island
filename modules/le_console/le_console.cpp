@@ -196,6 +196,23 @@ static bool le_console_server_stop() {
 	return true;
 }
 
+// ------------------------------------------------------------------------------------------
+// Split a given string into tokens by replacing delimiters with \0 - and returning a vector
+// of token c-strings from the string.
+// returns false if no tokens could be found
+static void tokenize_string( std::string& msg, std::vector<char const*>& tokens, char const* delim = "\n\r= " ) {
+
+	char* context = nullptr;
+	char* token   = strtok_reentrant( msg.data(), delim, &context );
+
+	while ( token != nullptr ) {
+		tokens.emplace_back( token );
+		token = strtok_reentrant( nullptr, delim, &context );
+	}
+}
+
+// ------------------------------------------------------------------------------------------
+
 std::string telnet_get_suboption( std::string::iterator& it, std::string::iterator str_end ) {
 	// suboption is anything that is
 
@@ -842,16 +859,8 @@ static void le_console_process_input() {
 
 		// --------| invariant: message does not begin with \xff or \x1b
 
-		char const* delim   = "\n\r= ";
-		char*       context = nullptr;
-		char*       token   = strtok_reentrant( msg.data(), delim, &context );
-
 		std::vector<char const*> tokens;
-
-		while ( token != nullptr ) {
-			tokens.emplace_back( token );
-			token = strtok_reentrant( nullptr, delim, &context );
-		}
+		tokenize_string( msg, tokens );
 
 		if ( tokens.empty() ) {
 			continue;
