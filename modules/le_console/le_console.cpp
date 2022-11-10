@@ -926,16 +926,17 @@ static void le_console_process_input() {
 		            "set", []( std::string const& str, std::vector<char const*> tokens, le_console_o::connection_t* connection ) {
 			            // connection->channel_out.post( "Command detected!" );
 
-			            connection->input_buffer = "set";
+			            // connection->input_buffer = "set";
 
-			            for ( uint32_t i = 1; i != tokens.size(); i++ ) {
-				            connection->input_buffer.append( " " );
-				            connection->input_buffer.append( tokens[ i ] );
+			            if ( tokens.size() == 2 ) {
+				            // find possible subcommands
 			            }
-			            connection->input_buffer.append( " three" );
-			            connection->wants_redraw = true;
+			            if ( tokens.size() == 1 ) {
+				            // find possible sibling commands
+			            }
 
-			            self->cmd.reset( nullptr );
+			            // connection->input_buffer.append( " three" );
+			            //  connection->wants_redraw = true;
 		            } )
 		            ->addSubCommand( Command::New( "three", nullptr ) ) )
 		    ->addSubCommand(
