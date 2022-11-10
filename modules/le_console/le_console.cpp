@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <mutex>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <deque>
 
@@ -21,6 +22,7 @@
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
+#include <map>
 
 #include "private/le_console/le_console_types.h"
 #include "private/le_console/le_console_server.h"
@@ -522,7 +524,162 @@ static void tty_clear_screen( le_console_o::connection_t* connection ) {
 	connection->channel_out.post( msg.str() );
 	connection->wants_redraw = true;
 }
+
 // --------------------------------------------------------------------------------
+// we want to be able to express a tree of command tokens
+class Command {
+
+  public:
+	typedef void ( *cmd_cb )( std::string const& cmdline, std::vector<char const*> tokens, le_console_o::connection_t* connection ); // tokens from cmdline
+
+	explicit Command( std::string const& name_, cmd_cb callback_ )
+	    : command( callback_ )
+	    , name( name_ ) {
+		// static auto logger = le::Log( LOG_CHANNEL );
+		// logger.info( "+ ConsoleCommand '%s' %x", name.c_str(), this );
+	}
+
+	~Command() {
+		for ( auto& c : commands ) {
+			delete c.second;
+		}
+		// static auto logger = le::Log( LOG_CHANNEL );
+		// logger.info( "- ConsoleCommand '%s' %x", name.c_str(), this );
+	}
+
+	Command()                                  = delete; // default constructor
+	Command& operator=( const Command& other ) = delete; // copy assignment constructor
+	Command& operator=( Command&& other )      = delete;
+	Command( const Command& other )            = delete; // copy constructor
+	Command( Command&& other )                 = delete; // move constructor
+
+	Command* addSubCommand( Command* cmd ) {
+		cmd->parent = this;
+		auto it     = commands.emplace( cmd->name, cmd );
+		if ( it.second == false ) {
+			std::swap( cmd, it.first->second );
+			delete cmd;
+		}
+		return this;
+	}
+
+	Command* endSubCommands() {
+		if ( parent ) {
+			return parent;
+		} else {
+			return this;
+		}
+	}
+
+	bool find_subcommand( const char* token, Command** c ) {
+		auto result = commands.find( token );
+		if ( result != commands.end() ) {
+			*c = ( result->second );
+			return true;
+		};
+		return false;
+	}
+	std::string const& getName() {
+		return name;
+	}
+
+	Command* getParent() {
+		return parent;
+	}
+
+	char const* get_hint( const char* token, int32_t i ) {
+
+		return nullptr;
+	} // get hint for continuations to this command
+
+	cmd_cb command; // callback
+
+  private:
+	std::string const               name;
+	Command*                        parent = nullptr;
+	std::map<std::string, Command*> commands;
+};
+
+// --------------------------------------------------------------------------------
+
+static void autocomplete( le_console_o::connection_t* connection, Command* commands ) {
+	static auto logger = le::Log( LOG_CHANNEL );
+
+	// we know the input line
+	Command cmd( "", nullptr );
+
+	cmd.addSubCommand(
+	    ( new Command(
+	          "two", []( std::string const& str, std::vector<char const*> tokens, le_console_o::connection_t* connection ) {
+		          // connection->channel_out.post( "Command detected!" );
+		          connection->input_buffer += "commanddetected";
+		          connection->wants_redraw = true;
+	          } ) )
+	        ->addSubCommand( new Command( "three", nullptr ) ) );
+
+	cmd
+	    .addSubCommand(
+	        ( new Command( "test", nullptr ) )
+	            ->addSubCommand( new Command( "hello", nullptr ) )
+	            ->addSubCommand( new Command( "world", nullptr ) ) );
+
+	std::string              input = connection->input_buffer;
+	std::vector<char const*> tokens;
+	tokenize_string( input, tokens );
+
+	if ( tokens.empty() ) {
+		return;
+	}
+
+	uint32_t token_idx = 0;
+
+	Command* c = &cmd;
+
+	while ( token_idx < tokens.size() && c->find_subcommand( tokens[ token_idx ], &c ) ) {
+		token_idx++;
+	}
+
+	std::string hint;
+
+	if ( token_idx == tokens.size() ) {
+		logger.info( "found command: %s", c->getName().c_str() );
+		logger.info( "command parent: %x", c->getParent() );
+		if ( c->command ) {
+			c->command( input, tokens, connection );
+		}
+	}
+}
+// --------------------------------------------------------------------------------
+// Fetch next or previous entry from session history, depending on direction.
+// before switching entry, store current input, and its cursor position inline.
+// After fetching next entry, restore its cursor position if it has been previously saved inline.
+static void fetch_session_history_entry( le_console_o::connection_t* connection, int direction ) {
+
+	constexpr auto CURSOR_POS_BYTE_COUNT               = sizeof( connection->input_cursor_pos ) + 2;
+	char           cursor_pos[ CURSOR_POS_BYTE_COUNT ] = {};
+
+	memcpy( cursor_pos + 2, &connection->input_cursor_pos, CURSOR_POS_BYTE_COUNT - 2 );
+
+	// Store the current cursor position with the current history entry by
+	// appending the cursor pos after two \0 bytes
+	*connection->session_history_it = connection->input_buffer.append( cursor_pos, CURSOR_POS_BYTE_COUNT ); // append the cursor pos
+	connection->session_history_it += direction;
+
+	connection->input_buffer = *connection->session_history_it;
+
+	if ( connection->input_buffer.size() >= CURSOR_POS_BYTE_COUNT &&
+	     *( connection->input_buffer.end() - CURSOR_POS_BYTE_COUNT ) == 0x00 ) {
+		// Retrieve a previous cursor position by parsing the last few bytes of a history entry
+		// if it contains a cursor pos, it is after two \0 bytes towards the end of the string.
+		memcpy( &connection->input_cursor_pos,
+		        connection->input_buffer.data() + connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT + 2,
+		        CURSOR_POS_BYTE_COUNT - 2 );
+		connection->input_buffer.resize( connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT );
+	} else {
+		connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, connection->input_buffer.size() );
+	}
+	connection->wants_redraw = true;
+}
 
 // --------------------------------------------------------------------------------
 
@@ -555,7 +712,6 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 	// introducer and end byte of control function
 	std::string parameters;
 	bool        enter_user_input = false;
-	char        out_buf[ 2048 ]; // buffer for printf ops
 
 	static auto execute_control_function = []( le_console_o::connection_t* connection, control_function_t f, std::string const& parameters ) {
 		// Execute control function on connection
@@ -569,54 +725,13 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 			// cursor up
 			if ( connection->session_history_it != connection->session_history.end() &&
 			     connection->session_history_it != connection->session_history.begin() ) {
-
-				constexpr auto CURSOR_POS_BYTE_COUNT               = sizeof( connection->input_cursor_pos ) + 2;
-				char           cursor_pos[ CURSOR_POS_BYTE_COUNT ] = {};
-
-				memcpy( cursor_pos + 2, &connection->input_cursor_pos, CURSOR_POS_BYTE_COUNT - 2 );
-
-				*connection->session_history_it = connection->input_buffer.append( cursor_pos, CURSOR_POS_BYTE_COUNT ); // append the cursor pos
-				connection->session_history_it--;
-
-				connection->input_buffer = *connection->session_history_it;
-
-				if ( connection->input_buffer.size() >= CURSOR_POS_BYTE_COUNT &&
-				     *( connection->input_buffer.end() - CURSOR_POS_BYTE_COUNT ) == 0x00 ) {
-					memcpy( &connection->input_cursor_pos,
-					        connection->input_buffer.data() + connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT + 2,
-					        CURSOR_POS_BYTE_COUNT - 2 );
-					connection->input_buffer.resize( connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT );
-				} else {
-					connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, connection->input_buffer.size() );
-				}
-				connection->wants_redraw = true;
+				fetch_session_history_entry( connection, -1 );
 			}
 			break;
 		case ( '[' | 'B' << 8 ):
 			// cursor down
-			if (
-			    connection->session_history_it < connection->session_history.end() - 1 ) {
-
-				constexpr auto CURSOR_POS_BYTE_COUNT               = sizeof( connection->input_cursor_pos ) + 2;
-				char           cursor_pos[ CURSOR_POS_BYTE_COUNT ] = {};
-
-				memcpy( cursor_pos + 2, &connection->input_cursor_pos, CURSOR_POS_BYTE_COUNT - 2 );
-
-				*connection->session_history_it = connection->input_buffer.append( cursor_pos, CURSOR_POS_BYTE_COUNT ); // append the cursor pos
-				connection->session_history_it++;
-
-				connection->input_buffer = *connection->session_history_it;
-
-				if ( connection->input_buffer.size() >= CURSOR_POS_BYTE_COUNT &&
-				     *( connection->input_buffer.end() - CURSOR_POS_BYTE_COUNT ) == 0x00 ) {
-					memcpy( &connection->input_cursor_pos,
-					        connection->input_buffer.data() + connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT + 2,
-					        CURSOR_POS_BYTE_COUNT - 2 );
-					connection->input_buffer.resize( connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT );
-				} else {
-					connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, connection->input_buffer.size() );
-				}
-				connection->wants_redraw = true;
+			if ( connection->session_history_it < connection->session_history.end() - 1 ) {
+				fetch_session_history_entry( connection, +1 );
 			}
 			break;
 		case ( '[' | 'C' << 8 ):
@@ -696,6 +811,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					connection->wants_redraw     = true;
 				} else if ( c == '\x09' ) {
 					logger.info( "tab character pressed." );
+					autocomplete( connection, nullptr );
 				} else if ( c == '\x0c' ) {
 					tty_clear_screen( connection );
 				} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
@@ -751,14 +867,13 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 				// we want to add these to the parameter string that we capture
 				parameters.push_back( c );
 			} else if ( c >= '\x40' && c <= '\x7e' ) { // final byte of a control sequence
-				// todo: we must do something with this control sequence
 				control_function.bytes.final = c;
+
 				execute_control_function( connection, control_function, parameters );
+
 				state            = DATA;
 				control_function = {};
 			}
-			// if end of command
-			// if parameter byte
 			break;
 		}
 		if ( enter_user_input ) {
@@ -925,14 +1040,14 @@ static void le_console_process_input() {
 			// If you set log_level_mask to 0, this means that log messages will be mirrored to console
 			// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
 			if ( tokens.size() == 2 ) {
-				le_console_produce_log_subscribers().erase( c.first ); // Force the subscriber to be de-registered.
+				le_console_produce_log_subscribers().erase( connection->fd ); // Force the subscriber to be de-registered.
 				connection->log_level_mask = strtol( tokens[ 1 ], nullptr, 0 );
 				if ( connection->log_level_mask != 0 ) {
-					le_console_produce_log_subscribers()[ c.first ] = std::make_unique<LeLogSubscriber>( connection.get() ); // Force the subscriber to be re-registered.
-					connection->wants_log_subscriber                = true;
+					le_console_produce_log_subscribers()[ connection->fd ] = std::make_unique<LeLogSubscriber>( connection.get() ); // Force the subscriber to be re-registered.
+					connection->wants_log_subscriber                       = true;
 				} else {
-					// if we don't subscribe to any messages, we might as well remove the subscriber from the log
-					le_console_produce_log_subscribers()[ c.first ].reset( nullptr );
+					// If we don't subscribe to any messages, we might as well remove the subscriber from the log
+					le_console_produce_log_subscribers()[ connection->fd ].reset( nullptr );
 					connection->wants_log_subscriber = false;
 				}
 				le_log::le_log_channel_i.info( logger.getChannel(), "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
