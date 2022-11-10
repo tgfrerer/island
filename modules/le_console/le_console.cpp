@@ -532,13 +532,15 @@ class Command {
   public:
 	typedef void ( *cmd_cb )( std::string const& cmdline, std::vector<char const*> tokens, le_console_o::connection_t* connection ); // tokens from cmdline
 
-	explicit Command( std::string const& name_, cmd_cb callback_ )
+  private:
+	explicit Command( std::string const& name_, cmd_cb callback_ = nullptr )
 	    : command( callback_ )
 	    , name( name_ ) {
 		// static auto logger = le::Log( LOG_CHANNEL );
 		// logger.info( "+ ConsoleCommand '%s' %x", name.c_str(), this );
 	}
 
+  public:
 	~Command() {
 		for ( auto& c : commands ) {
 			delete c.second;
@@ -553,6 +555,12 @@ class Command {
 	Command( const Command& other )            = delete; // copy constructor
 	Command( Command&& other )                 = delete; // move constructor
 
+	// Factory function - you must use this to create a new command
+	static Command* New( std::string const&& name_, cmd_cb&& callback_ = nullptr ) {
+		return new Command( name_, callback_ );
+	}
+
+	// will take ownership of cmd
 	Command* addSubCommand( Command* cmd ) {
 		cmd->parent = this;
 		auto it     = commands.emplace( cmd->name, cmd );
@@ -602,28 +610,11 @@ class Command {
 
 // --------------------------------------------------------------------------------
 
-static void autocomplete( le_console_o::connection_t* connection, Command* commands ) {
+static void autocomplete( le_console_o::connection_t* connection ) {
 	static auto logger = le::Log( LOG_CHANNEL );
 
-	// we know the input line
-	Command cmd( "", nullptr );
-
-	cmd.addSubCommand(
-	    ( new Command(
-	          "two", []( std::string const& str, std::vector<char const*> tokens, le_console_o::connection_t* connection ) {
-		          // connection->channel_out.post( "Command detected!" );
-		          connection->input_buffer += "commanddetected";
-		          connection->wants_redraw = true;
-	          } ) )
-	        ->addSubCommand( new Command( "three", nullptr ) ) );
-
-	cmd
-	    .addSubCommand(
-	        ( new Command( "test", nullptr ) )
-	            ->addSubCommand( new Command( "hello", nullptr ) )
-	            ->addSubCommand( new Command( "world", nullptr ) ) );
-
-	std::string              input = connection->input_buffer;
+	// Reduce the prompt to up to one char before the current cursor pos
+	std::string              input{ connection->input_buffer.begin(), connection->input_buffer.begin() + connection->input_cursor_pos };
 	std::vector<char const*> tokens;
 	tokenize_string( input, tokens );
 
@@ -633,7 +624,14 @@ static void autocomplete( le_console_o::connection_t* connection, Command* comma
 
 	uint32_t token_idx = 0;
 
-	Command* c = &cmd;
+	auto console = produce_console();
+
+	Command* c = console->cmd.get();
+	if ( c == nullptr ) {
+		return;
+	}
+
+	// invariant: c exists
 
 	while ( token_idx < tokens.size() && c->find_subcommand( tokens[ token_idx ], &c ) ) {
 		token_idx++;
@@ -641,7 +639,7 @@ static void autocomplete( le_console_o::connection_t* connection, Command* comma
 
 	std::string hint;
 
-	if ( token_idx == tokens.size() ) {
+	if ( token_idx != 0 ) {
 		logger.info( "found command: %s", c->getName().c_str() );
 		logger.info( "command parent: %x", c->getParent() );
 		if ( c->command ) {
@@ -811,7 +809,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					connection->wants_redraw     = true;
 				} else if ( c == '\x09' ) {
 					logger.info( "tab character pressed." );
-					autocomplete( connection, nullptr );
+					autocomplete( connection );
 				} else if ( c == '\x0c' ) {
 					tty_clear_screen( connection );
 				} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
@@ -910,11 +908,45 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 static void le_console_process_input() {
 	static auto logger = le::Log( LOG_CHANNEL );
 
-	le_console_o* self = produce_console();
+	static le_console_o* self = produce_console();
 
 	if ( self == nullptr ) {
 		logger.error( NO_CONSOLE_MSG );
 		return;
+	}
+
+	if ( self->cmd.get() == nullptr ) {
+
+		// we know the input line
+		self->cmd.reset( Command::New( "" ) );
+
+		self->cmd
+		    ->addSubCommand(
+		        Command::New(
+		            "set", []( std::string const& str, std::vector<char const*> tokens, le_console_o::connection_t* connection ) {
+			            // connection->channel_out.post( "Command detected!" );
+
+			            connection->input_buffer = "set";
+
+			            for ( uint32_t i = 1; i != tokens.size(); i++ ) {
+				            connection->input_buffer.append( " " );
+				            connection->input_buffer.append( tokens[ i ] );
+			            }
+			            connection->input_buffer.append( " three" );
+			            connection->wants_redraw = true;
+
+			            self->cmd.reset( nullptr );
+		            } )
+		            ->addSubCommand( Command::New( "three", nullptr ) ) )
+		    ->addSubCommand(
+
+		        Command::New( "five", nullptr )
+
+		            ->addSubCommand( Command::New( "test", nullptr ) ) )
+
+		    ->addSubCommand( Command::New( "test", nullptr ) )
+		    ->addSubCommand( Command::New( "hello", nullptr ) )
+		    ->addSubCommand( Command::New( "world", nullptr ) );
 	}
 
 	auto connections_lock = std::scoped_lock( self->connections_mutex );
@@ -1148,6 +1180,7 @@ LE_MODULE_REGISTER_IMPL( le_console, api_ ) {
 		// if a console already exists, this is a sign that this module has been
 		// reloaded - in which case we want to re-register the subscriber to the log.
 		le_console_o* console = produce_console();
+		console->cmd.reset( nullptr ); // delete commands - so that they get re-populated
 		if ( console->server ) {
 			le_console_produce_server_watcher( console );
 		}

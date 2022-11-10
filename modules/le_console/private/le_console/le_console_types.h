@@ -60,8 +60,8 @@ struct le_console_o {
 		                 // so that we can remove any subscribers that are owned by this connection if needed
 
 		enum class State {
-			ePlain = 0,       // plain socket - this is how we start up
-			eTTY, // user-requested. telnet line mode
+			ePlain = 0, // plain socket - this is how we start up
+			eTTY,       // user-requested. telnet line mode
 		};
 
 		State state = State::ePlain;
@@ -78,6 +78,8 @@ struct le_console_o {
 
 	std::mutex                                                           connections_mutex;
 	std::unordered_map<int, std::unique_ptr<le_console_o::connection_t>> connections; // socket filedescriptor -> connection
+
+	std::unique_ptr<class Command> cmd;
 
 	struct le_console_server_o* server = nullptr;
 };
