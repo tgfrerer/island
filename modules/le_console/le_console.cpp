@@ -530,7 +530,7 @@ static void tty_clear_screen( le_console_o::connection_t* connection ) {
 class Command {
 
   public:
-	typedef void ( *cmd_cb )( std::string const& cmdline, std::vector<char const*> tokens, le_console_o::connection_t* connection ); // tokens from cmdline
+	typedef void ( *cmd_cb )( Command const* cmd, std::string const& cmdline, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ); // tokens from cmdline
 
   private:
 	explicit Command( std::string const& name_, cmd_cb callback_ = nullptr )
@@ -587,11 +587,29 @@ class Command {
 		}
 		return false;
 	}
+
+	bool find_closest_subcommand( const char* token, Command** c ) const {
+		auto result = commands.upper_bound( token );
+		if ( result == commands.end() ) {
+			if ( commands.empty() ) {
+				*c = nullptr;
+				return false;
+			} else {
+				// wraparound
+				*c = commands.begin()->second;
+				return true;
+			}
+		}
+
+		*c = result->second;
+		return true;
+	}
+
 	std::string const& getName() {
 		return name;
 	}
 
-	Command* getParent() {
+	Command* getParent() const {
 		return parent;
 	}
 
@@ -610,17 +628,13 @@ class Command {
 
 // --------------------------------------------------------------------------------
 
-static void autocomplete( le_console_o::connection_t* connection ) {
+static void tab_pressed( le_console_o::connection_t* connection ) {
 	static auto logger = le::Log( LOG_CHANNEL );
 
 	// Reduce the prompt to up to one char before the current cursor pos
 	std::string              input{ connection->input_buffer.begin(), connection->input_buffer.begin() + connection->input_cursor_pos };
 	std::vector<char const*> tokens;
 	tokenize_string( input, tokens );
-
-	if ( tokens.empty() ) {
-		return;
-	}
 
 	uint32_t token_idx = 0;
 
@@ -639,14 +653,19 @@ static void autocomplete( le_console_o::connection_t* connection ) {
 
 	std::string hint;
 
-	if ( token_idx != 0 ) {
-		logger.info( "found command: %s", c->getName().c_str() );
-		logger.info( "command parent: %x", c->getParent() );
-		if ( c->command ) {
-			c->command( input, tokens, connection );
-		}
+	// if ( token_idx != 0 ) {
+	logger.info( "found command: %s", c->getName().c_str() );
+	logger.info( "command parent: %x", c->getParent() );
+	if ( c->command ) {
+		c->command( c, input, tokens, connection );
 	}
+	//}
 }
+
+static inline void check_cursor_pos( le_console_o::connection_t* connection ) {
+	connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, uint32_t( connection->input_buffer.size() ) );
+}
+
 // --------------------------------------------------------------------------------
 // Fetch next or previous entry from session history, depending on direction.
 // before switching entry, store current input, and its cursor position inline.
@@ -674,7 +693,7 @@ static void fetch_session_history_entry( le_console_o::connection_t* connection,
 		        CURSOR_POS_BYTE_COUNT - 2 );
 		connection->input_buffer.resize( connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT );
 	} else {
-		connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, uint32_t( connection->input_buffer.size() ) );
+		check_cursor_pos( connection );
 	}
 	connection->wants_redraw = true;
 }
@@ -790,7 +809,6 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 			} else if ( c == '\r' ) {
 				state = ENTER;
 			} else {
-
 				if ( c == '\x01' ) {
 					// goto first char
 					connection->input_cursor_pos = 0;
@@ -809,7 +827,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					connection->wants_redraw     = true;
 				} else if ( c == '\x09' ) {
 					logger.info( "tab character pressed." );
-					autocomplete( connection );
+					tab_pressed( connection );
 				} else if ( c == '\x0c' ) {
 					tty_clear_screen( connection );
 				} else if ( c == '\x17' && connection->input_cursor_pos > 0 ) {
@@ -903,6 +921,67 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 	}
 }
 
+// Default Command callback for autocomplete -
+// will find the best matching subcommand via upper_bound,
+// taking into account any tokens up to the cursor
+// and the first token including and following the cursor
+//
+// TODO:
+// We want to change the behaviour of this autocomplete so that it won't change a prompt before the
+// cursor. if we can't find something that matches the characters before the cursor, we must not make
+// a recommendation, but leave the prompt as it is.
+//
+static void cb_autocomplete( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	std::string              input_buffer;
+	std::vector<char const*> input_tokens;
+
+	if ( connection->input_cursor_pos != connection->input_buffer.size() ) {
+		input_buffer = std::string{ connection->input_buffer.begin() + connection->input_cursor_pos, connection->input_buffer.end() };
+		if ( !input_buffer.empty() ) {
+			tokenize_string( input_buffer, input_tokens );
+		}
+	}
+
+	size_t num_parents = 0;
+	{
+		Command const* c = cmd;
+		while ( true ) {
+			c = c->getParent();
+			if ( c ) {
+				num_parents++;
+			} else {
+				break;
+			}
+		}
+	}
+
+	std::string last_token_complete;
+
+	if ( num_parents < tokens.size() ) {
+		last_token_complete = tokens.back();
+	}
+
+	if ( !input_tokens.empty() ) {
+		last_token_complete.append( input_tokens.front() );
+	}
+
+	Command* sc = nullptr;
+	if ( cmd->find_closest_subcommand( last_token_complete.c_str(), &sc ) ) {
+		std::ostringstream ib;
+
+		for ( uint32_t i = 0; i != num_parents; i++ ) {
+			ib << tokens[ i ]
+			   << " ";
+		}
+
+		ib << sc->getName();
+
+		connection->input_buffer = ib.str();
+		check_cursor_pos( connection );
+		connection->wants_redraw = true;
+	}
+}
+
 // ------------------------------------------------------------------------------------------
 
 static void le_console_process_input() {
@@ -918,36 +997,34 @@ static void le_console_process_input() {
 	if ( self->cmd.get() == nullptr ) {
 
 		// we know the input line
-		self->cmd.reset( Command::New( "" ) );
+		self->cmd.reset( Command::New( "", cb_autocomplete ) );
 
 		self->cmd
 		    ->addSubCommand(
+
 		        Command::New(
-		            "set", []( std::string const& str, std::vector<char const*> tokens, le_console_o::connection_t* connection ) {
-			            // connection->channel_out.post( "Command detected!" );
 
-			            // connection->input_buffer = "set";
+		            "set", cb_autocomplete )
 
-			            if ( tokens.size() == 2 ) {
-				            // find possible subcommands
-			            }
-			            if ( tokens.size() == 1 ) {
-				            // find possible sibling commands
-			            }
+		            ->addSubCommand( Command::New( "aardvark", cb_autocomplete ) )
 
-			            // connection->input_buffer.append( " three" );
-			            //  connection->wants_redraw = true;
-		            } )
-		            ->addSubCommand( Command::New( "three", nullptr ) ) )
+		            ->addSubCommand( Command::New( "absolve", cb_autocomplete ) )
+
+		            ->addSubCommand( Command::New( "absolutely", cb_autocomplete ) )
+
+		            ->addSubCommand( Command::New( "notatall", cb_autocomplete ) )
+
+		            )
+
 		    ->addSubCommand(
 
-		        Command::New( "five", nullptr )
+		        Command::New( "setting", cb_autocomplete )
 
-		            ->addSubCommand( Command::New( "test", nullptr ) ) )
+		            ->addSubCommand( Command::New( "test", cb_autocomplete ) ) )
 
-		    ->addSubCommand( Command::New( "test", nullptr ) )
-		    ->addSubCommand( Command::New( "hello", nullptr ) )
-		    ->addSubCommand( Command::New( "world", nullptr ) );
+		    ->addSubCommand( Command::New( "test", cb_autocomplete ) )
+		    ->addSubCommand( Command::New( "hello", cb_autocomplete ) )
+		    ->addSubCommand( Command::New( "world", cb_autocomplete ) );
 	}
 
 	auto connections_lock = std::scoped_lock( self->connections_mutex );
