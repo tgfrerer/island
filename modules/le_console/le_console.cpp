@@ -257,7 +257,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 	}
 
 	std::string result;
-	result.reserve( stream_end - stream_begin ); // pre-allocate maximum possible chars that this operation might need
+	result.reserve( uint32_t( stream_end - stream_begin ) ); // pre-allocate maximum possible chars that this operation might need
 
 	// Find next command
 	// Set iterator `it` to one past next IAC byte. starts search at iterator position `it`
@@ -266,7 +266,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		if ( it == it_end ) {
 			return false;
 		}
-		const uint8_t IAC = '\xff';
+		const uint8_t IAC = 0xff;
 		while ( it != it_end ) {
 			if ( uint8_t( *it ) == IAC ) {
 
@@ -363,10 +363,10 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 			// the next four bytes are width and height
 
 			if ( it_end - it == 4 + 2 ) {
-				connection->console_width = uint8_t( *it++ ) << 8; // msb first
-				connection->console_width |= uint8_t( *it++ );
-				connection->console_height = uint8_t( *it++ ) << 8; // msb first
-				connection->console_height |= uint8_t( *it++ );
+				connection->console_width = uint16_t( uint16_t( *it++ ) << 8 ); // msb first
+				connection->console_width |= uint16_t( uint16_t( *it++ ) );
+				connection->console_height = uint16_t( uint16_t( *it++ ) << 8 ); // msb first
+				connection->console_height |= uint16_t( uint16_t( *it++ ) );
 				logger.debug( "\t Setting Console window to %dx%d (w x h)", connection->console_width, connection->console_height );
 				connection->wants_redraw = true;
 			}
@@ -375,7 +375,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 	};
 
 	static auto process_option = []( le_console_o::connection_t* connection, std::string::const_iterator it, std::string::const_iterator const it_end ) -> bool {
-		if ( it + 1 >= it_end ) {
+		if ( it == it_end || it + 1 == it_end ) {
 			return false;
 		}
 
@@ -450,8 +450,8 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 			// do something with suboption
 		} else {
 			// this is neither a suboption not an option
-		};
-	};
+		}
+	}
 
 	return result;
 }
@@ -584,7 +584,7 @@ class Command {
 		if ( result != commands.end() ) {
 			*c = ( result->second );
 			return true;
-		};
+		}
 		return false;
 	}
 	std::string const& getName() {
@@ -674,7 +674,7 @@ static void fetch_session_history_entry( le_console_o::connection_t* connection,
 		        CURSOR_POS_BYTE_COUNT - 2 );
 		connection->input_buffer.resize( connection->input_buffer.size() - CURSOR_POS_BYTE_COUNT );
 	} else {
-		connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, connection->input_buffer.size() );
+		connection->input_cursor_pos = std::clamp<uint32_t>( connection->input_cursor_pos, 0, uint32_t( connection->input_buffer.size() ) );
 	}
 	connection->wants_redraw = true;
 }
@@ -805,7 +805,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					connection->wants_close = true;
 				} else if ( c == '\x05' ) {
 					// goto last char
-					connection->input_cursor_pos = connection->input_buffer.size();
+					connection->input_cursor_pos = uint32_t( connection->input_buffer.size() );
 					connection->wants_redraw     = true;
 				} else if ( c == '\x09' ) {
 					logger.info( "tab character pressed." );
