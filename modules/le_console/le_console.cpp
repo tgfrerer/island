@@ -26,6 +26,7 @@
 
 #include "private/le_console/le_console_types.h"
 #include "private/le_console/le_console_server.h"
+#include "private/le_core/le_settings_private_types.inl"
 
 // Translation between winsock and posix sockets
 #ifdef _WIN32
@@ -981,6 +982,41 @@ static void cb_autocomplete( Command const* cmd, std::string const& str, std::ve
 		connection->wants_redraw = true;
 	}
 }
+// ------------------------------------------------------------------------------------------
+
+static void le_console_setup_commands( le_console_o* self ) {
+
+	if ( self->cmd.get() != nullptr ) {
+		return;
+	}
+
+	// Root of commands Tree
+	self->cmd.reset( Command::New( "", cb_autocomplete ) );
+
+	// Create a local copy of global settings
+	le_settings_map_t current_settings;
+	le_core_copy_settings_entries( &current_settings );
+
+	// "set command" used to manipulate settings
+	Command* set_setting_command = Command::New( "set", cb_autocomplete );
+
+	// add a subcommand for each settings entry
+	for ( auto& e : current_settings.map ) {
+		set_setting_command->addSubCommand( Command::New( std::string( e.second.name ), nullptr ) );
+	}
+
+	self->cmd
+	    ->addSubCommand( set_setting_command )
+	    ->addSubCommand(
+
+	        Command::New( "setting", cb_autocomplete )
+
+	            ->addSubCommand( Command::New( "test", cb_autocomplete ) ) )
+
+	    ->addSubCommand( Command::New( "test", cb_autocomplete ) )
+	    ->addSubCommand( Command::New( "hello", cb_autocomplete ) )
+	    ->addSubCommand( Command::New( "world", cb_autocomplete ) );
+}
 
 // ------------------------------------------------------------------------------------------
 
@@ -992,39 +1028,6 @@ static void le_console_process_input() {
 	if ( self == nullptr ) {
 		logger.error( NO_CONSOLE_MSG );
 		return;
-	}
-
-	if ( self->cmd.get() == nullptr ) {
-
-		// we know the input line
-		self->cmd.reset( Command::New( "", cb_autocomplete ) );
-
-		self->cmd
-		    ->addSubCommand(
-
-		        Command::New(
-
-		            "set", cb_autocomplete )
-
-		            ->addSubCommand( Command::New( "aardvark", cb_autocomplete ) )
-
-		            ->addSubCommand( Command::New( "absolve", cb_autocomplete ) )
-
-		            ->addSubCommand( Command::New( "absolutely", cb_autocomplete ) )
-
-		            ->addSubCommand( Command::New( "notatall", cb_autocomplete ) )
-
-		            )
-
-		    ->addSubCommand(
-
-		        Command::New( "setting", cb_autocomplete )
-
-		            ->addSubCommand( Command::New( "test", cb_autocomplete ) ) )
-
-		    ->addSubCommand( Command::New( "test", cb_autocomplete ) )
-		    ->addSubCommand( Command::New( "hello", cb_autocomplete ) )
-		    ->addSubCommand( Command::New( "world", cb_autocomplete ) );
 	}
 
 	auto connections_lock = std::scoped_lock( self->connections_mutex );
@@ -1068,6 +1071,9 @@ static void le_console_process_input() {
 			// Do no more processing if this connection wants to close
 			continue;
 		}
+
+		// latest possible position to setup console commands - when there is input for the first time - or after a reload
+		le_console_setup_commands( self );
 
 		if ( connection->state == le_console_o::connection_t::State::eTTY ) {
 			// if we're supposed to process character-by-character, we do so here

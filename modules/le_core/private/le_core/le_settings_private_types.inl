@@ -8,5 +8,5 @@ struct LeSettingEntry {
 };
 
 struct le_settings_map_t {
-	std::unordered_map<uint64_t, LeSettingEntry> map;
+	std::unordered_map<uint64_t, LeSettingEntry> map; // fnv64_hash(name) -> entry
 };
