@@ -38,6 +38,19 @@
 extern void le_console_server_register_api( void* api ); // in le_console_server
 
 static constexpr auto ISL_TTY_COLOR = "\x1b[38;2;204;203;164m";
+
+// Telnet control byte constants
+constexpr auto IAC      = "\xff";
+constexpr auto DO       = "\xfd";
+constexpr auto DONT     = "\xfe";
+constexpr auto WILL     = "\xfb";
+constexpr auto WONT     = "\xfc";
+constexpr auto LINEMODE = "\x22";
+constexpr auto ECHO     = '\x01';
+constexpr auto SB       = '\xfa';
+constexpr auto SE       = '\xf0';
+constexpr auto SLC      = '\x03'; // substitute local characters
+
 /*
 
 Ideas for this module:
@@ -534,8 +547,9 @@ class Command {
 	typedef void ( *cmd_cb )( Command const* cmd, std::string const& cmdline, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ); // tokens from cmdline
 
   private:
-	explicit Command( std::string const& name_, cmd_cb callback_ = nullptr )
-	    : command( callback_ )
+	explicit Command( std::string const& name_, cmd_cb callback_ = nullptr, cmd_cb execute_ = nullptr )
+	    : autocomplete_command( callback_ )
+	    , execute_command( execute_ )
 	    , name( name_ ) {
 		// static auto logger = le::Log( LOG_CHANNEL );
 		// logger.info( "+ ConsoleCommand '%s' %x", name.c_str(), this );
@@ -557,8 +571,8 @@ class Command {
 	Command( Command&& other )                 = delete; // move constructor
 
 	// Factory function - you must use this to create a new command
-	static Command* New( std::string const&& name_, cmd_cb&& callback_ = nullptr ) {
-		return new Command( name_, callback_ );
+	static Command* New( std::string const&& name_, cmd_cb&& autocomplete_ = nullptr, cmd_cb&& execute_ = nullptr ) {
+		return new Command( name_, autocomplete_, execute_ );
 	}
 
 	// will take ownership of cmd
@@ -614,12 +628,8 @@ class Command {
 		return parent;
 	}
 
-	char const* get_hint( const char* token, int32_t i ) {
-
-		return nullptr;
-	} // get hint for continuations to this command
-
-	cmd_cb command; // callback
+	cmd_cb autocomplete_command; // callback for autocomplete
+	cmd_cb execute_command;      // callback for execute
 
   private:
 	std::string const               name;
@@ -630,7 +640,7 @@ class Command {
 // --------------------------------------------------------------------------------
 
 static void tab_pressed( le_console_o::connection_t* connection ) {
-	static auto logger = le::Log( LOG_CHANNEL );
+	// static auto logger = le::Log( LOG_CHANNEL );
 
 	// Reduce the prompt to up to one char before the current cursor pos
 	std::string              input{ connection->input_buffer.begin(), connection->input_buffer.begin() + connection->input_cursor_pos };
@@ -641,26 +651,24 @@ static void tab_pressed( le_console_o::connection_t* connection ) {
 
 	auto console = produce_console();
 
-	Command* c = console->cmd.get();
-	if ( c == nullptr ) {
+	Command* cmd = console->cmd.get();
+	if ( cmd == nullptr ) {
 		return;
 	}
 
 	// invariant: c exists
 
-	while ( token_idx < tokens.size() && c->find_subcommand( tokens[ token_idx ], &c ) ) {
+	while ( token_idx < tokens.size() && cmd->find_subcommand( tokens[ token_idx ], &cmd ) ) {
 		token_idx++;
 	}
 
 	std::string hint;
 
-	// if ( token_idx != 0 ) {
-	logger.info( "found command: %s", c->getName().c_str() );
-	logger.info( "command parent: %x", c->getParent() );
-	if ( c->command ) {
-		c->command( c, input, tokens, connection );
+	// logger.debug( "found command: %s", c->getName().c_str() );
+	// logger.debug( "command parent: %x", c->getParent() );
+	if ( cmd->autocomplete_command ) {
+		cmd->autocomplete_command( cmd, input, tokens, connection );
 	}
-	//}
 }
 
 static inline void check_cursor_pos( le_console_o::connection_t* connection ) {
@@ -827,7 +835,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 					connection->input_cursor_pos = uint32_t( connection->input_buffer.size() );
 					connection->wants_redraw     = true;
 				} else if ( c == '\x09' ) {
-					logger.info( "tab character pressed." );
+					// logger.info( "tab character pressed." );
 					tab_pressed( connection );
 				} else if ( c == '\x0c' ) {
 					tty_clear_screen( connection );
@@ -922,7 +930,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 	}
 }
 
-// Default Command callback for autocomplete -
+// Default Command Command callback for autocomplete -
 // will find the best matching subcommand via upper_bound,
 // taking into account any tokens up to the cursor
 // and the first token including and following the cursor
@@ -932,7 +940,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 // cursor. if we can't find something that matches the characters before the cursor, we must not make
 // a recommendation, but leave the prompt as it is.
 //
-static void cb_autocomplete( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+static void cb_command_autocomplete( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
 	std::string              input_buffer;
 	std::vector<char const*> input_tokens;
 
@@ -966,8 +974,8 @@ static void cb_autocomplete( Command const* cmd, std::string const& str, std::ve
 		last_token_complete.append( input_tokens.front() );
 	}
 
-	Command* sc = nullptr;
-	if ( cmd->find_closest_subcommand( last_token_complete.c_str(), &sc ) ) {
+	Command* sub_command = nullptr;
+	if ( cmd->find_closest_subcommand( last_token_complete.c_str(), &sub_command ) ) {
 		std::ostringstream ib;
 
 		for ( uint32_t i = 0; i != num_parents; i++ ) {
@@ -975,13 +983,133 @@ static void cb_autocomplete( Command const* cmd, std::string const& str, std::ve
 			   << " ";
 		}
 
-		ib << sc->getName();
+		ib << sub_command->getName();
 
 		connection->input_buffer = ib.str();
 		check_cursor_pos( connection );
 		connection->wants_redraw = true;
 	}
 }
+
+static void cb_set_setting_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	if ( tokens.size() == 3 ) {
+		auto setting_name  = tokens[ 1 ];
+		auto setting_value = tokens[ 2 ];
+		auto found_setting = le_core_get_setting_entry( setting_name );
+
+		if ( found_setting != nullptr ) {
+			void* setting = found_setting->p_opj;
+			switch ( found_setting->type_hash ) {
+			case SettingType::eBool:
+				*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 10 ) );
+			    break;
+			case SettingType::eUint32_t:
+				*( uint32_t* )( setting ) = bool( strtoul( setting_value, nullptr, 10 ) );
+			    break;
+			case SettingType::eInt32_t:
+				*( int32_t* )( setting ) = int32_t( strtoul( setting_value, nullptr, 10 ) );
+			    break;
+			case SettingType::eInt:
+				*( int* )( setting ) = int( strtoul( setting_value, nullptr, 10 ) );
+			    break;
+			case SettingType::eStdString:
+				*( std::string* )( setting ) = std::string( setting_value );
+			    break;
+			default:
+			    break;
+			}
+		}
+	}
+};
+
+static void cb_list_settings_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	static auto       logger = le::Log( LOG_CHANNEL );
+	le_settings_map_t current_settings;
+	le_core_copy_settings_entries( &current_settings );
+	for ( auto& s : current_settings.map ) {
+
+		switch ( s.second.type_hash ) {
+		case ( SettingType::eBool ):
+			logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "bool", *( ( bool* )s.second.p_opj ) ? "true" : "false" );
+		    break;
+		case ( SettingType::eInt ):
+			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
+		    break;
+		case ( SettingType::eStdString ):
+			logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "std::string", ( ( std::string* )s.second.p_opj )->c_str() );
+		    break;
+		default:
+			logger.warn( "setting '%30s' has unknown type.", s.second.name.c_str() );
+		    break;
+		}
+	}
+};
+
+static void cb_init_tty_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	std::ostringstream msg;
+
+	msg
+	    << IAC
+	    << DONT
+	    << ECHO
+	    //
+	    << IAC
+	    << WILL
+	    << ECHO
+	    //
+	    << IAC
+	    << DO
+	    << '\x1f' // negotiate about window size
+	    //
+	    << IAC
+	    << WILL
+	    << "\x03"; // suppress goahead
+
+	connection->channel_out.post( msg.str() );
+	msg.clear();
+	msg << ISL_TTY_COLOR
+	    << "Island Console.\r\nWelcome.\x1b[0m\r\n";
+	connection->channel_out.post( msg.str() );
+};
+
+static void cb_log_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	static auto logger = le::Log( LOG_CHANNEL );
+	// If you set log_level_mask to 0, this means that log messages will be mirrored to console
+	// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
+	if ( tokens.size() == 2 ) {
+		le_console_produce_log_subscribers().erase( uint32_t( connection->fd ) ); // Force the subscriber to be de-registered.
+		connection->log_level_mask = uint32_t( strtol( tokens[ 1 ], nullptr, 0 ) );
+		if ( connection->log_level_mask != 0 ) {
+			le_console_produce_log_subscribers()[ uint32_t( connection->fd ) ] = std::make_unique<LeLogSubscriber>( connection ); // Force the subscriber to be re-registered.
+			connection->wants_log_subscriber                                   = true;
+		} else {
+			// If we don't subscribe to any messages, we might as well remove the subscriber from the log
+			le_console_produce_log_subscribers()[ uint32_t( connection->fd ) ].reset( nullptr );
+			connection->wants_log_subscriber = false;
+		}
+		le_log::le_log_channel_i.info( logger.getChannel(), "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
+	}
+}
+
+static void cb_exit_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	std::ostringstream msg;
+	msg
+
+	    << IAC
+	    << DO
+	    << ECHO
+	    //
+	    << IAC
+	    << WONT
+	    << ECHO
+	    //
+	    << IAC
+	    << WONT
+	    << "\x03";
+	connection->channel_out.post( msg.str() );
+	connection->wants_redraw = false;
+}
+
 // ------------------------------------------------------------------------------------------
 
 static void le_console_setup_commands( le_console_o* self ) {
@@ -991,31 +1119,28 @@ static void le_console_setup_commands( le_console_o* self ) {
 	}
 
 	// Root of commands Tree
-	self->cmd.reset( Command::New( "", cb_autocomplete ) );
+	self->cmd.reset( Command::New( "", cb_command_autocomplete ) );
 
-	// Create a local copy of global settings
-	le_settings_map_t current_settings;
-	le_core_copy_settings_entries( &current_settings );
+	// "set command" - used to manipulate settings
+	Command* set_setting_command = Command::New( "set", cb_command_autocomplete );
+	{
+		// Create a local copy of global settings
+		le_settings_map_t current_settings;
+		le_core_copy_settings_entries( &current_settings );
 
-	// "set command" used to manipulate settings
-	Command* set_setting_command = Command::New( "set", cb_autocomplete );
-
-	// add a subcommand for each settings entry
-	for ( auto& e : current_settings.map ) {
-		set_setting_command->addSubCommand( Command::New( std::string( e.second.name ), nullptr ) );
+		// add a subcommand for each settings entry
+		for ( auto& e : current_settings.map ) {
+			set_setting_command->addSubCommand(
+			    Command::New( std::string( e.second.name ), nullptr, cb_set_setting_command ) );
+		}
 	}
 
 	self->cmd
 	    ->addSubCommand( set_setting_command )
-	    ->addSubCommand(
-
-	        Command::New( "setting", cb_autocomplete )
-
-	            ->addSubCommand( Command::New( "test", cb_autocomplete ) ) )
-
-	    ->addSubCommand( Command::New( "test", cb_autocomplete ) )
-	    ->addSubCommand( Command::New( "hello", cb_autocomplete ) )
-	    ->addSubCommand( Command::New( "world", cb_autocomplete ) );
+	    ->addSubCommand( Command::New( "settings", cb_command_autocomplete, cb_list_settings_command ) )
+	    ->addSubCommand( Command::New( "tty", cb_command_autocomplete, cb_init_tty_command ) )
+	    ->addSubCommand( Command::New( "log", cb_command_autocomplete, cb_log_command ) )
+	    ->addSubCommand( Command::New( "exit", cb_command_autocomplete, cb_exit_command ) );
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1073,6 +1198,7 @@ static void le_console_process_input() {
 		}
 
 		// latest possible position to setup console commands - when there is input for the first time - or after a reload
+		// we do this here so that autocomplete can function when processing tty input as it needs the command object first.
 		le_console_setup_commands( self );
 
 		if ( connection->state == le_console_o::connection_t::State::eTTY ) {
@@ -1084,114 +1210,35 @@ static void le_console_process_input() {
 			continue;
 		}
 
-		// --------| invariant: message does not begin with \xff or \x1b
-
 		std::vector<char const*> tokens;
 		tokenize_string( msg, tokens );
 
-		if ( tokens.empty() ) {
-			continue;
+		uint32_t token_idx = 0;
+
+		Command* cmd = self->cmd.get();
+		if ( cmd == nullptr ) {
+			return;
 		}
 
-		// ---------| invariant: tokens are not empty: process tokens
+		// invariant: cmd, that is the root command, exists
 
-		constexpr auto IAC      = "\xff";
-		constexpr auto DO       = "\xfd";
-		constexpr auto DONT     = "\xfe";
-		constexpr auto WILL     = "\xfb";
-		constexpr auto WONT     = "\xfc";
-		constexpr auto LINEMODE = "\x22";
-		constexpr auto ECHO     = '\x01';
-		constexpr auto SB       = '\xfa';
-		constexpr auto SE       = '\xf0';
-		constexpr auto SLC      = '\x03'; // substitute local characters
+		while ( token_idx < tokens.size() && cmd->find_subcommand( tokens[ token_idx ], &cmd ) ) {
+			token_idx++;
+		}
 
-		switch ( hash_32_fnv1a( tokens[ 0 ] ) ) {
-		case hash_32_fnv1a_const( "settings" ):
-			le_log::le_log_channel_i.info( logger.getChannel(), "Listing Settings" );
-			le::Settings().list();
-			break;
-		case hash_32_fnv1a_const( "set" ):
-			if ( tokens.size() == 3 ) {
-				le::Settings::set( tokens[ 1 ], tokens[ 2 ] );
+		std::string hint;
+
+		if ( token_idx != 0 ) {
+			logger.info( "found command: %s", cmd->getName().c_str() );
+			logger.info( "command parent: %x", cmd->getParent() );
+			if ( cmd->execute_command ) {
+				cmd->execute_command( cmd, msg, tokens, connection.get() );
 			}
-			break;
-		case hash_32_fnv1a_const( "json" ): {
-			// directly put a message onto the output buffer - without mirroring it to the console
-			connection->channel_out.post( R"({ "Token": "This message should pass through unfiltered" })"
-			                              "\r\n" );
-		} break;
-		case hash_32_fnv1a_const( "cls" ): {
-			// directly put a message onto the output buffer - without mirroring it to the console
-			tty_clear_screen( connection.get() );
-		} break;
-		case hash_32_fnv1a_const( "tty" ): {
-			std::ostringstream msg;
+		} else {
 
-			msg
-			    << IAC
-			    << DONT
-			    << ECHO
-			    //
-			    << IAC
-			    << WILL
-			    << ECHO
-			    //
-			    << IAC
-			    << DO
-			    << '\x1f' // negotiate about window size
-			    //
-			    << IAC
-			    << WILL
-			    << "\x03"; // suppress goahead
-
-			connection->channel_out.post( msg.str() );
-			msg.clear();
-			msg << ISL_TTY_COLOR
-			    << "Island Console.\r\nWelcome.\x1b[0m\r\n";
-			connection->channel_out.post( msg.str() );
-
-		} break;
-		case hash_32_fnv1a_const( "log" ):
-			// If you set log_level_mask to 0, this means that log messages will be mirrored to console
-			// If you set log_level_mask to -1, this means that all log messages will be mirrored to console
-			if ( tokens.size() == 2 ) {
-				le_console_produce_log_subscribers().erase( connection->fd ); // Force the subscriber to be de-registered.
-				connection->log_level_mask = strtol( tokens[ 1 ], nullptr, 0 );
-				if ( connection->log_level_mask != 0 ) {
-					le_console_produce_log_subscribers()[ connection->fd ] = std::make_unique<LeLogSubscriber>( connection.get() ); // Force the subscriber to be re-registered.
-					connection->wants_log_subscriber                       = true;
-				} else {
-					// If we don't subscribe to any messages, we might as well remove the subscriber from the log
-					le_console_produce_log_subscribers()[ connection->fd ].reset( nullptr );
-					connection->wants_log_subscriber = false;
-				}
-				le_log::le_log_channel_i.info( logger.getChannel(), "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
-			}
-			break;
-		case hash_32_fnv1a_const( "exit" ): {
-			std::ostringstream msg;
-			msg
-
-			    << IAC
-			    << DO
-			    << ECHO
-			    //
-			    << IAC
-			    << WONT
-			    << ECHO
-			    //
-			    << IAC
-			    << WONT
-			    << "\x03";
-			connection->channel_out.post( msg.str() );
-			connection->wants_redraw = false;
-		} break;
-		default:
 			le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
-			break;
 		}
-	}
+	} // end for each connection
 }
 
 // ----------------------------------------------------------------------
