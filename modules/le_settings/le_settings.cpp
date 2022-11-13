@@ -12,13 +12,6 @@
 // Ideas for this module:
 // we can load settings from a file - any matching settings values get overwritten / set
 //
-enum SettingType : uint64_t {
-	eInt       = hash_64_fnv1a_const( "int" ),
-	eUint32_t  = hash_64_fnv1a_const( "uint32_t" ),
-	eInt32_t   = hash_64_fnv1a_const( "int32_t" ),
-	eStdString = hash_64_fnv1a_const( "std::string" ),
-	eBool      = hash_64_fnv1a_const( "bool" ),
-};
 
 #include "private/le_core/le_settings_private_types.inl"
 
