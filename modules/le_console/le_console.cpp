@@ -1236,7 +1236,11 @@ static void le_console_process_input() {
 			}
 		} else {
 
-			le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
+			if ( !tokens.empty() ) {
+				le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
+			} else {
+				le_log::le_log_channel_i.warn( logger.getChannel(), "Empty command." );
+			}
 		}
 	} // end for each connection
 }
