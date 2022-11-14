@@ -54,6 +54,10 @@ static const auto& le_imgui_i = api->le_imgui_i;
 
 } // namespace le_imgui
 
+#if ( WIN32 )
+#	pragma comment( lib, "modules/imgui.lib" )
+#endif
+
 #endif // __cplusplus
 
 #endif
