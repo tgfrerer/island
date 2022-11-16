@@ -39,25 +39,26 @@ extern void le_console_server_register_api( void* api ); // in le_console_server
 
 static constexpr auto ISL_TTY_COLOR = "\x1b[38;2;204;203;164m";
 
+namespace telnet {
 // Telnet control byte constants
-constexpr auto IAC      = "\xff";
-constexpr auto DO       = "\xfd";
-constexpr auto DONT     = "\xfe";
-constexpr auto WILL     = "\xfb";
-constexpr auto WONT     = "\xfc";
-constexpr auto LINEMODE = "\x22";
+constexpr auto IAC      = '\xff';
+constexpr auto DO       = '\xfd';
+constexpr auto DONT     = '\xfe';
+constexpr auto WILL     = '\xfb';
+constexpr auto WONT     = '\xfc';
+constexpr auto LINEMODE = '\x22';
 constexpr auto ECHO     = '\x01';
 constexpr auto SB       = '\xfa';
 constexpr auto SE       = '\xf0';
 constexpr auto SLC      = '\x03'; // substitute local characters
+} // namespace telnet
 
 /*
 
-Ideas for this module:
+Intent for this module:
 
 A console is an interactive session which has its own state and its own history.
-Each sessino is Modal, it can run as an interactive TTY-like session (enter "tty")
-
+Each session is Modal, it can run as an interactive TTY-like session (once you enter "tty")
 
 */
 
@@ -106,7 +107,7 @@ class LeLogSubscriber : NoCopy {
 };
 
 // ----------------------------------------------------------------------
-// We use this convoluted construction of a unique_ptr around a Raii class,
+// We use this convoluted construction of a unique_ptr around a RAII class,
 // so that we can detect when a module is being unloaded - in which case
 // the unique_ptr will call the destructor on LeLogSubscriber.
 //
@@ -280,14 +281,13 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		if ( it == it_end ) {
 			return false;
 		}
-		const uint8_t IAC = 0xff;
 		while ( it != it_end ) {
-			if ( uint8_t( *it ) == IAC ) {
+			if ( *it == telnet::IAC ) {
 
 				// if there is a lookahead character, and it is in
 				// fact a IAC character, this means that IAC is meant
 				// to be escaped and interpreted literally.
-				if ( it + 1 != it_end && ( uint8_t( *( it + 1 ) ) == IAC ) ) {
+				if ( it + 1 != it_end && ( uint8_t( *( it + 1 ) ) == telnet::IAC ) ) {
 					it = it + 2;
 					continue;
 				}
@@ -298,15 +298,6 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 			it++;
 		}
 		return false;
-	};
-
-	enum class TEL_OPT : uint8_t {
-		SB   = 0xfa, // suboption begin
-		SE   = 0xf0, // suboption end
-		WILL = 0xfb,
-		WONT = 0xfc,
-		DO   = 0xfd,
-		DONT = 0xfe,
 	};
 
 	// if is_option, returns true and sets it_end to one past the last character that is part of the option
@@ -322,8 +313,8 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		}
 		// ----------| invariant: there is a next byte available
 
-		if ( uint8_t( *it ) >= uint8_t( TEL_OPT::WILL ) &&
-		     uint8_t( *it ) <= uint8_t( TEL_OPT::DONT ) ) {
+		if ( uint8_t( *it ) >= uint8_t( telnet::WILL ) &&
+		     uint8_t( *it ) <= uint8_t( telnet::DONT ) ) {
 			it_end = it + 2;
 			return true;
 		}
@@ -339,7 +330,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		}
 		// ---------| invariant: we are not at the end of the stream
 
-		if ( uint8_t( *it ) != uint8_t( TEL_OPT::SB ) ) { // suboption start
+		if ( uint8_t( *it ) != uint8_t( telnet::SB ) ) { // suboption start
 			return false;
 		}
 
@@ -357,7 +348,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 
 		// ----------| invariant: there is a next byte available
 		// look for "suboption end byte"
-		if ( uint8_t( TEL_OPT::SE ) == uint8_t( *( sub_option_end ) ) ) {
+		if ( uint8_t( telnet::SE ) == uint8_t( *( sub_option_end ) ) ) {
 			it_end = sub_option_end + 1;
 			return true;
 		}
@@ -396,14 +387,14 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 		// ----------| invariant: there is an option specifier available
 
 		switch ( uint8_t( *it ) ) {
-		case ( uint8_t( TEL_OPT::WILL ) ):
+		case ( uint8_t( telnet::WILL ) ):
 			logger.debug( "WILL x%02x (%1$03u)", *( it + 1 ) );
 
 			break;
-		case ( uint8_t( TEL_OPT::WONT ) ):
+		case ( uint8_t( telnet::WONT ) ):
 			logger.debug( "WONT x%02x (%1$03u)", *( it + 1 ) );
 			break;
-		case ( uint8_t( TEL_OPT::DO ) ):
+		case ( uint8_t( telnet::DO ) ):
 			logger.debug( "DO   x%02x (%1$03u)", *( it + 1 ) );
 			// client will ignore goahead
 			// client requests something from us
@@ -413,7 +404,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 				logger.debug( "We will suppress Goahead" );
 			}
 			break;
-		case ( uint8_t( TEL_OPT::DONT ) ):
+		case ( uint8_t( telnet::DONT ) ):
 			logger.debug( "DONT x%02x (%1$03u)", *( it + 1 ) );
 			if ( uint8_t( *( it + 1 ) ) == '\x03' ) {
 				// Don't Suppress goahead
@@ -656,7 +647,7 @@ static void tab_pressed( le_console_o::connection_t* connection ) {
 		return;
 	}
 
-	// invariant: c exists
+	// invariant: cmd exists
 
 	while ( token_idx < tokens.size() && cmd->find_subcommand( tokens[ token_idx ], &cmd ) ) {
 		token_idx++;
@@ -1002,21 +993,21 @@ static void cb_set_setting_command( Command const* cmd, std::string const& str, 
 			switch ( found_setting->type_hash ) {
 			case SettingType::eBool:
 				*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 10 ) );
-			    break;
+				break;
 			case SettingType::eUint32_t:
 				*( uint32_t* )( setting ) = bool( strtoul( setting_value, nullptr, 10 ) );
-			    break;
+				break;
 			case SettingType::eInt32_t:
 				*( int32_t* )( setting ) = int32_t( strtoul( setting_value, nullptr, 10 ) );
-			    break;
+				break;
 			case SettingType::eInt:
 				*( int* )( setting ) = int( strtoul( setting_value, nullptr, 10 ) );
-			    break;
+				break;
 			case SettingType::eStdString:
 				*( std::string* )( setting ) = std::string( setting_value );
-			    break;
+				break;
 			default:
-			    break;
+				break;
 			}
 		}
 	}
@@ -1031,21 +1022,22 @@ static void cb_list_settings_command( Command const* cmd, std::string const& str
 		switch ( s.second.type_hash ) {
 		case ( SettingType::eBool ):
 			logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "bool", *( ( bool* )s.second.p_opj ) ? "true" : "false" );
-		    break;
+			break;
 		case ( SettingType::eInt ):
 			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
-		    break;
+			break;
 		case ( SettingType::eStdString ):
 			logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "std::string", ( ( std::string* )s.second.p_opj )->c_str() );
-		    break;
+			break;
 		default:
 			logger.warn( "setting '%30s' has unknown type.", s.second.name.c_str() );
-		    break;
+			break;
 		}
 	}
 };
 
 static void cb_init_tty_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	using namespace telnet;
 	std::ostringstream msg;
 
 	msg
@@ -1092,6 +1084,7 @@ static void cb_log_command( Command const* cmd, std::string const& str, std::vec
 }
 
 static void cb_exit_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	using namespace telnet;
 	std::ostringstream msg;
 	msg
 
@@ -1110,6 +1103,9 @@ static void cb_exit_command( Command const* cmd, std::string const& str, std::ve
 	connection->wants_redraw = false;
 }
 
+static void cb_cls_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	tty_clear_screen( connection );
+}
 // ------------------------------------------------------------------------------------------
 
 static void le_console_setup_commands( le_console_o* self ) {
@@ -1139,6 +1135,7 @@ static void le_console_setup_commands( le_console_o* self ) {
 	    ->addSubCommand( set_setting_command )
 	    ->addSubCommand( Command::New( "settings", cb_command_autocomplete, cb_list_settings_command ) )
 	    ->addSubCommand( Command::New( "tty", cb_command_autocomplete, cb_init_tty_command ) )
+	    ->addSubCommand( Command::New( "cls", cb_command_autocomplete, cb_cls_command ) )
 	    ->addSubCommand( Command::New( "log", cb_command_autocomplete, cb_log_command ) )
 	    ->addSubCommand( Command::New( "exit", cb_command_autocomplete, cb_exit_command ) );
 }
