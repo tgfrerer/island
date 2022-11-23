@@ -228,28 +228,6 @@ static void tokenize_string( std::string& msg, std::vector<char const*>& tokens,
 	}
 }
 
-// ------------------------------------------------------------------------------------------
-
-std::string telnet_get_suboption( std::string::iterator& it, std::string::iterator str_end ) {
-	// suboption is anything that is
-
-	constexpr auto NVT_SB = char( 250 );
-	constexpr auto NVT_SE = char( 240 );
-
-	while ( it != str_end && *it != NVT_SB ) {
-		it++;
-	}
-
-	auto sub_start = ++it;
-
-	for ( ;
-	      it != str_end && *it != NVT_SE;
-	      it++ ) {
-	}
-
-	return std::string( sub_start, it );
-};
-
 // ----------------------------------------------------------------------
 
 // Will update stream_begin to point at one part the last character of the last command
@@ -530,6 +508,17 @@ static void tty_clear_screen( le_console_o::connection_t* connection ) {
 	connection->wants_redraw = true;
 }
 
+// returns index of first char that is not equal
+// or length of strings if both equal
+
+static inline constexpr size_t first_diff( char const* a, char const* b ) {
+	size_t result = 0;
+	while ( *a != 0 && *b != 0 && *a++ == *b++ ) {
+		result++;
+	}
+	return result;
+}
+
 // --------------------------------------------------------------------------------
 // we want to be able to express a tree of command tokens
 class Command {
@@ -594,20 +583,102 @@ class Command {
 		return false;
 	}
 
-	bool find_closest_subcommand( const char* token, Command** c ) const {
-		auto result = commands.upper_bound( token );
-		if ( result == commands.end() ) {
-			if ( commands.empty() ) {
-				*c = nullptr;
-				return false;
-			} else {
-				// wraparound
-				*c = commands.begin()->second;
-				return true;
+	std::map<std::string, Command*>::const_iterator find_closest_match( std::string const& word, size_t* num_matching_chars ) const {
+
+		static auto logger = le::Log( LOG_CHANNEL );
+		// narrow upper and lower bound
+		std::string key;
+		key.reserve( word.size() );
+
+		auto it_low = commands.begin();
+		auto it_up  = commands.end();
+
+		key = word;
+
+		it_low = commands.lower_bound( key );
+		it_up  = commands.upper_bound( key );
+
+		// if lower and upper are the same, then the element would go just before that iterator
+		// if lower and upper are not the same, then the element has been found at it_low
+		//
+		// lower is end(), then the element has not been found
+		if ( it_low == it_up ) {
+			// printf("iterators are equal.");
+		}
+
+		// if (it_low == commands.end() || it_up == wordlist.begin()) {
+		//	printf("No match found\n");
+		//  }
+
+		// invariant: it_low != wordlist.end()
+		// invariant: it_up != wordlist.begin()
+
+		if ( it_low == it_up ) {
+			// lower and upper are identical - the element should be placed just before.
+			// Such a position must exist, as invariant it_up != wordlist.begin() holds
+			//
+			// it could still mean that the current position has a better submatch than the previous position
+
+			if ( it_up == commands.end() && it_low != commands.begin() ) {
+				it_low--;
+			}
+
+			size_t len_match = first_diff( it_low->first.c_str(), key.c_str() );
+
+			if ( it_low != commands.begin() ) {
+
+				auto len_match_prev = first_diff( std::prev( it_low )->first.c_str(), key.c_str() );
+
+				if ( len_match < len_match_prev ) {
+					std::swap( len_match, len_match_prev );
+					it_low--;
+				}
+			}
+
+			if ( num_matching_chars ) {
+				*num_matching_chars = len_match;
+			}
+
+			// logger.info( "Partial match? : '%-10s' - key: '%-10s', match: '%-10.*s'\n", it_low->first.c_str(), key.c_str(), uint32_t( len_match ), key.c_str() );
+
+		} else {
+			// lower and upper are not the same - we have found a match
+			// we have found a match:
+			// logger.info( "Match          : '%-10s' - key: '%-10s'\n", it_low->first.c_str(), key.c_str() );
+			if ( num_matching_chars ) {
+				*num_matching_chars = it_low->first.size();
 			}
 		}
 
-		*c = result->second;
+		return it_low;
+	}
+
+	bool find_closest_subcommand( const char* token, Command** c ) const {
+		if ( true ) {
+			auto result = find_closest_match( token, nullptr );
+
+			if ( result == commands.end() ) {
+				*c = nullptr;
+				return false;
+			}
+			*c = result->second;
+		}
+
+		if ( false ) {
+			auto result = commands.upper_bound( token );
+			if ( result == commands.end() ) {
+				if ( commands.empty() ) {
+					*c = nullptr;
+					return false;
+				} else {
+					// wraparound
+					*c = commands.begin()->second;
+					return true;
+				}
+			}
+			*c = result->second;
+		}
+
 		return true;
 	}
 
