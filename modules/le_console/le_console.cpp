@@ -26,6 +26,8 @@
 
 #include "private/le_console/le_console_types.h"
 #include "private/le_console/le_console_server.h"
+#include "private/le_console/le_char_tree.h"
+
 #include "private/le_core/le_settings_private_types.inl"
 
 // Translation between winsock and posix sockets
@@ -583,101 +585,55 @@ class Command {
 		return false;
 	}
 
-	std::map<std::string, Command*>::const_iterator find_closest_match( std::string const& word, size_t* num_matching_chars ) const {
+	bool find_suggestion( const char* token, size_t& num_matching_chars, std::vector<std::string>& suggestions ) const {
 
-		static auto logger = le::Log( LOG_CHANNEL );
-		// narrow upper and lower bound
-		std::string key;
-		key.reserve( word.size() );
+		suggestions.clear();
+		size_t num_possible_suggestions = 0;
 
-		auto it_low = commands.begin();
-		auto it_up  = commands.end();
+		auto found_node = autocomplete_cache->find_word( token, &num_matching_chars );
 
-		key = word;
+		if ( num_matching_chars > 0 ) {
 
-		it_low = commands.lower_bound( key );
-		it_up  = commands.upper_bound( key );
+			{
+				// Calculate number of suggestions
+				auto first_option_node = found_node->get_first_child();
 
-		// if lower and upper are the same, then the element would go just before that iterator
-		// if lower and upper are not the same, then the element has been found at it_low
-		//
-		// lower is end(), then the element has not been found
-		if ( it_low == it_up ) {
-			// printf("iterators are equal.");
-		}
-
-		// if (it_low == commands.end() || it_up == wordlist.begin()) {
-		//	printf("No match found\n");
-		//  }
-
-		// invariant: it_low != wordlist.end()
-		// invariant: it_up != wordlist.begin()
-
-		if ( it_low == it_up ) {
-			// lower and upper are identical - the element should be placed just before.
-			// Such a position must exist, as invariant it_up != wordlist.begin() holds
-			//
-			// it could still mean that the current position has a better submatch than the previous position
-
-			if ( it_up == commands.end() && it_low != commands.begin() ) {
-				it_low--;
-			}
-
-			size_t len_match = first_diff( it_low->first.c_str(), key.c_str() );
-
-			if ( it_low != commands.begin() ) {
-
-				auto len_match_prev = first_diff( std::prev( it_low )->first.c_str(), key.c_str() );
-
-				if ( len_match < len_match_prev ) {
-					std::swap( len_match, len_match_prev );
-					it_low--;
+				if ( first_option_node ) {
+					num_possible_suggestions = 1 + first_option_node->count_siblings();
 				}
 			}
 
-			if ( num_matching_chars ) {
-				*num_matching_chars = len_match;
+			for ( size_t i = 0; i != num_possible_suggestions; i++ ) {
+				size_t suggestion_len = 0;
+				found_node->get_suggestion_at( i, &suggestion_len, nullptr );
+
+				std::string suggestion;
+				suggestion.resize( suggestion_len );
+
+				found_node->get_suggestion_at( i, &suggestion_len, suggestion.data() );
+				suggestions.emplace_back( std::move( suggestion ) );
 			}
-
-			// logger.info( "Partial match? : '%-10s' - key: '%-10s', match: '%-10.*s'\n", it_low->first.c_str(), key.c_str(), uint32_t( len_match ), key.c_str() );
-
 		} else {
-			// lower and upper are not the same - we have found a match
-			// we have found a match:
-			// logger.info( "Match          : '%-10s' - key: '%-10s'\n", it_low->first.c_str(), key.c_str() );
-			if ( num_matching_chars ) {
-				*num_matching_chars = it_low->first.size();
-			}
+			return false;
 		}
 
-		return it_low;
+		return true;
 	}
 
 	bool find_closest_subcommand( const char* token, Command** c ) const {
-		if ( true ) {
-			auto result = find_closest_match( token, nullptr );
 
-			if ( result == commands.end() ) {
+		auto result = commands.upper_bound( token );
+		if ( result == commands.end() ) {
+			if ( commands.empty() ) {
 				*c = nullptr;
 				return false;
+			} else {
+				// wraparound
+				*c = commands.begin()->second;
+				return true;
 			}
-			*c = result->second;
 		}
-
-		if ( false ) {
-			auto result = commands.upper_bound( token );
-			if ( result == commands.end() ) {
-				if ( commands.empty() ) {
-					*c = nullptr;
-					return false;
-				} else {
-					// wraparound
-					*c = commands.begin()->second;
-					return true;
-				}
-			}
-			*c = result->second;
-		}
+		*c = result->second;
 
 		return true;
 	}
@@ -690,13 +646,50 @@ class Command {
 		return parent;
 	}
 
+	// Ivalidates and then regenerates the autocomplete cache for
+	// a command and all its subcommands.
+	void updateAutocompleteCache() {
+		for ( auto& c : commands ) {
+			c.second->updateAutocompleteCache();
+		}
+
+		if ( nullptr == autocomplete_cache.get() ) {
+			// we must build the char tree
+
+			std::vector<std::unique_ptr<std::string>> strings_container; // unique_ptr so that strings get auto-deleted
+			std::vector<char const*>                  strings_p;         // points into strings_container, addresses are fixed, as strings are allocated on the heap and only the addressesd get
+
+			for ( auto& e : commands ) {
+
+				// Why do we laboriously allocate strings on the heap here so that we can point to them
+				// if we could just as well point to them directly as keys of `commands`?
+				// It's so that we can append a whitespace to each command before adding it to our
+				// tree. The whitespace at the end makes it possible for autocomplete to stop at the
+				// first point of difference when there are two possible commands that begin with the
+				// same character sequence: "set" and "setting", for example. For prompt "se", we want to
+				// be able to stop after the first 't', as both "set" and "setting" are possible choices.
+				//
+				// Having a whitespace at the end of each token adds an extra sibling at the first 't',
+				// which has the effect of pausing the cursor there.
+
+				strings_container.emplace_back( std::make_unique<std::string>( e.first ) );
+				strings_container.back()->append( " " );
+				strings_p.push_back( strings_container.back()->data() );
+			}
+
+			autocomplete_cache.reset( new le_char_tree::node_t() );
+			autocomplete_cache->add_children( 0, strings_p.data(), strings_p.data() + strings_p.size() );
+		}
+	}
+
 	cmd_cb autocomplete_command; // callback for autocomplete
 	cmd_cb execute_command;      // callback for execute
 
   private:
-	std::string const               name;
-	Command*                        parent = nullptr;
-	std::map<std::string, Command*> commands;
+	std::unique_ptr<le_char_tree::node_t> autocomplete_cache; // autocomplete cache
+	std::string const                     name;
+	Command*                              parent = nullptr;
+	std::map<std::string, Command*>       commands;
 };
 
 // --------------------------------------------------------------------------------
@@ -997,21 +990,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 // taking into account any tokens up to the cursor
 // and the first token including and following the cursor
 //
-// TODO:
-// We want to change the behaviour of this autocomplete so that it won't change a prompt before the
-// cursor. if we can't find something that matches the characters before the cursor, we must not make
-// a recommendation, but leave the prompt as it is.
-//
 static void cb_command_autocomplete( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
-	std::string              input_buffer;
-	std::vector<char const*> input_tokens;
-
-	if ( connection->input_cursor_pos != connection->input_buffer.size() ) {
-		input_buffer = std::string{ connection->input_buffer.begin() + connection->input_cursor_pos, connection->input_buffer.end() };
-		if ( !input_buffer.empty() ) {
-			tokenize_string( input_buffer, input_tokens );
-		}
-	}
 
 	size_t num_parents = 0;
 	{
@@ -1032,20 +1011,23 @@ static void cb_command_autocomplete( Command const* cmd, std::string const& str,
 		last_token_complete = tokens.back();
 	}
 
-	if ( !input_tokens.empty() ) {
-		last_token_complete.append( input_tokens.front() );
-	}
-
-	Command* sub_command = nullptr;
-	if ( cmd->find_closest_subcommand( last_token_complete.c_str(), &sub_command ) ) {
+	std::vector<std::string> suggestions;
+	size_t                   num_matching_chars = 0;
+	if ( cmd->find_suggestion( last_token_complete.c_str(), num_matching_chars, suggestions ) ) {
 		std::ostringstream ib;
 
+		// rebuild the input prompt
 		for ( uint32_t i = 0; i != num_parents; i++ ) {
 			ib << tokens[ i ]
 			   << " ";
 		}
 
-		ib << sub_command->getName();
+		ib << std::string( last_token_complete.begin(), last_token_complete.begin() + num_matching_chars );
+
+		if ( suggestions.size() == 1 ) {
+			ib << suggestions.front();
+			connection->input_cursor_pos = ib.str().size();
+		}
 
 		connection->input_buffer = ib.str();
 		check_cursor_pos( connection );
@@ -1209,6 +1191,8 @@ static void le_console_setup_commands( le_console_o* self ) {
 	    ->addSubCommand( Command::New( "cls", cb_command_autocomplete, cb_cls_command ) )
 	    ->addSubCommand( Command::New( "log", cb_command_autocomplete, cb_log_command ) )
 	    ->addSubCommand( Command::New( "exit", cb_command_autocomplete, cb_exit_command ) );
+
+	self->cmd->updateAutocompleteCache();
 }
 
 // ------------------------------------------------------------------------------------------

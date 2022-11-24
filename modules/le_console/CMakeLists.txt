@@ -11,7 +11,9 @@ set (SOURCES "le_console.cpp")
 set (SOURCES ${SOURCES} "le_console.h")
 set (SOURCES ${SOURCES} "private/le_console/le_console_types.h")
 set (SOURCES ${SOURCES} "private/le_console/le_console_server.h")
+set (SOURCES ${SOURCES} "private/le_console/le_console_types.h")
 set (SOURCES ${SOURCES} "private/le_console/le_console_server.cpp")
+set (SOURCES ${SOURCES} "private/le_console/le_char_tree.h")
 
 if (${PLUGINS_DYNAMIC})
 
