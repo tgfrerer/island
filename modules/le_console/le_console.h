@@ -6,6 +6,13 @@
 // This module allows you to remote-control an island app -
 // It will listen for connections on port 3535/tcp.
 //
+// You can make the console available to the world by using reverse-ssh tunnelling as in:
+//
+// `ssh -o ExitOnForwardFailure=yes -v -gNR 0.0.0.0:3636:localhost:3535 poniesandlight.co.uk`
+//
+//  This will forward any connections to poniesandlight.co.uk:3636 to
+//  localhost:3535, where the console server will be listening.
+//
 // The console server runs on its own thread, and it
 // communicates with the console over thread-safe channels.
 //
