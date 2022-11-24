@@ -521,6 +521,9 @@ static inline constexpr size_t first_diff( char const* a, char const* b ) {
 	return result;
 }
 
+// ffdecl.
+static void cb_command_autocomplete( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection );
+
 // --------------------------------------------------------------------------------
 // we want to be able to express a tree of command tokens
 class Command {
@@ -529,9 +532,9 @@ class Command {
 	typedef void ( *cmd_cb )( Command const* cmd, std::string const& cmdline, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ); // tokens from cmdline
 
   private:
-	explicit Command( std::string const& name_, cmd_cb callback_ = nullptr, cmd_cb execute_ = nullptr )
-	    : autocomplete_command( callback_ )
-	    , execute_command( execute_ )
+	explicit Command( std::string const& name_, cmd_cb cb_execute_ = nullptr, cmd_cb cb_autocomplete_ = cb_command_autocomplete )
+	    : autocomplete_command( cb_autocomplete_ )
+	    , execute_command( cb_execute_ )
 	    , name( name_ ) {
 		// static auto logger = le::Log( LOG_CHANNEL );
 		// logger.info( "+ ConsoleCommand '%s' %x", name.c_str(), this );
@@ -553,8 +556,9 @@ class Command {
 	Command( Command&& other )                 = delete; // move constructor
 
 	// Factory function - you must use this to create a new command
-	static Command* New( std::string const&& name_, cmd_cb&& autocomplete_ = nullptr, cmd_cb&& execute_ = nullptr ) {
-		return new Command( name_, autocomplete_, execute_ );
+	static Command* New( std::string const&& name_, cmd_cb&& execute_ = nullptr, cmd_cb&& autocomplete_ = cb_command_autocomplete ) {
+
+		return new Command( name_, execute_, autocomplete_ );
 	}
 
 	// will take ownership of cmd
@@ -666,7 +670,7 @@ class Command {
 	cmd_cb execute_command;      // callback for execute
 
   private:
-	std::unique_ptr<le_char_tree::node_t> autocomplete_cache; // autocomplete cache
+	std::unique_ptr<le_char_tree::node_t> autocomplete_cache;
 	std::string const                     name;
 	Command*                              parent = nullptr;
 	std::map<std::string, Command*>       commands;
@@ -699,8 +703,6 @@ static void tab_pressed( le_console_o::connection_t* connection ) {
 
 	std::string hint;
 
-	// logger.debug( "found command: %s", c->getName().c_str() );
-	// logger.debug( "command parent: %x", c->getParent() );
 	if ( cmd->autocomplete_command ) {
 		cmd->autocomplete_command( cmd, input, tokens, connection );
 	}
@@ -1159,10 +1161,10 @@ static void le_console_setup_commands( le_console_o* self ) {
 	}
 
 	// Root of commands Tree
-	self->cmd.reset( Command::New( "", cb_command_autocomplete ) );
+	self->cmd.reset( Command::New( "" ) );
 
 	// "set command" - used to manipulate settings
-	Command* set_setting_command = Command::New( "set", cb_command_autocomplete );
+	Command* set_setting_command = Command::New( "set" );
 	{
 		// Create a local copy of global settings
 		le_settings_map_t current_settings;
@@ -1171,18 +1173,18 @@ static void le_console_setup_commands( le_console_o* self ) {
 		// add a subcommand for each settings entry
 		for ( auto& e : current_settings.map ) {
 			set_setting_command->addSubCommand(
-			    Command::New( std::string( e.second.name ), nullptr, cb_set_setting_command ) );
+			    Command::New( std::string( e.second.name ), cb_set_setting_command ) );
 		}
 	}
 
 	self->cmd
 	    ->addSubCommand( set_setting_command )
-	    ->addSubCommand( Command::New( "help", cb_command_autocomplete, cb_show_help_command ) )
-	    ->addSubCommand( Command::New( "settings", cb_command_autocomplete, cb_list_settings_command ) )
-	    ->addSubCommand( Command::New( "tty", cb_command_autocomplete, cb_init_tty_command ) )
-	    ->addSubCommand( Command::New( "cls", cb_command_autocomplete, cb_cls_command ) )
-	    ->addSubCommand( Command::New( "log", cb_command_autocomplete, cb_log_command ) )
-	    ->addSubCommand( Command::New( "exit", cb_command_autocomplete, cb_exit_command ) );
+	    ->addSubCommand( Command::New( "help", cb_show_help_command ) )
+	    ->addSubCommand( Command::New( "settings", cb_list_settings_command ) )
+	    ->addSubCommand( Command::New( "tty", cb_init_tty_command ) )
+	    ->addSubCommand( Command::New( "cls", cb_cls_command ) )
+	    ->addSubCommand( Command::New( "log", cb_log_command ) )
+	    ->addSubCommand( Command::New( "exit", cb_exit_command ) );
 
 	self->cmd->updateAutocompleteCache();
 }
