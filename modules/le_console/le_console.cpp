@@ -348,10 +348,10 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 			// the next four bytes are width and height
 
 			if ( it_end - it == 4 + 2 ) {
-				connection->console_width = uint16_t( uint16_t( *it++ ) << 8 ); // msb first
-				connection->console_width |= uint16_t( uint16_t( *it++ ) );
-				connection->console_height = uint16_t( uint16_t( *it++ ) << 8 ); // msb first
-				connection->console_height |= uint16_t( uint16_t( *it++ ) );
+				connection->console_width = uint16_t( uint8_t( *it++ ) ) << 8; // msb first
+				connection->console_width |= uint16_t( uint8_t( *it++ ) );
+				connection->console_height = uint16_t( uint8_t( *it++ ) ) << 8; // msb first
+				connection->console_height |= uint16_t( uint8_t( *it++ ) );
 				logger.debug( "\t Setting Console window to %dx%d (w x h)", connection->console_width, connection->console_height );
 				connection->wants_redraw = true;
 			}
@@ -585,7 +585,7 @@ class Command {
 		return false;
 	}
 
-	bool find_suggestion( const char* token, size_t& num_matching_chars, std::vector<std::string>& suggestions ) const {
+	bool find_suggestions( const char* token, size_t& num_matching_chars, std::vector<std::string>& suggestions ) const {
 
 		suggestions.clear();
 		size_t num_possible_suggestions = 0;
@@ -620,24 +620,6 @@ class Command {
 		return true;
 	}
 
-	bool find_closest_subcommand( const char* token, Command** c ) const {
-
-		auto result = commands.upper_bound( token );
-		if ( result == commands.end() ) {
-			if ( commands.empty() ) {
-				*c = nullptr;
-				return false;
-			} else {
-				// wraparound
-				*c = commands.begin()->second;
-				return true;
-			}
-		}
-		*c = result->second;
-
-		return true;
-	}
-
 	std::string const& getName() {
 		return name;
 	}
@@ -653,33 +635,31 @@ class Command {
 			c.second->updateAutocompleteCache();
 		}
 
-		if ( nullptr == autocomplete_cache.get() ) {
-			// we must build the char tree
+		// we must build the char tree
 
-			std::vector<std::unique_ptr<std::string>> strings_container; // unique_ptr so that strings get auto-deleted
-			std::vector<char const*>                  strings_p;         // points into strings_container, addresses are fixed, as strings are allocated on the heap and only the addressesd get
+		std::vector<std::unique_ptr<std::string>> strings_container; // unique_ptr so that strings get auto-deleted
+		std::vector<char const*>                  strings_p;         // points into strings_container, addresses are fixed, as strings are allocated on the heap and only the addressesd get
 
-			for ( auto& e : commands ) {
+		for ( auto& e : commands ) {
 
-				// Why do we laboriously allocate strings on the heap here so that we can point to them
-				// if we could just as well point to them directly as keys of `commands`?
-				// It's so that we can append a whitespace to each command before adding it to our
-				// tree. The whitespace at the end makes it possible for autocomplete to stop at the
-				// first point of difference when there are two possible commands that begin with the
-				// same character sequence: "set" and "setting", for example. For prompt "se", we want to
-				// be able to stop after the first 't', as both "set" and "setting" are possible choices.
-				//
-				// Having a whitespace at the end of each token adds an extra sibling at the first 't',
-				// which has the effect of pausing the cursor there.
+			// Why do we laboriously allocate strings on the heap here so that we can point to them
+			// if we could just as well point to them directly as keys of `commands`?
+			// It's so that we can append a whitespace to each command before adding it to our
+			// tree. The whitespace at the end makes it possible for autocomplete to stop at the
+			// first point of difference when there are two possible commands that begin with the
+			// same character sequence: "set" and "setting", for example. For prompt "se", we want to
+			// be able to stop after the first 't', as both "set" and "setting" are possible choices.
+			//
+			// Having a whitespace at the end of each token adds an extra sibling at the first 't',
+			// which has the effect of pausing the cursor there.
 
-				strings_container.emplace_back( std::make_unique<std::string>( e.first ) );
-				strings_container.back()->append( " " );
-				strings_p.push_back( strings_container.back()->data() );
-			}
-
-			autocomplete_cache.reset( new le_char_tree::node_t() );
-			autocomplete_cache->add_children( 0, strings_p.data(), strings_p.data() + strings_p.size() );
+			strings_container.emplace_back( std::make_unique<std::string>( e.first ) );
+			strings_container.back()->append( " " );
+			strings_p.push_back( strings_container.back()->data() );
 		}
+
+		autocomplete_cache.reset( new le_char_tree::node_t() );
+		autocomplete_cache->add_children( 0, strings_p.data(), strings_p.data() + strings_p.size() );
 	}
 
 	cmd_cb autocomplete_command; // callback for autocomplete
@@ -1013,7 +993,7 @@ static void cb_command_autocomplete( Command const* cmd, std::string const& str,
 
 	std::vector<std::string> suggestions;
 	size_t                   num_matching_chars = 0;
-	if ( cmd->find_suggestion( last_token_complete.c_str(), num_matching_chars, suggestions ) ) {
+	if ( cmd->find_suggestions( last_token_complete.c_str(), num_matching_chars, suggestions ) ) {
 		std::ostringstream ib;
 
 		// rebuild the input prompt
@@ -1068,8 +1048,8 @@ static void cb_set_setting_command( Command const* cmd, std::string const& str, 
 
 static void cb_show_help_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
 
-	connection->channel_out.post( "Try: 'log -1' to show all log messages.\n\r" );
-	connection->channel_out.post( "Commands: 'settings' 'set SETTING_NAME value' 'cls' 'log' \n\r" );
+	connection->channel_out.post( "There is no help.\n\r" );
+	connection->channel_out.post( "But there is autocomplete. Hit tab...\n\r" );
 
 	check_cursor_pos( connection );
 	connection->wants_redraw = true;
@@ -1142,6 +1122,8 @@ static void cb_log_command( Command const* cmd, std::string const& str, std::vec
 			connection->wants_log_subscriber = false;
 		}
 		le_log::le_log_channel_i.info( logger.getChannel(), "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
+	} else {
+		connection->channel_out.post( "Incorrect number of arguments.\n\rExpecting a single integer argument to specify log level mask.\n\r(E.g. -1 to capture all log levels.)\r\n" );
 	}
 }
 
@@ -1300,6 +1282,12 @@ static void le_console_process_input() {
 
 			if ( !tokens.empty() ) {
 				le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
+
+				std::string msg = "Incorrect command: '";
+				msg += tokens[ 0 ];
+				msg += "'\n\r";
+
+				connection->channel_out.post( msg.c_str() );
 			} else {
 				le_log::le_log_channel_i.warn( logger.getChannel(), "Empty command." );
 			}
