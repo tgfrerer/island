@@ -1066,6 +1066,15 @@ static void cb_set_setting_command( Command const* cmd, std::string const& str, 
 	}
 };
 
+static void cb_show_help_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+
+	connection->channel_out.post( "Try: 'log -1' to show all log messages.\n\r" );
+	connection->channel_out.post( "Commands: 'settings' 'set SETTING_NAME value' 'cls' 'log' \n\r" );
+
+	check_cursor_pos( connection );
+	connection->wants_redraw = true;
+};
+
 static void cb_list_settings_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
 	static auto       logger = le::Log( LOG_CHANNEL );
 	le_settings_map_t current_settings;
@@ -1186,6 +1195,7 @@ static void le_console_setup_commands( le_console_o* self ) {
 
 	self->cmd
 	    ->addSubCommand( set_setting_command )
+	    ->addSubCommand( Command::New( "help", cb_command_autocomplete, cb_show_help_command ) )
 	    ->addSubCommand( Command::New( "settings", cb_command_autocomplete, cb_list_settings_command ) )
 	    ->addSubCommand( Command::New( "tty", cb_command_autocomplete, cb_init_tty_command ) )
 	    ->addSubCommand( Command::New( "cls", cb_command_autocomplete, cb_cls_command ) )
