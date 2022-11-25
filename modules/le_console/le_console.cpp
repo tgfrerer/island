@@ -3,7 +3,6 @@
 
 #include "le_log.h"
 #include "le_console.h"
-#include "le_settings.h"
 
 #include <algorithm>
 #include <mutex>
@@ -522,7 +521,7 @@ static inline constexpr size_t first_diff( char const* a, char const* b ) {
 }
 
 // ffdecl.
-static void cb_command_autocomplete( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection );
+static void cb_autocomplete_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection );
 
 // --------------------------------------------------------------------------------
 // we want to be able to express a tree of command tokens
@@ -532,7 +531,7 @@ class Command {
 	typedef void ( *cmd_cb )( Command const* cmd, std::string const& cmdline, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ); // tokens from cmdline
 
   private:
-	explicit Command( std::string const& name_, cmd_cb cb_execute_ = nullptr, cmd_cb cb_autocomplete_ = cb_command_autocomplete )
+	explicit Command( std::string const& name_, cmd_cb cb_execute_ = nullptr, cmd_cb cb_autocomplete_ = cb_autocomplete_command )
 	    : autocomplete_command( cb_autocomplete_ )
 	    , execute_command( cb_execute_ )
 	    , name( name_ ) {
@@ -556,7 +555,7 @@ class Command {
 	Command( Command&& other )                 = delete; // move constructor
 
 	// Factory function - you must use this to create a new command
-	static Command* New( std::string const&& name_, cmd_cb&& execute_ = nullptr, cmd_cb&& autocomplete_ = cb_command_autocomplete ) {
+	static Command* New( std::string const&& name_, cmd_cb&& execute_ = nullptr, cmd_cb&& autocomplete_ = cb_autocomplete_command ) {
 
 		return new Command( name_, execute_, autocomplete_ );
 	}
@@ -973,7 +972,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 // taking into account any tokens up to the cursor
 // and the first token including and following the cursor
 //
-static void cb_command_autocomplete( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+static void cb_autocomplete_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
 
 	size_t num_parents = 0;
 	{
@@ -1012,15 +1011,36 @@ static void cb_command_autocomplete( Command const* cmd, std::string const& str,
 		ib << std::string( last_token_complete.begin(), last_token_complete.begin() + num_matching_chars );
 
 		if ( suggestions.size() == 1 ) {
+
+			last_token_complete = std::string( last_token_complete.begin(), last_token_complete.begin() + num_matching_chars );
+			last_token_complete += suggestions.front();
 			ib << suggestions.front();
-			connection->input_cursor_pos = ib.str().size();
-		} else {
+
+			// see if we can find more suggestions - if there is more than one option, then we want to
+			// see the options without having to press tab again.
+			cmd->find_suggestions( last_token_complete.c_str(), num_matching_chars, suggestions );
+
+			if ( suggestions.size() > 1 ) {
+				std::vector<char const*> input_tokens;
+				std::string              input_str = ib.str();
+				tokenize_string( input_str, input_tokens );
+				cb_autocomplete_command( cmd, input_str, input_tokens, connection );
+				connection->input_cursor_pos = input_str.size();
+			} else {
+				connection->input_buffer     = ib.str();
+				connection->input_cursor_pos = ib.str().size();
+			}
+
+			check_cursor_pos( connection );
+			connection->wants_redraw = true;
+			return;
+
+		} else if ( suggestions.size() > 1 ) {
 
 			std::ostringstream msg;
 			msg
 			    << "\x1b[0K" // erase from current position to end of the line
-			    //<< "\x1b[7m"           // color background set to dark yellowish gray
-			    << "\x1b[38;88;88;66m" // color background set to dark yellowish gray
+			    << "\x1b[7m" // color background set to dark yellowish gray
 			    << suggestions[ 0 ]
 			    << "\x1b[0m" // reset colors
 			    ;
@@ -1044,6 +1064,10 @@ static void cb_command_autocomplete( Command const* cmd, std::string const& str,
 
 			connection->num_suggestion_lines = suggestions.size();
 			connection->input_suggestion     = msg.str();
+		} else {
+			// if there was no suggestion, then add the last token back to input so
+			// that it doesn't get deleted.
+			ib << last_token_complete;
 		}
 
 		connection->input_buffer = ib.str();
