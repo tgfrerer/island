@@ -59,7 +59,7 @@ static void le_settings_list_all_settings() {
 	le_settings_map_t current_settings;
 
 	// create a local copy of global settings
-	le_core_copy_settings_entries( &current_settings );
+	le_core_copy_settings_entries( &current_settings, nullptr );
 
 	static auto logger = le::Log( "settings" );
 

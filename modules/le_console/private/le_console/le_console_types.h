@@ -66,10 +66,12 @@ struct le_console_o {
 
 		State state = State::ePlain;
 
-		std::string input_buffer;         // used for linemode
-		uint32_t    input_cursor_pos = 0; // position of linemode cursor (one past last element if at end)
-		uint16_t    console_width    = 0; // window width of console
-		uint16_t    console_height   = 0; // window height of console
+		std::string input_buffer;             // used for linemode
+		uint32_t    input_cursor_pos = 0;     // position of linemode cursor (one past last element if at end)
+		std::string input_suggestion;         //
+		uint32_t    num_suggestion_lines = 0; // how many lines of suggestions were printed last time
+		uint16_t    console_width        = 0; // window width of console
+		uint16_t    console_height       = 0; // window height of console
 
 		std::deque<std::string>           history;            // history as it happened
 		std::deque<std::string>           session_history;    // editable copy of history - reset on submit

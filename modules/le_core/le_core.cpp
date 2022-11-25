@@ -21,6 +21,8 @@
 #	include <unistd.h>
 #endif
 
+#include "3rdparty/src/spooky/SpookyV2.h"
+
 struct ApiStore {
 	std::vector<std::string> names{};      // Api names (used for debugging)
 	std::vector<uint64_t>    nameHashes{}; // Hashed api names (used for lookup)
@@ -105,9 +107,19 @@ ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const*
 // another thread adds a new entry to the map whilst the map gets enumerated.
 // Note that the settings that are pointed to are not explicitly thread-safe -
 // (but you could use std::atomic<T> types for settings that need thread-safety).
-ISL_API_ATTR void le_core_copy_settings_entries( le_settings_map_t* settings_map_ptr ) {
+ISL_API_ATTR void le_core_copy_settings_entries( le_settings_map_t* settings_map_ptr, uint64_t* hash_p ) {
 	std::scoped_lock lock( get_settings_store_mutex() );
-	*( le_settings_map_t* )( settings_map_ptr ) = get_global_settings_store();
+	if ( settings_map_ptr ) {
+		*( le_settings_map_t* )( settings_map_ptr ) = get_global_settings_store();
+	}
+	if ( hash_p ) {
+		uint64_t hash = 0;
+		for ( auto& e : get_global_settings_store().map ) {
+			hash = SpookyHash::Hash64( &e.first, sizeof( e.first ), hash );
+			hash = SpookyHash::Hash64( &e.second.type_hash, sizeof( e.second.type_hash ), hash );
+		}
+		*hash_p = hash;
+	}
 }
 
 // ----------------------------------------------------------------------

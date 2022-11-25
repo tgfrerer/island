@@ -65,9 +65,10 @@ ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name
 		}                                                                              \
 		return ( ( SETTING_TYPE* )( *p_addr ) );                                       \
 	}()
-//
-// Used by settings_module - which shares the correct type for settings
-ISL_API_ATTR DLL_CORE_API void le_core_copy_settings_entries( struct le_settings_map_t* settings_map_ptr );
+
+// settings_map_ptr (optional) target to place a copy of the settings_map into. set to nullptr to omit copy.
+// hash_p (optional) pointer to address at which to store hash of current settings map
+ISL_API_ATTR DLL_CORE_API void le_core_copy_settings_entries( struct le_settings_map_t* settings_map_ptr, uint64_t* hash_p );
 // lookup settings entry, and if found, return pointer to existing entry, nullptr otherwise.
 ISL_API_ATTR DLL_CORE_API struct LeSettingEntry* le_core_get_setting_entry( char const* setting_name );
 

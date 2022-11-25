@@ -596,7 +596,7 @@ class Command {
 
 		auto found_node = autocomplete_cache->find_word( token, &num_matching_chars );
 
-		if ( num_matching_chars > 0 ) {
+		if ( found_node ) {
 
 			{
 				// Calculate number of suggestions
@@ -701,7 +701,9 @@ static void tab_pressed( le_console_o::connection_t* connection ) {
 		token_idx++;
 	}
 
-	std::string hint;
+	if ( token_idx == tokens.size() && cmd->getParent() ) {
+		cmd = cmd->getParent();
+	}
 
 	if ( cmd->autocomplete_command ) {
 		cmd->autocomplete_command( cmd, input, tokens, connection );
@@ -741,6 +743,7 @@ static void fetch_session_history_entry( le_console_o::connection_t* connection,
 	} else {
 		check_cursor_pos( connection );
 	}
+
 	connection->wants_redraw = true;
 }
 
@@ -895,7 +898,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 						}
 					}
 				} else if ( c > '\x1f' ) {
-					// insert plain data
+					// PLAIN CHARACTER
 					connection->input_buffer.insert( connection->input_buffer.begin() + connection->input_cursor_pos++, c );
 					connection->wants_redraw = true;
 				} else {
@@ -930,9 +933,7 @@ std::string process_tty_input( le_console_o::connection_t* connection, std::stri
 				parameters.push_back( c );
 			} else if ( c >= '\x40' && c <= '\x7e' ) { // final byte of a control sequence
 				control_function.bytes.final = c;
-
 				execute_control_function( connection, control_function, parameters );
-
 				state            = DATA;
 				control_function = {};
 			}
@@ -993,6 +994,10 @@ static void cb_command_autocomplete( Command const* cmd, std::string const& str,
 		last_token_complete = tokens.back();
 	}
 
+	if ( !tokens.empty() ) {
+		last_token_complete = tokens.back();
+	}
+
 	std::vector<std::string> suggestions;
 	size_t                   num_matching_chars = 0;
 	if ( cmd->find_suggestions( last_token_complete.c_str(), num_matching_chars, suggestions ) ) {
@@ -1009,6 +1014,36 @@ static void cb_command_autocomplete( Command const* cmd, std::string const& str,
 		if ( suggestions.size() == 1 ) {
 			ib << suggestions.front();
 			connection->input_cursor_pos = ib.str().size();
+		} else {
+
+			std::ostringstream msg;
+			msg
+			    << "\x1b[0K" // erase from current position to end of the line
+			    //<< "\x1b[7m"           // color background set to dark yellowish gray
+			    << "\x1b[38;88;88;66m" // color background set to dark yellowish gray
+			    << suggestions[ 0 ]
+			    << "\x1b[0m" // reset colors
+			    ;
+			size_t num_chars = suggestions[ 0 ].size();
+
+			for ( size_t i = 1; i < suggestions.size(); i++ ) {
+				msg
+				    << std::string( num_chars, '\b' ) + "\n"
+				    << "\x1b[2K" // erase all characters in line
+				    << "\x1b[7m"
+				    << suggestions[ i ]
+				    << "\x1b[0m" // reset colors
+				    ;
+				num_chars = suggestions[ i ].size();
+			}
+			// msg << std::string( num_chars, '\b' );
+
+			for ( size_t i = 0; i != suggestions.size() - 1; i++ ) {
+				msg << "\x1bM"; // inverse of \n
+			}
+
+			connection->num_suggestion_lines = suggestions.size();
+			connection->input_suggestion     = msg.str();
 		}
 
 		connection->input_buffer = ib.str();
@@ -1060,7 +1095,7 @@ static void cb_show_help_command( Command const* cmd, std::string const& str, st
 static void cb_list_settings_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
 	static auto       logger = le::Log( LOG_CHANNEL );
 	le_settings_map_t current_settings;
-	le_core_copy_settings_entries( &current_settings );
+	le_core_copy_settings_entries( &current_settings, nullptr );
 	for ( auto& s : current_settings.map ) {
 
 		switch ( s.second.type_hash ) {
@@ -1156,6 +1191,16 @@ static void cb_cls_command( Command const* cmd, std::string const& str, std::vec
 
 static void le_console_setup_commands( le_console_o* self ) {
 
+	static uint64_t settings_hash_cache = 0;
+	uint64_t        settings_hash       = 0;
+
+	le_core_copy_settings_entries( nullptr, &settings_hash );
+
+	if ( settings_hash_cache != settings_hash ) {
+		settings_hash_cache = settings_hash;
+		self->cmd.release(); // force re-create for settings commands
+	}
+
 	if ( self->cmd.get() != nullptr ) {
 		return;
 	}
@@ -1168,7 +1213,7 @@ static void le_console_setup_commands( le_console_o* self ) {
 	{
 		// Create a local copy of global settings
 		le_settings_map_t current_settings;
-		le_core_copy_settings_entries( &current_settings );
+		le_core_copy_settings_entries( &current_settings, nullptr );
 
 		// add a subcommand for each settings entry
 		for ( auto& e : current_settings.map ) {
@@ -1220,10 +1265,47 @@ static void le_console_process_input() {
 		if ( connection->wants_redraw && connection->state == le_console_o::connection_t::State::eTTY ) {
 			char out_buf[ 2048 ]; // buffer for printf ops
 			// clear line, reposition cursor
-			int num_bytes = snprintf( out_buf, sizeof( out_buf ), "%s\r\x1b[1M\x1b[1m>\x1b[0m %s\x1b[%dG", ISL_TTY_COLOR, connection->input_buffer.c_str(), connection->input_cursor_pos + 3 );
+
+			std::string suggestion_erasor;
+
+			for ( int i = 0; i != connection->num_suggestion_lines; i++ ) {
+				suggestion_erasor.append( "\n\x1b[2K" ); // new line, erase all characters in line
+			}
+			for ( int i = 0; i != connection->num_suggestion_lines; i++ ) {
+				suggestion_erasor.append( "\x1bM" ); // line up
+			}
+
+			int num_bytes = snprintf(
+			    out_buf, sizeof( out_buf ),
+			    "%s"      // suggestion erasor
+			    "%s\r"    // tty color
+			    "\x1b[0m" // color set to default
+			    "\x1b[0K" // delete until the end of the line from current pos
+			    "\x1b[1M" //
+			    "\x1b[1m" // bold
+			    ">"
+			    "\x1b[0m "
+			    "%s"
+			    "%s"       // input suggestion string
+			    "\x1b[%dG" // place the cursor at cursor pos
+			    ,
+			    //
+			    suggestion_erasor.c_str(),
+			    ISL_TTY_COLOR,
+			    connection->input_buffer.c_str(),
+			    connection->input_suggestion.c_str(), connection->input_cursor_pos + 3 // we add three for the prompt
+			    )
+			    //
+			    ;
 			if ( num_bytes > 1 ) {
 				connection->channel_out.post( std::string( out_buf, out_buf + num_bytes ) );
 			}
+
+			if ( connection->input_suggestion.empty() ) {
+				connection->num_suggestion_lines = 0;
+			}
+
+			connection->input_suggestion.clear();
 			connection->wants_redraw = false;
 		}
 
