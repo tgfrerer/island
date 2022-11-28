@@ -2,20 +2,20 @@
 
 # Project Island 🌋🐎 
 
-Project Island is an experimental **Vulkan** Renderer for
-Linux and Windows, written in C/C++. 
+Project Island is an experimental **Vulkan** Renderer for Linux and
+Windows, written in C/C++. 
 
 Island is written for **rapid protoyping and tweaking**. That's why it
 allows **hot-reloading** wherever possible: for **C/C++** application
 code, **GLSL** or **HLSL** shader code, even the renderer's own core
 modules. 
 
-Island is **fast to compile**. A full rebuild should take < 5s on a moderate
-multicore machine, and incremental builds often take < 1s. 
+Island is **fast to compile**. A full rebuild should take < 5s on
+a moderate multicore machine, and incremental builds often take < 1s. 
 
 To achieve this aim, Island is structured into strictly separated modules,
-which can be dropped in or out during development, while for Release, you can
-build a single, statically linked and optimised binary.
+which can be dropped in or out during Debug, while for Release, you
+can build a single, statically linked and optimised binary.
 
 
 [![C/C++ CI](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml)
@@ -27,7 +27,7 @@ build a single, statically linked and optimised binary.
   modules, each of which can be tweaked, re-compiled at runtime, and
   automatically hot-reloaded.
 
-* **Shader Hot-reloading**: Island supports shader code hot-reloading
+* **Shader hot-reloading**: Island supports shader code hot-reloading
   for HLSL, GLSL, or SPIR-V shader source files. Shader files are
   automatically watched, and any change triggers a recompile, with
   (Vulkan) pipelines automatically rebuilt if needed. HLSL/GLSL
@@ -54,20 +54,33 @@ build a single, statically linked and optimised binary.
   and recompiled on demand. When compiled in Debug mode, Vulkan
   validation layers are loaded by default.
 
-* **Rendergraph- based Architecture**: Rendering is structured using
+* **Rendergraph- based architecture**: Rendering is structured using
   renderpasses. Renderpasses are executed on-demand and synchronised
   automatically by evaluating a rendergraph. If a renderpass is
   detected to have no effect on the final image, it is automatically
   pruned. When requested, the rendergraph generates `.dot` files,
-  which can be drawn using graphviz. More about how Island builds its rendergraph in [this blog post][rendergraph-blog].
-  
+  which can be drawn using graphviz. More about how Island builds its
+  rendergraph in [this blog post][rendergraph_blog].
+
   <img width="350" src="resources/readme/graph_screenshot.png" align="right" />
   
-* **Automatic GPU multiqueue**: renderpasses are automatically distributed onto any avaliable render queues - if resources need to be transferred between queue families, this happens automatically. More about how Island distributes workloads across renderqueues and synchronises them in [this blog post][rendergraph-syn-blog].
-  
+* **Automatic GPU multiqueue**: renderpasses are automatically
+  distributed onto any avaliable render queues - if resources need to
+  be transferred between queue families, this happens automatically.
+  More about how Island distributes workloads across renderqueues and
+  synchronises them in [this blog post][rendergraph_syn_blog].
+
 * **Static release binaries**: While Island is highly modular and
   dynamic when compiled for Debug, it can compile into a single,
   optimised static binary for Release. 
+
+* **Interactive Console** if you add the `le_console` module to your
+  app, it will listen on localhost port 3535 and, if you connect to it
+  via telnet or similar, if will provide you with an interactive
+  console. You can use this to change settings on a running
+  application, and to filter and monitor log messages. Use
+  reverse-ssh or similar to forward localhost::3535 and you can
+  remotely connect to a running app from all over the world.
 
 * **Multi-Window** Island allows you to hook up multiple swapchains to
   a single application. This is particularly useful for multi-window
@@ -81,7 +94,7 @@ build a single, statically linked and optimised binary.
   specialisation.
 
 * **Helpers**: minimal effort to enable multisampling, import images,
-  import and display fonts
+  import, display and use fonts
 
 * **2D drawing context**: Draw thick lines and curves using
   `le_paths`, which specialises in 2D meshes. This module implements
@@ -105,16 +118,13 @@ build a single, statically linked and optimised binary.
   binding tables is automated and simplified as much as possible. Ray
   tracing shaders can be hot-reloaded.
 
-* **GPU mesh shaders** gives you - optional - access to
-  Nvidia-specific extensions for mesh and task shaders. These can be
-  used in regular graphics pipelines.
 
 [hain]: https://doi.org/10.1016/j.cag.2005.08.002
 [hobby]: http://weitz.de/hobby/
 [cgltf-link]: https://github.com/jkuhlmann/cgltf
 [example-multiwindow]: apps/examples/multi_window_example/
-[rendergraph-blog]: https://poniesandlight.co.uk/reflect/island_rendergraph_1/
-[rendergraph-sync-blog]: https://poniesandlight.co.uk/reflect/island_rendergraph_2/
+[rendergraph_blog]: https://poniesandlight.co.uk/reflect/island_rendergraph_1/
+[rendergraph_sync_blog]: https://poniesandlight.co.uk/reflect/island_rendergraph_2/
 
 
 ## Examples ([more examples](apps/examples/))
@@ -126,7 +136,9 @@ would be complete without a
 | --- | --- | 
 |<img width="350" src="apps/examples/hello_triangle/screenshot.png" />|<img width="350" align="right" src="apps/examples/hello_world/screenshot.jpg" />|
 
-A full list of examples can be found [here](apps/examples/). Examples can be used as starting point for new projects by using the project generator.
+A full list of examples can be found [here](apps/examples/). Examples
+can be used as starting point for new projects by using the project
+generator.
 
 ## Tools
 
@@ -137,7 +149,10 @@ A full list of examples can be found [here](apps/examples/). Examples can be use
 
 ## Project Generator
 
-Island projects can be scaffolded from templates (or from other, existing projects) by invoking the project generator python script. This script lives in the `scripts` folder, but can be invoked from anywhere. 
+Island projects can be scaffolded from templates (or from other,
+existing projects) by invoking the project generator python script.
+This script lives in the `scripts` folder, but can be invoked from
+anywhere. 
 
 ```bash
 # say myapps is where I want to place a new island project
@@ -281,21 +296,22 @@ Run your new Island Application:
 
     ./Island-HelloTriangle
 
-**Note**: The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to
-compile Island as a static binary, or as a thin module with dynamic plugins.
-Unless you change this parameter, Debug builds will be built thin/dynamic with
-hot-reloading enabled, and Release builds will produce a single static binary
-with hot-reloading disabled. 
+**Note**: The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose
+whether to compile Island as a static binary, or as a thin module with
+dynamic plugins. Unless you change this parameter, Debug builds will
+be built thin/dynamic with hot-reloading enabled, and Release builds
+will produce a single static binary with hot-reloading disabled. 
 
 ## IDE support
 
-I recommend using the freely available [QT Creator][qt_creator] IDE, it allows
-you to directly open CMake project files, and integrates pretty seamlessly with
-the Island workflow: running, hot-reloading, then setting a breakpoint, and
-then stepping whilst inspecting state in the debugger just works. Alternative
-IDEs are of course available, and as long as they support CMake project files,
-should work. When running an Island app with the debugger in Qt Creator, it's
-important to check that `Run in terminal` is **disabled** - this can be
+I recommend using the freely available [QT Creator][qt_creator] IDE,
+it allows you to directly open CMake project files, and integrates
+pretty seamlessly with the Island workflow: running, hot-reloading,
+then setting a breakpoint, and then stepping whilst inspecting state
+in the debugger just works. Alternative IDEs are of course available,
+and as long as they support CMake project files, should work. When
+running an Island app with the debugger in Qt Creator, it's important
+to check that `Run in terminal` is **disabled** - this can be
 specified in the Run Settings dialog.
 
 [qt_creator]: https://download.qt.io/official_releases/qtcreator/ 
@@ -327,10 +343,10 @@ instructions etc. are tracked in a [separate readme][readme-win].
 
 ## Caveats
 
-**Note** Island's API is under active development, expect lots of change.
-As such, there are no promises that it might be ready or fit for any
-purpose, and the code here is released in the hope that you might find
-it interesting. 
+**Note** Island's API is under active development, expect lots of
+change. As such, there are no promises that it might be ready or fit
+for any purpose, and the code here is released in the hope that you
+might find it interesting. 
 
 The initial motivation for writing Island was to experiment with
 a modern rendering API (Vulkan), to learn by trying out ideas around
