@@ -85,7 +85,7 @@ static void app_process_ui_events( lut_grading_example_app_o* self ) {
 	uint32_t swapchain_width;
 	uint32_t swapchain_height;
 
-	self->window.getUIEventQueue( &events, num_events );
+	self->window.getUIEventQueue( &events, &num_events );
 	self->renderer.getSwapchainExtent( &swapchain_width, &swapchain_height );
 
 	auto events_begin = events;
