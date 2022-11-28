@@ -42,7 +42,7 @@ struct le_window_api {
 
 		// Returns a sorted array of events pending for the current frame, and the number of events.
 		// Note that calling this method invalidates any values returned in the previous call to this method.
-		void            ( *get_ui_event_queue )(le_window_o* self, LeUiEvent const ** events, uint32_t& numEvents);
+		void            ( *get_ui_event_queue )(le_window_o* self, LeUiEvent const ** events, uint32_t* numEvents);
 
         // Return an OS-specific handle for the given window
         void *          ( *get_os_native_window_handle)(le_window_o* self);
@@ -153,7 +153,7 @@ class Window : NoMove, NoCopy {
 		le_window::window_i.toggle_fullscreen( self );
 	}
 
-	void getUIEventQueue( LeUiEvent const** events, uint32_t& numEvents ) {
+	void getUIEventQueue( LeUiEvent const** events, uint32_t* numEvents ) {
 		le_window::window_i.get_ui_event_queue( self, events, numEvents );
 	}
 

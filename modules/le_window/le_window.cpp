@@ -468,7 +468,7 @@ static void window_remove_callbacks( le_window_o* self ) {
 // Note that calling this method invalidates any values returned from the previous call to this method.
 //
 // You must only call this method once per Frame.
-static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** events, uint32_t& numEvents ) {
+static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** events, uint32_t* numEvents ) {
 	static auto logger = LeLog( "le_window" );
 
 	if ( false == self->mSettings.useEventsQueue ) {
@@ -499,8 +499,8 @@ static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** even
 	}
 
 	// Hand out front events queue
-	*events   = self->eventQueue[ eventQueueFront ].data();
-	numEvents = self->numEventsForQueue[ eventQueueFront ];
+	*events    = self->eventQueue[ eventQueueFront ].data();
+	*numEvents = self->numEventsForQueue[ eventQueueFront ];
 }
 
 // ----------------------------------------------------------------------
