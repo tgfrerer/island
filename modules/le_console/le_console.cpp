@@ -1239,7 +1239,7 @@ static void le_console_setup_commands( le_console_o* self ) {
 	self->cmd.reset( Command::New( "" ) );
 
 	// "set command" - used to manipulate settings
-	Command* set_setting_command = Command::New( "set" );
+	Command* set_command = Command::New( "set" );
 	{
 		// Create a local copy of global settings
 		le_settings_map_t current_settings;
@@ -1247,13 +1247,13 @@ static void le_console_setup_commands( le_console_o* self ) {
 
 		// add a subcommand for each settings entry
 		for ( auto& e : current_settings.map ) {
-			set_setting_command->addSubCommand(
+			set_command->addSubCommand(
 			    Command::New( std::string( e.second.name ), cb_set_setting_command ) );
 		}
 	}
 
 	self->cmd
-	    ->addSubCommand( set_setting_command )
+	    ->addSubCommand( set_command )
 	    ->addSubCommand( Command::New( "help", cb_show_help_command ) )
 	    ->addSubCommand( Command::New( "settings", cb_list_settings_command ) )
 	    ->addSubCommand( Command::New( "tty", cb_init_tty_command ) )
