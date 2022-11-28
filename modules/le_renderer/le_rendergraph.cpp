@@ -27,10 +27,6 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
-#ifndef LE_PRINT_DEBUG_MESSAGES
-#	define LE_PRINT_DEBUG_MESSAGES false
-#endif
-
 #include "private/le_rendergraph.h"
 
 #include "le_log.h"
@@ -641,6 +637,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
+	LE_SETTING( bool, LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES, false );
 	// We must express our list of passes as a list of nodes.
 	// A node holds two bitfields, the bitfield names are: `read` and `write`.
 	// Each bit in the bitfield represents a possible resource.
@@ -752,25 +749,25 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			}
 		}
 
-#if ( LE_PRINT_DEBUG_MESSAGES )
-		{
-			logger.info( "Unique resources:" );
-			for ( size_t i = 0; i != numUniqueResources; i++ ) {
-				logger.info( "%3d : %s", i, uniqueHandles[ i ]->data->debug_name );
+		if ( *LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
+			{
+				logger.info( "Unique resources:" );
+				for ( size_t i = 0; i != numUniqueResources; i++ ) {
+					logger.info( "%3d : %s", i, uniqueHandles[ i ]->data->debug_name );
+				}
 			}
-		}
-		for ( size_t i = 0; i < root_count; i++ ) {
-			logger.info( "root node (%2d)", i );
-			logger.info( "reads : %s", root_reads_accum[ i ].to_string().c_str() );
-			logger.info( "writes: %s", root_writes_accum[ i ].to_string().c_str() );
-		}
+			for ( size_t i = 0; i < root_count; i++ ) {
+				logger.info( "root node (%2d)", i );
+				logger.info( "reads : %s", root_reads_accum[ i ].to_string().c_str() );
+				logger.info( "writes: %s", root_writes_accum[ i ].to_string().c_str() );
+			}
 
-		logger.info( "" );
-		for ( size_t i = 0; i < self->passes.size(); i++ ) {
-			logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_nodes_affinity );
+			logger.info( "" );
+			for ( size_t i = 0; i < self->passes.size(); i++ ) {
+				logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_nodes_affinity );
+			}
+			logger.info( "" );
 		}
-		logger.info( "" );
-#endif
 		// For each root pass, test its accumulated reads against all other root passes' accumulated writes.
 		// if there is an overlap, we know that the two roots which overlap must be combined, as
 		// they are not perfectly resource-isolated (an overlap means that one writes on the other's
@@ -844,9 +841,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		le::RootPassesField check_subgraph_accum = 0;
 		for ( size_t i = 0; i != subgraph_id_idx.size(); i++ ) {
 
-#if ( LE_PRINT_DEBUG_MESSAGES )
-			logger.info( "subgraph key [ %-12d], affinity: %x", i, subgraph_id[ subgraph_id_idx[ i ] ] );
-#endif
+			if ( *LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
+				logger.info( "subgraph key [ %-12d], affinity: %x", i, subgraph_id[ subgraph_id_idx[ i ] ] );
+			}
 
 			self->root_passes_affinity_masks.push_back( subgraph_id[ subgraph_id_idx[ i ] ] );
 
@@ -860,35 +857,10 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		}
 	}
 
-	LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, false );
+	LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
 
 	if ( *LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES > 0 ) [[unlikely]] {
-
-		// For the hash, we don't need it to be perfect, we just want to make sure that
-		// whenever something might have changed within the rendergraph, we generate a new .dot file.
-
-		// calculate hash over all unique resources
-		// calculate hash over all nodes, their signatures
-
-		std::hash<ResourceField> bit_hash;
-
-		std::vector<size_t> node_hashes;
-		node_hashes.reserve( nodes.size() * 2 );
-
-		for ( auto& t : nodes ) {
-			node_hashes.emplace_back( bit_hash( t.reads ) );
-			node_hashes.emplace_back( bit_hash( t.writes ) );
-		}
-
-		uint64_t nodes_hash = SpookyHash::Hash64( node_hashes.data(), sizeof( size_t ) * node_hashes.size(), 0 );
-		SpookyHash::Hash64( uniqueHandles.data(), sizeof( le_resource_handle_t ) * numUniqueResources, nodes_hash );
-
-		static uint64_t previous_hash = 0;
-
-		if ( previous_hash != nodes_hash ) {
-			generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, nodes.data(), frame_number );
-			previous_hash = nodes_hash;
-		}
+		generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, nodes.data(), frame_number );
 		( *LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES )--;
 	}
 
@@ -922,15 +894,15 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// Update debug root names
 		std::swap( self->root_debug_names, root_debug_names );
 
-#if ( LE_PRINT_DEBUG_MESSAGES )
-		logger.info( "* Consolidated Pass List *" );
-		int i = 0;
-		for ( auto const& p : self->passes ) {
-			logger.info( "Pass : %3d : %s ", i, p->debugName );
-			i++;
+		if ( *LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
+			logger.info( "* Consolidated Pass List *" );
+			int i = 0;
+			for ( auto const& p : self->passes ) {
+				logger.info( "Pass : %3d : %s ", i, p->debugName );
+				i++;
+			}
+			logger.info( "" );
 		}
-		logger.info( "" );
-#endif
 	}
 }
 
@@ -947,8 +919,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_backend_o* backend ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
+	LE_SETTING( bool, LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES, false );
 
-	if ( LE_PRINT_DEBUG_MESSAGES ) {
+	if ( *LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
 		std::ostringstream msg;
 		logger.info( "Render graph: " );
 		for ( const auto& pass : self->passes ) {
