@@ -1,4 +1,5 @@
 #include <cstring>
+#include <system_error>
 #include <vector>
 #include <string>
 #include <assert.h>
@@ -550,15 +551,24 @@ static bool generate_dot_file_for_rendergraph(
 	// We write to two files: "graph.dot",
 	// and then we write the same contents into a file with the frame number in the
 	// filename so that we may keep a history of rendergraphs...
-	char filename[ 32 ] = "graph.dot";
+	char filename[ 32 ] = "";
+	snprintf( filename, sizeof( filename ), "graph_%08zu.dot", frame_number );
 
 	std::filesystem::path full_path = exe_path.parent_path() / filename;
 	write_to_file( full_path.string().c_str(), os );
 
-	snprintf( filename, sizeof( filename ), "graph_%08zu.dot", frame_number );
+	// Create a symlink pointing to the latest graph - if such a symlink already
+	// exists, overwrite it.
+	std::filesystem::path link_path = exe_path.parent_path() / "graph.dot";
 
-	full_path = exe_path.parent_path() / filename;
-	write_to_file( full_path.string().c_str(), os );
+	if ( std::filesystem::exists( link_path ) ) {
+		std::filesystem::remove( link_path );
+	}
+
+	std::error_code ec;
+	std::filesystem::create_symlink( full_path, link_path, ec );
+
+	std::string error_msg = ec.message();
 
 	return true;
 };

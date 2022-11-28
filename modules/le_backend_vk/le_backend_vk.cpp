@@ -12,6 +12,7 @@
 #include <bitset>
 #include <cassert>
 #include <filesystem>
+#include <system_error>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -6569,15 +6570,21 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 		le::Log( LOGGER_LABEL ).info( "Generated .dot file: '%s'", filename );
 	};
 
-	char filename[ 32 ] = "queues.dot";
+	char filename[ 32 ] = "";
+	snprintf( filename, sizeof( filename ), "queues_%08zu.dot", frame_number );
 
 	std::filesystem::path full_path = exe_path.parent_path() / filename;
 	write_to_file( full_path.string().c_str(), os );
 
-	snprintf( filename, sizeof( filename ), "queues_%08zu.dot", frame_number );
+	std::error_code ec;
 
-	full_path = exe_path.parent_path() / filename;
-	write_to_file( full_path.string().c_str(), os );
+	std::filesystem::path link_path = exe_path.parent_path() / "queues.dot";
+	if ( std::filesystem::exists( link_path ) ) {
+		std::filesystem::remove( link_path );
+	}
+	std::filesystem::create_symlink( full_path, link_path, ec );
+
+	auto error_str = ec.message();
 
 	data->submissions.clear();
 }
