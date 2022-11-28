@@ -16,7 +16,25 @@
 // The console server runs on its own thread, and it
 // communicates with the console over thread-safe channels.
 //
-// The console server is only started on-demand.
+// ----------------------------------------------------------------------
+// USAGE
+// ----------------------------------------------------------------------
+//
+// The console server is only started on-demand:
+//
+//  LeConsole::server_start() in your app startup routine.
+//
+// To process console-initiated commands, call:
+//
+//	le::Console::processInput();
+//
+// In your app::update() method. This will be the point at which
+// any callbacks for console commands will execute.
+//
+// Console command callbacks execute on the same thread as the call to
+// `le::Console::processInput()`. Most commonly that is the main
+// thread.
+//
 
 struct le_console_o;
 

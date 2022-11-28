@@ -168,6 +168,7 @@ static std::unique_ptr<ServerWatcher>& le_console_produce_server_watcher( le_con
 	}
 	return SERVER_WATCHER;
 }
+
 // ----------------------------------------------------------------------
 
 static bool le_console_server_start() {
@@ -180,11 +181,13 @@ static bool le_console_server_start() {
 		return false;
 	}
 
-	logger.info( "* Starting Server..." );
-
-	self->server = le_console_server_api.create( self ); // destroy server
-	le_console_server_api.start( self->server );         // setup server
-	le_console_produce_server_watcher( self );           // Implicitly starts server thread
+	if ( nullptr == self->server ) {
+		logger.info( "* Creating Server..." );
+		self->server = le_console_server_api.create( self ); // destroy server
+		logger.info( "* Starting Server..." );
+		le_console_server_api.start( self->server ); // setup server
+		le_console_produce_server_watcher( self );   // Implicitly starts server thread
+	}
 
 	return true;
 }
@@ -231,8 +234,8 @@ static void tokenize_string( std::string& msg, std::vector<char const*>& tokens,
 
 // ----------------------------------------------------------------------
 
-// Will update stream_begin to point at one part the last character of the last command
-// that was interpreted
+// Will update stream_begin to point at one past the last character
+// of the last command which was interpreted
 std::string telnet_filter( le_console_o::connection_t*       connection,
                            std::string::const_iterator       stream_begin,
                            std::string::const_iterator const stream_end ) {
