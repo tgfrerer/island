@@ -314,7 +314,7 @@ static void app_process_ui_events( app_o* self ) {
 	// Process keyboard events - but only on window 0
 	// You could repeat this to process events on window 1
 
-	window_i.get_ui_event_queue( self->window_0, &pEvents, numEvents ); // note: self->window_0
+	window_i.get_ui_event_queue( self->window_0, &pEvents, &numEvents ); // note: self->window_0
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
@@ -364,7 +364,7 @@ static void app_process_ui_events( app_o* self ) {
 	}
 	{
 		// Process camera events for window 1
-		window_i.get_ui_event_queue( self->window_1, &pEvents, numEvents ); // note: self->window_1
+		window_i.get_ui_event_queue( self->window_1, &pEvents, &numEvents ); // note: self->window_1
 
 		auto swapchainExtent = self->renderer.getSwapchainExtent( 1 ); // Note we're using swapchain extents 0
 		self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
