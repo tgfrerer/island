@@ -1089,7 +1089,7 @@ static void cb_set_setting_command( Command const* cmd, std::string const& str, 
 				*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 10 ) );
 				break;
 			case SettingType::eUint32_t:
-				*( uint32_t* )( setting ) = bool( strtoul( setting_value, nullptr, 10 ) );
+				*( uint32_t* )( setting ) = uint32_t( strtoul( setting_value, nullptr, 10 ) );
 				break;
 			case SettingType::eInt32_t:
 				*( int32_t* )( setting ) = int32_t( strtoul( setting_value, nullptr, 10 ) );
@@ -1125,6 +1125,12 @@ static void cb_list_settings_command( Command const* cmd, std::string const& str
 		switch ( s.second.type_hash ) {
 		case ( SettingType::eBool ):
 			logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "bool", *( ( bool* )s.second.p_opj ) ? "true" : "false" );
+			break;
+		case ( SettingType::eInt32_t ):
+			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
+			break;
+		case ( SettingType::eUint32_t ):
+			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
 			break;
 		case ( SettingType::eInt ):
 			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
