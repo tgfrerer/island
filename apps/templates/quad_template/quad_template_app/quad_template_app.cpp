@@ -123,7 +123,7 @@ static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
 	LeUiEvent const* pEvents;
-	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
+	window_i.get_ui_event_queue( self->window, &pEvents,&numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
