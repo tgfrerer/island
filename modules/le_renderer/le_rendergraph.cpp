@@ -850,9 +850,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		}
 	}
 
-	LE_SETTING( bool, LE_SETTING_RENDERGRAPH_SHOULD_GENERATE_DOT_FILES, false );
+	LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, false );
 
-	if ( *LE_SETTING_RENDERGRAPH_SHOULD_GENERATE_DOT_FILES ) [[unlikely]] {
+	if ( *LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES > 0 ) [[unlikely]] {
 
 		// For the hash, we don't need it to be perfect, we just want to make sure that
 		// whenever something might have changed within the rendergraph, we generate a new .dot file.
@@ -879,7 +879,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, nodes.data(), frame_number );
 			previous_hash = nodes_hash;
 		}
-		*LE_SETTING_RENDERGRAPH_SHOULD_GENERATE_DOT_FILES = false;
+		( *LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES )--;
 	}
 
 	{

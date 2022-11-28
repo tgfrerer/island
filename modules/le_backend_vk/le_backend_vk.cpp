@@ -3923,12 +3923,14 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	// If we're running in debug, there is a chance that we might want to print out
 	// dot graph diagrams for queue sync - in which case we should fetch the global
 	// setting telling us whether to do so or not.
-	LE_SETTING( bool, LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES, false );
+	LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 0 );
 	// we fetch this variable to a local copy, and only at a single point, here, so that there is no risk that the value of the
 	// variable is changed on another thread while the dot graph is being generated
-	frame.must_create_queues_dot_graph = *LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES;
+	frame.must_create_queues_dot_graph = ( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES > 0 );
 	// then, we set the value to false, so that we only generate a single dot graph per-shot
-	*LE_SETTING_SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES = false;
+	if ( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES > 0 ) {
+		--( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES );
+	};
 #endif
 
 	// Setup declared resources per frame - These are resources declared using resource infos
