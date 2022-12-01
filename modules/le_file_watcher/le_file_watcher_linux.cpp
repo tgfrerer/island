@@ -210,7 +210,7 @@ static void poll_notifications( le_file_watcher_o* instance ) {
 							if ( w.second.filename == path ) {
 								// Only print notice if it is for a new filename:
 								if ( prev_filename != path.c_str() ) {
-									logger.info( "Watch triggered for: '%s' [%s]", path.c_str(), w.second.basename.c_str() );
+									logger.debug( "Watch triggered for: '%s' [%s]", path.c_str(), w.second.basename.c_str() );
 									prev_filename = path.c_str();
 								}
 								// Trigger Callback.

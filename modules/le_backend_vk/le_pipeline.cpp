@@ -17,6 +17,7 @@
 #include <atomic>
 #include <algorithm>
 
+#include "le_core.h"
 #include "le_shader_compiler.h"
 
 #include "util/spirv_reflect/spirv_reflect.h"
@@ -220,7 +221,6 @@ struct le_shader_manager_o {
 
 	le_shader_compiler_o* shader_compiler   = nullptr; // owning
 	le_file_watcher_o*    shaderFileWatcher = nullptr; // owning
-	std::atomic<uint64_t> modules_count     = { 0 };   // zero as handle means unset (first available handle will be 1, as pre-increment)
 };
 
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
@@ -423,18 +423,16 @@ static inline VkShaderStageFlagBits le_to_vk( const le::ShaderStage& stage ) {
 /// \brief   file loader utility method
 /// \details loads file given by filepath and returns a vector of chars if successful
 /// \note    returns an empty vector if not successful
-static std::vector<char> load_file( const std::filesystem::path& file_path, bool* success ) {
+static bool load_file( const std::filesystem::path& file_path, std::vector<char>& result ) {
 
-	static auto       logger = LeLog( LOGGER_LABEL );
-	std::vector<char> contents;
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	size_t        fileSize = 0;
 	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
 
 	if ( !file.is_open() ) {
 		logger.error( "Unable to open file: '%s'", file_path.c_str() );
-		*success = false;
-		return contents;
+		return false;
 	}
 
 	logger.debug( "Opened file : '%s'", std::filesystem::canonical( ( file_path ) ).c_str() );
@@ -446,19 +444,17 @@ static std::vector<char> load_file( const std::filesystem::path& file_path, bool
 	if ( endOfFilePos > 0 ) {
 		fileSize = size_t( endOfFilePos );
 	} else {
-		*success = false;
-		return contents;
+		return false;
 	}
 
 	// ----------| invariant: file has some bytes to read
-	contents.resize( fileSize );
+	result.resize( fileSize );
 
 	file.seekg( 0, std::ios::beg );
-	file.read( contents.data(), endOfFilePos );
+	file.read( result.data(), endOfFilePos );
 	file.close();
 
-	*success = true;
-	return contents;
+	return true;
 }
 
 // ----------------------------------------------------------------------
@@ -656,7 +652,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 			self->protected_module_dependencies.moduleWatchIds[ s ]           = watch_id;
 			self->protected_module_dependencies.moduleWatchCallbackAddrs[ s ] = settings.callback_fun;
 
-			logger.info( "\t + added watch for file '%s'", std::filesystem::relative( s ).c_str() );
+			logger.debug( "\t (+) watch for file '%s'", std::filesystem::relative( s ).c_str() );
 		}
 
 		logger.debug( "\t + '%s'", std::filesystem::relative( s ).c_str() );
@@ -668,6 +664,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 // Thread-safety: needs exclusive access to shader_manager->moduleDependencies for full duration.
 // We use a lock for this reason.
 static void le_pipeline_cache_remove_module_from_dependencies( le_shader_manager_o* self, le_shader_module_handle module ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 	// iterate over all module dependencies in shader manager, remove the module.
 	// then remove any file watchers which have no modules left.
 	auto lck = std::unique_lock( self->protected_module_dependencies.mtx );
@@ -692,10 +689,11 @@ static void le_pipeline_cache_remove_module_from_dependencies( le_shader_manager
 			// remove the entry which refers to the callback forwarder
 			self->protected_module_dependencies.moduleWatchCallbackAddrs.erase( d->first );
 
+			logger.debug( "\t (-) watch for file '%s'", std::filesystem::relative( d->first ).c_str() );
+
 			// remove file entry
 			d = self->protected_module_dependencies.moduleDependencies.erase( d ); // must do this because we're erasing from within
 
-			// FIXME: we must also tell the core that the callback forwarder is not used anymore - it gets allocated when we set the callback fun.
 		} else {
 			d++;
 		}
@@ -1096,10 +1094,9 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	assert( module && "module not found" );
 
 	// -- get module spirv code
-	bool loadSuccessful = false;
-	auto source_text    = load_file( module->filepath, &loadSuccessful );
+	std::vector<char> source_text;
 
-	if ( !loadSuccessful ) {
+	if ( !load_file( module->filepath, source_text ) ) {
 		// file could not be loaded. bail out.
 		return;
 	}
@@ -1236,10 +1233,6 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 	delete self;
 }
 
-static le_shader_module_handle le_shader_manager_get_next_available_handle( le_shader_manager_o* self ) {
-	return reinterpret_cast<le_shader_module_handle>( ++self->modules_count );
-}
-
 // ----------------------------------------------------------------------
 /// \brief create vulkan shader module based on file path
 /// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
@@ -1259,34 +1252,10 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	// If handle_name == 0, then this means that this module does not have an explicit name,
-	// we will give it a running number from the shader_manager.
-	if ( handle == nullptr ) {
-		handle = le_shader_manager_get_next_available_handle( self );
-	}
-
-	bool loadSuccessful = false;
-	auto raw_file_data  = load_file( path, &loadSuccessful ); // returns a raw byte vector
-
-	if ( !loadSuccessful ) {
-		logger.error( "Could not load shader file: '%s'", path );
-		assert( false && "file loading was unsuccessful" );
-		return nullptr;
-	}
-
-	// ---------| invariant: load was successful
-
 	// We use the canonical path to store a fingerprint of the file
 	auto canonical_path_as_string = std::filesystem::canonical( path ).string();
 
-	// -- Make sure the file contains spir-v code.
-
-	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet = { { canonical_path_as_string } }; // let first element be the source file path
-
 	std::string macro_defines = macro_defines_ ? std::string( macro_defines_ ) : "";
-
-	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, spirv_code, includesSet, macro_defines );
 
 	// We include specialization data into hash calculation for this module, because specialization data
 	// is stored with the module, and therefore it contributes to the module's phenotype.
@@ -1298,14 +1267,51 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( VkSpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
 	}
 
+	uint64_t hash_shader_defines = SpookyHash::Hash64( macro_defines.data(), macro_defines.size(), hash_specialization_constants );
+
+	uint64_t hash_input_parameters = SpookyHash::Hash64( canonical_path_as_string.data(), canonical_path_as_string.size(), hash_shader_defines );
+
+	// If no explicit handle is given, we create one by hashing
+	// input parameters.
+	//
+	// We do this so that the same input parameters give us the same handle,
+	// this means that if the shader source changes, we can update the corresponding
+	// module.
+	//
+	// If an explicit handle is given, then we will attempt to update the module
+	// regardless of whether input parameters have changed. This can make sense for
+	// engine-internal shaders, such as imgui shaders, for which we know that there
+	// will only ever be one unique module per shader source and usage.
+	if ( handle == nullptr ) {
+		handle = reinterpret_cast<le_shader_module_handle>( hash_input_parameters );
+	}
+
+	std::vector<char> raw_file_data;
+
+	if ( !load_file( canonical_path_as_string, raw_file_data ) ) {
+		logger.error( "Could not load shader file: '%s'", path );
+		assert( false && "file loading was unsuccessful" );
+		return nullptr;
+	}
+
+	// ---------| invariant: load was successful
+
+	// -- Make sure the file contains spir-v code.
+
+	std::vector<uint32_t> spirv_code;
+	std::set<std::string> includesSet = { { canonical_path_as_string } }; // let first element be the source file path
+
+	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, spirv_code, includesSet, macro_defines );
+
 	le_shader_module_o module{};
 	module.stage               = moduleType;
 	module.filepath            = canonical_path_as_string;
 	module.macro_defines       = macro_defines;
-	module.hash_shader_defines = SpookyHash::Hash64( module.macro_defines.data(), module.macro_defines.size(), hash_specialization_constants );
-	module.hash                = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module.hash_shader_defines );
-	module.spirv               = std::move( spirv_code );
-	module.source_language     = shader_source_language;
+	module.hash_shader_defines = hash_shader_defines;
+
+	module.hash            = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module.hash_shader_defines );
+	module.spirv           = std::move( spirv_code );
+	module.source_language = shader_source_language;
 	module.specialization_map_info.data.assign(
 	    static_cast<char*>( specialization_map_data ),
 	    static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
@@ -1318,7 +1324,9 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	le_shader_module_o* cached_module = self->shaderModules.try_find( handle );
 
 	if ( cached_module && cached_module->hash == module.hash ) {
-		// A module with the same handle already exists, and it has the same hash: no more work to do.
+		// A module with the same handle already exists, and the cached
+		// version has the same hash as our new version: no more work to do.
+		logger.info( "Found cached shader module for '%s'.", path );
 		return handle;
 	}
 
