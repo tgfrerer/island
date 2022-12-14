@@ -3,7 +3,6 @@
 #include "le_hash_util.h"
 
 #include <atomic>
-#include <iostream>
 #include <mutex>
 #include <unordered_map>
 #include <cstdarg>
@@ -173,16 +172,16 @@ static void api_remove_subscriber( uint64_t handle ) {
 
 // ----------------------------------------------------------------------
 
-static void default_subscriber_cout( char const* chars, uint32_t num_chars, void* user_data ) {
-	std::cout << chars << std::endl
-	          << std::flush;
+static void default_subscriber_cout( char const* chars, uint32_t num_chars, void* ) {
+	fprintf( stdout, "%*s", num_chars, chars );
+	fflush( stdout );
 };
 
 // ----------------------------------------------------------------------
 
-static void default_subscriber_cerr( char const* chars, uint32_t num_chars, void* user_data ) {
-	std::cerr << chars << std::endl
-	          << std::flush;
+static void default_subscriber_cerr( char const* chars, uint32_t num_chars, void* ) {
+	fprintf( stderr, "%*s", num_chars, chars );
+	fflush( stderr );
 };
 
 // ----------------------------------------------------------------------
