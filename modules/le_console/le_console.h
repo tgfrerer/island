@@ -22,11 +22,15 @@
 //
 // The console server is only started on-demand:
 //
-//  LeConsole::server_start() in your app startup routine.
+// add a `le::Console` c++ object to your app
+//
+// and call app->console->server_start()
+//
+// when you want to start the server.
 //
 // To process console-initiated commands, call:
 //
-//	le::Console::processInput();
+//	le::Console::processInput()
 //
 // In your app::update() method. This will be the point at which
 // any callbacks for console commands will execute.
@@ -34,6 +38,14 @@
 // Console command callbacks execute on the same thread as the call to
 // `le::Console::processInput()`. Most commonly that is the main
 // thread.
+//
+// All le::Console c++ objects share the same underlying console singleton;
+// it gets destroyed when the last le::Console object gets destroyed.
+//
+// When the last `le::Console` object is destroyed, the server is
+// automatically stopped. You can manually stop the server via:
+//
+// le::Console::server_stop()
 //
 
 struct le_console_o;
