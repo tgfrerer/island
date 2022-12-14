@@ -224,7 +224,7 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 	    .applicationVersion = VK_MAKE_API_VERSION( 0, 0, 0, 0 ),
 	    .pEngineName        = ISL_ENGINE_NAME, // optional
 	    .engineVersion      = ISL_ENGINE_VERSION,
-	    .apiVersion         = ( VK_MAKE_API_VERSION( 0, 1, 3, 224 ) ),
+	    .apiVersion         = ( VK_MAKE_API_VERSION( 0, 1, 3, 236 ) ),
 	};
 
 	// -- create a vector of unique requested instance extension names
