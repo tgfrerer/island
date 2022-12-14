@@ -13,6 +13,8 @@
 //  This will forward any connections to poniesandlight.co.uk:3636 to
 //  localhost:3535, where the console server will be listening.
 //
+//  Enter `tty` for interactive mode.
+//
 // The console server runs on its own thread, and it
 // communicates with the console over thread-safe channels.
 //

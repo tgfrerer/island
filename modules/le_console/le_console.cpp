@@ -5,6 +5,7 @@
 #include "le_console.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -1120,32 +1121,36 @@ static void cb_show_help_command( Command const* cmd, std::string const& str, st
 };
 
 static void cb_list_settings_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
-	static auto       logger = le::Log( LOG_CHANNEL );
+
+	std::ostringstream msg;
+
 	le_settings_map_t current_settings;
 	le_core_copy_settings_entries( &current_settings, nullptr );
 	for ( auto& s : current_settings.map ) {
 
 		switch ( s.second.type_hash ) {
 		case ( SettingType::eBool ):
-			logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "bool", *( ( bool* )s.second.p_opj ) ? "true" : "false" );
+			msg << "setting " << s.second.name << "[ bool ] = '" << ( ( *( bool* )s.second.p_opj ) ? "true" : "false" ) << "'\n\r";
 			break;
 		case ( SettingType::eInt32_t ):
-			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
+			msg << "setting " << s.second.name << "[ int32_t ] = '" << ( *( int32_t* )s.second.p_opj ) << "'\n\r";
 			break;
 		case ( SettingType::eUint32_t ):
-			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
+			msg << "setting " << s.second.name << "[ uint32_t ] = '" << ( *( uint32_t* )s.second.p_opj ) << "'\n\r";
 			break;
 		case ( SettingType::eInt ):
-			logger.info( "setting '%s' type: '%s', value: '%d'", s.second.name.c_str(), "int", *( ( int* )s.second.p_opj ) );
+			msg << "setting " << s.second.name << "[ int ] = '" << ( *( int* )s.second.p_opj ) << "'\n\r";
 			break;
 		case ( SettingType::eStdString ):
-			logger.info( "setting '%s' type: '%s', value: '%s'", s.second.name.c_str(), "std::string", ( ( std::string* )s.second.p_opj )->c_str() );
+			msg << "setting " << s.second.name << "[ std::string ] = '" << ( *( std::string* )s.second.p_opj ) << "'\n\r";
 			break;
 		default:
-			logger.warn( "setting '%30s' has unknown type.", s.second.name.c_str() );
+			msg << "setting " << s.second.name << "[ unknown ] = '" << std::hex << s.second.p_opj << "'\n\r";
 			break;
 		}
 	}
+
+	connection->channel_out.post( msg.str() );
 };
 
 static void cb_init_tty_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
