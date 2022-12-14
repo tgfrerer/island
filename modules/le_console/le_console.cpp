@@ -270,7 +270,7 @@ std::string telnet_filter( le_console_o::connection_t*       connection,
 				// if there is a lookahead character, and it is in
 				// fact a IAC character, this means that IAC is meant
 				// to be escaped and interpreted literally.
-				if ( it + 1 != it_end && ( uint8_t( *( it + 1 ) ) == telnet::IAC ) ) {
+				if ( it + 1 != it_end && ( uint8_t( *( it + 1 ) ) == uint8_t( telnet::IAC ) ) ) {
 					it = it + 2;
 					continue;
 				}
@@ -1130,22 +1130,22 @@ static void cb_list_settings_command( Command const* cmd, std::string const& str
 
 		switch ( s.second.type_hash ) {
 		case ( SettingType::eBool ):
-			msg << "setting " << s.second.name << "[ bool ] = '" << ( ( *( bool* )s.second.p_opj ) ? "true" : "false" ) << "'\n\r";
+			msg << s.second.name << " [ bool ] = '" << ( ( *( bool* )s.second.p_opj ) ? "true" : "false" ) << "'\n\r";
 			break;
 		case ( SettingType::eInt32_t ):
-			msg << "setting " << s.second.name << "[ int32_t ] = '" << ( *( int32_t* )s.second.p_opj ) << "'\n\r";
+			msg << s.second.name << " [ int32_t ] = '" << ( *( int32_t* )s.second.p_opj ) << "'\n\r";
 			break;
 		case ( SettingType::eUint32_t ):
-			msg << "setting " << s.second.name << "[ uint32_t ] = '" << ( *( uint32_t* )s.second.p_opj ) << "'\n\r";
+			msg << s.second.name << " [ uint32_t ] = '" << ( *( uint32_t* )s.second.p_opj ) << "'\n\r";
 			break;
 		case ( SettingType::eInt ):
-			msg << "setting " << s.second.name << "[ int ] = '" << ( *( int* )s.second.p_opj ) << "'\n\r";
+			msg << s.second.name << " [ int ] = '" << ( *( int* )s.second.p_opj ) << "'\n\r";
 			break;
 		case ( SettingType::eStdString ):
-			msg << "setting " << s.second.name << "[ std::string ] = '" << ( *( std::string* )s.second.p_opj ) << "'\n\r";
+			msg << s.second.name << " [ std::string ] = '" << ( *( std::string* )s.second.p_opj ) << "'\n\r";
 			break;
 		default:
-			msg << "setting " << s.second.name << "[ unknown ] = '" << std::hex << s.second.p_opj << "'\n\r";
+			msg << s.second.name << " [ unknown ] = '" << std::hex << s.second.p_opj << "'\n\r";
 			break;
 		}
 	}
