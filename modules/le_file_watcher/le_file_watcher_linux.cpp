@@ -2,9 +2,6 @@
 
 #ifdef LE_FILE_WATCHER_IMPL_LINUX
 
-#	include <iomanip>
-#	include <iostream>
-#	include <bitset>
 #	include <stdio.h>
 #	include <string>
 #	include <list>
