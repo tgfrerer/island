@@ -16,13 +16,15 @@ sys.path.append(vk_registry_path)
 
 from reg import Registry
 from generator import OutputGenerator, GeneratorOptions, write
+from apiconventions import APIConventions
 
 reg = Registry()
 reg.loadFile(vk_registry_path + "/vk.xml")
 
 og = OutputGenerator()
 og.diagFile = open("/tmp/diagfile.txt", "w")
-
+og.genOpts = GeneratorOptions(apiname=APIConventions().xml_api_name)
+og.genOpts.conventions = 1  # Note: this is non-sensical, but we place this here so that genEnum does not crash because conventions is None
 
 def atoi(text):
     # we convert every enum value to a textual representation. For numbers, we
