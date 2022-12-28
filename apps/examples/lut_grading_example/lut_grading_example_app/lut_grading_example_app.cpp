@@ -208,7 +208,6 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 // ----------------------------------------------------------------------
 
 static void lut_grading_example_app_destroy( lut_grading_example_app_o* self ) {
-
 	delete ( self );
 }
 

@@ -103,8 +103,11 @@ static bitonic_merge_sort_example_app_o* bitonic_merge_sort_example_app_create()
 // ----------------------------------------------------------------------
 
 static void bitonic_merge_sort_example_app_destroy( bitonic_merge_sort_example_app_o* self ) {
-	delete self->pixels_data;
-	delete ( self ); // deletes camera
+    if (self) {
+        delete self->pixels_data;
+    }
+	delete ( self ); 
+    self = nullptr;
 }
 
 // ----------------------------------------------------------------------

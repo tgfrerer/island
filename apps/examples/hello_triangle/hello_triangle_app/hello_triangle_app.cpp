@@ -262,7 +262,6 @@ static bool app_update( app_o* self ) {
 // ----------------------------------------------------------------------
 
 static void app_destroy( app_o* self ) {
-
 	delete ( self ); // deletes camera
 }
 

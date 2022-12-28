@@ -292,13 +292,11 @@ static void renderpass_main_exec( le_command_buffer_encoder_o* encoder_, void* u
 // ----------------------------------------------------------------------
 
 static void app_destroy( imgui_example_app_o* self ) {
-
-	if ( self->gui ) {
+	if ( self ) {
 		le_imgui::le_imgui_i.destroy( self->gui );
-		self->gui = nullptr;
 	}
-
-	delete ( self ); // deletes camera
+	delete ( self );
+	self = nullptr;
 }
 
 // ----------------------------------------------------------------------

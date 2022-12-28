@@ -59,8 +59,7 @@ static bool test_log_app_update( test_log_app_o* self ) {
 // ----------------------------------------------------------------------
 
 static void test_log_app_destroy( test_log_app_o* self ) {
-
-	delete ( self ); // deletes camera
+	delete ( self );
 }
 
 // ----------------------------------------------------------------------

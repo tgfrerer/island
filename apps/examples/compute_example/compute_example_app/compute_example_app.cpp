@@ -414,10 +414,11 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 // ----------------------------------------------------------------------
 
 static void compute_example_app_destroy( compute_example_app_o* self ) {
-	if ( self->gpu_mesh ) {
+	if ( self ) {
 		delete self->gpu_mesh;
 	}
 	delete ( self );
+    self = nullptr;
 }
 
 // ----------------------------------------------------------------------
