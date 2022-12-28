@@ -41,18 +41,19 @@ static constexpr char const* to_str_vk_access_flag_bits2( const VkAccessFlagBits
 	     case 0x02000000ULL: return "TransformFeedbackWriteBitExt";
 	     case 0x04000000ULL: return "TransformFeedbackCounterReadBitExt";
 	     case 0x08000000ULL: return "TransformFeedbackCounterWriteBitExt";
-	     case 0x100000000000ULL: return "Reserved44BitNv";
-	     case 0x10000000000ULL: return "Reserved387BitKhr";
+	     case 0x100000000000ULL: return "MicromapReadBitExt";
+	     case 0x10000000000ULL: return "ShaderBindingTableReadBitKhr";
 	     case 0x1000000000ULL: return "VideoDecodeWriteBitKhr";
 	     case 0x100000000ULL: return "ShaderSampledRead";
-	     case 0x200000000000ULL: return "Reserved45BitNv";
-	     case 0x20000000000ULL: return "Reserved41BitAmd";
+	     case 0x200000000000ULL: return "MicromapWriteBitExt";
+	     case 0x20000000000ULL: return "DescriptorBufferReadBitExt";
 	     case 0x2000000000ULL: return "VideoEncodeReadBitKhr";
 	     case 0x200000000ULL: return "ShaderStorageRead";
-	     case 0x40000000000ULL: return "Reserved42BitNv";
+	     case 0x400000000000ULL: return "Reserved46BitExt";
+	     case 0x40000000000ULL: return "OpticalFlowReadBitNv";
 	     case 0x4000000000ULL: return "VideoEncodeWriteBitKhr";
 	     case 0x400000000ULL: return "ShaderStorageWrite";
-	     case 0x80000000000ULL: return "Reserved43BitNv";
+	     case 0x80000000000ULL: return "OpticalFlowWriteBitNv";
 	     case 0x8000000000ULL: return "InvocationMaskReadBitHuawei";
 	     case 0x800000000ULL: return "VideoDecodeReadBitKhr";
 	          default     : return "";
@@ -103,10 +104,12 @@ static constexpr char const* to_str_vk_buffer_usage_flag_bits( const VkBufferUsa
 	     case 0x00040000: return "Reserved18BitQcom";
 	     case 0x00080000: return "AccelerationStructureBuildInputReadOnlyBitKhr";
 	     case 0x00100000: return "AccelerationStructureStorageBitKhr";
-	     case 0x00200000: return "Reserved21BitAmd";
-	     case 0x00400000: return "Reserved22BitAmd";
-	     case 0x00800000: return "Reserved23BitNv";
-	     case 0x01000000: return "Reserved24BitNv";
+	     case 0x00200000: return "SamplerDescriptorBufferBitExt";
+	     case 0x00400000: return "ResourceDescriptorBufferBitExt";
+	     case 0x00800000: return "MicromapBuildInputReadOnlyBitExt";
+	     case 0x01000000: return "MicromapStorageBitExt";
+	     case 0x02000000: return "Reserved25BitAmd";
+	     case 0x04000000: return "PushDescriptorsDescriptorBufferBitExt";
 	          default     : return "";
 		// clang-format on
 	};
@@ -411,6 +414,7 @@ static constexpr char const* to_str_vk_format( const VkFormat& tp ) {
 	     case 1000330003: return "G16B16R162Plane444Unorm";
 	     case 1000340000: return "A4R4G4B4UnormPack16";
 	     case 1000340001: return "A4B4G4R4UnormPack16";
+	     case 1000464000: return "R16G16S105Nv";
 	          default     : return "";
 		// clang-format on
 	};
@@ -448,6 +452,7 @@ static constexpr char const* to_str_vk_image_layout( const VkImageLayout& tp ) {
 	     case 1000299002: return "VideoEncodeDpbKhr";
 	     case 1000314000: return "ReadOnlyOptimal";
 	     case 1000314001: return "AttachmentOptimal";
+	     case 1000339000: return "AttachmentFeedbackLoopOptimalExt";
 	          default     : return "";
 		// clang-format on
 	};
@@ -477,9 +482,9 @@ static constexpr char const* to_str_vk_image_usage_flag_bits( const VkImageUsage
 	     case 0x00010000: return "Reserved16BitQcom";
 	     case 0x00020000: return "Reserved17BitQcom";
 	     case 0x00040000: return "InvocationMaskBitHuawei";
-	     case 0x00080000: return "Reserved19BitExt";
-	     case 0x00100000: return "Reserved20BitQcom";
-	     case 0x00200000: return "Reserved21BitQcom";
+	     case 0x00080000: return "AttachmentFeedbackLoopBitExt";
+	     case 0x00100000: return "SampleWeightBitQcom";
+	     case 0x00200000: return "SampleBlockMatchBitQcom";
 	     case 0x00400000: return "Reserved22BitExt";
 	          default     : return "";
 		// clang-format on
@@ -528,8 +533,8 @@ static constexpr char const* to_str_vk_pipeline_stage_flag_bits2( const VkPipeli
 	     case 0x00010000ULL: return "AllCommands";
 	     case 0x00020000ULL: return "CommandPreprocessBitNv";
 	     case 0x00040000ULL: return "ConditionalRenderingBitExt";
-	     case 0x00080000ULL: return "TaskShaderBitNv";
-	     case 0x00100000ULL: return "MeshShaderBitNv";
+	     case 0x00080000ULL: return "TaskShaderBitExt";
+	     case 0x00100000ULL: return "MeshShaderBitExt";
 	     case 0x00200000ULL: return "RayTracingShaderBitKhr";
 	     case 0x00400000ULL: return "FragmentShadingRateAttachmentBitKhr";
 	     case 0x00800000ULL: return "FragmentDensityProcessBitExt";
@@ -540,13 +545,14 @@ static constexpr char const* to_str_vk_pipeline_stage_flag_bits2( const VkPipeli
 	     case 0x10000000000ULL: return "InvocationMaskBitHuawei";
 	     case 0x1000000000ULL: return "IndexInput";
 	     case 0x100000000ULL: return "Copy";
-	     case 0x10000000ULL: return "Reserved387BitKhr";
+	     case 0x10000000ULL: return "AccelerationStructureCopyBitKhr";
+	     case 0x20000000000ULL: return "Reseved41BitHuawei";
 	     case 0x2000000000ULL: return "VertexAttributeInput";
 	     case 0x200000000ULL: return "Resolve";
-	     case 0x20000000ULL: return "Reserved29BitNv";
+	     case 0x20000000ULL: return "OpticalFlowBitNv";
 	     case 0x4000000000ULL: return "PreRasterizationShaders";
 	     case 0x400000000ULL: return "Blit";
-	     case 0x40000000ULL: return "Reserved30BitNv";
+	     case 0x40000000ULL: return "MicromapBuildBitExt";
 	     case 0x8000000000ULL: return "SubpassShadingBitHuawei";
 	     case 0x800000000ULL: return "Clear";
 	          default     : return "";
@@ -584,7 +590,8 @@ static constexpr char const* to_str_vk_queue_flag_bits( const VkQueueFlagBits& t
 	     case 0x00000020: return "VideoDecodeBitKhr";
 	     case 0x00000040: return "VideoEncodeBitKhr";
 	     case 0x00000080: return "Reserved7BitQcom";
-	     case 0x00000100: return "Reserved8BitNv";
+	     case 0x00000100: return "OpticalFlowBitNv";
+	     case 0x00000200: return "Reserved9BitExt";
 	          default     : return "";
 		// clang-format on
 	};
@@ -620,6 +627,12 @@ static constexpr char const* to_str_vk_result( const VkResult& tp ) {
 	     case -1000003001: return "VkErrorIncompatibleDisplayKhr";
 	     case -1000011001: return "VkErrorValidationFailedExt";
 	     case -1000012000: return "VkErrorInvalidShaderNv";
+	     case -1000023000: return "VkErrorImageUsageNotSupportedKhr";
+	     case -1000023001: return "VkErrorVideoPictureLayoutNotSupportedKhr";
+	     case -1000023002: return "VkErrorVideoProfileOperationNotSupportedKhr";
+	     case -1000023003: return "VkErrorVideoProfileFormatNotSupportedKhr";
+	     case -1000023004: return "VkErrorVideoProfileCodecNotSupportedKhr";
+	     case -1000023005: return "VkErrorVideoStdVersionNotSupportedKhr";
 	     case -1000069000: return "VkErrorOutOfPoolMemory";
 	     case -1000072003: return "VkErrorInvalidExternalHandle";
 	     case -1000158000: return "VkErrorInvalidDrmFormatModifierPlaneLayoutExt";
@@ -627,6 +640,7 @@ static constexpr char const* to_str_vk_result( const VkResult& tp ) {
 	     case -1000174001: return "VkErrorNotPermittedKhr";
 	     case -1000255000: return "VkErrorFullScreenExclusiveModeLostExt";
 	     case -1000257000: return "VkErrorInvalidOpaqueCaptureAddress";
+	     case -1000338000: return "VkErrorCompressionExhaustedExt";
 	     case -11       : return "VkErrorFormatNotSupported";
 	     case -12       : return "VkErrorFragmentedPool";
 	     case -13       : return "VkErrorUnknown";
