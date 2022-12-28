@@ -160,7 +160,7 @@ static le_compute_pipeline_builder_o* le_compute_pipeline_builder_create( le_pip
 // ----------------------------------------------------------------------
 
 static void le_compute_pipeline_builder_destroy( le_compute_pipeline_builder_o* self ) {
-	if ( self->obj ) {
+	if ( self ) {
 		delete self->obj;
 	}
 	delete self;
@@ -201,7 +201,7 @@ static le_rtx_pipeline_builder_o* le_rtx_pipeline_builder_create( le_pipeline_ma
 // ----------------------------------------------------------------------
 
 static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o* self ) {
-	if ( self->obj ) {
+	if ( self ) {
 		delete self->obj;
 	}
 	delete self;
@@ -492,7 +492,7 @@ static void le_graphics_pipeline_builder_set_depth_stencil_info( le_graphics_pip
 // ----------------------------------------------------------------------
 
 static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o* self ) {
-	if ( self->obj ) {
+	if ( self ) {
 		delete self->obj;
 	}
 	delete self;

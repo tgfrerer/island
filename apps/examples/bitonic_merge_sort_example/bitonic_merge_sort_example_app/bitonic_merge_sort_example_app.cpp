@@ -107,7 +107,6 @@ static void bitonic_merge_sort_example_app_destroy( bitonic_merge_sort_example_a
         delete self->pixels_data;
     }
 	delete ( self ); 
-    self = nullptr;
 }
 
 // ----------------------------------------------------------------------

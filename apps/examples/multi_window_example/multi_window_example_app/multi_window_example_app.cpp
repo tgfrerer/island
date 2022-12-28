@@ -460,7 +460,6 @@ static bool app_update( multi_window_example_app_o* self ) {
 // ----------------------------------------------------------------------
 
 static void app_destroy( multi_window_example_app_o* self ) {
-
 	delete ( self ); // deletes camera
 }
 

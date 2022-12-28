@@ -752,7 +752,6 @@ static void hello_world_app_process_ui_events( hello_world_app_o* self ) {
 // ----------------------------------------------------------------------
 
 static void hello_world_app_destroy( hello_world_app_o* self ) {
-
 	delete ( self ); // deletes camera
 }
 

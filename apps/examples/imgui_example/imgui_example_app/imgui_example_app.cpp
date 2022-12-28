@@ -296,7 +296,6 @@ static void app_destroy( imgui_example_app_o* self ) {
 		le_imgui::le_imgui_i.destroy( self->gui );
 	}
 	delete ( self );
-	self = nullptr;
 }
 
 // ----------------------------------------------------------------------

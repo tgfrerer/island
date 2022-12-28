@@ -418,7 +418,6 @@ static void compute_example_app_destroy( compute_example_app_o* self ) {
 		delete self->gpu_mesh;
 	}
 	delete ( self );
-    self = nullptr;
 }
 
 // ----------------------------------------------------------------------
