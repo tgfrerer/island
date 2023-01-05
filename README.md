@@ -68,7 +68,7 @@ can build a single, statically linked and optimised binary.
   distributed onto any avaliable render queues - if resources need to
   be transferred between queue families, this happens automatically.
   More about how Island distributes workloads across renderqueues and
-  synchronises them in [this blog post][rendergraph_syn_blog].
+  synchronises them in [this blog post][rendergraph_sync_blog].
 
 * **Static release binaries**: While Island is highly modular and
   dynamic when compiled for Debug, it can compile into a single,
