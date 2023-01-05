@@ -126,7 +126,8 @@ static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, 
 		auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
 		for ( auto& s : ctx->subscribers ) {
 			// call back subscribers iff they have matching log level flags set in their mask
-			// careful - if this method calls the log itself then we may end up with a deadlock.
+			// careful - if there is a call within the callback to the log itself
+			// then we may end up with a deadlock.
 			// FIXME: make sure that we don't end up with a deadlock.
 			if ( uint32_t( level ) & s.log_level_flag_mask ) {
 				s.push_chars( buffer.data(), num_bytes_buffer_1 + num_bytes_buffer_2, s.user_data );
@@ -185,7 +186,8 @@ static void default_subscriber_cerr( char const* chars, uint32_t num_chars, void
 };
 
 // ----------------------------------------------------------------------
-
+// This is where we hook up the default subscribers to our logger. The
+// default subscribers print to stdout and stderr.
 static void setup_basic_cout_subscriber() {
 	api_add_subscriber( default_subscriber_cout, &ctx, LE_LOG_LEVEL_DEBUG | LE_LOG_LEVEL_INFO | LE_LOG_LEVEL_WARN );
 	api_add_subscriber( default_subscriber_cerr, &ctx, LE_LOG_LEVEL_ERROR );
