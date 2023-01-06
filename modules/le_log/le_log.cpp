@@ -174,14 +174,14 @@ static void api_remove_subscriber( uint64_t handle ) {
 // ----------------------------------------------------------------------
 
 static void default_subscriber_cout( char const* chars, uint32_t num_chars, void* ) {
-	fprintf( stdout, "%*s", num_chars, chars );
+	fprintf( stdout, "%*s\n", num_chars, chars );
 	fflush( stdout );
 };
 
 // ----------------------------------------------------------------------
 
 static void default_subscriber_cerr( char const* chars, uint32_t num_chars, void* ) {
-	fprintf( stderr, "%*s", num_chars, chars );
+	fprintf( stderr, "%*s\n", num_chars, chars );
 	fflush( stderr );
 };
 
