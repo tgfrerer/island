@@ -2,7 +2,6 @@
 
 import sys
 import argparse
-import ipdb
 
 parser = argparse.ArgumentParser(description='Generate enum code mirroring given vulkan enums')
 parser.add_argument("--vk_path", default="/usr/share/vulkan/registry", help='absolute path to vulkan registry')
@@ -16,12 +15,14 @@ sys.path.append(vk_registry_path)
 
 from reg import Registry
 from generator import OutputGenerator, GeneratorOptions, write
+from apiconventions import APIConventions
 
 reg = Registry()
 reg.loadFile(vk_registry_path + "/vk.xml")
 
 og = OutputGenerator()
 og.diagFile = open("/tmp/diagfile.txt", "w")
+og.genOpts = GeneratorOptions(conventions=APIConventions())
 
 
 def atoi(text):

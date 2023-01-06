@@ -23,8 +23,8 @@ reg.loadFile(vk_registry_path + "/vk.xml")
 
 og = OutputGenerator()
 og.diagFile = open("/tmp/diagfile.txt", "w")
-og.genOpts = GeneratorOptions(apiname=APIConventions().xml_api_name)
-og.genOpts.conventions = 1  # Note: this is non-sensical, but we place this here so that genEnum does not crash because conventions is None
+og.genOpts = GeneratorOptions(conventions=APIConventions, apiname=APIConventions().xml_api_name)
+
 
 def atoi(text):
     # we convert every enum value to a textual representation. For numbers, we
@@ -33,6 +33,7 @@ def atoi(text):
     # whereas otherwise there was a risk of `0x10` being alphabetically sorted
     # ahead of `0x3`
     return format(int(text), '016x') if text.isdigit() else text
+
 
 def camel_to_snake(name):
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
@@ -65,7 +66,6 @@ def generate_enum_group(original_enum_name, wants_to_string=False, num_bits=32):
     enum_type = group_info.elem.get('type')
 
     is_bitmask = (enum_type == 'bitmask')
-    
 
     num_bits = int(group_info.elem.get('bitwidth') or 32)
 
@@ -82,18 +82,20 @@ def generate_enum_group(original_enum_name, wants_to_string=False, num_bits=32):
     enums.sort(key=lambda e: atoi(og.enumToValue(e, True, num_bits)[1]))
 
     # iterate over all values
-    body += "static constexpr char const * to_str_{to_bits_name}(const {tp}& tp){{\n".format(tp=original_enum_name,to_bits_name=camel_to_snake(original_enum_name))
+    body += "static constexpr char const * to_str_{to_bits_name}(const {tp}& tp){{\n".format(
+        tp=original_enum_name, to_bits_name=camel_to_snake(original_enum_name))
     body += "\tswitch( static_cast<int%s_t>(tp)){\n" % num_bits
     body += "// clang-format off\n"
-
 
     for e in enums:
         e_val = og.enumToValue(e, True, num_bits)
         if e_val[0] is not None:
             format_str = ("\t     case {val: <10}: return \"{name}\";\n")
-            body += format_str.format(name=friendly_enum_value_name(e.get('name'), enum_value_prefix), val=e_val[1])
+            body += format_str.format(name=friendly_enum_value_name(
+                e.get('name'), enum_value_prefix), val=e_val[1])
 
-    body += ("\t          {: <"+str(10 + 2 ) + "}: return {};\n").format("default", "\"\"")
+    body += ("\t          {: <"+str(10 + 2) +
+             "}: return {};\n").format("default", "\"\"")
     body += "\t// clang-format on\n"
     body += "\t};\n"
     body += "}\n\n"
@@ -151,11 +153,12 @@ for line in sys.stdin:
             params[i] = p.strip()
         if len(params) > 0 and params[0]:
             body += "\n// " + "-" * 70 + "\n\n"
-            body += generate_enum_group(params[0], wants_to_string=(len(params) > 1 and str2bool(params[1])))
+            body += generate_enum_group(params[0], wants_to_string=(
+                len(params) > 1 and str2bool(params[1])))
         print(body)
 
 
-body =""
+body = ""
 body += "\n// " + "-" * 70 + "\n\n"
 
 print(body)
