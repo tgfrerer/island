@@ -75,9 +75,8 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 
 	self->transferFrames.resize( numFrames, {} );
 
-	for ( size_t i = 0; i != numFrames; ++i ) {
+	for ( auto& frame : self->transferFrames ) {
 
-		auto&    frame               = self->transferFrames[ i ];
 		uint64_t image_size_in_bytes = 0;
 		{
 			// Allocate space for an image which can hold a render surface
@@ -161,8 +160,6 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 
 			vkCreateFence( self->device, &info, nullptr, &frame.frameFence );
 		}
-
-		// self->transferFrames.emplace_back( std::move( frame ) );
 	}
 
 	// Allocate command buffers for each frame.
@@ -175,7 +172,6 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 	    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 	    .commandBufferCount = numFrames * 2,
 	};
-	;
 
 	{
 		std::vector<VkCommandBuffer> cmdBuffers( numFrames * 2 );
@@ -287,8 +283,8 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 				VkImageMemoryBarrier2 img_read_to_acquire_barrier = {
 				    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 				    .pNext               = nullptr,                                         // optional
-				    .srcStageMask        = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,               // FIXME: should be top of pipe
-				    .srcAccessMask       = 0,                                               // FIXME: should be 0
+				    .srcStageMask        = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,               //
+				    .srcAccessMask       = 0,                                               //
 				    .dstStageMask        = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // block on color attachment output
 				    .dstAccessMask       = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,          // make image memory visible to attachment write (after layout transition)
 				    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,                       // transition from undefined to
