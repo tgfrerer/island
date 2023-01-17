@@ -1326,7 +1326,7 @@ static void backend_setup( le_backend_o* self ) {
 
 		// assert( !self->swapchainImageFormat.empty() && "must have at least one swapchain image format available." );
 
-		self->defaultFormatColorAttachment = le::Format::eR8G8B8A8Srgb;
+		self->defaultFormatColorAttachment = le::Format::eB8G8R8A8Unorm;
 		// static_cast<le::Format>( self->swapchainImageFormat[ 0 ] );
 		self->defaultFormatDepthStencilAttachment = le::Format::eD24UnormS8Uint;
 		// static_cast<le::Format>( VkFormat( *vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
