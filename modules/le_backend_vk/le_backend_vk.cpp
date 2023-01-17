@@ -1317,12 +1317,16 @@ static void backend_setup( le_backend_o* self ) {
 	{
 		// Set default image formats
 
+		// FIXME: we should make sure that these default formats are per-swapchain.
+
 		using namespace le_backend_vk;
 
-		assert( !self->swapchainImageFormat.empty() && "must have at least one swapchain image format available." );
+		// assert( !self->swapchainImageFormat.empty() && "must have at least one swapchain image format available." );
 
-		self->defaultFormatColorAttachment        = static_cast<le::Format>( self->swapchainImageFormat[ 0 ] );
-		self->defaultFormatDepthStencilAttachment = static_cast<le::Format>( VkFormat( *vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
+		self->defaultFormatColorAttachment = le::Format::eR8G8B8A8Srgb;
+		// static_cast<le::Format>( self->swapchainImageFormat[ 0 ] );
+		self->defaultFormatDepthStencilAttachment = le::Format::eD24UnormS8Uint;
+		// static_cast<le::Format>( VkFormat( *vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
 
 		// We hard-code default format for sampled images, since this is the most likely
 		// format we will encounter bitmaps to be encoded in, and there is no good way
