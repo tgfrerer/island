@@ -7174,22 +7174,27 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 		        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
 		    } );
+		// On default draw queue, wait for all timeline semaphores before signalling render complete.
+
+		VkSubmitInfo2 submitInfo{
+		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+		    .pNext                    = nullptr,
+		    .flags                    = 0,
+		    .waitSemaphoreInfoCount   = uint32_t( wait_present_complete_semaphore_submit_infos.size() ), //
+		    .pWaitSemaphoreInfos      = wait_present_complete_semaphore_submit_infos.data(),             // wait for the present semaphores from earlier frames
+		    .commandBufferInfoCount   = 0,                                                               // No commands submitted, this submission is purely for synchronisation
+		    .pCommandBufferInfos      = nullptr,
+		    .signalSemaphoreInfoCount = 0,
+		    .pSignalSemaphoreInfos    = nullptr,
+
+		};
+
+		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, nullptr, frame.must_create_queues_dot_graph, "wait_present_complete" );
 	}
 
 	bool did_wait_for_present_semaphore = false;
 
 	for ( auto const& current_submission : frame.queue_submission_data ) {
-
-		// the first graphics payload has to wait on present complete.
-		std::vector<VkSemaphoreSubmitInfo> wait_semaphore_infos;
-
-		if ( did_wait_for_present_semaphore == false && current_submission.queue_idx == self->queue_default_graphics_idx ) {
-			wait_semaphore_infos.insert(                              // wait for present complete - it gets signaled once the swapchain image is ready for writing
-			    wait_semaphore_infos.end(),                           //
-			    wait_present_complete_semaphore_submit_infos.begin(), //
-			    wait_present_complete_semaphore_submit_infos.end() ); //
-			did_wait_for_present_semaphore = true;
-		}
 
 		// Prepare command buffers for submission
 		std::vector<VkCommandBufferSubmitInfo> command_buffer_submit_infos;
@@ -7219,8 +7224,8 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
 		    .pNext                    = nullptr,
 		    .flags                    = 0,
-		    .waitSemaphoreInfoCount   = uint32_t( wait_semaphore_infos.size() ),
-		    .pWaitSemaphoreInfos      = wait_semaphore_infos.data(),
+		    .waitSemaphoreInfoCount   = 0,
+		    .pWaitSemaphoreInfos      = nullptr,
 		    .commandBufferInfoCount   = uint32_t( command_buffer_submit_infos.size() ),
 		    .pCommandBufferInfos      = command_buffer_submit_infos.data(),
 		    .signalSemaphoreInfoCount = 1,
@@ -7231,8 +7236,6 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 		backend_queue_submit( queue, 1, &submitInfo, nullptr, frame.must_create_queues_dot_graph, " subgraph { " + current_submission.debug_root_passes_names + " }" );
 	}
-
-	assert( did_wait_for_present_semaphore && "Must wait for present semaphore on default graphics queue. Is there a default graphics queue?" );
 
 	{
 		/// Now that we have submitted our payloads, we can wait for any timeline semaphores from this frame.
