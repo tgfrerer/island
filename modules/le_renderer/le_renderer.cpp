@@ -152,7 +152,7 @@ struct le_renderer_o {
 	le_backend_o* backend        = nullptr; // Owned, created in setup
 
 	std::vector<FrameData> frames;
-	size_t                 numSwapchainImages = 0;
+	size_t                 backendDataFramesCount = 0;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 	le_renderer_settings_t settings;
 };
@@ -389,12 +389,12 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 
 	// Since backend setup implicitly sets up the swapchain,
 	// we may now query the available number of swapchain images.
-	self->numSwapchainImages = vk_backend_i.get_num_swapchain_images( self->backend );
+	self->backendDataFramesCount = vk_backend_i.get_data_frames_count( self->backend );
 
 	using namespace le_renderer; // for rendergraph_i
-	self->frames.reserve( self->numSwapchainImages );
+	self->frames.reserve( self->backendDataFramesCount );
 
-	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {
+	for ( size_t i = 0; i != self->backendDataFramesCount; ++i ) {
 		auto frameData        = FrameData();
 		frameData.rendergraph = rendergraph_i.create();
 		self->frames.push_back( std::move( frameData ) );

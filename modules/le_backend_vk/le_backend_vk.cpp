@@ -928,10 +928,8 @@ static void backend_create_swapchains( le_backend_o* self, uint32_t num_settings
 
 // ----------------------------------------------------------------------
 
-static size_t backend_get_num_swapchain_images( le_backend_o* self ) {
-	assert( !self->swapchains.empty() );
-	using namespace le_swapchain_vk;
-	return swapchain_i.get_images_count( self->swapchains[ 0 ] );
+static size_t backend_get_data_frames_count( le_backend_o* self ) {
+	return self->mFrames.size();
 }
 
 // ----------------------------------------------------------------------
@@ -1230,7 +1228,7 @@ static void backend_setup( le_backend_o* self ) {
 
 	// -- setup backend memory objects
 
-	auto frameCount = backend_get_num_swapchain_images( self );
+	auto frameCount = 3; // TODO: WE MUST INFER THE CORRECT NUMBER OF DATA FRAMES - FOR NOW, SET TO 3
 
 	self->mFrames.reserve( frameCount );
 
@@ -7388,7 +7386,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.create                          = backend_create;
 	vk_backend_i.destroy                         = backend_destroy;
 	vk_backend_i.setup                           = backend_setup;
-	vk_backend_i.get_num_swapchain_images        = backend_get_num_swapchain_images;
+	vk_backend_i.get_data_frames_count           = backend_get_data_frames_count;
 	vk_backend_i.reset_swapchain                 = backend_reset_swapchain;
 	vk_backend_i.reset_failed_swapchains         = backend_reset_failed_swapchains;
 	vk_backend_i.get_transient_allocators        = backend_get_transient_allocators;

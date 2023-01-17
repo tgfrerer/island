@@ -136,7 +136,11 @@ struct le_backend_vk_api {
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
-		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
+
+
+		// return number of in-flight backend data frames
+		size_t                 ( *get_data_frames_count   ) ( le_backend_o *self );
+
 		void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
 		void                   ( *reset_failed_swapchains    ) ( le_backend_o *self );
 		void                   ( *get_swapchain_extent      ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height );
@@ -331,8 +335,8 @@ class Backend : NoCopy, NoMove {
 		le_backend_vk::vk_backend_i.process_frame( self, frameIndex );
 	}
 
-	size_t getNumSwapchainImages() {
-		return le_backend_vk::vk_backend_i.get_num_swapchain_images( self );
+	size_t getNumFrames() {
+		return le_backend_vk::vk_backend_i.get_data_frames_count( self );
 	}
 
 	bool dispatchFrame( size_t frameIndex ) {
