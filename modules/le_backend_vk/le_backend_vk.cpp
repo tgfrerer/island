@@ -1237,6 +1237,8 @@ static void backend_setup( le_backend_o* self ) {
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
 	{
+		// Create image handles for swapchain images
+
 		self->swapchain_resources.reserve( self->swapchains.size() );
 		char swapchain_name[ 64 ];
 
@@ -1257,9 +1259,10 @@ static void backend_setup( le_backend_o* self ) {
 		BackendFrameData frameData{};
 		frameData.frameNumber = i;
 
-		frameData.swapchain_state.resize( self->swapchains.size() );
-
 		{
+			// Set up swapchain state per frame
+			//
+			frameData.swapchain_state.resize( self->swapchains.size() );
 			VkSemaphoreCreateInfo const create_info = {
 			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 			    .pNext = nullptr, // optional
@@ -7160,25 +7163,29 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	wait_present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
 	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
-	for ( auto const& swp : frame.swapchain_state ) {
-		wait_present_complete_semaphore_submit_infos.push_back(
-		    {
-		        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		        .pNext       = nullptr,
-		        .semaphore   = swp.presentComplete,
-		        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
-		        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
-		        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
-		    } );
-		render_complete_semaphore_submit_infos.push_back(
-		    {
-		        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		        .pNext       = nullptr,
-		        .semaphore   = swp.renderComplete,
-		        .value       = 0,                                  // ignored, as this semaphore is not a timeline semaphore
-		        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
-		        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
-		    } );
+
+	{
+		for ( auto const& swp : frame.swapchain_state ) {
+			wait_present_complete_semaphore_submit_infos.push_back(
+			    {
+			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			        .pNext       = nullptr,
+			        .semaphore   = swp.presentComplete,
+			        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
+			        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
+			        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
+			    } );
+			render_complete_semaphore_submit_infos.push_back(
+			    {
+			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			        .pNext       = nullptr,
+			        .semaphore   = swp.renderComplete,
+			        .value       = 0,                                  // ignored, as this semaphore is not a timeline semaphore
+			        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
+			        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
+			    } );
+		}
+
 		// On default draw queue, wait for all timeline semaphores before signalling render complete.
 
 		VkSubmitInfo2 submitInfo{
@@ -7197,7 +7204,6 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, nullptr, frame.must_create_queues_dot_graph, "wait_present_complete" );
 	}
 
-	bool did_wait_for_present_semaphore = false;
 
 	for ( auto const& current_submission : frame.queue_submission_data ) {
 
