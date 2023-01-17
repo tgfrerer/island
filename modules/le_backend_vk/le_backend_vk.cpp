@@ -3995,15 +3995,18 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		        .build() );
 	}
 
-	assert( !frame.swapchain_state.empty() && "frame.swapchains_state must not be empty" );
+	if ( !frame.swapchain_state.empty() ) {
 
-	// For all passes - set pass width/height to swapchain width/height if not known.
-	// Only extents of swapchain[0] are used to infer extents for renderpasses which lack extents info
-	patch_renderpass_extents(
-	    passes,
-	    numRenderPasses,
-	    frame.swapchain_state[ 0 ].surface_width,
-	    frame.swapchain_state[ 0 ].surface_height );
+		assert( !frame.swapchain_state.empty() && "frame.swapchains_state must not be empty" );
+
+		// For all passes - set pass width/height to swapchain width/height if not known.
+		// Only extents of swapchain[0] are used to infer extents for renderpasses which lack extents info
+		patch_renderpass_extents(
+		    passes,
+		    numRenderPasses,
+		    frame.swapchain_state[ 0 ].surface_width,
+		    frame.swapchain_state[ 0 ].surface_height );
+	}
 
 	// Note: this consumes frame.declared_resources
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
