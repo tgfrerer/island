@@ -4023,7 +4023,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// We try to acquire all images, even if one of the acquisitions fails.
 	//
-	// This is so that the every semaphore for presentComplete is correctly
+	// This is so that every semaphore for presentComplete is correctly
 	// waited upon.
 
 	bool acquire_success = true;
@@ -4053,10 +4053,12 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	// dot graph diagrams for queue sync - in which case we should fetch the global
 	// setting telling us whether to do so or not.
 	LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 0 );
-	// we fetch this variable to a local copy, and only at a single point, here, so that there is no risk that the value of the
-	// variable is changed on another thread while the dot graph is being generated
+	// we fetch this variable to a local copy, and only at a single point, here,
+	// so that there is no risk that the value of the variable is changed on
+	// another thread while the dot graph is being generated
 	frame.must_create_queues_dot_graph = ( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES > 0 );
-	// then, we set the value to false, so that we only generate a single dot graph per-shot
+	// then, we decrement the number of requested queue sync dot files, so that we only generate
+	// as many dot graph files as requested.
 	if ( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES > 0 ) {
 		--( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES );
 	};
@@ -4122,8 +4124,6 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	}
 
 	if ( !frame.swapchain_state.empty() ) {
-
-		assert( !frame.swapchain_state.empty() && "frame.swapchains_state must not be empty" );
 
 		// For all passes - set pass width/height to swapchain width/height if not known.
 		// Only extents of swapchain[0] are used to infer extents for renderpasses which lack extents info

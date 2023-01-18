@@ -34,6 +34,7 @@ struct le_backend_vk_settings_o {
 	}; // each entry stands for one queue and its capabilities
 
 	std::vector<le_swapchain_settings_t> swapchain_settings;
+
 	uint32_t                             concurrency_count = 1; // number of potential worker threads
 	std::atomic_bool                     readonly          = false;
 };
