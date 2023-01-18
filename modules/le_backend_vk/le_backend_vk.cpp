@@ -734,6 +734,27 @@ static le_backend_o* backend_create() {
 
 // ----------------------------------------------------------------------
 
+static void backend_destroy_modern_swapchain( le_backend_o* self, modern_swapchain_info_t& swapchain_info ) {
+	static auto logger = LeLog( LOGGER_LABEL );
+	using namespace le_swapchain_vk;
+	using namespace le_backend_vk;
+
+	VkInstance instance = vk_instance_i.get_vk_instance( self->instance );
+
+	if ( swapchain_info.swapchain ) {
+
+		// we must first destroy the khr swapchain object, then the surface if there is a surface.
+		swapchain_i.destroy( swapchain_info.swapchain );
+
+		if ( swapchain_info.swapchain_surface ) {
+			vkDestroySurfaceKHR( instance, swapchain_info.swapchain_surface, nullptr );
+			logger.info( "Surface %x destroyed", swapchain_info.swapchain_surface );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void backend_destroy( le_backend_o* self ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -760,18 +781,8 @@ static void backend_destroy( le_backend_o* self ) {
 	// modern swapchain: remove any leftover surfaces
 
 	{
-		for ( auto& [ swp_handle, swp_info ] : self->modern_swapchains ) {
-			using namespace le_swapchain_vk;
-			// we must first destroy the khr swapchain object, then the surface if there is a surface.
-
-			if ( swp_info.swapchain ) {
-				swapchain_i.destroy( swp_info.swapchain );
-
-				if ( swp_info.swapchain_surface ) {
-					vkDestroySurfaceKHR( instance, swp_info.swapchain_surface, nullptr );
-					logger.info( "Surface %x destroyed", swp_info.swapchain_surface );
-				}
-			}
+		for ( auto& [ swp_handle, swapchain_info ] : self->modern_swapchains ) {
+			backend_destroy_modern_swapchain( self, swapchain_info );
 		}
 
 		self->modern_swapchains.clear();
@@ -1025,8 +1036,17 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 }
 // ----------------------------------------------------------------------
 
-static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle swapchain ) {
-	return false;
+static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle swapchain_handle ) {
+
+	auto it = self->modern_swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
+
+	if ( it != self->modern_swapchains.end() ) {
+		backend_destroy_modern_swapchain( self, it->second );
+		self->modern_swapchains.erase( it );
+		return true;
+	} else {
+		return false;
+	}
 }
 // ----------------------------------------------------------------------
 // ----------------------------------------------------------------------
