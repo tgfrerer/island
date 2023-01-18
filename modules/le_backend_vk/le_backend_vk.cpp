@@ -552,6 +552,14 @@ struct BackendFrameData {
 	bool must_create_queues_dot_graph = false;
 };
 
+struct modern_swapchain_info_t {
+	le_swapchain_o* swapchain;                // owned
+	VkFormat        swapchain_surface_format; // fixme: should this be called surface or image format
+	VkSurfaceKHR    swapchain_surface;        // owned, optional
+	uint32_t        height;
+	uint32_t        width;
+};
+
 /// \brief backend data object
 struct le_backend_o {
 
@@ -564,6 +572,9 @@ struct le_backend_o {
 	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
 
 	std::vector<le_swapchain_o*> swapchains; // Owning.
+
+	std::atomic<uint64_t>                                 modern_swapchains_next_handle; // monotonically increasing handle to index modern_swapchains
+	std::unordered_map<uint64_t, modern_swapchain_info_t> modern_swapchains; // Container of owned swapchains. Access only on the main thread.
 
 	std::vector<VkSurfaceKHR> windowSurfaces; // owning. one per window swapchain.
 
@@ -709,7 +720,7 @@ static void backend_destroy_window_surfaces( le_backend_o* self ) {
 	for ( auto& surface : self->windowSurfaces ) {
 		VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
 		vkDestroySurfaceKHR( instance, surface, nullptr );
-		logger.debug( "Surface destroyed" );
+		logger.info( "Surface %x destroyed", surface );
 	}
 	self->windowSurfaces.clear();
 }
@@ -724,6 +735,7 @@ static le_backend_o* backend_create() {
 // ----------------------------------------------------------------------
 
 static void backend_destroy( le_backend_o* self ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( self->pipelineCache ) {
 		using namespace le_backend_vk;
@@ -731,7 +743,8 @@ static void backend_destroy( le_backend_o* self ) {
 		self->pipelineCache = nullptr;
 	}
 
-	VkDevice device = self->device->getVkDevice(); // may be nullptr if device was not created
+	VkDevice   device   = self->device->getVkDevice(); // may be nullptr if device was not created
+	VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
 
 	// We must destroy the swapchain before self->mAllocator, as
 	// the swapchain might have allocated memory using the backend's allocator,
@@ -743,6 +756,28 @@ static void backend_destroy( le_backend_o* self ) {
 		swapchain_i.destroy( s );
 	}
 	self->swapchains.clear();
+
+	// modern swapchain: remove any leftover surfaces
+
+	{
+		for ( auto& [ swp_handle, swp_info ] : self->modern_swapchains ) {
+			using namespace le_swapchain_vk;
+			// we must first destroy the khr swapchain object, then the surface if there is a surface.
+
+			if ( swp_info.swapchain ) {
+				swapchain_i.destroy( swp_info.swapchain );
+
+				if ( swp_info.swapchain_surface ) {
+					vkDestroySurfaceKHR( instance, swp_info.swapchain_surface, nullptr );
+					logger.info( "Surface %x destroyed", swp_info.swapchain_surface );
+				}
+			}
+		}
+
+		self->modern_swapchains.clear();
+	}
+
+	//
 
 	vkDeviceWaitIdle( self->device.get()->getVkDevice() );
 
@@ -926,6 +961,74 @@ static void backend_create_swapchains( le_backend_o* self, uint32_t num_settings
 	}
 }
 
+// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// --- new swapchain interface
+static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapchain_settings_t* const settings ) {
+	le_swapchain_o* swapchain = nullptr;
+	static auto     logger    = LeLog( LOGGER_LABEL );
+	using namespace le_swapchain_vk;
+
+	VkSurfaceKHR maybe_swapchain_surface = nullptr;
+
+	switch ( settings->type ) {
+
+	case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
+		// Create a windowless swapchain
+		swapchain = swapchain_i.create( api->swapchain_direct_i, self, settings );
+	} break;
+	case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
+		if ( settings->khr_settings.window != nullptr ) {
+			VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
+			maybe_swapchain_surface =
+			    settings->khr_settings.vk_surface =
+			        le_window::window_i.create_surface( settings->khr_settings.window, instance );
+			swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, settings );
+			break;
+		} else {
+			settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
+			logger.warn( "Automatically selected Image Swapchain as no window was specified" );
+			settings->img_settings          = {};
+			settings->img_settings.pipe_cmd = "";
+		}
+
+	} // deliberate fallthrough in case no window was specified
+	case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
+		// Create an image swapchain
+		swapchain = swapchain_i.create( api->swapchain_img_i, self, settings );
+	} break;
+	}
+
+	assert( swapchain );
+
+	modern_swapchain_info_t modern_swapchain_info{
+	    .swapchain                = swapchain,
+	    .swapchain_surface_format = VkFormat( swapchain_i.get_surface_format( swapchain )->format ),
+	    .swapchain_surface        = maybe_swapchain_surface,
+	    .height                   = swapchain_i.get_image_width( swapchain ),
+	    .width                    = swapchain_i.get_image_height( swapchain ),
+	};
+
+	auto swapchain_index               = self->modern_swapchains_next_handle++;
+	const auto& [ pair, was_emplaced ] = self->modern_swapchains.emplace( swapchain_index, modern_swapchain_info );
+
+	if ( !was_emplaced ) {
+		logger.error( "swapchain already existed: %x", swapchain_index );
+	}
+
+	// We must hand out a swapchain handle - the handle is just a (unique) number,
+	// and we use it to remove the swapchain if needed.
+
+	// TODO: add code to remove the swapchain when destroying
+
+	return reinterpret_cast<le_swapchain_handle>( swapchain_index );
+}
+// ----------------------------------------------------------------------
+
+static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle swapchain ) {
+	return false;
+}
+// ----------------------------------------------------------------------
 // ----------------------------------------------------------------------
 
 static size_t backend_get_data_frames_count( le_backend_o* self ) {
@@ -1249,7 +1352,7 @@ static void backend_setup( le_backend_o* self ) {
 			        swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot ) );
 		}
 
-		assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
+		// assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
 	}
 
 	for ( size_t i = 0; i != frameCount; ++i ) {
@@ -7419,6 +7522,9 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
 	vk_backend_i.get_swapchain_count    = backend_get_swapchain_count;
 	vk_backend_i.get_swapchain_info     = backend_get_swapchain_info;
+
+	vk_backend_i.add_swapchain    = backend_add_swapchain;
+	vk_backend_i.remove_swapchain = backend_remove_swapchain;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;

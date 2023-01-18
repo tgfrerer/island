@@ -18,6 +18,7 @@ struct le_allocator_o;         // from backend
 struct le_staging_allocator_o; // from backend
 
 LE_OPAQUE_HANDLE( le_shader_module_handle );
+LE_OPAQUE_HANDLE( le_swapchain_handle );
 
 #define LE_BUF_RESOURCE( x ) \
 	le_renderer::renderer_i.produce_buf_resource_handle( ( x ), 0, 0 )
@@ -44,6 +45,11 @@ struct le_renderer_api {
 		void                           ( *get_swapchain_extent    )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
 		le_backend_o*                  ( *get_backend             )( le_renderer_o* self );
 
+		// --- new swapchain interface
+		le_swapchain_handle 		   ( * add_swapchain 		 )(le_renderer_o* self, le_swapchain_settings_t * const settings);
+		bool 						   ( * remove_swapchain 	 )(le_renderer_o* self, le_swapchain_handle swapchain);
+		// ---
+
 		le_pipeline_manager_o*         ( *get_pipeline_manager    )( le_renderer_o* self );
 
         le_texture_handle              ( *produce_texture_handle  )(char const * maybe_name );
@@ -57,6 +63,7 @@ struct le_renderer_api {
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const & flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags);
+
 	};
 
 

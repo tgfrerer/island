@@ -651,6 +651,16 @@ static void renderer_get_swapchain_extent( le_renderer_o* self, uint32_t index, 
 	vk_backend_i.get_swapchain_extent( self->backend, index, p_width, p_height );
 }
 
+static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t* const settings ) {
+	using namespace le_backend_vk;
+	return vk_backend_i.add_swapchain( self->backend, settings );
+};
+
+static bool renderer_remove_swapchain( le_renderer_o* self, le_swapchain_handle swapchain ) {
+	using namespace le_backend_vk;
+	return vk_backend_i.remove_swapchain( self->backend, swapchain );
+};
+
 // ----------------------------------------------------------------------
 
 static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
@@ -847,6 +857,9 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.get_swapchain_extent   = renderer_get_swapchain_extent;
 	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
 	le_renderer_i.get_backend            = renderer_get_backend;
+
+	le_renderer_i.add_swapchain    = renderer_add_swapchain;
+	le_renderer_i.remove_swapchain = renderer_remove_swapchain;
 
 	le_renderer_i.produce_texture_handle  = renderer_produce_texture_handle;
 	le_renderer_i.texture_handle_get_name = texture_handle_get_name;

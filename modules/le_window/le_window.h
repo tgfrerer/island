@@ -33,10 +33,11 @@ struct le_window_api {
 		size_t          ( *get_reference_count      )( le_window_o* self );
 
 		bool            ( *should_close       ) ( le_window_o * );
-		VkSurfaceKHR_T* ( *create_surface     ) ( le_window_o *, VkInstance_T * );
 		uint32_t        ( *get_surface_width  ) ( le_window_o * );
 		uint32_t        ( *get_surface_height ) ( le_window_o * );
 		GLFWwindow*     ( *get_glfw_window    ) ( le_window_o* self );
+
+		VkSurfaceKHR_T* ( *create_surface     ) ( le_window_o *, VkInstance_T * );
 
 		void            ( *toggle_fullscreen  ) ( le_window_o* self );
 
