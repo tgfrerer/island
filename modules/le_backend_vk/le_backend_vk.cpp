@@ -552,12 +552,12 @@ struct BackendFrameData {
 	bool must_create_queues_dot_graph = false;
 };
 
-struct modern_swapchain_info_t {
-	le_swapchain_o* swapchain;                // owned
-	VkFormat        swapchain_surface_format; // fixme: should this be called surface or image format
-	VkSurfaceKHR    swapchain_surface;        // owned, optional
-	uint32_t        height;
-	uint32_t        width;
+struct modern_swapchain_data_t {
+	le_swapchain_o*    swapchain;                // owned
+	VkSurfaceFormatKHR swapchain_surface_format; // contains VkFormat and (optional) color space
+	VkSurfaceKHR       swapchain_surface;        // owned, optional
+	uint32_t           height;
+	uint32_t           width;
 };
 
 /// \brief backend data object
@@ -574,7 +574,7 @@ struct le_backend_o {
 	std::vector<le_swapchain_o*> swapchains; // Owning.
 
 	std::atomic<uint64_t>                                 modern_swapchains_next_handle; // monotonically increasing handle to index modern_swapchains
-	std::unordered_map<uint64_t, modern_swapchain_info_t> modern_swapchains; // Container of owned swapchains. Access only on the main thread.
+	std::unordered_map<uint64_t, modern_swapchain_data_t> modern_swapchains;             // Container of owned swapchains. Access only on the main thread.
 
 	std::vector<VkSurfaceKHR> windowSurfaces; // owning. one per window swapchain.
 
@@ -734,7 +734,7 @@ static le_backend_o* backend_create() {
 
 // ----------------------------------------------------------------------
 
-static void backend_destroy_modern_swapchain( le_backend_o* self, modern_swapchain_info_t& swapchain_info ) {
+static void backend_destroy_modern_swapchain( le_backend_o* self, modern_swapchain_data_t& swapchain_info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	using namespace le_swapchain_vk;
 	using namespace le_backend_vk;
@@ -1012,15 +1012,15 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	assert( swapchain );
 
-	modern_swapchain_info_t modern_swapchain_info{
+	modern_swapchain_data_t modern_swapchain_info{
 	    .swapchain                = swapchain,
-	    .swapchain_surface_format = VkFormat( swapchain_i.get_surface_format( swapchain )->format ),
+	    .swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
 	    .swapchain_surface        = maybe_swapchain_surface,
 	    .height                   = swapchain_i.get_image_width( swapchain ),
 	    .width                    = swapchain_i.get_image_height( swapchain ),
 	};
 
-	auto swapchain_index               = self->modern_swapchains_next_handle++;
+	auto swapchain_index               = ++self->modern_swapchains_next_handle; // note pre-increment
 	const auto& [ pair, was_emplaced ] = self->modern_swapchains.emplace( swapchain_index, modern_swapchain_info );
 
 	if ( !was_emplaced ) {
@@ -1034,6 +1034,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	return reinterpret_cast<le_swapchain_handle>( swapchain_index );
 }
+
 // ----------------------------------------------------------------------
 
 static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle swapchain_handle ) {
@@ -1397,6 +1398,7 @@ static void backend_setup( le_backend_o* self ) {
 				vkCreateSemaphore( vkDevice, &create_info, nullptr, &state.renderComplete );
 			}
 		}
+
 		{
 			VkFenceCreateInfo create_info = {
 			    .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
