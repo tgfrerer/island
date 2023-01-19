@@ -26,7 +26,7 @@ struct le_swapchain_vk_api {
 
 		void                      ( *reset                    ) ( le_swapchain_o* self, const le_swapchain_settings_t* settings );
 		bool                      ( *present                  ) ( le_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
-		bool                      ( *acquire_next_image       ) ( le_swapchain_o* self, VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
+		bool                      ( *acquire_next_image       ) ( le_swapchain_o* self, VkSemaphore_T* semaphore_, uint32_t* pImageIndex_ );
 		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_swapchain_o* self );
 
 		VkImage_T*                ( *get_image                ) ( le_swapchain_o* self, uint32_t index_);

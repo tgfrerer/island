@@ -404,18 +404,18 @@ static void swapchain_direct_destroy( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_direct_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete_, uint32_t& imageIndex_ ) {
+static bool swapchain_direct_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete_, uint32_t* imageIndex_ ) {
 
 	auto self = static_cast<swp_direct_data_o* const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
 
-	auto result = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, semaphorePresentComplete_, nullptr, &imageIndex_ );
+	auto result = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, semaphorePresentComplete_, nullptr, imageIndex_ );
 
 	switch ( result ) {
 	case VK_SUCCESS:
-		self->mImageIndex = imageIndex_;
+		self->mImageIndex = *imageIndex_;
 		return true;
 	case VK_SUBOPTIMAL_KHR:         // | fall-through
 	case VK_ERROR_SURFACE_LOST_KHR: // |

@@ -4036,7 +4036,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		if ( !swapchain_i.acquire_next_image(
 		         self->swapchains[ i ],
 		         frame.swapchain_state[ i ].presentComplete,
-		         frame.swapchain_state[ i ].image_idx ) ) {
+		         &frame.swapchain_state[ i ].image_idx ) ) {
 			acquire_success                               = false;
 			frame.swapchain_state[ i ].acquire_successful = false;
 		} else {

@@ -43,7 +43,7 @@ static le_swapchain_o* swapchain_create( le_swapchain_vk_api::swapchain_interfac
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_acquire_next_image( le_swapchain_o* self, VkSemaphore_T* semaphorePresentComplete_, uint32_t& imageIndex_ ) {
+static bool swapchain_acquire_next_image( le_swapchain_o* self, VkSemaphore_T* semaphorePresentComplete_, uint32_t* imageIndex_ ) {
 	return self->vtable.acquire_next_image( self, semaphorePresentComplete_, imageIndex_ );
 }
 

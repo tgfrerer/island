@@ -471,7 +471,7 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete, uint32_t& imageIndex ) {
+static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete, uint32_t* imageIndex ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto self = static_cast<img_data_o* const>( base->data );
@@ -480,17 +480,17 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// semaphorePresentComplete is signalled.
 
 	// acquire next image, signal semaphore
-	imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
+	*imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
 
-	auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence, VK_TRUE, 100'000'000 );
+	auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence, VK_TRUE, 100'000'000 );
 
 	if ( fenceWaitResult != VK_SUCCESS ) {
 		assert( false ); // waiting for fence took too long.
 	}
 
-	vkResetFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence );
+	vkResetFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence );
 
-	self->mImageIndex = imageIndex;
+	self->mImageIndex = *imageIndex;
 
 	// We only want to write out images which have made the round-trip
 	// the first n images will be black...
@@ -501,13 +501,13 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 			// before the next present command is executed.
 
 			// Write out frame contents to ffmpeg via pipe.
-			auto const& frame = self->transferFrames[ imageIndex ];
+			auto const& frame = self->transferFrames[ *imageIndex ];
 			fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->pipe );
 
 		} else {
 			char file_name[ 1024 ];
 			sprintf( file_name, "isl_%08d.rgba", self->totalImages );
-			auto const&   frame = self->transferFrames[ imageIndex ];
+			auto const&   frame = self->transferFrames[ *imageIndex ];
 			std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
 			myfile.write( ( char* )frame.bufferAllocationInfo.pMappedData,
 			              self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
@@ -529,7 +529,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	    .pWaitSemaphores      = 0,
 	    .pWaitDstStageMask    = 0,
 	    .commandBufferCount   = 1, // optional
-	    .pCommandBuffers      = &self->transferFrames[ imageIndex ].cmdAcquire,
+	    .pCommandBuffers      = &self->transferFrames[ *imageIndex ].cmdAcquire,
 	    .signalSemaphoreCount = 1, // optional
 	    .pSignalSemaphores    = &semaphorePresentComplete,
 	};
