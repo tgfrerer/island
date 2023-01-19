@@ -7765,12 +7765,12 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.get_swapchain_resource_deprecated = backend_get_swapchain_resource_deprecated;
 	vk_backend_i.get_swapchain_extent_deprecated   = backend_get_swapchain_extent_deprecated;
 	vk_backend_i.get_swapchain_count               = backend_get_swapchain_count;
-	vk_backend_i.get_swapchain_info                = backend_get_swapchain_info;
 
 	vk_backend_i.add_swapchain          = backend_add_swapchain;
 	vk_backend_i.remove_swapchain = backend_remove_swapchain;
 	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
 	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
+	vk_backend_i.get_swapchain_info     = backend_get_swapchain_info;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
