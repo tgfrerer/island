@@ -6646,7 +6646,7 @@ static void backend_emit_queue_sync_dot_file( le_backend_o const* backend, uint6
 
 	static QueueSubmissionLoggerData*               data = get_queue_submission_logger_data();
 	static std::unordered_map<VkQueue, std::string> queue_name;
-	static std::vector<std::string>*                semaphore_names = backend_initialise_semaphore_names( backend );
+	std::vector<std::string>*                       semaphore_names = backend_initialise_semaphore_names( backend );
 
 	std::ostringstream                     os;
 	std::unordered_map<uint64_t, uint32_t> wait_info_to_submission; // wait info to submission id
