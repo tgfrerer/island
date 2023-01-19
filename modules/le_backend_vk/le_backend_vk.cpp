@@ -3490,8 +3490,8 @@ static void printResourceInfo( le_resource_handle const& handle, ResourceCreateI
 static void patch_renderpass_extents(
     le_renderpass_o** passes,
     size_t            numRenderPasses,
-    uint32_t          swapchainWidth,
-    uint32_t          swapchainHeight ) {
+    uint32_t          default_width,
+    uint32_t          default_height ) {
 	using namespace le_renderer;
 
 	auto passes_end = passes + numRenderPasses;
@@ -3503,14 +3503,14 @@ static void patch_renderpass_extents(
 		if ( pass_width == 0 ) {
 			// if zero was chosen this means to use the default extents values for a
 			// renderpass, which is to use the frame's current swapchain extents.
-			pass_width = swapchainWidth;
+			pass_width = default_width;
 			renderpass_i.set_width( *rp, pass_width );
 		}
 
 		if ( pass_height == 0 ) {
 			// if zero was chosen this means to use the default extents values for a
 			// renderpass, which is to use the frame's current swapchain extents.
-			pass_height = swapchainHeight;
+			pass_height = default_height;
 			renderpass_i.set_height( *rp, pass_height );
 		}
 	}
