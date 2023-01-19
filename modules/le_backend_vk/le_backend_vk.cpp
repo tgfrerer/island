@@ -1085,18 +1085,30 @@ static void backend_get_swapchain_extent( le_backend_o* self, uint32_t index, ui
 
 bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
-	if ( *count < self->swapchain_resources_deprecated.size() ) {
-		*count = uint32_t( self->swapchain_resources_deprecated.size() );
+	uint32_t total_number_of_swapchains = uint32_t( self->swapchain_resources_deprecated.size() + self->modern_swapchains.size() );
+
+	if ( *count < total_number_of_swapchains ) {
+		*count = total_number_of_swapchains;
 		return false;
 	}
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
 
-	uint32_t num_items = *count = uint32_t( self->swapchain_resources_deprecated.size() );
+	uint32_t num_items = *count = total_number_of_swapchains;
 
-	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * num_items );
-	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * num_items );
-	memcpy( p_handle, self->swapchain_resources_deprecated.data(), sizeof( le_resource_handle ) * num_items );
+	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * self->swapchain_resources_deprecated.size() );
+	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * self->swapchain_resources_deprecated.size() );
+	memcpy( p_handle, self->swapchain_resources_deprecated.data(), sizeof( le_resource_handle ) * self->swapchain_resources_deprecated.size() );
+
+	p_width += self->swapchain_resources_deprecated.size();  // increment pointer
+	p_height += self->swapchain_resources_deprecated.size(); // increment pointer
+	p_handle += self->swapchain_resources_deprecated.size(); // increment pointer
+
+	for ( auto& [ key, swp ] : self->modern_swapchains ) {
+		*( p_width++ )  = swp.width;
+		*( p_height++ ) = swp.height;
+		*( p_handle++ ) = swp.swapchain_image;
+	}
 
 	return true;
 }

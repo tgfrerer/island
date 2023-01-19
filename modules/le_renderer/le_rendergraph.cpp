@@ -959,7 +959,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 	// Note that this does not change the renderpass extents.
 	// le::Extent2D swapchain_extent{};
 
-	uint32_t num_swapchain_images = 3; // gets updated as a side-effect of backend_i.get_swapchain_info()
+	uint32_t num_swapchain_images = 1; // gets updated as a side-effect of backend_i.get_swapchain_info()
 
 	std::vector<le_img_resource_handle> swapchain_images;
 	std::vector<uint32_t>               swapchain_image_width;
