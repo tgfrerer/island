@@ -1875,7 +1875,9 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 	}
 }
 
-static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o** ppPasses, size_t numRenderPasses, const std::vector<le_img_resource_handle>& backbufferImageHandles ) {
+static void frame_track_resource_state(
+    BackendFrameData& frame, le_renderpass_o** ppPasses,
+    size_t numRenderPasses, const std::vector<le_img_resource_handle>& swapchain_images ) {
 
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
 	//
@@ -1903,7 +1905,7 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 	auto& syncChainTable = frame.syncChainTable;
 
-	for ( auto& swapchain_image : backbufferImageHandles ) {
+	for ( auto& swapchain_image : swapchain_images ) {
 
 		// -- backbuffer has their sync state changed outside of our frame graph
 		// because submitting to the swapchain changes its sync state.
@@ -1955,7 +1957,7 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 		auto finalState{ sync_chain.back() };
 
-		if ( std::find( backbufferImageHandles.begin(), backbufferImageHandles.end(), resource_handle ) != backbufferImageHandles.end() ) {
+		if ( std::find( swapchain_images.begin(), swapchain_images.end(), resource_handle ) != swapchain_images.end() ) {
 			finalState.stage          = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT; // Everything: Drain the pipeline
 			finalState.visible_access = VK_ACCESS_2_MEMORY_READ_BIT;            // Cached memory must be made visible to memory read access ...
 			finalState.layout         = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;        // ... so that it can perform layout transition to present_src
