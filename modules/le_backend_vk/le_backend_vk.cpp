@@ -4241,7 +4241,57 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		        .build() );
 	}
 
-	if ( !frame.swapchain_state.empty() ) {
+	for ( auto& [ key, swapchain_data ] : self->modern_swapchains ) {
+		// Acquire modern_swapchain images
+
+		auto& currentState = frame.modern_swapchain_state.at( key );
+
+		auto tmp_surface_width = currentState.surface_width = swapchain_i.get_image_width( swapchain_data.swapchain );
+		auto tmp_surface_height = currentState.surface_height = swapchain_i.get_image_height( swapchain_data.swapchain );
+
+		frame.availableResources[ swapchain_data.swapchain_image ].as.image =
+		    swapchain_i.get_image( swapchain_data.swapchain, currentState.image_idx );
+
+		{
+			// Fetch Image Info for swapchain image
+			auto& imageInfo = frame.availableResources[ swapchain_data.swapchain_image ].info.imageInfo;
+
+			// Overwrite Image Info
+			imageInfo = {
+			    .sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			    .pNext     = nullptr, // optional
+			    .flags     = 0,       // optional
+			    .imageType = VK_IMAGE_TYPE_2D,
+			    .format    = swapchain_data.swapchain_surface_format.format,
+			    .extent    = {
+			           .width  = tmp_surface_width,
+			           .height = tmp_surface_height,
+			           .depth  = 1,
+                },
+			    .mipLevels             = 1,
+			    .arrayLayers           = 1,
+			    .samples               = VK_SAMPLE_COUNT_1_BIT,
+			    .tiling                = VK_IMAGE_TILING_OPTIMAL,
+			    .usage                 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+			    .queueFamilyIndexCount = 0, // optional
+			    .pQueueFamilyIndices   = nullptr,
+			    .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
+			};
+		}
+		// Add swapchain resource to automatically- declared resources
+		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
+
+		frame.declared_resources_id.push_back( swapchain_data.swapchain_image );
+		frame.declared_resources_info.push_back(
+		    le::ImageInfoBuilder()
+		        .addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
+		        .setExtent(
+		            tmp_surface_width,
+		            tmp_surface_height,
+		            1 )
+		        .build() );
+	}
 
 		// For all passes - set pass width/height to swapchain width/height if not known.
 		// Only extents of swapchain[0] are used to infer extents for renderpasses which lack extents info
@@ -4265,8 +4315,14 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		}
 
 		// -- build sync chain for each resource, create explicit sync barrier requests for resources
-		// which cannot be impliciltly synced.
-		frame_track_resource_state( frame, passes, numRenderPasses, self->swapchain_resources_deprecated );
+		// which cannot be implicitly synced.
+		std::vector<le_img_resource_handle> tmp_swapchain_resources{ self->swapchain_resources_deprecated };
+
+		for ( auto& [ key, swp ] : self->modern_swapchains ) {
+			tmp_swapchain_resources.push_back( swp.swapchain_image );
+		}
+
+		frame_track_resource_state( frame, passes, numRenderPasses, tmp_swapchain_resources );
 
 		// At this point we know the state for each resource at the end of the sync chain.
 		// this state will be the initial state for the resource
@@ -4293,8 +4349,11 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 					res->second.state = resSyncList.back();
 				} else {
 
-					assert( std::find( self->swapchain_resources_deprecated.begin(), self->swapchain_resources_deprecated.end(), resId ) != self->swapchain_resources_deprecated.end() ||
-					        resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
+					assert(
+					    std::find( tmp_swapchain_resources.begin(),
+					               tmp_swapchain_resources.end(), resId ) !=
+					        tmp_swapchain_resources.end() ||
+					    resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
 
 					// Frame local resource must be available as a backend resource,
 					// unless the resource is the swapchain image handle, which is owned and managed
