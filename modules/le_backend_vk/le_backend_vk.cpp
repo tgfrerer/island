@@ -7525,7 +7525,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.destroy                         = backend_destroy;
 	vk_backend_i.setup                           = backend_setup;
 	vk_backend_i.get_data_frames_count           = backend_get_data_frames_count;
-	vk_backend_i.reset_swapchain                 = backend_reset_swapchain;
+	// vk_backend_i.reset_swapchain                 = backend_reset_swapchain;
 	vk_backend_i.reset_failed_swapchains         = backend_reset_failed_swapchains;
 	vk_backend_i.get_transient_allocators        = backend_get_transient_allocators;
 	vk_backend_i.get_staging_allocator           = backend_get_staging_allocator;

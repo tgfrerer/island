@@ -139,7 +139,7 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
 
-		// --- new swapchain interface
+		// --- modern swapchain interface
 		le_swapchain_handle 		   ( * add_swapchain 		 )(le_backend_o* self, le_swapchain_settings_t * const settings);
 		bool 						   ( * remove_swapchain 	 )(le_backend_o* self, le_swapchain_handle swapchain);
 		// ---
@@ -147,11 +147,12 @@ struct le_backend_vk_api {
 		// return number of in-flight backend data frames
 		size_t                 ( *get_data_frames_count   ) ( le_backend_o *self );
 
-		void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
+		//void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
 		void                   ( *reset_failed_swapchains    ) ( le_backend_o *self );
 		void                   ( *get_swapchain_extent      ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height );
 		le_img_resource_handle ( *get_swapchain_resource    ) ( le_backend_o* self, uint32_t index );
 		uint32_t               ( *get_swapchain_count       ) ( le_backend_o* self );
+
 		bool                   ( *get_swapchain_info        ) ( le_backend_o* self, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_img_resource_handle * p_handlle );
 
 
