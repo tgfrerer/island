@@ -4293,13 +4293,23 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		        .build() );
 	}
 
-		// For all passes - set pass width/height to swapchain width/height if not known.
-		// Only extents of swapchain[0] are used to infer extents for renderpasses which lack extents info
+	{
+
+		// For all passes - set pass width/height to swapchain width/height if not explicitly set.
+
+		// FIXME: this should be taking into account the rendergraph: any renderpasses which have no
+		// extents must take on the greater extent of any renderpasses they draw into.
+		// we must follow this from the back, so that if nothing is defined, the extent of the swapchain
+		// is applied to all renderpasses that don't have an explicitly defined extent.
+
+		static constexpr uint32_t DEFAULT_RENDERPASS_WIDTH  = 1024;
+		static constexpr uint32_t DEFAULT_RENDERPASS_HEIGHT = 1024;
+
 		patch_renderpass_extents(
 		    passes,
 		    numRenderPasses,
-		    frame.swapchain_state[ 0 ].surface_width,
-		    frame.swapchain_state[ 0 ].surface_height );
+		    DEFAULT_RENDERPASS_WIDTH,
+		    DEFAULT_RENDERPASS_HEIGHT );
 	}
 
 	// Note: this consumes frame.declared_resources
