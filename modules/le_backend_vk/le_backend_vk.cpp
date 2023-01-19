@@ -6591,7 +6591,6 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 	auto semaphore_names   = get_semaphore_names();
 	auto semaphore_indices = get_semaphore_indices();
 
-	uint32_t f_idx = 0;
 	for ( auto const& f : backend->mFrames ) {
 		for ( size_t i = 0; i != f.swapchain_state.size(); i++ ) {
 			{
@@ -6617,7 +6616,6 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 				}
 			}
 		}
-		f_idx++;
 	}
 
 	return get_semaphore_names();
