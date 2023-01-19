@@ -480,6 +480,8 @@ struct BackendFrameData {
 
 	std::vector<swapchain_state_t> swapchain_state;
 
+	std::unordered_map<uint64_t, swapchain_state_t> modern_swapchain_state;
+
 	struct Texture {
 		VkSampler   sampler;
 		VkImageView imageView;
@@ -558,6 +560,7 @@ struct modern_swapchain_data_t {
 	VkSurfaceKHR       swapchain_surface;        // owned, optional
 	uint32_t           height;
 	uint32_t           width;
+	le_img_resource_handle swapchain_image;
 };
 
 /// \brief backend data object
@@ -571,12 +574,11 @@ struct le_backend_o {
 	uint32_t                               queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
 	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
 
-	std::vector<le_swapchain_o*> swapchains; // Owning.
-
 	std::atomic<uint64_t>                                 modern_swapchains_next_handle; // monotonically increasing handle to index modern_swapchains
 	std::unordered_map<uint64_t, modern_swapchain_data_t> modern_swapchains;             // Container of owned swapchains. Access only on the main thread.
 
-	std::vector<VkSurfaceKHR> windowSurfaces; // owning. one per window swapchain.
+	std::vector<le_swapchain_o*> swapchains;     // Owning.
+	std::vector<VkSurfaceKHR>    windowSurfaces; // owning. one per window swapchain.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
@@ -807,6 +809,14 @@ static void backend_destroy( le_backend_o* self ) {
 		frameData.swapchain_state.clear();
 
 		{
+			for ( auto& [ k, swapchain_state ] : frameData.modern_swapchain_state ) {
+				vkDestroySemaphore( device, swapchain_state.presentComplete, nullptr );
+				vkDestroySemaphore( device, swapchain_state.renderComplete, nullptr );
+			}
+			frameData.modern_swapchain_state.clear();
+		}
+
+		{
 			for ( auto& cp : frameData.available_command_pools ) {
 				vkDestroyCommandPool( device, cp->pool, nullptr );
 				delete cp;
@@ -1012,15 +1022,23 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	assert( swapchain );
 
+	auto swapchain_index = ++self->modern_swapchains_next_handle; // note pre-increment
+
+	char swapchain_name[ 64 ];
+
+	snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Modern_Swapchain_Image_Handle[%lu]", swapchain_index );
+
 	modern_swapchain_data_t modern_swapchain_info{
 	    .swapchain                = swapchain,
 	    .swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
 	    .swapchain_surface        = maybe_swapchain_surface,
 	    .height                   = swapchain_i.get_image_width( swapchain ),
 	    .width                    = swapchain_i.get_image_height( swapchain ),
+	    .swapchain_image =
+	        le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot ),
 	};
 
-	auto swapchain_index               = ++self->modern_swapchains_next_handle; // note pre-increment
+	// Add new modern swapchain
 	const auto& [ pair, was_emplaced ] = self->modern_swapchains.emplace( swapchain_index, modern_swapchain_info );
 
 	if ( !was_emplaced ) {
@@ -1029,8 +1047,6 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	// We must hand out a swapchain handle - the handle is just a (unique) number,
 	// and we use it to remove the swapchain if needed.
-
-	// TODO: add code to remove the swapchain when destroying
 
 	return reinterpret_cast<le_swapchain_handle>( swapchain_index );
 }
@@ -1044,6 +1060,7 @@ static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle sw
 	if ( it != self->modern_swapchains.end() ) {
 		backend_destroy_modern_swapchain( self, it->second );
 		self->modern_swapchains.erase( it );
+
 		return true;
 	} else {
 		return false;
@@ -4023,6 +4040,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	auto& frame = self->mFrames[ frameIndex ];
 
+	static VkDevice device = self->device->getVkDevice();
 	// We try to acquire all images, even if one of the acquisitions fails.
 	//
 	// This is so that every semaphore for presentComplete is correctly
@@ -4041,6 +4059,44 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 			frame.swapchain_state[ i ].acquire_successful = false;
 		} else {
 			frame.swapchain_state[ i ].acquire_successful = true;
+		}
+	}
+
+	for ( auto& [ key, swapchain ] : self->modern_swapchains ) {
+		// auto& swapchain_state = frame.modern_swapchain_state.at( key );
+
+		auto const& [ swapchain_state, was_inserted ] = frame.modern_swapchain_state.emplace( key, swapchain_state_t{} );
+
+		if ( was_inserted ) {
+
+			// Create swapchain state dynamically if it did not yet exist.
+
+			// Is this also where we should get rid of swapchain state if there is no backing
+			// swapchain for it?
+
+			// TODO: is this the right place to remove orphaned swapchain state?
+
+			VkSemaphoreCreateInfo const create_info = {
+			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+			    .pNext = nullptr, // optional
+			    .flags = 0,       // optional
+			};
+
+			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.presentComplete );
+			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.renderComplete );
+
+			swapchain_state->second.surface_width  = swapchain.width;
+			swapchain_state->second.surface_height = swapchain.height;
+		}
+
+		if ( !swapchain_i.acquire_next_image(
+		         swapchain.swapchain,
+		         swapchain_state->second.presentComplete,
+		         &swapchain_state->second.image_idx ) ) {
+			acquire_success                            = false;
+			swapchain_state->second.acquire_successful = false;
+		} else {
+			swapchain_state->second.acquire_successful = true;
 		}
 	}
 
@@ -4194,7 +4250,6 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		}
 	}
 
-	VkDevice device = self->device->getVkDevice();
 
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_transient_resources( frame, device, passes, numRenderPasses );
