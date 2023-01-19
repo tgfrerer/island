@@ -143,6 +143,7 @@ struct le_backend_vk_api {
 		le_swapchain_handle 		   ( * add_swapchain 		 )(le_backend_o* self, le_swapchain_settings_t * const settings);
 		bool 						   ( * remove_swapchain 	 )(le_backend_o* self, le_swapchain_handle swapchain);
 		le_img_resource_handle 		   ( * get_swapchain_resource )( le_backend_o* self, le_swapchain_handle swapchain );
+		void                   ( *get_swapchain_extent      ) ( le_backend_o* self, le_swapchain_handle swapchain, uint32_t * p_width, uint32_t * p_height );
 		// ---
 
 		// return number of in-flight backend data frames
@@ -150,10 +151,11 @@ struct le_backend_vk_api {
 
 		//void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
 		void                   ( *reset_failed_swapchains    ) ( le_backend_o *self );
-		void                   ( *get_swapchain_extent      ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height );
+		void                   ( *get_swapchain_extent_deprecated      ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height );
 		le_img_resource_handle ( *get_swapchain_resource_deprecated    ) ( le_backend_o* self, uint32_t index );
 		uint32_t               ( *get_swapchain_count       ) ( le_backend_o* self );
 
+		// TODO: this is called from the rendergraph to patch renderpass sizes - we should find a better way to do this.
 		bool                   ( *get_swapchain_info        ) ( le_backend_o* self, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_img_resource_handle * p_handlle );
 
 

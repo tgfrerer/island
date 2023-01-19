@@ -653,15 +653,23 @@ static le_img_resource_handle renderer_get_swapchain_resource( le_renderer_o* se
 
 // ----------------------------------------------------------------------
 
-static void renderer_get_swapchain_extent( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height ) {
+static void renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height ) {
 	using namespace le_backend_vk;
-	vk_backend_i.get_swapchain_extent( self->backend, index, p_width, p_height );
+	vk_backend_i.get_swapchain_extent( self->backend, swapchain, p_width, p_height );
 }
+// ----------------------------------------------------------------------
+
+static void renderer_get_swapchain_extent_deprecated( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height ) {
+	using namespace le_backend_vk;
+	vk_backend_i.get_swapchain_extent_deprecated( self->backend, index, p_width, p_height );
+}
+// ----------------------------------------------------------------------
 
 static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t* const settings ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.add_swapchain( self->backend, settings );
 };
+// ----------------------------------------------------------------------
 
 static bool renderer_remove_swapchain( le_renderer_o* self, le_swapchain_handle swapchain ) {
 	using namespace le_backend_vk;
@@ -862,7 +870,9 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.get_swapchain_count    = renderer_get_swapchain_count;
 	le_renderer_i.get_swapchain_resource_deprecated = renderer_get_swapchain_resource_deprecated;
 
-	le_renderer_i.get_swapchain_extent   = renderer_get_swapchain_extent;
+	le_renderer_i.get_swapchain_extent            = renderer_get_swapchain_extent;
+	le_renderer_i.get_swapchain_extent_deprecated = renderer_get_swapchain_extent_deprecated;
+
 	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
 	le_renderer_i.get_backend            = renderer_get_backend;
 

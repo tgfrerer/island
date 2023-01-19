@@ -1076,11 +1076,33 @@ static size_t backend_get_data_frames_count( le_backend_o* self ) {
 // ----------------------------------------------------------------------
 // Returns the current swapchain width and height.
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
-static void backend_get_swapchain_extent( le_backend_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height ) {
+static void backend_get_swapchain_extent_deprecated( le_backend_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height ) {
 	*p_width  = self->swapchainWidth[ index ];
 	*p_height = self->swapchainHeight[ index ];
 }
 
+// ----------------------------------------------------------------------
+// Returns the current swapchain width and height.
+// Both values are cached, and re-calculated whenever the swapchain is set / or reset.
+static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handle swapchain_handle, uint32_t* p_width, uint32_t* p_height ) {
+	static auto logger = LeLog( LOGGER_LABEL );
+
+	if ( swapchain_handle ) {
+		auto& swp = self->modern_swapchains.at( reinterpret_cast<uint64_t>( swapchain_handle ) );
+		*p_width  = swp.width;
+		*p_height = swp.height;
+
+	} else if ( !self->modern_swapchains.empty() ) {
+
+		auto& swp = self->modern_swapchains.begin()->second;
+		*p_width  = swp.width;
+		*p_height = swp.height;
+
+	} else {
+		// TODO: we should warn that there is no available swapchain!
+		logger.error( "Could not find swapchain extents" );
+	}
+}
 // ----------------------------------------------------------------------
 
 bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
@@ -7630,13 +7652,14 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
 	vk_backend_i.get_swapchain_resource_deprecated = backend_get_swapchain_resource_deprecated;
-	vk_backend_i.get_swapchain_extent              = backend_get_swapchain_extent;
+	vk_backend_i.get_swapchain_extent_deprecated   = backend_get_swapchain_extent_deprecated;
 	vk_backend_i.get_swapchain_count               = backend_get_swapchain_count;
 	vk_backend_i.get_swapchain_info                = backend_get_swapchain_info;
 
-	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
 	vk_backend_i.add_swapchain          = backend_add_swapchain;
 	vk_backend_i.remove_swapchain = backend_remove_swapchain;
+	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
+	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;

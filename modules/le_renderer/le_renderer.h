@@ -42,11 +42,13 @@ struct le_renderer_api {
 		/// returns the image resource handle for a swapchain at given index
 		uint32_t                       ( *get_swapchain_count     )( le_renderer_o* self);
 		le_img_resource_handle         ( *get_swapchain_resource_deprecated  )( le_renderer_o* self, uint32_t index );
-		void                           ( *get_swapchain_extent    )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
+		void                           ( *get_swapchain_extent_deprecated    )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
 		le_backend_o*                  ( *get_backend             )( le_renderer_o* self );
 
 		// --- new swapchain interface
 		le_img_resource_handle         ( * get_swapchain_resource)( le_renderer_o* self, le_swapchain_handle swapchain);
+		void                           ( * get_swapchain_extent  )( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height );
+
 		le_swapchain_handle 		   ( * add_swapchain 		 )(le_renderer_o* self, le_swapchain_settings_t * const settings);
 		bool 						   ( * remove_swapchain 	 )(le_renderer_o* self, le_swapchain_handle swapchain);
 		// ---
@@ -266,13 +268,13 @@ class Renderer {
 		return le_renderer::renderer_i.get_swapchain_resource( self, swapchain );
 	}
 
-	void getSwapchainExtent( uint32_t* pWidth, uint32_t* pHeight, uint32_t index = 0 ) const {
-		le_renderer::renderer_i.get_swapchain_extent( self, index, pWidth, pHeight );
+	void getSwapchainExtent( uint32_t* pWidth, uint32_t* pHeight, le_swapchain_handle swapchain = nullptr ) const {
+		le_renderer::renderer_i.get_swapchain_extent( self, swapchain, pWidth, pHeight );
 	}
 
-	const le::Extent2D getSwapchainExtent( uint32_t index = 0 ) const {
+	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {
 		le::Extent2D result;
-		le_renderer::renderer_i.get_swapchain_extent( self, index, &result.width, &result.height );
+		le_renderer::renderer_i.get_swapchain_extent( self, swapchain, &result.width, &result.height );
 		return result;
 	}
 
