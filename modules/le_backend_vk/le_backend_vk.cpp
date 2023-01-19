@@ -585,7 +585,7 @@ struct le_backend_o {
 	std::vector<VkFormat>               swapchainImageFormat; ///< default image format used for swapchain (backbuffer image must be in this format)
 	std::vector<uint32_t>               swapchainWidth;       ///< swapchain width gathered when setting/resetting swapchain
 	std::vector<uint32_t>               swapchainHeight;      ///< swapchain height gathered when setting/resetting swapchain
-	std::vector<le_img_resource_handle> swapchain_resources;  ///< resource handle for image associated with each swapchain
+	std::vector<le_img_resource_handle> swapchain_resources_deprecated; ///< resource handle for image associated with each swapchain
 
 	le::Format defaultFormatColorAttachment        = {}; ///< default image format used for color attachments
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
@@ -1085,31 +1085,55 @@ static void backend_get_swapchain_extent( le_backend_o* self, uint32_t index, ui
 
 bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
-	if ( *count < self->swapchain_resources.size() ) {
-		*count = uint32_t( self->swapchain_resources.size() );
+	if ( *count < self->swapchain_resources_deprecated.size() ) {
+		*count = uint32_t( self->swapchain_resources_deprecated.size() );
 		return false;
 	}
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
 
-	uint32_t num_items = *count = uint32_t( self->swapchain_resources.size() );
+	uint32_t num_items = *count = uint32_t( self->swapchain_resources_deprecated.size() );
 
 	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * num_items );
 	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * num_items );
-	memcpy( p_handle, self->swapchain_resources.data(), sizeof( le_resource_handle ) * num_items );
+	memcpy( p_handle, self->swapchain_resources_deprecated.data(), sizeof( le_resource_handle ) * num_items );
 
 	return true;
 }
 // ----------------------------------------------------------------------
 
-static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self, uint32_t index ) {
-	return self->swapchain_resources[ index ];
+static le_img_resource_handle backend_get_swapchain_resource_deprecated( le_backend_o* self, uint32_t index ) {
+	return self->swapchain_resources_deprecated[ index ];
+}
+
+// ----------------------------------------------------------------------
+
+static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self, le_swapchain_handle swapchain_handle ) {
+
+	if ( swapchain_handle ) {
+
+		auto it = self->modern_swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
+		if ( it != self->modern_swapchains.end() ) {
+			return it->second.swapchain_image;
+		}
+
+	} else {
+		// if no swapchain handle given, return the first available swapchain
+
+		if ( !self->modern_swapchains.empty() ) {
+			return self->modern_swapchains.begin()->second.swapchain_image;
+		} else {
+			return nullptr;
+		}
+	}
+
+	return nullptr;
 }
 
 // ----------------------------------------------------------------------
 
 static uint32_t backend_get_swapchain_count( le_backend_o* self ) {
-	return uint32_t( self->swapchain_resources.size() );
+	return uint32_t( self->swapchain_resources_deprecated.size() );
 }
 
 // ----------------------------------------------------------------------
@@ -1380,12 +1404,12 @@ static void backend_setup( le_backend_o* self ) {
 	{
 		// Create image handles for swapchain images
 
-		self->swapchain_resources.reserve( self->swapchains.size() );
+		self->swapchain_resources_deprecated.reserve( self->swapchains.size() );
 		char swapchain_name[ 64 ];
 
 		for ( uint32_t j = 0; j != self->swapchains.size(); j++ ) {
 			snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Swapchain_Image_Handle[%d]", j );
-			self->swapchain_resources.emplace_back(
+			self->swapchain_resources_deprecated.emplace_back(
 			    le_renderer::renderer_i.produce_img_resource_handle(
 			        swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot ) );
 		}
@@ -4137,7 +4161,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		frame.swapchain_state[ i ].surface_width  = swapchain_i.get_image_width( self->swapchains[ i ] );
 		frame.swapchain_state[ i ].surface_height = swapchain_i.get_image_height( self->swapchains[ i ] );
 
-		auto const& img_resource_handle = self->swapchain_resources[ i ];
+		auto const& img_resource_handle = self->swapchain_resources_deprecated[ i ];
 
 		frame.availableResources[ img_resource_handle ].as.image =
 		    swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
@@ -4206,7 +4230,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 		// -- build sync chain for each resource, create explicit sync barrier requests for resources
 		// which cannot be impliciltly synced.
-		frame_track_resource_state( frame, passes, numRenderPasses, self->swapchain_resources );
+		frame_track_resource_state( frame, passes, numRenderPasses, self->swapchain_resources_deprecated );
 
 		// At this point we know the state for each resource at the end of the sync chain.
 		// this state will be the initial state for the resource
@@ -4233,7 +4257,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 					res->second.state = resSyncList.back();
 				} else {
 
-					assert( std::find( self->swapchain_resources.begin(), self->swapchain_resources.end(), resId ) != self->swapchain_resources.end() ||
+					assert( std::find( self->swapchain_resources_deprecated.begin(), self->swapchain_resources_deprecated.end(), resId ) != self->swapchain_resources_deprecated.end() ||
 					        resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
 
 					// Frame local resource must be available as a backend resource,
@@ -7595,12 +7619,13 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.update_shader_modules = backend_update_shader_modules;
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
-	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
-	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
-	vk_backend_i.get_swapchain_count    = backend_get_swapchain_count;
-	vk_backend_i.get_swapchain_info     = backend_get_swapchain_info;
+	vk_backend_i.get_swapchain_resource_deprecated = backend_get_swapchain_resource_deprecated;
+	vk_backend_i.get_swapchain_extent              = backend_get_swapchain_extent;
+	vk_backend_i.get_swapchain_count               = backend_get_swapchain_count;
+	vk_backend_i.get_swapchain_info                = backend_get_swapchain_info;
 
-	vk_backend_i.add_swapchain    = backend_add_swapchain;
+	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
+	vk_backend_i.add_swapchain          = backend_add_swapchain;
 	vk_backend_i.remove_swapchain = backend_remove_swapchain;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
