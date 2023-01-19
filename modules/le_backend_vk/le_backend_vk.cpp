@@ -7493,6 +7493,29 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			    } );
 		}
 
+		// apply modern swapchain wait semaphores
+		for ( auto const& [ key, swp ] : frame.modern_swapchain_state ) {
+
+			wait_present_complete_semaphore_submit_infos.push_back(
+			    {
+			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			        .pNext       = nullptr,
+			        .semaphore   = swp.presentComplete,
+			        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
+			        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
+			        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
+			    } );
+			render_complete_semaphore_submit_infos.push_back(
+			    {
+			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			        .pNext       = nullptr,
+			        .semaphore   = swp.renderComplete,
+			        .value       = 0,                                  // ignored, as this semaphore is not a timeline semaphore
+			        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
+			        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
+			    } );
+		}
+
 		// On default draw queue, wait for all timeline semaphores before signalling render complete.
 
 		VkSubmitInfo2 submitInfo{
@@ -7619,6 +7642,23 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			        &frame.swapchain_state[ i ].image_idx );
 
 			frame.swapchain_state[ i ].present_successful = result;
+
+			overall_result &= result;
+		}
+
+		// submit frame for present using the modern swapchain
+		for ( auto& [ key, swp ] : self->modern_swapchains ) {
+
+			auto& swp_state = frame.modern_swapchain_state.at( key );
+
+			bool result =
+			    swapchain_i.present(
+			        swp.swapchain,
+			        graphics_queue, // we must present on a queue which has present enabled, graphics queue should fit the bill.
+			        swp_state.renderComplete,
+			        &swp_state.image_idx );
+
+			swp_state.present_successful = result;
 
 			overall_result &= result;
 		}
