@@ -479,8 +479,6 @@ struct BackendFrameData {
 	std::vector<PerQueueSubmissionData> queue_submission_data;
 	std::vector<CommandPool*>           available_command_pools; // Owning. reset on frame recycle, delete all objects on BackendFrameData::destroy
 
-	std::vector<swapchain_state_t> swapchain_state;
-
 	std::unordered_map<uint64_t, swapchain_state_t> modern_swapchain_state;
 
 	struct Texture {
@@ -803,11 +801,6 @@ static void backend_destroy( le_backend_o* self ) {
 
 		vkDestroyFence( device, frameData.frameFence, nullptr );
 
-		for ( auto& swapchain_state : frameData.swapchain_state ) {
-			vkDestroySemaphore( device, swapchain_state.presentComplete, nullptr );
-			vkDestroySemaphore( device, swapchain_state.renderComplete, nullptr );
-		}
-		frameData.swapchain_state.clear();
 
 		{
 			for ( auto& [ k, swapchain_state ] : frameData.modern_swapchain_state ) {
@@ -1126,20 +1119,18 @@ static uint32_t backend_get_swapchain_count( le_backend_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_reset_swapchain( le_backend_o* self, uint32_t index ) {
+static void backend_reset_swapchain( le_backend_o* self, le_swapchain_o* swapchain ) {
 	using namespace le_swapchain_vk;
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	assert( index < self->swapchains.size() );
+	swapchain_i.reset( swapchain, nullptr );
 
-	swapchain_i.reset( self->swapchains[ index ], nullptr );
-
-	logger.info( "Resetting swapchain with index: %d", index );
+	logger.info( "Resetting swapchain: %x", swapchain );
 
 	// We must update our cached values for swapchain dimensions if the swapchain was reset.
 
-	self->swapchainWidth[ index ]  = swapchain_i.get_image_width( self->swapchains[ index ] );
-	self->swapchainHeight[ index ] = swapchain_i.get_image_height( self->swapchains[ index ] );
+	//	self->swapchainWidth[ index ]  = swapchain_i.get_image_width( self->swapchains[ index ] );
+	//	self->swapchainHeight[ index ] = swapchain_i.get_image_height( self->swapchains[ index ] );
 }
 
 // ----------------------------------------------------------------------
@@ -1148,12 +1139,16 @@ static void backend_reset_swapchain( le_backend_o* self, uint32_t index ) {
 static void backend_reset_failed_swapchains( le_backend_o* self ) {
 	using namespace le_swapchain_vk;
 
-	for ( uint32_t i = 0; i != self->swapchains.size(); ++i ) {
-		for ( auto const& f : self->mFrames ) {
-			if ( false == f.swapchain_state[ i ].present_successful ||
-			     false == f.swapchain_state[ i ].acquire_successful ) {
-				backend_reset_swapchain( self, i );
-				break;
+	for ( auto const& f : self->mFrames ) {
+
+		for ( auto [ key, swapchain_state ] : f.modern_swapchain_state ) {
+			if ( false == swapchain_state.present_successful ||
+			     false == swapchain_state.acquire_successful ) {
+
+				auto it = self->modern_swapchains.find( key );
+				if ( it != self->modern_swapchains.end() ) {
+					backend_reset_swapchain( self, it->second.swapchain );
+				}
 			}
 		}
 	}
@@ -1407,22 +1402,6 @@ static void backend_setup( le_backend_o* self ) {
 
 		BackendFrameData frameData{};
 		frameData.frameNumber = i;
-
-		{
-			// Set up swapchain state per frame
-			//
-			frameData.swapchain_state.resize( self->swapchains.size() );
-			VkSemaphoreCreateInfo const create_info = {
-			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			    .pNext = nullptr, // optional
-			    .flags = 0,       // optional
-			};
-
-			for ( auto& state : frameData.swapchain_state ) {
-				vkCreateSemaphore( vkDevice, &create_info, nullptr, &state.presentComplete );
-				vkCreateSemaphore( vkDevice, &create_info, nullptr, &state.renderComplete );
-			}
-		}
 
 		{
 			VkFenceCreateInfo create_info = {
@@ -6584,34 +6563,36 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 
 	auto semaphore_names   = get_semaphore_names();
 	auto semaphore_indices = get_semaphore_indices();
-
-	for ( auto const& f : backend->mFrames ) {
-		for ( size_t i = 0; i != f.swapchain_state.size(); i++ ) {
-			{
-				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].presentComplete, uint32_t( semaphore_indices->size() ) );
-				if ( it.second ) {
-					// if an element was inserted
-					semaphore_names->push_back( "PRESENT_COMPLETE" );
-					assert( semaphore_names->size() == semaphore_indices->size() );
-				} else {
-					( *semaphore_names )[ it.first->second ] = "PRESENT_COMPLETE";
-					assert( semaphore_names->size() == semaphore_indices->size() );
-				}
-			}
-			{
-				auto it = semaphore_indices->emplace( f.swapchain_state[ i ].renderComplete, uint32_t( semaphore_indices->size() ) );
-				if ( it.second ) {
-					// if an element was inserted
-					semaphore_names->push_back( "RENDER_COMPLETE" );
-					assert( semaphore_names->size() == semaphore_indices->size() );
-				} else {
-					( *semaphore_names )[ it.first->second ] = "RENDER_COMPLETE";
-					assert( semaphore_names->size() == semaphore_indices->size() );
-				}
-			}
-		}
-	}
-
+	/*
+	 * TODO: update this to use modern_swapchains
+	 *
+	    for ( auto const& f : backend->mFrames ) {
+	        for ( size_t i = 0; i != f.swapchain_state.size(); i++ ) {
+	            {
+	                auto it = semaphore_indices->emplace( f.swapchain_state[ i ].presentComplete, uint32_t( semaphore_indices->size() ) );
+	                if ( it.second ) {
+	                    // if an element was inserted
+	                    semaphore_names->push_back( "PRESENT_COMPLETE" );
+	                    assert( semaphore_names->size() == semaphore_indices->size() );
+	                } else {
+	                    ( *semaphore_names )[ it.first->second ] = "PRESENT_COMPLETE";
+	                    assert( semaphore_names->size() == semaphore_indices->size() );
+	                }
+	            }
+	            {
+	                auto it = semaphore_indices->emplace( f.swapchain_state[ i ].renderComplete, uint32_t( semaphore_indices->size() ) );
+	                if ( it.second ) {
+	                    // if an element was inserted
+	                    semaphore_names->push_back( "RENDER_COMPLETE" );
+	                    assert( semaphore_names->size() == semaphore_indices->size() );
+	                } else {
+	                    ( *semaphore_names )[ it.first->second ] = "RENDER_COMPLETE";
+	                    assert( semaphore_names->size() == semaphore_indices->size() );
+	                }
+	            }
+	        }
+	    }
+	*/
 	return get_semaphore_names();
 };
 
@@ -7361,26 +7342,6 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	render_complete_semaphore_submit_infos.reserve( frame.modern_swapchain_state.size() );
 
 	{
-		for ( auto const& swp : frame.swapchain_state ) {
-			wait_present_complete_semaphore_submit_infos.push_back(
-			    {
-			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-			        .pNext       = nullptr,
-			        .semaphore   = swp.presentComplete,
-			        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
-			        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
-			        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
-			    } );
-			render_complete_semaphore_submit_infos.push_back(
-			    {
-			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-			        .pNext       = nullptr,
-			        .semaphore   = swp.renderComplete,
-			        .value       = 0,                                  // ignored, as this semaphore is not a timeline semaphore
-			        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
-			        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
-			    } );
-		}
 
 		// apply modern swapchain wait semaphores
 		for ( auto const& [ key, swp ] : frame.modern_swapchain_state ) {
@@ -7521,21 +7482,6 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		// submit frame for present using the graphics queue
 		using namespace le_swapchain_vk;
 
-		for ( size_t i = 0; i != self->swapchains.size(); i++ ) {
-
-			bool result =
-			    swapchain_i.present(
-			        self->swapchains[ i ],
-			        graphics_queue, // we must present on a queue which has present enabled, graphics queue should fit the bill.
-			        render_complete_semaphore_submit_infos[ i ].semaphore,
-			        &frame.swapchain_state[ i ].image_idx );
-
-			frame.swapchain_state[ i ].present_successful = result;
-
-			overall_result &= result;
-		}
-
-		// submit frame for present using the modern swapchain
 		for ( auto& [ key, swp ] : self->modern_swapchains ) {
 
 			auto& swp_state = frame.modern_swapchain_state.at( key );
