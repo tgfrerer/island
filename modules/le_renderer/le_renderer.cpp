@@ -168,6 +168,9 @@ static le_renderer_o* renderer_create() {
 		le_jobs::initialize( LE_MT );
 	}
 
+	using namespace le_backend_vk;
+	obj->backend = vk_backend_i.create();
+
 	return obj;
 }
 
@@ -369,8 +372,6 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 	{
 		// Set up the backend
 
-		using namespace le_backend_vk;
-		self->backend = vk_backend_i.create();
 
 		for ( size_t i = 0; i < settings.num_swapchain_settings; i++ ) {
 			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( &settings.swapchain_settings[ i ] );
@@ -382,14 +383,10 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
 #endif
 
-		vk_backend_i.setup( self->backend );
+		le_backend_vk::vk_backend_i.setup( self->backend );
 	}
 
-	using namespace le_backend_vk;
-
-	// Since backend setup implicitly sets up the swapchain,
-	// we may now query the available number of swapchain images.
-	self->backendDataFramesCount = vk_backend_i.get_data_frames_count( self->backend );
+	self->backendDataFramesCount = le_backend_vk::vk_backend_i.get_data_frames_count( self->backend );
 
 	using namespace le_renderer; // for rendergraph_i
 	self->frames.reserve( self->backendDataFramesCount );
@@ -653,12 +650,14 @@ static void renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_han
 
 static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t* const settings ) {
 	using namespace le_backend_vk;
+	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.add_swapchain( self->backend, settings );
 };
 // ----------------------------------------------------------------------
 
 static bool renderer_remove_swapchain( le_renderer_o* self, le_swapchain_handle swapchain ) {
 	using namespace le_backend_vk;
+	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.remove_swapchain( self->backend, swapchain );
 };
 
