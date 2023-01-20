@@ -999,7 +999,7 @@ static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handl
 }
 // ----------------------------------------------------------------------
 
-bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
+bool backend_get_swapchains_infos( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
 	uint32_t total_number_of_swapchains = uint32_t( self->modern_swapchains.size() );
 
@@ -7518,7 +7518,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.remove_swapchain            = backend_remove_swapchain;
 	vk_backend_i.get_swapchain_extent        = backend_get_swapchain_extent;
 	vk_backend_i.get_swapchain_resource      = backend_get_swapchain_resource;
-	vk_backend_i.get_swapchain_info          = backend_get_swapchain_info;
+	vk_backend_i.get_swapchains_infos        = backend_get_swapchains_infos;
 	vk_backend_i.acquire_swapchain_resources = backend_acquire_swapchain_resources;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;

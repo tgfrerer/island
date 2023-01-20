@@ -970,7 +970,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 		swapchain_image_height.resize( num_swapchain_images );
 		swapchain_image_width.resize( num_swapchain_images );
 	} while ( false ==
-	          vk_backend_i.get_swapchain_info(
+	          vk_backend_i.get_swapchains_infos(
 	              backend,
 	              &num_swapchain_images,
 	              swapchain_image_width.data(),
