@@ -7560,7 +7560,6 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	auto& backend_settings_i                                        = api_i->le_backend_settings_i;
 	backend_settings_i.add_required_device_extension                = le_backend_vk_settings_add_required_device_extension;
 	backend_settings_i.add_required_instance_extension              = le_backend_vk_settings_add_required_instance_extension;
-	backend_settings_i.add_swapchain_setting                        = le_backend_vk_settings_add_swapchain_setting;
 	backend_settings_i.get_requested_physical_device_features_chain = le_backend_vk_get_requested_physical_device_features_chain;
 	backend_settings_i.set_concurrency_count                        = le_backend_vk_settings_set_concurrency_count;
 	backend_settings_i.get_requested_queue_capabilities             = le_backend_vk_settings_get_requested_queue_capabilities;

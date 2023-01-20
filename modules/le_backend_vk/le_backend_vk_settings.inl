@@ -33,7 +33,6 @@ struct le_backend_vk_settings_o {
 	    //	    VK_QUEUE_COMPUTE_BIT,
 	}; // each entry stands for one queue and its capabilities
 
-	std::vector<le_swapchain_settings_t> swapchain_settings;
 
 	uint32_t                             concurrency_count = 1; // number of potential worker threads
 	std::atomic_bool                     readonly          = false;
@@ -268,17 +267,6 @@ static void le_backend_vk_settings_set_concurrency_count( uint32_t concurrency_c
 
 // ----------------------------------------------------------------------
 
-static bool le_backend_vk_settings_add_swapchain_setting( le_swapchain_settings_t const* settings ) {
-	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
-	if ( self->readonly == false ) {
-		self->swapchain_settings.emplace_back( *settings );
-		return true;
-	} else {
-		static auto logger = LeLog( "le_backend_vk_settings" );
-		logger.error( "Cannot add Swapchain setting" );
-		return false;
-	}
-}
 
 // ----------------------------------------------------------------------
 
