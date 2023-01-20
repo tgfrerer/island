@@ -1032,8 +1032,8 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	    .swapchain                = swapchain,
 	    .swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
 	    .swapchain_surface        = maybe_swapchain_surface,
-	    .height                   = swapchain_i.get_image_width( swapchain ),
-	    .width                    = swapchain_i.get_image_height( swapchain ),
+	    .height                   = swapchain_i.get_image_height( swapchain ),
+	    .width                    = swapchain_i.get_image_width( swapchain ),
 	    .swapchain_image =
 	        le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot ),
 	};
