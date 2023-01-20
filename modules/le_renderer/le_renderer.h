@@ -239,8 +239,12 @@ class Renderer {
 		le_renderer::renderer_i.setup( self, settings );
 	}
 
-	void setup( le_window_o* window ) {
-		le_renderer::renderer_i.setup( self, le::RendererInfoBuilder( window ).build() );
+	void setup( le_window_o* window = nullptr ) {
+		if ( window ) {
+			 le_renderer::renderer_i.setup( self, le::RendererInfoBuilder( window ).build() );
+		} else {
+			 le_renderer::renderer_i.setup( self, le::RendererInfoBuilder().build() );
+		}
 	}
 
 	/// Call this method exactly once per Frame - this is where rendergraph execution callbacks are triggered.

@@ -255,7 +255,7 @@ struct le_swapchain_settings_t {
 
 struct le_renderer_settings_t {
 	le_swapchain_settings_t swapchain_settings[ 16 ] = {};
-	size_t                  num_swapchain_settings   = 1;
+	size_t                  num_swapchain_settings   = 0;
 };
 
 // specifies parameters for an image write operation.
@@ -289,11 +289,13 @@ class RendererInfoBuilder {
 	le_renderer_settings_t   info{};
 	le_renderer_settings_t&  self               = info;
 	le_swapchain_settings_t* swapchain_settings = nullptr;
+	le_window_o*             initial_window     = nullptr;
 
   public:
 	RendererInfoBuilder( le_window_o* window = nullptr )
-	    : swapchain_settings( info.swapchain_settings ) {
-		if ( window != nullptr ) {
+	    : swapchain_settings( info.swapchain_settings )
+	    , initial_window( window ) {
+		if ( window ) {
 			info.swapchain_settings->khr_settings.window = window;
 			info.swapchain_settings->type                = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
 		}
@@ -396,9 +398,7 @@ class RendererInfoBuilder {
 		}
 
 		RendererInfoBuilder& end() {
-			if ( parent.swapchain_settings != &parent.info.swapchain_settings[ 0 ] ) {
-				parent.info.num_swapchain_settings++;
-			}
+			parent.info.num_swapchain_settings++;
 			parent.swapchain_settings++;
 			return parent;
 		}
@@ -411,6 +411,15 @@ class RendererInfoBuilder {
 	}
 
 	le_renderer_settings_t const& build() {
+		// if an initial window was given and nothing else,
+		// we must make sure that the setting still counts.
+		// if the builder pattern was used, then the window
+		// will have been applied to the first element, and
+		// end() will have been called on the Builder, which
+		// will have incremented `num_swapchain_settings`.
+		if ( initial_window && info.num_swapchain_settings == 0 ) {
+			info.num_swapchain_settings = 1;
+		}
 		return info;
 	}
 };
