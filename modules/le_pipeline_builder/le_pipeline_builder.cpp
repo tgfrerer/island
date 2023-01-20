@@ -4,7 +4,7 @@
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
-#include "private/le_renderer_types.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
+#include "private/le_renderer/le_renderer_types.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
 
 #include "le_backend_vk.h" // for access to pipeline state object cache
 

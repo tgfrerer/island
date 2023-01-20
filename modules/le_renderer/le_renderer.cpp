@@ -19,8 +19,8 @@
 #include <cstring> // for memcpy
 #include <bitset>
 
-#include "private/le_resource_handle_t.inl"
-#include "private/le_rendergraph.h"
+#include "private/le_renderer/le_resource_handle_t.inl"
+#include "private/le_renderer/le_rendergraph.h"
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 

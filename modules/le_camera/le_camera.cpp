@@ -1,7 +1,7 @@
 #include "le_camera.h"
 #include "le_core.h"
 
-#include "private/le_renderer_types.h" // for le::Viewport
+#include "private/le_renderer/le_renderer_types.h" // for le::Viewport
 #include "le_ui_event.h"
 
 #include <array>

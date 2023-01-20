@@ -9,7 +9,7 @@
 #include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 #include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
 
-#include "private/le_renderer_types.h"
+#include "private/le_renderer/le_renderer_types.h"
 #include "le_log.h"
 
 #include <iostream>

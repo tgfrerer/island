@@ -6,7 +6,7 @@
 
 #include <vector>
 #include "util/volk/volk.h"
-#include "private/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`, `le_resource_handle`, `LeRenderPassType`
+#include "private/le_renderer/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`, `le_resource_handle`, `LeRenderPassType`
 
 // This struct must be tightly packed, as a arrays of bindings get hashed
 // so that we can get a hash over DescriptorSets.

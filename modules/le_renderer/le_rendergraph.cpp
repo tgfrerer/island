@@ -15,7 +15,7 @@
 #include "le_renderer.h"
 #include "le_backend_vk.h"
 
-#include "private/le_resource_handle_t.inl"
+#include "private/le_renderer/le_resource_handle_t.inl"
 
 static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
@@ -27,7 +27,7 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
-#include "private/le_rendergraph.h"
+#include "private/le_renderer/le_rendergraph.h"
 
 #include "le_log.h"
 
