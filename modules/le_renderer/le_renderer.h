@@ -39,10 +39,6 @@ struct le_renderer_api {
 
         le_renderer_settings_t const * ( *get_settings            )( le_renderer_o* self );
 
-		/// returns the image resource handle for a swapchain at given index
-		uint32_t                       ( *get_swapchain_count     )( le_renderer_o* self);
-		le_img_resource_handle         ( *get_swapchain_resource_deprecated  )( le_renderer_o* self, uint32_t index );
-		void                           ( *get_swapchain_extent_deprecated    )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
 		le_backend_o*                  ( *get_backend             )( le_renderer_o* self );
 
 		// --- new swapchain interface
@@ -256,13 +252,6 @@ class Renderer {
 		return *le_renderer::renderer_i.get_settings( self );
 	}
 
-	uint32_t getSwapchainCount() const {
-		return le_renderer::renderer_i.get_swapchain_count( self );
-	}
-
-	le_img_resource_handle getSwapchainResource( uint32_t index = 0 ) const {
-		return le_renderer::renderer_i.get_swapchain_resource_deprecated( self, index );
-	}
 
 	le_img_resource_handle getSwapchainResource( le_swapchain_handle swapchain ) const {
 		return le_renderer::renderer_i.get_swapchain_resource( self, swapchain );

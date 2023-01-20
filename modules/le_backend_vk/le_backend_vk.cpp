@@ -576,15 +576,9 @@ struct le_backend_o {
 	std::atomic<uint64_t>                                 modern_swapchains_next_handle; // monotonically increasing handle to index modern_swapchains
 	std::unordered_map<uint64_t, modern_swapchain_data_t> modern_swapchains;             // Container of owned swapchains. Access only on the main thread.
 
-	std::vector<le_swapchain_o*> swapchains;     // Owning.
-	std::vector<VkSurfaceKHR>    windowSurfaces; // owning. one per window swapchain.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
-	std::vector<VkFormat>               swapchainImageFormat; ///< default image format used for swapchain (backbuffer image must be in this format)
-	std::vector<uint32_t>               swapchainWidth;       ///< swapchain width gathered when setting/resetting swapchain
-	std::vector<uint32_t>               swapchainHeight;      ///< swapchain height gathered when setting/resetting swapchain
-	std::vector<le_img_resource_handle> swapchain_resources_deprecated; ///< resource handle for image associated with each swapchain
 
 	le::Format defaultFormatColorAttachment        = {}; ///< default image format used for color attachments
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
@@ -699,32 +693,6 @@ static VkBufferUsageFlags defaults_get_buffer_usage_scratch() {
 }
 // ----------------------------------------------------------------------
 
-static void backend_create_window_surface( le_backend_o* self, le_swapchain_settings_t* settings ) {
-
-	assert( settings->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN );
-	assert( settings->khr_settings.window );
-
-	using namespace le_window;
-	VkInstance instance               = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
-	settings->khr_settings.vk_surface = window_i.create_surface( settings->khr_settings.window, instance );
-
-	assert( settings->khr_settings.vk_surface );
-
-	self->windowSurfaces.emplace_back( settings->khr_settings.vk_surface );
-}
-
-// ----------------------------------------------------------------------
-
-static void backend_destroy_window_surfaces( le_backend_o* self ) {
-	static auto logger = LeLog( LOGGER_LABEL );
-
-	for ( auto& surface : self->windowSurfaces ) {
-		VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
-		vkDestroySurfaceKHR( instance, surface, nullptr );
-		logger.info( "Surface %x destroyed", surface );
-	}
-	self->windowSurfaces.clear();
-}
 
 // ----------------------------------------------------------------------
 
@@ -768,28 +736,18 @@ static void backend_destroy( le_backend_o* self ) {
 	VkDevice   device   = self->device->getVkDevice(); // may be nullptr if device was not created
 	VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
 
-	// We must destroy the swapchain before self->mAllocator, as
-	// the swapchain might have allocated memory using the backend's allocator,
-	// and the allocator must still be alive for the swapchain to free objects
-	// alloacted through it.
-
-	for ( auto& s : self->swapchains ) {
-		using namespace le_swapchain_vk;
-		swapchain_i.destroy( s );
-	}
-	self->swapchains.clear();
-
-	// modern swapchain: remove any leftover surfaces
-
 	{
+		// We must destroy the swapchain before self->mAllocator, as
+		// the swapchain might have allocated memory using the backend's allocator,
+		// and the allocator must still be alive for the swapchain to free objects
+		// alloacted through it.
+
 		for ( auto& [ swp_handle, swapchain_info ] : self->modern_swapchains ) {
 			backend_destroy_modern_swapchain( self, swapchain_info );
 		}
 
 		self->modern_swapchains.clear();
 	}
-
-	//
 
 	vkDeviceWaitIdle( self->device.get()->getVkDevice() );
 
@@ -905,11 +863,8 @@ static void backend_destroy( le_backend_o* self ) {
 		self->mAllocator = nullptr;
 	}
 
-	// destroy window surface if there was a window surface
-	backend_destroy_window_surfaces( self );
-
 	{
-		// destroy timeline semaphores which were allocated per-queue
+		// Destroy Timeline Semaphores which were allocated per-queue
 		// and destroy BackendQueueInfo objects which were allocated on the free store
 		for ( auto& q : self->queues ) {
 			vkDestroySemaphore( self->device->getVkDevice(), q->semaphore, nullptr );
@@ -1023,14 +978,6 @@ static size_t backend_get_data_frames_count( le_backend_o* self ) {
 // ----------------------------------------------------------------------
 // Returns the current swapchain width and height.
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
-static void backend_get_swapchain_extent_deprecated( le_backend_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height ) {
-	*p_width  = self->swapchainWidth[ index ];
-	*p_height = self->swapchainHeight[ index ];
-}
-
-// ----------------------------------------------------------------------
-// Returns the current swapchain width and height.
-// Both values are cached, and re-calculated whenever the swapchain is set / or reset.
 static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handle swapchain_handle, uint32_t* p_width, uint32_t* p_height ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -1054,7 +1001,7 @@ static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handl
 
 bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
-	uint32_t total_number_of_swapchains = uint32_t( self->swapchain_resources_deprecated.size() + self->modern_swapchains.size() );
+	uint32_t total_number_of_swapchains = uint32_t( self->modern_swapchains.size() );
 
 	if ( *count < total_number_of_swapchains ) {
 		*count = total_number_of_swapchains;
@@ -1065,14 +1012,6 @@ bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* 
 
 	uint32_t num_items = *count = total_number_of_swapchains;
 
-	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * self->swapchain_resources_deprecated.size() );
-	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * self->swapchain_resources_deprecated.size() );
-	memcpy( p_handle, self->swapchain_resources_deprecated.data(), sizeof( le_resource_handle ) * self->swapchain_resources_deprecated.size() );
-
-	p_width += self->swapchain_resources_deprecated.size();  // increment pointer
-	p_height += self->swapchain_resources_deprecated.size(); // increment pointer
-	p_handle += self->swapchain_resources_deprecated.size(); // increment pointer
-
 	for ( auto& [ key, swp ] : self->modern_swapchains ) {
 		*( p_width++ )  = swp.width;
 		*( p_height++ ) = swp.height;
@@ -1080,11 +1019,6 @@ bool backend_get_swapchain_info( le_backend_o* self, uint32_t* count, uint32_t* 
 	}
 
 	return true;
-}
-// ----------------------------------------------------------------------
-
-static le_img_resource_handle backend_get_swapchain_resource_deprecated( le_backend_o* self, uint32_t index ) {
-	return self->swapchain_resources_deprecated[ index ];
 }
 
 // ----------------------------------------------------------------------
@@ -1109,12 +1043,6 @@ static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self
 	}
 
 	return nullptr;
-}
-
-// ----------------------------------------------------------------------
-
-static uint32_t backend_get_swapchain_count( le_backend_o* self ) {
-	return uint32_t( self->swapchain_resources_deprecated.size() );
 }
 
 // ----------------------------------------------------------------------
@@ -1379,22 +1307,6 @@ static void backend_setup( le_backend_o* self ) {
 	uint32_t memIndexScratchBufferGraphics = getMemoryIndexForGraphicsScratchBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used for transient command buffer allocations
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
-
-	{
-		// Create image handles for swapchain images
-
-		self->swapchain_resources_deprecated.reserve( self->swapchains.size() );
-		char swapchain_name[ 64 ];
-
-		for ( uint32_t j = 0; j != self->swapchains.size(); j++ ) {
-			snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Swapchain_Image_Handle[%d]", j );
-			self->swapchain_resources_deprecated.emplace_back(
-			    le_renderer::renderer_i.produce_img_resource_handle(
-			        swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot ) );
-		}
-
-		// assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
-	}
 
 	for ( size_t i = 0; i != frameCount; ++i ) {
 
@@ -4092,7 +4004,8 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 		// -- build sync chain for each resource, create explicit sync barrier requests for resources
 		// which cannot be implicitly synced.
-		std::vector<le_img_resource_handle> tmp_swapchain_resources{ self->swapchain_resources_deprecated };
+		std::vector<le_img_resource_handle> tmp_swapchain_resources{};
+		tmp_swapchain_resources.reserve( self->modern_swapchains.size() );
 
 		for ( auto& [ key, swp ] : self->modern_swapchains ) {
 			tmp_swapchain_resources.push_back( swp.swapchain_image );
@@ -4645,6 +4558,10 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			swapchain_state->second.acquire_successful = false;
 		} else {
 			swapchain_state->second.acquire_successful = true;
+		}
+
+		if ( !acquire_success ) {
+			continue;
 		}
 
 		// TODO: what happens if we cannot acquire successfully?
@@ -7596,10 +7513,6 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.get_pipeline_cache    = backend_get_pipeline_cache;
 	vk_backend_i.update_shader_modules = backend_update_shader_modules;
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
-
-	vk_backend_i.get_swapchain_resource_deprecated = backend_get_swapchain_resource_deprecated;
-	vk_backend_i.get_swapchain_extent_deprecated   = backend_get_swapchain_extent_deprecated;
-	vk_backend_i.get_swapchain_count               = backend_get_swapchain_count;
 
 	vk_backend_i.add_swapchain               = backend_add_swapchain;
 	vk_backend_i.remove_swapchain            = backend_remove_swapchain;

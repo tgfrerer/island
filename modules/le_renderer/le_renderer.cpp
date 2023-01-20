@@ -635,19 +635,7 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static uint32_t renderer_get_swapchain_count( le_renderer_o* self ) {
-	using namespace le_backend_vk;
-	return vk_backend_i.get_swapchain_count( self->backend );
-}
 
-// ----------------------------------------------------------------------
-
-static le_img_resource_handle renderer_get_swapchain_resource_deprecated( le_renderer_o* self, uint32_t index ) {
-	using namespace le_backend_vk;
-	return vk_backend_i.get_swapchain_resource_deprecated( self->backend, index );
-}
-
-// ----------------------------------------------------------------------
 
 static le_img_resource_handle renderer_get_swapchain_resource( le_renderer_o* self, le_swapchain_handle swapchain ) {
 	using namespace le_backend_vk;
@@ -660,12 +648,7 @@ static void renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_han
 	using namespace le_backend_vk;
 	vk_backend_i.get_swapchain_extent( self->backend, swapchain, p_width, p_height );
 }
-// ----------------------------------------------------------------------
 
-static void renderer_get_swapchain_extent_deprecated( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height ) {
-	using namespace le_backend_vk;
-	vk_backend_i.get_swapchain_extent_deprecated( self->backend, index, p_width, p_height );
-}
 // ----------------------------------------------------------------------
 
 static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t* const settings ) {
@@ -870,11 +853,8 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.setup                  = renderer_setup;
 	le_renderer_i.update                 = renderer_update;
 	le_renderer_i.get_settings           = renderer_get_settings;
-	le_renderer_i.get_swapchain_count    = renderer_get_swapchain_count;
-	le_renderer_i.get_swapchain_resource_deprecated = renderer_get_swapchain_resource_deprecated;
 
 	le_renderer_i.get_swapchain_extent            = renderer_get_swapchain_extent;
-	le_renderer_i.get_swapchain_extent_deprecated = renderer_get_swapchain_extent_deprecated;
 
 	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
 	le_renderer_i.get_backend            = renderer_get_backend;
