@@ -254,8 +254,8 @@ struct le_swapchain_settings_t {
 };
 
 struct le_renderer_settings_t {
-	// le_swapchain_settings_t swapchain_settings[ 16 ] = {};
-	// size_t                  num_swapchain_settings   = 1;
+	le_swapchain_settings_t swapchain_settings[ 16 ] = {};
+	size_t                  num_swapchain_settings   = 1;
 };
 
 // specifies parameters for an image write operation.
@@ -285,135 +285,135 @@ using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 		self->param = param;                                                          \
 		return *this;                                                                 \
 	}
-// class RendererInfoBuilder {
-//	le_renderer_settings_t   info{};
-//	le_renderer_settings_t&  self               = info;
-//	le_swapchain_settings_t* swapchain_settings = nullptr;
-//
-//   public:
-//	RendererInfoBuilder( le_window_o* window = nullptr )
-//	    : swapchain_settings( info.swapchain_settings ) {
-//		if ( window != nullptr ) {
-//			info.swapchain_settings->khr_settings.window = window;
-//			info.swapchain_settings->type                = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
-//		}
-//	}
-//
-//	class SwapchainInfoBuilder {
-//		RendererInfoBuilder&      parent;
-//		le_swapchain_settings_t*& self;
-//
-//	  public:
-//		SwapchainInfoBuilder( RendererInfoBuilder& parent_ )
-//		    : parent( parent_ )
-//		    , self( parent.swapchain_settings ) {
-//		}
-//
-//		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setWidthHint, uint32_t, width_hint, = 640 )
-//		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setHeightHint, uint32_t, height_hint, = 480 )
-//		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
-//		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
-//
-//		class KhrSwapchainInfoBuilder {
-//			SwapchainInfoBuilder& parent;
-//
-//		  public:
-//			KhrSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
-//			    : parent( parent_ ) {
-//			}
-//
-//			KhrSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
-//				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
-//				return *this;
-//			}
-//
-//			KhrSwapchainInfoBuilder& setWindow( le_window_o* window = nullptr ) {
-//				this->parent.parent.swapchain_settings->khr_settings.window = window;
-//				return *this;
-//			}
-//
-//			SwapchainInfoBuilder& end() {
-//				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
-//				return parent;
-//			}
-//		};
-//
-//		class DirectSwapchainInfoBuilder {
-//			SwapchainInfoBuilder& parent;
-//
-//		  public:
-//			DirectSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
-//			    : parent( parent_ ) {
-//			}
-//
-//			DirectSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
-//				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
-//				return *this;
-//			}
-//
-//			SwapchainInfoBuilder& end() {
-//				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
-//				return parent;
-//			}
-//		};
-//
-//		class ImgSwapchainInfoBuilder {
-//			SwapchainInfoBuilder& parent;
-//
-//			static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
-//
-//		  public:
-//			ImgSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
-//			    : parent( parent_ ) {
-//			}
-//
-//			ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
-//				parent.parent.swapchain_settings->img_settings.pipe_cmd = pipe_cmd;
-//				return *this;
-//			}
-//
-//			SwapchainInfoBuilder& end() {
-//				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
-//				return parent;
-//			}
-//		};
-//
-//		DirectSwapchainInfoBuilder mDirectSwapchainInfoBuilder{ *this }; // order matters, last one will be default, because initialisation overwrites.
-//		ImgSwapchainInfoBuilder    mImgSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
-//		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
-//
-//		KhrSwapchainInfoBuilder& asWindowSwapchain() {
-//			return mKhrSwapchainInfoBuilder;
-//		}
-//
-//		ImgSwapchainInfoBuilder& asImgSwapchain() {
-//			mImgSwapchainInfoBuilder.setPipeCmd();
-//			return mImgSwapchainInfoBuilder;
-//		}
-//
-//		DirectSwapchainInfoBuilder& asDirectSwapchain() {
-//			return mDirectSwapchainInfoBuilder;
-//		}
-//
-//		RendererInfoBuilder& end() {
-//			if ( parent.swapchain_settings != &parent.info.swapchain_settings[ 0 ] ) {
-//				parent.info.num_swapchain_settings++;
-//			}
-//			parent.swapchain_settings++;
-//			return parent;
-//		}
-//	};
-//
-//	SwapchainInfoBuilder mSwapchainInfoBuilder{ *this };
-//
-//	SwapchainInfoBuilder& addSwapchain() {
-//		return mSwapchainInfoBuilder;
-//	}
-//
-//	le_renderer_settings_t const& build() {
-//		return info;
-//	}
-// };
+class RendererInfoBuilder {
+	le_renderer_settings_t   info{};
+	le_renderer_settings_t&  self               = info;
+	le_swapchain_settings_t* swapchain_settings = nullptr;
+
+  public:
+	RendererInfoBuilder( le_window_o* window = nullptr )
+	    : swapchain_settings( info.swapchain_settings ) {
+		if ( window != nullptr ) {
+			info.swapchain_settings->khr_settings.window = window;
+			info.swapchain_settings->type                = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
+		}
+	}
+
+	class SwapchainInfoBuilder {
+		RendererInfoBuilder&      parent;
+		le_swapchain_settings_t*& self;
+
+	  public:
+		SwapchainInfoBuilder( RendererInfoBuilder& parent_ )
+		    : parent( parent_ )
+		    , self( parent.swapchain_settings ) {
+		}
+
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setWidthHint, uint32_t, width_hint, = 640 )
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setHeightHint, uint32_t, height_hint, = 480 )
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
+
+		class KhrSwapchainInfoBuilder {
+			SwapchainInfoBuilder& parent;
+
+		  public:
+			KhrSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
+			    : parent( parent_ ) {
+			}
+
+			KhrSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
+				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
+				return *this;
+			}
+
+			KhrSwapchainInfoBuilder& setWindow( le_window_o* window = nullptr ) {
+				this->parent.parent.swapchain_settings->khr_settings.window = window;
+				return *this;
+			}
+
+			SwapchainInfoBuilder& end() {
+				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
+				return parent;
+			}
+		};
+
+		class DirectSwapchainInfoBuilder {
+			SwapchainInfoBuilder& parent;
+
+		  public:
+			DirectSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
+			    : parent( parent_ ) {
+			}
+
+			DirectSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
+				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
+				return *this;
+			}
+
+			SwapchainInfoBuilder& end() {
+				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
+				return parent;
+			}
+		};
+
+		class ImgSwapchainInfoBuilder {
+			SwapchainInfoBuilder& parent;
+
+			static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
+
+		  public:
+			ImgSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
+			    : parent( parent_ ) {
+			}
+
+			ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
+				parent.parent.swapchain_settings->img_settings.pipe_cmd = pipe_cmd;
+				return *this;
+			}
+
+			SwapchainInfoBuilder& end() {
+				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
+				return parent;
+			}
+		};
+
+		DirectSwapchainInfoBuilder mDirectSwapchainInfoBuilder{ *this }; // order matters, last one will be default, because initialisation overwrites.
+		ImgSwapchainInfoBuilder    mImgSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
+		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
+
+		KhrSwapchainInfoBuilder& asWindowSwapchain() {
+			return mKhrSwapchainInfoBuilder;
+		}
+
+		ImgSwapchainInfoBuilder& asImgSwapchain() {
+			mImgSwapchainInfoBuilder.setPipeCmd();
+			return mImgSwapchainInfoBuilder;
+		}
+
+		DirectSwapchainInfoBuilder& asDirectSwapchain() {
+			return mDirectSwapchainInfoBuilder;
+		}
+
+		RendererInfoBuilder& end() {
+			if ( parent.swapchain_settings != &parent.info.swapchain_settings[ 0 ] ) {
+				parent.info.num_swapchain_settings++;
+			}
+			parent.swapchain_settings++;
+			return parent;
+		}
+	};
+
+	SwapchainInfoBuilder mSwapchainInfoBuilder{ *this };
+
+	SwapchainInfoBuilder& addSwapchain() {
+		return mSwapchainInfoBuilder;
+	}
+
+	le_renderer_settings_t const& build() {
+		return info;
+	}
+};
 
 // ----------------------------------------------------------------------
 

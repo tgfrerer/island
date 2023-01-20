@@ -363,6 +363,8 @@ static le_pipeline_manager_o* renderer_get_pipeline_manager( le_renderer_o* self
 
 // ----------------------------------------------------------------------
 
+static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t* const settings );
+
 static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& settings ) {
 
 	// We store swapchain settings with the renderer so that we can pass
@@ -376,7 +378,6 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 		for ( size_t i = 0; i < settings.num_swapchain_settings; i++ ) {
 			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( &settings.swapchain_settings[ i ] );
 			le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( &settings.swapchain_settings[ i ] );
-			api->le_backend_settings_i.add_swapchain_setting( &settings.swapchain_settings[ i ] );
 		}
 
 #if ( LE_MT > 0 )
@@ -398,8 +399,13 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 	}
 
 	self->currentFrameNumber = 0;
-}
 
+	// Add implicitly created swapchains here
+
+	for ( size_t i = 0; i < settings.num_swapchain_settings; i++ ) {
+		renderer_add_swapchain( self, &self->settings.swapchain_settings[ i ] );
+	}
+}
 // ----------------------------------------------------------------------
 
 static le_renderer_settings_t const* renderer_get_settings( le_renderer_o* self ) {

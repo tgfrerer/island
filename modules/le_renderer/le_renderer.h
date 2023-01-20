@@ -252,8 +252,7 @@ class Renderer {
 		return *le_renderer::renderer_i.get_settings( self );
 	}
 
-
-	le_img_resource_handle getSwapchainResource( le_swapchain_handle swapchain ) const {
+	le_img_resource_handle getSwapchainResource( le_swapchain_handle swapchain = nullptr ) const {
 		return le_renderer::renderer_i.get_swapchain_resource( self, swapchain );
 	}
 
