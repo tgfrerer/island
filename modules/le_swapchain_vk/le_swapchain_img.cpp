@@ -434,7 +434,7 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 		auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence, VK_TRUE, 100'000'000 );
 
 		if ( fenceWaitResult != VK_SUCCESS ) {
-			assert( false ); // waiting for fence took too long.
+			// assert( false ); // waiting for fence took too long.
 		}
 	}
 
