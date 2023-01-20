@@ -1021,6 +1021,25 @@ bool backend_get_swapchains_infos( le_backend_o* self, uint32_t* count, uint32_t
 	return true;
 }
 
+bool backend_get_swapchains( le_backend_o* self, size_t* count, le_swapchain_handle* p_swapchain_handles ) {
+
+	uint32_t total_number_of_swapchains = uint32_t( self->modern_swapchains.size() );
+
+	if ( *count < total_number_of_swapchains ) {
+		*count = total_number_of_swapchains;
+		return false;
+	}
+
+	// ---------| invariant: count is equal or larger than number of swapchain resources
+
+	uint32_t num_items = *count = total_number_of_swapchains;
+
+	for ( auto& [ key, swp ] : self->modern_swapchains ) {
+		*( p_swapchain_handles++ ) = reinterpret_cast<le_swapchain_handle>( key );
+	}
+
+	return true;
+}
 // ----------------------------------------------------------------------
 
 static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self, le_swapchain_handle swapchain_handle ) {
@@ -7519,6 +7538,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.get_swapchain_extent        = backend_get_swapchain_extent;
 	vk_backend_i.get_swapchain_resource      = backend_get_swapchain_resource;
 	vk_backend_i.get_swapchains_infos        = backend_get_swapchains_infos;
+	vk_backend_i.get_swapchains              = backend_get_swapchains;
 	vk_backend_i.acquire_swapchain_resources = backend_acquire_swapchain_resources;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
