@@ -146,7 +146,7 @@ struct le_backend_vk_api {
 		void                   ( * get_swapchain_extent     ) ( le_backend_o* self, le_swapchain_handle swapchain, uint32_t * p_width, uint32_t * p_height );
 		
 		// declares all resources belonging to a swapchain and makes them available to the current frame.
-		void 					( *declare_swapchain_resources)(le_backend_o* self, size_t frameIndex);
+		void 					( *acquire_swapchain_resources)(le_backend_o* self, size_t frameIndex);
 		// ---
 
 		// return number of in-flight backend data frames

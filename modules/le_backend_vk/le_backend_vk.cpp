@@ -4668,7 +4668,7 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 	return cache_entry.first->second;
 }
 
-static void backend_declare_swapchain_resources( le_backend_o* self, size_t frameIndex ) {
+static void backend_acquire_swapchain_resources( le_backend_o* self, size_t frameIndex ) {
 
 	auto& frame = self->mFrames[ frameIndex ];
 
@@ -7711,7 +7711,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.get_swapchain_extent        = backend_get_swapchain_extent;
 	vk_backend_i.get_swapchain_resource      = backend_get_swapchain_resource;
 	vk_backend_i.get_swapchain_info          = backend_get_swapchain_info;
-	vk_backend_i.declare_swapchain_resources = backend_declare_swapchain_resources;
+	vk_backend_i.acquire_swapchain_resources = backend_acquire_swapchain_resources;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
