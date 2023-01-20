@@ -489,6 +489,9 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	//
 	le_renderer::api->le_rendergraph_private_i.execute( frame.rendergraph, frameIndex, self->backend );
 
+	// declare any resources that come from swapchains
+	le_backend_vk::vk_backend_i.declare_swapchain_resources( self->backend, frameIndex );
+
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 
 	frame.state = FrameData::State::eRecorded;

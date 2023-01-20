@@ -35,6 +35,7 @@
 
 #include "private/le_backend_vk/le_backend_vk_instance.inl"
 
+static constexpr auto LEGACY_SWAPCHAIN = false;
 static constexpr auto LOGGER_LABEL = "le_backend";
 #ifdef _MSC_VER
 #	include <Windows.h> // for getModule
@@ -2095,6 +2096,8 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	// -- remove any frame-local copy of allocated resources
 	frame.availableResources.clear();
+	frame.declared_resources_id.clear();
+	frame.declared_resources_info.clear();
 
 	frame.must_create_queues_dot_graph = false;
 	frame.debug_root_passes_names.clear();
@@ -4101,68 +4104,6 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	auto& frame = self->mFrames[ frameIndex ];
 
 	static VkDevice device = self->device->getVkDevice();
-	// We try to acquire all images, even if one of the acquisitions fails.
-	//
-	// This is so that every semaphore for presentComplete is correctly
-	// waited upon.
-
-	bool acquire_success = true;
-
-	using namespace le_swapchain_vk;
-
-	for ( size_t i = 0; i != self->swapchains.size(); ++i ) {
-		if ( !swapchain_i.acquire_next_image(
-		         self->swapchains[ i ],
-		         frame.swapchain_state[ i ].presentComplete,
-		         &frame.swapchain_state[ i ].image_idx ) ) {
-			acquire_success                               = false;
-			frame.swapchain_state[ i ].acquire_successful = false;
-		} else {
-			frame.swapchain_state[ i ].acquire_successful = true;
-		}
-	}
-
-	for ( auto& [ key, swapchain ] : self->modern_swapchains ) {
-		// auto& swapchain_state = frame.modern_swapchain_state.at( key );
-
-		auto const& [ swapchain_state, was_inserted ] = frame.modern_swapchain_state.emplace( key, swapchain_state_t{} );
-
-		if ( was_inserted ) {
-
-			// Create swapchain state dynamically if it did not yet exist.
-
-			// Is this also where we should get rid of swapchain state if there is no backing
-			// swapchain for it?
-
-			// TODO: is this the right place to remove orphaned swapchain state?
-
-			VkSemaphoreCreateInfo const create_info = {
-			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			    .pNext = nullptr, // optional
-			    .flags = 0,       // optional
-			};
-
-			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.presentComplete );
-			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.renderComplete );
-
-			swapchain_state->second.surface_width  = swapchain.width;
-			swapchain_state->second.surface_height = swapchain.height;
-		}
-
-		if ( !swapchain_i.acquire_next_image(
-		         swapchain.swapchain,
-		         swapchain_state->second.presentComplete,
-		         &swapchain_state->second.image_idx ) ) {
-			acquire_success                            = false;
-			swapchain_state->second.acquire_successful = false;
-		} else {
-			swapchain_state->second.acquire_successful = true;
-		}
-	}
-
-	if ( !acquire_success ) {
-		return false;
-	}
 
 	// ----------| invariant: swapchain image acquisition was successful.
 
@@ -4186,112 +4127,9 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	// which are explicitly declared by user via the rendergraph, but which may or may not be
 	// actually used in the frame.
 	//
-	frame.declared_resources_id   = { declared_resources, declared_resources + declared_resources_count };
-	frame.declared_resources_info = { declared_resources_infos, declared_resources_infos + declared_resources_count };
+	frame.declared_resources_id.insert( frame.declared_resources_id.end(), declared_resources, declared_resources + declared_resources_count );
+	frame.declared_resources_info.insert( frame.declared_resources_info.end(), declared_resources_infos, declared_resources_infos + declared_resources_count );
 
-	for ( size_t i = 0; i != self->swapchains.size(); ++i ) {
-		// Acquire swapchain image
-
-		// ----------| invariant: swapchain acquisition successful.
-
-		frame.swapchain_state[ i ].surface_width  = swapchain_i.get_image_width( self->swapchains[ i ] );
-		frame.swapchain_state[ i ].surface_height = swapchain_i.get_image_height( self->swapchains[ i ] );
-
-		auto const& img_resource_handle = self->swapchain_resources_deprecated[ i ];
-
-		frame.availableResources[ img_resource_handle ].as.image =
-		    swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
-
-		{
-			auto& backbufferInfo = frame.availableResources[ img_resource_handle ].info.imageInfo;
-			backbufferInfo       = {
-			          .sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			          .pNext     = nullptr, // optional
-			          .flags     = 0,       // optional
-			          .imageType = VK_IMAGE_TYPE_2D,
-			          .format    = VkFormat( self->swapchainImageFormat[ i ] ),
-			          .extent    = {
-			                 .width  = frame.swapchain_state[ i ].surface_width,
-			                 .height = frame.swapchain_state[ i ].surface_height,
-			                 .depth  = 1,
-                },
-			          .mipLevels             = 1,
-			          .arrayLayers           = 1,
-			          .samples               = VK_SAMPLE_COUNT_1_BIT,
-			          .tiling                = VK_IMAGE_TILING_OPTIMAL,
-			          .usage                 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-			          .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-			          .queueFamilyIndexCount = 0, // optional
-			          .pQueueFamilyIndices   = nullptr,
-			          .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
-            };
-		}
-
-		// Add swapchain resource to automatically- declared resources
-		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
-
-		frame.declared_resources_id.push_back( img_resource_handle );
-		frame.declared_resources_info.push_back(
-		    le::ImageInfoBuilder()
-		        .addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
-		        .setExtent(
-		            frame.swapchain_state[ i ].surface_width,
-		            frame.swapchain_state[ i ].surface_height,
-		            1 )
-		        .build() );
-	}
-
-	for ( auto& [ key, swapchain_data ] : self->modern_swapchains ) {
-		// Acquire modern_swapchain images
-
-		auto& currentState = frame.modern_swapchain_state.at( key );
-
-		auto tmp_surface_width = currentState.surface_width = swapchain_i.get_image_width( swapchain_data.swapchain );
-		auto tmp_surface_height = currentState.surface_height = swapchain_i.get_image_height( swapchain_data.swapchain );
-
-		frame.availableResources[ swapchain_data.swapchain_image ].as.image =
-		    swapchain_i.get_image( swapchain_data.swapchain, currentState.image_idx );
-
-		{
-			// Fetch Image Info for swapchain image
-			auto& imageInfo = frame.availableResources[ swapchain_data.swapchain_image ].info.imageInfo;
-
-			// Overwrite Image Info
-			imageInfo = {
-			    .sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			    .pNext     = nullptr, // optional
-			    .flags     = 0,       // optional
-			    .imageType = VK_IMAGE_TYPE_2D,
-			    .format    = swapchain_data.swapchain_surface_format.format,
-			    .extent    = {
-			           .width  = tmp_surface_width,
-			           .height = tmp_surface_height,
-			           .depth  = 1,
-                },
-			    .mipLevels             = 1,
-			    .arrayLayers           = 1,
-			    .samples               = VK_SAMPLE_COUNT_1_BIT,
-			    .tiling                = VK_IMAGE_TILING_OPTIMAL,
-			    .usage                 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-			    .queueFamilyIndexCount = 0, // optional
-			    .pQueueFamilyIndices   = nullptr,
-			    .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
-			};
-		}
-		// Add swapchain resource to automatically- declared resources
-		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
-
-		frame.declared_resources_id.push_back( swapchain_data.swapchain_image );
-		frame.declared_resources_info.push_back(
-		    le::ImageInfoBuilder()
-		        .addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
-		        .setExtent(
-		            tmp_surface_width,
-		            tmp_surface_height,
-		            1 )
-		        .build() );
-	}
 
 	{
 
@@ -4828,6 +4666,108 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 	}
 
 	return cache_entry.first->second;
+}
+
+static void backend_declare_swapchain_resources( le_backend_o* self, size_t frameIndex ) {
+
+	auto& frame = self->mFrames[ frameIndex ];
+
+	static VkDevice device = self->device->getVkDevice();
+	using namespace le_swapchain_vk;
+
+	for ( auto& [ key, swapchain_data ] : self->modern_swapchains ) {
+		// Acquire modern_swapchain images - this needs to happen on the main thread.
+
+		auto const& [ swapchain_state, was_inserted ] = frame.modern_swapchain_state.emplace( key, swapchain_state_t{} );
+
+		if ( was_inserted ) {
+
+			// Create swapchain state dynamically if it did not yet exist.
+
+			// Is this also where we should get rid of swapchain state if there is no backing
+			// swapchain for it?
+
+			// TODO: is this the right place to remove orphaned swapchain state?
+
+			VkSemaphoreCreateInfo const create_info = {
+			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+			    .pNext = nullptr, // optional
+			    .flags = 0,       // optional
+			};
+
+			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.presentComplete );
+			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.renderComplete );
+
+			swapchain_state->second.surface_width  = swapchain_data.width;
+			swapchain_state->second.surface_height = swapchain_data.height;
+		}
+
+		// We try to acquire all images, even if one of the acquisitions fails.
+		//
+		// This is so that every semaphore for presentComplete is correctly
+		// waited upon.
+
+		bool acquire_success = true;
+
+		if ( !swapchain_i.acquire_next_image(
+		         swapchain_data.swapchain,
+		         swapchain_state->second.presentComplete,
+		         &swapchain_state->second.image_idx ) ) {
+			acquire_success                            = false;
+			swapchain_state->second.acquire_successful = false;
+		} else {
+			swapchain_state->second.acquire_successful = true;
+		}
+
+		// TODO: what happens if we cannot acquire successfully?
+		// in which case, this frame is doomed.
+
+		auto tmp_surface_width = swapchain_state->second.surface_width = swapchain_i.get_image_width( swapchain_data.swapchain );
+		auto tmp_surface_height = swapchain_state->second.surface_height = swapchain_i.get_image_height( swapchain_data.swapchain );
+
+		frame.availableResources[ swapchain_data.swapchain_image ].as.image =
+		    swapchain_i.get_image( swapchain_data.swapchain, swapchain_state->second.image_idx );
+
+		{
+			// Fetch Image Info for swapchain image
+			auto& imageInfo = frame.availableResources[ swapchain_data.swapchain_image ].info.imageInfo;
+
+			// Overwrite Image Info
+			imageInfo = {
+			    .sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			    .pNext     = nullptr, // optional
+			    .flags     = 0,       // optional
+			    .imageType = VK_IMAGE_TYPE_2D,
+			    .format    = swapchain_data.swapchain_surface_format.format,
+			    .extent    = {
+			           .width  = tmp_surface_width,
+			           .height = tmp_surface_height,
+			           .depth  = 1,
+                },
+			    .mipLevels             = 1,
+			    .arrayLayers           = 1,
+			    .samples               = VK_SAMPLE_COUNT_1_BIT,
+			    .tiling                = VK_IMAGE_TILING_OPTIMAL,
+			    .usage                 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+			    .queueFamilyIndexCount = 0, // optional
+			    .pQueueFamilyIndices   = nullptr,
+			    .initialLayout         = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			};
+		}
+		// Add swapchain resource to automatically- declared resources
+		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
+
+		frame.declared_resources_id.push_back( swapchain_data.swapchain_image );
+		frame.declared_resources_info.push_back(
+		    le::ImageInfoBuilder()
+		        .addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
+		        .setExtent(
+		            tmp_surface_width,
+		            tmp_surface_height,
+		            1 )
+		        .build() );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -7766,11 +7706,12 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.get_swapchain_extent_deprecated   = backend_get_swapchain_extent_deprecated;
 	vk_backend_i.get_swapchain_count               = backend_get_swapchain_count;
 
-	vk_backend_i.add_swapchain          = backend_add_swapchain;
-	vk_backend_i.remove_swapchain = backend_remove_swapchain;
-	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
-	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
-	vk_backend_i.get_swapchain_info     = backend_get_swapchain_info;
+	vk_backend_i.add_swapchain               = backend_add_swapchain;
+	vk_backend_i.remove_swapchain            = backend_remove_swapchain;
+	vk_backend_i.get_swapchain_extent        = backend_get_swapchain_extent;
+	vk_backend_i.get_swapchain_resource      = backend_get_swapchain_resource;
+	vk_backend_i.get_swapchain_info          = backend_get_swapchain_info;
+	vk_backend_i.declare_swapchain_resources = backend_declare_swapchain_resources;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
