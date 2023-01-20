@@ -937,53 +937,6 @@ static void backend_destroy( le_backend_o* self ) {
 }
 
 // ----------------------------------------------------------------------
-
-static void backend_create_swapchains( le_backend_o* self, uint32_t num_settings, le_swapchain_settings_t* settings ) {
-
-	using namespace le_swapchain_vk;
-	static auto logger = LeLog( LOGGER_LABEL );
-
-	assert( num_settings && "num_settings must not be zero" );
-
-	for ( size_t i = 0; i != num_settings; i++, settings++ ) {
-		le_swapchain_o* swapchain = nullptr;
-
-		switch ( settings->type ) {
-
-		case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
-			// Create a windowless swapchain
-			swapchain = swapchain_i.create( api->swapchain_direct_i, self, settings );
-		} break;
-		case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
-			if ( settings->khr_settings.window != nullptr ) {
-				backend_create_window_surface( self, settings );
-				swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, settings );
-				break;
-			} else {
-				settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
-				logger.warn( "Automatically selected Image Swapchain as no window was specified" );
-				settings->img_settings          = {};
-				settings->img_settings.pipe_cmd = "";
-			}
-
-		} // deliberate fallthrough in case no window was specified
-		case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
-			// Create an image swapchain
-			swapchain = swapchain_i.create( api->swapchain_img_i, self, settings );
-		} break;
-		}
-
-		assert( swapchain );
-
-		self->swapchainImageFormat.push_back( VkFormat( swapchain_i.get_surface_format( swapchain )->format ) );
-		self->swapchainWidth.push_back( swapchain_i.get_image_width( swapchain ) );
-		self->swapchainHeight.push_back( swapchain_i.get_image_height( swapchain ) );
-
-		self->swapchains.push_back( swapchain );
-	}
-}
-
-// ----------------------------------------------------------------------
 // ----------------------------------------------------------------------
 // --- new swapchain interface
 static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapchain_settings_t* const settings ) {
@@ -1421,10 +1374,6 @@ static void backend_setup( le_backend_o* self ) {
 	// we do this here, because swapchain might want to already use the allocator.
 
 	backend_create_main_allocator( vkInstance, vkPhysicalDevice, vkDevice, &self->mAllocator );
-
-	// -- create swapchain if requested
-
-	backend_create_swapchains( self, uint32_t( settings->swapchain_settings.size() ), settings->swapchain_settings.data() );
 
 	// -- setup backend memory objects
 
@@ -7408,8 +7357,8 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	std::vector<VkSemaphoreSubmitInfo> wait_present_complete_semaphore_submit_infos;
 	std::vector<VkSemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
 
-	wait_present_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
-	render_complete_semaphore_submit_infos.reserve( frame.swapchain_state.size() );
+	wait_present_complete_semaphore_submit_infos.reserve( frame.modern_swapchain_state.size() );
+	render_complete_semaphore_submit_infos.reserve( frame.modern_swapchain_state.size() );
 
 	{
 		for ( auto const& swp : frame.swapchain_state ) {
