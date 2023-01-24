@@ -38,12 +38,19 @@ struct le_swapchain_vk_api {
 		void                      ( *get_required_vk_device_extensions )(const le_swapchain_settings_t* settings);
 	};
 
+	struct swapchain_ref_count_inferface_t {
+		void (*inc_ref)(le_swapchain_o*);
+		void (*dec_ref)(le_swapchain_o*);
+	};
+
 	// clang-format on
 
 	swapchain_interface_t swapchain_i;        // base (public) interface, forwards to either:
 	swapchain_interface_t swapchain_khr_i;    // (private) khr swapchain interface
 	swapchain_interface_t swapchain_img_i;    // (private) image swapchain interface
 	swapchain_interface_t swapchain_direct_i; // (private) direct mode swapchain interface
+
+	swapchain_ref_count_inferface_t swapchain_ref_i; // reference count interface
 };
 
 LE_MODULE( le_swapchain_vk );
@@ -55,6 +62,7 @@ namespace le_swapchain_vk {
 
 static const auto& api         = le_swapchain_vk_api_i;
 static const auto& swapchain_i = api->swapchain_i;
+static const auto& swapchain_ref_i = api->swapchain_ref_i;
 
 } // namespace le_swapchain_vk
 

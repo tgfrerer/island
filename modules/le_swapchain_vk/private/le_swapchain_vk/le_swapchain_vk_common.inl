@@ -8,7 +8,7 @@ void register_le_swapchain_direct_api( void* api ); // in le_swapchain_direct.cp
 struct le_swapchain_o {
 	const le_swapchain_vk_api::swapchain_interface_t& vtable;
 	void*                                             data           = nullptr;
-	uint32_t                                          referenceCount = 0;
+	uint32_t                                          referenceCount = 0; // todo: should this be atomic?
 
 	le_swapchain_o( const le_swapchain_vk_api::swapchain_interface_t& vtable )
 	    : vtable( vtable ) {

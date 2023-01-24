@@ -440,15 +440,77 @@ struct le_staging_allocator_o {
 
 // ------------------------------------------------------------
 
-struct swapchain_state_t {
-	VkSemaphore presentComplete = nullptr;
-	VkSemaphore renderComplete  = nullptr;
+struct SemaphoreContainer {
+	VkSemaphore semaphore;
+};
 
+class modern_swapchain_data_t {
+
+	le_swapchain_o* swapchain = nullptr; // owned, reference counted. swapchain is destroyed when last reference is deleted.
+
+  public:
+	VkSurfaceFormatKHR              swapchain_surface_format; // contains VkFormat and (optional) color space
+	std::shared_ptr<VkSurfaceKHR_T> swapchain_surface;        // owned, optional VkDestroySurface called when last reference is deleted.
+
+
+	uint32_t               height;
+	uint32_t               width;
+	le_img_resource_handle swapchain_image;
+
+	le_swapchain_o* get_swapchain() {
+		return swapchain;
+	}
+
+  public:
+	modern_swapchain_data_t( le_swapchain_o* swapchain_ = nullptr ) // takes ownership of swapchain.
+	    : swapchain( swapchain_ ){};
+
+	modern_swapchain_data_t( modern_swapchain_data_t const& rhs ) {
+		le_swapchain_vk::swapchain_ref_i.inc_ref( rhs.swapchain );
+		if ( swapchain ) {
+			le_swapchain_vk::swapchain_ref_i.dec_ref( swapchain );
+		}
+		swapchain = rhs.swapchain;
+
+		swapchain_surface_format = rhs.swapchain_surface_format;
+		swapchain_surface        = rhs.swapchain_surface; // this should also increase the use count...
+		height                   = rhs.height;
+		width                    = rhs.width;
+		swapchain_image          = rhs.swapchain_image;
+	};
+
+	modern_swapchain_data_t& operator=( modern_swapchain_data_t const& rhs ) {
+		le_swapchain_vk::swapchain_ref_i.inc_ref( rhs.swapchain );
+		if ( swapchain ) {
+			le_swapchain_vk::swapchain_ref_i.dec_ref( swapchain );
+		}
+		swapchain = rhs.swapchain;
+
+		swapchain_surface_format = rhs.swapchain_surface_format;
+		swapchain_surface        = rhs.swapchain_surface; // this should also increase the use count...
+		height                   = rhs.height;
+		width                    = rhs.width;
+		swapchain_image          = rhs.swapchain_image;
+		return *this;
+	};
+
+	modern_swapchain_data_t( modern_swapchain_data_t&& ) noexcept            = default; // move constructor
+	modern_swapchain_data_t& operator=( modern_swapchain_data_t&& ) noexcept = default; // move assignment
+
+	~modern_swapchain_data_t() {
+		if ( swapchain ) {
+			le_swapchain_vk::swapchain_ref_i.dec_ref( swapchain );
+		}
+	}
+};
+
+struct swapchain_state_t {
 	uint32_t image_idx          = uint32_t( ~0 );
-	uint32_t surface_width      = 0;
-	uint32_t surface_height     = 0;
-	bool     present_successful = false;
-	bool     acquire_successful = false;
+	std::shared_ptr<SemaphoreContainer> presentComplete;
+	std::shared_ptr<SemaphoreContainer> renderComplete;
+	bool                                present_successful = false;
+	bool                    acquire_successful = false;
+	modern_swapchain_data_t swapchain_data;
 };
 
 // Herein goes all data which is associated with the current frame.
@@ -479,7 +541,7 @@ struct BackendFrameData {
 	std::vector<PerQueueSubmissionData> queue_submission_data;
 	std::vector<CommandPool*>           available_command_pools; // Owning. reset on frame recycle, delete all objects on BackendFrameData::destroy
 
-	std::unordered_map<uint64_t, swapchain_state_t> modern_swapchain_state;
+	std::unordered_map<uint64_t, swapchain_state_t> modern_swapchain_state; // per-swapchain state for this frame
 
 	struct Texture {
 		VkSampler   sampler;
@@ -553,14 +615,6 @@ struct BackendFrameData {
 	bool must_create_queues_dot_graph = false;
 };
 
-struct modern_swapchain_data_t {
-	le_swapchain_o*    swapchain;                // owned
-	VkSurfaceFormatKHR swapchain_surface_format; // contains VkFormat and (optional) color space
-	VkSurfaceKHR       swapchain_surface;        // owned, optional
-	uint32_t           height;
-	uint32_t           width;
-	le_img_resource_handle swapchain_image;
-};
 
 /// \brief backend data object
 struct le_backend_o {
@@ -703,24 +757,6 @@ static le_backend_o* backend_create() {
 
 // ----------------------------------------------------------------------
 
-static void backend_destroy_modern_swapchain( le_backend_o* self, modern_swapchain_data_t& swapchain_info ) {
-	static auto logger = LeLog( LOGGER_LABEL );
-	using namespace le_swapchain_vk;
-	using namespace le_backend_vk;
-
-	VkInstance instance = vk_instance_i.get_vk_instance( self->instance );
-
-	if ( swapchain_info.swapchain ) {
-
-		// we must first destroy the khr swapchain object, then the surface if there is a surface.
-		swapchain_i.destroy( swapchain_info.swapchain );
-
-		if ( swapchain_info.swapchain_surface ) {
-			vkDestroySurfaceKHR( instance, swapchain_info.swapchain_surface, nullptr );
-			logger.info( "Surface %x destroyed", swapchain_info.swapchain_surface );
-		}
-	}
-}
 
 // ----------------------------------------------------------------------
 
@@ -742,9 +778,6 @@ static void backend_destroy( le_backend_o* self ) {
 		// and the allocator must still be alive for the swapchain to free objects
 		// alloacted through it.
 
-		for ( auto& [ swp_handle, swapchain_info ] : self->modern_swapchains ) {
-			backend_destroy_modern_swapchain( self, swapchain_info );
-		}
 
 		self->modern_swapchains.clear();
 	}
@@ -760,13 +793,7 @@ static void backend_destroy( le_backend_o* self ) {
 		vkDestroyFence( device, frameData.frameFence, nullptr );
 
 
-		{
-			for ( auto& [ k, swapchain_state ] : frameData.modern_swapchain_state ) {
-				vkDestroySemaphore( device, swapchain_state.presentComplete, nullptr );
-				vkDestroySemaphore( device, swapchain_state.renderComplete, nullptr );
-			}
 			frameData.modern_swapchain_state.clear();
-		}
 
 		{
 			for ( auto& cp : frameData.available_command_pools ) {
@@ -892,7 +919,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	static auto     logger    = LeLog( LOGGER_LABEL );
 	using namespace le_swapchain_vk;
 
-	VkSurfaceKHR maybe_swapchain_surface = nullptr;
+	std::shared_ptr<VkSurfaceKHR_T> maybe_swapchain_surface( nullptr );
 
 	switch ( settings->type ) {
 
@@ -903,10 +930,17 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
 		if ( settings->khr_settings.window != nullptr ) {
 			VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
-			maybe_swapchain_surface =
-			    settings->khr_settings.vk_surface =
-			        le_window::window_i.create_surface( settings->khr_settings.window, instance );
-			swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, settings );
+			// settings->khr_settings.vk_surface =
+
+			maybe_swapchain_surface = std::shared_ptr<VkSurfaceKHR_T>(
+			    le_window::window_i.create_surface( settings->khr_settings.window, instance ),
+			    [ instance ]( VkSurfaceKHR_T* ptr ) {
+				    logger.info( "Surface %x destroyed.", ptr );
+				    vkDestroySurfaceKHR( instance, ptr, nullptr );
+			    } );
+
+			settings->khr_settings.vk_surface = maybe_swapchain_surface.get();
+			swapchain                         = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, settings );
 			break;
 		} else {
 			settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
@@ -930,15 +964,13 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Modern_Swapchain_Image_Handle[%lu]", swapchain_index );
 
-	modern_swapchain_data_t modern_swapchain_info{
-	    .swapchain                = swapchain,
-	    .swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
-	    .swapchain_surface        = maybe_swapchain_surface,
-	    .height                   = swapchain_i.get_image_height( swapchain ),
-	    .width                    = swapchain_i.get_image_width( swapchain ),
-	    .swapchain_image =
-	        le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot ),
-	};
+	modern_swapchain_data_t modern_swapchain_info( swapchain );
+	modern_swapchain_info.swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
+	modern_swapchain_info.swapchain_surface        = maybe_swapchain_surface,
+	modern_swapchain_info.height                   = swapchain_i.get_image_height( swapchain ),
+	modern_swapchain_info.width                    = swapchain_i.get_image_width( swapchain ),
+	modern_swapchain_info.swapchain_image =
+	    le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot );
 
 	// Add new modern swapchain
 	const auto& [ pair, was_emplaced ] = self->modern_swapchains.emplace( swapchain_index, modern_swapchain_info );
@@ -960,7 +992,7 @@ static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle sw
 	auto it = self->modern_swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
 
 	if ( it != self->modern_swapchains.end() ) {
-		backend_destroy_modern_swapchain( self, it->second );
+		// backend_destroy_modern_swapchain( self, it->second );
 		self->modern_swapchains.erase( it );
 
 		return true;
@@ -1070,9 +1102,9 @@ static void backend_reset_swapchain( le_backend_o* self, le_swapchain_o* swapcha
 	using namespace le_swapchain_vk;
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	swapchain_i.reset( swapchain, nullptr );
+	// swapchain_i.reset( swapchain, nullptr );
 
-	logger.info( "Resetting swapchain: %x", swapchain );
+	logger.info( "Resetting swapchain NOT IMPLEMENTED: %x", swapchain );
 
 	// We must update our cached values for swapchain dimensions if the swapchain was reset.
 
@@ -1094,7 +1126,7 @@ static void backend_reset_failed_swapchains( le_backend_o* self ) {
 
 				auto it = self->modern_swapchains.find( key );
 				if ( it != self->modern_swapchains.end() ) {
-					backend_reset_swapchain( self, it->second.swapchain );
+					// backend_reset_swapchain( self, it->second.swapchain );
 				}
 			}
 		}
@@ -2018,6 +2050,8 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 	}
 	frame.passes.clear();
+
+
 	frame.frameNumber = self->totalFrameCount++; // note post-increment
 
 	return true;
@@ -4024,10 +4058,10 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		// -- build sync chain for each resource, create explicit sync barrier requests for resources
 		// which cannot be implicitly synced.
 		std::vector<le_img_resource_handle> tmp_swapchain_resources{};
-		tmp_swapchain_resources.reserve( self->modern_swapchains.size() );
+		tmp_swapchain_resources.reserve( frame.modern_swapchain_state.size() );
 
-		for ( auto& [ key, swp ] : self->modern_swapchains ) {
-			tmp_swapchain_resources.push_back( swp.swapchain_image );
+		for ( auto& [ key, swp ] : frame.modern_swapchain_state ) {
+			tmp_swapchain_resources.push_back( swp.swapchain_data.swapchain_image );
 		}
 
 		frame_track_resource_state( frame, passes, numRenderPasses, tmp_swapchain_resources );
@@ -4528,6 +4562,7 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 	return cache_entry.first->second;
 }
 
+// this must execute on the record thread
 static void backend_acquire_swapchain_resources( le_backend_o* self, size_t frameIndex ) {
 
 	auto& frame = self->mFrames[ frameIndex ];
@@ -4535,19 +4570,24 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 	static VkDevice device = self->device->getVkDevice();
 	using namespace le_swapchain_vk;
 
+	decltype( frame.modern_swapchain_state ) previous_swapchain_state;
+
+	std::swap( frame.modern_swapchain_state, previous_swapchain_state ); // we swap into previous so that
+
 	for ( auto& [ key, swapchain_data ] : self->modern_swapchains ) {
 		// Acquire modern_swapchain images - this needs to happen on the main thread.
 
-		auto const& [ swapchain_state, was_inserted ] = frame.modern_swapchain_state.emplace( key, swapchain_state_t{} );
+		auto previous_it = previous_swapchain_state.find( key );
+		// Item existed before:
+		// we can recycle the semaphores.
 
-		if ( was_inserted ) {
+		auto const& [ swapchain_state, was_inserted ] =
+		    ( previous_it != previous_swapchain_state.end() )                                     // if item existed in a previous version of this frame
+		        ? frame.modern_swapchain_state.emplace( previous_it->first, previous_it->second ) // then copy previous swapchain info into the current frame
+		        : frame.modern_swapchain_state.emplace( key, swapchain_state_t{} );               // otherwise generate new swapchain info
 
-			// Create swapchain state dynamically if it did not yet exist.
-
-			// Is this also where we should get rid of swapchain state if there is no backing
-			// swapchain for it?
-
-			// TODO: is this the right place to remove orphaned swapchain state?
+		if ( previous_it == previous_swapchain_state.end() ) {
+			// item did not exist before - we must create semaphores.
 
 			VkSemaphoreCreateInfo const create_info = {
 			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -4555,12 +4595,22 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			    .flags = 0,       // optional
 			};
 
-			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.presentComplete );
-			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.renderComplete );
+			swapchain_state->second.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
+				vkDestroySemaphore( device, p->semaphore, nullptr );
+				delete ( p );
+			} );
+			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.presentComplete->semaphore );
 
-			swapchain_state->second.surface_width  = swapchain_data.width;
-			swapchain_state->second.surface_height = swapchain_data.height;
+			swapchain_state->second.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
+				vkDestroySemaphore( device, p->semaphore, nullptr );
+				delete ( p );
+			} );
+			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.renderComplete->semaphore );
 		}
+
+		// swapchain_state->second.surface_width  = swapchain_data.width;
+		// swapchain_state->second.surface_height = swapchain_data.height;
+		swapchain_state->second.swapchain_data = swapchain_data; // this is where we copy the swapchain into the frame.
 
 		// We try to acquire all images, even if one of the acquisitions fails.
 		//
@@ -4569,10 +4619,9 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 
 		bool acquire_success = true;
 
-		if ( !swapchain_i.acquire_next_image(
-		         swapchain_data.swapchain,
-		         swapchain_state->second.presentComplete,
-		         &swapchain_state->second.image_idx ) ) {
+		if ( !swapchain_i.acquire_next_image( swapchain_data.get_swapchain(),
+		                                      swapchain_state->second.presentComplete->semaphore,
+		                                      &swapchain_state->second.image_idx ) ) {
 			acquire_success                            = false;
 			swapchain_state->second.acquire_successful = false;
 		} else {
@@ -4586,11 +4635,12 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 		// TODO: what happens if we cannot acquire successfully?
 		// in which case, this frame is doomed.
 
-		auto tmp_surface_width = swapchain_state->second.surface_width = swapchain_i.get_image_width( swapchain_data.swapchain );
-		auto tmp_surface_height = swapchain_state->second.surface_height = swapchain_i.get_image_height( swapchain_data.swapchain );
+
+		auto tmp_surface_width  = swapchain_state->second.swapchain_data.width;
+		auto tmp_surface_height = swapchain_state->second.swapchain_data.height;
 
 		frame.availableResources[ swapchain_data.swapchain_image ].as.image =
-		    swapchain_i.get_image( swapchain_data.swapchain, swapchain_state->second.image_idx );
+		    swapchain_i.get_image( swapchain_data.get_swapchain(), swapchain_state->second.image_idx );
 
 		{
 			// Fetch Image Info for swapchain image
@@ -7282,20 +7332,24 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		// apply modern swapchain wait semaphores
 		for ( auto const& [ key, swp ] : frame.modern_swapchain_state ) {
 
-			wait_present_complete_semaphore_submit_infos.push_back(
-			    {
-			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-			        .pNext       = nullptr,
-			        .semaphore   = swp.presentComplete,
-			        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
-			        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
-			        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
-			    } );
+			if ( swp.acquire_successful ) {
+				wait_present_complete_semaphore_submit_infos.push_back(
+				    {
+				        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+				        .pNext       = nullptr,
+				        .semaphore   = swp.presentComplete->semaphore,
+				        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
+				        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
+				        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
+				    } );
+			} else {
+				logger.warn( "acquire failed on frame index %d", frameIndex );
+			}
 			render_complete_semaphore_submit_infos.push_back(
 			    {
 			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 			        .pNext       = nullptr,
-			        .semaphore   = swp.renderComplete,
+			        .semaphore   = swp.renderComplete->semaphore,
 			        .value       = 0,                                  // ignored, as this semaphore is not a timeline semaphore
 			        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 			        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
@@ -7418,15 +7472,13 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		// submit frame for present using the graphics queue
 		using namespace le_swapchain_vk;
 
-		for ( auto& [ key, swp ] : self->modern_swapchains ) {
-
-			auto& swp_state = frame.modern_swapchain_state.at( key );
+		for ( auto& [ key, swp_state ] : frame.modern_swapchain_state ) {
 
 			bool result =
 			    swapchain_i.present(
-			        swp.swapchain,
+			        swp_state.swapchain_data.get_swapchain(),
 			        graphics_queue, // we must present on a queue which has present enabled, graphics queue should fit the bill.
-			        swp_state.renderComplete,
+			        swp_state.renderComplete->semaphore,
 			        &swp_state.image_idx );
 
 			swp_state.present_successful = result;

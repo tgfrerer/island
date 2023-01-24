@@ -27,6 +27,8 @@ void post_reload_hook( le_backend_o* backend ) {
 #endif
 }
 
+static void swapchain_inc_ref( le_swapchain_o* base ); // ffdecl.
+
 // ----------------------------------------------------------------------
 
 static le_swapchain_o* swapchain_create( le_swapchain_vk_api::swapchain_interface_t const& interface, le_backend_o* backend, const le_swapchain_settings_t* settings ) {
@@ -38,7 +40,9 @@ static le_swapchain_o* swapchain_create( le_swapchain_vk_api::swapchain_interfac
 	*le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_o" ) ) = backend;
 #endif
 
-	return interface.create( interface, backend, settings );
+	auto obj = interface.create( interface, backend, settings );
+	swapchain_inc_ref( obj );
+	return obj;
 }
 
 // ----------------------------------------------------------------------
@@ -126,6 +130,17 @@ static void swapchain_get_required_vk_device_extensions( const le_swapchain_sett
 
 // ----------------------------------------------------------------------
 
+static void swapchain_inc_ref( le_swapchain_o* base ) {
+	++base->referenceCount;
+}
+
+static void swapchain_dec_ref( le_swapchain_o* base ) {
+	if ( --base->referenceCount == 0 ) {
+		swapchain_destroy( base );
+	}
+}
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api*>( api_ );
 	auto& swapchain_i = api->swapchain_i;
@@ -142,6 +157,10 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	swapchain_i.present                             = swapchain_present;
 	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
 	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
+
+	auto& swapchain_ref_i   = api->swapchain_ref_i;
+	swapchain_ref_i.dec_ref = swapchain_dec_ref;
+	swapchain_ref_i.inc_ref = swapchain_inc_ref;
 
 	register_le_swapchain_khr_api( api );
 	register_le_swapchain_img_api( api );
