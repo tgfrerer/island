@@ -22,9 +22,10 @@ struct le_swapchain_vk_api {
 	// clang-format off
 	struct swapchain_interface_t {
 		le_swapchain_o *          ( *create                   ) ( le_swapchain_vk_api::swapchain_interface_t const & interface, le_backend_o* backend, const le_swapchain_settings_t* settings );
+		le_swapchain_o *          ( *create_from_old_swapchain) ( le_swapchain_o* old_swapchain);
+
 		void                      ( *destroy                  ) ( le_swapchain_o* self );
 
-		void                      ( *reset                    ) ( le_swapchain_o* self, const le_swapchain_settings_t* settings );
 		bool                      ( *present                  ) ( le_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
 		bool                      ( *acquire_next_image       ) ( le_swapchain_o* self, VkSemaphore_T* semaphore_, uint32_t* pImageIndex_ );
 		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_swapchain_o* self );

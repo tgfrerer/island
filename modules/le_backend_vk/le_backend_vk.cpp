@@ -461,6 +461,15 @@ class modern_swapchain_data_t {
 		return swapchain;
 	}
 
+	le_swapchain_o* replace_swapchain( le_swapchain_o* new_swapchain ) { // takes ownership of new swapchain
+		assert( new_swapchain && "new swapchain must exist" );
+		if ( new_swapchain ) {
+			le_swapchain_vk::swapchain_ref_i.dec_ref( swapchain );
+			swapchain = new_swapchain;
+		}
+		return swapchain;
+	}
+
   public:
 	modern_swapchain_data_t( le_swapchain_o* swapchain_ = nullptr ) // takes ownership of swapchain.
 	    : swapchain( swapchain_ ){};
@@ -1031,9 +1040,11 @@ static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handl
 }
 // ----------------------------------------------------------------------
 
-bool backend_get_swapchains_infos( le_backend_o* self, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
+bool backend_get_swapchains_infos( le_backend_o* self, uint32_t frame_index, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_img_resource_handle* p_handle ) {
 
-	uint32_t total_number_of_swapchains = uint32_t( self->modern_swapchains.size() );
+	auto const& frame = self->mFrames[ frame_index ];
+
+	uint32_t total_number_of_swapchains = uint32_t( frame.modern_swapchain_state.size() );
 
 	if ( *count < total_number_of_swapchains ) {
 		*count = total_number_of_swapchains;
@@ -1044,10 +1055,10 @@ bool backend_get_swapchains_infos( le_backend_o* self, uint32_t* count, uint32_t
 
 	uint32_t num_items = *count = total_number_of_swapchains;
 
-	for ( auto& [ key, swp ] : self->modern_swapchains ) {
-		*( p_width++ )  = swp.width;
-		*( p_height++ ) = swp.height;
-		*( p_handle++ ) = swp.swapchain_image;
+	for ( auto& [ key, swp ] : frame.modern_swapchain_state ) {
+		*( p_width++ )  = swp.swapchain_data.width;
+		*( p_height++ ) = swp.swapchain_data.height;
+		*( p_handle++ ) = swp.swapchain_data.swapchain_image;
 	}
 
 	return true;
@@ -2511,11 +2522,13 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 			    .layerCount     = 1,
 			};
 
+			VkImage img = frame_data_get_image_from_le_resource_id( frame, attachment->resource );
+
 			VkImageViewCreateInfo imageViewCreateInfo{
 			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 			    .pNext            = nullptr, // optional
 			    .flags            = 0,       // optional
-			    .image            = frame_data_get_image_from_le_resource_id( frame, attachment->resource ),
+			    .image            = img,
 			    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
 			    .format           = VkFormat( attachment->format ),
 			    .components       = {},
@@ -2523,7 +2536,10 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 			};
 
 			VkImageView imageView = nullptr;
-			vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
+			{
+				auto result = vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
+				assert( result == VK_SUCCESS );
+			}
 
 			framebufferAttachments.push_back( imageView );
 
@@ -2551,7 +2567,8 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 		    .layers          = 1,
 		};
 
-		vkCreateFramebuffer( device, &framebufferCreateInfo, nullptr, &pass.framebuffer );
+		auto result = vkCreateFramebuffer( device, &framebufferCreateInfo, nullptr, &pass.framebuffer );
+		assert( result == VK_SUCCESS && "Framebuffer must be valid" );
 		{
 			// Retain framebuffer
 
@@ -2621,7 +2638,9 @@ static void backend_create_descriptor_pools( BackendFrameData& frame, VkDevice& 
 		};
 
 		VkDescriptorPool descriptorPool = nullptr;
-		vkCreateDescriptorPool( device, &descriptorPoolCreateInfo, nullptr, &descriptorPool );
+
+		auto result = vkCreateDescriptorPool( device, &descriptorPoolCreateInfo, nullptr, &descriptorPool );
+		assert( result == VK_SUCCESS );
 
 		frame.descriptorPools.emplace_back( std::move( descriptorPool ) );
 	}
@@ -3497,7 +3516,7 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 			assert( false && "unknown resource type" );
 		}
 
-		auto result = vkSetDebugUtilsObjectNameEXT( device, &nameInfo );
+		VkResult result = vkSetDebugUtilsObjectNameEXT( device, &nameInfo );
 		assert( result == VK_SUCCESS );
 	}
 }
@@ -3735,6 +3754,9 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 		for ( auto const& r : frame.availableResources ) {
 			switch ( r.second.info.type ) {
 			case ( LeResourceType::eUndefined ):
+				logger.warn( "%10s : %38s : %30p",
+				             "undefined",
+				             r.first->data->debug_name, r.second );
 				break;
 			case ( LeResourceType::eBuffer ):
 				logger.info( "%10s : %38s : %30p",
@@ -4569,12 +4591,13 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 
 	static VkDevice device = self->device->getVkDevice();
 	using namespace le_swapchain_vk;
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	decltype( frame.modern_swapchain_state ) previous_swapchain_state;
 
-	std::swap( frame.modern_swapchain_state, previous_swapchain_state ); // we swap into previous so that
+	std::swap( frame.modern_swapchain_state, previous_swapchain_state ); // we swap into previous so that anything left over in previous will be destroyed at end of scope.
 
-	for ( auto& [ key, swapchain_data ] : self->modern_swapchains ) {
+	for ( auto& [ key, backend_swapchain_data ] : self->modern_swapchains ) {
 		// Acquire modern_swapchain images - this needs to happen on the main thread.
 
 		auto previous_it = previous_swapchain_state.find( key );
@@ -4586,6 +4609,8 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 		        ? frame.modern_swapchain_state.emplace( previous_it->first, previous_it->second ) // then copy previous swapchain info into the current frame
 		        : frame.modern_swapchain_state.emplace( key, swapchain_state_t{} );               // otherwise generate new swapchain info
 
+		swapchain_state_t& local_swapchain_state = swapchain_state->second;
+
 		if ( previous_it == previous_swapchain_state.end() ) {
 			// item did not exist before - we must create semaphores.
 
@@ -4595,22 +4620,22 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			    .flags = 0,       // optional
 			};
 
-			swapchain_state->second.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
+			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
+				logger.info( "destroying present complete semaphore %x", p->semaphore );
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
-			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.presentComplete->semaphore );
+			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
 
-			swapchain_state->second.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
+			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
+				logger.info( "destroying render complete semaphore %x", p->semaphore );
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
-			vkCreateSemaphore( device, &create_info, nullptr, &swapchain_state->second.renderComplete->semaphore );
+			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.renderComplete->semaphore );
 		}
 
-		// swapchain_state->second.surface_width  = swapchain_data.width;
-		// swapchain_state->second.surface_height = swapchain_data.height;
-		swapchain_state->second.swapchain_data = swapchain_data; // this is where we copy the swapchain into the frame.
+		local_swapchain_state.swapchain_data = backend_swapchain_data; // this is where we copy the swapchain into the frame.
 
 		// We try to acquire all images, even if one of the acquisitions fails.
 		//
@@ -4619,13 +4644,39 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 
 		bool acquire_success = true;
 
-		if ( !swapchain_i.acquire_next_image( swapchain_data.get_swapchain(),
-		                                      swapchain_state->second.presentComplete->semaphore,
-		                                      &swapchain_state->second.image_idx ) ) {
-			acquire_success                            = false;
-			swapchain_state->second.acquire_successful = false;
+		if ( !swapchain_i.acquire_next_image( local_swapchain_state.swapchain_data.get_swapchain(),
+		                                      local_swapchain_state.presentComplete->semaphore,
+		                                      &local_swapchain_state.image_idx ) ) {
+
+			// try to acquire again by creating a new swapchain from the old one
+
+			le_swapchain_o* new_swapchain = swapchain_i.create_from_old_swapchain( local_swapchain_state.swapchain_data.get_swapchain() );
+			local_swapchain_state.swapchain_data.replace_swapchain( new_swapchain );
+
+			if ( swapchain_i.acquire_next_image( new_swapchain,
+			                                     local_swapchain_state.presentComplete->semaphore,
+			                                     &local_swapchain_state.image_idx ) ) {
+
+				// if an image was acquired with a newly created swapchain, then
+				// we must query the image width and height.
+
+				local_swapchain_state.swapchain_data.swapchain_surface_format = *swapchain_i.get_surface_format( new_swapchain );
+				local_swapchain_state.swapchain_data.width                    = swapchain_i.get_image_width( new_swapchain );
+				local_swapchain_state.swapchain_data.height                   = swapchain_i.get_image_height( new_swapchain );
+
+				backend_swapchain_data = local_swapchain_state.swapchain_data; // copy frame swapchain data to backend
+
+				local_swapchain_state.acquire_successful = true;
+				acquire_success                          = true;
+			} else {
+				// TODO: What do we want to do if acquiring with a new swapchain fails?
+				// We should destroy both swapchains for sure.
+
+				acquire_success                          = false;
+				local_swapchain_state.acquire_successful = false;
+			}
 		} else {
-			swapchain_state->second.acquire_successful = true;
+			local_swapchain_state.acquire_successful = true;
 		}
 
 		if ( !acquire_success ) {
@@ -4635,44 +4686,48 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 		// TODO: what happens if we cannot acquire successfully?
 		// in which case, this frame is doomed.
 
-
-		auto tmp_surface_width  = swapchain_state->second.swapchain_data.width;
-		auto tmp_surface_height = swapchain_state->second.swapchain_data.height;
-
-		frame.availableResources[ swapchain_data.swapchain_image ].as.image =
-		    swapchain_i.get_image( swapchain_data.get_swapchain(), swapchain_state->second.image_idx );
+		auto tmp_surface_width  = local_swapchain_state.swapchain_data.width;
+		auto tmp_surface_height = local_swapchain_state.swapchain_data.height;
 
 		{
-			// Fetch Image Info for swapchain image
-			auto& imageInfo = frame.availableResources[ swapchain_data.swapchain_image ].info.imageInfo;
+			auto& swapchain_image_resource = frame.availableResources[ local_swapchain_state.swapchain_data.swapchain_image ];
 
-			// Overwrite Image Info
-			imageInfo = {
-			    .sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			    .pNext     = nullptr, // optional
-			    .flags     = 0,       // optional
-			    .imageType = VK_IMAGE_TYPE_2D,
-			    .format    = swapchain_data.swapchain_surface_format.format,
-			    .extent    = {
-			           .width  = tmp_surface_width,
-			           .height = tmp_surface_height,
-			           .depth  = 1,
-                },
-			    .mipLevels             = 1,
-			    .arrayLayers           = 1,
-			    .samples               = VK_SAMPLE_COUNT_1_BIT,
-			    .tiling                = VK_IMAGE_TILING_OPTIMAL,
-			    .usage                 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-			    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-			    .queueFamilyIndexCount = 0, // optional
-			    .pQueueFamilyIndices   = nullptr,
-			    .initialLayout         = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			};
+			swapchain_image_resource.info.type = LeResourceType::eImage;
+			swapchain_image_resource.as.image =
+			    swapchain_i.get_image( local_swapchain_state.swapchain_data.get_swapchain(), local_swapchain_state.image_idx );
+
+			{
+				// Fetch Image Info for swapchain image
+				auto& imageInfo = frame.availableResources[ local_swapchain_state.swapchain_data.swapchain_image ].info.imageInfo;
+
+				// Overwrite Image Info
+				imageInfo = {
+				    .sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+				    .pNext     = nullptr, // optional
+				    .flags     = 0,       // optional
+				    .imageType = VK_IMAGE_TYPE_2D,
+				    .format    = local_swapchain_state.swapchain_data.swapchain_surface_format.format,
+				    .extent    = {
+				           .width  = tmp_surface_width,
+				           .height = tmp_surface_height,
+				           .depth  = 1,
+                    },
+				    .mipLevels             = 1,
+				    .arrayLayers           = 1,
+				    .samples               = VK_SAMPLE_COUNT_1_BIT,
+				    .tiling                = VK_IMAGE_TILING_OPTIMAL,
+				    .usage                 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+				    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+				    .queueFamilyIndexCount = 0, // optional
+				    .pQueueFamilyIndices   = nullptr,
+				    .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
+				};
+			}
 		}
 		// Add swapchain resource to automatically- declared resources
 		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
 
-		frame.declared_resources_id.push_back( swapchain_data.swapchain_image );
+		frame.declared_resources_id.push_back( local_swapchain_state.swapchain_data.swapchain_image );
 		frame.declared_resources_info.push_back(
 		    le::ImageInfoBuilder()
 		        .addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )

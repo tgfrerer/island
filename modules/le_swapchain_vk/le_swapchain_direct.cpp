@@ -379,6 +379,11 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 	return base;
 }
 
+static le_swapchain_o* swapchain_direct_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
+	assert( false && "not implemented" );
+	return nullptr;
+}
+
 // ----------------------------------------------------------------------
 
 static void swapchain_direct_destroy( le_swapchain_o* base ) {
@@ -524,7 +529,8 @@ void register_le_swapchain_direct_api( void* api_ ) {
 
 	swapchain_i.create                              = swapchain_direct_create;
 	swapchain_i.destroy                             = swapchain_direct_destroy;
-	swapchain_i.reset                               = swapchain_direct_reset;
+	swapchain_i.create_from_old_swapchain           = swapchain_direct_create_from_old_swapchain;
+
 	swapchain_i.acquire_next_image                  = swapchain_direct_acquire_next_image;
 	swapchain_i.get_image                           = swapchain_direct_get_image;
 	swapchain_i.get_image_width                     = swapchain_direct_get_image_width;

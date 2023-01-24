@@ -148,7 +148,7 @@ static le_resource_handle_store_t* get_resource_handle_library( bool erase = fal
 // ----------------------------------------------------------------------
 
 struct le_renderer_o {
-	uint64_t      swapchainDirty = false;
+	// uint64_t      swapchainDirty = false;
 	le_backend_o* backend        = nullptr; // Owned, created in setup
 
 	std::vector<FrameData> frames;
@@ -487,13 +487,14 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
+	// declare any resources that come from swapchains
+	le_backend_vk::vk_backend_i.acquire_swapchain_resources( self->backend, frameIndex );
+
 	// Execute callbacks into main application for each render pass,
 	// build command lists per render pass in intermediate, api-agnostic representation
 	//
 	le_renderer::api->le_rendergraph_private_i.execute( frame.rendergraph, frameIndex, self->backend );
 
-	// declare any resources that come from swapchains
-	le_backend_vk::vk_backend_i.acquire_swapchain_resources( self->backend, frameIndex );
 
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -530,7 +531,7 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	le_resource_info_t const* declared_resources_infos = frame.rendergraph->declared_resources_info.data();
 	size_t                    declared_resources_count = frame.rendergraph->declared_resources_id.size();
 
-	auto acquireSuccess =
+	auto acquireSuccess = // TODO: we just ignore the return value here
 	    vk_backend_i.acquire_physical_resources(
 	        self->backend,
 	        frameIndex,
@@ -554,15 +555,15 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
-	if ( acquireSuccess ) {
-		frame.state = FrameData::State::eAcquired;
-	} else {
-		frame.state = FrameData::State::eFailedAcquire;
-		// Failure most likely means that the swapchain was reset,
-		// perhaps because of window resize.
-		le::Log( "le_renderer" ).warn( "Could not acquire frame" );
-		self->swapchainDirty = true;
-	}
+	// if ( acquireSuccess ) {
+	frame.state = FrameData::State::eAcquired;
+	////} else {
+	//	frame.state = FrameData::State::eFailedAcquire;
+	//	// Failure most likely means that the swapchain was reset,
+	//	// perhaps because of window resize.
+	//	le::Log( "le_renderer" ).warn( "Could not acquire frame" );
+	//	//self->swapchainDirty = true;
+	//}
 
 	return frame.state;
 }
@@ -611,29 +612,30 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	frame.meta.time_dispatch_frame_start = std::chrono::high_resolution_clock::now();
 
-	bool dispatchSuccessful = vk_backend_i.dispatch_frame( self->backend, frameIndex );
+	bool dispatchSuccessful = // TODO: we just ignore the return value here
+	    vk_backend_i.dispatch_frame( self->backend, frameIndex );
 
 	frame.meta.time_dispatch_frame_end = std::chrono::high_resolution_clock::now();
 
-	if ( dispatchSuccessful ) {
-		frame.state = FrameData::State::eDispatched;
-		//		std::cout << "DISP FRAME " << frameIndex << std::endl
-		//		          << std::flush;
+	// if ( dispatchSuccessful ) {
+	frame.state = FrameData::State::eDispatched;
+	//		std::cout << "DISP FRAME " << frameIndex << std::endl
+	//		          << std::flush;
 
-	} else {
+	//} else {
 
-		static auto logger = le::Log( "le_renderer" );
-		logger.warn( "Present failed on frame: %d", frame.frameNumber );
+	//	static auto logger = le::Log( "le_renderer" );
+	//	logger.warn( "Present failed on frame: %d", frame.frameNumber );
 
-		// Present was not successful -
-		//
-		// This most likely happened because the window surface has been resized.
-		// We therefore attempt to reset the swapchain.
+	//	// Present was not successful -
+	//	//
+	//	// This most likely happened because the window surface has been resized.
+	//	// We therefore attempt to reset the swapchain.
 
-		frame.state = FrameData::State::eFailedDispatch;
+	//	frame.state = FrameData::State::eFailedDispatch;
 
-		self->swapchainDirty = true;
-	}
+	//	self->swapchainDirty = true;
+	//}
 }
 
 // ----------------------------------------------------------------------
@@ -784,28 +786,33 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 		renderer_clear_frame( self, ( index + 1 ) % numFrames );
 	}
 
-	if ( self->swapchainDirty ) {
-		// we must dispatch, then clear all previous dispatchable frames,
-		// before recreating swapchain. This is because this frame
-		// was processed against the vkImage object from the previous
-		// swapchain.
+	// if ( self->swapchainDirty ) {
+	//  we must dispatch, then clear all previous dispatchable frames,
+	//  before recreating swapchain. This is because this frame
+	//  was processed against the vkImage object from the previous
+	//  swapchain.
 
-		// TODO: check if you could just signal these fences so that the
-		// leftover frames must not be dispatched.
+	// TODO: check if you could just signal these fences so that the
+	// leftover frames must not be dispatched.
 
-		for ( size_t i = 0; i != self->frames.size(); ++i ) {
-			if ( self->frames[ i ].state == FrameData::State::eProcessed ) {
-				renderer_dispatch_frame( self, i );
-				renderer_clear_frame( self, i );
-			} else if ( self->frames[ i ].state != FrameData::State::eDispatched ) {
-				renderer_clear_frame( self, i );
-			}
-		}
+	// for ( size_t i = 0; i != self->frames.size(); ++i ) {
+	//	if ( self->frames[ i ].state == FrameData::State::eRecorded ) {
+	//		// we need a method here to undo the acquisition of the frame, without crossing the frame fence, which
+	//		// has not been submitted yet.
 
-		vk_backend_i.reset_failed_swapchains( self->backend );
+	//		renderer_clear_frame( self, i );
+	//	} else if ( self->frames[ i ].state == FrameData::State::eProcessed ) {
+	//		renderer_dispatch_frame( self, i );
+	//		renderer_clear_frame( self, i );
+	//	} else if ( self->frames[ i ].state != FrameData::State::eDispatched ) {
+	//		renderer_clear_frame( self, i );
+	//	}
+	//}
 
-		self->swapchainDirty = false;
-	}
+	// vk_backend_i.reset_failed_swapchains( self->backend );
+
+	//		self->swapchainDirty = false;
+	//	}
 
 	++self->currentFrameNumber;
 }

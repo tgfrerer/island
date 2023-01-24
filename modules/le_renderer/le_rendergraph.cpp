@@ -972,6 +972,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 	} while ( false ==
 	          vk_backend_i.get_swapchains_infos(
 	              backend,
+	              frameIndex,
 	              &num_swapchain_images,
 	              swapchain_image_width.data(),
 	              swapchain_image_height.data(),

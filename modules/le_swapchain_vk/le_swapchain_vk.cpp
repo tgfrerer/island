@@ -9,10 +9,6 @@
 #endif
 #include "util/volk/volk.h"
 
-static void swapchain_reset( le_swapchain_o* self, const le_swapchain_settings_t* settings ) {
-	self->vtable.reset( self, settings );
-}
-
 void post_reload_hook( le_backend_o* backend ) {
 #ifdef PLUGINS_DYNAMIC
 	if ( backend ) {
@@ -43,6 +39,16 @@ static le_swapchain_o* swapchain_create( le_swapchain_vk_api::swapchain_interfac
 	auto obj = interface.create( interface, backend, settings );
 	swapchain_inc_ref( obj );
 	return obj;
+}
+
+// ----------------------------------------------------------------------
+
+static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
+	auto new_swapchain = old_swapchain->vtable.create_from_old_swapchain( old_swapchain );
+	if ( new_swapchain ) {
+		swapchain_inc_ref( new_swapchain );
+	}
+	return new_swapchain;
 }
 
 // ----------------------------------------------------------------------
@@ -146,8 +152,8 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	auto& swapchain_i = api->swapchain_i;
 
 	swapchain_i.create                              = swapchain_create;
+	swapchain_i.create_from_old_swapchain           = swapchain_create_from_old_swapchain;
 	swapchain_i.destroy                             = swapchain_destroy;
-	swapchain_i.reset                               = swapchain_reset;
 	swapchain_i.acquire_next_image                  = swapchain_acquire_next_image;
 	swapchain_i.get_image                           = swapchain_get_image;
 	swapchain_i.get_image_width                     = swapchain_get_image_width;

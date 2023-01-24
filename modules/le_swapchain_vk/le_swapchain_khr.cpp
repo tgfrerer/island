@@ -35,6 +35,7 @@ struct khr_data_o {
 	std::vector<VkImage>    mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
 	VkDevice                device                         = nullptr;
 	VkPhysicalDevice        physicalDevice                 = nullptr;
+	VkResult                lastError                      = VK_SUCCESS; // keep track of last error
 };
 
 // ----------------------------------------------------------------------
@@ -106,12 +107,28 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 static void swapchain_attach_images( le_swapchain_o* base ) {
 	auto self = static_cast<khr_data_o* const>( base->data );
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	auto result = vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, nullptr );
 	assert( result == VK_SUCCESS );
 
 	if ( self->mImagecount ) {
 		self->mImageRefs.resize( self->mImagecount );
-		vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
+		result = vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
+
+		logger.info( "images attached for KHR swapchain: %p", self->swapchainKHR );
+
+		{
+			int i = 0;
+			for ( auto const& img : self->mImageRefs ) {
+				logger.info( "[%d] %p", i, img );
+				i++;
+			}
+		}
+
+		assert( result == VK_SUCCESS );
+	} else {
+		assert( false && "must have a valid number of images" );
 	}
 }
 
@@ -151,7 +168,8 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	// just before this setup() method was called.
 	swapchain_query_surface_capabilities( base );
 
-	VkSwapchainKHR oldSwapchain = self->swapchainKHR;
+	VkSwapchainKHR oldSwapchain = nullptr;
+	std::swap( self->swapchainKHR, oldSwapchain );
 
 	const VkSurfaceCapabilitiesKHR&      surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities;
 	const std::vector<VkPresentModeKHR>& presentModes        = self->mSurfaceProperties.presentmodes;
@@ -215,20 +233,11 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	    .compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 	    .presentMode           = self->mPresentMode,
 	    .clipped               = VK_TRUE,
-	    .oldSwapchain          = oldSwapchain, // optional
+	    .oldSwapchain          = oldSwapchain,
 	};
 
-	;
-
-	auto result = vkCreateSwapchainKHR( self->device, &swapChainCreateInfo, nullptr, &self->swapchainKHR );
-	assert( result == VK_SUCCESS );
-
-	// If an existing swapchain is re-created, destroy the old swap chain
-	// This also cleans up all the presentable images
-	if ( oldSwapchain ) {
-		vkDestroySwapchainKHR( self->device, oldSwapchain, nullptr );
-		oldSwapchain = nullptr;
-	}
+	self->lastError = vkCreateSwapchainKHR( self->device, &swapChainCreateInfo, nullptr, &self->swapchainKHR );
+	assert( self->lastError == VK_SUCCESS );
 
 	swapchain_attach_images( base );
 }
@@ -254,19 +263,53 @@ static le_swapchain_o* swapchain_khr_create( const le_swapchain_vk_api::swapchai
 
 	swapchain_khr_reset( base, settings );
 
+	static auto logger = LeLog( LOGGER_LABEL );
+	logger.info( " ** swapchain created: %x, VkSwapchain: %x", base, self->swapchainKHR );
+
 	return base;
 }
 
+static void swapchain_khr_destroy( le_swapchain_o* base );
+
+static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
+
+	auto new_swapchain  = new le_swapchain_o( old_swapchain->vtable );
+	new_swapchain->data = new khr_data_o{};
+
+	auto new_data = static_cast<khr_data_o*>( new_swapchain->data );
+	auto old_data = static_cast<khr_data_o* const>( old_swapchain->data );
+
+	auto old_swapchain_khr = old_data->swapchainKHR;
+
+	*new_data = *old_data;
+	// Note that we do not set new_data->swapchainKHR to NULL
+	// this is so that is will get used as oldSwapchain when
+	// creating a new KHR Swapchain in reset.
+
+	swapchain_khr_reset( new_swapchain, &new_data->mSettings );
+
+
+
+	static auto logger = LeLog( LOGGER_LABEL );
+	logger.info( " ** swapchain created: %x from %x", new_swapchain, old_swapchain );
+
+	return new_swapchain;
+}
 // ----------------------------------------------------------------------
 
 static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
-	auto self = static_cast<khr_data_o* const>( base->data );
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto        self   = static_cast<khr_data_o* const>( base->data );
 
 	VkDevice device = self->device;
 
-	vkDestroySwapchainKHR( device, self->swapchainKHR, nullptr );
-	self->swapchainKHR = nullptr;
+	logger.info( " ** VkSwapchain destroy: %x, VkSwapchain: %x", base, self->swapchainKHR );
+
+	if ( self->swapchainKHR ) {
+		vkDestroySwapchainKHR( device, self->swapchainKHR, nullptr );
+		self->swapchainKHR = nullptr;
+	}
 
 	delete self; // delete object's data
 	delete base; // delete object
@@ -280,13 +323,23 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
+	static auto logger = LeLog( LOGGER_LABEL );
 
-	auto result = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, present_complete_semaphore, nullptr, image_index );
+	if ( self->lastError != VK_SUCCESS &&
+	     self->lastError != VK_SUBOPTIMAL_KHR ) {
+		logger.warn( "KHR Swapchain %x cannot acquire image because of previous error: %s", base, to_str( self->lastError ) );
+		return false;
+	}
 
-	switch ( result ) {
-	case VK_SUCCESS:
+	self->lastError = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, present_complete_semaphore, nullptr, image_index );
+
+	switch ( self->lastError ) {
+	case VK_SUCCESS: {
 		self->mImageIndex = *image_index;
+
+		// logger.info( "Acquired image %d via swapchain %p, img: %p", *image_index, base, self->mImageRefs[ *image_index ] );
 		return true;
+	}
 	case VK_SUBOPTIMAL_KHR:         // | fall-through
 	case VK_ERROR_SURFACE_LOST_KHR: // |
 	case VK_ERROR_OUT_OF_DATE_KHR:  // |
@@ -346,6 +399,13 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        self   = static_cast<khr_data_o* const>( base->data );
 
+	// if ( self->lastError != VK_SUCCESS &&
+	//      self->lastError != VK_SUBOPTIMAL_KHR ) {
+	//	static auto logger = LeLog( LOGGER_LABEL );
+	//	logger.warn( "KHR Swapchain %x cannot present image because of previous error, %s", base, to_str( self->lastError ) );
+	//	return false;
+	// }
+
 	VkPresentInfoKHR presentInfo{
 	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 	    .pNext              = nullptr, // optional
@@ -356,11 +416,10 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	    .pImageIndices      = pImageIndex,
 	    .pResults           = nullptr, // optional
 	};
-	;
 
-	auto result = vkQueuePresentKHR( queue_, reinterpret_cast<VkPresentInfoKHR*>( &presentInfo ) );
+	self->lastError = vkQueuePresentKHR( queue_, &presentInfo );
 
-	if ( VkResult( result ) == VK_ERROR_OUT_OF_DATE_KHR ) {
+	if ( self->lastError == VK_ERROR_OUT_OF_DATE_KHR ) {
 		// FIXME: handle swapchain resize event properly
 		logger.warn( "Out of date detected - this commonly indicates surface resize" );
 		return false;
@@ -388,8 +447,9 @@ void register_le_swapchain_khr_api( void* api_ ) {
 	auto& swapchain_i = api->swapchain_khr_i;
 
 	swapchain_i.create                              = swapchain_khr_create;
+	swapchain_i.create_from_old_swapchain           = swapchain_create_from_old_swapchain;
 	swapchain_i.destroy                             = swapchain_khr_destroy;
-	swapchain_i.reset                               = swapchain_khr_reset;
+
 	swapchain_i.acquire_next_image                  = swapchain_khr_acquire_next_image;
 	swapchain_i.get_image                           = swapchain_khr_get_image;
 	swapchain_i.get_image_width                     = swapchain_khr_get_image_width;
