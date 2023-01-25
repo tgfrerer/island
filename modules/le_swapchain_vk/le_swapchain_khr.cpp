@@ -236,6 +236,14 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	    .oldSwapchain          = oldSwapchain,
 	};
 
+	if ( vkCreateSwapchainKHR == nullptr ) {
+		logger.error( "Could not find function pointer to create swapchain. \n"
+		              "Did you first (via renderer) query required instance and device extensions?\n"
+		              "This is done implicitly when creating swapchains by passing renderer settings which contain swapchain settings to le_renderer.setup().\n"
+		              "If you, however, decide to explicitly create a swapchain, you must query instance and device extensions **before** you setup the renderer." );
+		assert( false );
+	}
+
 	self->lastError = vkCreateSwapchainKHR( self->device, &swapChainCreateInfo, nullptr, &self->swapchainKHR );
 	assert( self->lastError == VK_SUCCESS );
 
