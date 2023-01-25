@@ -122,16 +122,16 @@ static inline le_swapchain_vk_api::swapchain_interface_t const* fetch_interface(
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* settings ) {
+static bool swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* settings ) {
 	auto interface = fetch_interface( settings->type );
-	interface->get_required_vk_instance_extensions( settings );
+	return interface->get_required_vk_instance_extensions( settings );
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* settings ) {
+static bool swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* settings ) {
 	auto interface = fetch_interface( settings->type );
-	interface->get_required_vk_device_extensions( settings );
+	return interface->get_required_vk_device_extensions( settings );
 }
 
 // ----------------------------------------------------------------------
