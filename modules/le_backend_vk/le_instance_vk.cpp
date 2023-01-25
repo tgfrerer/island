@@ -54,7 +54,8 @@ static bool should_use_validation_layers() {
  *
  */
 static const VkValidationFeatureDisableEXT disabledValidationFeatures[] = {
-    VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT };
+    // VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT, // this can cause crashes when resizing the swapchain window
+};
 
 // ----------------------------------------------------------------------
 
