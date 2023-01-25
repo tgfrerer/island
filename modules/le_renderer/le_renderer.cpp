@@ -889,7 +889,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.update                 = renderer_update;
 	le_renderer_i.get_settings           = renderer_get_settings;
 
-	le_renderer_i.get_swapchain_extent            = renderer_get_swapchain_extent;
+	le_renderer_i.get_swapchain_extent = renderer_get_swapchain_extent;
 
 	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
 	le_renderer_i.get_backend            = renderer_get_backend;
