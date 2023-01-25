@@ -234,8 +234,8 @@ struct le_swapchain_settings_t {
 			eSharedContinuousRefresh,
 		};
 		Presentmode            presentmode_hint = Presentmode::eFifo;
-		struct VkSurfaceKHR_T* vk_surface;
-		struct le_window_o*    window;
+		struct VkSurfaceKHR_T* vk_surface; // Will be set by backend.
+		struct le_window_o*    window;     //
 	};
 	struct img_settings_t {
 		char const* pipe_cmd; // command used to save images - will receive stream of images via stdin
