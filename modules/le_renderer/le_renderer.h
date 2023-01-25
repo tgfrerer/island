@@ -34,7 +34,6 @@ struct le_renderer_api {
 	struct renderer_interface_t {
 		le_renderer_o *                ( *create                  )( );
 		void                           ( *destroy                 )( le_renderer_o *obj );
-		bool 						   ( *request_backend_capabilities)( le_renderer_o* obj, le_swapchain_settings_t const * settings, uint32_t settings_count);
 		void                           ( *setup                   )( le_renderer_o *obj, le_renderer_settings_t const & settings );
 
 		void                           ( *update                  )( le_renderer_o *obj, le_rendergraph_o *rendergraph);
@@ -43,14 +42,15 @@ struct le_renderer_api {
 
 		le_backend_o*                  ( *get_backend             )( le_renderer_o* self );
 
-		// --- new swapchain interface
+	
+		// note: this method must be called before setup()
+		bool 						   ( * request_backend_capabilities)( le_renderer_o* obj, le_swapchain_settings_t const * settings, uint32_t settings_count);
+
 		le_img_resource_handle         ( * get_swapchain_resource)( le_renderer_o* self, le_swapchain_handle swapchain);
 		void                           ( * get_swapchain_extent  )( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height );
-
 		bool                           ( * get_swapchains        )(le_renderer_o* self, size_t *num_swapchains , le_swapchain_handle* p_swapchain_handles);
 		le_swapchain_handle 		   ( * add_swapchain 		 )(le_renderer_o* self, le_swapchain_settings_t const * settings);
 		bool 						   ( * remove_swapchain 	 )(le_renderer_o* self, le_swapchain_handle swapchain);
-		// ---
 
 		le_pipeline_manager_o*         ( *get_pipeline_manager    )( le_renderer_o* self );
 

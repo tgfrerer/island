@@ -1078,8 +1078,6 @@ bool backend_get_swapchains( le_backend_o* self, size_t* count, le_swapchain_han
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
 
-	uint32_t num_items = *count = total_number_of_swapchains;
-
 	for ( auto& [ key, swp ] : self->modern_swapchains ) {
 		*( p_swapchain_handles++ ) = reinterpret_cast<le_swapchain_handle>( key );
 	}
