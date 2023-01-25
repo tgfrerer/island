@@ -48,7 +48,7 @@ struct le_renderer_api {
 		void                           ( * get_swapchain_extent  )( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height );
 
 		bool                           ( * get_swapchains        )(le_renderer_o* self, size_t *num_swapchains , le_swapchain_handle* p_swapchain_handles);
-		le_swapchain_handle 		   ( * add_swapchain 		 )(le_renderer_o* self, le_swapchain_settings_t * const settings);
+		le_swapchain_handle 		   ( * add_swapchain 		 )(le_renderer_o* self, le_swapchain_settings_t const * settings);
 		bool 						   ( * remove_swapchain 	 )(le_renderer_o* self, le_swapchain_handle swapchain);
 		// ---
 
@@ -257,6 +257,10 @@ class Renderer {
 	/// Call this method exactly once per Frame - this is where rendergraph execution callbacks are triggered.
 	void update( le_rendergraph_o* rendergraph ) {
 		le_renderer::renderer_i.update( self, rendergraph );
+	}
+
+	le_swapchain_handle addSwapchain( le_swapchain_settings_t const* swapchain_settings ) noexcept {
+		return le_renderer::renderer_i.add_swapchain( self, swapchain_settings );
 	}
 
 	le_renderer_settings_t const& getSettings() const noexcept {

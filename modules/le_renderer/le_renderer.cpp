@@ -379,7 +379,7 @@ static bool renderer_request_backend_capabilities( le_renderer_o* self, le_swapc
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t* const settings );
+static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t const* settings );
 
 static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& settings ) {
 
@@ -668,7 +668,7 @@ static void renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_han
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t* const settings ) {
+static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t const* settings ) {
 	using namespace le_backend_vk;
 	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.add_swapchain( self->backend, settings );
