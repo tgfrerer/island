@@ -1099,13 +1099,23 @@ static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self
 		// if no swapchain handle given, return the first available swapchain
 
 		if ( !self->modern_swapchains.empty() ) {
-			return self->modern_swapchains.begin()->second.swapchain_image;
+			return nullptr;
 		} else {
 			return nullptr;
 		}
 	}
 
 	return nullptr;
+}
+
+/// Returns the first available swapchain, if there is a swapchain available.
+static le_img_resource_handle backend_get_swapchain_resource_default( le_backend_o* self ) {
+
+	if ( !self->modern_swapchains.empty() ) {
+		return self->modern_swapchains.begin()->second.swapchain_image;
+	} else {
+		return nullptr;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -7645,7 +7655,8 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.remove_swapchain            = backend_remove_swapchain;
 	vk_backend_i.get_swapchain_extent        = backend_get_swapchain_extent;
 	vk_backend_i.get_swapchain_resource      = backend_get_swapchain_resource;
-	vk_backend_i.get_swapchains_infos        = backend_get_swapchains_infos;
+	vk_backend_i.get_swapchain_resource_default = backend_get_swapchain_resource_default;
+	vk_backend_i.get_swapchains_infos           = backend_get_swapchains_infos;
 	vk_backend_i.get_swapchains              = backend_get_swapchains;
 	vk_backend_i.acquire_swapchain_resources = backend_acquire_swapchain_resources;
 

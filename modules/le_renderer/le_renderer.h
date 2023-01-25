@@ -47,6 +47,7 @@ struct le_renderer_api {
 		bool 						   ( * request_backend_capabilities)( le_renderer_o* obj, le_swapchain_settings_t const * settings, uint32_t settings_count);
 
 		le_img_resource_handle         ( * get_swapchain_resource)( le_renderer_o* self, le_swapchain_handle swapchain);
+		le_img_resource_handle         ( * get_swapchain_resource_default)( le_renderer_o* self);
 		void                           ( * get_swapchain_extent  )( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height );
 		bool                           ( * get_swapchains        )(le_renderer_o* self, size_t *num_swapchains , le_swapchain_handle* p_swapchain_handles);
 		le_swapchain_handle 		   ( * add_swapchain 		 )(le_renderer_o* self, le_swapchain_settings_t const * settings);
@@ -267,8 +268,14 @@ class Renderer {
 		return *le_renderer::renderer_i.get_settings( self );
 	}
 
-	le_img_resource_handle getSwapchainResource( le_swapchain_handle swapchain = nullptr ) const {
+	/// Returns the image resource for the given swapchain, if this swapchain is available in the backend.
+	le_img_resource_handle getSwapchainResource( le_swapchain_handle swapchain ) const {
 		return le_renderer::renderer_i.get_swapchain_resource( self, swapchain );
+	}
+
+	/// Returns the default swapchain image resource, if there is a swapchain available in the backend
+	le_img_resource_handle getSwapchainResource() const {
+		return le_renderer::renderer_i.get_swapchain_resource_default( self );
 	}
 
 	void getSwapchainExtent( uint32_t* pWidth, uint32_t* pHeight, le_swapchain_handle swapchain = nullptr ) const {
