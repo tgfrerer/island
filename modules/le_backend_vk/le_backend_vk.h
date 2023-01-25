@@ -154,10 +154,7 @@ struct le_backend_vk_api {
 		// return number of in-flight backend data frames
 		size_t                 ( *get_data_frames_count   ) ( le_backend_o *self );
 
-		//void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
-		void                   ( *reset_failed_swapchains    ) ( le_backend_o *self );
-
-		// TODO: this is called from the rendergraph to patch renderpass sizes - we should find a better way to do this.
+		// this is called from the rendergraph to patch renderpass sizes - it must only be called on the recording thread
 		bool                   ( *get_swapchains_infos        ) ( le_backend_o* self, uint32_t frame_index, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_img_resource_handle * p_handlle );
 
 

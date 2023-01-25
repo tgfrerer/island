@@ -1120,42 +1120,6 @@ static le_img_resource_handle backend_get_swapchain_resource_default( le_backend
 
 // ----------------------------------------------------------------------
 
-static void backend_reset_swapchain( le_backend_o* self, le_swapchain_o* swapchain ) {
-	using namespace le_swapchain_vk;
-	static auto logger = LeLog( LOGGER_LABEL );
-
-	// swapchain_i.reset( swapchain, nullptr );
-
-	logger.info( "Resetting swapchain NOT IMPLEMENTED: %x", swapchain );
-
-	// We must update our cached values for swapchain dimensions if the swapchain was reset.
-
-	//	self->swapchainWidth[ index ]  = swapchain_i.get_image_width( self->swapchains[ index ] );
-	//	self->swapchainHeight[ index ] = swapchain_i.get_image_height( self->swapchains[ index ] );
-}
-
-// ----------------------------------------------------------------------
-/// \brief reset any swapchains for which at least one swapchain_state
-/// did not present successfully
-static void backend_reset_failed_swapchains( le_backend_o* self ) {
-	using namespace le_swapchain_vk;
-
-	for ( auto const& f : self->mFrames ) {
-
-		for ( auto [ key, swapchain_state ] : f.modern_swapchain_state ) {
-			if ( false == swapchain_state.present_successful ||
-			     false == swapchain_state.acquire_successful ) {
-
-				auto it = self->modern_swapchains.find( key );
-				if ( it != self->modern_swapchains.end() ) {
-					// backend_reset_swapchain( self, it->second.swapchain );
-				}
-			}
-		}
-	}
-}
-// ----------------------------------------------------------------------
-
 /// \brief Declare a resource as a virtual buffer
 /// \details This is an internal method. Virtual buffers are buffers which don't have individual
 /// Vulkan buffer backing. Instead, they use their Frame's buffer for storage. Virtual buffers
@@ -7636,8 +7600,6 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.destroy                         = backend_destroy;
 	vk_backend_i.setup                           = backend_setup;
 	vk_backend_i.get_data_frames_count           = backend_get_data_frames_count;
-	// vk_backend_i.reset_swapchain                 = backend_reset_swapchain;
-	vk_backend_i.reset_failed_swapchains         = backend_reset_failed_swapchains;
 	vk_backend_i.get_transient_allocators        = backend_get_transient_allocators;
 	vk_backend_i.get_staging_allocator           = backend_get_staging_allocator;
 	vk_backend_i.poll_frame_fence                = backend_poll_frame_fence;
