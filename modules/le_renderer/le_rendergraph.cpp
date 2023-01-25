@@ -200,6 +200,10 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 
 static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
 
+	if ( image_id == nullptr ) {
+		return;
+	}
+
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
 
@@ -218,6 +222,10 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resou
 // ----------------------------------------------------------------------
 
 static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_img_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
+
+	if ( image_id == nullptr ) {
+		return;
+	}
 
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
