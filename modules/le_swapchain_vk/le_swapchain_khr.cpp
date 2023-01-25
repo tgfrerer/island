@@ -238,9 +238,12 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 
 	if ( vkCreateSwapchainKHR == nullptr ) {
 		logger.error( "Could not find function pointer to create swapchain. \n"
-		              "Did you first (via renderer) query required instance and device extensions?\n"
-		              "This is done implicitly when creating swapchains by passing renderer settings which contain swapchain settings to le_renderer.setup().\n"
-		              "If you, however, decide to explicitly create a swapchain, you must query instance and device extensions **before** you setup the renderer." );
+		              "\t )\n"
+		              "\t ) Most likely you forgot to request the required Vulkan extensions before setting up the renderer. \n"
+		              "\t )\n"
+		              "\t ) Fix this by calling renderer.request_backend_capabilities() with any settings for swapchains you will want to use.\n"
+		              "\t ) This is done implicitly when creating swapchains by passing renderer settings (which contain swapchain settings) to le_renderer.setup().\n"
+		              "\t ) If you, however, decide to explicitly create a swapchain, you must query instance and device extensions **before** you setup the renderer." );
 		assert( false );
 	}
 
