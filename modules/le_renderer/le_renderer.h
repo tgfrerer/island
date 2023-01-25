@@ -34,7 +34,9 @@ struct le_renderer_api {
 	struct renderer_interface_t {
 		le_renderer_o *                ( *create                  )( );
 		void                           ( *destroy                 )( le_renderer_o *obj );
+		bool 						   ( *request_backend_capabilities)( le_renderer_o* obj, le_swapchain_settings_t const * settings, uint32_t settings_count);
 		void                           ( *setup                   )( le_renderer_o *obj, le_renderer_settings_t const & settings );
+
 		void                           ( *update                  )( le_renderer_o *obj, le_rendergraph_o *rendergraph);
 
         le_renderer_settings_t const * ( *get_settings            )( le_renderer_o* self );
@@ -234,6 +236,10 @@ class Renderer {
 
 	~Renderer() {
 		le_renderer::renderer_i.destroy( self );
+	}
+
+	bool requestBackendCapabilities( le_swapchain_settings_t* swapchain_settings, uint32_t swapchain_settings_count ) {
+		return le_renderer::renderer_i.request_backend_capabilities( self, swapchain_settings, swapchain_settings_count );
 	}
 
 	void setup( le_renderer_settings_t const& settings ) {

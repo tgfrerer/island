@@ -363,6 +363,22 @@ static le_pipeline_manager_o* renderer_get_pipeline_manager( le_renderer_o* self
 
 // ----------------------------------------------------------------------
 
+static bool renderer_request_backend_capabilities( le_renderer_o* self, le_swapchain_settings_t const* settings, uint32_t settings_count ) {
+
+	// Request extensions from the backend - this must only be called
+	// before or while renderer_setup() is called for the first time.
+
+	using namespace le_swapchain_vk;
+
+	for ( uint32_t i = 0; i != settings_count && settings != nullptr; i++, settings++ ) {
+		swapchain_i.get_required_vk_instance_extensions( settings );
+		swapchain_i.get_required_vk_device_extensions( settings );
+	}
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
 static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t* const settings );
 
 static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& settings ) {
@@ -374,11 +390,7 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 	{
 		// Set up the backend
 
-
-		for ( size_t i = 0; i < settings.num_swapchain_settings; i++ ) {
-			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( &settings.swapchain_settings[ i ] );
-			le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( &settings.swapchain_settings[ i ] );
-		}
+		renderer_request_backend_capabilities( self, settings.swapchain_settings, settings.num_swapchain_settings );
 
 #if ( LE_MT > 0 )
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
@@ -867,6 +879,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 
 	le_renderer_i.create                 = renderer_create;
 	le_renderer_i.destroy                = renderer_destroy;
+	le_renderer_i.request_backend_capabilities = renderer_request_backend_capabilities;
 	le_renderer_i.setup                  = renderer_setup;
 	le_renderer_i.update                 = renderer_update;
 	le_renderer_i.get_settings           = renderer_get_settings;
