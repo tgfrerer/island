@@ -259,9 +259,9 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 	VkValidationFeaturesEXT validationFeatures{
 	    .sType                          = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
 	    .pNext                          = nullptr, // optional
-	    .enabledValidationFeatureCount = uint32_t(enabledValidationFeatures.size()) - 1, // note that we ignore the last feature
+	    .enabledValidationFeatureCount = uint32_t(enabledValidationFeatures.size()) , 
 	    .pEnabledValidationFeatures     = enabledValidationFeatures.data(),
-	    .disabledValidationFeatureCount = uint32_t(disabledValidationFeatures.size()) - 1, // note that we ignore the last feature
+	    .disabledValidationFeatureCount = uint32_t(disabledValidationFeatures.size()),
 	    .pDisabledValidationFeatures    = disabledValidationFeatures.data(),
 	};
 	;
