@@ -7,7 +7,7 @@
 #include <vector>
 #include <assert.h>
 
-#include "private/le_resource_handle_t.inl"
+#include "private/le_renderer/le_resource_handle_t.inl"
 
 // ----------------------------------------------------------------------
 
