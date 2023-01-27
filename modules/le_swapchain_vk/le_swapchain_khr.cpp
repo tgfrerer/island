@@ -116,12 +116,12 @@ static void swapchain_attach_images( le_swapchain_o* base ) {
 		self->mImageRefs.resize( self->mImagecount );
 		result = vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
 
-		logger.info( "images attached for KHR swapchain: %p", self->swapchainKHR );
+		logger.info( "Images attached for KHR swapchain [%p]:", self->swapchainKHR );
 
 		{
 			int i = 0;
 			for ( auto const& img : self->mImageRefs ) {
-				logger.info( "[%d] %p", i, img );
+				logger.info( "\t[%d] %p", i, img );
 				i++;
 			}
 		}
@@ -351,9 +351,11 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	case VK_ERROR_SURFACE_LOST_KHR: // |
 	case VK_ERROR_OUT_OF_DATE_KHR:  // |
 	{
+		logger.warn( "Could not acquire next image: %s", to_str( self->lastError ) );
 		return false;
 	}
 	default:
+		logger.warn( "Could not acquire next image: %s", to_str( self->lastError ) );
 		return false;
 	}
 }
