@@ -36,6 +36,7 @@ struct multi_window_example_app_o {
 	LeCameraController                                   cameraController;
 	LeCamera                                             camera;
 	LeMesh                                               mesh;
+	uint64_t                                             frame_counter = 0;
 };
 
 // ----------------------------------------------------------------------
@@ -396,6 +397,13 @@ static bool app_update( multi_window_example_app_o* self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	le::Window::pollEvents();
 
+	if ( self->frame_counter == 4 ) {
+		if ( self->windows.find( 1 ) != self->windows.end() ) {
+			self->renderer.removeSwapchain( self->windows[ 1 ].swapchain );
+			self->windows.erase( 1 );
+		}
+	}
+
 	for ( auto it = self->windows.begin(); it != self->windows.end(); ) {
 		if ( it->second.window.shouldClose() ) {
 			self->renderer.removeSwapchain( it->second.swapchain );
@@ -416,6 +424,13 @@ static bool app_update( multi_window_example_app_o* self ) {
 	if ( self->windows.empty() ) {
 		// no more windows left, we should quit the application.
 		return false;
+	}
+
+	if ( self->frame_counter == 3 ) {
+		LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
+		LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 0 );
+		// *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES = 1000;
+		//*LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES = 2000;
 	}
 
 	// update interactive camera using mouse data
@@ -468,8 +483,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 
 		renderGraph
 		    .addRenderPass( renderPassMain )
-		    //.declareResource( IMG_SWAP_0, le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) ).build() )
-		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    //.declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 
 		// Define a renderpass, which outputs to window_1. Note that it uses
@@ -477,19 +491,19 @@ static bool app_update( multi_window_example_app_o* self ) {
 		auto renderPassSecond =
 		    le::RenderPass( "to_window_1" )
 		        .addColorAttachment( IMG_SWAP[ 1 ], attachmentInfo[ 1 ] ) // IMG_SWAP_1 == swapchain 1 attachment
-		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ) )
+		        //.addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ) )
 		        // .setSampleCount( le::SampleCountFlagBits::e8 ) //
 		        .setExecuteCallback( self, pass_to_window_1 ) //
 		    ;
 
 		renderGraph
 		    .addRenderPass( renderPassSecond )
-		    //.declareResource( IMG_SWAP_1, le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) ).build() )
-		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    //.declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 	}
 
 	self->renderer.update( renderGraph );
+	++self->frame_counter;
 
 	return true; // keep app alive
 }
