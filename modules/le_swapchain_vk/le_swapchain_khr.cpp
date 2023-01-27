@@ -275,7 +275,7 @@ static le_swapchain_o* swapchain_khr_create( const le_swapchain_vk_api::swapchai
 	swapchain_khr_reset( base, settings );
 
 	static auto logger = LeLog( LOGGER_LABEL );
-	logger.info( " ** swapchain created: %x, VkSwapchain: %x", base, self->swapchainKHR );
+	logger.info( "Created Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
 
 	return base;
 }
@@ -290,8 +290,6 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 	auto new_data = static_cast<khr_data_o*>( new_swapchain->data );
 	auto old_data = static_cast<khr_data_o* const>( old_swapchain->data );
 
-	auto old_swapchain_khr = old_data->swapchainKHR;
-
 	*new_data = *old_data;
 	// Note that we do not set new_data->swapchainKHR to NULL
 	// this is so that is will get used as oldSwapchain when
@@ -299,10 +297,8 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 
 	swapchain_khr_reset( new_swapchain, &new_data->mSettings );
 
-
-
 	static auto logger = LeLog( LOGGER_LABEL );
-	logger.info( " ** swapchain created: %x from %x", new_swapchain, old_swapchain );
+	logger.info( "Created Swapchain %p from old Swapchain %p", new_swapchain, old_swapchain );
 
 	return new_swapchain;
 }
@@ -315,7 +311,7 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
 	VkDevice device = self->device;
 
-	logger.info( " ** VkSwapchain destroy: %x, VkSwapchain: %x", base, self->swapchainKHR );
+	logger.info( "Destroyed Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
 
 	if ( self->swapchainKHR ) {
 		vkDestroySwapchainKHR( device, self->swapchainKHR, nullptr );
@@ -338,7 +334,7 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 
 	if ( self->lastError != VK_SUCCESS &&
 	     self->lastError != VK_SUBOPTIMAL_KHR ) {
-		logger.warn( "KHR Swapchain %x cannot acquire image because of previous error: %s", base, to_str( self->lastError ) );
+		logger.warn( "KHR Swapchain %p cannot acquire image because of previous error: %s", base, to_str( self->lastError ) );
 		return false;
 	}
 

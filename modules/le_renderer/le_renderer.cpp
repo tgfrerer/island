@@ -567,15 +567,7 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
-	// if ( acquireSuccess ) {
 	frame.state = FrameData::State::eAcquired;
-	////} else {
-	//	frame.state = FrameData::State::eFailedAcquire;
-	//	// Failure most likely means that the swapchain was reset,
-	//	// perhaps because of window resize.
-	//	le::Log( "le_renderer" ).warn( "Could not acquire frame" );
-	//	//self->swapchainDirty = true;
-	//}
 
 	return frame.state;
 }
@@ -629,25 +621,10 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	frame.meta.time_dispatch_frame_end = std::chrono::high_resolution_clock::now();
 
-	// if ( dispatchSuccessful ) {
 	frame.state = FrameData::State::eDispatched;
 	//		std::cout << "DISP FRAME " << frameIndex << std::endl
 	//		          << std::flush;
 
-	//} else {
-
-	//	static auto logger = le::Log( "le_renderer" );
-	//	logger.warn( "Present failed on frame: %d", frame.frameNumber );
-
-	//	// Present was not successful -
-	//	//
-	//	// This most likely happened because the window surface has been resized.
-	//	// We therefore attempt to reset the swapchain.
-
-	//	frame.state = FrameData::State::eFailedDispatch;
-
-	//	self->swapchainDirty = true;
-	//}
 }
 
 // ----------------------------------------------------------------------
@@ -802,34 +779,6 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 		// wait for frame to come back (important to do this last, as it may block...)
 		renderer_clear_frame( self, ( index + 1 ) % numFrames );
 	}
-
-	// if ( self->swapchainDirty ) {
-	//  we must dispatch, then clear all previous dispatchable frames,
-	//  before recreating swapchain. This is because this frame
-	//  was processed against the vkImage object from the previous
-	//  swapchain.
-
-	// TODO: check if you could just signal these fences so that the
-	// leftover frames must not be dispatched.
-
-	// for ( size_t i = 0; i != self->frames.size(); ++i ) {
-	//	if ( self->frames[ i ].state == FrameData::State::eRecorded ) {
-	//		// we need a method here to undo the acquisition of the frame, without crossing the frame fence, which
-	//		// has not been submitted yet.
-
-	//		renderer_clear_frame( self, i );
-	//	} else if ( self->frames[ i ].state == FrameData::State::eProcessed ) {
-	//		renderer_dispatch_frame( self, i );
-	//		renderer_clear_frame( self, i );
-	//	} else if ( self->frames[ i ].state != FrameData::State::eDispatched ) {
-	//		renderer_clear_frame( self, i );
-	//	}
-	//}
-
-	// vk_backend_i.reset_failed_swapchains( self->backend );
-
-	//		self->swapchainDirty = false;
-	//	}
 
 	++self->currentFrameNumber;
 }

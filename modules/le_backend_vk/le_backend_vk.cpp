@@ -947,7 +947,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 			maybe_swapchain_surface = std::shared_ptr<VkSurfaceKHR_T>(
 			    le_window::window_i.create_surface( settings.khr_settings.window, instance ),
 			    [ instance ]( VkSurfaceKHR_T* ptr ) {
-				    logger.info( "Surface %x destroyed.", ptr );
+				    logger.info( "Surface %p destroyed.", ptr );
 				    vkDestroySurfaceKHR( instance, ptr, nullptr );
 			    } );
 
