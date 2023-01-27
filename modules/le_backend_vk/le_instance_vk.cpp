@@ -41,12 +41,9 @@ static bool should_use_validation_layers() {
  * layer. (The following are otherwise disabled by default)
  *
  */
- static const std::vector<VkValidationFeatureEnableEXT> enabledValidationFeatures = {
-//  VkValidationFeatureEnableEXT::eGpuAssisted,
-//  VkValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
-//  VkValidationFeatureEnableEXT::eBestPractices,
-//  VkValidationFeatureEnableEXT::eDebugPrintf,
- };
+static const std::vector<VkValidationFeatureEnableEXT> enabledValidationFeatures = {
+    // VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
+};
 
 /*
  * Specify which validation layers to disable within Khronos validation
@@ -264,7 +261,6 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 	    .disabledValidationFeatureCount = uint32_t(disabledValidationFeatures.size()),
 	    .pDisabledValidationFeatures    = disabledValidationFeatures.data(),
 	};
-	;
 
 	VkInstanceCreateInfo info{
 	    .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
