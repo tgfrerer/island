@@ -16,6 +16,7 @@
 #include <memory>
 #include <sstream>
 #include <vector>
+#include <unordered_map>
 
 typedef multi_window_example_app_o app_o;
 
@@ -24,15 +25,17 @@ struct le_mouse_event_data_o {
 	glm::vec2 cursor_pos;
 };
 
+struct window_and_swapchain_t {
+	le::Window          window;
+	le_swapchain_handle swapchain;
+};
+
 struct multi_window_example_app_o {
-	le::Window   window_0;
-	le::Window   window_1;
-	le::Renderer renderer;
-
-	LeCameraController cameraController;
-	LeCamera           camera;
-
-	LeMesh mesh;
+	std::unordered_map<uint64_t, window_and_swapchain_t> windows;
+	le::Renderer                                         renderer;
+	LeCameraController                                   cameraController;
+	LeCamera                                             camera;
+	LeMesh                                               mesh;
 };
 
 // ----------------------------------------------------------------------
@@ -47,12 +50,14 @@ static void app_terminate() {
 	le::Window::terminate();
 };
 
-static void reset_camera( multi_window_example_app_o* self ); // ffdecl.
+static void reset_camera( multi_window_example_app_o* self, window_and_swapchain_t& window ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
 static multi_window_example_app_o* app_create() {
 	auto app = new ( multi_window_example_app_o );
+
+	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, false );
 
 	le::Window::Settings settings_0;
 	settings_0
@@ -67,35 +72,57 @@ static multi_window_example_app_o* app_create() {
 	    .setTitle( "Island // Window 1" );
 
 	// Setup both windows
-	app->window_0.setup( settings_0 );
-	app->window_1.setup( settings_1 );
 
-	// Attach windows to swapchains via renderer
-	app->renderer.setup(
-	    le::RendererInfoBuilder()
-	        .addSwapchain()
-	        .asWindowSwapchain()
-	        .setWindow( app->window_0 )
-	        .end()
-	        .end()
-	        .addSwapchain()
-	        .asWindowSwapchain()
-	        .setWindow( app->window_1 )
-	        .end()
-	        .end()
-	        .build() );
+	app->windows[ 0 ].window.setup( settings_0 );
+	app->windows[ 1 ].window.setup( settings_1 );
 
-	reset_camera( app ); // set up the camera
+	le_swapchain_settings_t swapchain_settings{
+	    .type            = le_swapchain_settings_t::LE_KHR_SWAPCHAIN,
+	    .width_hint      = 0,
+	    .height_hint     = 0,
+	    .imagecount_hint = 3,
+	    .format_hint     = le::Format::eB8G8R8A8Unorm, // preferred surface format
+	    .khr_settings    = {
+	           .presentmode_hint = le::Presentmode::eFifo,
+	           .vk_surface       = nullptr, // will be set by backend internally
+	           .window           = nullptr, // will set this later
+        },
+	};
+
+	// If we don't implicitly create swapchains by setting up renderer using
+	// renderer settings which contain swapchain settings, then we must request
+	// the correct capabilities from the backend so that it may create any of
+	// the swapchains described in a given array of swapchain settings:
+	app->renderer.requestBackendCapabilities( &swapchain_settings, 1 );
+
+	// Note that we setup the renderer without giving any parameters
+	app->renderer.setup();
+
+	swapchain_settings.width_hint          = 1920 / 2;
+	swapchain_settings.height_hint         = 1080 / 2;
+	swapchain_settings.khr_settings.window = app->windows[ 0 ].window;
+
+	// Create swapchains
+	app->windows[ 0 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
+
+	swapchain_settings.width_hint          = 200;
+	swapchain_settings.height_hint         = 400;
+	swapchain_settings.khr_settings.window = app->windows[ 1 ].window;
+
+	app->windows[ 1 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
+
+	reset_camera( app, app->windows[ 0 ] ); // set up the camera
 
 	return app;
 }
 
 // ----------------------------------------------------------------------
 
-static void reset_camera( multi_window_example_app_o* self ) {
+static void reset_camera( multi_window_example_app_o* self, window_and_swapchain_t& window ) {
 	uint32_t screenWidth{};
 	uint32_t screenHeight{};
-	self->renderer.getSwapchainExtent( &screenWidth, &screenHeight );
+
+	self->renderer.getSwapchainExtent( &screenWidth, &screenHeight, window.swapchain );
 
 	self->camera.setViewport( { 0, float( screenHeight ), float( screenWidth ), -float( screenHeight ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
@@ -110,10 +137,7 @@ static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_
 	auto        app = static_cast<multi_window_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
-	uint32_t screenWidth, screenHeight;
-
-	// Note that we fetch extents for swapchain 0:
-	app->renderer.getSwapchainExtent( &screenWidth, &screenHeight, 0 );
+	auto [ screenWidth, screenHeight ] = encoder.getRenderpassExtent();
 
 	// Note that we flip the viewport (negative height) so that +Y is up.
 	le::Viewport viewports[ 1 ] = {
@@ -211,8 +235,7 @@ static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_
 	auto        app = static_cast<multi_window_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
-	uint32_t screenWidth, screenHeight;
-	app->renderer.getSwapchainExtent( &screenWidth, &screenHeight, 1 );
+	auto [ screenWidth, screenHeight ] = encoder.getRenderpassExtent();
 
 	// Note that we flip the viewport (negative height) so that +Y is up.
 	le::Viewport viewports[ 1 ] = {
@@ -306,15 +329,14 @@ static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_
 }
 
 // ----------------------------------------------------------------------
-static void app_process_ui_events( app_o* self ) {
-	using namespace le_window;
+static void app_process_ui_events( app_o* app, window_and_swapchain_t& window ) {
 	uint32_t         numEvents;
 	LeUiEvent const* pEvents;
 
 	// Process keyboard events - but only on window 0
 	// You could repeat this to process events on window 1
 
-	window_i.get_ui_event_queue( self->window_0, &pEvents, &numEvents ); // note: self->window_0
+	window.window.getUIEventQueue( &pEvents, &numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
@@ -329,21 +351,21 @@ static void app_process_ui_events( app_o* self ) {
 					wantsToggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
 					glm::mat4 view_matrix;
-					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
+					app->camera.getViewMatrix( ( float* )( &view_matrix ) );
 					float distance_to_origin =
 					    glm::distance( glm::vec4{ 0, 0, 0, 1 },
 					                   glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
-					self->cameraController.setPivotDistance( distance_to_origin );
+					app->cameraController.setPivotDistance( distance_to_origin );
 				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
-					self->cameraController.setPivotDistance( 0 );
+					app->cameraController.setPivotDistance( 0 );
 				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
-					reset_camera( self );
+					reset_camera( app, window );
 					glm::mat4 view_matrix;
-					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
+					app->camera.getViewMatrix( ( float* )( &view_matrix ) );
 					float distance_to_origin =
 					    glm::distance( glm::vec4{ 0, 0, 0, 1 },
 					                   glm::inverse( view_matrix ) * glm::vec4( 0, 0, 0, 1 ) );
-					self->cameraController.setPivotDistance( distance_to_origin );
+					app->cameraController.setPivotDistance( distance_to_origin );
 				}
 
 			} // if ButtonAction == eRelease
@@ -355,24 +377,14 @@ static void app_process_ui_events( app_o* self ) {
 		}
 	}
 
-	{
-		// Process camera events for window 0
+	// Process camera events
 
-		auto swapchainExtent = self->renderer.getSwapchainExtent( 0 ); // Note we're using swapchain extents 0
-		self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
-		self->cameraController.processEvents( self->camera, pEvents, numEvents );
-	}
-	{
-		// Process camera events for window 1
-		window_i.get_ui_event_queue( self->window_1, &pEvents, &numEvents ); // note: self->window_1
-
-		auto swapchainExtent = self->renderer.getSwapchainExtent( 1 ); // Note we're using swapchain extents 0
-		self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
-		self->cameraController.processEvents( self->camera, pEvents, numEvents );
-	}
+	auto swapchainExtent = app->renderer.getSwapchainExtent( window.swapchain ); // Note we're using swapchain extents 0
+	app->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+	app->cameraController.processEvents( app->camera, pEvents, numEvents );
 
 	if ( wantsToggle ) {
-		self->window_0.toggleFullscreen();
+		window.window.toggleFullscreen();
 	}
 }
 
@@ -384,30 +396,55 @@ static bool app_update( multi_window_example_app_o* self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	le::Window::pollEvents();
 
-	if ( self->window_0.shouldClose() || self->window_1.shouldClose() ) {
+	for ( auto it = self->windows.begin(); it != self->windows.end(); ) {
+		if ( it->second.window.shouldClose() ) {
+			self->renderer.removeSwapchain( it->second.swapchain );
+			//
+			// Note that we don't increment it at the end of this branch of the loop, but
+			// that we assign it from the result of the erasure operation.
+			//
+			// We do this to make sure that the iterator does not get invalidated
+			// only the iterator erased does get invalidated when erasing from
+			// an unordered map.
+			//
+			it = self->windows.erase( it );
+			continue;
+		}
+		++it;
+	}
+
+	if ( self->windows.empty() ) {
+		// no more windows left, we should quit the application.
 		return false;
 	}
 
 	// update interactive camera using mouse data
-	app_process_ui_events( self );
-
-	static bool resetCameraOnReload = false; // reload meand module reload
-	if ( resetCameraOnReload ) {
-		// Reset camera
-		reset_camera( self );
-		resetCameraOnReload = false;
+	for ( auto& [ idx, window ] : self->windows ) {
+		app_process_ui_events( self, window );
 	}
 
 	// Creature model created by user sugamo on poly.google.com: <https://poly.google.com/user/cyypmbztDpj>
 	// Licensed CC-BY.
 	static bool result = self->mesh.loadFromPlyFile( "./local_resources/meshes/sugamo-doraemon.ply" );
-
-	static auto IMG_SWAP_0 = self->renderer.getSwapchainResource( 0 );
-	static auto IMG_SWAP_1 = self->renderer.getSwapchainResource( 1 );
-
 	assert( result );
 
-	using namespace le_renderer;
+	// We initialise the swapchain image handles to nullptr so that they are in a known default state
+	// if there is no window / swapchain associated with them.
+	//
+	// In a more common scenario, you would only use swapchain resources for swapchains which you know
+	// existed.
+	//
+	// We keep it this way to show what happens if you add an image resource that is NULL as a
+	// Color Attachment, namely: nothing.
+	//
+	le_img_resource_handle IMG_SWAP[ 2 ] = {
+	    nullptr,
+	    nullptr,
+	};
+
+	for ( auto& [ idx, window ] : self->windows ) {
+		IMG_SWAP[ idx ] = self->renderer.getSwapchainResource( window.swapchain );
+	}
 
 	le::RenderGraph renderGraph{};
 	{
@@ -418,36 +455,36 @@ static bool app_update( multi_window_example_app_o* self ) {
 		attachmentInfo[ 1 ].clearValue.color =
 		    { { { 0x22 / 255.f, 0x22 / 255.f, 0x22 / 255.f, 0xff / 255.f } } };
 
-		// Define a renderpass which outputs to window_0.
+		// Define a renderpass, which outputs to window_0. Note that it uses
+		// IMG_SWAP_0 as a color attachment.
+
 		auto renderPassMain =
 		    le::RenderPass( "to_window_0", le::QueueFlagBits::eGraphics )
-		        .addColorAttachment( IMG_SWAP_0, attachmentInfo[ 0 ] ) // IMG_SWAP_0 == swapchain 0 attachment
+		        .addColorAttachment( IMG_SWAP[ 0 ], attachmentInfo[ 0 ] ) // IMG_SWAP_0 == swapchain 0 attachment
 		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ) )
-		        .setSampleCount( le::SampleCountFlagBits::e8 )
-		        .setExecuteCallback( self, pass_to_window_0 ) //
-		    ;
-
-		// Define a renderpass, which outputs to window_1. Note that it uses
-		// IMG_SWAP_1 as a color attachment.
-
-		// Because only the image resource for the default swapchain is automatically
-		// recognised as drawing to screen, you must set the renderpass Root manually.
-		// Root means that the renderpass is tagged as contributing to the final image,
-		// otherwise the rendergraph is free to optimise it away, and along with it any
-		// renderpasses that contribute to it.
-
-		auto renderPassSecond =
-		    le::RenderPass( "to_window_1" )
-		        .addColorAttachment( IMG_SWAP_1, attachmentInfo[ 1 ] ) // IMG_SWAP_1 == swapchain 1 attachment
-		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ) )
-		        .setExecuteCallback( self, pass_to_window_1 )
-		        .setIsRoot( true ) // IMPORTANT!
+		        .setSampleCount( le::SampleCountFlagBits::e8 ) //
+		        .setExecuteCallback( self, pass_to_window_0 )  //
 		    ;
 
 		renderGraph
 		    .addRenderPass( renderPassMain )
+		    //.declareResource( IMG_SWAP_0, le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) ).build() )
+		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    ;
+
+		// Define a renderpass, which outputs to window_1. Note that it uses
+		// IMG_SWAP_1 as a color attachment.
+		auto renderPassSecond =
+		    le::RenderPass( "to_window_1" )
+		        .addColorAttachment( IMG_SWAP[ 1 ], attachmentInfo[ 1 ] ) // IMG_SWAP_1 == swapchain 1 attachment
+		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ) )
+		        // .setSampleCount( le::SampleCountFlagBits::e8 ) //
+		        .setExecuteCallback( self, pass_to_window_1 ) //
+		    ;
+
+		renderGraph
 		    .addRenderPass( renderPassSecond )
-		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() )
+		    //.declareResource( IMG_SWAP_1, le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) ).build() )
 		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 	}
