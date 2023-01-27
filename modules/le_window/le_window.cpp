@@ -279,7 +279,6 @@ static void glfw_framebuffer_resize_callback( GLFWwindow* glfwWindow, int width_
 	window->mSurfaceExtent.width  = uint32_t( w );
 	window->mSurfaceExtent.height = uint32_t( h );
 
-	logger.info( "framebuffer resized callback (w:% 5d, h:% 5d)", w, h );
 };
 
 // ----------------------------------------------------------------------
