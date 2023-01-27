@@ -662,14 +662,23 @@ struct le_backend_o {
 	KillList<le_rtx_blas_info_o> rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
 	KillList<le_rtx_tlas_info_o> rtx_tlas_info_kill_list; // used to keep track rtx_blas_infos.
 
+	std::unordered_map<le_resource_handle, uint64_t> resource_queue_family_ownership[ 2 ]; // per-resource queue family ownership - we use this to detect queue family ownership change for resources
+
+  private:
 	// Vulkan resources which are available to all frames.
 	// Generally, a resource needs to stay alive until the last frame that uses it has crossed its fence.
 	// FIXME: Access to this map needs to be secured via mutex...
-	struct {
-		std::unordered_map<le_resource_handle, AllocatedResourceVk> allocatedResources; // Allocated resources, indexed by resource name hash
-	} only_backend_allocate_resources_may_access;                                       // Only acquire_physical_resources may read/write
+	std::unordered_map<le_resource_handle, AllocatedResourceVk> allocated_resources;       // Allocated resources, indexed by resource name hash
+	std::mutex                                                  allocated_resources_mutex; /// mutex protecting allocated_resources
 
-	std::unordered_map<le_resource_handle, uint64_t> resource_queue_family_ownership[ 2 ]; // per-resource queue family ownership - we use this to detect queue family ownership change for resources
+  public:
+	auto get_allocated_resources() {
+		// By returning a lock with the reference to allocated resources we enforce that
+		// the mutex be locked for the duration that the reference is in-scope.
+		//
+		// Don't do anything crazy with the reference.
+		return std::pair<decltype( allocated_resources )&, std::unique_lock<std::mutex>>( allocated_resources, std::unique_lock( allocated_resources_mutex ) );
+	}
 };
 
 // State of arguments for currently bound pipeline - we keep this here,
@@ -868,32 +877,36 @@ static void backend_destroy( le_backend_o* self ) {
 	// Remove any resources still alive in the backend.
 	// At this point we're running single-threaded, so we can ignore the
 	// ownership claim on allocatedResources.
-	for ( auto& a : self->only_backend_allocate_resources_may_access.allocatedResources ) {
 
-		switch ( a.second.info.type ) {
-		case LeResourceType::eImage:
-			vkDestroyImage( device, a.second.as.image, nullptr );
-			break;
-		case LeResourceType::eBuffer:
-			vkDestroyBuffer( device, a.second.as.buffer, nullptr );
-			break;
-		case LeResourceType::eRtxBlas:
-			vkDestroyBuffer( device, a.second.info.blasInfo.buffer, nullptr );
-			vkDestroyAccelerationStructureKHR( device, a.second.as.blas, nullptr );
-			break;
-		case LeResourceType::eRtxTlas:
-			vkDestroyBuffer( device, a.second.info.tlasInfo.buffer, nullptr );
-			vkDestroyAccelerationStructureKHR( device, a.second.as.tlas, nullptr );
-			break;
-		default:
-			assert( false && "Unknown resource type" );
+	{
+		auto [ allocated_resources, lock ] = self->get_allocated_resources();
+
+		for ( auto& a : allocated_resources ) {
+
+			switch ( a.second.info.type ) {
+			case LeResourceType::eImage:
+				vkDestroyImage( device, a.second.as.image, nullptr );
+				break;
+			case LeResourceType::eBuffer:
+				vkDestroyBuffer( device, a.second.as.buffer, nullptr );
+				break;
+			case LeResourceType::eRtxBlas:
+				vkDestroyBuffer( device, a.second.info.blasInfo.buffer, nullptr );
+				vkDestroyAccelerationStructureKHR( device, a.second.as.blas, nullptr );
+				break;
+			case LeResourceType::eRtxTlas:
+				vkDestroyBuffer( device, a.second.info.tlasInfo.buffer, nullptr );
+				vkDestroyAccelerationStructureKHR( device, a.second.as.tlas, nullptr );
+				break;
+			default:
+				assert( false && "Unknown resource type" );
+			}
+
+			vmaFreeMemory( self->mAllocator, a.second.allocation );
 		}
 
-		vmaFreeMemory( self->mAllocator, a.second.allocation );
+		allocated_resources.clear();
 	}
-
-	self->only_backend_allocate_resources_may_access.allocatedResources.clear();
-
 	if ( self->mAllocator ) {
 		vmaDestroyAllocator( self->mAllocator );
 		self->mAllocator = nullptr;
@@ -3567,115 +3580,118 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	// Check if all resources declared in this frame are already available in backend.
 	// If a resource is not available yet, this resource must be allocated.
 
-	auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
+	{
 
-	for ( auto const& ar : active_resources ) {
+		auto [ backendResources, backend_resources_lock ] = self->get_allocated_resources();
 
-		le_resource_handle const& resource     = ar.first;
-		le_resource_info_t const& resourceInfo = ar.second; ///< consolidated resource info for this resource over all passes
+		for ( auto const& ar : active_resources ) {
 
-		// See if a resource with this id is already available to the frame
-		// This may be the case with a swapchain image resource for example,
-		// as it is allocated and managed from within the swapchain, not here.
-		//
-		if ( frame.availableResources.find( resource ) != frame.availableResources.end() ) {
-			// Resource is already available to and present in the frame.
-			continue;
-		}
+			le_resource_handle const& resource     = ar.first;
+			le_resource_info_t const& resourceInfo = ar.second; ///< consolidated resource info for this resource over all passes
 
-		// ---------| invariant: resource with this id is not yet available to frame.
-
-		// first check if the resource is available to the frame,
-		// if that is not the chase, check if the resource is available to the frame.
-
-		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo );
-		auto       foundIt            = backendResources.find( resource );
-		const bool resourceIdNotFound = ( foundIt == backendResources.end() );
-
-		if ( resourceIdNotFound ) {
-
-			// Resource does not yet exist, we must allocate this resource and add it to the backend.
-			// Then add a reference to it to the current frame.
-
-			if ( resourceCreateInfo.isImage() ) {
-
-				patchImageUsageForMipLevels( &resourceCreateInfo );
-
-				if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-					inferImageFormat( self, static_cast<le_img_resource_handle>( resource ), resourceInfo.image.usage, &resourceCreateInfo );
-				}
-			}
-
-			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
-
-			if ( LE_PRINT_DEBUG_MESSAGES || true ) {
-				printResourceInfo( resource, allocatedResource.info, "ALLOC" );
-			}
-
-			// Add resource to map of available resources for this frame
-			frame.availableResources.insert_or_assign( resource, allocatedResource );
-
-			// Add this newly allocated resource to the backend so that the following frames
-			// may use it, too
-			backendResources.insert_or_assign( resource, allocatedResource );
-
-		} else {
-
-			// If an existing resource has been found, we must check that it
-			// was allocated with the same properties as the resource we require
-
-			auto& foundResourceCreateInfo = foundIt->second.info;
-
-			// Note that we use the greater-than operator, which means
-			// that if our foundResource is equal to *or a superset of*
-			// resourceCreateInfo, we can re-use the found resource.
+			// See if a resource with this id is already available to the frame
+			// This may be the case with a swapchain image resource for example,
+			// as it is allocated and managed from within the swapchain, not here.
 			//
-			if ( foundResourceCreateInfo >= resourceCreateInfo ) {
+			if ( frame.availableResources.find( resource ) != frame.availableResources.end() ) {
+				// Resource is already available to and present in the frame.
+				continue;
+			}
 
-				// -- found info is either equal or a superset
+			// ---------| invariant: resource with this id is not yet available to frame.
 
-				// Add a copy of this resource allocation to the current frame.
-				frame.availableResources.emplace( resource, foundIt->second );
+			// first check if the resource is available to the frame,
+			// if that is not the chase, check if the resource is available to the frame.
 
-			} else {
+			auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo );
+			auto       foundIt            = backendResources.find( resource );
+			const bool resourceIdNotFound = ( foundIt == backendResources.end() );
 
-				// -- info does not match.
+			if ( resourceIdNotFound ) {
 
-				// We must re-allocate this resource, and add the old version of the resource to the recycling bin.
-
-				// -- allocate a new resource
+				// Resource does not yet exist, we must allocate this resource and add it to the backend.
+				// Then add a reference to it to the current frame.
 
 				if ( resourceCreateInfo.isImage() ) {
+
 					patchImageUsageForMipLevels( &resourceCreateInfo );
+
 					if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
 						inferImageFormat( self, static_cast<le_img_resource_handle>( resource ), resourceInfo.image.usage, &resourceCreateInfo );
 					}
 				}
 
-				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
+				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 
 				if ( LE_PRINT_DEBUG_MESSAGES || true ) {
-					printResourceInfo( resource, allocatedResource.info, "RE-ALLOC" );
+					printResourceInfo( resource, allocatedResource.info, "ALLOC" );
 				}
 
-				// Add a copy of old resource to recycling bin for this frame, so that
-				// these resources get freed when this frame comes round again.
-				//
-				// We don't immediately delete the resources, as in-flight (preceding) frames
-				// might still be using them.
-				frame.binnedResources.try_emplace( resource, foundIt->second );
-
-				// add the new version of the resource to frame available resources
+				// Add resource to map of available resources for this frame
 				frame.availableResources.insert_or_assign( resource, allocatedResource );
 
-				// Remove old version of resource from backend, and
-				// add new version of resource to backend
+				// Add this newly allocated resource to the backend so that the following frames
+				// may use it, too
 				backendResources.insert_or_assign( resource, allocatedResource );
+
+			} else {
+
+				// If an existing resource has been found, we must check that it
+				// was allocated with the same properties as the resource we require
+
+				auto& foundResourceCreateInfo = foundIt->second.info;
+
+				// Note that we use the greater-than operator, which means
+				// that if our foundResource is equal to *or a superset of*
+				// resourceCreateInfo, we can re-use the found resource.
+				//
+				if ( foundResourceCreateInfo >= resourceCreateInfo ) {
+
+					// -- found info is either equal or a superset
+
+					// Add a copy of this resource allocation to the current frame.
+					frame.availableResources.emplace( resource, foundIt->second );
+
+				} else {
+
+					// -- info does not match.
+
+					// We must re-allocate this resource, and add the old version of the resource to the recycling bin.
+
+					// -- allocate a new resource
+
+					if ( resourceCreateInfo.isImage() ) {
+						patchImageUsageForMipLevels( &resourceCreateInfo );
+						if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
+							inferImageFormat( self, static_cast<le_img_resource_handle>( resource ), resourceInfo.image.usage, &resourceCreateInfo );
+						}
+					}
+
+					auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
+
+					if ( LE_PRINT_DEBUG_MESSAGES || true ) {
+						printResourceInfo( resource, allocatedResource.info, "RE-ALLOC" );
+					}
+
+					// Add a copy of old resource to recycling bin for this frame, so that
+					// these resources get freed when this frame comes round again.
+					//
+					// We don't immediately delete the resources, as in-flight (preceding) frames
+					// might still be using them.
+					frame.binnedResources.try_emplace( resource, foundIt->second );
+
+					// add the new version of the resource to frame available resources
+					frame.availableResources.insert_or_assign( resource, allocatedResource );
+
+					// Remove old version of resource from backend, and
+					// add new version of resource to backend
+					backendResources.insert_or_assign( resource, allocatedResource );
+				}
 			}
+		} // end for all used resources
+		if ( LE_PRINT_DEBUG_MESSAGES ) {
+			logger.info( "" );
 		}
-	} // end for all used resources
-	if ( LE_PRINT_DEBUG_MESSAGES ) {
-		logger.info( "" );
 	}
 
 	// -- Create rtx acceleration structure scratch buffer
@@ -4072,7 +4088,8 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 			static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
-			auto& backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
+			auto [ backend_resources, lock ] = self->get_allocated_resources();
+
 			for ( auto const& tbl : frame.syncChainTable ) {
 				auto const& resId       = tbl.first;
 				auto const& resSyncList = tbl.second;
@@ -4081,8 +4098,8 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 				// find element with matching resource ID in list of backend resources
 
-				auto res = backendResources.find( resId );
-				if ( res != backendResources.end() ) {
+				auto res = backend_resources.find( resId );
+				if ( res != backend_resources.end() ) {
 					// Element found.
 					// Set sync state for this resource to value of last elment in the sync chain.
 					res->second.state = resSyncList.back();
