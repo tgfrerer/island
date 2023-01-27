@@ -295,9 +295,13 @@ static void window_increase_reference_count( le_window_o* self ) {
 }
 
 // ----------------------------------------------------------------------
+static void window_destroy( le_window_o* self ); // ffdecl.
 
 static void window_decrease_reference_count( le_window_o* self ) {
 	--self->referenceCount;
+	if ( self->referenceCount == 0 ) {
+		window_destroy( self );
+	}
 }
 
 // ----------------------------------------------------------------------

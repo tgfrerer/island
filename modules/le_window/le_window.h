@@ -90,9 +90,11 @@ static const auto& settings_i = api->window_settings_i;
 
 namespace le {
 
-class Window : NoMove, NoCopy {
+// Window is a shallow object, it is internally reference counted.
+
+class Window {
   public:
-	class Settings {
+	class Settings : NoCopy, NoMove {
 		le_window_settings_o* self = nullptr;
 
 	  public:
@@ -135,11 +137,28 @@ class Window : NoMove, NoCopy {
 		le_window::window_i.increase_reference_count( self );
 	}
 
+	Window( const Window& rhs ) { // copy constructor
+		le_window::window_i.increase_reference_count( rhs.self );
+		this->self = rhs.self;
+	}
+
+	Window& operator=( Window const& rhs ) { // copy assignment constructor
+		le_window::window_i.increase_reference_count( rhs.self );
+		this->self = rhs.self;
+		return *this;
+	}
+
+	Window( Window&& rhs ) { // move constructor
+		this->self = rhs.self;
+	}
+
+	Window& operator=( Window&& rhs ) { // move assignment constructor
+		this->self = rhs.self;
+		return *this;
+	}
+
 	~Window() {
 		le_window::window_i.decrease_reference_count( self );
-		if ( le_window::window_i.get_reference_count( self ) == 0 ) {
-			le_window::window_i.destroy( self );
-		}
 	}
 
 	void setup( const Settings& settings = {} ) {
