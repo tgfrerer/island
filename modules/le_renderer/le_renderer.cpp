@@ -616,8 +616,7 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	frame.meta.time_dispatch_frame_start = std::chrono::high_resolution_clock::now();
 
-	bool dispatchSuccessful = // TODO: we just ignore the return value here
-	    vk_backend_i.dispatch_frame( self->backend, frameIndex );
+	vk_backend_i.dispatch_frame( self->backend, frameIndex );
 
 	frame.meta.time_dispatch_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -765,16 +764,16 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 		// render on the main thread
 		vk_backend_i.update_shader_modules( self->backend );
 
-		renderer_record_frame( self, ( index + 0 ) % numFrames, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
-
 		// acquire external backend resources such as swapchain
 		// and create any temporary resources
-		renderer_acquire_backend_resources( self, ( index + 2 ) % numFrames );
+		renderer_acquire_backend_resources( self, ( index - 1 + numFrames ) % numFrames );
 
 		// generate api commands for the frame
-		renderer_process_frame( self, ( index + 2 ) % numFrames );
+		renderer_process_frame( self, ( index - 1 + numFrames ) % numFrames );
 
-		renderer_dispatch_frame( self, ( index + 2 ) % numFrames );
+		renderer_dispatch_frame( self, ( index - 1 + numFrames ) % numFrames );
+
+		renderer_record_frame( self, ( index + 0 ) % numFrames, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 
 		// wait for frame to come back (important to do this last, as it may block...)
 		renderer_clear_frame( self, ( index + 1 ) % numFrames );
