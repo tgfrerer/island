@@ -264,6 +264,10 @@ class Renderer {
 		return le_renderer::renderer_i.add_swapchain( self, swapchain_settings );
 	}
 
+	bool removeSwapchain( le_swapchain_handle swapchain ) noexcept {
+		return le_renderer::renderer_i.remove_swapchain( self, swapchain );
+	}
+
 	le_renderer_settings_t const& getSettings() const noexcept {
 		return *le_renderer::renderer_i.get_settings( self );
 	}
