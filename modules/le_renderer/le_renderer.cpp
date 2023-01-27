@@ -543,7 +543,6 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	le_resource_info_t const* declared_resources_infos = frame.rendergraph->declared_resources_info.data();
 	size_t                    declared_resources_count = frame.rendergraph->declared_resources_id.size();
 
-	auto acquireSuccess = // TODO: we just ignore the return value here
 	    vk_backend_i.acquire_physical_resources(
 	        self->backend,
 	        frameIndex,
@@ -766,16 +765,18 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 
 		// acquire external backend resources such as swapchain
 		// and create any temporary resources
-		renderer_acquire_backend_resources( self, ( index - 1 + numFrames ) % numFrames );
+		{
+			// DISPATCH FRAME
+			renderer_acquire_backend_resources( self, ( index - 1 + numFrames ) % numFrames ); //
+			renderer_process_frame( self, ( index - 1 + numFrames ) % numFrames );             // generate api commands for the frame
+			renderer_dispatch_frame( self, ( index - 1 + numFrames ) % numFrames );            //
+		}
 
-		// generate api commands for the frame
-		renderer_process_frame( self, ( index - 1 + numFrames ) % numFrames );
-
-		renderer_dispatch_frame( self, ( index - 1 + numFrames ) % numFrames );
-
+		// RECORD FRAME
 		renderer_record_frame( self, ( index + 0 ) % numFrames, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 
 		// wait for frame to come back (important to do this last, as it may block...)
+		// CLEAR FRAME
 		renderer_clear_frame( self, ( index + 1 ) % numFrames );
 	}
 

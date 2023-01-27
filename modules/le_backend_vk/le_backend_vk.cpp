@@ -2073,6 +2073,9 @@ static constexpr auto ANY_WRITE_VK_ACCESS_2_FLAGS =
       VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
       VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT );
 
+// ----------------------------------------------------------------------
+// Executes on the DISPATCH FRAME
+//
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -2487,6 +2490,8 @@ VkImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
 }
 
 // ----------------------------------------------------------------------
+// Executes on the DISPATCH FRAME
+//
 // input: Pass
 // output: framebuffer, append newly created imageViews to retained resources list.
 static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& device ) {
@@ -2575,7 +2580,8 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 }
 
 // ----------------------------------------------------------------------
-
+// Executes on the DISPATCH FRAME
+//
 static void backend_create_descriptor_pools( BackendFrameData& frame, VkDevice& device, size_t numRenderPasses ) {
 
 	// Make sure that there is one descriptorpool for every renderpass.
@@ -3515,6 +3521,9 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 }
 
 // ----------------------------------------------------------------------
+// Executes on the DISPATCH FRAME
+// towards the start of backend_acquire_physical_resources
+//
 // Allocates all physical Vulkan memory resources (Images/Buffers) referenced to by the frame.
 //
 // - If a resource is already available to the backend, the previously allocated resource is
@@ -3787,7 +3796,8 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 }
 
 // ----------------------------------------------------------------------
-
+// Executes on the DISPATCH FRAME
+//
 // Allocates ImageViews, Samplers and Textures requested by individual passes
 // these are tied to the lifetime of the frame, and will be re-created
 static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
@@ -4001,9 +4011,12 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 }
 
 // ----------------------------------------------------------------------
+// Must execute on the DISPATCH FRAME
+//
 // This is one of the most important methods of backend -
 // where we associate virtual with physical resources, allocate physical
 // resources as needed, and keep track of sync state of physical resources.
+//
 static bool backend_acquire_physical_resources( le_backend_o*             self,
                                                 size_t                    frameIndex,
                                                 le_renderpass_o**         passes,
@@ -4581,7 +4594,8 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 	return cache_entry.first->second;
 }
 
-// this must execute on the record thread
+// Must execute on the RECORD FRAME
+//
 static void backend_acquire_swapchain_resources( le_backend_o* self, size_t frameIndex ) {
 
 	auto& frame = self->mFrames[ frameIndex ];
@@ -7551,6 +7565,8 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 }
 
 // ----------------------------------------------------------------------
+// Executes on the DISPATCH FRAME
+//
 // Copy data from array of affinity masks into this frame's affinity masks array
 static void backend_set_frame_queue_submission_keys( le_backend_o* self, size_t frameIndex, void const* p_affinity_masks, uint32_t num_affinity_masks, char const** root_names, uint32_t root_names_count ) {
 	auto& frame = self->mFrames[ frameIndex ];
