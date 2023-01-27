@@ -1307,7 +1307,13 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 		createInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	}
 	createInfo.device                      = device;
-	createInfo.frameInUseCount             = 0;
+
+	VmaVulkanFunctions vma_vulkan_functions{};
+
+	vma_vulkan_functions.vkGetDeviceProcAddr   = vkGetDeviceProcAddr;
+	vma_vulkan_functions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+
+	createInfo.pVulkanFunctions            = &vma_vulkan_functions;
 	createInfo.physicalDevice              = physical_device;
 	createInfo.preferredLargeHeapBlockSize = 0; // set to default, currently 256 MB
 	createInfo.instance                    = instance;
@@ -1384,7 +1390,6 @@ static void backend_setup( le_backend_o* self ) {
 			poolInfo.blockSize       = LE_FRAME_DATA_POOL_BLOCK_SIZE; // 16.77MB
 			poolInfo.flags           = VmaPoolCreateFlagBits::VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT;
 			poolInfo.memoryTypeIndex = memIndexScratchBufferGraphics;
-			poolInfo.frameInUseCount = 0;
 			poolInfo.minBlockCount   = LE_FRAME_DATA_POOL_BLOCK_COUNT;
 			vmaCreatePool( self->mAllocator, &poolInfo, &frameData.allocationPool );
 		}
