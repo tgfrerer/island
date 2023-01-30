@@ -474,19 +474,6 @@ class modern_swapchain_data_t {
 	modern_swapchain_data_t( le_swapchain_o* swapchain_ = nullptr ) // takes ownership of swapchain.
 	    : swapchain( swapchain_ ){};
 
-	modern_swapchain_data_t( modern_swapchain_data_t const& rhs ) {
-		le_swapchain_vk::swapchain_ref_i.inc_ref( rhs.swapchain );
-		if ( swapchain ) {
-			le_swapchain_vk::swapchain_ref_i.dec_ref( swapchain );
-		}
-		swapchain = rhs.swapchain;
-
-		swapchain_surface_format = rhs.swapchain_surface_format;
-		swapchain_surface        = rhs.swapchain_surface; // this should also increase the use count...
-		height                   = rhs.height;
-		width                    = rhs.width;
-		swapchain_image          = rhs.swapchain_image;
-	};
 
 	modern_swapchain_data_t& operator=( modern_swapchain_data_t const& rhs ) {
 		le_swapchain_vk::swapchain_ref_i.inc_ref( rhs.swapchain );
@@ -501,6 +488,10 @@ class modern_swapchain_data_t {
 		width                    = rhs.width;
 		swapchain_image          = rhs.swapchain_image;
 		return *this;
+	};
+
+	modern_swapchain_data_t( modern_swapchain_data_t const& rhs ) {
+		*this = rhs;
 	};
 
 	modern_swapchain_data_t( modern_swapchain_data_t&& ) noexcept            = default; // move constructor
