@@ -42,6 +42,7 @@ struct khr_data_o {
 
 static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
 	// we need to find out if the current physical device supports PRESENT
 
 	auto self = static_cast<khr_data_o* const>( base->data );
@@ -351,11 +352,11 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	case VK_ERROR_SURFACE_LOST_KHR: // |
 	case VK_ERROR_OUT_OF_DATE_KHR:  // |
 	{
-		logger.warn( "Could not acquire next image: %s", to_str( self->lastError ) );
+		logger.error( "Could not acquire next image: %s", to_str( self->lastError ) );
 		return false;
 	}
 	default:
-		logger.warn( "Could not acquire next image: %s", to_str( self->lastError ) );
+		logger.error( "Could not acquire next image: %s", to_str( self->lastError ) );
 		return false;
 	}
 }
@@ -408,13 +409,6 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        self   = static_cast<khr_data_o* const>( base->data );
 
-	// if ( self->lastError != VK_SUCCESS &&
-	//      self->lastError != VK_SUBOPTIMAL_KHR ) {
-	//	static auto logger = LeLog( LOGGER_LABEL );
-	//	logger.warn( "KHR Swapchain %x cannot present image because of previous error, %s", base, to_str( self->lastError ) );
-	//	return false;
-	// }
-
 	VkPresentInfoKHR presentInfo{
 	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 	    .pNext              = nullptr, // optional
@@ -428,9 +422,22 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 
 	self->lastError = vkQueuePresentKHR( queue_, &presentInfo );
 
-	if ( self->lastError == VK_ERROR_OUT_OF_DATE_KHR ) {
-		// FIXME: handle swapchain resize event properly
-		logger.warn( "Out of date detected - this commonly indicates surface resize" );
+	if ( self->lastError != VK_SUCCESS ) {
+
+		/*
+		 * Note that Semaphore waits still execute regardless of whether the command is successful or not:
+		 *
+		 * https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkQueuePresentKHR.html
+		 *
+		 * > However, if the presentation request is rejected by the presentation engine with an error
+		 * > VK_ERROR_OUT_OF_DATE_KHR, VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT, or
+		 * > VK_ERROR_SURFACE_LOST_KHR, the set of queue operations are still considered to be enqueued
+		 * > and thus any semaphore wait operation specified in VkPresentInfoKHR will execute when the
+		 * > corresponding queue operation is complete.
+		 *
+		 */
+
+		logger.warn( "Present returned error: %s", to_str( self->lastError ) );
 		return false;
 	}
 
