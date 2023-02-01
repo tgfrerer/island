@@ -371,6 +371,11 @@ static void window_toggle_fullscreen( le_window_o* self ) {
 	}
 }
 
+static void window_set_window_size( le_window_o* self, uint32_t width, uint32_t height ) {
+
+	glfwSetWindowSize( self->window, width, height );
+	glfwGetWindowSize( self->window, &self->windowGeometry.width, &self->windowGeometry.height );
+}
 // ----------------------------------------------------------------------
 
 static le_window_settings_o* window_settings_create() {
@@ -681,6 +686,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_i.get_os_native_window_handle = window_get_os_native_window_handle;
 
 	window_i.toggle_fullscreen  = window_toggle_fullscreen;
+	window_i.set_window_size    = window_set_window_size;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
 
 	auto& window_settings_i      = windowApi->window_settings_i;
@@ -701,6 +707,6 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	callbacks_i.glfw_drop_callback_addr             = ( void* )glfw_window_drop_callback;
 
 #if defined PLUGINS_DYNAMIC
-	le_core_load_library_persistently( "libglfw.so" );
+// le_core_load_library_persistently( "libglfw.so" );
 #endif
 }

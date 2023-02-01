@@ -35,11 +35,13 @@ struct le_window_api {
 		bool            ( *should_close       ) ( le_window_o * );
 		uint32_t        ( *get_surface_width  ) ( le_window_o * );
 		uint32_t        ( *get_surface_height ) ( le_window_o * );
+
 		GLFWwindow*     ( *get_glfw_window    ) ( le_window_o* self );
 
 		VkSurfaceKHR_T* ( *create_surface     ) ( le_window_o *, VkInstance_T * );
 
 		void            ( *toggle_fullscreen  ) ( le_window_o* self );
+		void			( *set_window_size    ) ( le_window_o* self, uint32_t width, uint32_t height);
 
 		// Returns a sorted array of events pending for the current frame, and the number of events.
 		// Note that calling this method invalidates any values returned in the previous call to this method.
@@ -171,6 +173,10 @@ class Window {
 
 	void toggleFullscreen() {
 		le_window::window_i.toggle_fullscreen( self );
+	}
+
+	void setWindowSize( int32_t width, int32_t height ) {
+		le_window::window_i.set_window_size( self, width, height );
 	}
 
 	void getUIEventQueue( LeUiEvent const** events, uint32_t* numEvents ) {
