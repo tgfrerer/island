@@ -147,8 +147,6 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 static VkPresentModeKHR get_direct_presentmode( const le_swapchain_settings_t::khr_settings_t::Presentmode& presentmode_hint_ ) {
 	using PresentMode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 	switch ( presentmode_hint_ ) {
-	case ( PresentMode::eDefault ):
-		return VK_PRESENT_MODE_FIFO_KHR;
 	case ( PresentMode::eImmediate ):
 		return VK_PRESENT_MODE_IMMEDIATE_KHR;
 	case ( PresentMode::eMailbox ):

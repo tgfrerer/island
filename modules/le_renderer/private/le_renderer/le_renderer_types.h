@@ -225,10 +225,10 @@ struct le_swapchain_settings_t {
 	};
 	struct khr_settings_t {
 		enum class Presentmode : uint32_t {
-			eDefault = 0,
-			eImmediate,
+			eImmediate = 0,
 			eMailbox,
 			eFifo,
+			eDefault = eFifo,
 			eFifoRelaxed,
 			eSharedDemandRefresh,
 			eSharedContinuousRefresh,
