@@ -627,7 +627,7 @@ struct le_backend_o {
 	uint32_t                               queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
 	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
 
-	std::atomic<uint64_t>                                 modern_swapchains_next_handle; // monotonically increasing handle to index modern_swapchains
+	std::atomic<uint64_t>                                 swapchains_next_handle;        // monotonically increasing handle to index modern_swapchains
 	std::unordered_map<uint64_t, modern_swapchain_data_t> modern_swapchains;             // Container of owned swapchains. Access only on the main thread.
 
 
@@ -973,7 +973,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	assert( swapchain );
 
-	auto swapchain_index = ++self->modern_swapchains_next_handle; // note pre-increment
+	auto swapchain_index = ++self->swapchains_next_handle; // note pre-increment
 
 	char swapchain_name[ 64 ];
 
