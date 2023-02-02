@@ -336,14 +336,14 @@ static void renderer_destroy( le_renderer_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
+static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const* flags ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.create_rtx_blas_info( self->backend, geometries, geometries_count, flags );
 }
 
 // ----------------------------------------------------------------------
 
-static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
+static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const* flags ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.create_rtx_tlas_info( self->backend, instances_count, flags );
 }
@@ -381,16 +381,16 @@ static bool renderer_request_backend_capabilities( le_renderer_o* self, le_swapc
 
 static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t const* settings );
 
-static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& settings ) {
+static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* settings ) {
 
 	// We store swapchain settings with the renderer so that we can pass
 	// backend a permanent pointer to it.
 
-	self->settings = settings;
+	self->settings = *settings;
 	{
 		// Set up the backend
 
-		renderer_request_backend_capabilities( self, settings.swapchain_settings, settings.num_swapchain_settings );
+		renderer_request_backend_capabilities( self, self->settings.swapchain_settings, self->settings.num_swapchain_settings );
 
 #if ( LE_MT > 0 )
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
@@ -414,7 +414,7 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const& s
 
 	// Add implicitly created swapchains here
 
-	for ( size_t i = 0; i < settings.num_swapchain_settings; i++ ) {
+	for ( size_t i = 0; i < self->settings.num_swapchain_settings; i++ ) {
 		renderer_add_swapchain( self, &self->settings.swapchain_settings[ i ] );
 	}
 }

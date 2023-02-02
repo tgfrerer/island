@@ -34,7 +34,7 @@ struct le_renderer_api {
 	struct renderer_interface_t {
 		le_renderer_o *                ( *create                  )( );
 		void                           ( *destroy                 )( le_renderer_o *obj );
-		void                           ( *setup                   )( le_renderer_o *obj, le_renderer_settings_t const & settings );
+		void                           ( *setup                   )( le_renderer_o *obj, le_renderer_settings_t const * settings );
 
 		void                           ( *update                  )( le_renderer_o *obj, le_rendergraph_o *rendergraph);
 
@@ -64,8 +64,8 @@ struct le_renderer_api {
         le_tlas_resource_handle (*produce_tlas_resource_handle)(char const * maybe_name);
         le_blas_resource_handle (*produce_blas_resource_handle)(char const * maybe_name);
 
-		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const & flags);
-		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags);
+		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const * flags);
+		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const* flags);
 
 	};
 
@@ -244,14 +244,14 @@ class Renderer {
 	}
 
 	void setup( le_renderer_settings_t const& settings ) {
-		le_renderer::renderer_i.setup( self, settings );
+		le_renderer::renderer_i.setup( self, &settings );
 	}
 
 	void setup( le_window_o* window = nullptr ) {
 		if ( window ) {
-			 le_renderer::renderer_i.setup( self, le::RendererInfoBuilder( window ).build() );
+			 le_renderer::renderer_i.setup( self, &le::RendererInfoBuilder( window ).build() );
 		} else {
-			 le_renderer::renderer_i.setup( self, le::RendererInfoBuilder().build() );
+			 le_renderer::renderer_i.setup( self, &le::RendererInfoBuilder().build() );
 		}
 	}
 

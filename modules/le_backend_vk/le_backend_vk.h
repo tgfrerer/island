@@ -158,8 +158,8 @@ struct le_backend_vk_api {
 		bool                   ( *get_swapchains_infos        ) ( le_backend_o* self, uint32_t frame_index, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_img_resource_handle * p_handlle );
 
 
-		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count,le::BuildAccelerationStructureFlagsKHR const & flags);
-		le_rtx_tlas_info_handle( *create_rtx_tlas_info )(le_backend_o* self,  uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const & flags);
+		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count,le::BuildAccelerationStructureFlagsKHR const * flags);
+		le_rtx_tlas_info_handle( *create_rtx_tlas_info )(le_backend_o* self,  uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const * flags);
 	};
 
 	struct private_backend_vk_interface_t {

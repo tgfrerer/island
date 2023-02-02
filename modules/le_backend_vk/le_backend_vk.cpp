@@ -7593,7 +7593,7 @@ static void backend_set_frame_queue_submission_keys( le_backend_o* self, size_t 
 
 // ----------------------------------------------------------------------
 
-static le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
+static le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self, le_rtx_geometry_t const* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const* flags ) {
 
 	auto* blas_info = new le_rtx_blas_info_o{};
 
@@ -7602,7 +7602,7 @@ static le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self,
 
 	// Store requested flags, but if no build flags requested, at least set the
 	// allowUpdate flag so that primitive geometry may be updated.
-	blas_info->flags = flags ? static_cast<VkBuildAccelerationStructureFlagsKHR>( flags ) : VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+	blas_info->flags = flags ? static_cast<VkBuildAccelerationStructureFlagsKHR const&>( *flags ) : VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
 	self->rtx_blas_info_kill_list.add_element( blas_info );
@@ -7612,7 +7612,7 @@ static le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o* self,
 
 // ----------------------------------------------------------------------
 
-static le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const& flags ) {
+static le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const* flags ) {
 
 	auto* tlas_info = new le_rtx_tlas_info_o{};
 
@@ -7623,7 +7623,7 @@ static le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o* self,
 	// allowUpdate flag so that instance information such as transforms may be set.
 	tlas_info->flags =
 	    flags
-	        ? static_cast<VkBuildAccelerationStructureFlagsKHR>( flags )
+	        ? static_cast<VkBuildAccelerationStructureFlagsKHR const&>( *flags )
 	        : VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
