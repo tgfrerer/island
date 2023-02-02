@@ -444,7 +444,7 @@ struct SemaphoreContainer {
 	VkSemaphore semaphore;
 };
 
-class modern_swapchain_data_t {
+class swapchain_data_t {
 
 	le_swapchain_o* swapchain = nullptr; // owned, reference counted. swapchain is destroyed when last reference is deleted.
 
@@ -471,11 +471,10 @@ class modern_swapchain_data_t {
 	}
 
   public:
-	modern_swapchain_data_t( le_swapchain_o* swapchain_ = nullptr ) // takes ownership of swapchain.
+	swapchain_data_t( le_swapchain_o* swapchain_ = nullptr ) // takes ownership of swapchain.
 	    : swapchain( swapchain_ ){};
 
-
-	modern_swapchain_data_t& operator=( modern_swapchain_data_t const& rhs ) {
+	swapchain_data_t& operator=( swapchain_data_t const& rhs ) {
 		le_swapchain_vk::swapchain_ref_i.inc_ref( rhs.swapchain );
 		if ( swapchain ) {
 			le_swapchain_vk::swapchain_ref_i.dec_ref( swapchain );
@@ -490,14 +489,14 @@ class modern_swapchain_data_t {
 		return *this;
 	};
 
-	modern_swapchain_data_t( modern_swapchain_data_t const& rhs ) {
+	swapchain_data_t( swapchain_data_t const& rhs ) {
 		*this = rhs;
 	};
 
-	modern_swapchain_data_t( modern_swapchain_data_t&& ) noexcept            = default; // move constructor
-	modern_swapchain_data_t& operator=( modern_swapchain_data_t&& ) noexcept = default; // move assignment
+	swapchain_data_t( swapchain_data_t&& ) noexcept            = default; // move constructor
+	swapchain_data_t& operator=( swapchain_data_t&& ) noexcept = default; // move assignment
 
-	~modern_swapchain_data_t() {
+	~swapchain_data_t() {
 		if ( swapchain ) {
 			le_swapchain_vk::swapchain_ref_i.dec_ref( swapchain );
 		}
@@ -510,7 +509,7 @@ struct swapchain_state_t {
 	std::shared_ptr<SemaphoreContainer> renderComplete;
 	bool                                present_successful = false;
 	bool                    acquire_successful = false;
-	modern_swapchain_data_t swapchain_data;
+	swapchain_data_t                    swapchain_data;
 };
 
 // Herein goes all data which is associated with the current frame.
@@ -627,9 +626,8 @@ struct le_backend_o {
 	uint32_t                               queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
 	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
 
-	std::atomic<uint64_t>                                 swapchains_next_handle;        // monotonically increasing handle to index modern_swapchains
-	std::unordered_map<uint64_t, modern_swapchain_data_t> modern_swapchains;             // Container of owned swapchains. Access only on the main thread.
-
+	std::atomic<uint64_t>                          swapchains_next_handle; // monotonically increasing handle to index modern_swapchains
+	std::unordered_map<uint64_t, swapchain_data_t> modern_swapchains;      // Container of owned swapchains. Access only on the main thread.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
@@ -979,7 +977,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Modern_Swapchain_Image_Handle[%lu]", swapchain_index );
 
-	modern_swapchain_data_t modern_swapchain_info( swapchain );
+	swapchain_data_t modern_swapchain_info( swapchain );
 	modern_swapchain_info.swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
 	modern_swapchain_info.swapchain_surface        = maybe_swapchain_surface,
 	modern_swapchain_info.height                   = swapchain_i.get_image_height( swapchain ),
