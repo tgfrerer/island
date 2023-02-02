@@ -641,7 +641,7 @@ struct le_backend_o {
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
-	uint64_t                      totalFrameCount = 0; // total number of rendered or in-flight frames
+	uint64_t                      mFramesCount = 0; // total number of rendered or in-flight frames
 
 	le_pipeline_manager_o* pipelineCache = nullptr;
 
@@ -1329,15 +1329,13 @@ static void backend_setup( le_backend_o* self ) {
 
 	// -- setup backend memory objects
 
-	auto frameCount = 3; // TODO: WE MUST INFER THE CORRECT NUMBER OF DATA FRAMES - FOR NOW, SET TO 3
-
-	self->mFrames.reserve( frameCount );
+	self->mFrames.reserve( settings->num_backend_frames );
 
 	uint32_t memIndexScratchBufferGraphics = getMemoryIndexForGraphicsScratchBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used for transient command buffer allocations
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
-	for ( size_t i = 0; i != frameCount; ++i ) {
+	for ( size_t i = 0; i != settings->num_backend_frames; ++i ) {
 
 		// -- Set up per-frame resources
 
@@ -1374,13 +1372,13 @@ static void backend_setup( le_backend_o* self ) {
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
 
-	self->totalFrameCount = frameCount; // running total of frames
+	self->mFramesCount = settings->num_backend_frames; // running total of frames
 
 	{
 		// We want to make sure to have at least one allocator.
 		size_t num_allocators = std::max<size_t>( 1, settings->concurrency_count );
 
-		for ( size_t i = 0; i != frameCount; ++i ) {
+		for ( size_t i = 0; i != settings->num_backend_frames; ++i ) {
 			// -- create linear allocators for each frame
 			backend_create_transient_allocators( self, i, num_allocators );
 		}
@@ -2053,7 +2051,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	}
 	frame.passes.clear();
 
-	frame.frameNumber = self->totalFrameCount++; // note post-increment
+	frame.frameNumber = self->mFramesCount++; // note post-increment
 
 	return true;
 };

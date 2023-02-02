@@ -33,9 +33,9 @@ struct le_backend_vk_settings_o {
 	    //	    VK_QUEUE_COMPUTE_BIT,
 	}; // each entry stands for one queue and its capabilities
 
-
-	uint32_t                             concurrency_count = 1; // number of potential worker threads
-	std::atomic_bool                     readonly          = false;
+	uint32_t         num_backend_frames = 2; // mumber of backend data frames
+	uint32_t         concurrency_count  = 1; // number of potential worker threads
+	std::atomic_bool readonly           = false;
 };
 
 static bool le_backend_vk_settings_set_requested_queue_capabilities( VkQueueFlags* queues, uint32_t num_queues ) {
