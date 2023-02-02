@@ -1950,8 +1950,9 @@ static void backend_debug_print_framedata( BackendFrameData const& frame ) {
 
 /// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
 static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
-	auto&    frame  = self->mFrames[ frameIndex ];
-	VkDevice device = self->device->getVkDevice();
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto&       frame  = self->mFrames[ frameIndex ];
+	VkDevice    device = self->device->getVkDevice();
 
 	// Non-blocking, polling
 	// auto result = device.getFenceStatus( {frame.frameFence} );
