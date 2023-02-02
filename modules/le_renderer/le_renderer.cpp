@@ -760,26 +760,39 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 		le_jobs::wait_for_counter_and_free( counter, 0 );
 
 	} else {
+
+		static auto logger = LeLog( "le_renderer" );
 		// render on the main thread
 		vk_backend_i.update_shader_modules( self->backend );
 
-		// acquire external backend resources such as swapchain
-		// and create any temporary resources
 		{
-			// DISPATCH FRAME
-			renderer_acquire_backend_resources( self, ( index - 1 + numFrames ) % numFrames ); //
-			renderer_process_frame( self, ( index - 1 + numFrames ) % numFrames );             // generate api commands for the frame
-			renderer_dispatch_frame( self, ( index - 1 + numFrames ) % numFrames );            //
+			// RECORD FRAME
+			auto frameIndex = ( index ) % numFrames;
+			// logger.info( "+++ [%5d] CLEA", frameIndex );
+			renderer_record_frame( self, frameIndex, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 		}
 
-		// RECORD FRAME
-		renderer_record_frame( self, ( index + 0 ) % numFrames, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
+		{
+			// DISPATCH FRAME
+			// acquire external backend resources such as swapchain
+			// and create any temporary resources
+			auto frameIndex = ( index - 1 + numFrames ) % numFrames;
+			// logger.info( "+++ [%5d] DISP", frameIndex );
+			renderer_acquire_backend_resources( self, frameIndex ); //
+			renderer_process_frame( self, frameIndex );             // generate api commands for the frame
+			renderer_dispatch_frame( self, frameIndex );            //
+		}
 
-		// wait for frame to come back (important to do this last, as it may block...)
-		// CLEAR FRAME
-		renderer_clear_frame( self, ( index + 1 ) % numFrames );
+		{
+			// CLEAR FRAME
+			// wait for frame to come back (important to do this last, as it may block...)
+			auto frameIndex = ( index + 1 ) % numFrames;
+			// logger.info( "+++ [%5d] CLEA", frameIndex );
+			renderer_clear_frame( self, frameIndex );
+		}
 	}
 
+	// logger.info( "+++ NEXT FRAME\n" );
 	++self->currentFrameNumber;
 }
 
