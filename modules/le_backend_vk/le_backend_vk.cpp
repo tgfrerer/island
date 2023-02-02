@@ -6612,37 +6612,41 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 
 	auto semaphore_names   = get_semaphore_names();
 	auto semaphore_indices = get_semaphore_indices();
-	/*
-	 * TODO: update this to use new swapchains
-	 *
-	    for ( auto const& f : backend->mFrames ) {
-	        for ( size_t i = 0; i != f.swapchain_state.size(); i++ ) {
-	            {
-	                auto it = semaphore_indices->emplace( f.swapchain_state[ i ].presentComplete, uint32_t( semaphore_indices->size() ) );
-	                if ( it.second ) {
-	                    // if an element was inserted
-	                    semaphore_names->push_back( "PRESENT_COMPLETE" );
-	                    assert( semaphore_names->size() == semaphore_indices->size() );
-	                } else {
-	                    ( *semaphore_names )[ it.first->second ] = "PRESENT_COMPLETE";
-	                    assert( semaphore_names->size() == semaphore_indices->size() );
-	                }
-	            }
-	            {
-	                auto it = semaphore_indices->emplace( f.swapchain_state[ i ].renderComplete, uint32_t( semaphore_indices->size() ) );
-	                if ( it.second ) {
-	                    // if an element was inserted
-	                    semaphore_names->push_back( "RENDER_COMPLETE" );
-	                    assert( semaphore_names->size() == semaphore_indices->size() );
-	                } else {
-	                    ( *semaphore_names )[ it.first->second ] = "RENDER_COMPLETE";
-	                    assert( semaphore_names->size() == semaphore_indices->size() );
-	                }
-	            }
-	        }
-	    }
-	*/
-	return get_semaphore_names();
+
+	char img_name_c_str[ 80 ];
+
+	for ( auto const& f : backend->mFrames ) {
+		for ( auto const& [ swapchain_handle, swapchain_state ] : f.frame_owned_swapchain_state ) {
+			{
+				auto const& [ it, was_inserted ] = semaphore_indices->emplace( swapchain_state.presentComplete->semaphore, uint32_t( semaphore_indices->size() ) );
+				if ( was_inserted ) {
+					// if an element was inserted
+					snprintf( img_name_c_str, sizeof( img_name_c_str ), "PRESENT_COMPLETE: %s", swapchain_state.swapchain_data.swapchain_image->data->debug_name );
+					semaphore_names->push_back( img_name_c_str );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				} else {
+					// we must update the element that was already present
+					snprintf( img_name_c_str, sizeof( img_name_c_str ), "PRESENT_COMPLETE: %s", swapchain_state.swapchain_data.swapchain_image->data->debug_name );
+					( *semaphore_names )[ it->second ] = img_name_c_str;
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				}
+			}
+			{
+				auto const& [ it, was_inserted ] = semaphore_indices->emplace( swapchain_state.renderComplete->semaphore, uint32_t( semaphore_indices->size() ) );
+				if ( was_inserted ) {
+					// if an element was inserted
+					snprintf( img_name_c_str, sizeof( img_name_c_str ), "PRESENT_COMPLETE: %s", swapchain_state.swapchain_data.swapchain_image->data->debug_name );
+					semaphore_names->push_back( img_name_c_str );
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				} else {
+					snprintf( img_name_c_str, sizeof( img_name_c_str ), "RENDER_COMPLETE: %s", swapchain_state.swapchain_data.swapchain_image->data->debug_name );
+					( *semaphore_names )[ it->second ] = img_name_c_str;
+					assert( semaphore_names->size() == semaphore_indices->size() );
+				}
+			}
+		}
+	}
+	return semaphore_names;
 };
 
 // ----------------------------------------------------------------------
