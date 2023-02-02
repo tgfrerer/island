@@ -58,7 +58,7 @@ static void reset_camera( multi_window_example_app_o* self, window_and_swapchain
 static multi_window_example_app_o* app_create() {
 	auto app = new ( multi_window_example_app_o );
 
-	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, false );
+	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
 
 	le::Window::Settings settings_0;
 	settings_0
@@ -421,9 +421,11 @@ static bool app_update( multi_window_example_app_o* self ) {
 		return false;
 	}
 
-	if ( self->frame_counter == 3 ) {
-		LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 1 );
-		LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 1 );
+	if ( self->frame_counter == 10 ) {
+		LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 0 );
+		*LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES = 2;
+		LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 2 );
+		*LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES = 2;
 	}
 
 	// update interactive camera using mouse data
