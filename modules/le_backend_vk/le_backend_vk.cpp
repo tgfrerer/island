@@ -627,7 +627,7 @@ struct le_backend_o {
 	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
 
 	std::atomic<uint64_t>                          swapchains_next_handle; // monotonically increasing handle to index modern_swapchains
-	std::unordered_map<uint64_t, swapchain_data_t> modern_swapchains;      // Container of owned swapchains. Access only on the main thread.
+	std::unordered_map<uint64_t, swapchain_data_t> swapchains;             // Container of owned swapchains. Access only on the main thread.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
@@ -785,8 +785,7 @@ static void backend_destroy( le_backend_o* self ) {
 		// and the allocator must still be alive for the swapchain to free objects
 		// alloacted through it.
 
-
-		self->modern_swapchains.clear();
+		self->swapchains.clear();
 	}
 
 	vkDeviceWaitIdle( self->device.get()->getVkDevice() );
@@ -986,7 +985,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	    le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot );
 
 	// Add new modern swapchain
-	const auto& [ pair, was_emplaced ] = self->modern_swapchains.emplace( swapchain_index, modern_swapchain_info );
+	const auto& [ pair, was_emplaced ] = self->swapchains.emplace( swapchain_index, modern_swapchain_info );
 
 	if ( !was_emplaced ) {
 		logger.error( "swapchain already existed: %x", swapchain_index );
@@ -1002,11 +1001,11 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle swapchain_handle ) {
 
-	auto it = self->modern_swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
+	auto it = self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
 
-	if ( it != self->modern_swapchains.end() ) {
+	if ( it != self->swapchains.end() ) {
 		// backend_destroy_modern_swapchain( self, it->second );
-		self->modern_swapchains.erase( it );
+		self->swapchains.erase( it );
 
 		return true;
 	} else {
@@ -1027,13 +1026,13 @@ static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handl
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( swapchain_handle ) {
-		auto& swp = self->modern_swapchains.at( reinterpret_cast<uint64_t>( swapchain_handle ) );
+		auto& swp = self->swapchains.at( reinterpret_cast<uint64_t>( swapchain_handle ) );
 		*p_width  = swp.width;
 		*p_height = swp.height;
 
-	} else if ( !self->modern_swapchains.empty() ) {
+	} else if ( !self->swapchains.empty() ) {
 
-		auto& swp = self->modern_swapchains.begin()->second;
+		auto& swp = self->swapchains.begin()->second;
 		*p_width  = swp.width;
 		*p_height = swp.height;
 
@@ -1070,7 +1069,7 @@ bool backend_get_swapchains_infos( le_backend_o* self, uint32_t frame_index, uin
 
 bool backend_get_swapchains( le_backend_o* self, size_t* count, le_swapchain_handle* p_swapchain_handles ) {
 
-	uint32_t total_number_of_swapchains = uint32_t( self->modern_swapchains.size() );
+	uint32_t total_number_of_swapchains = uint32_t( self->swapchains.size() );
 
 	if ( *count < total_number_of_swapchains ) {
 		*count = total_number_of_swapchains;
@@ -1079,7 +1078,7 @@ bool backend_get_swapchains( le_backend_o* self, size_t* count, le_swapchain_han
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
 
-	for ( auto& [ key, swp ] : self->modern_swapchains ) {
+	for ( auto& [ key, swp ] : self->swapchains ) {
 		*( p_swapchain_handles++ ) = reinterpret_cast<le_swapchain_handle>( key );
 	}
 
@@ -1091,15 +1090,15 @@ static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self
 
 	if ( swapchain_handle ) {
 
-		auto it = self->modern_swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
-		if ( it != self->modern_swapchains.end() ) {
+		auto it = self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
+		if ( it != self->swapchains.end() ) {
 			return it->second.swapchain_image;
 		}
 
 	} else {
 		// if no swapchain handle given, return the first available swapchain
 
-		if ( !self->modern_swapchains.empty() ) {
+		if ( !self->swapchains.empty() ) {
 			return nullptr;
 		} else {
 			return nullptr;
@@ -1112,8 +1111,8 @@ static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self
 /// Returns the first available swapchain, if there is a swapchain available.
 static le_img_resource_handle backend_get_swapchain_resource_default( le_backend_o* self ) {
 
-	if ( !self->modern_swapchains.empty() ) {
-		return self->modern_swapchains.begin()->second.swapchain_image;
+	if ( !self->swapchains.empty() ) {
+		return self->swapchains.begin()->second.swapchain_image;
 	} else {
 		return nullptr;
 	}
@@ -4620,7 +4619,7 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 
 	std::swap( frame.frame_owned_swapchain_state, previous_swapchain_state ); // we swap into previous so that anything left over in previous will be destroyed at end of scope.
 
-	for ( auto& [ key, backend_swapchain_data ] : self->modern_swapchains ) {
+	for ( auto& [ key, backend_swapchain_data ] : self->swapchains ) {
 		// Acquire modern_swapchain images - this needs to happen on the main thread.
 
 		auto previous_it = previous_swapchain_state.find( key );
