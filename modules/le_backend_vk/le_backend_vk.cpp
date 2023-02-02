@@ -970,7 +970,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	assert( swapchain );
 
-	auto swapchain_index = ++self->swapchains_next_handle; // note pre-increment
+	uint64_t swapchain_index = ++self->swapchains_next_handle; // note pre-increment
 
 	char swapchain_name[ 64 ];
 
