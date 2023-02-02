@@ -7557,6 +7557,12 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			        swp_state.renderComplete->semaphore,
 			        &swp_state.image_idx );
 
+			if ( !result ) {
+				// FIXME: this is the only thing between us and a device lost
+				// after we miss a swapchain present.
+				// vkQueueWaitIdle( graphics_queue );
+			}
+
 			swp_state.present_successful = result;
 
 			overall_result &= result;
