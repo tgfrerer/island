@@ -397,12 +397,6 @@ static bool app_update( multi_window_example_app_o* self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	le::Window::pollEvents();
 
-	if ( self->frame_counter == 4 ) {
-		if ( self->windows.find( 1 ) != self->windows.end() ) {
-			self->renderer.removeSwapchain( self->windows[ 1 ].swapchain );
-			self->windows.erase( 1 );
-		}
-	}
 
 	for ( auto it = self->windows.begin(); it != self->windows.end(); ) {
 		if ( it->second.window.shouldClose() ) {
@@ -483,7 +477,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 
 		renderGraph
 		    .addRenderPass( renderPassMain )
-		    //.declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 
 		// Define a renderpass, which outputs to window_1. Note that it uses
@@ -491,14 +485,14 @@ static bool app_update( multi_window_example_app_o* self ) {
 		auto renderPassSecond =
 		    le::RenderPass( "to_window_1" )
 		        .addColorAttachment( IMG_SWAP[ 1 ], attachmentInfo[ 1 ] ) // IMG_SWAP_1 == swapchain 1 attachment
-		        //.addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ) )
-		        // .setSampleCount( le::SampleCountFlagBits::e8 ) //
-		        .setExecuteCallback( self, pass_to_window_1 ) //
+		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ) )
+		        .setSampleCount( le::SampleCountFlagBits::e8 ) //
+		        .setExecuteCallback( self, pass_to_window_1 )  //
 		    ;
 
 		renderGraph
 		    .addRenderPass( renderPassSecond )
-		    //.declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 	}
 
