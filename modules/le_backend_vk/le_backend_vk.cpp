@@ -1927,6 +1927,26 @@ static void frame_track_resource_state(
 }
 
 // ----------------------------------------------------------------------
+static void backend_debug_print_framedata( BackendFrameData const& frame ) {
+	static auto logger = LeLog( LOGGER_LABEL );
+
+	for ( auto const& [ handle, resource ] : frame.availableResources ) {
+		logger.info( "[% 2d] : "
+		             "% 48s@%d, %s, %d x %d @ %x, %p",
+		             frame.frameNumber,
+		             handle->data->debug_name,
+		             1 << handle->data->num_samples,
+		             to_str_vk_image_layout( resource.info.imageInfo.initialLayout ),
+		             resource.info.imageInfo.extent.width,
+		             resource.info.imageInfo.extent.height,
+		             resource.info.imageInfo.samples,
+		             resource.as.image
+		             //
+
+		);
+	}
+}
+// ----------------------------------------------------------------------
 
 /// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
 static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
@@ -1940,7 +1960,11 @@ static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 	auto result = vkWaitForFences( device, 1, &frame.frameFence, true, 100'000'000 );
 	// le::Log( LOGGER_LABEL ).info( "=[%3d]== frame fence cleared", frameIndex );
 
-	if ( result != VK_SUCCESS ) {
+	if ( result == VK_ERROR_DEVICE_LOST ) {
+		logger.error( "Poll Frame Fence returned: %s", to_str_vk_result( result ) );
+		exit( 1 );
+	} else if ( result != VK_SUCCESS ) {
+		logger.error( "Poll Frame Fence returned: %s", to_str_vk_result( result ) );
 		return false;
 	} else {
 		return true;
@@ -2045,7 +2069,6 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 	}
 	frame.passes.clear();
-
 
 	frame.frameNumber = self->totalFrameCount++; // note post-increment
 
@@ -7389,19 +7412,15 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		// apply modern swapchain wait semaphores
 		for ( auto const& [ key, swp ] : frame.modern_swapchain_state ) {
 
-			if ( swp.acquire_successful ) {
-				wait_present_complete_semaphore_submit_infos.push_back(
-				    {
-				        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-				        .pNext       = nullptr,
-				        .semaphore   = swp.presentComplete->semaphore,
-				        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
-				        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
-				        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
-				    } );
-			} else {
-				logger.warn( "acquire failed on frame index %d", frameIndex );
-			}
+			wait_present_complete_semaphore_submit_infos.push_back(
+			    {
+			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			        .pNext       = nullptr,
+			        .semaphore   = swp.presentComplete->semaphore,
+			        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
+			        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
+			        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
+			    } );
 			render_complete_semaphore_submit_infos.push_back(
 			    {
 			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
