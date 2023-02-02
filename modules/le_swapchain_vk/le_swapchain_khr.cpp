@@ -36,6 +36,7 @@ struct khr_data_o {
 	VkDevice                device                         = nullptr;
 	VkPhysicalDevice        physicalDevice                 = nullptr;
 	VkResult                lastError                      = VK_SUCCESS; // keep track of last error
+	bool                    is_retired                     = false;      // whether this swapchain has been retired
 };
 
 // ----------------------------------------------------------------------
@@ -99,6 +100,10 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 		surfaceProperties.windowSurfaceFormat.format = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format;
 	}
 
+	logger.info( "** Surface queried Extents: %d x %d",
+	             surfaceProperties.surfaceCapabilities.currentExtent.width,
+	             surfaceProperties.surfaceCapabilities.currentExtent.height );
+
 	// always select the corresponding color space
 	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].colorSpace;
 }
@@ -116,6 +121,7 @@ static void swapchain_attach_images( le_swapchain_o* base ) {
 	if ( self->mImagecount ) {
 		self->mImageRefs.resize( self->mImagecount );
 		result = vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
+		assert( result == VK_SUCCESS );
 
 		logger.info( "Images attached for KHR swapchain [%p]:", self->swapchainKHR );
 
@@ -127,7 +133,6 @@ static void swapchain_attach_images( le_swapchain_o* base ) {
 			}
 		}
 
-		assert( result == VK_SUCCESS );
 	} else {
 		assert( false && "must have a valid number of images" );
 	}
@@ -195,7 +200,7 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	}
 
 	if ( self->mPresentMode != presentModeHint ) {
-		logger.warn( "Coult Could not switch to selected Swapchain Present Mode (%s), falling back to: %s",
+		logger.warn( "Could not switch to selected Swapchain Present Mode (%s), falling back to: %s",
 		             to_str( presentModeHint ),
 		             to_str( self->mPresentMode ) );
 	}
@@ -283,6 +288,7 @@ static le_swapchain_o* swapchain_khr_create( const le_swapchain_vk_api::swapchai
 
 static void swapchain_khr_destroy( le_swapchain_o* base );
 
+// NOTE: This needs to be an atomic operation
 static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
 
 	auto new_swapchain  = new le_swapchain_o( old_swapchain->vtable );
@@ -295,6 +301,8 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 	// Note that we do not set new_data->swapchainKHR to NULL
 	// this is so that is will get used as oldSwapchain when
 	// creating a new KHR Swapchain in reset.
+
+	old_data->is_retired = true;
 
 	swapchain_khr_reset( new_swapchain, &new_data->mSettings );
 
@@ -333,6 +341,10 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// semaphorePresentComplete is signalled.
 	static auto logger = LeLog( LOGGER_LABEL );
 
+	if ( self->is_retired ) {
+		assert( false );
+	}
+
 	if ( self->lastError != VK_SUCCESS &&
 	     self->lastError != VK_SUBOPTIMAL_KHR ) {
 		logger.warn( "KHR Swapchain %p cannot acquire image because of previous error: %s", base, to_str( self->lastError ) );
@@ -367,6 +379,9 @@ static VkImage swapchain_khr_get_image( le_swapchain_o* base, uint32_t index ) {
 
 	auto self = static_cast<khr_data_o* const>( base->data );
 
+	if ( self->is_retired ) {
+		assert( false );
+	}
 #ifndef NDEBUG
 	assert( index < self->mImageRefs.size() );
 #endif
@@ -378,12 +393,18 @@ static VkImage swapchain_khr_get_image( le_swapchain_o* base, uint32_t index ) {
 static VkSurfaceFormatKHR* swapchain_khr_get_surface_format( le_swapchain_o* base ) {
 	auto self = static_cast<khr_data_o* const>( base->data );
 	return &reinterpret_cast<VkSurfaceFormatKHR&>( self->mSurfaceProperties.windowSurfaceFormat );
+	if ( self->is_retired ) {
+		assert( false );
+	}
 }
 
 // ----------------------------------------------------------------------
 
 static uint32_t swapchain_khr_get_image_width( le_swapchain_o* base ) {
 	auto self = static_cast<khr_data_o* const>( base->data );
+	if ( self->is_retired ) {
+		assert( false );
+	}
 	return self->mSwapchainExtent.width;
 }
 
@@ -392,6 +413,9 @@ static uint32_t swapchain_khr_get_image_width( le_swapchain_o* base ) {
 static uint32_t swapchain_khr_get_image_height( le_swapchain_o* base ) {
 
 	auto self = static_cast<khr_data_o* const>( base->data );
+	if ( self->is_retired ) {
+		assert( false );
+	}
 	return self->mSwapchainExtent.height;
 }
 
@@ -399,6 +423,9 @@ static uint32_t swapchain_khr_get_image_height( le_swapchain_o* base ) {
 
 static size_t swapchain_khr_get_swapchain_images_count( le_swapchain_o* base ) {
 	auto self = static_cast<khr_data_o* const>( base->data );
+	if ( self->is_retired ) {
+		assert( false );
+	}
 	return self->mImagecount;
 }
 
@@ -409,6 +436,11 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        self   = static_cast<khr_data_o* const>( base->data );
 
+	if ( self->is_retired ) {
+		logger.warn( "Present called on retired swapchain" );
+		// return false;
+		// assert( false );
+	}
 	VkPresentInfoKHR presentInfo{
 	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 	    .pNext              = nullptr, // optional
