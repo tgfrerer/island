@@ -7559,9 +7559,18 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			        &swp_state.image_idx );
 
 			if ( !result ) {
+				//
 				// FIXME: this is the only thing between us and a device lost
-				// after we miss a swapchain present.
-				// vkQueueWaitIdle( graphics_queue );
+				// after we miss a swapchain present; we shouldn't have to do this, I think.
+				//
+				// Considering that resizing the swapchain is already killing the frame rate,
+				// we shouldn't be too upset about draining the pipeline here, but still...
+				//
+				//
+				// There seems to be a similar issue happening in VulkanSamples:
+				// https://github.com/KhronosGroup/Vulkan-Samples/issues/250
+				//
+				vkQueueWaitIdle( graphics_queue );
 			}
 
 			swp_state.present_successful = result;
