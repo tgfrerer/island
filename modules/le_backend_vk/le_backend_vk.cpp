@@ -541,7 +541,7 @@ struct BackendFrameData {
 	std::vector<PerQueueSubmissionData> queue_submission_data;
 	std::vector<CommandPool*>           available_command_pools; // Owning. reset on frame recycle, delete all objects on BackendFrameData::destroy
 
-	std::unordered_map<uint64_t, swapchain_state_t> modern_swapchain_state; // per-swapchain state for this frame
+	std::unordered_map<uint64_t, swapchain_state_t> frame_owned_swapchain_state; // per-swapchain state for this frame
 
 	struct Texture {
 		VkSampler   sampler;
@@ -801,8 +801,7 @@ static void backend_destroy( le_backend_o* self ) {
 
 		vkDestroyFence( device, frameData.frameFence, nullptr );
 
-
-			frameData.modern_swapchain_state.clear();
+		frameData.frame_owned_swapchain_state.clear();
 
 		{
 			for ( auto& cp : frameData.available_command_pools ) {
@@ -1051,7 +1050,7 @@ bool backend_get_swapchains_infos( le_backend_o* self, uint32_t frame_index, uin
 
 	auto const& frame = self->mFrames[ frame_index ];
 
-	uint32_t total_number_of_swapchains = uint32_t( frame.modern_swapchain_state.size() );
+	uint32_t total_number_of_swapchains = uint32_t( frame.frame_owned_swapchain_state.size() );
 
 	if ( *count < total_number_of_swapchains ) {
 		*count = total_number_of_swapchains;
@@ -1062,7 +1061,7 @@ bool backend_get_swapchains_infos( le_backend_o* self, uint32_t frame_index, uin
 
 	uint32_t num_items = *count = total_number_of_swapchains;
 
-	for ( auto& [ key, swp ] : frame.modern_swapchain_state ) {
+	for ( auto& [ key, swp ] : frame.frame_owned_swapchain_state ) {
 		*( p_width++ )  = swp.swapchain_data.width;
 		*( p_height++ ) = swp.swapchain_data.height;
 		*( p_handle++ ) = swp.swapchain_data.swapchain_image;
@@ -4104,9 +4103,9 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		// -- build sync chain for each resource, create explicit sync barrier requests for resources
 		// which cannot be implicitly synced.
 		std::vector<le_img_resource_handle> tmp_swapchain_resources{};
-		tmp_swapchain_resources.reserve( frame.modern_swapchain_state.size() );
+		tmp_swapchain_resources.reserve( frame.frame_owned_swapchain_state.size() );
 
-		for ( auto& [ key, swp ] : frame.modern_swapchain_state ) {
+		for ( auto& [ key, swp ] : frame.frame_owned_swapchain_state ) {
 			tmp_swapchain_resources.push_back( swp.swapchain_data.swapchain_image );
 		}
 
@@ -4619,9 +4618,9 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 	using namespace le_swapchain_vk;
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	decltype( frame.modern_swapchain_state ) previous_swapchain_state;
+	decltype( frame.frame_owned_swapchain_state ) previous_swapchain_state;
 
-	std::swap( frame.modern_swapchain_state, previous_swapchain_state ); // we swap into previous so that anything left over in previous will be destroyed at end of scope.
+	std::swap( frame.frame_owned_swapchain_state, previous_swapchain_state ); // we swap into previous so that anything left over in previous will be destroyed at end of scope.
 
 	for ( auto& [ key, backend_swapchain_data ] : self->modern_swapchains ) {
 		// Acquire modern_swapchain images - this needs to happen on the main thread.
@@ -4631,9 +4630,9 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 		// we can recycle the semaphores.
 
 		auto const& [ swapchain_state, was_inserted ] =
-		    ( previous_it != previous_swapchain_state.end() )                                     // if item existed in a previous version of this frame
-		        ? frame.modern_swapchain_state.emplace( previous_it->first, previous_it->second ) // then copy previous swapchain info into the current frame
-		        : frame.modern_swapchain_state.emplace( key, swapchain_state_t{} );               // otherwise generate new swapchain info
+		    ( previous_it != previous_swapchain_state.end() )                                          // if item existed in a previous version of this frame
+		        ? frame.frame_owned_swapchain_state.emplace( previous_it->first, previous_it->second ) // then copy previous swapchain info into the current frame
+		        : frame.frame_owned_swapchain_state.emplace( key, swapchain_state_t{} );               // otherwise generate new swapchain info
 
 		swapchain_state_t& local_swapchain_state = swapchain_state->second;
 
@@ -7405,13 +7404,13 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	std::vector<VkSemaphoreSubmitInfo> wait_present_complete_semaphore_submit_infos;
 	std::vector<VkSemaphoreSubmitInfo> render_complete_semaphore_submit_infos;
 
-	wait_present_complete_semaphore_submit_infos.reserve( frame.modern_swapchain_state.size() );
-	render_complete_semaphore_submit_infos.reserve( frame.modern_swapchain_state.size() );
+	wait_present_complete_semaphore_submit_infos.reserve( frame.frame_owned_swapchain_state.size() );
+	render_complete_semaphore_submit_infos.reserve( frame.frame_owned_swapchain_state.size() );
 
 	{
 
 		// apply modern swapchain wait semaphores
-		for ( auto const& [ key, swp ] : frame.modern_swapchain_state ) {
+		for ( auto const& [ key, swp ] : frame.frame_owned_swapchain_state ) {
 
 			wait_present_complete_semaphore_submit_infos.push_back(
 			    {
@@ -7549,7 +7548,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		// submit frame for present using the graphics queue
 		using namespace le_swapchain_vk;
 
-		for ( auto& [ key, swp_state ] : frame.modern_swapchain_state ) {
+		for ( auto& [ key, swp_state ] : frame.frame_owned_swapchain_state ) {
 
 			bool result =
 			    swapchain_i.present(
