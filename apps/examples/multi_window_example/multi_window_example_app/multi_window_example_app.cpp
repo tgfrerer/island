@@ -380,7 +380,8 @@ static void app_process_ui_events( app_o* app, window_and_swapchain_t& window ) 
 
 	// Process camera events
 
-	auto swapchainExtent = app->renderer.getSwapchainExtent( window.swapchain ); // Note we're using swapchain extents 0
+	auto swapchainExtent = app->renderer.getSwapchainExtent( window.swapchain );
+
 	app->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
 	app->cameraController.processEvents( app->camera, pEvents, numEvents );
 
@@ -421,10 +422,8 @@ static bool app_update( multi_window_example_app_o* self ) {
 	}
 
 	if ( self->frame_counter == 3 ) {
-		LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
-		LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 0 );
-		// *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES = 1000;
-		//*LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES = 2000;
+		LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 1 );
+		LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 1 );
 	}
 
 	// update interactive camera using mouse data
@@ -443,7 +442,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 	// In a more common scenario, you would only use swapchain resources for swapchains which you know
 	// existed.
 	//
-	// We keep it this way to show what happens if you add an image resource that is NULL as a
+	// We keep it this way to demonstate what happens if you add an image resource that is NULL as a
 	// Color Attachment, namely: nothing.
 	//
 	le_img_resource_handle IMG_SWAP[ 2 ] = {
