@@ -123,15 +123,14 @@ static void swapchain_attach_images( le_swapchain_o* base ) {
 		result = vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
 		assert( result == VK_SUCCESS );
 
-		logger.info( "Images attached for KHR swapchain [%p]:", self->swapchainKHR );
-
-		{
-			int i = 0;
-			for ( auto const& img : self->mImageRefs ) {
-				logger.info( "\t[%d] %p", i, img );
-				i++;
-			}
-		}
+		// logger.info( "Images attached for KHR swapchain [%p]:", self->swapchainKHR );
+		//{
+		//	int i = 0;
+		//	for ( auto const& img : self->mImageRefs ) {
+		//		logger.info( "\t[%d] %p", i, img );
+		//		i++;
+		//	}
+		// }
 
 	} else {
 		assert( false && "must have a valid number of images" );
@@ -167,8 +166,6 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	// if self->mSettings has been fully set before.
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN );
-
-	//	VkResult err = VkResult::eSuccess;
 
 	// The surface in SwapchainSettings::windowSurface has been assigned by glfwwindow, through glfw,
 	// just before this setup() method was called.
@@ -298,9 +295,10 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 	auto old_data = static_cast<khr_data_o* const>( old_swapchain->data );
 
 	*new_data = *old_data;
+
 	// Note that we do not set new_data->swapchainKHR to NULL
-	// this is so that is will get used as oldSwapchain when
-	// creating a new KHR Swapchain in reset.
+	// - this is so that it will get used as oldSwapchain when
+	// creating a new KHR Swapchain in swapchain_khr_reset.
 
 	old_data->is_retired = true;
 

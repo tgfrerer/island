@@ -753,8 +753,6 @@ static VkBufferUsageFlags defaults_get_buffer_usage_scratch() {
 
 	return flags;
 }
-// ----------------------------------------------------------------------
-
 
 // ----------------------------------------------------------------------
 
@@ -762,9 +760,6 @@ static le_backend_o* backend_create() {
 	auto self = new le_backend_o;
 	return self;
 }
-
-// ----------------------------------------------------------------------
-
 
 // ----------------------------------------------------------------------
 
@@ -922,8 +917,7 @@ static void backend_destroy( le_backend_o* self ) {
 }
 
 // ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
-// --- new swapchain interface
+// --- swapchain interface
 static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapchain_settings_t const* settings_ ) {
 	le_swapchain_o* swapchain = nullptr;
 	static auto     logger    = LeLog( LOGGER_LABEL );
@@ -1011,7 +1005,7 @@ static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle sw
 		return false;
 	}
 }
-// ----------------------------------------------------------------------
+
 // ----------------------------------------------------------------------
 
 static size_t backend_get_data_frames_count( le_backend_o* self ) {
@@ -1036,7 +1030,6 @@ static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handl
 		*p_height = swp.height;
 
 	} else {
-		// TODO: we should warn that there is no available swapchain!
 		logger.error( "Could not find swapchain extents" );
 	}
 }
@@ -1066,6 +1059,8 @@ bool backend_get_swapchains_infos( le_backend_o* self, uint32_t frame_index, uin
 	return true;
 }
 
+// ----------------------------------------------------------------------
+
 bool backend_get_swapchains( le_backend_o* self, size_t* count, le_swapchain_handle* p_swapchain_handles ) {
 
 	uint32_t total_number_of_swapchains = uint32_t( self->swapchains.size() );
@@ -1088,25 +1083,16 @@ bool backend_get_swapchains( le_backend_o* self, size_t* count, le_swapchain_han
 static le_img_resource_handle backend_get_swapchain_resource( le_backend_o* self, le_swapchain_handle swapchain_handle ) {
 
 	if ( swapchain_handle ) {
-
 		auto it = self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
 		if ( it != self->swapchains.end() ) {
 			return it->second.swapchain_image;
-		}
-
-	} else {
-		// if no swapchain handle given, return the first available swapchain
-
-		if ( !self->swapchains.empty() ) {
-			return nullptr;
-		} else {
-			return nullptr;
 		}
 	}
 
 	return nullptr;
 }
 
+// ----------------------------------------------------------------------
 /// Returns the first available swapchain, if there is a swapchain available.
 static le_img_resource_handle backend_get_swapchain_resource_default( le_backend_o* self ) {
 
@@ -1159,7 +1145,6 @@ static le_backend_vk_instance_o* backend_get_instance( le_backend_o* self ) {
 // ----------------------------------------------------------------------
 // ffdecl.
 static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators );
-// ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
 
@@ -1188,6 +1173,8 @@ static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator cons
 	vmaFindMemoryTypeIndexForBufferInfo( allocator, &bufferInfo, &allocInfo, &memIndexScratchBufferGraphics );
 	return memIndexScratchBufferGraphics;
 }
+
+// ----------------------------------------------------------------------
 
 static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator const& allocator, uint32_t queueFamilyGraphics ) {
 
