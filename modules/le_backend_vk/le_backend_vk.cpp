@@ -1,4 +1,3 @@
-#define NOMINMAX // we do this in case windows.h gets included
 #include "le_core.h"
 #include "le_backend_vk.h"
 #include "le_log.h"
@@ -39,6 +38,7 @@
 static constexpr auto LEGACY_SWAPCHAIN = false;
 static constexpr auto LOGGER_LABEL = "le_backend";
 #ifdef _MSC_VER
+#	define NOMINMAX     // we do this so that Windows.h does not define min and max macros
 #	include <Windows.h> // for getModule
 #else
 #	include <unistd.h> // for getexepath
