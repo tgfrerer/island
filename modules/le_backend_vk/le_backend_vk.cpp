@@ -1,3 +1,4 @@
+#define NOMINMAX // we do this in case windows.h gets included
 #include "le_core.h"
 #include "le_backend_vk.h"
 #include "le_log.h"
@@ -26,7 +27,7 @@
 #include <memory>
 #include <cstring> // for memcpy
 #include <array>
-#include <algorithm> // for std::find
+#include <algorithm> // for std::find, for std::max
 
 #include "util/volk/volk.h"
 
