@@ -626,7 +626,7 @@ struct le_backend_o {
 	uint32_t                               queue_default_graphics_idx                  = 0;     // TODO: set to correct index if other than 0; must be index of default graphics queue, 0 by default
 	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
 
-	std::atomic<uint64_t>                          swapchains_next_handle; // monotonically increasing handle to index modern_swapchains
+	std::atomic<uint64_t>                          swapchains_next_handle; // monotonically increasing handle to index swapchains
 	std::unordered_map<uint64_t, swapchain_data_t> swapchains;             // Container of owned swapchains. Access only on the main thread.
 
 	// Default color formats are inferred during setup() based on
@@ -976,16 +976,16 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Modern_Swapchain_Image_Handle[%lu]", swapchain_index );
 
-	swapchain_data_t modern_swapchain_info( swapchain );
-	modern_swapchain_info.swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
-	modern_swapchain_info.swapchain_surface        = maybe_swapchain_surface,
-	modern_swapchain_info.height                   = swapchain_i.get_image_height( swapchain ),
-	modern_swapchain_info.width                    = swapchain_i.get_image_width( swapchain ),
-	modern_swapchain_info.swapchain_image =
+	swapchain_data_t swapchain_data( swapchain );
+	swapchain_data.swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
+	swapchain_data.swapchain_surface        = maybe_swapchain_surface,
+	swapchain_data.height                   = swapchain_i.get_image_height( swapchain ),
+	swapchain_data.width                    = swapchain_i.get_image_width( swapchain ),
+	swapchain_data.swapchain_image =
 	    le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot );
 
-	// Add new modern swapchain
-	const auto& [ pair, was_emplaced ] = self->swapchains.emplace( swapchain_index, modern_swapchain_info );
+	// Add new swapchain
+	const auto& [ pair, was_emplaced ] = self->swapchains.emplace( swapchain_index, swapchain_data );
 
 	if ( !was_emplaced ) {
 		logger.error( "swapchain already existed: %x", swapchain_index );
@@ -1004,9 +1004,7 @@ static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle sw
 	auto it = self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
 
 	if ( it != self->swapchains.end() ) {
-		// backend_destroy_modern_swapchain( self, it->second );
 		self->swapchains.erase( it );
-
 		return true;
 	} else {
 		return false;
@@ -4620,7 +4618,6 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 	std::swap( frame.frame_owned_swapchain_state, previous_swapchain_state ); // we swap into previous so that anything left over in previous will be destroyed at end of scope.
 
 	for ( auto& [ key, backend_swapchain_data ] : self->swapchains ) {
-		// Acquire modern_swapchain images - this needs to happen on the main thread.
 
 		auto previous_it = previous_swapchain_state.find( key );
 		// Item existed before:
@@ -4659,6 +4656,8 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 
 		local_swapchain_state.swapchain_data = backend_swapchain_data; // this is where we copy the swapchain into the frame.
 
+		// Acquire swapchain images - this needs to happen on the main thread.
+		//
 		// We try to acquire all images, even if one of the acquisitions fails.
 		//
 		// This is so that every semaphore for presentComplete is correctly
@@ -4693,9 +4692,10 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			} else {
 				// TODO: What do we want to do if acquiring with a new swapchain fails?
 				// We should destroy both swapchains for sure.
-
 				acquire_success                          = false;
 				local_swapchain_state.acquire_successful = false;
+				logger.error( "Could not acquire swapchain" );
+				assert( false );
 			}
 		} else {
 			local_swapchain_state.acquire_successful = true;
@@ -6627,7 +6627,7 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 	auto semaphore_names   = get_semaphore_names();
 	auto semaphore_indices = get_semaphore_indices();
 	/*
-	 * TODO: update this to use modern_swapchains
+	 * TODO: update this to use new swapchains
 	 *
 	    for ( auto const& f : backend->mFrames ) {
 	        for ( size_t i = 0; i != f.swapchain_state.size(); i++ ) {
@@ -7405,8 +7405,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	render_complete_semaphore_submit_infos.reserve( frame.frame_owned_swapchain_state.size() );
 
 	{
-
-		// apply modern swapchain wait semaphores
+		// apply swapchain wait semaphores
 		for ( auto const& [ key, swp ] : frame.frame_owned_swapchain_state ) {
 
 			wait_present_complete_semaphore_submit_infos.push_back(
