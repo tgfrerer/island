@@ -778,7 +778,7 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 			// DISPATCH FRAME
 			// acquire external backend resources such as swapchain
 			// and create any temporary resources
-			auto frameIndex = ( index - 1 + numFrames ) % numFrames;
+			auto frameIndex = ( index + 2 ) % numFrames;
 			// logger.info( "+++ [%5d] DISP", frameIndex );
 			renderer_acquire_backend_resources( self, frameIndex ); //
 			renderer_process_frame( self, frameIndex );             // generate api commands for the frame
