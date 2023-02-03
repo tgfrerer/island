@@ -1,7 +1,7 @@
 #include "imgui_example_app.h"
 
 #include "le_window.h"
-#include "le_renderer.h"
+#include "le_renderer.hpp"
 
 #include "le_camera.h"
 #include "le_pipeline_builder.h"

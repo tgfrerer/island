@@ -1,7 +1,7 @@
 #include "compute_example_app.h"
 
 #include "le_window.h"
-#include "le_renderer.h"
+#include "le_renderer.hpp"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"

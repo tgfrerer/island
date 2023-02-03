@@ -1,7 +1,7 @@
 #include "quad_template_app.h"
 
 #include "le_window.h"
-#include "le_renderer.h"
+#include "le_renderer.hpp"
 
 #include "le_pipeline_builder.h"
 #include "le_ui_event.h"

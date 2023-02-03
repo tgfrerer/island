@@ -1,7 +1,7 @@
 #include "lut_grading_example_app.h"
 
 #include "le_window.h"
-#include "le_renderer.h"
+#include "le_renderer.hpp"
 #include "le_pipeline_builder.h"
 #include "le_pixels.h" // only needed for static build
 #include "le_resource_manager.h"
