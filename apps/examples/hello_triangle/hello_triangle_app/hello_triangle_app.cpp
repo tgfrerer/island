@@ -61,7 +61,16 @@ static app_o* app_create() {
 	app->window.setup( settings );
 
 	// create a new renderer
-	app->renderer.setup( app->window );
+	app->renderer.setup(
+	    le::RendererInfoBuilder()
+	        .addSwapchain()
+	        .asWindowSwapchain()
+	        .setPresentmode( le::Presentmode::eFifoRelaxed )
+	        .setWindow( app->window )
+	        .end()
+	        .setImagecountHint( 3 )
+	        .end()
+	        .build() );
 
 	// Set up the camera
 	app_reset_camera( app );
@@ -221,6 +230,9 @@ static bool app_update( app_o* self ) {
 		return false;
 	}
 
+	// will resize the window incessantly....
+	self->window.setWindowSize( 1024, 1024 + ( self->frame_counter % 10 ) * 4 );
+
 	// Update interactive camera using mouse inputs
 	app_process_ui_events( self );
 
@@ -247,6 +259,7 @@ static bool app_update( app_o* self ) {
 		    le::RenderPass( "root", le::QueueFlagBits::eGraphics )
 		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE ) // Color attachment
 		        .setExecuteCallback( self, pass_main_exec )      // This is where we record our draw commands
+		        .setSampleCount( le::SampleCountFlagBits::e4 )   // Perform an additional image -re-allocation per frame
 		    ;
 
 		renderGraph.addRenderPass( renderPassFinal );
