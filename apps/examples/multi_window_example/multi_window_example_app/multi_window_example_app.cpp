@@ -92,9 +92,9 @@ static multi_window_example_app_o* app_create() {
 
 	// If we don't implicitly create swapchains by setting up renderer using
 	// renderer settings which contain swapchain settings, then we must request
-	// the correct capabilities from the backend so that it may create any of
+	// the correct capabilities from the renderer so that it may create any of
 	// the swapchains described in a given array of swapchain settings:
-	app->renderer.requestBackendCapabilities( &swapchain_settings, 1 );
+	app->renderer.requestSwapchainCapabilities( &swapchain_settings, 1 );
 
 	// Note that we setup the renderer without giving any parameters
 	app->renderer.setup();

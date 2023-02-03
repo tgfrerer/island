@@ -239,7 +239,7 @@ class Renderer {
 		le_renderer::renderer_i.destroy( self );
 	}
 
-	bool requestBackendCapabilities( le_swapchain_settings_t* swapchain_settings, uint32_t swapchain_settings_count ) {
+	bool requestSwapchainCapabilities( le_swapchain_settings_t* swapchain_settings, uint32_t swapchain_settings_count ) {
 		return le_renderer::renderer_i.request_backend_capabilities( self, swapchain_settings, swapchain_settings_count );
 	}
 

@@ -33,6 +33,9 @@ using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 #endif
 
 // ----------------------------------------------------------------------
+// ffdecl.
+static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t const* settings );
+// ----------------------------------------------------------------------
 
 struct FrameData {
 
@@ -363,7 +366,7 @@ static le_pipeline_manager_o* renderer_get_pipeline_manager( le_renderer_o* self
 
 // ----------------------------------------------------------------------
 
-static bool renderer_request_backend_capabilities( le_renderer_o* self, le_swapchain_settings_t const* settings, uint32_t settings_count ) {
+static bool renderer_request_swapchain_capabilities( le_renderer_o* self, le_swapchain_settings_t const* settings, uint32_t settings_count ) {
 
 	// Request extensions from the backend - this must only be called
 	// before or while renderer_setup() is called for the first time.
@@ -371,6 +374,7 @@ static bool renderer_request_backend_capabilities( le_renderer_o* self, le_swapc
 	using namespace le_swapchain_vk;
 
 	for ( uint32_t i = 0; i != settings_count && settings != nullptr; i++, settings++ ) {
+		// swapchain_i.get_min_max_image_count( settings );
 		swapchain_i.get_required_vk_instance_extensions( settings );
 		swapchain_i.get_required_vk_device_extensions( settings );
 	}
@@ -378,8 +382,6 @@ static bool renderer_request_backend_capabilities( le_renderer_o* self, le_swapc
 }
 
 // ----------------------------------------------------------------------
-
-static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t const* settings );
 
 static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* settings ) {
 
@@ -390,7 +392,7 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 	{
 		// Set up the backend
 
-		renderer_request_backend_capabilities( self, self->settings.swapchain_settings, self->settings.num_swapchain_settings );
+		renderer_request_swapchain_capabilities( self, self->settings.swapchain_settings, self->settings.num_swapchain_settings );
 
 #if ( LE_MT > 0 )
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
@@ -846,7 +848,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 
 	le_renderer_i.create                 = renderer_create;
 	le_renderer_i.destroy                = renderer_destroy;
-	le_renderer_i.request_backend_capabilities = renderer_request_backend_capabilities;
+	le_renderer_i.request_backend_capabilities = renderer_request_swapchain_capabilities;
 	le_renderer_i.setup                  = renderer_setup;
 	le_renderer_i.update                 = renderer_update;
 	le_renderer_i.get_settings           = renderer_get_settings;
