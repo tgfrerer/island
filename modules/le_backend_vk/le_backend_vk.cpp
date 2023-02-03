@@ -7555,9 +7555,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 				// There seems to be a similar issue happening in VulkanSamples:
 				// https://github.com/KhronosGroup/Vulkan-Samples/issues/250
 				//
-
-				// Uncomment the following line and DEVICE_LOST will disappear
-				// vkQueueWaitIdle( graphics_queue );
+				vkQueueWaitIdle( graphics_queue );
 			}
 
 			swp_state.present_successful = result;
