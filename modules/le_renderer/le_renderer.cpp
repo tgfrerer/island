@@ -369,7 +369,7 @@ static le_pipeline_manager_o* renderer_get_pipeline_manager( le_renderer_o* self
 static bool renderer_request_swapchain_capabilities( le_renderer_o* self, le_swapchain_settings_t const* settings, uint32_t settings_count ) {
 
 	// Request extensions from the backend - this must only be called
-	// before or while renderer_setup() is called for the first time.
+	// before or while renderer-setup() is called for the first time.
 
 	using namespace le_swapchain_vk;
 
@@ -672,6 +672,7 @@ static bool renderer_get_swapchains( le_renderer_o* self, size_t* num_swapchains
 
 static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 
+	static auto logger = LeLog( "le_renderer" );
 	using namespace le_backend_vk;
 
 	const auto& index     = self->currentFrameNumber;
@@ -763,14 +764,13 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 
 	} else {
 
-		static auto logger = LeLog( "le_renderer" );
 		// render on the main thread
 		vk_backend_i.update_shader_modules( self->backend );
 
 		{
 			// RECORD FRAME
-			auto frameIndex = ( index ) % numFrames;
-			// logger.info( "+++ [%5d] CLEA", frameIndex );
+			auto frameIndex = ( index + 0 ) % numFrames;
+			// logger.info( "+++ [%5d] RECO", frameIndex );
 			renderer_record_frame( self, frameIndex, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 		}
 
