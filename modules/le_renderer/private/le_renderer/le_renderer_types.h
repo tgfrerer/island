@@ -233,9 +233,14 @@ struct le_swapchain_settings_t {
 			eSharedDemandRefresh,
 			eSharedContinuousRefresh,
 		};
-		Presentmode            presentmode_hint = Presentmode::eFifo;
+		Presentmode            presentmode_hint;
 		struct VkSurfaceKHR_T* vk_surface; // Will be set by backend.
-		struct le_window_o*    window;     //
+		struct le_window_o*    window;
+	};
+	struct khr_direct_mode_settings_t {
+		khr_settings_t::Presentmode presentmode_hint;
+		struct VkSurfaceKHR_T*      vk_surface;   // Will be set by backend.
+		char const*                 display_name; // will be matched against display name
 	};
 	struct img_settings_t {
 		char const* pipe_cmd; // command used to save images - will receive stream of images via stdin
@@ -248,8 +253,9 @@ struct le_swapchain_settings_t {
 	le::Format format_hint     = le::Format::eB8G8R8A8Unorm; // preferred surface format
 
 	union {
-		khr_settings_t khr_settings{};
-		img_settings_t img_settings;
+		khr_settings_t             khr_settings;
+		khr_direct_mode_settings_t khr_direct_mode_settings;
+		img_settings_t             img_settings;
 	};
 };
 
@@ -349,7 +355,12 @@ class RendererInfoBuilder {
 			}
 
 			DirectSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
-				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
+				this->parent.parent.swapchain_settings->khr_direct_mode_settings.presentmode_hint = presentmode_hint;
+				return *this;
+			}
+
+			DirectSwapchainInfoBuilder& setDisplayName( char const* display_name = "" ) {
+				this->parent.parent.swapchain_settings->khr_direct_mode_settings.display_name = display_name;
 				return *this;
 			}
 

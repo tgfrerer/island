@@ -35,6 +35,7 @@ struct SurfaceProperties {
 	static auto procName = reinterpret_cast<PFN_##procName>( vkGetDeviceProcAddr( instance, #procName ) )
 
 struct swp_direct_data_o {
+	std::string             display_name;
 	le_swapchain_settings_t mSettings                      = {};
 	le_backend_o*           backend                        = nullptr;
 	uint32_t                mImagecount                    = 0;
@@ -186,6 +187,9 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
+		// create local copy of display name to protect us from the caller invalidating this pointer.
+		self->display_name                                    = settings_->khr_direct_mode_settings.display_name ? std::string( settings_->khr_direct_mode_settings.display_name ) : "";
+		self->mSettings.khr_direct_mode_settings.display_name = self->display_name.c_str();
 	}
 
 	// `settings_` may have been a nullptr in which case this operation is only valid
@@ -301,6 +305,7 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
 		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->queue_family_index;
 		self->instance                       = vk_instance_i.get_vk_instance( private_backend_vk_i.get_instance( backend ) );
+		self->display_name                   = settings->khr_direct_mode_settings.display_name ? std::string( settings->khr_direct_mode_settings.display_name ) : "";
 	}
 
 #ifdef _MSC_VER
@@ -312,18 +317,34 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 	std::vector<VkDisplayPropertiesKHR> display_props;
 	uint32_t                            prop_count = 0;
 
-	auto result = vkGetPhysicalDeviceDisplayPropertiesKHR( self->physicalDevice, &prop_count, nullptr );
+	VkResult vk_result = vkGetPhysicalDeviceDisplayPropertiesKHR( self->physicalDevice, &prop_count, nullptr );
+	assert( vk_result == VK_SUCCESS );
 
-	assert( result == VK_SUCCESS );
 	display_props.resize( prop_count );
-	result = vkGetPhysicalDeviceDisplayPropertiesKHR( self->physicalDevice, &prop_count, display_props.data() );
-	assert( result == VK_SUCCESS );
+	vk_result = vkGetPhysicalDeviceDisplayPropertiesKHR( self->physicalDevice, &prop_count, display_props.data() );
+	assert( vk_result == VK_SUCCESS );
 
-	// We want to find out which display is secondary display
-	// but we assume that the primary display will be listed first.
-	self->display = display_props.front().display;
+	{ // search for any display that matches the given display name.
+		self->display = nullptr;
 
-	VkResult vk_result = VK_SUCCESS;
+		logger.info( "Enumerating available displays:" );
+		for ( auto const& prop : display_props ) {
+
+			char const* found_match_str = "";
+
+			if ( nullptr == self->display && std::string( prop.displayName ).find( self->display_name ) != std::string::npos ) {
+				// found a match
+				self->display   = prop.display;
+				found_match_str = "MATCH";
+			}
+
+			logger.info(
+			    "\t [%-5s] %-60s, %4d x %4d mm, %d x %d pixels",
+			    found_match_str, prop.displayName,
+			    prop.physicalDimensions.width, prop.physicalDimensions.height,
+			    prop.physicalResolution.width, prop.physicalResolution.height );
+		}
+	}
 
 #ifdef _MSC_VER
 #else
@@ -333,6 +354,7 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 	if ( vk_result != VK_SUCCESS ) {
 		logger.error( "Unable to acquire display: %s", display_props.back().displayName );
+		exit( 1 );
 	}
 
 	assert( vk_result == VK_SUCCESS );
@@ -340,12 +362,12 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 	{
 		uint32_t num_props{};
-		result = vkGetDisplayModePropertiesKHR( self->physicalDevice, self->display, &num_props, nullptr );
-		assert( result == VK_SUCCESS );
+		vk_result = vkGetDisplayModePropertiesKHR( self->physicalDevice, self->display, &num_props, nullptr );
+		assert( vk_result == VK_SUCCESS );
 
 		self->display_mode_properties.resize( num_props );
-		result = vkGetDisplayModePropertiesKHR( self->physicalDevice, self->display, &num_props, self->display_mode_properties.data() );
-		assert( result == VK_SUCCESS );
+		vk_result = vkGetDisplayModePropertiesKHR( self->physicalDevice, self->display, &num_props, self->display_mode_properties.data() );
+		assert( vk_result == VK_SUCCESS );
 	}
 	// let's try to acquire this screen
 
@@ -363,9 +385,9 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 		    .imageExtent     = self->display_mode_properties[ 0 ].parameters.visibleRegion,
 		};
 
-		result = vkCreateDisplayPlaneSurfaceKHR( self->instance, &info, nullptr, &self->surface );
+		vk_result = vkCreateDisplayPlaneSurfaceKHR( self->instance, &info, nullptr, &self->surface );
 
-		assert( result == VK_SUCCESS );
+		assert( vk_result == VK_SUCCESS );
 
 		self->mSwapchainExtent.height = uint32_t( info.imageExtent.height );
 		self->mSwapchainExtent.width  = uint32_t( info.imageExtent.width );
