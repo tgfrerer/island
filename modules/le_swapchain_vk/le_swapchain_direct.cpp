@@ -297,7 +297,6 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 	{
 		using namespace le_backend_vk;
-		auto le_device                       = private_backend_vk_i.get_le_device( backend );
 		self->device                         = private_backend_vk_i.get_vk_device( backend );
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
 		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->queue_family_index;
@@ -322,7 +321,7 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 	// We want to find out which display is secondary display
 	// but we assume that the primary display will be listed first.
-	self->display = display_props.back().display;
+	self->display = display_props.front().display;
 
 	VkResult vk_result = VK_SUCCESS;
 
@@ -342,11 +341,11 @@ static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapc
 	{
 		uint32_t num_props{};
 		result = vkGetDisplayModePropertiesKHR( self->physicalDevice, self->display, &num_props, nullptr );
-		assert( vk_result == VK_SUCCESS );
+		assert( result == VK_SUCCESS );
 
 		self->display_mode_properties.resize( num_props );
 		result = vkGetDisplayModePropertiesKHR( self->physicalDevice, self->display, &num_props, self->display_mode_properties.data() );
-		assert( vk_result == VK_SUCCESS );
+		assert( result == VK_SUCCESS );
 	}
 	// let's try to acquire this screen
 
@@ -433,24 +432,24 @@ static bool swapchain_direct_acquire_next_image( le_swapchain_o* base, VkSemapho
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_direct_present( le_swapchain_o* base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t* pImageIndex ) {
+static bool swapchain_direct_present( le_swapchain_o* base, VkQueue queue, VkSemaphore semaphore_render_complete, uint32_t* pImageIndex ) {
 
 	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
 	VkPresentInfoKHR presentInfo{
 	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-	    .pNext              = nullptr, // optional
-	    .waitSemaphoreCount = 1,       // optional
-	    .pWaitSemaphores    = &renderCompleteSemaphore_,
+	    .pNext              = nullptr,
+	    .waitSemaphoreCount = 1,
+	    .pWaitSemaphores    = &semaphore_render_complete,
 	    .swapchainCount     = 1,
 	    .pSwapchains        = &self->swapchainKHR,
 	    .pImageIndices      = pImageIndex,
-	    .pResults           = 0, // optional
+	    .pResults           = 0,
 	};
 
 	;
 
-	auto result = vkQueuePresentKHR( queue_, &presentInfo );
+	auto result = vkQueuePresentKHR( queue, &presentInfo );
 
 	if ( result == VK_ERROR_OUT_OF_DATE_KHR ) {
 		return false;
@@ -526,8 +525,8 @@ void register_le_swapchain_direct_api( void* api_ ) {
 	auto& swapchain_i = api->swapchain_direct_i;
 
 	swapchain_i.create                              = swapchain_direct_create;
-	swapchain_i.destroy                             = swapchain_direct_destroy;
 	swapchain_i.create_from_old_swapchain           = swapchain_direct_create_from_old_swapchain;
+	swapchain_i.destroy                             = swapchain_direct_destroy;
 
 	swapchain_i.acquire_next_image                  = swapchain_direct_acquire_next_image;
 	swapchain_i.get_image                           = swapchain_direct_get_image;
