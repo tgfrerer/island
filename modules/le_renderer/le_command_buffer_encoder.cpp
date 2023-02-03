@@ -1,7 +1,6 @@
 #include "le_core.h"
 
 #include "le_renderer.h"
-#include "private/le_renderer/le_renderer_types.h"
 
 #include "le_backend_vk.h" // for GPU allocators
 
@@ -11,8 +10,6 @@
 #include <assert.h>
 #include <vector>
 #include <algorithm>
-
-#include "private/le_renderer/le_resource_handle_t.inl"
 
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__

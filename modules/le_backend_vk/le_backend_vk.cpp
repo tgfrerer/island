@@ -4736,14 +4736,14 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
 
 		frame.declared_resources_id.push_back( local_swapchain_state.swapchain_data.swapchain_image );
-		frame.declared_resources_info.push_back(
-		    le::ImageInfoBuilder()
-		        .addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment ) )
-		        .setExtent(
-		            tmp_surface_width,
-		            tmp_surface_height,
-		            1 )
-		        .build() );
+
+		{
+			le_resource_info_t img_info = le_renderer::helpers_i.get_default_resource_info_for_image();
+			img_info.image.usage        = le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment );
+			img_info.image.extent       = { .width = tmp_surface_width, .height = tmp_surface_height, .depth = 1 };
+
+			frame.declared_resources_info.push_back( img_info );
+		}
 	}
 }
 

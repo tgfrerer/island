@@ -9,6 +9,7 @@ depends_on_island_module(le_log)
 
 set (SOURCES "le_renderer.cpp")
 set (SOURCES ${SOURCES} "le_renderer.h")
+set (SOURCES ${SOURCES} "le_renderer.hpp")
 set (SOURCES ${SOURCES} "private/le_renderer/le_renderer_types.h")
 set (SOURCES ${SOURCES} "private/le_renderer/le_vk_enums.inl")
 set (SOURCES ${SOURCES} "private/le_renderer/le_resource_handle_t.inl")

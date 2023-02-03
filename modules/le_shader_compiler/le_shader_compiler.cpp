@@ -3,7 +3,7 @@
 
 #include "shaderc/shaderc.hpp"
 #include "le_log.h"
-#include "le_renderer.h" // for shader type
+#include "private/le_renderer/le_renderer_types.h" // for shader type
 
 #include <iomanip>
 #include <iostream>
