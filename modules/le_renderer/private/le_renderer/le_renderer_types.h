@@ -257,11 +257,26 @@ struct le_swapchain_settings_t {
 		khr_direct_mode_settings_t khr_direct_mode_settings;
 		img_settings_t             img_settings;
 	};
+
+	void init_khr_settings() {
+		this->khr_settings.presentmode_hint = khr_settings_t::Presentmode::eDefault;
+		this->khr_settings.vk_surface       = nullptr;
+		this->khr_settings.window           = nullptr;
+	}
+	void init_khr_direct_mode_settings() {
+		this->khr_direct_mode_settings.presentmode_hint = khr_settings_t::Presentmode::eDefault;
+		this->khr_direct_mode_settings.display_name     = "";
+		this->khr_direct_mode_settings.vk_surface       = nullptr;
+	}
+	void init_img_settings() {
+		this->img_settings.pipe_cmd = "";
+	}
 };
 
 struct le_renderer_settings_t {
 	le_swapchain_settings_t swapchain_settings[ 16 ] = {};
 	size_t                  num_swapchain_settings   = 0;
+	// TODO: add a hint for number of swapchain frames
 };
 
 // specifies parameters for an image write operation.
@@ -301,7 +316,7 @@ class RendererInfoBuilder {
 	RendererInfoBuilder( le_window_o* window = nullptr )
 	    : swapchain_settings( info.swapchain_settings )
 	    , initial_window( window ) {
-		if ( window ) {
+		if ( window && info.swapchain_settings->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN ) {
 			info.swapchain_settings->khr_settings.window = window;
 			info.swapchain_settings->type                = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
 		}
@@ -328,6 +343,7 @@ class RendererInfoBuilder {
 		  public:
 			KhrSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
 			    : parent( parent_ ) {
+				parent.self->init_khr_settings();
 			}
 
 			KhrSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
@@ -352,6 +368,7 @@ class RendererInfoBuilder {
 		  public:
 			DirectSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
 			    : parent( parent_ ) {
+				parent.self->init_khr_direct_mode_settings();
 			}
 
 			DirectSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
@@ -378,6 +395,8 @@ class RendererInfoBuilder {
 		  public:
 			ImgSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
 			    : parent( parent_ ) {
+				parent.self->init_img_settings();
+				setPipeCmd();
 			}
 
 			ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
@@ -396,15 +415,17 @@ class RendererInfoBuilder {
 		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
 
 		KhrSwapchainInfoBuilder& asWindowSwapchain() {
+			this->self->init_khr_settings();
 			return mKhrSwapchainInfoBuilder;
 		}
 
 		ImgSwapchainInfoBuilder& asImgSwapchain() {
-			mImgSwapchainInfoBuilder.setPipeCmd();
+			this->self->init_img_settings();
 			return mImgSwapchainInfoBuilder;
 		}
 
 		DirectSwapchainInfoBuilder& asDirectSwapchain() {
+			this->self->init_khr_direct_mode_settings();
 			return mDirectSwapchainInfoBuilder;
 		}
 
