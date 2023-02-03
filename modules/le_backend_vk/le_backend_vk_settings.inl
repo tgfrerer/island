@@ -33,9 +33,9 @@ struct le_backend_vk_settings_o {
 	    //	    VK_QUEUE_COMPUTE_BIT,
 	}; // each entry stands for one queue and its capabilities
 
-	uint32_t         num_backend_frames = 2; // mumber of backend data frames
-	uint32_t         concurrency_count  = 1; // number of potential worker threads
-	std::atomic_bool readonly           = false;
+	uint32_t         data_frames_count = 3; // mumber of backend data frames - set to 2 if swapchain allows only 2 images
+	uint32_t         concurrency_count = 1; // number of potential worker threads
+	std::atomic_bool readonly          = false;
 };
 
 static bool le_backend_vk_settings_set_requested_queue_capabilities( VkQueueFlags* queues, uint32_t num_queues ) {
@@ -266,7 +266,10 @@ static void le_backend_vk_settings_set_concurrency_count( uint32_t concurrency_c
 }
 
 // ----------------------------------------------------------------------
-
+static void le_backend_vk_settings_set_data_frames_count( uint32_t data_frames_count ) {
+	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
+	self->data_frames_count        = data_frames_count;
+}
 
 // ----------------------------------------------------------------------
 

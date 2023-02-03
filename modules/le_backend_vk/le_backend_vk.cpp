@@ -641,7 +641,7 @@ struct le_backend_o {
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
-	uint64_t                      mFramesCount = 0; // total number of rendered or in-flight frames
+	uint64_t                      mFramesCount = 0; // total number of rendered or in-flight data frames
 
 	le_pipeline_manager_o* pipelineCache = nullptr;
 
@@ -1329,13 +1329,13 @@ static void backend_setup( le_backend_o* self ) {
 
 	// -- setup backend memory objects
 
-	self->mFrames.reserve( settings->num_backend_frames );
+	self->mFrames.reserve( settings->data_frames_count );
 
 	uint32_t memIndexScratchBufferGraphics = getMemoryIndexForGraphicsScratchBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used for transient command buffer allocations
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
-	for ( size_t i = 0; i != settings->num_backend_frames; ++i ) {
+	for ( size_t i = 0; i != settings->data_frames_count; ++i ) {
 
 		// -- Set up per-frame resources
 
@@ -1372,13 +1372,13 @@ static void backend_setup( le_backend_o* self ) {
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
 
-	self->mFramesCount = settings->num_backend_frames; // running total of frames
+	self->mFramesCount = settings->data_frames_count; // running total of frames
 
 	{
 		// We want to make sure to have at least one allocator.
 		size_t num_allocators = std::max<size_t>( 1, settings->concurrency_count );
 
-		for ( size_t i = 0; i != settings->num_backend_frames; ++i ) {
+		for ( size_t i = 0; i != settings->data_frames_count; ++i ) {
 			// -- create linear allocators for each frame
 			backend_create_transient_allocators( self, i, num_allocators );
 		}
@@ -7714,6 +7714,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	backend_settings_i.set_concurrency_count                        = le_backend_vk_settings_set_concurrency_count;
 	backend_settings_i.get_requested_queue_capabilities             = le_backend_vk_settings_get_requested_queue_capabilities;
 	backend_settings_i.set_requested_queue_capabilities             = le_backend_vk_settings_set_requested_queue_capabilities;
+	backend_settings_i.set_data_frames_count                        = le_backend_vk_settings_set_data_frames_count;
 
 	void** p_settings_singleton_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) );
 

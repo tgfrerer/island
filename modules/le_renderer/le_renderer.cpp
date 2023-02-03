@@ -394,6 +394,15 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 
 		renderer_request_swapchain_capabilities( self, self->settings.swapchain_settings, self->settings.num_swapchain_settings );
 
+		uint32_t num_data_frames = ~uint32_t( 0 );
+		for ( int i = 0; i != self->settings.num_swapchain_settings; i++ ) {
+			auto& image_count_hint = self->settings.swapchain_settings[ i ].imagecount_hint;
+			if ( image_count_hint < num_data_frames ) {
+				num_data_frames = image_count_hint;
+			}
+		}
+		le_backend_vk::settings_i.set_data_frames_count( num_data_frames );
+
 #if ( LE_MT > 0 )
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
 #endif
