@@ -1,6 +1,6 @@
 #include "le_resource_manager.h"
 #include "le_core.h"
-#include "le_renderer.h"
+#include "le_renderer.hpp"
 #include "le_pixels.h"
 
 #include <string>
