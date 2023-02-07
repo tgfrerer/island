@@ -77,12 +77,17 @@ static multi_window_example_app_o* app_create() {
 	app->windows[ 0 ].window.setup( settings_0 );
 	app->windows[ 1 ].window.setup( settings_1 );
 
+	// Prototype settings for any swapchain that we might add to the current renderer.
+	// IMPORTANT: Note that .defer_create is set to true - this tells the renderer *not*
+	// to automatically create a swapchain on renderer.setup().
+	//
 	le_swapchain_settings_t swapchain_settings{
 	    .type            = le_swapchain_settings_t::LE_KHR_SWAPCHAIN,
 	    .width_hint      = 0,
 	    .height_hint     = 0,
 	    .imagecount_hint = 3,
 	    .format_hint     = le::Format::eB8G8R8A8Unorm, // preferred surface format
+	    .defer_create    = true,                       ///< IMPORTANT: do not implicitly create a swapchain on renderer.setup()
 	    .khr_settings    = {
 	           .presentmode_hint = le::Presentmode::eFifo,
 	           .vk_surface       = nullptr, // will be set by backend internally
@@ -90,27 +95,29 @@ static multi_window_example_app_o* app_create() {
         },
 	};
 
-	// If we don't implicitly create swapchains by setting up renderer using
-	// renderer settings which contain swapchain settings, then we must request
-	// the correct capabilities from the renderer so that it may create any of
-	// the swapchains described in a given array of swapchain settings:
-	app->renderer.requestSwapchainCapabilities( &swapchain_settings, 1 );
+	le_renderer_settings_t renderer_settings{};
+	renderer_settings.num_swapchain_settings  = 1;
+	renderer_settings.swapchain_settings[ 0 ] = swapchain_settings;
 
-	// Note that we setup the renderer without giving any parameters
-	app->renderer.setup();
+	// Note that we setup the renderer without implicitly creating swapchains
+	app->renderer.setup( renderer_settings );
 
-	swapchain_settings.width_hint          = 1920 / 2;
-	swapchain_settings.height_hint         = 1080 / 2;
-	swapchain_settings.khr_settings.window = app->windows[ 0 ].window;
+	{
+		swapchain_settings.width_hint          = 1920 / 2;
+		swapchain_settings.height_hint         = 1080 / 2;
+		swapchain_settings.khr_settings.window = app->windows[ 0 ].window;
 
-	// Create swapchains
-	app->windows[ 0 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
+		// Create swapchains
+		app->windows[ 0 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
+	}
 
-	swapchain_settings.width_hint          = 200;
-	swapchain_settings.height_hint         = 400;
-	swapchain_settings.khr_settings.window = app->windows[ 1 ].window;
+	{
+		swapchain_settings.width_hint          = 200;
+		swapchain_settings.height_hint         = 400;
+		swapchain_settings.khr_settings.window = app->windows[ 1 ].window;
 
-	app->windows[ 1 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
+		app->windows[ 1 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
+	}
 
 	reset_camera( app, app->windows[ 0 ] ); // set up the camera
 
