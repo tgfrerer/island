@@ -1203,10 +1203,29 @@ static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator cons
 
 // ----------------------------------------------------------------------
 
-static void backend_initialise( le_backend_o* self, std::vector<char const*> requested_instance_extensions, std::vector<char const*> requested_device_extensions ) {
+static void backend_initialise( le_backend_o* self ) {
+
 	using namespace le_backend_vk;
-	self->instance = vk_instance_i.create( requested_instance_extensions.data(), uint32_t( requested_instance_extensions.size() ) );
-	self->device   = std::make_unique<le::Device>( self->instance, requested_device_extensions.data(), uint32_t( requested_device_extensions.size() ) );
+
+	auto settings = api->backend_settings_singleton;
+
+	assert( settings );
+	if ( settings == nullptr ) {
+		le::Log( LOGGER_LABEL ).error( "FATAL: Must specify settings for backend." );
+		exit( 1 );
+	} else {
+		// Freeze settings, as these will be the settings that apply for the lifetime of the backend.
+		settings->readonly = true;
+	}
+
+	self->instance = vk_instance_i.create(
+	    settings->required_instance_extensions.data(),
+	    uint32_t( settings->required_instance_extensions.size() ) );
+
+	self->device = std::make_unique<le::Device>(
+	    self->instance,
+	    settings->required_device_extensions.data(),
+	    uint32_t( settings->required_device_extensions.size() ) );
 
 	{ // initialise queues
 		uint32_t num_queues = 0;
@@ -1295,25 +1314,28 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 }
 
 // ----------------------------------------------------------------------
-
+// Note: you must call backend initialise before backend setup!
 static void backend_setup( le_backend_o* self ) {
 
 	using namespace le_backend_vk;
+
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto settings = api->backend_settings_singleton;
 
 	assert( settings );
 	if ( settings == nullptr ) {
-		le::Log( LOGGER_LABEL ).error( "FATAL: Must specify settings for backend." );
+		logger.error( "FATAL: Must specify settings for backend." );
 		exit( 1 );
 	} else {
 		// Freeze settings, as these will be the settings that apply for the lifetime of the backend.
 		settings->readonly = true;
 	}
 
-	// -- initialise backend
-
-	backend_initialise( self, settings->required_instance_extensions, settings->required_device_extensions );
+	if ( nullptr == self->instance ) {
+		logger.error( "FATAL: No Vulkan instance available to backend_setup() - Did you forget to call backend_initialise() first?" );
+		exit( 1 );
+	}
 
 	VkDevice         vkDevice         = self->device->getVkDevice();
 	VkPhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
@@ -7646,6 +7668,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	auto& vk_backend_i = api_i->vk_backend_i;
 
 	vk_backend_i.create                          = backend_create;
+	vk_backend_i.initialise                      = backend_initialise;
 	vk_backend_i.destroy                         = backend_destroy;
 	vk_backend_i.setup                           = backend_setup;
 	vk_backend_i.get_data_frames_count           = backend_get_data_frames_count;

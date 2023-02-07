@@ -403,6 +403,21 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 		}
 		le_backend_vk::settings_i.set_data_frames_count( num_data_frames );
 
+		// We only call backend initialize here - and not directly initialise backend at creation,
+		// because we must first query for extensions and capabilities before we create a backend
+		// instance/device that conforms to these requirements...
+		//
+		le_backend_vk::vk_backend_i.initialise( self->backend );
+
+		// Now that we have backend device and instance, we can use this to
+		// create surfaces for swapchains for example.
+		// The first created swapchain sets the number of swapchain
+		// images for all remaining swapchains.
+
+		for ( size_t i = 0; i < self->settings.num_swapchain_settings; i++ ) {
+			renderer_add_swapchain( self, &self->settings.swapchain_settings[ i ] );
+		}
+
 #if ( LE_MT > 0 )
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
 #endif
@@ -423,11 +438,7 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 
 	self->currentFrameNumber = 0;
 
-	// Add implicitly created swapchains here
 
-	for ( size_t i = 0; i < self->settings.num_swapchain_settings; i++ ) {
-		renderer_add_swapchain( self, &self->settings.swapchain_settings[ i ] );
-	}
 }
 // ----------------------------------------------------------------------
 

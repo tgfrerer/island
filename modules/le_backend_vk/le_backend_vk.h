@@ -122,6 +122,7 @@ struct le_backend_vk_api {
 		le_backend_o *         ( *create                     ) ( );
 		void                   ( *destroy                    ) ( le_backend_o *self );
 
+		void 				   ( *initialise 				 ) ( le_backend_o* self);
 		void                   ( *setup                      ) ( le_backend_o *self);
 
 		bool                   ( *poll_frame_fence           ) ( le_backend_o* self, size_t frameIndex);
