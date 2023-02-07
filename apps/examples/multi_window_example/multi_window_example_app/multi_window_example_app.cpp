@@ -410,12 +410,11 @@ static bool app_update( multi_window_example_app_o* self ) {
 		if ( it->second.window.shouldClose() ) {
 			self->renderer.removeSwapchain( it->second.swapchain );
 			//
-			// Note that we don't increment it at the end of this branch of the loop, but
-			// that we assign it from the result of the erasure operation.
+			// Note that we don't increment iterator it at the end of this branch of the loop, but
+			// that we assign to iterator it from the result of the erasure operation.
 			//
-			// We do this to make sure that the iterator does not get invalidated
-			// only the iterator erased does get invalidated when erasing from
-			// an unordered map.
+			// We do this so that we don't have to worry about deleting
+			// an object from a collection whilst iterating over the collection.
 			//
 			it = self->windows.erase( it );
 			continue;
@@ -430,9 +429,9 @@ static bool app_update( multi_window_example_app_o* self ) {
 
 	if ( self->frame_counter == 10 ) {
 		LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 0 );
-		*LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES = 2;
-		LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 2 );
-		*LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES = 2;
+		*LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES = 2; // generate 2 .dot files
+		LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
+		*LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES = 2; // generate 2 .dot files
 	}
 
 	// update interactive camera using mouse data
