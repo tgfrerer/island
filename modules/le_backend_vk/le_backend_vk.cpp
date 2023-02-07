@@ -1065,7 +1065,6 @@ static bool backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handl
 
 		return true;
 	} else {
-		logger.error( "Could not find swapchain extents" );
 		return false;
 	}
 }

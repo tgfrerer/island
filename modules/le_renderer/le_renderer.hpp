@@ -352,12 +352,12 @@ class Renderer {
 		return le_renderer::renderer_i.get_swapchain_resource_default( self );
 	}
 
-	void getSwapchainExtent( uint32_t* pWidth, uint32_t* pHeight, le_swapchain_handle swapchain = nullptr ) const {
-		le_renderer::renderer_i.get_swapchain_extent( self, swapchain, pWidth, pHeight );
+	bool getSwapchainExtent( uint32_t* pWidth, uint32_t* pHeight, le_swapchain_handle swapchain = nullptr ) const {
+		return le_renderer::renderer_i.get_swapchain_extent( self, swapchain, pWidth, pHeight );
 	}
 
 	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {
-		le::Extent2D result;
+		le::Extent2D result{};
 		le_renderer::renderer_i.get_swapchain_extent( self, swapchain, &result.width, &result.height );
 		return result;
 	}

@@ -416,8 +416,6 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 			}
 		}
 
-		// now let's go through all our swapchains and collect the number of images that they will provide us
-
 #if ( LE_MT > 0 )
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
 #endif
