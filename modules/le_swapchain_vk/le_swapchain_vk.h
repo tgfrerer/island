@@ -33,7 +33,7 @@ struct le_swapchain_vk_api {
 		VkImage_T*                ( *get_image                ) ( le_swapchain_o* self, uint32_t index_);
 		uint32_t                  ( *get_image_width          ) ( le_swapchain_o* self );
 		uint32_t                  ( *get_image_height         ) ( le_swapchain_o* self );
-		size_t                    ( *get_images_count         ) ( le_swapchain_o* self );
+		size_t                    ( *get_image_count          ) ( le_swapchain_o* self );
 		
 		bool                      ( *get_required_vk_instance_extensions )(const le_swapchain_settings_t* settings);
 		bool                      ( *get_required_vk_device_extensions )(const le_swapchain_settings_t* settings);

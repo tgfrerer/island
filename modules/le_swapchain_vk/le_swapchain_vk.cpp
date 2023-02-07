@@ -84,7 +84,7 @@ static uint32_t swapchain_get_image_height( le_swapchain_o* self ) {
 // ----------------------------------------------------------------------
 
 static size_t swapchain_get_swapchain_images_count( le_swapchain_o* self ) {
-	return self->vtable.get_images_count( self );
+	return self->vtable.get_image_count( self );
 }
 
 // ----------------------------------------------------------------------
@@ -159,7 +159,7 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	swapchain_i.get_image_width                     = swapchain_get_image_width;
 	swapchain_i.get_image_height                    = swapchain_get_image_height;
 	swapchain_i.get_surface_format                  = swapchain_get_surface_format;
-	swapchain_i.get_images_count                    = swapchain_get_swapchain_images_count;
+	swapchain_i.get_image_count                    = swapchain_get_swapchain_images_count;
 	swapchain_i.present                             = swapchain_present;
 	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
 	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
