@@ -1048,13 +1048,14 @@ static size_t backend_get_data_frames_count( le_backend_o* self ) {
 // ----------------------------------------------------------------------
 // Returns the current swapchain width and height.
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
-static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handle swapchain_handle, uint32_t* p_width, uint32_t* p_height ) {
+static bool backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handle swapchain_handle, uint32_t* p_width, uint32_t* p_height ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( swapchain_handle ) {
 		auto& swp = self->swapchains.at( reinterpret_cast<uint64_t>( swapchain_handle ) );
 		*p_width  = swp.width;
 		*p_height = swp.height;
+		return true;
 
 	} else if ( !self->swapchains.empty() ) {
 
@@ -1062,8 +1063,10 @@ static void backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handl
 		*p_width  = swp.width;
 		*p_height = swp.height;
 
+		return true;
 	} else {
 		logger.error( "Could not find swapchain extents" );
+		return false;
 	}
 }
 // ----------------------------------------------------------------------

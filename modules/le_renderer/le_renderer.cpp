@@ -669,9 +669,9 @@ static le_img_resource_handle renderer_get_swapchain_resource_default( le_render
 
 // ----------------------------------------------------------------------
 
-static void renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height ) {
+static bool renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height ) {
 	using namespace le_backend_vk;
-	vk_backend_i.get_swapchain_extent( self->backend, swapchain, p_width, p_height );
+	return vk_backend_i.get_swapchain_extent( self->backend, swapchain, p_width, p_height );
 }
 
 // ----------------------------------------------------------------------
