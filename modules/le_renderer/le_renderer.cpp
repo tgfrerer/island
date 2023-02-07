@@ -394,14 +394,14 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 
 		renderer_request_swapchain_capabilities( self, self->settings.swapchain_settings, self->settings.num_swapchain_settings );
 
-		uint32_t num_data_frames = ~uint32_t( 0 );
-		for ( int i = 0; i != self->settings.num_swapchain_settings; i++ ) {
-			auto& image_count_hint = self->settings.swapchain_settings[ i ].imagecount_hint;
-			if ( image_count_hint < num_data_frames ) {
-				num_data_frames = image_count_hint;
-			}
-		}
-		le_backend_vk::settings_i.set_data_frames_count( num_data_frames );
+		// uint32_t num_data_frames = ~uint32_t( 0 );
+		// for ( int i = 0; i != self->settings.num_swapchain_settings; i++ ) {
+		// 	auto& image_count_hint = self->settings.swapchain_settings[ i ].imagecount_hint;
+		// 	if ( image_count_hint < num_data_frames ) {
+		// 		num_data_frames = image_count_hint;
+		// 	}
+		// }
+		// le_backend_vk::settings_i.set_data_frames_count( num_data_frames );
 
 		// We only call backend initialize here - and not directly initialise backend at creation,
 		// because we must first query for extensions and capabilities before we create a backend
@@ -415,8 +415,14 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 		// images for all remaining swapchains.
 
 		for ( size_t i = 0; i < self->settings.num_swapchain_settings; i++ ) {
-			renderer_add_swapchain( self, &self->settings.swapchain_settings[ i ] );
+			auto p_swapchain_settings = &self->settings.swapchain_settings[ i ];
+			if ( p_swapchain_settings && !p_swapchain_settings->defer_create ) {
+				// only create swapchains which do not have the defer_create flag set
+				renderer_add_swapchain( self, p_swapchain_settings );
+			}
 		}
+
+		// now let's go through all our swapchains and collect the number of images that they will provide us
 
 #if ( LE_MT > 0 )
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );

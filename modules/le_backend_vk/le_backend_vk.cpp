@@ -36,7 +36,7 @@
 #include "private/le_backend_vk/le_backend_vk_instance.inl"
 
 static constexpr auto LEGACY_SWAPCHAIN = false;
-static constexpr auto LOGGER_LABEL = "le_backend";
+static constexpr auto LOGGER_LABEL     = "le_backend_vk";
 #ifdef _MSC_VER
 #	define NOMINMAX     // we do this so that Windows.h does not define min and max macros
 #	include <Windows.h> // for getModule
@@ -453,9 +453,10 @@ class swapchain_data_t {
 	VkSurfaceFormatKHR              swapchain_surface_format; // contains VkFormat and (optional) color space
 	std::shared_ptr<VkSurfaceKHR_T> swapchain_surface;        // owned, optional VkDestroySurface called when last reference is deleted.
 
+	uint32_t height;      ///< height of swapchain image
+	uint32_t width;       ///< width of swapchain image
+	uint32_t image_count; ///< number of swapchain images
 
-	uint32_t               height;
-	uint32_t               width;
 	le_img_resource_handle swapchain_image;
 
 	le_swapchain_o* get_swapchain() {
@@ -926,42 +927,56 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	std::shared_ptr<VkSurfaceKHR_T> maybe_swapchain_surface( nullptr );
 
 	// make a local copy of settings in case we must update settings.
-	le_swapchain_settings_t settings = *settings_;
+	le_swapchain_settings_t         swapchain_settings = *settings_;
+	le_backend_vk_settings_o const* backend_settings   = le_backend_vk::api->backend_settings_singleton;
 
-	switch ( settings.type ) {
+	assert( backend_settings );
+	if ( backend_settings == nullptr ) {
+		logger.error( "FATAL: Must specify settings for backend." );
+		exit( 1 );
+	}
 
+	if ( !self->swapchains.empty() ) {
+		// If we already have a swapchain, we cannot have another swapchain which provides fewer images than
+		// this swapchain. more images is okay, fewer images is not okay.
+		swapchain_settings.imagecount_hint =
+		    std::min( swapchain_settings.imagecount_hint,
+		              backend_settings->data_frames_count );
+	}
+
+	switch ( swapchain_settings.type ) {
 	case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
 		// Create a windowless swapchain
-		swapchain = swapchain_i.create( api->swapchain_direct_i, self, &settings );
-	} break;
+		swapchain = swapchain_i.create( api->swapchain_direct_i, self, &swapchain_settings );
+		break;
+	}
 	case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
-		if ( settings.khr_settings.window != nullptr ) {
+		if ( swapchain_settings.khr_settings.window != nullptr ) {
 			VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
-			// settings->khr_settings.vk_surface =
 
 			maybe_swapchain_surface = std::shared_ptr<VkSurfaceKHR_T>(
-			    le_window::window_i.create_surface( settings.khr_settings.window, instance ),
+			    le_window::window_i.create_surface( swapchain_settings.khr_settings.window, instance ),
 			    [ instance ]( VkSurfaceKHR_T* ptr ) {
 				    logger.info( "Surface %p destroyed.", ptr );
 				    vkDestroySurfaceKHR( instance, ptr, nullptr );
 			    } );
 
-			settings.khr_settings.vk_surface = maybe_swapchain_surface.get();
-			swapchain                        = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, &settings );
-			break;
+			swapchain_settings.khr_settings.vk_surface = maybe_swapchain_surface.get();
+			swapchain                                  = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, &swapchain_settings );
 		} else {
-			settings.type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
-			logger.warn( "Automatically selected Image Swapchain as no window was specified" );
-			settings.img_settings          = {};
-			settings.img_settings.pipe_cmd = "";
+			logger.error( "No window specified for LE_KHR_SWAPCHAIN" );
+			return nullptr;
 		}
-
-	} // deliberate fallthrough in case no window was specified
+		break;
+	}
 	case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
 		// Create an image swapchain
-		swapchain = swapchain_i.create( api->swapchain_img_i, self, &settings );
-	} break;
+		swapchain = swapchain_i.create( api->swapchain_img_i, self, &swapchain_settings );
+		break;
 	}
+	default:
+		assert( false );
+	} // end switch
 
 	assert( swapchain );
 
@@ -976,8 +991,26 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	swapchain_data.swapchain_surface        = maybe_swapchain_surface,
 	swapchain_data.height                   = swapchain_i.get_image_height( swapchain ),
 	swapchain_data.width                    = swapchain_i.get_image_width( swapchain ),
+	swapchain_data.image_count              = swapchain_i.get_image_count( swapchain );
 	swapchain_data.swapchain_image =
 	    le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot );
+
+	if ( swapchain_data.image_count < backend_settings->data_frames_count ) {
+		// If this is called between backend has been initialized and setup, this
+		// will help us catching a case where the backend can only provide two
+		// this will have no effect once backend has been setup()
+		auto original_backend_frame_count = backend_settings->data_frames_count;
+		if ( le_backend_vk::settings_i.set_data_frames_count( std::max<uint32_t>( swapchain_data.image_count, 2 ) ) ) {
+			logger.warn( "Backend data frame count was adapted from %d to %d because swapchain would not provide %d images.",
+			             original_backend_frame_count,
+			             backend_settings->data_frames_count,
+			             original_backend_frame_count );
+		} else {
+			logger.error( "Swapchain may not be able to provide enough images for backend. "
+			              "Swapchain image count: %d, Backend data frame count: %d",
+			              swapchain_data.image_count, backend_settings->data_frames_count );
+		}
+	}
 
 	// Add new swapchain
 	const auto& [ pair, was_emplaced ] = self->swapchains.emplace( swapchain_index, swapchain_data );
@@ -1210,13 +1243,6 @@ static void backend_initialise( le_backend_o* self ) {
 	auto settings = api->backend_settings_singleton;
 
 	assert( settings );
-	if ( settings == nullptr ) {
-		le::Log( LOGGER_LABEL ).error( "FATAL: Must specify settings for backend." );
-		exit( 1 );
-	} else {
-		// Freeze settings, as these will be the settings that apply for the lifetime of the backend.
-		settings->readonly = true;
-	}
 
 	self->instance = vk_instance_i.create(
 	    settings->required_instance_extensions.data(),

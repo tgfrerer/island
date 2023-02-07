@@ -155,6 +155,15 @@ class RendererInfoBuilder {
 		return mSwapchainInfoBuilder;
 	}
 
+	// If you want to add a swapchain later, you must have declared one of its type
+	// to the renderer. This will not automatically create the swapchain on renderer setup,
+	// but it will create the renderer and the backend with the necessary extensions
+	// for this swapchain to work.
+	SwapchainInfoBuilder& declareSwapchain() {
+		info.swapchain_settings[ info.num_swapchain_settings ].defer_create = true;
+		return mSwapchainInfoBuilder;
+	}
+
 	le_renderer_settings_t const& build() {
 		// if an initial window was given and nothing else,
 		// we must make sure that the setting still counts.

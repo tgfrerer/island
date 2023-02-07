@@ -251,6 +251,7 @@ struct le_swapchain_settings_t {
 	uint32_t   height_hint     = 480;
 	uint32_t   imagecount_hint = 3;
 	le::Format format_hint     = le::Format::eB8G8R8A8Unorm; // preferred surface format
+	uint32_t   defer_create    = 0;                          // if set to non-null, then do not automatically create a swapchain if passed as parameter to renderer.setup()
 
 	union {
 		khr_settings_t             khr_settings;
