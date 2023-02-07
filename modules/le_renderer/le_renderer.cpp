@@ -390,29 +390,23 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 
 	self->settings = *settings;
 	{
-		// Set up the backend
+		// Before we can initialise the backend, we must query for any required
+		// capabilities and extensions that come implied via swapchains:
 
 		renderer_request_swapchain_capabilities( self, self->settings.swapchain_settings, self->settings.num_swapchain_settings );
 
-		// uint32_t num_data_frames = ~uint32_t( 0 );
-		// for ( int i = 0; i != self->settings.num_swapchain_settings; i++ ) {
-		// 	auto& image_count_hint = self->settings.swapchain_settings[ i ].imagecount_hint;
-		// 	if ( image_count_hint < num_data_frames ) {
-		// 		num_data_frames = image_count_hint;
-		// 	}
-		// }
-		// le_backend_vk::settings_i.set_data_frames_count( num_data_frames );
-
-		// We only call backend initialize here - and not directly initialise backend at creation,
-		// because we must first query for extensions and capabilities before we create a backend
-		// instance/device that conforms to these requirements...
+		// We can now initialize the backend so that it hopefully conforms to
+		// any requirements and capabilities that have been requested so far...
 		//
 		le_backend_vk::vk_backend_i.initialise( self->backend );
 
 		// Now that we have backend device and instance, we can use this to
 		// create surfaces for swapchains for example.
-		// The first created swapchain sets the number of swapchain
-		// images for all remaining swapchains.
+		//
+		// The first added swapchain will try to set the number of data frames
+		//  - via the global backend_settings singleton -
+		// so that the number of data frames is less or equal to the number of
+		// available images in the swapchain.
 
 		for ( size_t i = 0; i < self->settings.num_swapchain_settings; i++ ) {
 			auto p_swapchain_settings = &self->settings.swapchain_settings[ i ];
