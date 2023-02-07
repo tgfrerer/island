@@ -979,7 +979,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	assert( swapchain );
 
-	uint64_t swapchain_index = ++self->swapchains_next_handle; // note pre-increment
+	uint64_t swapchain_index = ++self->swapchains_next_handle; // note pre-increment: this is so that index 0 means invalid swapchain
 
 	char swapchain_name[ 64 ];
 
@@ -1442,7 +1442,8 @@ static void backend_setup( le_backend_o* self ) {
 
 		if ( !self->swapchains.empty() ) {
 			// Take the first swapchain, and use this to specify the default format for a color attachment
-			self->defaultFormatColorAttachment = le::Format( self->swapchains.at( 0 ).swapchain_surface_format.format );
+			// Note that we take swapchain with index 1, as index 0 must not exist (it represents an invalid swapchain index or handle)
+			self->defaultFormatColorAttachment = le::Format( self->swapchains.at( 1 ).swapchain_surface_format.format );
 		} else {
 			self->defaultFormatColorAttachment = le::Format::eB8G8R8A8Unorm;
 		}
