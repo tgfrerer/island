@@ -575,8 +575,7 @@ struct BackendFrameData {
 	/// \brief if user provides explicit resource info, we collect this here, so that we can make sure
 	/// that any inferred resourceInfo is compatible with what the user selected.
 	/// there is no guarantee that declared resources are unique, which means we must consolidate.
-	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (explicitly declared via rendergraph)
-	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (explicitly declared via rendergraph)
+	std::unordered_map<le_resource_handle, le_resource_info_t> declared_resources; // | pre-declared resources (explicitly declared via rendergraph)
 
 	std::vector<BackendRenderPass>   passes;
 	std::vector<le::RootPassesField> queue_submission_keys; // One key per isolated queue invocation,
@@ -1437,16 +1436,19 @@ static void backend_setup( le_backend_o* self ) {
 	{
 		// Set default image formats
 
-		// FIXME: we should make sure that these default formats are per-swapchain.
-
 		using namespace le_backend_vk;
 
 		// assert( !self->swapchainImageFormat.empty() && "must have at least one swapchain image format available." );
 
-		self->defaultFormatColorAttachment = le::Format::eB8G8R8A8Unorm;
-		// static_cast<le::Format>( self->swapchainImageFormat[ 0 ] );
-		self->defaultFormatDepthStencilAttachment = le::Format::eD24UnormS8Uint;
-		// static_cast<le::Format>( VkFormat( *vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
+		if ( !self->swapchains.empty() ) {
+			// Take the first swapchain, and use this to specify the default format for a color attachment
+			self->defaultFormatColorAttachment = le::Format( self->swapchains.at( 0 ).swapchain_surface_format.format );
+		} else {
+			self->defaultFormatColorAttachment = le::Format::eB8G8R8A8Unorm;
+		}
+
+		self->defaultFormatDepthStencilAttachment =
+		    static_cast<le::Format>( VkFormat( *vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
 
 		// We hard-code default format for sampled images, since this is the most likely
 		// format we will encounter bitmaps to be encoded in, and there is no good way
@@ -2037,8 +2039,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	// -- remove any frame-local copy of allocated resources
 	frame.availableResources.clear();
-	frame.declared_resources_id.clear();
-	frame.declared_resources_info.clear();
+	frame.declared_resources.clear();
 
 	frame.must_create_queues_dot_graph = false;
 	frame.debug_root_passes_names.clear();
@@ -3247,11 +3248,10 @@ static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_r
 //
 // should return a map of all resources used in all passes, with consolidated infos per-resource.
 static void collect_resource_infos_per_resource(
-    le_renderpass_o const* const*                               passes,
-    size_t                                                      numRenderPasses,
-    std::vector<le_resource_handle> const&                      frame_declared_resources_id,   // | pre-declared resources (declared via module)
-    std::vector<le_resource_info_t> const&                      frame_declared_resources_info, // | info for each pre-declared resource
-    std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
+    le_renderpass_o const* const*                                     passes,
+    size_t                                                            numRenderPasses,
+    std::unordered_map<le_resource_handle, le_resource_info_t> const& frame_declared_resources, // | pre-declared resources (declared via module)
+    std::unordered_map<le_resource_handle, le_resource_info_t>&       active_resources ) {
 
 	using namespace le_renderer;
 
@@ -3340,15 +3340,12 @@ static void collect_resource_infos_per_resource(
 	// As a side-effect this will also consolidate any frame-declared resources which
 	// are declared more than once and used in the current rendergraph.
 
-	for ( size_t i = 0; i != frame_declared_resources_id.size(); i++ ) {
-		auto const& resource     = frame_declared_resources_id[ i ];
-		auto const& resourceInfo = frame_declared_resources_info[ i ];
+	for ( auto const& [ resource, resource_info ] : frame_declared_resources ) {
 
 		auto find_result = active_resources.find( resource );
 		if ( find_result != active_resources.end() ) {
 			// a declared resource was found for an used resource - we must consolidate the two.
-
-			consolidate_resource_info_into( find_result->second, resourceInfo );
+			consolidate_resource_info_into( find_result->second, resource_info );
 		}
 	}
 }
@@ -3407,6 +3404,8 @@ static void insert_msaa_versions(
 		}
 	}
 }
+
+// ----------------------------------------------------------------------
 
 static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info, const char* prefix = "" ) {
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -3619,7 +3618,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 	collect_resource_infos_per_resource(
 	    passes, numRenderPasses,
-	    frame.declared_resources_id, frame.declared_resources_info,
+	    frame.declared_resources,
 	    active_resources );
 
 	if ( LE_PRINT_DEBUG_MESSAGES ) {
@@ -4096,9 +4095,15 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	// which are explicitly declared by user via the rendergraph, but which may or may not be
 	// actually used in the frame.
 	//
-	frame.declared_resources_id.insert( frame.declared_resources_id.end(), declared_resources, declared_resources + declared_resources_count );
-	frame.declared_resources_info.insert( frame.declared_resources_info.end(), declared_resources_infos, declared_resources_infos + declared_resources_count );
 
+	for ( size_t i = 0; i != declared_resources_count; i++, declared_resources++, declared_resources_infos++ ) {
+
+		auto const& [ it, was_inserted ] = frame.declared_resources.emplace( *declared_resources, *declared_resources_infos );
+		if ( was_inserted == false ) {
+			// we must consolidate - find the superset for two resource infos
+			consolidate_resource_info_into( it->second, *declared_resources_infos ); // we must consolidate
+		}
+	}
 
 	{
 
@@ -4782,17 +4787,22 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 				};
 			}
 		}
+
 		// Add swapchain resource to automatically- declared resources
 		// We add this so that usage type is automatically defined for this Resource as ColorAttachment.
-
-		frame.declared_resources_id.push_back( local_swapchain_state.swapchain_data.swapchain_image );
+		// and so that it automatically receives the correct image format.
 
 		{
 			le_resource_info_t img_info = le_renderer::helpers_i.get_default_resource_info_for_image();
 			img_info.image.usage        = le::ImageUsageFlags( le::ImageUsageFlagBits::eColorAttachment );
 			img_info.image.extent       = { .width = tmp_surface_width, .height = tmp_surface_height, .depth = 1 };
+			img_info.image.format       = le::Format( local_swapchain_state.swapchain_data.swapchain_surface_format.format );
 
-			frame.declared_resources_info.push_back( img_info );
+			auto const& [ it, was_inserted ] = frame.declared_resources.emplace( local_swapchain_state.swapchain_data.swapchain_image, img_info );
+			if ( !was_inserted ) {
+				// If image declaration did already exist, we must consolidate the corresponing image info
+				consolidate_resource_info_into( it->second, img_info );
+			}
 		}
 	}
 }
