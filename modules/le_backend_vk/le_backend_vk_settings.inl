@@ -266,9 +266,14 @@ static void le_backend_vk_settings_set_concurrency_count( uint32_t concurrency_c
 }
 
 // ----------------------------------------------------------------------
-static void le_backend_vk_settings_set_data_frames_count( uint32_t data_frames_count ) {
+static bool le_backend_vk_settings_set_data_frames_count( uint32_t data_frames_count ) {
 	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
+	if ( self->readonly ) {
+		return false;
+	}
+	// ----------| invariant: settings is not readonly
 	self->data_frames_count        = data_frames_count;
+	return true;
 }
 
 // ----------------------------------------------------------------------
