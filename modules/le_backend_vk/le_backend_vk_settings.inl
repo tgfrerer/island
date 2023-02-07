@@ -63,11 +63,11 @@ static void le_backend_vk_settings_get_requested_queue_capabilities( VkQueueFlag
 
 static bool le_backend_vk_settings_add_required_instance_extension( le_backend_vk_settings_o* self, char const* ext ) {
 	if ( self->readonly == false ) {
-		auto result = self->required_instance_extensions_set.emplace( ext );
-		if ( result.second ) {
+		auto const& [ str, was_inserted ] = self->required_instance_extensions_set.emplace( ext );
+		if ( was_inserted ) {
 			// only add to the vector if item was actually added. this is how we enforce that
 			// elements in vector are unique.
-			self->required_instance_extensions.push_back( result.first->c_str() );
+			self->required_instance_extensions.push_back( str->c_str() );
 		}
 		return true;
 	} else {
@@ -82,11 +82,11 @@ static bool le_backend_vk_settings_add_required_instance_extension( le_backend_v
 static bool le_backend_vk_settings_add_required_device_extension( le_backend_vk_settings_o* self, char const* ext ) {
 	if ( self->readonly == false ) {
 
-		auto result = self->required_device_extensions_set.emplace( ext );
-		if ( result.second ) {
+		auto const& [ str, was_inserted ] = self->required_device_extensions_set.emplace( ext );
+		if ( was_inserted ) {
 			// only add to the vector if item was actually added. this is how we enforce that
 			// elements in vector are unique.
-			self->required_device_extensions.push_back( result.first->c_str() );
+			self->required_device_extensions.push_back( str->c_str() );
 		}
 
 		// Enable StorageBuffer16BitAccess if corresponding extension was requested.
