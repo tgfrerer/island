@@ -44,7 +44,6 @@ struct le_renderer_api {
 
 	
 		// note: this method must be called before setup()
-		bool 						   ( * request_backend_capabilities)( le_renderer_o* obj, le_swapchain_settings_t const * settings, uint32_t settings_count);
 
 		le_img_resource_handle         ( * get_swapchain_resource)( le_renderer_o* self, le_swapchain_handle swapchain);
 		le_img_resource_handle         ( * get_swapchain_resource_default)( le_renderer_o* self);

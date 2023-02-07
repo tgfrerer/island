@@ -874,7 +874,6 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 
 	le_renderer_i.create                 = renderer_create;
 	le_renderer_i.destroy                = renderer_destroy;
-	le_renderer_i.request_backend_capabilities = renderer_request_swapchain_capabilities;
 	le_renderer_i.setup                  = renderer_setup;
 	le_renderer_i.update                 = renderer_update;
 	le_renderer_i.get_settings           = renderer_get_settings;
