@@ -83,8 +83,9 @@ can build a single, statically linked and optimised binary.
   remotely connect to a running app from all over the world.
 
 * **Multi-Window** Island allows you to hook up multiple swapchains to
-  a single application. This is particularly useful for multi-window
-  scenarios. See [example][example-multiwindow]
+  a single application. You can dynamically add and remove swapchains
+  while your Island application is running. This is particularly useful
+  for multi-window scenarios. See [example][example-multiwindow]
   
 * **Straight to video**: Island can render straight to screen using
   the direct rendering swapchain, or use any number of available
