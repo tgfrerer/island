@@ -506,11 +506,11 @@ class swapchain_data_t {
 };
 
 struct swapchain_state_t {
-	uint32_t image_idx          = uint32_t( ~0 );
+	uint32_t                            image_idx = uint32_t( ~0 );
 	std::shared_ptr<SemaphoreContainer> presentComplete;
 	std::shared_ptr<SemaphoreContainer> renderComplete;
 	bool                                present_successful = false;
-	bool                    acquire_successful = false;
+	bool                                acquire_successful = false;
 	swapchain_data_t                    swapchain_data;
 };
 
@@ -614,7 +614,6 @@ struct BackendFrameData {
 
 	bool must_create_queues_dot_graph = false;
 };
-
 
 /// \brief backend data object
 struct le_backend_o {
@@ -986,11 +985,11 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Modern_Swapchain_Image_Handle[%lu]", swapchain_index );
 
 	swapchain_data_t swapchain_data( swapchain );
-	swapchain_data.swapchain_surface_format = *swapchain_i.get_surface_format( swapchain ),
-	swapchain_data.swapchain_surface        = maybe_swapchain_surface,
-	swapchain_data.height                   = swapchain_i.get_image_height( swapchain ),
-	swapchain_data.width                    = swapchain_i.get_image_width( swapchain ),
-	swapchain_data.image_count              = swapchain_i.get_image_count( swapchain );
+	swapchain_data.swapchain_surface_format = *swapchain_i.get_surface_format( swapchain );
+	swapchain_data.swapchain_surface        = maybe_swapchain_surface;
+	swapchain_data.height                   = swapchain_i.get_image_height( swapchain );
+	swapchain_data.width                    = swapchain_i.get_image_width( swapchain );
+	swapchain_data.image_count              = uint32_t( swapchain_i.get_image_count( swapchain ) );
 	swapchain_data.swapchain_image =
 	    le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot );
 
@@ -1081,8 +1080,6 @@ bool backend_get_swapchains_infos( le_backend_o* self, uint32_t frame_index, uin
 	}
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
-
-	uint32_t num_items = *count = total_number_of_swapchains;
 
 	for ( auto& [ key, swp ] : frame.frame_owned_swapchain_state ) {
 		*( p_width++ )  = swp.swapchain_data.width;
@@ -1325,7 +1322,7 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 	if ( settings->requested_device_features.vk_12.bufferDeviceAddress ) {
 		createInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	}
-	createInfo.device                      = device;
+	createInfo.device = device;
 
 	VmaVulkanFunctions vma_vulkan_functions{};
 
@@ -4193,7 +4190,6 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 			// If we use a mutex to protect backend-wide resources, we can release it now.
 		}
 	}
-
 
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_transient_resources( frame, device, passes, numRenderPasses );
@@ -7497,7 +7493,6 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 		backend_queue_submit( self->queues[ self->queue_default_graphics_idx ], 1, &submitInfo, nullptr, frame.must_create_queues_dot_graph, "wait_present_complete" );
 	}
 
-
 	for ( auto const& current_submission : frame.queue_submission_data ) {
 
 		// Prepare command buffers for submission
@@ -7724,14 +7719,14 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.update_shader_modules = backend_update_shader_modules;
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
-	vk_backend_i.add_swapchain               = backend_add_swapchain;
-	vk_backend_i.remove_swapchain            = backend_remove_swapchain;
-	vk_backend_i.get_swapchain_extent        = backend_get_swapchain_extent;
-	vk_backend_i.get_swapchain_resource      = backend_get_swapchain_resource;
+	vk_backend_i.add_swapchain                  = backend_add_swapchain;
+	vk_backend_i.remove_swapchain               = backend_remove_swapchain;
+	vk_backend_i.get_swapchain_extent           = backend_get_swapchain_extent;
+	vk_backend_i.get_swapchain_resource         = backend_get_swapchain_resource;
 	vk_backend_i.get_swapchain_resource_default = backend_get_swapchain_resource_default;
 	vk_backend_i.get_swapchains_infos           = backend_get_swapchains_infos;
-	vk_backend_i.get_swapchains              = backend_get_swapchains;
-	vk_backend_i.acquire_swapchain_resources = backend_acquire_swapchain_resources;
+	vk_backend_i.get_swapchains                 = backend_get_swapchains;
+	vk_backend_i.acquire_swapchain_resources    = backend_acquire_swapchain_resources;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
