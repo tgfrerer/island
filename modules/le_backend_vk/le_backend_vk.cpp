@@ -993,17 +993,22 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	swapchain_data.swapchain_image =
 	    le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot );
 
-	if ( swapchain_data.image_count < backend_settings->data_frames_count ) {
-		// If this is called between backend has been initialized and setup, this
+	if ( swapchain_data.image_count != backend_settings->data_frames_count ) {
+		// If this is called between when the backend_initialize and setup, this
 		// will help us catching a case where the backend can only provide two
 		// this will have no effect once backend has been setup()
 		auto original_backend_frame_count = backend_settings->data_frames_count;
-		if ( le_backend_vk::settings_i.set_data_frames_count( std::max<uint32_t>( swapchain_data.image_count, 2 ) ) ) {
-			logger.warn( "Backend data frame count was adapted from %d to %d because swapchain would not provide %d images.",
+		if ( le_backend_vk::settings_i.set_data_frames_count(
+		         std::min<uint32_t>(
+		             3,
+		             std::max<uint32_t>(
+		                 swapchain_data.image_count,
+		                 2 ) ) ) ) {
+			logger.info( "Backend data frame count was adapted from %d to %d because swapchain provides %d images.",
 			             original_backend_frame_count,
 			             backend_settings->data_frames_count,
-			             original_backend_frame_count );
-		} else {
+			             swapchain_data.image_count );
+		} else if ( swapchain_data.image_count < backend_settings->data_frames_count ) {
 			logger.error( "Swapchain may not be able to provide enough images for backend. "
 			              "Swapchain image count: %d, Backend data frame count: %d",
 			              swapchain_data.image_count, backend_settings->data_frames_count );

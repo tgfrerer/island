@@ -33,7 +33,7 @@ struct le_backend_vk_settings_o {
 	    //	    VK_QUEUE_COMPUTE_BIT,
 	}; // each entry stands for one queue and its capabilities
 
-	uint32_t         data_frames_count = 3; // mumber of backend data frames - set to 2 if swapchain allows only 2 images
+	uint32_t         data_frames_count = 2; // mumber of backend data frames - must be at minimum 2
 	uint32_t         concurrency_count = 1; // number of potential worker threads
 	std::atomic_bool readonly          = false;
 };
