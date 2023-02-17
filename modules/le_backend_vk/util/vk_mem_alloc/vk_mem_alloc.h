@@ -22,7 +22,8 @@
 
 #ifndef AMD_VULKAN_MEMORY_ALLOCATOR_H
 #define AMD_VULKAN_MEMORY_ALLOCATOR_H
-
+#	pragma clang diagnostic push
+#	pragma clang diagnostic ignored "-Wnullability-completeness"
 /** \mainpage Vulkan Memory Allocator
 
 <b>Version 3.1.0-development</b>
@@ -17550,6 +17551,7 @@ VMA_CALL_PRE void VMA_CALL_POST vmaFreeVirtualBlockStatsString(VmaVirtualBlock V
 #endif // _VMA_PUBLIC_INTERFACE
 #endif // VMA_IMPLEMENTATION
 
+#pragma clang diagnostic pop
 /**
 \page quick_start Quick start
 
