@@ -17,8 +17,8 @@ endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # use lld linker for clang-compiled binary - it's faster than gnu ld,
     # and you don't have to worry about the linking order for libraries.
-    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-fuse-ld=lld -Wno-unused-command-line-argument")
-    set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-fuse-ld=lld -Wno-unused-command-line-argument")
+    # set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wno-unused-command-line-argument")
+    # set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-Wno-unused-command-line-argument")
 endif()
 
 set ( STATIC_LIBRARIES "" CACHE INTERNAL "static_libraries" )
