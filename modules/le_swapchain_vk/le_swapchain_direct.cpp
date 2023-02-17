@@ -234,12 +234,18 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 		    to_str( self->mPresentMode ) );
 	}
 
+	// We require a minimum of minImageCount+1, so that in case minImageCount
+	// is 3 we can still acquire 2 images without blocking.
+	//
 	self->mImagecount = clamp( self->mSettings.imagecount_hint,
-	                           surfaceCapabilities.minImageCount,
+	                           surfaceCapabilities.minImageCount + 1,
 	                           surfaceCapabilities.maxImageCount );
 
 	if ( self->mImagecount != self->mSettings.imagecount_hint ) {
-		logger.warn( "Number of swapchain images was adjusted to: %d", self->mImagecount );
+		logger.warn( "Number of swapchain images was adjusted to: %d. minImageCount: %d, maxImageCount: %d",
+		             self->mImagecount,
+		             surfaceCapabilities.minImageCount,
+		             surfaceCapabilities.maxImageCount );
 	}
 
 	VkSurfaceTransformFlagBitsKHR preTransform;
