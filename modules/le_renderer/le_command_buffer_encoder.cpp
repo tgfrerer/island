@@ -37,7 +37,7 @@ static inline int fetch_allocator_index() {
 
 static inline le_allocator_o* fetch_allocator( le_allocator_o** ppAlloc ) {
 	int             index  = fetch_allocator_index();
-	le_allocator_o* result = *( ppAlloc + index );
+	le_allocator_o* result = ppAlloc[ index ];
 	assert( result );
 	return result;
 }
