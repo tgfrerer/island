@@ -70,18 +70,18 @@ vec3 uint2rgb(in uint c){
 // Color-aware comparison: returns true if left is brighter than right
 // Note that we do our luminance comparisons in OK Lab color space - this
 // is so that we may compare colors by *perceived* brightness.
-bool is_brighter(in const uint left, in const uint right){
+bool brighter_than(in const uint left, in const uint right){
 	return linear_srgb_to_oklab(uint2rgb(left)).x < linear_srgb_to_oklab(uint2rgb(right)).x;
 }
 
 // naive comparison
-bool is_greater(in const uint left, in const uint right){
+bool lesser_than(in const uint left, in const uint right){
 	return left < right;
 }
 
 // Pick comparison funtion: for colors we want to compare perceptual brightness
 // instead of a naive straight integer value comparison.
-#define COMPARE is_brighter
+#define COMPARE brighter_than
 
 void global_compare_and_swap(ivec2 idx){
 	if (COMPARE(value[idx.x], value[idx.y])) {
@@ -159,7 +159,7 @@ void local_disperse(in uint h){
 	}
 }
 
-void local_bitonic_merge_sort_example(uint h){
+void local_bms(uint h){
 	uint t = gl_LocalInvocationID.x;
 	for ( uint hh = 2; hh <= h; hh <<= 1 ) {  // note:  h <<= 1 is same as h *= 2
 		local_flip( hh);
@@ -171,8 +171,8 @@ void main(){
 
 	uint t = gl_LocalInvocationID.x;
 
-
-	uint offset = gl_WorkGroupSize.x * 2 * gl_WorkGroupID.x; // we can use offset if we have more than one invocation.
+    // We can use offset if we have more than one invocation.
+	uint offset = gl_WorkGroupSize.x * 2 * gl_WorkGroupID.x; 
 
 	if (parameters.algorithm <= eLocalDisperse){
 		// In case this shader executes a `local_` algorithm, we must 
@@ -184,7 +184,7 @@ void main(){
 
 	switch (parameters.algorithm){
 		case eLocalBitonicMergeSortExample:
-			local_bitonic_merge_sort_example(parameters.h);
+			local_bms(parameters.h);
 		break;
 		case eLocalDisperse:
 			local_disperse(parameters.h);
@@ -197,7 +197,6 @@ void main(){
 		break;
 	}
 
-
 	// Write local memory back to buffer in case we pulled in the first place.
 
 	if (parameters.algorithm <= eLocalDisperse){
@@ -206,6 +205,5 @@ void main(){
 		value[offset+t*2]   = local_value[t*2];
 		value[offset+t*2+1] = local_value[t*2+1];
 	}
-
 
 }
