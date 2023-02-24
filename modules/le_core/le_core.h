@@ -55,13 +55,38 @@ ISL_API_ATTR DLL_CORE_API void** le_core_produce_dictionary_entry( uint64_t key 
 // Globally available, persistent name-setting store -
 // Use this for settings that all modules need to have access to.
 ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name, char const* type_name );
+
 // Persistent settings that can be shared among modules.
+
+namespace le {
+
+// Make remove_const available for LE_SETTING - this is so that we can initialize
+// const settings one-time only, when we create them. This is useful for settings
+// that you may declare with a const type to signal that they may only be set once
+// at initialization and cannot be changed once the program is running.
+//
+// The implementation of rm_const is a copy of remove_const from type_traits.h
+// we place this implementation here so that we don't have to include the full
+// type_traits.h header here.
+//
+template <typename _Tp>
+struct rm_const {
+	typedef _Tp type;
+};
+
+template <typename _Tp>
+struct rm_const<_Tp const> {
+	typedef _Tp type;
+};
+
+} // namespace le
+
 // this is not yet production-ready, as it does not protect against race-conditions etc.
 #define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                \
 	static SETTING_TYPE* SETTING_NAME = []() -> SETTING_TYPE* {                        \
 		void** p_addr = le_core_produce_setting_entry( #SETTING_NAME, #SETTING_TYPE ); \
 		if ( nullptr == *p_addr ) {                                                    \
-			*p_addr = new SETTING_TYPE( SETTING_DEFAULT_VALUE );                       \
+			*p_addr = new le::rm_const<SETTING_TYPE>::type( SETTING_DEFAULT_VALUE );   \
 		}                                                                              \
 		return ( ( SETTING_TYPE* )( *p_addr ) );                                       \
 	}()

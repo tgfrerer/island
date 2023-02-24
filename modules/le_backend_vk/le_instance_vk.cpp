@@ -25,9 +25,9 @@ static bool should_use_validation_layers() {
 // and enable Validation Layers for Debug Builds by default,
 // unless explicitly set via LE_SETTING on startup.
 #ifdef NDEBUG
-	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, false );
+	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, false );
 #else
-	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
+	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
 #endif
 	return *LE_SETTING_SHOULD_USE_VALIDATION_LAYERS;
 }
