@@ -1,7 +1,7 @@
 #include "le_bloom_pass.h"
 #include "le_core.h"
 
-#include "le_renderer.h"
+#include "le_renderer.hpp"
 #include "le_pipeline_builder.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
