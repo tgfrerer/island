@@ -49,7 +49,7 @@ static app_o* app_create() {
 
 	// If you want to disable validation layers in a debug build,
 	// set the setting to false:
-	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
+	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
 
 	le::Window::Settings settings;
 	settings
