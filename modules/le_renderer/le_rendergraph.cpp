@@ -1058,7 +1058,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 // Builds rendergraph from render_module, calls `setup` callbacks on each renderpass which provides a
 // `setup` callback.
 // If renderpass provides a setup method, pass is only added to rendergraph if its setup
-// method returns true. Discards contents of render_module at end.
+// method returns true. Discards contents of `src_rendergraph` at the end
 static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rendergraph_o* dst_rendergraph ) {
 
 	for ( auto& pass : src_rendergraph->passes ) {
