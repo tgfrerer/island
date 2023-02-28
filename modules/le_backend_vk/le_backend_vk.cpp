@@ -3300,6 +3300,26 @@ static void collect_resource_infos_per_resource(
 
 				imgInfo.extent_from_pass = { pass_width, pass_height, 1 };
 
+				if ( p_resources_access_flags[ i ] &
+				     // automatically detect usage as color attachment
+				     ( le::AccessFlagBits2::eColorAttachmentRead |
+				       le::AccessFlagBits2::eColorAttachmentWrite ) ) {
+					imgInfo.usage |=
+					    le::ImageUsageFlagBits::eColorAttachment;
+				}
+
+				if ( p_resources_access_flags[ i ] &
+				     // automatically detect usage as depth buffer
+				     ( le::AccessFlagBits2::eDepthStencilAttachmentRead |
+				       le::AccessFlagBits2::eDepthStencilAttachmentWrite ) ) {
+					imgInfo.usage |=
+					    le::ImageUsageFlagBits::eDepthStencilAttachment;
+				}
+
+				if ( p_resources_access_flags[ i ] & le::AccessFlagBits2::eShaderSampledRead ) {
+					imgInfo.usage |= le::ImageUsageFlagBits::eSampled;
+				}
+
 				if ( ( p_resources_access_flags[ i ] &
 				       ( le::AccessFlagBits2::eColorAttachmentWrite |
 				         le::AccessFlagBits2::eColorAttachmentRead |
@@ -3313,6 +3333,7 @@ static void collect_resource_infos_per_resource(
 					imgInfo.tiling       = le::ImageTiling::eOptimal;
 					imgInfo.arrayLayers  = 1;
 					imgInfo.samplesFlags = uint32_t( 1 ) << pass_num_samples_log2; // note we set sample count as a flag so that it can be consolidated -
+
 					// imgInfo.sample_count_log2 = 0; // note that we leave sample_count_log2 untouched.
 					imgInfo.extent = { pass_width, pass_height, 1 };
 				}
