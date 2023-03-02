@@ -2000,7 +2000,7 @@ static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 		logger.error( "Poll Frame Fence returned: %s", to_str_vk_result( result ) );
 		exit( 1 );
 	} else if ( result != VK_SUCCESS ) {
-		logger.error( "Poll Frame Fence returned: %s", to_str_vk_result( result ) );
+		logger.warn( "Poll Frame Fence returned: %s", to_str_vk_result( result ) );
 		return false;
 	} else {
 		return true;
