@@ -609,9 +609,32 @@ static void* window_get_os_native_window_handle( le_window_o* self ) {
 #endif
 }
 
+// Callback for when joystick is connected or disconnected, triggered by
+// GLFW
+static void glfw_joystick_connection_callback( int jid, int event ) {
+
+	static auto logger = le::Log( "glfw" );
+
+	if ( event == GLFW_CONNECTED ) {
+		logger.info( "Joystick connected: %d, Name: '%s', GUID: '%s'", jid, glfwGetJoystickName( jid ), glfwGetJoystickGUID( jid ) );
+
+		// test whether the joystick has a gamepad mapping
+
+		if ( glfwJoystickIsGamepad( jid ) ) {
+			logger.info( "Joystick has gamepad mapping." );
+		} else {
+			logger.info( "Joystick does not have gamepad mapping." );
+		}
+
+	} else if ( event == GLFW_DISCONNECTED ) {
+		logger.info( "Joystick disconnected: %d", jid );
+	}
+}
+
 // ----------------------------------------------------------------------
 
 static int init() {
+
 	int result = glfwInit();
 	assert( result == GLFW_TRUE );
 
@@ -627,6 +650,19 @@ static int init() {
 
 	} else {
 		logger.error( "Vulkan not supported." );
+	}
+
+	glfwSetJoystickCallback( ( GLFWjoystickfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_joystick_connection_callback_addr ) );
+
+	// We add a manual mapping as there doesn't seem to be a mapping
+	// for our particular controller in the database.
+	// you may have to add further mappings for your device in case it is not present
+	char const* xbox_wireless_controller_mapping = "050000005e0400008e02000030110000,Xbox Wireless Controller,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Linux,";
+
+	glfwUpdateGamepadMappings( xbox_wireless_controller_mapping );
+
+	if ( glfwJoystickPresent( GLFW_JOYSTICK_1 ) ) {
+		glfw_joystick_connection_callback( GLFW_JOYSTICK_1, GLFW_CONNECTED );
 	}
 
 	return result;
@@ -664,15 +700,15 @@ static void set_clipboard_string( char const* str ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_window, api ) {
-	auto windowApi = static_cast<le_window_api*>( api );
+	auto window_api_i = static_cast<le_window_api*>( api );
 
-	windowApi->init                 = init;
-	windowApi->terminate            = le_terminate;
-	windowApi->pollEvents           = pollEvents;
-	windowApi->get_clipboard_string = get_clipboard_string;
-	windowApi->set_clipboard_string = set_clipboard_string;
+	window_api_i->init                 = init;
+	window_api_i->terminate            = le_terminate;
+	window_api_i->pollEvents           = pollEvents;
+	window_api_i->get_clipboard_string = get_clipboard_string;
+	window_api_i->set_clipboard_string = set_clipboard_string;
 
-	auto& window_i                       = windowApi->window_i;
+	auto& window_i                       = window_api_i->window_i;
 	window_i.create                      = window_create;
 	window_i.destroy                     = window_destroy;
 	window_i.setup                       = window_setup;
@@ -690,14 +726,14 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_i.set_window_size    = window_set_window_size;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
 
-	auto& window_settings_i      = windowApi->window_settings_i;
+	auto& window_settings_i      = window_api_i->window_settings_i;
 	window_settings_i.create     = window_settings_create;
 	window_settings_i.destroy    = window_settings_destroy;
 	window_settings_i.set_title  = window_settings_set_title;
 	window_settings_i.set_width  = window_settings_set_width;
 	window_settings_i.set_height = window_settings_set_height;
 
-	auto& callbacks_i                               = windowApi->window_callbacks_i;
+	auto& callbacks_i                               = window_api_i->window_callbacks_i;
 	callbacks_i.glfw_key_callback_addr              = ( void* )glfw_window_key_callback;
 	callbacks_i.glfw_char_callback_addr             = ( void* )glfw_window_character_callback;
 	callbacks_i.glfw_cursor_pos_callback_addr       = ( void* )glfw_window_cursor_position_callback;
@@ -706,8 +742,9 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	callbacks_i.glfw_scroll_callback_addr           = ( void* )glfw_window_scroll_callback;
 	callbacks_i.glfw_framebuffer_size_callback_addr = ( void* )glfw_framebuffer_resize_callback;
 	callbacks_i.glfw_drop_callback_addr             = ( void* )glfw_window_drop_callback;
+	callbacks_i.glfw_joystick_connection_callback_addr = ( void* )glfw_joystick_connection_callback;
 
 #if defined PLUGINS_DYNAMIC
-// le_core_load_library_persistently( "libglfw.so" );
+	le_core_load_library_persistently( "libglfw.so" );
 #endif
 }
