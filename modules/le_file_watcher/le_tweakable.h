@@ -34,7 +34,7 @@
 #	include "le_core.h"
 
 #	include "le_file_watcher.h"
-#	include "le_log.h"
+#	include "le_log.h" ///< if you get an error message saying that this header can't be found, make sure that the module that uses le_tweakable has a line saying `depends_on_island_module(le_log)` in its CMake file.
 
 #	include <fstream>
 #	include <iostream>
