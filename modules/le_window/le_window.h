@@ -43,8 +43,9 @@ struct le_window_api {
 		void            ( *toggle_fullscreen  ) ( le_window_o* self );
 		void			( *set_window_size    ) ( le_window_o* self, uint32_t width, uint32_t height);
 
-		// Returns a sorted array of events pending for the current frame, and the number of events.
-		// Note that calling this method invalidates any values returned in the previous call to this method.
+		// Returns a sorted array of events pending since the last call to this method.
+		// Note that calling this method invalidates any values returned from the previous call to this method.
+		// You must only call this method once per Frame.
 		void            ( *get_ui_event_queue )(le_window_o* self, LeUiEvent const ** events, uint32_t* numEvents);
 
         // Return an OS-specific handle for the given window
