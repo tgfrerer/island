@@ -48,7 +48,7 @@ struct le_window_o {
 	size_t               referenceCount = 0;
 	void*                user_data      = nullptr;
 
-	uint32_t                                               eventQueueBack = 0;        // Event queue currently used to record events
+	std::atomic<uint32_t>                                  eventQueueBack = 0;        // Event queue currently used to record events
 	std::array<std::atomic<uint32_t>, 2>                   numEventsForQueue{ 0, 0 }; // Counter for events per queue (works as arena allocator marker for events queue)
 	std::array<std::array<LeUiEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;                // Events queue is double-bufferd, flip happens on `get_event_queue`
 
@@ -489,8 +489,9 @@ static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** even
 	// ----------| Invariant: Event queue is in use.
 
 	// Flip front and back event queue
-	auto eventQueueFront = self->eventQueueBack;
-	self->eventQueueBack ^= 1;
+	// - store old value for queue back in queue front
+	// - bitwise xor value for queue back with 1 - this performs a flip-flop from 0->1->0
+	uint32_t eventQueueFront = self->eventQueueBack.fetch_xor( 1 );
 
 	// Note: In the unlikely event that any LeUiEvent will be added asynchronously in between
 	// these two calls it will be added to the very end of the back queue and then implicitly
