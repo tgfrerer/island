@@ -144,6 +144,7 @@ struct LeUiEvent
         eMouseButton,
         eScroll,
         eDrop,
+        eGamepad,
     };
 
     struct KeyEvent
@@ -192,18 +193,18 @@ struct LeUiEvent
     struct GamepadEvent
     {
         float axes[6];      // -1 to 1 (inclusive for each axis)
-        uint8_t buttons[2]; // [0] : 0..7, [1]: 8..14
+        uint16_t buttons;   // [0] : 0..14 bitset, 0 is least significant bit
 
         bool get_button_at(uint8_t index) const noexcept
         {
-            return index < 15 ? (buttons[index >> 3] & (1 << (index & 0xb111))) : false;
+            return index < 15 ? (buttons & (uint16_t(1) << index)) : false;
         }
 
         bool operator==(GamepadEvent const &rhs)
         {
             return axes[0] == rhs.axes[0] && axes[1] == rhs.axes[1] && axes[2] == rhs.axes[2]
                    && axes[3] == rhs.axes[3] && axes[4] == rhs.axes[4] && axes[5] == rhs.axes[5]
-                   && buttons[0] == rhs.buttons[0] && buttons[1] == rhs.buttons[1];
+                   && buttons == rhs.buttons;
         }
 
         bool operator!=(GamepadEvent const &rhs) { return !(*this == rhs); }
