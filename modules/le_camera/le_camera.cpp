@@ -93,7 +93,7 @@ static void update_frustum_planes( le_camera_o* self ) {
 	float fPL[ 6 ]{};
 	for ( size_t i = 0; i != 6; i++ ) {
 		// get the length (= magnitude of the .xyz part of the row), so that we can normalize later
-		fPL[ i ] = glm::vec3( fP[ i ].x, fP[ i ].y, fP[ i ].z ).length();
+		fPL[ i ] = glm::distance(glm::vec3( fP[ i ].x, fP[ i ].y, fP[ i ].z ), glm::vec3(0));
 	}
 
 	for ( size_t i = 0; i < 6; i++ ) {
