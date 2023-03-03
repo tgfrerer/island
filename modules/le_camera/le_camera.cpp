@@ -1,6 +1,7 @@
 #include "le_camera.h"
 #include "le_core.h"
 
+#include "modules/le_log/le_log.h"
 #include "private/le_renderer/le_renderer_types.h" // for le::Viewport
 #include "le_ui_event.h"
 
@@ -290,6 +291,19 @@ void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_sta
 }
 
 // ----------------------------------------------------------------------
+void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
+
+	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
+	movement_speed *= distance_to_origin;
+
+	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
+	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ signedNorm.x, signedNorm.y, signedNorm.z } );
+	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
+
+	camera->view_matrix = glm::inverse( world_to_cam );
+}
+
+// ----------------------------------------------------------------------
 
 void camera_translate_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
@@ -326,6 +340,7 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 	}
 
 	for ( auto const& event : events ) {
+		glm::vec3 translationDelta{};
 
 		// -- accumulate mouse state
 
@@ -355,7 +370,6 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
 				// set appropriate button flag
 				mouse_state.buttonState |= ( 1 << e.button );
-
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				// null appropriate button flag
 				mouse_state.buttonState &= ~( 1 << e.button );
@@ -363,13 +377,20 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 				controller->mode = le_camera_controller_o::eNeutral;
 			}
 		} break;
+		case ( LeUiEvent::Type::eGamepad ): {
+			auto& e = event->gamepad;
+			translationDelta.x += 0.01 * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ];
+			translationDelta.z += 0.01 * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftY ) ];
+			translationDelta.y += 0.01 * ( -( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) +
+			                               ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] ) );
+			break;
+		}
 		default:
 			break;
 		}
 
-		glm::vec3 rotationDelta;
-		glm::vec3 translationDelta;
-		{
+		glm::vec3 rotationDelta{};
+		if ( mouse_state.buttonState ) {
 			auto  mouseInitial      = controller->mouse_pos_initial - controlRectCentre;
 			float mouseInitialAngle = glm::two_pi<float>() - fmodf( glm::two_pi<float>() + atan2f( mouseInitial.y, mouseInitial.x ), glm::two_pi<float>() ); // Range is expected to be 0..2pi, ccw
 
@@ -388,6 +409,18 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 
 		switch ( controller->mode ) {
 		case le_camera_controller_o::eNeutral: {
+
+			if ( event->event == le::UiEvent::Type::eGamepad ) {
+
+				float       movement_speed = 0.5;
+				static auto logger         = le::Log( "le_camera" );
+				controller->world_to_cam   = glm::inverse( camera->view_matrix );
+
+				logger.info( "gamepad event: %f,%f,%f", translationDelta.x, translationDelta.y, translationDelta.z );
+				camera_translate_xyz( camera, controller->world_to_cam, translationDelta, movement_speed, controller->pivotDistance );
+				controller->world_to_cam = glm::inverse( camera->view_matrix );
+				continue;
+			}
 
 			if ( false == is_inside_rect( mouse_state.cursor_pos, controller->controlRect ) ) {
 				// if camera is outside the control rect, we don't care.
@@ -458,7 +491,10 @@ static void camera_controller_process_events( le_camera_controller_o* controller
 	filtered_events.reserve( numEvents );
 
 	for ( auto event = events; event != events_end; event++ ) {
-		if ( event->event == LeUiEvent::Type::eCursorPosition || event->event == LeUiEvent::Type::eMouseButton || event->event == LeUiEvent::Type::eKey ) {
+		if ( event->event == LeUiEvent::Type::eCursorPosition ||
+		     event->event == LeUiEvent::Type::eMouseButton ||
+		     event->event == LeUiEvent::Type::eKey ||
+		     event->event == LeUiEvent::Type::eGamepad ) {
 			filtered_events.emplace_back( event );
 		}
 	}
@@ -510,7 +546,8 @@ static void camera_controller_set_pivot_distance( le_camera_controller_o* self, 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_camera, api ) {
-	auto& le_camera_i = static_cast<le_camera_api*>( api )->le_camera_i;
+	auto  api_i       = static_cast<le_camera_api*>( api );
+	auto& le_camera_i = api_i->le_camera_i;
 
 	le_camera_i.create                = le_camera_create;
 	le_camera_i.destroy               = le_camera_destroy;
@@ -529,7 +566,7 @@ LE_MODULE_REGISTER_IMPL( le_camera, api ) {
 	le_camera_i.get_sphere_in_frustum = camera_get_sphere_in_frustum;
 	le_camera_i.set_is_orthographic   = camera_set_is_orthographic;
 
-	auto& le_camera_controller_i = static_cast<le_camera_api*>( api )->le_camera_controller_i;
+	auto& le_camera_controller_i = api_i->le_camera_controller_i;
 
 	le_camera_controller_i.create             = camera_controller_create;
 	le_camera_controller_i.destroy            = camera_controller_destroy;

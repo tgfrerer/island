@@ -729,7 +729,7 @@ static void glfw_joystick_connection_callback( int jid, int event ) {
 		if ( glfwJoystickIsGamepad( jid ) ) {
 			logger.info( "Joystick has gamepad mapping." );
 		} else {
-			logger.info( "Joystick does not have gamepad mapping." );
+			logger.warn( "Joystick does not have gamepad mapping." );
 		}
 
 	} else if ( event == GLFW_DISCONNECTED ) {
@@ -768,7 +768,9 @@ static int init() {
 	// We add a manual mapping as there doesn't seem to be a mapping
 	// for our particular controller in the database.
 	// you may have to add further mappings for your device in case it is not present
-	char const* xbox_wireless_controller_mapping = "050000005e0400008e02000030110000,Xbox Wireless Controller,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Linux,";
+	char const* xbox_wireless_controller_mapping = "050000005e0400008e02000030110000,Xbox Wireless Controller,"
+	                                               "a:b0,b:b1,x:b2,y:b3,back:b6,guide:b8,start:b7,leftshoulder:b4,rightshoulder:b5,leftstick:b9,rightstick:b10,dpup:h0.1,dpleft:h0.8,dpdown:h0.4,dpright:h0.2,"
+	                                               "leftx:a0,lefty:a1,rightx:a3,righty:a4,lefttrigger:a2,righttrigger:a6,platform:Linux,";
 
 	glfwUpdateGamepadMappings( xbox_wireless_controller_mapping );
 
