@@ -805,6 +805,7 @@ static void pollEvents() {
 
 		if ( glfwGetGamepadState( i, &js_state ) ) {
 
+			gamepad_data[ i ].gamepad_id = i;
 			memcpy( gamepad_data[ i ].axes, js_state.axes, sizeof( js_state.axes ) );
 
 			for ( uint8_t b = 0; b != 15; b++ ) {
@@ -815,6 +816,7 @@ static void pollEvents() {
 	}
 
 	{
+		// Trigger callbacks on any windows who subscripe to a particular gamepad.
 		static gamepad_events_subscriber_windows_t* gamepad_subscribers = gamepad_events_subscribers_singleton_get();
 		std::unique_lock                            lock( gamepad_subscribers->mtx );
 
