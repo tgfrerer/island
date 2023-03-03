@@ -341,6 +341,7 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 
 	for ( auto const& event : events ) {
 		glm::vec3 translationDelta{};
+		glm::vec3 rotationDelta{};
 
 		// -- accumulate mouse state
 
@@ -379,17 +380,20 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 		} break;
 		case ( LeUiEvent::Type::eGamepad ): {
 			auto& e = event->gamepad;
-			translationDelta.x += 0.01 * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ];
-			translationDelta.z += 0.01 * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftY ) ];
-			translationDelta.y += 0.01 * ( -( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) +
-			                               ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] ) );
+			translationDelta.x += 0.01f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ];
+			translationDelta.z += 0.01f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftY ) ];
+			translationDelta.y += 0.01f * ( -( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) +
+			                               ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] +1) );
+
+			rotationDelta.x = glm::two_pi<float>() * -0.001f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightX ) ];
+			rotationDelta.y = glm::two_pi<float>() * 0.001f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightY ) ];
+
 			break;
 		}
 		default:
 			break;
 		}
 
-		glm::vec3 rotationDelta{};
 		if ( mouse_state.buttonState ) {
 			auto  mouseInitial      = controller->mouse_pos_initial - controlRectCentre;
 			float mouseInitialAngle = glm::two_pi<float>() - fmodf( glm::two_pi<float>() + atan2f( mouseInitial.y, mouseInitial.x ), glm::two_pi<float>() ); // Range is expected to be 0..2pi, ccw
@@ -415,9 +419,9 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 				float       movement_speed = 0.5;
 				static auto logger         = le::Log( "le_camera" );
 				controller->world_to_cam   = glm::inverse( camera->view_matrix );
-
-				logger.info( "gamepad event: %f,%f,%f", translationDelta.x, translationDelta.y, translationDelta.z );
 				camera_translate_xyz( camera, controller->world_to_cam, translationDelta, movement_speed, controller->pivotDistance );
+				controller->world_to_cam = glm::inverse( camera->view_matrix );
+			camera_orbit_xy( camera, controller->world_to_cam, rotationDelta, controller->pivotDistance );
 				controller->world_to_cam = glm::inverse( camera->view_matrix );
 				continue;
 			}
