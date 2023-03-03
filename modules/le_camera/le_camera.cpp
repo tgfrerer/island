@@ -382,8 +382,8 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 			auto& e = event->gamepad;
 			translationDelta.x += 0.01f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ];
 			translationDelta.z += 0.01f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftY ) ];
-			translationDelta.y += 0.01f * ( -( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) +
-			                               ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] +1) );
+			translationDelta.y += 0.01f * ( ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) -
+			                                ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] + 1 ) );
 
 			rotationDelta.x = glm::two_pi<float>() * -0.001f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightX ) ];
 			rotationDelta.y = glm::two_pi<float>() * 0.001f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightY ) ];
