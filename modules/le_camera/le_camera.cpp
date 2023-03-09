@@ -380,13 +380,39 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 		} break;
 		case ( LeUiEvent::Type::eGamepad ): {
 			auto& e = event->gamepad;
-			translationDelta.x += 0.01f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ];
-			translationDelta.z += 0.01f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftY ) ];
-			translationDelta.y += 0.01f * ( ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) -
-			                                ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] + 1 ) );
 
-			rotationDelta.x = glm::two_pi<float>() * -0.001f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightX ) ];
-			rotationDelta.y = glm::two_pi<float>() * 0.001f * e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightY ) ];
+			// We must make sure that axes are not drifting ... if any of the values are below axes_epsilon, they shall be zero.
+			// Therefore, we ignore any values that are within the +- drift range; we then remap the range so that we still cover -1..1
+			auto remove_drift = []( glm::vec3 const& vec_input, glm::vec3 const& drift_tolerance = glm::vec3( 0.1f ) ) -> glm::vec3 {
+				glm::vec3 abs_val  = glm::abs( vec_input );
+				glm::vec3 sign_val = glm::sign( vec_input );
+
+				glm::vec3 test_val = abs_val - drift_tolerance;
+				test_val           = max( glm::vec3( 0.f ), test_val );
+				test_val           = test_val * sign_val;
+				// todo: map back to original range.
+				return test_val / ( glm::vec3( 1.f ) - drift_tolerance );
+			};
+
+			glm::vec3 gamepad_x_y_z = {
+			    e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ],
+			    e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftY ) ],
+			    ( ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) -
+			      ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] + 1 ) ),
+			};
+
+			translationDelta += 0.01f * remove_drift( gamepad_x_y_z, glm::vec3( 0.1 ) );
+			;
+
+			glm::vec3 gamepad_rot = {
+			    e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightX ) ],
+			    e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightY ) ],
+			    0.f };
+
+			gamepad_rot = remove_drift( gamepad_rot, glm::vec3( 0.1 ) );
+
+			rotationDelta.x = glm::two_pi<float>() * -0.0025f * gamepad_rot.x;
+			rotationDelta.y = glm::two_pi<float>() * 0.0025f * gamepad_rot.y;
 
 			break;
 		}
