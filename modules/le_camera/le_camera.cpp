@@ -447,7 +447,7 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 				controller->world_to_cam   = glm::inverse( camera->view_matrix );
 				camera_translate_xyz( camera, controller->world_to_cam, translationDelta, movement_speed, controller->pivotDistance );
 				controller->world_to_cam = glm::inverse( camera->view_matrix );
-			camera_orbit_xy( camera, controller->world_to_cam, rotationDelta, controller->pivotDistance );
+				camera_orbit_xy( camera, controller->world_to_cam, rotationDelta, controller->pivotDistance );
 				controller->world_to_cam = glm::inverse( camera->view_matrix );
 				continue;
 			}
