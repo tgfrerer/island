@@ -29,12 +29,12 @@ constexpr size_t EVENT_QUEUE_SIZE = ( 4096 * 4 ) / sizeof( LeUiEvent ); // Alloc
 constexpr auto   GAMEPAD_SUBSCRIBERS_SINGLETON_ID = hash_64_fnv1a_const( "le_window_gamepad_subscribers" );
 
 struct le_window_settings_o {
-	int          width          = 640;
-	int          height         = 480;
-	std::string  title          = "Island default window title";
-	GLFWmonitor* monitor        = nullptr;
-	bool         useEventsQueue        = true; // whether to use an events queue or not
-	uint32_t     receivesGamepadEvents = ~uint32_t( 0 ); // bitfield; subscribe to gamepad events for gamepads / joysticks with matching id
+	int          width           = 640;
+	int          height          = 480;
+	std::string  title           = "Island default window title";
+	GLFWmonitor* monitor         = nullptr;
+	bool         useEventsQueue  = true;           // whether to use an events queue or not
+	uint32_t     active_gamepads = ~uint32_t( 0 ); // bitfield; subscribe to gamepad events for gamepads / joysticks with matching id
 };
 
 struct WindowGeometry {
@@ -72,14 +72,22 @@ struct gamepad_events_subscriber_windows_t {
 static gamepad_events_subscriber_windows_t* gamepad_events_subscribers_singleton_get() {
 
 	static auto logger = le::Log( "le_window" );
-	// Attempt to fetch the entry for our singleton from the global, persistent storage.
 
+	static std::mutex mtx;
+
+	// we need a mutex here to prevent a race condition where two or more threads
+	// fight for who can first return the singleton - we want to make sure it only
+	// gets initialised once.
+	//
+	std::unique_lock critical_section( mtx );
+
+	// Attempt to fetch the entry for our singleton from the global, persistent storage.
+	//
 	void** dict = le_core_produce_dictionary_entry( GAMEPAD_SUBSCRIBERS_SINGLETON_ID );
 
 	// If the entry is empty, allocate a new object and update the dictionary entry.
 	if ( *dict == nullptr ) {
 		*dict = new gamepad_events_subscriber_windows_t{};
-
 		logger.info( "Created gamepad events subscribers singleton" );
 	}
 
@@ -452,6 +460,12 @@ static void window_settings_set_height( le_window_settings_o* self_, int height_
 
 // ----------------------------------------------------------------------
 
+static void window_settings_set_gamepads_active( le_window_settings_o* self, uint32_t gamepads_bitfield ) {
+	self->active_gamepads = gamepads_bitfield;
+}
+
+// ----------------------------------------------------------------------
+
 static void window_settings_destroy( le_window_settings_o* self_ ) {
 	delete self_;
 }
@@ -664,7 +678,7 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 	window_set_callbacks( self );
 
 	// if window settings subscribes to any gamepad event, we must add window to gamepad subscribers
-	if ( self->mSettings.receivesGamepadEvents != 0 ) {
+	if ( self->mSettings.active_gamepads != 0 ) {
 		window_subscribe_to_gamepad_events( self );
 	}
 }
@@ -819,12 +833,13 @@ static void pollEvents() {
 	{
 		// Trigger callbacks on any windows who subscripe to a particular gamepad.
 		static gamepad_events_subscriber_windows_t* gamepad_subscribers = gamepad_events_subscribers_singleton_get();
-		std::unique_lock                            lock( gamepad_subscribers->mtx );
 
 		// critical section
+		std::unique_lock lock( gamepad_subscribers->mtx );
+
 		for ( auto& w : gamepad_subscribers->windows ) {
 
-			uint32_t overlap = w->mSettings.receivesGamepadEvents & has_gamepad_data;
+			uint32_t overlap = w->mSettings.active_gamepads & has_gamepad_data;
 
 			uint32_t gamepad_index = 0;
 			while ( overlap ) {
@@ -905,12 +920,13 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_i.set_window_size    = window_set_window_size;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
 
-	auto& window_settings_i      = window_api_i->window_settings_i;
-	window_settings_i.create     = window_settings_create;
-	window_settings_i.destroy    = window_settings_destroy;
-	window_settings_i.set_title  = window_settings_set_title;
-	window_settings_i.set_width  = window_settings_set_width;
-	window_settings_i.set_height = window_settings_set_height;
+	auto& window_settings_i               = window_api_i->window_settings_i;
+	window_settings_i.create              = window_settings_create;
+	window_settings_i.destroy             = window_settings_destroy;
+	window_settings_i.set_title           = window_settings_set_title;
+	window_settings_i.set_width           = window_settings_set_width;
+	window_settings_i.set_height          = window_settings_set_height;
+	window_settings_i.set_gamepads_active = window_settings_set_gamepads_active;
 
 	auto& callbacks_i                               = window_api_i->window_callbacks_i;
 	callbacks_i.glfw_key_callback_addr              = ( void* )glfw_window_key_callback;

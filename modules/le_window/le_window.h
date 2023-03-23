@@ -16,11 +16,12 @@ struct LeUiEvent; // declared in le_ui_event.h
 struct le_window_api {
 
 	struct window_settings_interface_t {
-		le_window_settings_o * ( *create     ) ();
-		void                    ( *destroy    ) ( le_window_settings_o * );
-		void                    ( *set_title  ) ( le_window_settings_o *, const char *title_ );
-		void                    ( *set_width  ) ( le_window_settings_o *, int width_ );
-		void                    ( *set_height ) ( le_window_settings_o *, int height_ );
+		le_window_settings_o *  ( *create                ) ( );
+		void                    ( *destroy               ) ( le_window_settings_o * );
+		void                    ( *set_title             ) ( le_window_settings_o *, const char *title_ );
+		void                    ( *set_width             ) ( le_window_settings_o *, int width_ );
+		void                    ( *set_height            ) ( le_window_settings_o *, int height_ );
+		void 				    ( *set_gamepads_active   ) ( le_window_settings_o *, uint32_t gamepads_bitfield);
 	};
 
 	struct window_interface_t {
@@ -120,6 +121,10 @@ class Window {
 		}
 		Settings& setTitle( const char* title_ ) {
 			le_window::settings_i.set_title( self, title_ );
+			return *this;
+		}
+		Settings& setGamepadsActive( uint32_t gamepads_bitfield ) {
+			le_window::settings_i.set_gamepads_active( self, gamepads_bitfield );
 			return *this;
 		}
 
