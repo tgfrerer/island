@@ -677,7 +677,8 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 
 	window_set_callbacks( self );
 
-	// if window settings subscribes to any gamepad event, we must add window to gamepad subscribers
+	// If window settings subscribes to any gamepad,
+	// we must add window to gamepad subscribers
 	if ( self->mSettings.active_gamepads != 0 ) {
 		window_subscribe_to_gamepad_events( self );
 	}
