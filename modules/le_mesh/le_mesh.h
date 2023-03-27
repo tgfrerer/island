@@ -15,12 +15,12 @@ struct le_mesh_api {
 
 		void (*clear)(le_mesh_o* self);
 
-		void (*get_vertices )( le_mesh_o *self, size_t& count, float const **   vertices);
-		void (*get_normals  )( le_mesh_o *self, size_t& count, float const **   normals );
-		void (*get_colours  )( le_mesh_o *self, size_t& count, float const **   colours );
-		void (*get_uvs      )( le_mesh_o *self, size_t& count, float const **   uvs     );
-		void (*get_tangents )( le_mesh_o *self, size_t& count, float const **   tangents);
-		void (*get_indices  )( le_mesh_o *self, size_t& count, uint16_t const ** indices );
+		void (*get_vertices )( le_mesh_o *self, size_t& count, float const **   vertices); 	// 3 floats per vertex
+		void (*get_normals  )( le_mesh_o *self, size_t& count, float const **   normals ); 	// 3 floats per vertex
+		void (*get_colours  )( le_mesh_o *self, size_t& count, float const **   colours ); 	// 4 floats per vertex
+		void (*get_uvs      )( le_mesh_o *self, size_t& count, float const **   uvs     ); 	// 3 floats per vertex
+		void (*get_tangents )( le_mesh_o *self, size_t& count, float const **   tangents); 	// 3 floats per vertex
+		void (*get_indices  )( le_mesh_o *self, size_t& count, uint16_t const ** indices ); // 1 uint16_t per index
 
 		void (*get_data     )( le_mesh_o *self, size_t& numVertices, size_t& numIndices, float const** vertices, float const **normals, float const **uvs, float const  ** colours, uint16_t const **indices);
 

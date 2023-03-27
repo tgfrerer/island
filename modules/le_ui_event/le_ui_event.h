@@ -1,9 +1,41 @@
 #pragma once
 #include <stdint.h>
 
-// Todo: move this to a frame-work wide internal header file.
-
 struct LeUiEvent {
+	enum class NamedGamepadButton : uint32_t {
+		eA           = 0,
+		eB           = 1,
+		eX           = 2,
+		eY           = 3,
+		eLeftBumper  = 4,
+		eRightBumper = 5,
+		eBack        = 6,
+		eStart       = 7,
+		eGuide       = 8,
+		eLeftThumb   = 9,
+		eRightThumb  = 10,
+		eDpadUp      = 11,
+		eDpadRight   = 12,
+		eDpadDown    = 13,
+		eDpadLeft    = 14,
+		//
+		eLast = eDpadLeft,
+		//
+		eCross    = eA,
+		eCircle   = eB,
+		eSquare   = eX,
+		eTriangle = eY,
+	};
+
+	enum class NamedGamepadAxis : uint32_t {
+		eLeftX        = 0,
+		eLeftY        = 1,
+		eRightX       = 2,
+		eRightY       = 3,
+		eLeftTrigger  = 4,
+		eRightTrigger = 5,
+		eLast         = eRightTrigger,
+	};
 
 	enum class NamedKey : int32_t {
 		eUnknown = -1,
@@ -138,13 +170,15 @@ struct LeUiEvent {
 	};
 
 	enum class Type : uint32_t {
-		eKey            = 1 << 0,
-		eCharacter      = 1 << 1,
-		eCursorPosition = 1 << 2,
-		eCursorEnter    = 1 << 3,
-		eMouseButton    = 1 << 4,
-		eScroll         = 1 << 5,
-		eDrop           = 1 << 6,
+		eUnknown = 0,
+		eKey,
+		eCharacter,
+		eCursorPosition,
+		eCursorEnter,
+		eMouseButton,
+		eScroll,
+		eDrop,
+		eGamepad,
 	};
 
 	struct KeyEvent {
@@ -183,7 +217,29 @@ struct LeUiEvent {
 		uint64_t     paths_count;
 	};
 
-	Type event;
+	struct GamepadEvent {
+		float    axes[ 6 ];  // -1 to 1 (inclusive for each axis)
+		uint16_t buttons;    // [0] : 0..14 bitset, 0 is least significant bit
+		uint16_t gamepad_id; // 0..15
+
+		bool get_button_at( uint8_t index ) const noexcept {
+			return index < 15 ? ( buttons & ( uint16_t( 1 ) << index ) ) : false;
+		}
+
+		bool operator==( GamepadEvent const& rhs ) {
+			return axes[ 0 ] == rhs.axes[ 0 ] &&
+			       axes[ 1 ] == rhs.axes[ 1 ] &&
+			       axes[ 2 ] == rhs.axes[ 2 ] &&
+			       axes[ 3 ] == rhs.axes[ 3 ] &&
+			       axes[ 4 ] == rhs.axes[ 4 ] &&
+			       axes[ 5 ] == rhs.axes[ 5 ] &&
+			       buttons == rhs.buttons;
+		}
+
+		bool operator!=( GamepadEvent const& rhs ) {
+			return !( *this == rhs );
+		}
+	};
 
 	union {
 		KeyEvent            key;
@@ -193,7 +249,10 @@ struct LeUiEvent {
 		MouseButtonEvent    mouseButton;
 		ScrollEvent         scroll;
 		DropEvent           drop;
+		GamepadEvent        gamepad;
 	};
+
+	Type event;
 };
 
 namespace le {

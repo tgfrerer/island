@@ -82,6 +82,11 @@ can build a single, statically linked and optimised binary.
   reverse-ssh or similar to forward localhost::3535 and you can
   remotely connect to a running app from all over the world.
 
+* **Gamepad** support: the default camera can be steered with
+  a gamepad-just connect your gamepad and you are set; application
+  windows can decide whether they want to subscribe to gamepad events
+  - and to which gamepads to subscribe to. 
+
 * **Multi-Window** Island allows you to hook up multiple swapchains to
   a single application. You can dynamically add and remove swapchains
   while your Island application is running. This is particularly useful

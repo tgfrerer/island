@@ -1,14 +1,17 @@
 #include "le_window.h"
+#include "le_hash_util.h"
 #include "le_ui_event.h"
 #include "le_log.h"
 #include "le_backend_vk.h"
 
 #include "assert.h"
+#include <mutex>
 #include <vector>
 #include <array>
 #include <forward_list>
 #include <atomic>
 #include <string>
+#include <cstring> // for memcpy
 
 #define GLFW_INCLUDE_VULKAN
 #define GLFW_INCLUDE_NONE
@@ -22,14 +25,16 @@
 #endif
 #include "GLFW/glfw3native.h"
 
-constexpr size_t EVENT_QUEUE_SIZE = 100; // Only allocate space for 100 events per-frame
+constexpr size_t EVENT_QUEUE_SIZE = ( 4096 * 4 ) / sizeof( LeUiEvent ); // Allocate a few pages for events
+constexpr auto   GAMEPAD_SUBSCRIBERS_SINGLETON_ID = hash_64_fnv1a_const( "le_window_gamepad_subscribers" );
 
 struct le_window_settings_o {
-	int          width          = 640;
-	int          height         = 480;
-	std::string  title          = "Island default window title";
-	GLFWmonitor* monitor        = nullptr;
-	uint32_t     useEventsQueue = true; // whether to use an events queue or not
+	int          width           = 640;
+	int          height          = 480;
+	std::string  title           = "Island default window title";
+	GLFWmonitor* monitor         = nullptr;
+	bool         useEventsQueue  = true;           // whether to use an events queue or not
+	uint32_t     active_gamepads = ~uint32_t( 0 ); // bitfield; subscribe to gamepad events for gamepads / joysticks with matching id
 };
 
 struct WindowGeometry {
@@ -48,7 +53,7 @@ struct le_window_o {
 	size_t               referenceCount = 0;
 	void*                user_data      = nullptr;
 
-	uint32_t                                               eventQueueBack = 0;        // Event queue currently used to record events
+	std::atomic<uint32_t>                                  eventQueueBack = 0;        // Event queue currently used to record events
 	std::array<std::atomic<uint32_t>, 2>                   numEventsForQueue{ 0, 0 }; // Counter for events per queue (works as arena allocator marker for events queue)
 	std::array<std::array<LeUiEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;                // Events queue is double-bufferd, flip happens on `get_event_queue`
 
@@ -57,6 +62,36 @@ struct le_window_o {
 
 	WindowGeometry windowGeometry{};
 	bool           isFullscreen = false;
+};
+
+struct gamepad_events_subscriber_windows_t {
+	std::vector<le_window_o*> windows;
+	std::mutex                mtx;
+};
+
+static gamepad_events_subscriber_windows_t* gamepad_events_subscribers_singleton_get() {
+
+	static auto logger = le::Log( "le_window" );
+
+	static std::mutex mtx;
+
+	// we need a mutex here to prevent a race condition where two or more threads
+	// fight for who can first return the singleton - we want to make sure it only
+	// gets initialised once.
+	//
+	std::unique_lock critical_section( mtx );
+
+	// Attempt to fetch the entry for our singleton from the global, persistent storage.
+	//
+	void** dict = le_core_produce_dictionary_entry( GAMEPAD_SUBSCRIBERS_SINGLETON_ID );
+
+	// If the entry is empty, allocate a new object and update the dictionary entry.
+	if ( *dict == nullptr ) {
+		*dict = new gamepad_events_subscriber_windows_t{};
+		logger.info( "Created gamepad events subscribers singleton" );
+	}
+
+	return static_cast<gamepad_events_subscriber_windows_t*>( *dict );
 };
 
 // ----------------------------------------------------------------------
@@ -77,6 +112,28 @@ bool event_queue_idx_available( std::atomic<uint32_t>& atomicCounter, uint32_t& 
 		return false;
 	} else {
 		return true;
+	}
+}
+
+// ----------------------------------------------------------------------
+static void le_window_gamepad_callback( le_window_o* window, le::UiEvent::GamepadEvent const& ev ) {
+
+	if ( window->mSettings.useEventsQueue ) {
+
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event = le::UiEvent::Type::eGamepad;
+			auto& e     = event.gamepad;
+			e           = ev;
+
+			static auto logger = le::Log( "le_window" );
+
+		} else {
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
 	}
 }
 
@@ -403,6 +460,12 @@ static void window_settings_set_height( le_window_settings_o* self_, int height_
 
 // ----------------------------------------------------------------------
 
+static void window_settings_set_gamepads_active( le_window_settings_o* self, uint32_t gamepads_bitfield ) {
+	self->active_gamepads = gamepads_bitfield;
+}
+
+// ----------------------------------------------------------------------
+
 static void window_settings_destroy( le_window_settings_o* self_ ) {
 	delete self_;
 }
@@ -489,8 +552,9 @@ static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** even
 	// ----------| Invariant: Event queue is in use.
 
 	// Flip front and back event queue
-	auto eventQueueFront = self->eventQueueBack;
-	self->eventQueueBack ^= 1;
+	// - store old value for queue back in queue front
+	// - bitwise xor value for queue back with 1 - this performs a flip-flop from 0->1->0
+	uint32_t eventQueueFront = self->eventQueueBack.fetch_xor( 1 );
 
 	// Note: In the unlikely event that any LeUiEvent will be added asynchronously in between
 	// these two calls it will be added to the very end of the back queue and then implicitly
@@ -512,6 +576,55 @@ static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** even
 }
 
 // ----------------------------------------------------------------------
+// Remove the the window from the list of gamepad events subscribers
+// in case it is subscribed to gamepad events.
+static void window_unsubscribe_from_gamepad_events( le_window_o* window ) {
+
+	static auto gamepad_subscribers = gamepad_events_subscribers_singleton_get();
+
+	if ( gamepad_subscribers ) {
+		std::unique_lock lock( gamepad_subscribers->mtx );
+		size_t           id = 0;
+
+		for ( auto const& w : gamepad_subscribers->windows ) {
+			if ( w == window ) {
+				break;
+			}
+			id++;
+		}
+
+		if ( id != gamepad_subscribers->windows.size() ) {
+			gamepad_subscribers->windows.erase( gamepad_subscribers->windows.begin() + id );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+// add window to list of gamepad event subscribers if it is not yet on that
+// list
+static void window_subscribe_to_gamepad_events( le_window_o* window ) {
+
+	static auto gamepad_subscribers = gamepad_events_subscribers_singleton_get();
+
+	if ( gamepad_subscribers ) {
+		std::unique_lock lock( gamepad_subscribers->mtx );
+
+		// First, make sure that the given window is not already a subscriber
+		size_t id = 0;
+		for ( auto const& w : gamepad_subscribers->windows ) {
+			if ( w == window ) {
+				break;
+			}
+			id++;
+		}
+
+		if ( id == gamepad_subscribers->windows.size() ) {
+			gamepad_subscribers->windows.push_back( window );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
 
 static le_window_o* window_create() {
 	auto obj = new le_window_o();
@@ -521,6 +634,7 @@ static le_window_o* window_create() {
 // ----------------------------------------------------------------------
 
 static void window_setup( le_window_o* self, const le_window_settings_o* settings ) {
+
 	if ( settings ) {
 		self->mSettings = *settings;
 	}
@@ -562,6 +676,12 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 	glfwSetWindowUserPointer( self->window, self );
 
 	window_set_callbacks( self );
+
+	// If window settings subscribes to any gamepad,
+	// we must add window to gamepad subscribers
+	if ( self->mSettings.active_gamepads != 0 ) {
+		window_subscribe_to_gamepad_events( self );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -575,6 +695,8 @@ static void window_destroy( le_window_o* self ) {
 	if ( self->window ) {
 		glfwDestroyWindow( self->window );
 	}
+
+	window_unsubscribe_from_gamepad_events( self );
 
 	delete self;
 }
@@ -608,9 +730,32 @@ static void* window_get_os_native_window_handle( le_window_o* self ) {
 #endif
 }
 
+// Callback for when joystick is connected or disconnected, triggered by
+// GLFW
+static void glfw_joystick_connection_callback( int jid, int event ) {
+
+	static auto logger = le::Log( "glfw" );
+
+	if ( event == GLFW_CONNECTED ) {
+		logger.info( "Joystick connected: %d, Name: '%s', GUID: '%s'", jid, glfwGetJoystickName( jid ), glfwGetJoystickGUID( jid ) );
+
+		// test whether the joystick has a gamepad mapping
+
+		if ( glfwJoystickIsGamepad( jid ) ) {
+			logger.info( "Joystick has gamepad mapping." );
+		} else {
+			logger.warn( "Joystick does not have gamepad mapping." );
+		}
+
+	} else if ( event == GLFW_DISCONNECTED ) {
+		logger.info( "Joystick disconnected: %d", jid );
+	}
+}
+
 // ----------------------------------------------------------------------
 
 static int init() {
+
 	int result = glfwInit();
 	assert( result == GLFW_TRUE );
 
@@ -628,6 +773,25 @@ static int init() {
 		logger.error( "Vulkan not supported." );
 	}
 
+	// initialise gamepad subscriber singleton - we call this method here
+	// for its side-effect, which is to allocate the subscribers singleton
+	// if it doesn't exist already.
+	gamepad_events_subscribers_singleton_get();
+
+	glfwSetJoystickCallback( ( GLFWjoystickfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_joystick_connection_callback_addr ) );
+
+	// We add a manual mapping as there doesn't seem to be a mapping
+	// for our particular controller in the database.
+	// you may have to add further mappings for your device in case it is not present
+
+	char const* xbox_series_x_controller_mapping = "050000005e040000130b000015050000,Xbox Wireless Controller,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,misc1:b15,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Linux";
+
+	glfwUpdateGamepadMappings( xbox_series_x_controller_mapping );
+
+	if ( glfwJoystickPresent( GLFW_JOYSTICK_1 ) ) {
+		glfw_joystick_connection_callback( GLFW_JOYSTICK_1, GLFW_CONNECTED );
+	}
+
 	return result;
 }
 
@@ -638,6 +802,64 @@ static int init() {
 // to all windows that their event queue is stale at this moment.
 static void pollEvents() {
 	glfwPollEvents();
+
+	static auto logger = le::Log( "le_window" );
+
+	static le::UiEvent::GamepadEvent gamepad_data[ 15 ];
+	uint32_t                         has_gamepad_data = {};
+
+	GLFWgamepadstate js_state;
+
+	// First iterate over all joysticks and find if there are any joysticks
+	// which report gamepad data.
+	//
+	// If they do, tag at the corresponding position
+	// we do this in two passes so that we can minimize the time that
+	// we are holding the lock guarding access to the window callback
+	// vector in gamepad_subscribers.
+	for ( auto i = GLFW_JOYSTICK_1; i != GLFW_JOYSTICK_LAST; i++ ) {
+
+		if ( glfwGetGamepadState( i, &js_state ) ) {
+
+			gamepad_data[ i ].gamepad_id = i;
+			memcpy( gamepad_data[ i ].axes, js_state.axes, sizeof( js_state.axes ) );
+
+			for ( uint8_t b = 0; b != 15; b++ ) {
+				gamepad_data[ i ].buttons |= ( uint16_t( js_state.buttons[ b ] ) << b );
+			}
+			has_gamepad_data |= ( 1 << i );
+		}
+	}
+
+	{
+		// Trigger callbacks on any windows who subscripe to a particular gamepad.
+		static gamepad_events_subscriber_windows_t* gamepad_subscribers = gamepad_events_subscribers_singleton_get();
+
+		// critical section
+		std::unique_lock lock( gamepad_subscribers->mtx );
+
+		for ( auto& w : gamepad_subscribers->windows ) {
+
+			uint32_t overlap = w->mSettings.active_gamepads & has_gamepad_data;
+
+			uint32_t gamepad_index = 0;
+			while ( overlap ) {
+
+				// find next 1, beginning from the least significant bit
+				while ( 0 == ( overlap & ( uint32_t( 1 ) << gamepad_index ) ) ) {
+					gamepad_index++;
+				}
+
+				// we must propagate to the window the gamepad state at
+				// gamepad index
+
+				le_window_gamepad_callback( w, gamepad_data[ gamepad_index ] );
+
+				// flip that particular entry to mark it as processed for this window
+				overlap &= ~( 1 << gamepad_index );
+			}
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -645,6 +867,16 @@ static void pollEvents() {
 static void le_terminate() {
 	static auto logger = LeLog( "le_window" );
 	glfwTerminate();
+	{
+		// destroy list of subscribers
+		void** dict = le_core_produce_dictionary_entry( GAMEPAD_SUBSCRIBERS_SINGLETON_ID );
+		// this must produce an entry, and we can cast what is located at this entry to a
+		// pointer-to gamepad_events_subscriber_windows_t, which we may delete.
+		// if that pointer is not set, delete has no effect, as we can delete a nullptr guilt-free.
+		delete ( static_cast<gamepad_events_subscriber_windows_t*>( *dict ) );
+		*dict = nullptr;
+		logger.info( "destroyed gamepade events subscribers singleton" );
+	}
 	logger.debug( "Glfw was terminated." );
 }
 
@@ -663,15 +895,15 @@ static void set_clipboard_string( char const* str ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_window, api ) {
-	auto windowApi = static_cast<le_window_api*>( api );
+	auto window_api_i = static_cast<le_window_api*>( api );
 
-	windowApi->init                 = init;
-	windowApi->terminate            = le_terminate;
-	windowApi->pollEvents           = pollEvents;
-	windowApi->get_clipboard_string = get_clipboard_string;
-	windowApi->set_clipboard_string = set_clipboard_string;
+	window_api_i->init                 = init;
+	window_api_i->terminate            = le_terminate;
+	window_api_i->pollEvents           = pollEvents;
+	window_api_i->get_clipboard_string = get_clipboard_string;
+	window_api_i->set_clipboard_string = set_clipboard_string;
 
-	auto& window_i                       = windowApi->window_i;
+	auto& window_i                       = window_api_i->window_i;
 	window_i.create                      = window_create;
 	window_i.destroy                     = window_destroy;
 	window_i.setup                       = window_setup;
@@ -689,14 +921,15 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_i.set_window_size    = window_set_window_size;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
 
-	auto& window_settings_i      = windowApi->window_settings_i;
-	window_settings_i.create     = window_settings_create;
-	window_settings_i.destroy    = window_settings_destroy;
-	window_settings_i.set_title  = window_settings_set_title;
-	window_settings_i.set_width  = window_settings_set_width;
-	window_settings_i.set_height = window_settings_set_height;
+	auto& window_settings_i               = window_api_i->window_settings_i;
+	window_settings_i.create              = window_settings_create;
+	window_settings_i.destroy             = window_settings_destroy;
+	window_settings_i.set_title           = window_settings_set_title;
+	window_settings_i.set_width           = window_settings_set_width;
+	window_settings_i.set_height          = window_settings_set_height;
+	window_settings_i.set_gamepads_active = window_settings_set_gamepads_active;
 
-	auto& callbacks_i                               = windowApi->window_callbacks_i;
+	auto& callbacks_i                               = window_api_i->window_callbacks_i;
 	callbacks_i.glfw_key_callback_addr              = ( void* )glfw_window_key_callback;
 	callbacks_i.glfw_char_callback_addr             = ( void* )glfw_window_character_callback;
 	callbacks_i.glfw_cursor_pos_callback_addr       = ( void* )glfw_window_cursor_position_callback;
@@ -705,8 +938,9 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	callbacks_i.glfw_scroll_callback_addr           = ( void* )glfw_window_scroll_callback;
 	callbacks_i.glfw_framebuffer_size_callback_addr = ( void* )glfw_framebuffer_resize_callback;
 	callbacks_i.glfw_drop_callback_addr             = ( void* )glfw_window_drop_callback;
+	callbacks_i.glfw_joystick_connection_callback_addr = ( void* )glfw_joystick_connection_callback;
 
 #if defined PLUGINS_DYNAMIC
-// le_core_load_library_persistently( "libglfw.so" );
+	le_core_load_library_persistently( "libglfw.so" );
 #endif
 }
