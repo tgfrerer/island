@@ -347,6 +347,9 @@ static void app_spawn_asterisks( app_o* app ) {
 static void app_start_game( app_o* app ) {
 
 	app->level = 0;
+
+	app->input = {};
+
 	// setup spaceship entity
 	app_spawn_spaceship( app );
 
@@ -822,7 +825,7 @@ static void app_process_ui_events( app_o* self ) {
 				if ( e.key == LeUiEvent::NamedKey::eUp ) {
 					self->input.up_key_down = true;
 				} else if ( e.key == LeUiEvent::NamedKey::eDown ) {
-					//					self->input.down_key_down = true;
+					self->input.down_key_down = true;
 				} else if ( e.key == LeUiEvent::NamedKey::eLeft ) {
 					self->input.left_key_down = true;
 				} else if ( e.key == LeUiEvent::NamedKey::eRight ) {
@@ -832,7 +835,7 @@ static void app_process_ui_events( app_o* self ) {
 				if ( e.key == LeUiEvent::NamedKey::eUp ) {
 					self->input.up_key_down = false;
 				} else if ( e.key == LeUiEvent::NamedKey::eDown ) {
-					//					self->input.down_key_down = false;
+					self->input.down_key_down = false;
 				} else if ( e.key == LeUiEvent::NamedKey::eLeft ) {
 					self->input.left_key_down = false; // left means turn ccw, which is positive angle
 				} else if ( e.key == LeUiEvent::NamedKey::eRight ) {
@@ -857,7 +860,43 @@ static void app_process_ui_events( app_o* self ) {
 				}
 
 			} // if ButtonAction == eRelease
-		} break;
+			break;
+		}
+		case ( LeUiEvent::Type::eGamepad ): {
+
+			static auto e_previous = event.gamepad;
+			auto&       e          = event.gamepad;
+
+			if ( e.gamepad_id == e_previous.gamepad_id ) {
+
+				// Note that we ignore gamepad id - we assume only one gamepad is connected for this particular application
+				e_previous.buttons = e_previous.buttons ^ e.buttons; // Update to only show changed state in previous
+
+				if ( e_previous.get_button_at( le::UiEvent::NamedGamepadButton::eA ) ) {
+
+					// We know that button A has changed - Now if the button was released,
+					// this means that the current state for the button must be false,
+					// in which case we want the gamepad to trigger a shot.
+					if ( false == e.get_button_at( le::UiEvent::NamedGamepadButton::eA ) ) {
+						self->input.shoot_count++;
+					}
+				};
+
+				if ( e.axes[ uint8_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] > 0.5f ) {
+					self->input.up_down_count++;
+				}
+
+				if ( e.axes[ uint8_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ] > 0.5f ) {
+					self->input.left_right_count--;
+				} else if ( e.axes[ uint8_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ] < -0.5 ) {
+					self->input.left_right_count++;
+				}
+
+				e_previous = e;
+			}
+
+			break;
+		}
 		default:
 			// do nothing
 			break;

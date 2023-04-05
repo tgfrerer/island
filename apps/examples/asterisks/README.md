@@ -10,6 +10,12 @@ A clone of the venerable arcade game. Control a spaceship hunting for Asterisks 
 * CURSOR LEFT/RIGHT: steer
 * CURSOR UP: accelerate 
 
+## Gamepad game controls:
+
+* Button 'A': shoot
+* Left Axis X: left/right
+* Right Trigger: accelerate
+
 ![screenshot](screengrab.gif)
 
 ## Techniques used / highlights:
@@ -22,6 +28,7 @@ Note that the implementation follows the [ECS](https://en.m.wikipedia.org/wiki/E
 * simple state machine for game state
 * simple animation (explosions)
 * Hershey vector font drawing (score, game over message)
+* Gamepad input enabled
 
 ## Build instructions
 
