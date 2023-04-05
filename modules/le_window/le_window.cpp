@@ -824,6 +824,8 @@ static void pollEvents() {
 			gamepad_data[ i ].gamepad_id = i;
 			memcpy( gamepad_data[ i ].axes, js_state.axes, sizeof( js_state.axes ) );
 
+			gamepad_data[ i ].buttons = 0;
+
 			for ( uint8_t b = 0; b != 15; b++ ) {
 				gamepad_data[ i ].buttons |= ( uint16_t( js_state.buttons[ b ] ) << b );
 			}
