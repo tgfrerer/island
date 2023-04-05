@@ -222,8 +222,12 @@ struct LeUiEvent {
 		uint16_t buttons;    // [0] : 0..14 bitset, 0 is least significant bit
 		uint16_t gamepad_id; // 0..15
 
-		bool get_button_at( uint8_t index ) const noexcept {
-			return index < 15 ? ( buttons & ( uint16_t( 1 ) << index ) ) : false;
+		bool get_button_at( NamedGamepadButton const& b ) const noexcept {
+			return uint8_t( b ) < 15 ? ( buttons & ( uint16_t( 1 ) << uint8_t( b ) ) ) : false;
+		}
+
+		static bool get_button_at( uint16_t const& explicit_button_state, NamedGamepadButton const& b ) noexcept {
+			return uint8_t( b ) < 15 ? ( explicit_button_state & ( uint16_t( 1 ) << uint8_t( b ) ) ) : false;
 		}
 
 		bool operator==( GamepadEvent const& rhs ) {
