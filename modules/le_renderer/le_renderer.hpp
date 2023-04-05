@@ -171,8 +171,11 @@ class RendererInfoBuilder {
 		// will have been applied to the first element, and
 		// end() will have been called on the Builder, which
 		// will have incremented `num_swapchain_settings`.
-		if ( initial_window && info.num_swapchain_settings == 0 ) {
-			info.num_swapchain_settings = 1;
+		if ( initial_window &&
+		     info.num_swapchain_settings <= 1 &&
+		     info.swapchain_settings[ 0 ].type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN ) {
+			info.swapchain_settings[ 0 ].khr_settings.window = initial_window;
+			info.num_swapchain_settings                      = 1;
 		}
 		return info;
 	};
