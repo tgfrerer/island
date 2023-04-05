@@ -3290,9 +3290,7 @@ static void collect_resource_infos_per_resource(
 			//
 			// We also need to ensure that the extent has 1 as depth value by default.
 
-			le_resource_info_t resourceInfo = {
-			    .type = resource->data->type, // empty resource info, but with type set according to resource type
-			};
+			le_resource_info_t resourceInfo( resource->data->type ); // empty resource info, but with type set according to resource type
 
 			if ( resourceInfo.type == LeResourceType::eImage ) {
 

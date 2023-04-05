@@ -412,6 +412,29 @@ struct le_resource_info_t {
 		TlasInfo   tlas;
 	};
 
+	le_resource_info_t( LeResourceType const& type_ = LeResourceType::eUndefined )
+	    : type( type_ ) {
+		image = {};
+	};
+
+	le_resource_info_t( le_resource_info_t const& lhs )            = default;
+	le_resource_info_t( le_resource_info_t&& lhs )                 = default;
+	le_resource_info_t& operator=( le_resource_info_t const& lhs ) = default;
+	le_resource_info_t& operator=( le_resource_info_t&& lhs )      = default;
+
+	explicit le_resource_info_t( ImageInfo const& img_info )
+	    : image( img_info ) {
+	}
+	explicit le_resource_info_t( BufferInfo const& buffer_info )
+	    : buffer( buffer_info ) {
+	}
+	explicit le_resource_info_t( BlasInfo const& blas_info )
+	    : blas( blas_info ) {
+	}
+	explicit le_resource_info_t( TlasInfo const& tlas_info )
+	    : tlas( tlas_info ) {
+	}
+
 	//	bool operator==( le_resource_info_t const& lhs ) const {
 	//		if ( type != lhs.type ) {
 	//			return false;
