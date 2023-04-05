@@ -943,6 +943,6 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	callbacks_i.glfw_joystick_connection_callback_addr = ( void* )glfw_joystick_connection_callback;
 
 #if defined PLUGINS_DYNAMIC
-	le_core_load_library_persistently( "libglfw.so" );
+	le_core_load_library_persistently( "./modules/libglfw.so" );
 #endif
 }
