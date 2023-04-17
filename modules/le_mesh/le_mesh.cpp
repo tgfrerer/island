@@ -43,8 +43,10 @@ static void le_mesh_clear( le_mesh_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_vertices( le_mesh_o* self, size_t& count, float const** vertices ) {
-	count = self->vertices.size();
+static void le_mesh_get_vertices( le_mesh_o* self, size_t* count, float const** vertices ) {
+	if ( count ) {
+		*count = self->vertices.size();
+	}
 	if ( vertices ) {
 		*vertices = static_cast<float*>( &self->vertices[ 0 ].x );
 	}
@@ -52,8 +54,10 @@ static void le_mesh_get_vertices( le_mesh_o* self, size_t& count, float const** 
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_tangents( le_mesh_o* self, size_t& count, float const** tangents ) {
-	count = self->tangents.size();
+static void le_mesh_get_tangents( le_mesh_o* self, size_t* count, float const** tangents ) {
+	if ( count ) {
+		*count = self->tangents.size();
+	}
 	if ( tangents ) {
 		*tangents = static_cast<float*>( &self->tangents[ 0 ].x );
 	}
@@ -61,8 +65,10 @@ static void le_mesh_get_tangents( le_mesh_o* self, size_t& count, float const** 
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_indices( le_mesh_o* self, size_t& count, uint16_t const** indices ) {
-	count = self->indices.size();
+static void le_mesh_get_indices( le_mesh_o* self, size_t* count, uint16_t const** indices ) {
+	if ( count ) {
+		*count = self->indices.size();
+	}
 	if ( indices ) {
 		*indices = self->indices.data();
 	}
@@ -70,8 +76,10 @@ static void le_mesh_get_indices( le_mesh_o* self, size_t& count, uint16_t const*
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_normals( le_mesh_o* self, size_t& count, float const** normals ) {
-	count = self->normals.size();
+static void le_mesh_get_normals( le_mesh_o* self, size_t* count, float const** normals ) {
+	if ( count ) {
+		*count = self->normals.size();
+	}
 	if ( normals ) {
 		*normals = static_cast<float*>( &self->normals[ 0 ].x );
 	}
@@ -79,8 +87,10 @@ static void le_mesh_get_normals( le_mesh_o* self, size_t& count, float const** n
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_colours( le_mesh_o* self, size_t& count, float const** colours ) {
-	count = self->colours.size();
+static void le_mesh_get_colours( le_mesh_o* self, size_t* count, float const** colours ) {
+	if ( count ) {
+		*count = self->colours.size();
+	}
 	if ( colours ) {
 		*colours = static_cast<float*>( &self->colours[ 0 ].x );
 	}
@@ -88,8 +98,10 @@ static void le_mesh_get_colours( le_mesh_o* self, size_t& count, float const** c
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_uvs( le_mesh_o* self, size_t& count, float const** uvs ) {
-	count = self->normals.size();
+static void le_mesh_get_uvs( le_mesh_o* self, size_t* count, float const** uvs ) {
+	if ( count ) {
+		*count = self->normals.size();
+	}
 	if ( uvs ) {
 		*uvs = static_cast<float*>( &self->uvs[ 0 ].x );
 	}
@@ -97,9 +109,13 @@ static void le_mesh_get_uvs( le_mesh_o* self, size_t& count, float const** uvs )
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_data( le_mesh_o* self, size_t& numVertices, size_t& numIndices, float const** vertices, float const** normals, float const** uvs, float const** colours, uint16_t const** indices ) {
-	numVertices = self->vertices.size();
-	numIndices  = self->indices.size();
+static void le_mesh_get_data( le_mesh_o* self, size_t* numVertices, size_t* numIndices, float const** vertices, float const** normals, float const** uvs, float const** colours, uint16_t const** indices ) {
+	if ( numVertices ) {
+		*numVertices = self->vertices.size();
+	}
+	if ( numIndices ) {
+		*numIndices = self->indices.size();
+	}
 
 	if ( vertices ) {
 		*vertices = self->vertices.empty() ? nullptr : static_cast<float const*>( &self->vertices[ 0 ].x );
