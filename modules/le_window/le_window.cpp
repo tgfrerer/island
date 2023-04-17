@@ -877,7 +877,7 @@ static void le_terminate() {
 		// if that pointer is not set, delete has no effect, as we can delete a nullptr guilt-free.
 		delete ( static_cast<gamepad_events_subscriber_windows_t*>( *dict ) );
 		*dict = nullptr;
-		logger.info( "destroyed gamepade events subscribers singleton" );
+		logger.debug( "Destroyed GamePad events subscribers singleton" );
 	}
 	logger.debug( "Glfw was terminated." );
 }
