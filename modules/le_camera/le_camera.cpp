@@ -216,8 +216,11 @@ static bool is_inside_rect( const glm::vec2& pt, std::array<float, 4> const& rec
 // ----------------------------------------------------------------------
 
 static void camera_set_viewport( le_camera_o* self, le::Viewport const& viewport ) {
-	self->viewport              = viewport;
-	self->projectionMatrixDirty = true;
+	// If viewport is same as self->viewport, no need to dirty projection matrix
+	if ( 0 != memcmp( &self->viewport, &viewport, sizeof( viewport ) ) ) {
+		self->viewport              = viewport;
+		self->projectionMatrixDirty = true;
+	}
 }
 
 // ----------------------------------------------------------------------
