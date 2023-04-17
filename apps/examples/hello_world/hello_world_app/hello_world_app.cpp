@@ -142,7 +142,7 @@ static hello_world_app_o* hello_world_app_create() {
 
 		size_t vertexCount;
 		size_t indexCount;
-		app->sphereMesh.getData( vertexCount, indexCount ); // only fetch counts so we can calculate memory requirements for vertex buffer, index buffer
+		app->sphereMesh.getData( &vertexCount, &indexCount ); // only fetch counts so we can calculate memory requirements for vertex buffer, index buffer
 
 		app->worldGeometry.vertexDataByteCount = vertexCount * sizeof( float ) * ( 3 + 3 + 2 + 3 );
 		app->worldGeometry.vertexCount         = vertexCount;
@@ -291,9 +291,9 @@ static void pass_resource_exec( le_command_buffer_encoder_o* encoder_, void* use
 		size_t          numVertices{};
 		size_t          numIndices{};
 		float const*    sphereTangents{};
-		app->sphereMesh.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, nullptr, &sphereIndices );
+		app->sphereMesh.getData( &numVertices, &numIndices, &sphereVertices, &sphereNormals, &sphereUvs, nullptr, &sphereIndices );
 		size_t numTangents;
-		app->sphereMesh.getTangents( numTangents, &sphereTangents );
+		app->sphereMesh.getTangents( &numTangents, &sphereTangents );
 		uint32_t offset = 0;
 
 		// upload vertex positions

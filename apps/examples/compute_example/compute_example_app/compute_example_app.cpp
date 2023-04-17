@@ -149,7 +149,7 @@ static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* u
 		std::vector<float> tmp_vertices;
 		tmp_vertices.reserve( ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) );
 
-		mesh.getVertices( numVerts, &vertData );
+		mesh.getVertices( &numVerts, &vertData );
 		float const* v     = vertData;
 		auto const   end_v = vertData + ( numVerts * 3 );
 
@@ -166,7 +166,7 @@ static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* u
 		uint16_t const* indexData  = nullptr;
 		size_t          numIndices = 0;
 
-		mesh.getIndices( numIndices, &indexData );
+		mesh.getIndices( &numIndices, &indexData );
 		encoder.writeToBuffer( app->gpu_mesh->index_handle, 0, indexData, numIndices * sizeof( uint16_t ) );
 	}
 }

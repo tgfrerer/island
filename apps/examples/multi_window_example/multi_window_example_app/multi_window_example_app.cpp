@@ -212,7 +212,7 @@ static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_
 	float const*    meshUvs      = nullptr;
 	size_t          numVertices  = 0;
 	size_t          numIndices   = 0;
-	app->mesh.getData( numVertices, numIndices, &meshVertices, &meshNormals, &meshUvs, &meshColours, &meshIndices );
+	app->mesh.getData( &numVertices, &numIndices, &meshVertices, &meshNormals, &meshUvs, &meshColours, &meshIndices );
 
 	encoder
 	    .setScissors( 0, 1, scissors )
@@ -311,7 +311,7 @@ static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_
 	float const*    meshUvs      = nullptr;
 	size_t          numVertices  = 0;
 	size_t          numIndices   = 0;
-	app->mesh.getData( numVertices, numIndices, &meshVertices, &meshNormals, &meshUvs, &meshColours, &meshIndices );
+	app->mesh.getData( &numVertices, &numIndices, &meshVertices, &meshNormals, &meshUvs, &meshColours, &meshIndices );
 
 	uniforms.color = { 1, 1, 1, 1 };
 
