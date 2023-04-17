@@ -174,14 +174,19 @@ static glm::mat4 const& camera_get_projection_matrix_glm( le_camera_o* self ) {
 		// cache projection matrix calculation
 		if ( self->isOrthographic ) {
 			self->projection_matrix =
-			    glm::ortho( self->viewport.x,
-			                self->viewport.x + self->viewport.width,
-			                self->viewport.y,
-			                self->viewport.y + self->viewport.height,
-			                self->nearClip,
-			                self->farClip );
+			    glm::orthoRH_ZO( -self->viewport.width * 0.5f,
+			                     +self->viewport.width * 0.5f,
+			                     -self->viewport.height * 0.5f,
+			                     +self->viewport.height * 0.5f,
+			                     self->nearClip,
+			                     self->farClip );
 		} else {
-			self->projection_matrix = glm::perspective( self->fovRadians, float( self->viewport.width ) / fabsf( self->viewport.height ), self->nearClip, self->farClip );
+			self->projection_matrix =
+			    glm::perspectiveRH_ZO(
+			        self->fovRadians,
+			        float( self->viewport.width ) / fabsf( self->viewport.height ),
+			        self->nearClip,
+			        self->farClip );
 		}
 		self->projectionMatrixDirty = false;
 	}
