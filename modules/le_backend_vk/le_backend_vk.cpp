@@ -5771,10 +5771,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// find binding info with name referenced in command
 
-						auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(),
-						                       [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
-							                       return e.name_hash == argument_name_id;
-						                       } );
+						auto b = argumentState.binding_infos.begin();
+
+						for ( ; b != argumentState.binding_infos.end(); b++ ) {
+							if ( b->name_hash == argument_name_id ) {
+								break;
+							}
+						}
 
 						if ( b == argumentState.binding_infos.end() ) {
 							static uint64_t wrong_argument = argument_name_id;
@@ -5823,9 +5826,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 						// Find binding info with name referenced in command
-						auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
-							return e.name_hash == argument_name_id;
-						} );
+						auto b = argumentState.binding_infos.begin();
+
+						for ( ; b != argumentState.binding_infos.end(); b++ ) {
+							if ( b->name_hash == argument_name_id ) {
+								break;
+							}
+						}
 
 						if ( b == argumentState.binding_infos.end() ) {
 							logger.warn( "Invalid texture argument name id: %x", argument_name_id );
@@ -5885,9 +5892,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 						// Find binding info with name referenced in command
-						auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
-							return e.name_hash == argument_name_id;
-						} );
+						auto b = argumentState.binding_infos.begin();
+
+						for ( ; b != argumentState.binding_infos.end(); b++ ) {
+							if ( b->name_hash == argument_name_id ) {
+								break;
+							}
+						}
 
 						if ( b == argumentState.binding_infos.end() ) {
 							logger.warn( "Warning: Invalid image argument name id: %x", argument_name_id );
@@ -5924,9 +5935,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 						// Find binding info with name referenced in command
-						auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info& e ) -> bool {
-							return e.name_hash == argument_name_id;
-						} );
+						auto b = argumentState.binding_infos.begin();
+
+						for ( ; b != argumentState.binding_infos.end(); b++ ) {
+							if ( b->name_hash == argument_name_id ) {
+								break;
+							}
+						}
 
 						if ( b == argumentState.binding_infos.end() ) {
 							logger.warn( "Invalid tlas argument name id: %x", argument_name_id );
