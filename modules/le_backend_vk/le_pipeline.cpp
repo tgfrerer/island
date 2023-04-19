@@ -1914,24 +1914,41 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 
 		std::vector<std::vector<le_shader_binding_info>> sets;
 
-		// Split combined bindings at set boundaries
-		uint32_t set_idx = 0;
-		for ( auto it = combined_bindings.begin(); it != combined_bindings.end(); ) {
+		{
+			// --- Consolidate Bindings ---
+			//
+			// What do we want to achieve? We want to have placeholder bindings in
+			// case bingings are not continous - a placeholder binding is a binding
+			// that has a count of zero.
 
-			// Find next element with different set id
-			auto itN = std::find_if( it, combined_bindings.end(), [ &set_idx ]( const le_shader_binding_info& el ) -> bool {
-				return el.setIndex != set_idx;
-			} );
+			for ( auto const& b : combined_bindings ) {
 
-			sets.emplace_back( it, itN );
+				while ( sets.size() <= b.setIndex ) {
+					// we're going to need a new set
+					sets.push_back( {} ); // push back empty vector
+				}
 
-			// If we're not at the end, get the setIndex for the next set,
-			if ( itN != combined_bindings.end() ) {
-				assert( set_idx + 1 == itN->setIndex ); // we must enforce that sets are non-sparse.
-				set_idx = itN->setIndex;
+				// --- there is a set available at b.setIndex.
+
+				auto& current_set = sets.back();
+
+				while ( current_set.size() <= b.binding ) {
+
+					if ( current_set.size() == b.binding ) {
+						// we can add the real thing
+						current_set.push_back( b );
+					} else {
+						// we must add a placeholder binding
+						le_shader_binding_info new_binding = {};
+
+						new_binding.setIndex = sets.size() - 1;
+						new_binding.binding  = current_set.size();
+						new_binding.count    = 0; // setting count to zero signals to Vulkan that this is a placeholder binding.
+
+						current_set.emplace_back( new_binding );
+					}
+				}
 			}
-
-			it = itN;
 		}
 
 		info.set_layout_count = uint32_t( sets.size() );
@@ -1941,7 +1958,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 			// Assert that sets and bindings are not sparse (you must not have "holes" in sets, bindings.)
 			// FIXME: (check-shader-bindings) we must find a way to recover from this, but it might be difficult without a "linking" stage
 			// which combines various shader stages.
-			set_idx = 0;
+			uint32 set_idx = 0;
 			for ( auto const& s : sets ) {
 				uint32_t binding = 0;
 				for ( auto const& b : s ) {
