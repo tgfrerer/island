@@ -5275,6 +5275,14 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 									for ( auto b : setLayoutInfo->binding_info ) {
 
+										if ( b.count == 0 ) {
+											// If this is a placeholder binding, we continue early -
+											// this means that this binding will not be added to argumentState.
+											continue;
+										}
+
+										// ----------| invariant: b.count > 0
+
 										// add an entry for each array element with this binding to setData
 										for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 											DescriptorData descriptorData{};
@@ -5793,30 +5801,44 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// ---------| invariant: we found an argument name that matches
 						auto setIndex = b->setIndex;
-						auto binding  = b->binding;
 
-						auto& bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
+						DescriptorData*       descriptor_data     = argumentState.setData[ setIndex ].data();
+						DescriptorData const* descriptor_data_end = argumentState.setData[ setIndex ].data() + argumentState.setData[ setIndex ].size();
 
-						bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
-						bindingData.range  = le_cmd->info.range;
-
-						if ( bindingData.range == 0 ) {
-
-							// If no range was specified, we must default to VK_WHOLE_SIZE,
-							// as a range setting of 0 is not allowed in Vulkan.
-
-							bindingData.range = VK_WHOLE_SIZE;
+						// find the first matching element with the correct binding number.
+						for ( ; descriptor_data != descriptor_data_end; descriptor_data++ ) {
+							if ( descriptor_data->bindingNumber == b->binding ) {
+								break;
+							}
 						}
 
-						// If binding is in fact a dynamic binding, set the corresponding dynamic offset
-						// and set the buffer offset to 0.
-						if ( b->type == le::DescriptorType::eStorageBufferDynamic ||
-						     b->type == le::DescriptorType::eUniformBufferDynamic ) {
-							auto dynamicOffset                            = b->dynamic_offset_idx;
-							bindingData.offset                            = 0;
-							argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );
-						} else {
-							bindingData.offset = le_cmd->info.offset;
+						if ( descriptor_data != descriptor_data_end ) {
+
+							// Matching binding found
+
+							DescriptorData::BufferInfo& bindingData = descriptor_data->bufferInfo;
+
+							bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
+							bindingData.range  = le_cmd->info.range;
+
+							if ( bindingData.range == 0 ) {
+
+								// If no range was specified, we must default to VK_WHOLE_SIZE,
+								// as a range setting of 0 is not allowed in Vulkan.
+
+								bindingData.range = VK_WHOLE_SIZE;
+							}
+
+							// If binding is in fact a dynamic binding, set the corresponding dynamic offset
+							// and set the buffer offset to 0.
+							if ( b->type == le::DescriptorType::eStorageBufferDynamic ||
+							     b->type == le::DescriptorType::eUniformBufferDynamic ) {
+								auto dynamicOffset                            = b->dynamic_offset_idx;
+								bindingData.offset                            = 0;
+								argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );
+							} else {
+								bindingData.offset = le_cmd->info.offset;
+							}
 						}
 
 					} break;
