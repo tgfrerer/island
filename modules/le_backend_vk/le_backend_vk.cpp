@@ -4829,6 +4829,21 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 }
 
 // ----------------------------------------------------------------------
+//
+inline DescriptorData* find_descriptor_with_binding_number_and_array_idx(
+    std::vector<DescriptorData>& descriptor_set, uint32_t binding_number, uint32_t array_idx = 0 ) {
+
+	for ( auto& d : descriptor_set ) {
+		if ( d.bindingNumber == binding_number &&
+		     d.arrayIndex == array_idx ) {
+			return &d;
+		}
+	}
+
+	return nullptr;
+}
+
+// ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
@@ -5800,33 +5815,26 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						}
 
 						// ---------| invariant: we found an argument name that matches
-						auto setIndex = b->setIndex;
 
-						DescriptorData*       descriptor_data     = argumentState.setData[ setIndex ].data();
-						DescriptorData const* descriptor_data_end = argumentState.setData[ setIndex ].data() + argumentState.setData[ setIndex ].size();
+						DescriptorData* descriptor_data =
+						    find_descriptor_with_binding_number_and_array_idx(
+						        argumentState.setData[ b->setIndex ], b->binding );
 
-						// find the first matching element with the correct binding number.
-						for ( ; descriptor_data != descriptor_data_end; descriptor_data++ ) {
-							if ( descriptor_data->bindingNumber == b->binding ) {
-								break;
-							}
-						}
-
-						if ( descriptor_data != descriptor_data_end ) {
+						if ( descriptor_data ) {
 
 							// Matching binding found
 
-							DescriptorData::BufferInfo& bindingData = descriptor_data->bufferInfo;
+							DescriptorData::BufferInfo& buffer_info = descriptor_data->bufferInfo;
 
-							bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
-							bindingData.range  = le_cmd->info.range;
+							buffer_info.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
+							buffer_info.range  = le_cmd->info.range;
 
-							if ( bindingData.range == 0 ) {
+							if ( buffer_info.range == 0 ) {
 
 								// If no range was specified, we must default to VK_WHOLE_SIZE,
 								// as a range setting of 0 is not allowed in Vulkan.
 
-								bindingData.range = VK_WHOLE_SIZE;
+								buffer_info.range = VK_WHOLE_SIZE;
 							}
 
 							// If binding is in fact a dynamic binding, set the corresponding dynamic offset
@@ -5834,10 +5842,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							if ( b->type == le::DescriptorType::eStorageBufferDynamic ||
 							     b->type == le::DescriptorType::eUniformBufferDynamic ) {
 								auto dynamicOffset                            = b->dynamic_offset_idx;
-								bindingData.offset                            = 0;
+								buffer_info.offset                            = 0;
 								argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );
 							} else {
-								bindingData.offset = le_cmd->info.offset;
+								buffer_info.offset = le_cmd->info.offset;
 							}
 						}
 
@@ -5863,12 +5871,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// ---------| invariant: we found an argument name that matches
 
-						auto setIndex      = b->setIndex;
-						auto bindingNumber = b->binding;
-						auto arrayIndex    = uint32_t( le_cmd->info.array_index );
-
-						auto       bindingData      = argumentState.setData[ setIndex ].data();
-						auto const binding_data_end = bindingData + argumentState.setData[ setIndex ].size();
+						auto arrayIndex = uint32_t( le_cmd->info.array_index );
 
 						// Descriptors are stored as flat arrays; we cannot assume that binding number matches
 						// index of descriptor in set, because some types of uniforms may be arrays, and these
@@ -5881,31 +5884,32 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// To find the correct descriptor, we must therefore iterate over descriptors in-set
 						// until we find one that matches the correct array index.
 						//
-						for ( ; bindingData != binding_data_end; bindingData++ ) {
-							if ( bindingData->bindingNumber == bindingNumber &&
-							     bindingData->arrayIndex == arrayIndex ) {
+
+						auto bindingData =
+						    find_descriptor_with_binding_number_and_array_idx(
+						        argumentState.setData[ b->setIndex ], b->binding, arrayIndex );
+
+						if ( bindingData ) {
+							// fetch texture information based on texture id from command
+
+							auto foundTex = frame.textures_per_pass[ passIndex ].find( le_cmd->info.texture_id );
+							if ( foundTex == frame.textures_per_pass[ passIndex ].end() ) {
+								using namespace le_renderer;
+								logger.error( "Could not find requested texture: '%s', ignoring texture binding command",
+								              renderer_i.texture_handle_get_name( le_cmd->info.texture_id ) );
 								break;
 							}
+
+							// ----------| invariant: texture has been found
+
+							bindingData->imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
+							bindingData->imageInfo.sampler     = foundTex->second.sampler;
+							bindingData->imageInfo.imageView   = foundTex->second.imageView;
+							bindingData->type                  = le::DescriptorType::eCombinedImageSampler;
+						} else {
+							logger.error( "Could not find binding at set: %d, binding: %d, array index: %d.", b->setIndex, b->binding, arrayIndex );
+							assert( bindingData && "could not find specified binding." );
 						}
-
-						assert( bindingData != binding_data_end && "could not find specified binding." );
-
-						// fetch texture information based on texture id from command
-
-						auto foundTex = frame.textures_per_pass[ passIndex ].find( le_cmd->info.texture_id );
-						if ( foundTex == frame.textures_per_pass[ passIndex ].end() ) {
-							using namespace le_renderer;
-							logger.error( "Could not find requested texture: '%s', ignoring texture binding command",
-							              renderer_i.texture_handle_get_name( le_cmd->info.texture_id ) );
-							break;
-						}
-
-						// ----------| invariant: texture has been found
-
-						bindingData->imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
-						bindingData->imageInfo.sampler     = foundTex->second.sampler;
-						bindingData->imageInfo.imageView   = foundTex->second.imageView;
-						bindingData->type                  = le::DescriptorType::eCombinedImageSampler;
 					} break;
 
 					case le::CommandType::eSetArgumentImage: {
@@ -5927,28 +5931,33 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						}
 
 						// ---------| invariant: we found an argument name that matches
-						auto setIndex = b->setIndex;
-						auto binding  = b->binding;
 
-						auto& bindingData = argumentState.setData[ setIndex ][ binding ];
+						auto bindingData =
+						    find_descriptor_with_binding_number_and_array_idx(
+						        argumentState.setData[ b->setIndex ], b->binding );
 
 						// fetch texture information based on texture id from command
+						if ( bindingData ) {
 
-						auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
-						if ( foundImgView == frame.imageViews.end() ) {
-							logger.error( "Could not find image view for image: '%s', ignoring image binding command.",
-							              le_cmd->info.image_id->data->debug_name );
-							break;
+							auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
+							if ( foundImgView == frame.imageViews.end() ) {
+								logger.error( "Could not find image view for image: '%s', ignoring image binding command.",
+								              le_cmd->info.image_id->data->debug_name );
+								break;
+							}
+
+							// ----------| invariant: image view has been found
+
+							// FIXME: (sync) image layout at this point *must* be general, if we wanted to write to this image.
+							bindingData->imageInfo.imageLayout = le::ImageLayout::eGeneral;
+							bindingData->imageInfo.imageView   = foundImgView->second;
+
+							bindingData->type       = le::DescriptorType::eStorageImage;
+							bindingData->arrayIndex = uint32_t( le_cmd->info.array_index );
+						} else {
+							logger.error( "Could not find binding at set: %d, binding: %d.", b->setIndex, b->binding );
+							assert( bindingData && "Could not find specified binding" );
 						}
-
-						// ----------| invariant: image view has been found
-
-						// FIXME: (sync) image layout at this point *must* be general, if we wanted to write to this image.
-						bindingData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
-						bindingData.imageInfo.imageView   = foundImgView->second;
-
-						bindingData.type       = le::DescriptorType::eStorageImage;
-						bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
 
 					} break;
 					case le::CommandType::eSetArgumentTlas: {
@@ -5970,22 +5979,26 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						}
 
 						// ---------| invariant: we found an argument name that matches
-						auto setIndex = b->setIndex;
-						auto binding  = b->binding;
 
-						auto& bindingData = argumentState.setData[ setIndex ][ binding ];
+						auto bindingData =
+						    find_descriptor_with_binding_number_and_array_idx(
+						        argumentState.setData[ b->setIndex ], b->binding );
 
-						auto found_resource = frame.availableResources.find( le_cmd->info.tlas_id );
-						if ( found_resource == frame.availableResources.end() ) {
-							logger.error( "Could not find acceleration structure: '%s'. Ignoring top level acceleration structure binding command.", le_cmd->info.tlas_id->data->debug_name );
-							break;
+						if ( bindingData ) {
+							auto found_resource = frame.availableResources.find( le_cmd->info.tlas_id );
+							if ( found_resource == frame.availableResources.end() ) {
+								logger.error( "Could not find acceleration structure: '%s'. Ignoring top level acceleration structure binding command.", le_cmd->info.tlas_id->data->debug_name );
+								break;
+							}
+
+							// ----------| invariant: acceleration structure has been found
+
+							bindingData->accelerationStructureInfo.accelerationStructure = found_resource->second.as.tlas;
+							bindingData->type                                            = le::DescriptorType::eAccelerationStructureKhr;
+							bindingData->arrayIndex                                      = uint32_t( le_cmd->info.array_index );
+						} else {
+							logger.error( "Could not find binding at set: %d, binding: %d.", b->setIndex, b->binding );
 						}
-
-						// ----------| invariant: acceleration structure has been found
-
-						bindingData.accelerationStructureInfo.accelerationStructure = found_resource->second.as.tlas;
-						bindingData.type                                            = le::DescriptorType::eAccelerationStructureKhr;
-						bindingData.arrayIndex                                      = uint32_t( le_cmd->info.array_index );
 
 					} break;
 					case le::CommandType::eBindIndexBuffer: {
