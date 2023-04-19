@@ -5785,7 +5785,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 								static uint64_t argument_id_local = 0;
 								if ( argument_id_local == wrong_argument )
 									return;
-								logger.warn( "process_frame: \x1b[38;5;209mInvalid argument name: '%s'\x1b[0m id: %x", le_get_argument_name_from_hash( argument ), argument );
+								logger.warn( "Process_frame: \x1b[38;5;209mInvalid argument name: '%s'\x1b[0m id: %x", le_get_argument_name_from_hash( argument ), argument );
 								argument_id_local = argument;
 							}( argument_name_id );
 							break;
@@ -5884,7 +5884,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						bindingData->imageInfo.sampler     = foundTex->second.sampler;
 						bindingData->imageInfo.imageView   = foundTex->second.imageView;
 						bindingData->type                  = le::DescriptorType::eCombinedImageSampler;
-
 					} break;
 
 					case le::CommandType::eSetArgumentImage: {
