@@ -67,7 +67,7 @@ static void allocator_destroy( le_allocator_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static bool allocator_allocate( le_allocator_o* self, uint64_t numBytes, void** pData, uint64_t* bufferOffset ) {
+static bool allocator_allocate( le_allocator_o* self, uint64_t numBytes, void** pData, uint64_t* bufferOffset, le_buf_resource_handle* p_buf_resource ) {
 
 	// Calculate allocation size as a multiple (rounded up) of alignment
 
@@ -76,13 +76,15 @@ static bool allocator_allocate( le_allocator_o* self, uint64_t numBytes, void** 
 	auto addressAfterAllocation = self->pData + allocationSizeInBytes;
 
 	if ( ( addressAfterAllocation ) > ( self->bufferBaseMemoryAddress + self->bufferBaseOffsetInBytes + self->capacity ) ) {
+		*p_buf_resource = nullptr;
 		return false;
 	}
 
 	// ----------| invariant: enough capacity to accomodate numBytes
 
-	*pData        = self->pData; // point to next free memory address
-	*bufferOffset = self->bufferOffsetInBytes;
+	*pData          = self->pData; // point to next free memory address
+	*bufferOffset   = self->bufferOffsetInBytes;
+	*p_buf_resource = self->resourceId;
 
 	self->pData = addressAfterAllocation;
 
@@ -106,7 +108,6 @@ void register_le_allocator_linear_api( void* api_ ) {
 
 	le_allocator_linear_i.create             = allocator_create;
 	le_allocator_linear_i.destroy            = allocator_destroy;
-	le_allocator_linear_i.get_le_resource_id = allocator_get_le_resource_id;
 	le_allocator_linear_i.allocate           = allocator_allocate;
 	le_allocator_linear_i.reset              = allocator_reset;
 }

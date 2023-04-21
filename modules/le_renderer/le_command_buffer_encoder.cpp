@@ -348,11 +348,10 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o*                   
 
 	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
 
-	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset ) ) {
+	le_buf_resource_handle allocatorBufferId;
+	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset, &allocatorBufferId ) ) {
 
 		memcpy( memAddr, data, numBytes );
-
-		le_buf_resource_handle allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 
@@ -385,15 +384,13 @@ static void cbe_set_index_data( le_command_buffer_encoder_o*                    
 	void*    memAddr;
 	uint64_t bufferOffset = 0;
 
-	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
-
+	le_allocator_o*        allocator = fetch_allocator( self->ppAllocator );
+	le_buf_resource_handle allocatorBufferId;
 	// -- Allocate data on scratch buffer
-	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset, &allocatorBufferId ) ) {
 
 		// -- Upload data via scratch allocator
 		memcpy( memAddr, data, numBytes );
-
-		le_buf_resource_handle allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		// -- Bind index buffer to scratch allocator
 		cbe_bind_index_buffer( self, allocatorBufferId, bufferOffset, indexType );
@@ -440,18 +437,16 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o* self,
 	void*    memAddr;
 	uint64_t bufferOffset = 0;
 
-	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
-
+	le_allocator_o*        allocator = fetch_allocator( self->ppAllocator );
+	le_buf_resource_handle allocatorBuffer;
 	// -- Allocate memory on scratch buffer for ubo
 	//
 	// Note that we might want to have specialised ubo memory eventually if that
 	// made a performance difference.
-	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset, &allocatorBuffer ) ) {
 
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
-
-		le_buf_resource_handle allocatorBuffer = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cbe_bind_argument_buffer( self, allocatorBuffer, argumentNameId, uint32_t( bufferOffset ), uint32_t( numBytes ) );
 
@@ -667,7 +662,8 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_
 		return true;
 	};
 
-	if ( le_allocator_linear_i.allocate( allocator, required_byte_count, &memAddr, &bufferBaseOffset ) ) {
+	le_buf_resource_handle allocatorBuffer;
+	if ( le_allocator_linear_i.allocate( allocator, required_byte_count, &memAddr, &bufferBaseOffset, &allocatorBuffer ) ) {
 
 		char* base_addr = static_cast<char*>( memAddr );
 
@@ -686,8 +682,6 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_
 		write_to_buffer( base_addr + callable_shader_binding_offset, callable_shader_binding_stride, group_handle_size, shader_group_data_payload, sbt->callable.data(), sbt->callable.size() );
 
 		// -- store buffer, and offsets with command info
-
-		le_buf_resource_handle allocatorBuffer = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cmd->info.sbt_buffer          = allocatorBuffer;
 		cmd->info.ray_gen_sbt_offset  = bufferBaseOffset + ray_gen_shader_binding_offset;
@@ -894,14 +888,13 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o*      self,
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 
-	if ( le_allocator_linear_i.allocate( allocator, gpu_memory_bytes_required, &cmd->info.staging_buffer_mapped_memory, &offset ) ) {
+	if ( le_allocator_linear_i.allocate( allocator, gpu_memory_bytes_required, &cmd->info.staging_buffer_mapped_memory, &offset, &cmd->info.staging_buffer_id ) ) {
 
 		// Store geometry instances data in GPU mapped scratch buffer - we will patch
 		// blas references in the backend later, once we know how to resolve them.
 		memcpy( cmd->info.staging_buffer_mapped_memory, instances, gpu_memory_bytes_required );
 
 		cmd->info.staging_buffer_offset = uint32_t( offset );
-		cmd->info.staging_buffer_id     = le_allocator_linear_i.get_le_resource_id( allocator );
 
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << gpu_memory_bytes_required << " Bytes." << std::endl

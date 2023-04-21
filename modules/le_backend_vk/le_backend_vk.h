@@ -251,9 +251,8 @@ struct le_backend_vk_api {
 	struct allocator_linear_interface_t {
 		le_allocator_o *        ( *create               ) ( VmaAllocationInfo const *info, uint16_t alignment);
 		void                    ( *destroy              ) ( le_allocator_o* self );
-		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
+		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset, le_buf_resource_handle *p_buffer);
 		void                    ( *reset                ) ( le_allocator_o* self );
-		le_buf_resource_handle  ( *get_le_resource_id   ) ( le_allocator_o* self );
 	};
 
 	struct staging_allocator_interface_t {
