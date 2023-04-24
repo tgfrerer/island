@@ -1954,9 +1954,10 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		info.set_layout_count = uint32_t( sets.size() );
 		assert( sets.size() <= LE_MAX_BOUND_DESCRIPTOR_SETS ); // must be less or equal to maximum bound descriptor sets (currently 8 on NV)
 
-		{
+		// deliberately commented out - this code is only here for additional error checking
+		if ( false ) {
 			// Assert that sets and bindings are not sparse (you must not have "holes" in sets, bindings.)
-			// FIXME: (check-shader-bindings) we must find a way to recover from this, but it might be difficult without a "linking" stage
+			// (check-shader-bindings) we might find a way to recover from this, but it might be difficult without a "linking" stage
 			// which combines various shader stages.
 			uint32 set_idx = 0;
 			for ( auto const& s : sets ) {
