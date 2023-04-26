@@ -864,38 +864,32 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	auto  le_renderer_api_i = static_cast<le_renderer_api*>( api );
 	auto& le_renderer_i     = le_renderer_api_i->le_renderer_i;
 
-	le_renderer_i.create                 = renderer_create;
-	le_renderer_i.destroy                = renderer_destroy;
-	le_renderer_i.setup                  = renderer_setup;
-	le_renderer_i.update                 = renderer_update;
-	le_renderer_i.get_settings           = renderer_get_settings;
-
-	le_renderer_i.get_swapchain_extent = renderer_get_swapchain_extent;
-
-	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
-	le_renderer_i.get_backend            = renderer_get_backend;
-
+	le_renderer_i.create                         = renderer_create;
+	le_renderer_i.destroy                        = renderer_destroy;
+	le_renderer_i.setup                          = renderer_setup;
+	le_renderer_i.update                         = renderer_update;
+	le_renderer_i.get_settings                   = renderer_get_settings;
+	le_renderer_i.get_swapchain_extent           = renderer_get_swapchain_extent;
+	le_renderer_i.get_pipeline_manager           = renderer_get_pipeline_manager;
+	le_renderer_i.get_backend                    = renderer_get_backend;
 	le_renderer_i.get_swapchain_resource         = renderer_get_swapchain_resource;
 	le_renderer_i.get_swapchain_resource_default = renderer_get_swapchain_resource_default;
 	le_renderer_i.add_swapchain                  = renderer_add_swapchain;
 	le_renderer_i.remove_swapchain               = renderer_remove_swapchain;
-	le_renderer_i.get_swapchains         = renderer_get_swapchains;
-
-	le_renderer_i.produce_texture_handle  = renderer_produce_texture_handle;
-	le_renderer_i.texture_handle_get_name = texture_handle_get_name;
-
-	le_renderer_i.create_rtx_blas_info = renderer_create_rtx_blas_info_handle;
-	le_renderer_i.create_rtx_tlas_info = renderer_create_rtx_tlas_info_handle;
+	le_renderer_i.get_swapchains                 = renderer_get_swapchains;
+	le_renderer_i.produce_texture_handle         = renderer_produce_texture_handle;
+	le_renderer_i.texture_handle_get_name        = texture_handle_get_name;
+	le_renderer_i.create_rtx_blas_info           = renderer_create_rtx_blas_info_handle;
+	le_renderer_i.create_rtx_tlas_info           = renderer_create_rtx_tlas_info_handle;
 
 	auto& helpers_i = le_renderer_api_i->helpers_i;
 
 	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
 	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
-
-	le_renderer_i.produce_img_resource_handle  = renderer_produce_img_resource_handle;
-	le_renderer_i.produce_buf_resource_handle  = renderer_produce_buf_resource_handle;
-	le_renderer_i.produce_tlas_resource_handle = renderer_produce_tlas_resource_handle;
-	le_renderer_i.produce_blas_resource_handle = renderer_produce_blas_resource_handle;
+	le_renderer_i.produce_img_resource_handle      = renderer_produce_img_resource_handle;
+	le_renderer_i.produce_buf_resource_handle      = renderer_produce_buf_resource_handle;
+	le_renderer_i.produce_tlas_resource_handle     = renderer_produce_tlas_resource_handle;
+	le_renderer_i.produce_blas_resource_handle     = renderer_produce_blas_resource_handle;
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api );

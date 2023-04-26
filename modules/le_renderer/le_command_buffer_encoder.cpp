@@ -86,12 +86,14 @@ struct le_command_buffer_encoder_o {
 
 // ----------------------------------------------------------------------
 
-static le_command_buffer_encoder_o* cbe_create( le_allocator_o** allocator, le_pipeline_manager_o* pipelineManager, le_staging_allocator_o* stagingAllocator, le::Extent2D const& extent = {} ) {
+static le_command_buffer_encoder_o* cbe_create( le_allocator_o** allocator, le_pipeline_manager_o* pipelineManager, le_staging_allocator_o* stagingAllocator, le::Extent2D const* extent ) {
 	auto self              = new le_command_buffer_encoder_o;
 	self->ppAllocator      = allocator;
 	self->pipelineManager  = pipelineManager;
 	self->stagingAllocator = stagingAllocator;
-	self->extent           = extent;
+	if ( extent ) {
+		self->extent = *extent;
+	}
 	return self;
 };
 
@@ -107,8 +109,10 @@ static void cbe_destroy( le_command_buffer_encoder_o* self ) {
 
 // ----------------------------------------------------------------------
 // Returns extent to which this encoder has been set up to
-static le::Extent2D const& cbe_get_extent( le_command_buffer_encoder_o* self ) {
-	return self->extent;
+static void cbe_get_extent( le_command_buffer_encoder_o* self, le::Extent2D* extent ) {
+	if ( extent ) {
+		*extent = self->extent;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -133,13 +137,13 @@ static void cbe_dispatch( le_command_buffer_encoder_o* self, uint32_t groupCount
 	self->mCommandCount++;
 }
 
-static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*   self,
-                                       le::PipelineStageFlags2 const& srcStageMask,
-                                       le::PipelineStageFlags2 const& dstStageMask,
-                                       le::AccessFlags2 const&        dstAccessMask,
-                                       le_buf_resource_handle const&  buffer,
-                                       uint64_t const&                offset,
-                                       uint64_t const&                range ) {
+static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*  self,
+                                       le::PipelineStageFlags2 const srcStageMask,
+                                       le::PipelineStageFlags2 const dstStageMask,
+                                       le::AccessFlags2 const        dstAccessMask,
+                                       le_buf_resource_handle const  buffer,
+                                       uint64_t const                offset,
+                                       uint64_t const                range ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBufferMemoryBarrier ); // placement new!
 
@@ -983,46 +987,74 @@ le_shader_binding_table_o* sbt_validate( le_shader_binding_table_o* sbt ) {
 
 void register_le_command_buffer_encoder_api( void* api_ ) {
 
-	auto& cbe_i = static_cast<le_renderer_api*>( api_ )->le_command_buffer_encoder_i;
+	auto& cbe_base_i     = static_cast<le_renderer_api*>( api_ )->le_command_buffer_encoder_i;
+	auto& cbe_graphics_i = static_cast<le_renderer_api*>( api_ )->le_cbe_graphics_i;
+	auto& cbe_compute_i  = static_cast<le_renderer_api*>( api_ )->le_cbe_compute_i;
+	auto& cbe_transfer_i = static_cast<le_renderer_api*>( api_ )->le_cbe_transfer_i;
+	auto& cbe_rtx_i      = static_cast<le_renderer_api*>( api_ )->le_cbe_rtx_i;
 
-	cbe_i.create                 = cbe_create;
-	cbe_i.destroy                = cbe_destroy;
-	cbe_i.draw                   = cbe_draw;
-	cbe_i.draw_indexed           = cbe_draw_indexed;
-	cbe_i.draw_mesh_tasks        = cbe_draw_mesh_tasks;
-	cbe_i.dispatch               = cbe_dispatch;
-	cbe_i.buffer_memory_barrier  = cbe_buffer_memory_barrier;
-	cbe_i.trace_rays             = cbe_trace_rays;
-	cbe_i.get_extent             = cbe_get_extent;
-	cbe_i.set_line_width         = cbe_set_line_width;
-	cbe_i.set_viewport           = cbe_set_viewport;
-	cbe_i.set_scissor            = cbe_set_scissor;
-	cbe_i.bind_vertex_buffers    = cbe_bind_vertex_buffers;
-	cbe_i.bind_index_buffer      = cbe_bind_index_buffer;
-	cbe_i.set_index_data         = cbe_set_index_data;
-	cbe_i.set_vertex_data        = cbe_set_vertex_data;
-	cbe_i.set_argument_data      = cbe_set_argument_data;
-	cbe_i.bind_argument_buffer   = cbe_bind_argument_buffer;
-	cbe_i.set_argument_texture   = cbe_set_argument_texture;
-	cbe_i.set_argument_image     = cbe_set_argument_image;
-	cbe_i.set_argument_tlas      = cbe_set_argument_tlas;
-	cbe_i.bind_graphics_pipeline = cbe_bind_graphics_pipeline;
-	cbe_i.bind_compute_pipeline  = cbe_bind_compute_pipeline;
-	cbe_i.bind_rtx_pipeline      = cbe_bind_rtx_pipeline;
-	cbe_i.get_encoded_data       = cbe_get_encoded_data;
-	cbe_i.write_to_buffer        = cbe_write_to_buffer;
-	cbe_i.write_to_image         = cbe_write_to_image;
-	cbe_i.set_push_constant_data = cbe_set_push_constant_data;
-	cbe_i.build_rtx_blas         = cbe_build_rtx_blas;
-	cbe_i.build_rtx_tlas         = cbe_build_rtx_tlas;
-	cbe_i.get_pipeline_manager   = cbe_get_pipeline_manager;
+	cbe_base_i = {
+	    .create               = cbe_create,
+	    .destroy              = cbe_destroy,
+	    .get_pipeline_manager = cbe_get_pipeline_manager,
+	    .get_encoded_data     = cbe_get_encoded_data,
+	};
 
-	cbe_i.build_sbt         = cbe_build_shader_binding_table;
-	cbe_i.sbt_set_ray_gen   = sbt_set_ray_gen;
-	cbe_i.sbt_add_hit       = sbt_add_hit;
-	cbe_i.sbt_add_callable  = sbt_add_callable;
-	cbe_i.sbt_add_miss      = sbt_add_miss;
-	cbe_i.sbt_add_u32_param = sbt_add_u32_param;
-	cbe_i.sbt_add_f32_param = sbt_add_f32_param;
-	cbe_i.sbt_validate      = sbt_validate;
+	cbe_graphics_i = {
+	    .get_pipeline_manager   = cbe_get_pipeline_manager,
+	    .set_push_constant_data = cbe_set_push_constant_data,
+	    .bind_argument_buffer   = cbe_bind_argument_buffer,
+	    .buffer_memory_barrier  = cbe_buffer_memory_barrier,
+	    .set_argument_data      = cbe_set_argument_data,
+	    .set_argument_texture   = cbe_set_argument_texture,
+	    .set_argument_image     = cbe_set_argument_image,
+	    .draw                   = cbe_draw,
+	    .draw_indexed           = cbe_draw_indexed,
+	    .draw_mesh_tasks        = cbe_draw_mesh_tasks,
+	    .bind_graphics_pipeline = cbe_bind_graphics_pipeline,
+	    .set_line_width         = cbe_set_line_width,
+	    .set_viewport           = cbe_set_viewport,
+	    .set_scissor            = cbe_set_scissor,
+	    .bind_index_buffer      = cbe_bind_index_buffer,
+	    .bind_vertex_buffers    = cbe_bind_vertex_buffers,
+	    .set_index_data         = cbe_set_index_data,
+	    .set_vertex_data        = cbe_set_vertex_data,
+	    .get_extent             = cbe_get_extent,
+	};
+
+	cbe_compute_i = {
+	    .get_pipeline_manager   = cbe_get_pipeline_manager,
+	    .bind_compute_pipeline  = cbe_bind_compute_pipeline,
+	    .set_push_constant_data = cbe_set_push_constant_data,
+	    .bind_argument_buffer   = cbe_bind_argument_buffer,
+	    .set_argument_data      = cbe_set_argument_data,
+	    .set_argument_texture   = cbe_set_argument_texture,
+	    .set_argument_image     = cbe_set_argument_image,
+	    .dispatch               = cbe_dispatch,
+	    .buffer_memory_barrier  = cbe_buffer_memory_barrier,
+	};
+
+	cbe_transfer_i = {
+	    .write_to_buffer       = cbe_write_to_buffer,
+	    .write_to_image        = cbe_write_to_image,
+	    .buffer_memory_barrier = cbe_buffer_memory_barrier,
+	};
+
+	cbe_rtx_i = {
+	    .build_rtx_tlas    = cbe_build_rtx_tlas,
+	    .build_rtx_blas    = cbe_build_rtx_blas,
+	    .set_argument_tlas = cbe_set_argument_tlas,
+	    //
+	    .build_sbt         = cbe_build_shader_binding_table,
+	    .sbt_set_ray_gen   = sbt_set_ray_gen,
+	    .sbt_add_hit       = sbt_add_hit,
+	    .sbt_add_callable  = sbt_add_callable,
+	    .sbt_add_miss      = sbt_add_miss,
+	    .sbt_add_u32_param = sbt_add_u32_param,
+	    .sbt_add_f32_param = sbt_add_f32_param,
+	    //
+	    .sbt_validate      = sbt_validate,
+	    .bind_rtx_pipeline = cbe_bind_rtx_pipeline,
+	    .trace_rays        = cbe_trace_rays,
+	};
 }
