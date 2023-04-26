@@ -1018,17 +1018,20 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 			    pass->height,
 			};
 
-			if ( pass_extents.width == 0 || pass_extents.height == 0 ) {
-				// we must infer pass width and pass height
+			if ( pass->type == le::QueueFlagBits::eGraphics ) {
 
-				// check if any of our pass image attachments matches a swapchain resource
-				uint32_t matching_swapchain_idx = find_matching_resource( pass->attachmentResources, swapchain_images, num_swapchain_images ); // default to zero
+				if ( pass_extents.width == 0 || pass_extents.height == 0 ) {
+					// we must infer pass width and pass height
 
-				pass->width = pass_extents.width = swapchain_image_width[ matching_swapchain_idx ];
-				pass->height = pass_extents.height = swapchain_image_height[ matching_swapchain_idx ];
+					// check if any of our pass image attachments matches a swapchain resource
+					uint32_t matching_swapchain_idx = find_matching_resource( pass->attachmentResources, swapchain_images, num_swapchain_images ); // default to zero
+
+					pass->width = pass_extents.width = swapchain_image_width[ matching_swapchain_idx ];
+					pass->height = pass_extents.height = swapchain_image_height[ matching_swapchain_idx ];
+				}
 			}
 
-			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, pass_extents ); // NOTE: we must manually track the lifetime of encoder!
+			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, &pass_extents ); // NOTE: we must manually track the lifetime of encoder!
 
 			if ( pass->type == le::QueueFlagBits::eGraphics ) {
 
@@ -1043,8 +1046,8 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 				};
 
 				// setup encoder default viewport and scissor to extent
-				encoder_i.set_scissor( pass->encoder, 0, 1, default_scissor );
-				encoder_i.set_viewport( pass->encoder, 0, 1, default_viewport );
+				encoder_graphics_i.set_scissor( pass->encoder, 0, 1, default_scissor );
+				encoder_graphics_i.set_viewport( pass->encoder, 0, 1, default_viewport );
 			}
 
 			renderpass_run_execute_callbacks( pass ); // record draw commands into encoder
