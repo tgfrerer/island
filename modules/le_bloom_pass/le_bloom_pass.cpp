@@ -21,7 +21,7 @@ le_render_module_add_blit_pass(
 	static auto SRC_TEX_UNIT_0 = le::Renderer::produceTextureHandle( "src_tex_unit_0" );
 
 	auto pass_blit_exec = []( le_command_buffer_encoder_o* encoder_, void* ) {
-		le::Encoder encoder{ encoder_ };
+		le::GraphicsEncoder encoder{ encoder_ };
 		auto*       pm = encoder.getPipelineManager();
 
 		static auto quadVert = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
@@ -135,7 +135,7 @@ le_render_module_add_bloom_pass(
 	        .build();
 
 	auto luminosity_high_pass_fun = []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-		le::Encoder encoder{ encoder_ };
+		le::GraphicsEncoder encoder{ encoder_ };
 
 		static le_bloom_pass_api::params_t fallback_params{};
 		le_bloom_pass_api::params_t*       params = &fallback_params;
@@ -166,7 +166,7 @@ le_render_module_add_bloom_pass(
 	};
 
 	auto blur_render_fun = []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-		le::Encoder encoder{ encoder_ };
+		le::GraphicsEncoder encoder{ encoder_ };
 		auto        settings = static_cast<BlurSettings*>( user_data );
 
 		auto extent = encoder.getRenderpassExtent();
@@ -212,7 +212,7 @@ le_render_module_add_bloom_pass(
 	};
 
 	auto combine_render_fun = []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-		le::Encoder encoder{ encoder_ };
+		le::GraphicsEncoder encoder{ encoder_ };
 
 		static le_bloom_pass_api::params_t fallback_params{};
 		le_bloom_pass_api::params_t*       params = &fallback_params;

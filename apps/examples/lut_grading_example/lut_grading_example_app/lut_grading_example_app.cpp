@@ -166,7 +166,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	        .sampleTexture( src_image_texture, src_imag_tex_info ) // Declare texture name: src image
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 		        auto        app = static_cast<lut_grading_example_app_o*>( user_data );
-		        le::Encoder encoder{ encoder_ };
+		        le::GraphicsEncoder encoder{ encoder_ };
 
 		        // Draw main scene
 

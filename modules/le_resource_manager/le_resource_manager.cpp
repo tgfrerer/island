@@ -66,7 +66,7 @@ static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
 
 // ----------------------------------------------------------------------
 static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_data ) {
-	le::Encoder encoder{ pEncoder };
+	le::TransferEncoder encoder{ pEncoder };
 	auto        manager = static_cast<le_resource_manager_o*>( user_data );
 
 	// we will probably end up with a number of write operations which will all target the same image resource,

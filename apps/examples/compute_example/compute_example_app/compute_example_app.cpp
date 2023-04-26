@@ -133,7 +133,7 @@ static bool pass_initialise_setup( le_renderpass_o* pRp, void* user_data ) {
 static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 
 	auto        app = static_cast<compute_example_app_o*>( user_data );
-	le::Encoder encoder( encoder_ );
+	le::TransferEncoder encoder( encoder_ );
 
 	LeMesh mesh;
 
@@ -175,10 +175,12 @@ static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* u
 
 static void pass_compute_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<compute_example_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::ComputeEncoder encoder{ encoder_ };
 
 	// Compute pipelines are delightfully simple to set up - they only need to
 	// know about their one shader stage.
+
+	le_pipeline_manager_o* pipeline_manager;
 
 	static auto psoCompute =
 	    LeComputePipelineBuilder( encoder.getPipelineManager() )
@@ -224,9 +226,10 @@ static bool pass_draw_setup( le_renderpass_o* pRp, void* user_data ) {
 
 static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<compute_example_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
-	auto extents = encoder.getRenderpassExtent();
+	le::Extent2D extents;
+	encoder.getRenderpassExtent( &extents );
 
 	le::Viewport viewports[ 1 ] = {
 	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },

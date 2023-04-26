@@ -143,7 +143,7 @@ static void reset_camera( multi_window_example_app_o* self, window_and_swapchain
 
 static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<multi_window_example_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto [ screenWidth, screenHeight ] = encoder.getRenderpassExtent();
 
@@ -241,7 +241,7 @@ static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_
 
 static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<multi_window_example_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto [ screenWidth, screenHeight ] = encoder.getRenderpassExtent();
 

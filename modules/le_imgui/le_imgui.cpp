@@ -132,7 +132,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 		    // Tell encoder to upload imgui image - but only once
 		    if ( false == imgui->imguiTexture.wasUploaded ) {
 
-			    le::Encoder encoder{ p_encoder };
+			    le::TransferEncoder encoder{ p_encoder };
 			    size_t      numBytes = size_t( imgui->imguiTexture.width ) * size_t( imgui->imguiTexture.height ) * 4;
 
 			    auto writeInfo = le::WriteToImageSettingsBuilder()
@@ -195,7 +195,7 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 	rp.sampleTexture( self->texture_font, { { le::Filter::eLinear, le::Filter::eLinear }, { IMGUI_IMG_HANDLE, {} } } );
 
 	rp.setExecuteCallback( self, []( le_command_buffer_encoder_o* p_encoder, void* user_data ) {
-		auto encoder = le::Encoder{ p_encoder };
+		auto encoder = le::GraphicsEncoder{ p_encoder };
 		auto imgui   = static_cast<le_imgui_o*>( user_data );
 
 		// Fetch pipeline Manager so that we can create pipeline,

@@ -481,7 +481,7 @@ static void app_reset_camera( app_o* self ) {
 
 static void render_pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
 	// -- Set up pipelines
 

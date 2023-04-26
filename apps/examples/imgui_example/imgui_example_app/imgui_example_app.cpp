@@ -230,7 +230,7 @@ static bool app_update( imgui_example_app_o* self ) {
 
 static void renderpass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<imgui_example_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
 

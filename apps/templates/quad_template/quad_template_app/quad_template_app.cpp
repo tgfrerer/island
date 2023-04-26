@@ -74,9 +74,9 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 
 static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<quad_template_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
-	auto extents = encoder.getRenderpassExtent();
+	le::Extent2D extents = encoder.getRenderpassExtent();
 
 	// Draw main scene
 

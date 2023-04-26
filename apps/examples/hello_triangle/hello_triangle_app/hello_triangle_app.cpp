@@ -139,7 +139,7 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 
 	auto app = static_cast<app_o*>( user_data );
 
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
 

@@ -277,7 +277,7 @@ static bool pass_resource_setup( le_renderpass_o* pRp, void* user_data ) {
 
 static void pass_resource_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<hello_world_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::TransferEncoder encoder{ encoder_ };
 
 	if ( false == app->worldGeometry.wasLoaded ) {
 
@@ -396,7 +396,7 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 
 static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<hello_world_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
 	le::Extent2D passExtent = encoder.getRenderpassExtent();
 

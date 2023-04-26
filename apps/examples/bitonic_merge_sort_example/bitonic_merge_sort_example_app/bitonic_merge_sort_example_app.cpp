@@ -224,7 +224,7 @@ static bool pass_sort_setup( le_renderpass_o* rp_, void* user_data ) {
 // ----------------------------------------------------------------------
 
 static void pass_noise_execute( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	le::Encoder encoder{ encoder_ };
+	le::TransferEncoder encoder{ encoder_ };
 	auto        app = static_cast<app_o*>( user_data );
 
 	std::vector<uint32_t> buffer_initial_data;
@@ -283,7 +283,7 @@ static void pass_upload_image_execute( le_command_buffer_encoder_o* encoder_, vo
 	// for now, we just grab that many pixels and be done with it, if the image is larger,
 	// or complain that the image is not large enough, if it isn't.
 
-	le::Encoder encoder{ encoder_ };
+	le::TransferEncoder encoder{ encoder_ };
 
 	uint32_t num_bytes = app->pixels_data->w * app->pixels_data->h * app->pixels_data->bytes_per_channel * app->pixels_data->num_channels;
 
@@ -301,7 +301,7 @@ static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user
 
 	log.info( "running compute pass..." );
 
-	le::Encoder encoder{ encoder_ };
+	le::ComputeEncoder encoder{ encoder_ };
 	auto        app = static_cast<app_o*>( user_data );
 
 	size_t n = app->pixels_data->w * app->pixels_data->h;
@@ -453,7 +453,7 @@ static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user
 // Draw contents of buffer to screen
 static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto        app = static_cast<bitonic_merge_sort_example_app_o*>( user_data );
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
 	// Draw main scene
 
