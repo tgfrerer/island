@@ -4351,60 +4351,70 @@ static bool updateArguments( const VkDevice&                    device,
 		static constexpr auto NULL_VK_IMAGE_VIEW                 = VkImageView( nullptr );
 		static constexpr auto NULL_VK_ACCELERATION_STRUCTURE_KHR = VkAccelerationStructureKHR( nullptr );
 
-		for ( auto& a : argumentState.setData[ setId ] ) {
+		// Whether to test that that arguments are set correctly
+		// - we don't do this check by default if we're running a release build
+#ifdef NDEBUG
+		LE_SETTING( bool, LE_SETTING_BACKEND_SHOULD_CHECK_ARGUMENT_STATE, false );
+#else
+		LE_SETTING( bool, LE_SETTING_BACKEND_SHOULD_CHECK_ARGUMENT_STATE, true );
+#endif
 
-			switch ( a.type ) {
-			case le::DescriptorType::eStorageBufferDynamic: //
-			case le::DescriptorType::eUniformBuffer:        //
-			case le::DescriptorType::eUniformBufferDynamic: //
-			case le::DescriptorType::eStorageBuffer:        // fall-through
-				if ( NULL_VK_BUFFER == a.bufferInfo.buffer ) {
-					// if buffer must have valid buffer bound
-					logger.error( "Buffer argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
-					              get_argument_name( setId, a.bindingNumber ),
-					              setId,
-					              a.bindingNumber,
-					              a.arrayIndex );
-					argumentsOk = false;
-				}
-				break;
-			case le::DescriptorType::eCombinedImageSampler:
-			case le::DescriptorType::eSampledImage:
-			case le::DescriptorType::eStorageImage:
-				argumentsOk &= ( NULL_VK_IMAGE_VIEW != a.imageInfo.imageView ); // if sampler, must have valid image view
-				if ( NULL_VK_IMAGE_VIEW == a.imageInfo.imageView ) {
-					// if image - must have valid imageview bound
-					logger.error( "Image argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
-					              get_argument_name( setId, a.bindingNumber ),
-					              setId,
-					              a.bindingNumber,
-					              a.arrayIndex );
-					argumentsOk = false;
-				}
-				break;
-			case le::DescriptorType::eAccelerationStructureKhr:
-				argumentsOk &= ( NULL_VK_ACCELERATION_STRUCTURE_KHR != a.accelerationStructureInfo.accelerationStructure );
-				if ( NULL_VK_ACCELERATION_STRUCTURE_KHR == a.accelerationStructureInfo.accelerationStructure ) {
-					// if image - must have valid acceleration structure bound
-					logger.error( "Acceleration Structure argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
-					              get_argument_name( setId, a.bindingNumber ),
-					              setId,
-					              a.bindingNumber,
-					              a.arrayIndex );
-					argumentsOk = false;
+		if ( *LE_SETTING_BACKEND_SHOULD_CHECK_ARGUMENT_STATE ) [[unlikely]] {
+			for ( auto& a : argumentState.setData[ setId ] ) {
+
+				switch ( a.type ) {
+				case le::DescriptorType::eStorageBufferDynamic: //
+				case le::DescriptorType::eUniformBuffer:        //
+				case le::DescriptorType::eUniformBufferDynamic: //
+				case le::DescriptorType::eStorageBuffer:        // fall-through
+					if ( NULL_VK_BUFFER == a.bufferInfo.buffer ) {
+						// if buffer must have valid buffer bound
+						logger.error( "Buffer argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
+						              get_argument_name( setId, a.bindingNumber ),
+						              setId,
+						              a.bindingNumber,
+						              a.arrayIndex );
+						argumentsOk = false;
+					}
+					break;
+				case le::DescriptorType::eCombinedImageSampler:
+				case le::DescriptorType::eSampledImage:
+				case le::DescriptorType::eStorageImage:
+					argumentsOk &= ( NULL_VK_IMAGE_VIEW != a.imageInfo.imageView ); // if sampler, must have valid image view
+					if ( NULL_VK_IMAGE_VIEW == a.imageInfo.imageView ) {
+						// if image - must have valid imageview bound
+						logger.error( "Image argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
+						              get_argument_name( setId, a.bindingNumber ),
+						              setId,
+						              a.bindingNumber,
+						              a.arrayIndex );
+						argumentsOk = false;
+					}
+					break;
+				case le::DescriptorType::eAccelerationStructureKhr:
+					argumentsOk &= ( NULL_VK_ACCELERATION_STRUCTURE_KHR != a.accelerationStructureInfo.accelerationStructure );
+					if ( NULL_VK_ACCELERATION_STRUCTURE_KHR == a.accelerationStructureInfo.accelerationStructure ) {
+						// if image - must have valid acceleration structure bound
+						logger.error( "Acceleration Structure argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
+						              get_argument_name( setId, a.bindingNumber ),
+						              setId,
+						              a.bindingNumber,
+						              a.arrayIndex );
+						argumentsOk = false;
+					}
+
+					break;
+				default:
+					argumentsOk &= false;
+					// TODO: check arguments for other types of descriptors
+					assert( false && "unhandled descriptor type" );
+					break;
 				}
 
-				break;
-			default:
-				argumentsOk &= false;
-				// TODO: check arguments for other types of descriptors
-				assert( false && "unhandled descriptor type" );
-				break;
-			}
-
-			if ( false == argumentsOk ) {
-				assert( false && "Argument state did not fit template" );
-				break;
+				if ( false == argumentsOk ) {
+					assert( false && "Argument state did not fit template" );
+					break;
+				}
 			}
 		}
 
@@ -5225,6 +5235,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			if ( commandStream != nullptr && numCommands > 0 ) {
 
 				le_pipeline_manager_o* pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
+				assert( pipelineManager );
 
 				std::vector<VkBuffer>         vertexInputBindings( maxVertexInputBindings, nullptr );
 				void*                         dataIt = commandStream;
