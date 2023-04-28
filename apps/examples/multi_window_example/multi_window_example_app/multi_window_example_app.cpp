@@ -58,7 +58,7 @@ static void reset_camera( multi_window_example_app_o* self, window_and_swapchain
 static multi_window_example_app_o* app_create() {
 	auto app = new ( multi_window_example_app_o );
 
-	LE_SETTING( bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
+	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
 
 	le::Window::Settings settings_0;
 	settings_0
