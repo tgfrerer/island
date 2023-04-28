@@ -318,19 +318,20 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*  self,
                                      le_buf_resource_handle const* pBuffers,
                                      uint64_t const*               pOffsets ) {
 
-	// NOTE: pBuffers will hold ids for virtual buffers, we must match these
+	// NOTE: pBuffers might hold ids for virtual buffers, we must match these
 	// in the backend to actual vulkan buffer ids.
-	// Buffer must be annotated whether it is transient or not
+	// Buffer must will be annotated whether it is transient or not
 
-	size_t data_buffers_size = ( sizeof( le_resource_handle ) ) * bindingCount;
+	size_t data_buffers_size = ( sizeof( le_buf_resource_handle ) ) * bindingCount;
 	size_t data_offsets_size = ( sizeof( uint64_t ) ) * bindingCount;
-	size_t data_size         = data_buffers_size + data_offsets_size;
-	auto   cmd               = emplace_cmd<le::CommandBindVertexBuffers>( self->mCommandStream, data_size ); // placement new!
 
-	void* dataBuffers = ( cmd + 1 );
-	void* dataOffsets = ( static_cast<char*>( dataBuffers ) + data_buffers_size ); // start address for offset data
+	size_t data_size = data_buffers_size + data_offsets_size;
+	auto   cmd       = emplace_cmd<le::CommandBindVertexBuffers>( self->mCommandStream, data_size ); // placement new!
 
-	cmd->info = { firstBinding, bindingCount, static_cast<le_buf_resource_handle*>( dataBuffers ), static_cast<uint64_t*>( dataOffsets ) };
+	le_buf_resource_handle* dataBuffers = ( le_buf_resource_handle* )( cmd + 1 );
+	uint64_t*               dataOffsets = ( uint64_t* )( dataBuffers + bindingCount ); // start address for offset data
+
+	cmd->info = { firstBinding, bindingCount };
 	cmd->header.info.size += data_size; // we must increase the size of this command by its payload size
 
 	memcpy( dataBuffers, pBuffers, data_buffers_size );

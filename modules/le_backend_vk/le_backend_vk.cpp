@@ -6028,16 +6028,27 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// Bind vertex buffers by looking up le resources and matching them with their corresponding
 						// vk resources.
-						// We optimise for the likely case that the same resource is given a number of times:
-						// we cache the last lookup of a vk_resource, and if the same le_resource is requested again,
-						// we can use the cached value instead of having to do a lookup.
 
-						le_buf_resource_handle le_buffer    = le_cmd->info.pBuffers[ 0 ];
-						VkBuffer               vk_buffer    = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+						// First, we must relocate pointers into the command stream - we know that this command
+						// is immediately followed by its payload on the command stream.
+
+						// The payload is two tightly packed arrays
+						// - le_buf_handle[bindingCount]
+						// - uint64_t[bindingCount]
+
+						le_buf_resource_handle* p_buffers = ( le_buf_resource_handle* )( le_cmd + 1 );
+						uint64_t*               p_offsets = ( uint64_t* )( p_buffers + le_cmd->info.bindingCount );
+
+						le_buf_resource_handle le_buffer = *p_buffers;
+
+						VkBuffer vk_buffer                  = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
 						vertexInputBindings[ firstBinding ] = vk_buffer;
 
 						for ( uint32_t b = 1; b != numBuffers; ++b ) {
-							le_buf_resource_handle next_buffer = le_cmd->info.pBuffers[ b ];
+							// We optimise for the likely case that the same resource is given a number of times:
+							// we cache the last lookup of a vk_resource, and if the same le_resource is requested again,
+							// we can use the cached value instead of having to do a lookup.
+							le_buf_resource_handle next_buffer = p_buffers[ b ];
 							if ( next_buffer != le_buffer ) {
 								le_buffer = next_buffer;
 								vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
@@ -6045,7 +6056,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							vertexInputBindings[ b + firstBinding ] = vk_buffer;
 						}
 
-						vkCmdBindVertexBuffers( cmd, le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
+						vkCmdBindVertexBuffers( cmd, le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], p_offsets );
 					} break;
 
 					case le::CommandType::eWriteToBuffer: {

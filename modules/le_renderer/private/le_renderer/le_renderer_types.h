@@ -745,8 +745,6 @@ struct CommandBindVertexBuffers {
 	struct {
 		uint32_t                firstBinding;
 		uint32_t                bindingCount;
-		le_buf_resource_handle* pBuffers;
-		uint64_t*               pOffsets;
 	} info;
 };
 
