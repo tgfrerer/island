@@ -180,7 +180,7 @@ struct BackendRenderPass {
 
 	std::vector<le_resource_handle> resources; // resources used with this renderpass
 
-	struct le_command_buffer_encoder_o* encoder;
+	struct le_command_buffer_encoder_o* encoder; // owning
 
 	char                        debugName[ 256 ] = ""; // Debug name for renderpass
 	std::vector<ExplicitSyncOp> explicit_sync_ops;     // explicit sync operations for renderpass, these execute before renderpass begins.
