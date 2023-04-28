@@ -42,9 +42,44 @@ static inline le_allocator_o* fetch_allocator( le_allocator_o** ppAlloc ) {
 	return result;
 }
 
+struct command_stream_t {
+	char*  data     = nullptr;
+	size_t size     = 0;
+	size_t capacity = 0;
+
+	command_stream_t()
+	    : size( 0 )
+	    , capacity( 8 ) {
+		data = ( char* )malloc( capacity );
+	}
+
+	~command_stream_t() {
+
+		if ( data ) {
+			free( data );
+			size = 0;
+			data = nullptr;
+		}
+	}
+};
+
 // ----------------------------------------------------------------------
 
-#define EMPLACE_CMD( x ) new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize )( x )
+template <typename T>
+inline T* emplace_cmd( command_stream_t& cmd_stream, size_t payload_sz = 0 ) {
+
+	size_t old_sz = cmd_stream.size;
+	size_t new_sz = old_sz + sizeof( T ) + payload_sz;
+
+	while ( new_sz > cmd_stream.capacity ) {
+		cmd_stream.capacity *= 2;
+		cmd_stream.data = ( char* )realloc( cmd_stream.data, cmd_stream.capacity );
+	}
+
+	cmd_stream.size = new_sz;
+
+	return new ( cmd_stream.data + old_sz )( T );
+}
 
 // ----------------------------------------------------------------------
 
@@ -74,8 +109,7 @@ struct le_shader_binding_table_o {
 // ----------------------------------------------------------------------
 
 struct le_command_buffer_encoder_o {
-	char                                    mCommandStream[ 4096 * 512 ]; // 512 pages of memory = 2MB
-	size_t                                  mCommandStreamSize = 0;
+	command_stream_t                        mCommandStream;
 	size_t                                  mCommandCount      = 0;
 	le_allocator_o**                        ppAllocator        = nullptr; // allocator list is owned by backend, externally
 	le_pipeline_manager_o*                  pipelineManager    = nullptr; // non-owning: owned by backend.
@@ -119,10 +153,9 @@ static void cbe_get_extent( le_command_buffer_encoder_o* self, le::Extent2D* ext
 
 static void cbe_set_line_width( le_command_buffer_encoder_o* self, float lineWidth ) {
 
-	auto cmd        = EMPLACE_CMD( le::CommandSetLineWidth ); // placement new into data array
+	auto cmd        = emplace_cmd<le::CommandSetLineWidth>( self->mCommandStream ); // placement new into data array
 	cmd->info.width = lineWidth;
 
-	self->mCommandStreamSize += sizeof( le::CommandSetLineWidth );
 	self->mCommandCount++;
 }
 
@@ -130,12 +163,13 @@ static void cbe_set_line_width( le_command_buffer_encoder_o* self, float lineWid
 
 static void cbe_dispatch( le_command_buffer_encoder_o* self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ ) {
 
-	auto cmd  = EMPLACE_CMD( le::CommandDispatch ); // placement new!
+	auto cmd  = emplace_cmd<le::CommandDispatch>( self->mCommandStream ); // placement new!
 	cmd->info = { groupCountX, groupCountY, groupCountZ, 0 };
 
-	self->mCommandStreamSize += sizeof( le::CommandDispatch );
 	self->mCommandCount++;
 }
+
+// ----------------------------------------------------------------------
 
 static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*  self,
                                        le::PipelineStageFlags2 const srcStageMask,
@@ -145,7 +179,7 @@ static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*  self,
                                        uint64_t const                offset,
                                        uint64_t const                range ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandBufferMemoryBarrier ); // placement new!
+	auto cmd = emplace_cmd<le::CommandBufferMemoryBarrier>( self->mCommandStream ); // placement new!
 
 	cmd->info.srcStageMask  = srcStageMask;
 	cmd->info.dstStageMask  = dstStageMask;
@@ -154,17 +188,15 @@ static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*  self,
 	cmd->info.offset        = offset;
 	cmd->info.range         = range;
 
-	self->mCommandStreamSize += sizeof( le::CommandBufferMemoryBarrier );
 	self->mCommandCount++;
 }
 
 // ----------------------------------------------------------------------
 static void cbe_trace_rays( le_command_buffer_encoder_o* self, uint32_t width, uint32_t height, uint32_t depth ) {
 
-	auto cmd  = EMPLACE_CMD( le::CommandTraceRays ); // placement new!
+	auto cmd  = emplace_cmd<le::CommandTraceRays>( self->mCommandStream ); // placement new!
 	cmd->info = { width, height, depth, 0 };
 
-	self->mCommandStreamSize += sizeof( le::CommandTraceRays );
 	self->mCommandCount++;
 }
 // ----------------------------------------------------------------------
@@ -175,10 +207,9 @@ static void cbe_draw( le_command_buffer_encoder_o* self,
                       uint32_t                     firstVertex,
                       uint32_t                     firstInstance ) {
 
-	auto cmd  = EMPLACE_CMD( le::CommandDraw ); // placement new!
+	auto cmd  = emplace_cmd<le::CommandDraw>( self->mCommandStream ); // placement new!
 	cmd->info = { vertexCount, instanceCount, firstVertex, firstInstance };
 
-	self->mCommandStreamSize += sizeof( le::CommandDraw );
 	self->mCommandCount++;
 }
 
@@ -191,7 +222,7 @@ static void cbe_draw_indexed( le_command_buffer_encoder_o* self,
                               int32_t                      vertexOffset,
                               uint32_t                     firstInstance ) {
 
-	auto cmd  = EMPLACE_CMD( le::CommandDrawIndexed );
+	auto cmd  = emplace_cmd<le::CommandDrawIndexed>( self->mCommandStream );
 	cmd->info = {
 	    indexCount,
 	    instanceCount,
@@ -201,7 +232,6 @@ static void cbe_draw_indexed( le_command_buffer_encoder_o* self,
 	    0 // padding must be set to zero
 	};
 
-	self->mCommandStreamSize += sizeof( le::CommandDrawIndexed );
 	self->mCommandCount++;
 }
 
@@ -210,10 +240,9 @@ static void cbe_draw_mesh_tasks( le_command_buffer_encoder_o* self,
                                  uint32_t                     taskCount,
                                  uint32_t                     firstTask ) {
 
-	auto cmd  = EMPLACE_CMD( le::CommandDrawMeshTasks ); // placement new!
+	auto cmd  = emplace_cmd<le::CommandDrawMeshTasks>( self->mCommandStream ); // placement new!
 	cmd->info = { taskCount, firstTask };
 
-	self->mCommandStreamSize += sizeof( le::CommandDrawMeshTasks );
 	self->mCommandCount++;
 }
 // ----------------------------------------------------------------------
@@ -223,19 +252,19 @@ static void cbe_set_viewport( le_command_buffer_encoder_o* self,
                               const uint32_t               viewportCount,
                               const le::Viewport*          pViewports ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandSetViewport ); // placement new!
+	size_t data_size = sizeof( le::Viewport ) * viewportCount;
+	auto   cmd       = emplace_cmd<le::CommandSetViewport>( self->mCommandStream, data_size ); // placement new!
 
 	// We point data to the next available position in the data stream
 	// so that we can store the data for viewports inline.
 	void*  data     = ( cmd + 1 ); // note: this increments a le::CommandSetViewport pointer by one time its object size, then gets the address
-	size_t dataSize = sizeof( le::Viewport ) * viewportCount;
 
 	cmd->info = { firstViewport, viewportCount };
-	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
+	cmd->header.info.size += data_size; // we must increase the size of this command by its payload size
 
 	if ( /* DISABLES CODE */ ( true ) ) {
 
-		memcpy( data, pViewports, dataSize );
+		memcpy( data, pViewports, data_size );
 
 	} else {
 
@@ -256,7 +285,6 @@ static void cbe_set_viewport( le_command_buffer_encoder_o* self,
 		}
 	}
 
-	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 };
 
@@ -267,19 +295,18 @@ static void cbe_set_scissor( le_command_buffer_encoder_o* self,
                              const uint32_t               scissorCount,
                              le::Rect2D const*            pScissors ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandSetScissor ); // placement new!
+	size_t data_size = sizeof( le::Rect2D ) * scissorCount;
+	auto   cmd       = emplace_cmd<le::CommandSetScissor>( self->mCommandStream, data_size ); // placement new!
 
 	// We point to the next available position in the data stream
 	// so that we can store the data for scissors inline.
 	void*  data     = ( cmd + 1 );
-	size_t dataSize = sizeof( le::Rect2D ) * scissorCount;
 
 	cmd->info = { firstScissor, scissorCount };
-	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
+	cmd->header.info.size += data_size; // we must increase the size of this command by its payload size
 
-	memcpy( data, pScissors, dataSize );
+	memcpy( data, pScissors, data_size );
 
-	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 }
 
@@ -295,21 +322,20 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*  self,
 	// in the backend to actual vulkan buffer ids.
 	// Buffer must be annotated whether it is transient or not
 
-	auto cmd = EMPLACE_CMD( le::CommandBindVertexBuffers ); // placement new!
-
-	size_t dataBuffersSize = ( sizeof( le_resource_handle ) ) * bindingCount;
-	size_t dataOffsetsSize = ( sizeof( uint64_t ) ) * bindingCount;
+	size_t data_buffers_size = ( sizeof( le_resource_handle ) ) * bindingCount;
+	size_t data_offsets_size = ( sizeof( uint64_t ) ) * bindingCount;
+	size_t data_size         = data_buffers_size + data_offsets_size;
+	auto   cmd               = emplace_cmd<le::CommandBindVertexBuffers>( self->mCommandStream, data_size ); // placement new!
 
 	void* dataBuffers = ( cmd + 1 );
-	void* dataOffsets = ( static_cast<char*>( dataBuffers ) + dataBuffersSize ); // start address for offset data
+	void* dataOffsets = ( static_cast<char*>( dataBuffers ) + data_buffers_size ); // start address for offset data
 
 	cmd->info = { firstBinding, bindingCount, static_cast<le_buf_resource_handle*>( dataBuffers ), static_cast<uint64_t*>( dataOffsets ) };
-	cmd->header.info.size += dataBuffersSize + dataOffsetsSize; // we must increase the size of this command by its payload size
+	cmd->header.info.size += data_size; // we must increase the size of this command by its payload size
 
-	memcpy( dataBuffers, pBuffers, dataBuffersSize );
-	memcpy( dataOffsets, pOffsets, dataOffsetsSize );
+	memcpy( dataBuffers, pBuffers, data_buffers_size );
+	memcpy( dataOffsets, pOffsets, data_offsets_size );
 
-	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 }
 
@@ -319,12 +345,11 @@ static void cbe_bind_index_buffer( le_command_buffer_encoder_o* self,
                                    uint64_t                     offset,
                                    le::IndexType const&         indexType ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandBindIndexBuffer );
+	auto cmd = emplace_cmd<le::CommandBindIndexBuffer>( self->mCommandStream );
 
 	// Note: indexType==0 means uint16, indexType==1 means uint32
 	cmd->info = { buffer, offset, indexType, 0 };
 
-	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 }
 
@@ -414,14 +439,13 @@ static void cbe_set_index_data( le_command_buffer_encoder_o*                    
 
 static void cbe_bind_argument_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandBindArgumentBuffer );
+	auto cmd = emplace_cmd<le::CommandBindArgumentBuffer>( self->mCommandStream );
 
 	cmd->info.argument_name_id = argumentName;
 	cmd->info.buffer_id        = bufferId;
 	cmd->info.offset           = offset;
 	cmd->info.range            = range;
 
-	self->mCommandStreamSize += sizeof( le::CommandBindArgumentBuffer );
 	self->mCommandCount++;
 }
 
@@ -465,13 +489,12 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o* self,
 
 static void cbe_set_argument_texture( le_command_buffer_encoder_o* self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTexture );
+	auto cmd = emplace_cmd<le::CommandSetArgumentTexture>( self->mCommandStream );
 
 	cmd->info.argument_name_id = argumentName;
 	cmd->info.texture_id       = textureId;
 	cmd->info.array_index      = arrayIndex;
 
-	self->mCommandStreamSize += sizeof( le::CommandSetArgumentTexture );
 	self->mCommandCount++;
 }
 
@@ -479,13 +502,12 @@ static void cbe_set_argument_texture( le_command_buffer_encoder_o* self, le_text
 
 static void cbe_set_argument_image( le_command_buffer_encoder_o* self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandSetArgumentImage );
+	auto cmd = emplace_cmd<le::CommandSetArgumentImage>( self->mCommandStream );
 
 	cmd->info.argument_name_id = argumentName;
 	cmd->info.image_id         = imageId;
 	cmd->info.array_index      = arrayIndex;
 
-	self->mCommandStreamSize += sizeof( le::CommandSetArgumentImage );
 	self->mCommandCount++;
 }
 
@@ -493,13 +515,12 @@ static void cbe_set_argument_image( le_command_buffer_encoder_o* self, le_img_re
 
 static void cbe_set_argument_tlas( le_command_buffer_encoder_o* self, le_tlas_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTlas );
+	auto cmd = emplace_cmd<le::CommandSetArgumentTlas>( self->mCommandStream );
 
 	cmd->info.argument_name_id = argumentName;
 	cmd->info.tlas_id          = tlasId;
 	cmd->info.array_index      = arrayIndex;
 
-	self->mCommandStreamSize += sizeof( le::CommandSetArgumentTlas );
 	self->mCommandCount++;
 }
 
@@ -508,11 +529,10 @@ static void cbe_set_argument_tlas( le_command_buffer_encoder_o* self, le_tlas_re
 static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o* self, le_gpso_handle gpsoHandle ) {
 
 	// -- insert graphics PSO pointer into command stream
-	auto cmd = EMPLACE_CMD( le::CommandBindGraphicsPipeline );
+	auto cmd = emplace_cmd<le::CommandBindGraphicsPipeline>( self->mCommandStream );
 
 	cmd->info.gpsoHandle = gpsoHandle;
 
-	self->mCommandStreamSize += sizeof( le::CommandBindGraphicsPipeline );
 	self->mCommandCount++;
 }
 
@@ -521,7 +541,7 @@ static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o* self, le_gp
 static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_binding_table_o* sbt ) {
 
 	// -- insert rtx PSO pointer into command stream
-	auto cmd = EMPLACE_CMD( le::CommandBindRtxPipeline );
+	auto cmd = emplace_cmd<le::CommandBindRtxPipeline>( self->mCommandStream );
 
 	using namespace le_backend_vk;
 
@@ -710,7 +730,6 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_
 	// query handles from pipeline manager.
 	// allocate data, point to data.
 
-	self->mCommandStreamSize += sizeof( le::CommandBindRtxPipeline );
 	self->mCommandCount++;
 }
 
@@ -719,11 +738,10 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_
 static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o* self, le_cpso_handle cpsoHandle ) {
 
 	// -- insert compute PSO pointer into command stream
-	auto cmd = EMPLACE_CMD( le::CommandBindComputePipeline );
+	auto cmd = emplace_cmd<le::CommandBindComputePipeline>( self->mCommandStream );
 
 	cmd->info.cpsoHandle = cpsoHandle;
 
-	self->mCommandStreamSize += sizeof( le::CommandBindComputePipeline );
 	self->mCommandCount++;
 }
 
@@ -731,7 +749,7 @@ static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o* self, le_cps
 
 static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
+	auto cmd = emplace_cmd<le::CommandWriteToBuffer>( self->mCommandStream );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 	void*                  memAddr;
@@ -759,7 +777,6 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buf_resou
 		return;
 	}
 
-	self->mCommandStreamSize += sizeof( le::CommandWriteToBuffer );
 	self->mCommandCount++;
 }
 
@@ -773,7 +790,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
 
 	// ----------| invariant: resource info represents an image
 
-	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
+	auto cmd = emplace_cmd<le::CommandWriteToImage>( self->mCommandStream );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 	void*                  memAddr;
@@ -812,14 +829,13 @@ static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
 		return;
 	}
 	// increase command stream size by size of command, plus size of regions attached to command.
-	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 }
 
 // ----------------------------------------------------------------------
 static void cbe_set_push_constant_data( le_command_buffer_encoder_o* self, void const* src_data, uint64_t num_bytes ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandSetPushConstantData ); // placement new!
+	auto cmd = emplace_cmd<le::CommandSetPushConstantData>( self->mCommandStream, num_bytes ); // placement new!
 
 	// We point data to the next available position in the data stream
 	// so that we can store the data for push constants inline.
@@ -831,7 +847,6 @@ static void cbe_set_push_constant_data( le_command_buffer_encoder_o* self, void 
 	// copy data into command stream
 	memcpy( data, src_data, num_bytes );
 
-	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 }
 // ----------------------------------------------------------------------
@@ -846,9 +861,9 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o*         self,
 		return;
 	}
 
-	auto   cmd       = EMPLACE_CMD( le::CommandBuildRtxBlas );
-	void*  data      = cmd + 1;
 	size_t data_size = sizeof( le_resource_handle ) * handles_count;
+	auto   cmd       = emplace_cmd<le::CommandBuildRtxBlas>( self->mCommandStream, data_size );
+	void*  data      = cmd + 1;
 
 	cmd->info                    = {};
 	cmd->info.blas_handles_count = handles_count;
@@ -856,7 +871,6 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o*         self,
 
 	memcpy( data, p_blas_handles, data_size );
 
-	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 }
 
@@ -868,7 +882,8 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o*      self,
                          le_blas_resource_handle const*    blas_handles,
                          uint32_t                          instances_count ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandBuildRtxTlas );
+	size_t data_size = sizeof( le_resource_handle ) * instances_count;
+	auto   cmd       = emplace_cmd<le::CommandBuildRtxTlas>( self->mCommandStream, data_size );
 
 	cmd->info                          = {};
 	cmd->info.tlas_handle              = *tlas_handle;
@@ -910,13 +925,11 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o*      self,
 	// VkAccelerationStructureHandles in the backend, where the names of the actual objects
 	// are known.
 
-	size_t payload_size = sizeof( le_resource_handle ) * instances_count;
-	cmd->header.info.size += payload_size;
+	cmd->header.info.size += data_size;
 
 	void* memAddr = cmd + 1; // move to position just after command
-	memcpy( memAddr, blas_handles, payload_size );
+	memcpy( memAddr, blas_handles, data_size );
 
-	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 }
 
@@ -927,8 +940,8 @@ static void cbe_get_encoded_data( le_command_buffer_encoder_o* self,
                                   size_t*                      numBytes,
                                   size_t*                      numCommands ) {
 
-	*data        = self->mCommandStream;
-	*numBytes    = self->mCommandStreamSize;
+	*data        = self->mCommandStream.data;
+	*numBytes    = self->mCommandStream.size;
 	*numCommands = self->mCommandCount;
 }
 
