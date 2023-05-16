@@ -1,6 +1,7 @@
 #include "le_core.h"
 #include "le_backend_vk.h"
 #include "le_log.h"
+#include "private/le_backend_vk/le_command_stream_t.h"
 #include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
 #include "le_backend_types_internal.h"      // includes vulkan.hpp
 #include "le_swapchain_vk.h"
@@ -612,6 +613,8 @@ struct BackendFrameData {
 
 	le_staging_allocator_o* stagingAllocator; // owning: allocator for large objects to GPU memory
 
+	std::vector<le_command_stream_t*> command_streams; // owning; these must be destroyed when frame gets destroyed.
+
 	bool must_create_queues_dot_graph = false;
 };
 
@@ -830,28 +833,36 @@ static void backend_destroy( le_backend_o* self ) {
 
 		vmaDestroyPool( self->mAllocator, frameData.allocationPool );
 
-		// destroy staging allocator
+		// Destroy staging allocator
 		le_staging_allocator_i.destroy( frameData.stagingAllocator );
 
-		// remove any binned resources
-		for ( auto& a : frameData.binnedResources ) {
+		{ // Remove any binned resources
+			for ( auto& a : frameData.binnedResources ) {
 
-			if ( a.second.info.isBuffer() ) {
-				vkDestroyBuffer( device, a.second.as.buffer, nullptr );
-			} else {
-				vkDestroyImage( device, a.second.as.image, nullptr );
+				if ( a.second.info.isBuffer() ) {
+					vkDestroyBuffer( device, a.second.as.buffer, nullptr );
+				} else {
+					vkDestroyImage( device, a.second.as.image, nullptr );
+				}
+				if ( a.second.info.isBlas() ) {
+					vkDestroyBuffer( device, a.second.info.blasInfo.buffer, nullptr );
+					vkDestroyAccelerationStructureKHR( device, a.second.as.blas, nullptr );
+				}
+				if ( a.second.info.isTlas() ) {
+					vkDestroyBuffer( device, a.second.info.tlasInfo.buffer, nullptr );
+					vkDestroyAccelerationStructureKHR( device, a.second.as.tlas, nullptr );
+				}
+				vmaFreeMemory( self->mAllocator, a.second.allocation );
 			}
-			if ( a.second.info.isBlas() ) {
-				vkDestroyBuffer( device, a.second.info.blasInfo.buffer, nullptr );
-				vkDestroyAccelerationStructureKHR( device, a.second.as.blas, nullptr );
-			}
-			if ( a.second.info.isTlas() ) {
-				vkDestroyBuffer( device, a.second.info.tlasInfo.buffer, nullptr );
-				vkDestroyAccelerationStructureKHR( device, a.second.as.tlas, nullptr );
-			}
-			vmaFreeMemory( self->mAllocator, a.second.allocation );
+			frameData.binnedResources.clear();
 		}
-		frameData.binnedResources.clear();
+
+		{ // Clear command streams
+			for ( auto& cs : frameData.command_streams ) {
+				delete ( cs );
+			}
+			frameData.command_streams.clear();
+		}
 	}
 
 	self->mFrames.clear();
@@ -2104,6 +2115,11 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 		}
 	}
 	frame.passes.clear();
+
+	// Reset command streams
+	for ( auto cs : frame.command_streams ) {
+		cs->reset();
+	}
 
 	frame.frameNumber = self->mFramesCount++; // note post-increment
 
@@ -4236,6 +4252,23 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 static le_allocator_o** backend_get_transient_allocators( le_backend_o* self, size_t frameIndex ) {
 	return self->mFrames[ frameIndex ].allocators.data();
 }
+
+// ----------------------------------------------------------------------
+
+static le_command_stream_t** backend_get_frame_command_streams( le_backend_o* self, size_t frameIndex, size_t num_command_streams ) {
+
+	// Check if the command stream pool has enough free command stream elements in the pool for us
+	// If no, we must add some additional command streams
+
+	auto& cmd_streams = self->mFrames[ frameIndex ].command_streams;
+
+	// We should maybe find a nicer way to do this...
+	while ( cmd_streams.size() < num_command_streams ) {
+		cmd_streams.insert( cmd_streams.end(), new le_command_stream_t() );
+	}
+
+	return cmd_streams.data();
+};
 
 // ----------------------------------------------------------------------
 static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators ) {
@@ -7803,6 +7836,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.get_data_frames_count           = backend_get_data_frames_count;
 	vk_backend_i.get_transient_allocators        = backend_get_transient_allocators;
 	vk_backend_i.get_staging_allocator           = backend_get_staging_allocator;
+	vk_backend_i.get_frame_command_streams       = backend_get_frame_command_streams;
 	vk_backend_i.poll_frame_fence                = backend_poll_frame_fence;
 	vk_backend_i.clear_frame                     = backend_clear_frame;
 	vk_backend_i.acquire_physical_resources      = backend_acquire_physical_resources;

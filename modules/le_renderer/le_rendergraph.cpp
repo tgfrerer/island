@@ -1008,6 +1008,8 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 	const size_t numPasses = self->passes.size();
 
+	le_command_stream_t** const ppCommandStreams = vk_backend_i.get_frame_command_streams( backend, frameIndex, numPasses );
+
 	for ( size_t i = 0; i != numPasses; ++i ) {
 		auto& pass = self->passes[ i ];
 
@@ -1031,7 +1033,8 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 				}
 			}
 
-			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, &pass_extents ); // NOTE: we must manually track the lifetime of encoder!
+			// NOTE: we must manually track the lifetime of encoder!
+			pass->encoder = encoder_i.create( ppAllocators, ppCommandStreams[ i ], pipelineCache, stagingAllocator, &pass_extents );
 
 			if ( pass->type == le::QueueFlagBits::eGraphics ) {
 

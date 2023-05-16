@@ -13,6 +13,7 @@ struct le_command_buffer_encoder_o;
 struct le_backend_o;
 struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
 struct le_pipeline_manager_o;
+struct le_command_stream_t; // ffdecl
 
 struct le_allocator_o;         // from backend
 struct le_staging_allocator_o; // from backend
@@ -137,7 +138,7 @@ struct le_renderer_api {
    	         uint64_t             offset;
         };
 
-		le_command_buffer_encoder_o *( *create                 )( le_allocator_o **allocator, le_pipeline_manager_o* pipeline_cache, le_staging_allocator_o* stagingAllocator, le::Extent2D const* extent );
+		le_command_buffer_encoder_o *( *create                 )( le_allocator_o **allocator, le_command_stream_t* command_stream, le_pipeline_manager_o* pipeline_cache, le_staging_allocator_o* stagingAllocator, le::Extent2D const* extent );
 		void                         ( *destroy                )( le_command_buffer_encoder_o *obj );
 
 		le_pipeline_manager_o*		 ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self);

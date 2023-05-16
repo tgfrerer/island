@@ -17,6 +17,7 @@ struct le_buffer_o;
 struct le_allocator_o;
 struct le_staging_allocator_o;
 struct le_resource_handle_t; // defined in renderer_types
+struct le_command_stream_t;
 
 struct le_pipeline_manager_o;
 
@@ -132,6 +133,7 @@ struct le_backend_vk_api {
 
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
+		le_command_stream_t**  ( *get_frame_command_streams  ) ( le_backend_o* self, size_t frameIndex, size_t num_command_streams);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
 		le_shader_module_handle( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const le::ShaderStageFlagBits& moduleType, char const * macro_definitions, le_shader_module_handle handle, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
