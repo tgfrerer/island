@@ -1980,7 +1980,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 
 	static_assert( sizeof( std::underlying_type<VkShaderStageFlagBits>::type ) == sizeof( uint32_t ), "ShaderStageFlagBits must be same size as uint32_t" );
 
-	VkShaderStageFlags active_shader_stages;
+	VkShaderStageFlags active_shader_stages      = 0;
 	uint64_t           push_constant_buffer_size = 0;
 	shader_modules_collect_info( self->shaderManager, shader_modules, shader_modules_count, &push_constant_buffer_size, &active_shader_stages );
 	info.active_vk_shader_stages = uint32_t( active_shader_stages );
