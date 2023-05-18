@@ -52,9 +52,19 @@ ISL_API_ATTR void** le_core_produce_dictionary_entry( uint64_t key ) {
 }
 
 // ----------------------------------------------------------------------
+// Return heap-allocated char *, uniquely indexed by key
+ISL_API_ATTR char const* le_core_produce_string_literal( char const* string_literal ) {
+	static std::mutex                                mtx;
+	auto                                             lock = std::scoped_lock( mtx );
+	static std::unordered_map<uint64_t, std::string> strings;
+	auto [ p, was_inserted ] = strings.insert( { hash_64_fnv1a( string_literal ), string_literal } );
+	return p->second.c_str();
+}
+
+// ----------------------------------------------------------------------
 
 #include "private/le_core/le_settings_private_types.inl"
-
+// ----------------------------------------------------------------------
 // mutex that protects our main settings map - if you change the map structure, you
 // must first lock this mutex
 static std::mutex& get_settings_store_mutex() {
@@ -66,8 +76,6 @@ static le_settings_map_t& get_global_settings_store() {
 	static le_settings_map_t store{ {} };
 	return store;
 };
-
-// ----------------------------------------------------------------------
 
 // Setting names must be unique - and their types must match.
 ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const* type_name ) {

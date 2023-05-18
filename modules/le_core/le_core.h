@@ -52,9 +52,13 @@ ISL_API_ATTR DLL_CORE_API void* le_core_load_library_persistently( char const* l
 // across module reloads, for example.
 ISL_API_ATTR DLL_CORE_API void** le_core_produce_dictionary_entry( uint64_t key );
 
-// Globally available, persistent name-setting store -
-// Use this for settings that all modules need to have access to.
+// Globally available, persistent name->SETTING store -
+// Use this for any LE_SETTING that all modules need
+// to have access to.
 ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name, char const* type_name );
+
+// Globally available, app-lifetime-persistent store for char literals
+ISL_API_ATTR DLL_CORE_API char const* le_core_produce_string_literal( char const* string_literal );
 
 // Persistent settings that can be shared among modules.
 
@@ -80,6 +84,21 @@ struct rm_const<_Tp const> {
 };
 
 } // namespace le
+
+#ifdef PLUGINS_DYNAMIC
+// In case we have a dynamic build, we must make sure that string literals
+// potentially survive a reload - we use a lambda here, so that we can
+// cache lookups in a per-callsite static pointer. This means that the
+// call to le_core_produce_string_literal only punches through once.
+#	define LE_STRING_LITERAL( s ) \
+		[]() -> char const* {                                 \
+static char const* cached_str = le_core_produce_string_literal( s ); \
+return cached_str; }()
+#else
+// No-op if we're running a static build, as it is safe to store
+// static strings in the .data segment in case we are not hot-reloading
+#	define LE_STRING_LITERAL( s ) ( s )
+#endif
 
 // this is not yet production-ready, as it does not protect against race-conditions etc.
 #define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                \
