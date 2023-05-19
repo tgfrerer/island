@@ -51,26 +51,11 @@ struct FrameData {
 		eDispatched,
 	};
 
-	struct Meta {
-		NanoTime time_acquire_frame_start;
-		NanoTime time_acquire_frame_end;
-
-		NanoTime time_process_frame_start;
-		NanoTime time_process_frame_end;
-
-		NanoTime time_record_frame_start;
-		NanoTime time_record_frame_end;
-
-		NanoTime time_dispatch_frame_start;
-		NanoTime time_dispatch_frame_end;
-	};
-
 	State state = State::eInitial;
 
 	le_rendergraph_o* rendergraph = nullptr;
 
 	size_t frameNumber = size_t( ~0 );
-	Meta   meta;
 };
 
 struct le_texture_handle_t {
@@ -505,7 +490,6 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 
 	// ---------| invariant: Frame was previously acquired successfully.
 
-	frame.meta.time_record_frame_start = std::chrono::high_resolution_clock::now();
 
 	// - build up dependencies for graph, create table of unique resources for graph
 
@@ -528,8 +512,6 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	le_renderer::api->le_rendergraph_private_i.execute( frame.rendergraph, frameIndex, self->backend );
 
 
-	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
-
 	frame.state = FrameData::State::eRecorded;
 	// std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( frame.meta.time_record_frame_end - frame.meta.time_record_frame_start ).count() << "ms" << std::endl;
 
@@ -548,7 +530,6 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 
 	auto& frame = self->frames[ frameIndex ];
 
-	frame.meta.time_acquire_frame_start = std::chrono::high_resolution_clock::now();
 
 	if ( frame.state != FrameData::State::eRecorded ) {
 		return frame.state;
@@ -584,7 +565,6 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 		    frame.rendergraph->root_debug_names.data(), frame.rendergraph->root_debug_names.size() );
 	}
 
-	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
 	frame.state = FrameData::State::eAcquired;
 
@@ -604,17 +584,8 @@ static const FrameData::State& renderer_process_frame( le_renderer_o* self, size
 	}
 	// ---------| invariant: frame was previously recorded successfully
 
-	frame.meta.time_process_frame_start = std::chrono::high_resolution_clock::now();
-
 	// translate intermediate draw lists into vk command buffers, and sync primitives
-
 	vk_backend_i.process_frame( self->backend, frameIndex );
-
-	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
-	// std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
-
-	//	std::cout << "PROCE FRAME " << frameIndex << std::endl
-	//	          << std::flush;
 
 	frame.state = FrameData::State::eProcessed;
 	return frame.state;
@@ -633,16 +604,9 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 	// ---------| invariant: frame was successfully processed previously
 
-	frame.meta.time_dispatch_frame_start = std::chrono::high_resolution_clock::now();
-
 	vk_backend_i.dispatch_frame( self->backend, frameIndex );
 
-	frame.meta.time_dispatch_frame_end = std::chrono::high_resolution_clock::now();
-
 	frame.state = FrameData::State::eDispatched;
-	//		std::cout << "DISP FRAME " << frameIndex << std::endl
-	//		          << std::flush;
-
 }
 
 // ----------------------------------------------------------------------
