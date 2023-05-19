@@ -14,6 +14,7 @@
 
 #include "le_renderer.h"
 #include "le_backend_vk.h"
+#include "le_tracy.h"
 
 #include "private/le_renderer/le_resource_handle_t.inl"
 
@@ -34,6 +35,7 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 // ----------------------------------------------------------------------
 
 static le_renderpass_o* renderpass_create( const char* renderpass_name, const le::QueueFlagBits& type_ ) {
+	ZoneScoped;
 	auto self  = new le_renderpass_o();
 	self->id   = hash_64_fnv1a( renderpass_name );
 	self->type = type_;
@@ -45,6 +47,7 @@ static le_renderpass_o* renderpass_create( const char* renderpass_name, const le
 // ----------------------------------------------------------------------
 
 static le_renderpass_o* renderpass_clone( le_renderpass_o const* rhs ) {
+	ZoneScoped;
 	auto self       = new le_renderpass_o();
 	*self           = *rhs;
 	self->ref_count = 1;
@@ -54,6 +57,7 @@ static le_renderpass_o* renderpass_clone( le_renderpass_o const* rhs ) {
 // ----------------------------------------------------------------------
 
 static void renderpass_destroy( le_renderpass_o* self ) {
+	ZoneScoped;
 
 	if ( self->encoder ) {
 		using namespace le_renderer;
@@ -88,6 +92,7 @@ static void renderpass_set_execute_callback( le_renderpass_o* self, void* user_d
 
 // ----------------------------------------------------------------------
 static void renderpass_run_execute_callbacks( le_renderpass_o* self ) {
+	ZoneScoped;
 	for ( auto const& c : self->executeCallbacks ) {
 		c.fn( self->encoder, c.user_data );
 	}
@@ -95,6 +100,7 @@ static void renderpass_run_execute_callbacks( le_renderpass_o* self ) {
 
 // ----------------------------------------------------------------------
 static bool renderpass_run_setup_callback( le_renderpass_o* self ) {
+	ZoneScoped;
 	return self->callbackSetup( self, self->setup_callback_user_data );
 }
 
@@ -113,6 +119,7 @@ static inline bool resource_is_a_swapchain_handle( const le_img_resource_handle&
 // Data containted in `resource_info` decides whether the resource
 // is used for read, write, or read/write.
 static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags ) {
+	ZoneScoped;
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -177,6 +184,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 // ----------------------------------------------------------------------
 static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle texture, le_image_sampler_info_t const* textureInfo ) {
+	ZoneScoped;
 
 	// -- store texture info so that backend can create resources
 
@@ -199,6 +207,7 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 // ----------------------------------------------------------------------
 
 static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
+	ZoneScoped;
 
 	if ( image_id == nullptr ) {
 		return;
@@ -222,6 +231,7 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resou
 // ----------------------------------------------------------------------
 
 static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_img_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
+	ZoneScoped;
 
 	if ( image_id == nullptr ) {
 		return;
@@ -244,6 +254,7 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 // ----------------------------------------------------------------------
 
 static bool renderpass_get_framebuffer_settings( le_renderpass_o const* self, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count ) {
+	ZoneScoped;
 	if ( self->type != le::QueueFlagBits::eGraphics ) {
 		return false; // only graphics passes have width, height, and sample_count
 	}
@@ -351,6 +362,7 @@ static le_rendergraph_o* rendergraph_create() {
 // ----------------------------------------------------------------------
 
 static void rendergraph_reset( le_rendergraph_o* self ) {
+	ZoneScoped;
 
 	// we must destroy passes as we have ownership over them.
 	for ( auto rp : self->passes ) {
@@ -373,6 +385,7 @@ static void rendergraph_destroy( le_rendergraph_o* self ) {
 // ----------------------------------------------------------------------
 
 static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o* renderpass ) {
+	ZoneScoped;
 	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the pass here. We must destroy it.
 }
 
@@ -389,6 +402,7 @@ static bool generate_dot_file_for_rendergraph(
     size_t const&       numUniqueResources,
     Node const*         nodes,
     size_t              frame_number ) {
+	ZoneScoped;
 
 	static auto                  logger   = LeLog( LOGGER_LABEL );
 	static std::filesystem::path exe_path = []() {
@@ -581,6 +595,7 @@ static bool generate_dot_file_for_rendergraph(
 /// \details We do this so that we can weed out any nodes which are provably
 ///          not contributing - these don't need to be executed at all.
 static void node_tag_contributing( Node* const nodes, const size_t num_nodes, uint32_t* count_roots = nullptr ) {
+	ZoneScoped;
 
 	// We iterate bottom to top - from last layer to first layer
 	Node*             node      = nodes + num_nodes;
@@ -642,6 +657,7 @@ static void node_tag_contributing( Node* const nodes, const size_t num_nodes, ui
 // passes which do not contribute to the rendergraph
 //
 static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
+	ZoneScoped;
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -925,6 +941,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 ///
 /// We could possibly go wide when recording renderpasses, with one context per renderpass.
 static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_backend_o* backend ) {
+	ZoneScoped;
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	LE_SETTING( bool, LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES, false );
@@ -1011,6 +1028,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 	le_command_stream_t** const ppCommandStreams = vk_backend_i.get_frame_command_streams( backend, frameIndex, numPasses );
 
 	for ( size_t i = 0; i != numPasses; ++i ) {
+		ZoneScopedN( "Prepare Pass" );
 		auto& pass = self->passes[ i ];
 
 		if ( !pass->executeCallbacks.empty() ) {

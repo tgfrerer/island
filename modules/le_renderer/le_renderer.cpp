@@ -523,12 +523,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	//
 	le_renderer::api->le_rendergraph_private_i.execute( frame.rendergraph, frameIndex, self->backend );
 
-
 	frame.state = FrameData::State::eRecorded;
-	// std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( frame.meta.time_record_frame_end - frame.meta.time_record_frame_start ).count() << "ms" << std::endl;
-
-	//	std::cout << "RECORD FRAME " << frameIndex << std::endl
-	//	          << std::flush;
 }
 
 // ----------------------------------------------------------------------
@@ -629,45 +624,45 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 
 static le_img_resource_handle renderer_get_swapchain_resource( le_renderer_o* self, le_swapchain_handle swapchain ) {
-	using namespace le_backend_vk;
 	ZoneScoped;
+	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_resource( self->backend, swapchain );
 }
 
 static le_img_resource_handle renderer_get_swapchain_resource_default( le_renderer_o* self ) {
-	using namespace le_backend_vk;
 	ZoneScoped;
+	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_resource_default( self->backend );
 }
 
 // ----------------------------------------------------------------------
 
 static bool renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height ) {
-	using namespace le_backend_vk;
 	ZoneScoped;
+	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_extent( self->backend, swapchain, p_width, p_height );
 }
 
 // ----------------------------------------------------------------------
 
 static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t const* settings ) {
-	using namespace le_backend_vk;
 	ZoneScoped;
+	using namespace le_backend_vk;
 	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.add_swapchain( self->backend, settings );
 };
 // ----------------------------------------------------------------------
 
 static bool renderer_remove_swapchain( le_renderer_o* self, le_swapchain_handle swapchain ) {
-	using namespace le_backend_vk;
 	ZoneScoped;
+	using namespace le_backend_vk;
 	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.remove_swapchain( self->backend, swapchain );
 };
 
 static bool renderer_get_swapchains( le_renderer_o* self, size_t* num_swapchains, le_swapchain_handle* p_swapchain_handles ) {
-	using namespace le_backend_vk;
 	ZoneScoped;
+	using namespace le_backend_vk;
 	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.get_swapchains( self->backend, num_swapchains, p_swapchain_handles );
 }
