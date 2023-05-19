@@ -1,7 +1,7 @@
 set (TARGET le_tracy)
 
 if (${PLUGINS_DYNAMIC})
-    set( BUILD_SHARED_LIBS OFF)
+    set( BUILD_SHARED_LIBS ON)
 endif()
 
 get_directory_property(COMPILE_DEFS COMPILE_DEFINITIONS)
@@ -39,7 +39,6 @@ else()
 
 endif()
 
-target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 # If tracing is enabled, and in case we are running a static build, 
 # we must make the tracy lib available to the app by linking it against
@@ -48,5 +47,16 @@ if (${TRACY_ENABLE} AND NOT ${PLUGINS_DYNAMIC})
 	MESSAGE( STATUS "TracyClient enabled.")
 	set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} TracyClient CACHE INTERNAL "plugins_libs_dependencies")
 endif()
+
+
+if (${TRACY_ENABLE})
+	if (WIN32)
+	     set (LINKER_FLAGS ${LINKER_FLAGS} TracyClient)
+	else()
+	    set (LINKER_FLAGS -Wl,--whole-archive TracyClient -Wl,--no-whole-archive)
+	endif()
+endif()
+
+target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 source_group(${TARGET} FILES ${SOURCES})
