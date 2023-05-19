@@ -1,7 +1,7 @@
 set (TARGET le_tracy)
 
 if (${PLUGINS_DYNAMIC})
-    set( BUILD_SHARED_LIBS ON)
+    set( BUILD_SHARED_LIBS OFF)
 endif()
 
 get_directory_property(COMPILE_DEFS COMPILE_DEFINITIONS)
@@ -20,25 +20,6 @@ endif()
 # list modules this module depends on
 # depends_on_island_module(le_path)
 
-set (SOURCES ${SOURCES} "le_tracy.h")
-
-if (${PLUGINS_DYNAMIC})
-
-    add_library(${TARGET} SHARED ${SOURCES})
-
-    add_dynamic_linker_flags()
-  
-    target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
-
-else()
-
-    add_library(${TARGET} STATIC ${SOURCES})
-
-    add_static_lib( ${TARGET} )
-
-endif()
-
-target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 # If tracing is enabled, and in case we are running a static build, 
 # we must make the tracy lib available to the app by linking it against

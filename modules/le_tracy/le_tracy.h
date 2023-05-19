@@ -8,8 +8,19 @@
 #	define LE_LOAD_TRACING_LIBRARY
 #endif
 
-#ifdef __cplusplus
+// We break our rule here which says that header files are not allowed
+// to include other header files.
 
-#endif // __cplusplus
+// this is because this header file will only be included from cpp files
+// anyway and we want to have an unique point at which we control what
+// gets included for tracy and which defines etc are set.
+
+//----------------------------------------------------------------------
+// here, we essentially mirror the .hpp file that is provided with Tracy
+// but we make some changes to make tracing slightly more generic,
+
+#include "3rdparty/tracy/public/tracy/Tracy.hpp"
+
+//----------------------------------------------------------------------
 
 #endif
