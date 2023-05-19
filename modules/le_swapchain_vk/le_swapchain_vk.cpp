@@ -3,6 +3,9 @@
 #include "private/le_renderer/le_renderer_types.h" // for swapchain_settings
 #include "le_backend_vk.h"
 #include "assert.h"
+
+#include "le_tracy.h"
+
 // ----------------------------------------------------------------------
 #ifdef PLUGINS_DYNAMIC
 #	define VOLK_IMPLEMENTATION
@@ -54,36 +57,42 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 // ----------------------------------------------------------------------
 
 static bool swapchain_acquire_next_image( le_swapchain_o* self, VkSemaphore_T* semaphorePresentComplete_, uint32_t* imageIndex_ ) {
+	ZoneScoped;
 	return self->vtable.acquire_next_image( self, semaphorePresentComplete_, imageIndex_ );
 }
 
 // ----------------------------------------------------------------------
 
 static VkImage_T* swapchain_get_image( le_swapchain_o* self, uint32_t index ) {
+	ZoneScoped;
 	return self->vtable.get_image( self, index );
 }
 
 // ----------------------------------------------------------------------
 
 static VkSurfaceFormatKHR* swapchain_get_surface_format( le_swapchain_o* self ) {
+	ZoneScoped;
 	return self->vtable.get_surface_format( self );
 }
 
 // ----------------------------------------------------------------------
 
 static uint32_t swapchain_get_image_width( le_swapchain_o* self ) {
+	ZoneScoped;
 	return self->vtable.get_image_width( self );
 }
 
 // ----------------------------------------------------------------------
 
 static uint32_t swapchain_get_image_height( le_swapchain_o* self ) {
+	ZoneScoped;
 	return self->vtable.get_image_height( self );
 }
 
 // ----------------------------------------------------------------------
 
 static size_t swapchain_get_swapchain_images_count( le_swapchain_o* self ) {
+	ZoneScoped;
 	return self->vtable.get_image_count( self );
 }
 
@@ -96,6 +105,7 @@ static void swapchain_destroy( le_swapchain_o* self ) {
 // ----------------------------------------------------------------------
 
 static bool swapchain_present( le_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex ) {
+	ZoneScoped;
 	return self->vtable.present( self, queue, renderCompleteSemaphore, pImageIndex );
 };
 
@@ -180,4 +190,6 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 #endif
 
 	le_core_load_library_persistently( "libX11.so" );
+
+	LE_LOAD_TRACING_LIBRARY;
 }

@@ -6,6 +6,7 @@ depends_on_island_module(le_window)
 depends_on_island_module(le_log)
 depends_on_island_module(le_backend_vk)
 depends_on_island_module(le_renderer)
+depends_on_island_module(le_tracy)
 
 add_compile_definitions(VK_NO_PROTOTYPES)
 
