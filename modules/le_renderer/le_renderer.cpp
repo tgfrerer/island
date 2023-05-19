@@ -257,6 +257,8 @@ le_resource_handle renderer_produce_resource_handle(
 	return handle;
 }
 
+// ----------------------------------------------------------------------
+
 static le_img_resource_handle renderer_produce_img_resource_handle( char const* maybe_name, uint8_t num_samples,
                                                                     le_img_resource_handle reference_handle, uint8_t flags ) {
 	return static_cast<le_img_resource_handle>(
@@ -264,13 +266,19 @@ static le_img_resource_handle renderer_produce_img_resource_handle( char const* 
 	                                      static_cast<le_resource_handle>( reference_handle ) ) );
 }
 
+// ----------------------------------------------------------------------
+
 static le_buf_resource_handle renderer_produce_buf_resource_handle( char const* maybe_name, uint8_t flags, uint16_t index ) {
 	return static_cast<le_buf_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
 }
 
+// ----------------------------------------------------------------------
+
 static le_tlas_resource_handle renderer_produce_tlas_resource_handle( char const* maybe_name ) {
 	return static_cast<le_tlas_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eRtxTlas ) );
 }
+
+// ----------------------------------------------------------------------
 
 static le_blas_resource_handle renderer_produce_blas_resource_handle( char const* maybe_name ) {
 	return static_cast<le_blas_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eRtxBlas ) );
