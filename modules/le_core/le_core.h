@@ -197,7 +197,6 @@ ISL_API_ATTR void le_core_release_callback_forwarder_addr_impl( void* p_function
 #	define le_core_forward_callback_release( x ) \
 		le_core_release_callback_forwarder_addr_impl( ( void* )x )
 #else
-
 #	define le_core_forward_callback( x ) \
 		( x )
 #	define le_core_forward_callback_release( x ) \
