@@ -169,7 +169,7 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	swapchain_i.get_image_width                     = swapchain_get_image_width;
 	swapchain_i.get_image_height                    = swapchain_get_image_height;
 	swapchain_i.get_surface_format                  = swapchain_get_surface_format;
-	swapchain_i.get_image_count                    = swapchain_get_swapchain_images_count;
+	swapchain_i.get_image_count                     = swapchain_get_swapchain_images_count;
 	swapchain_i.present                             = swapchain_present;
 	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
 	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
