@@ -23,3 +23,6 @@
 [submodule "modules/le_parameter_store/3rdparty/jsmn"]
 	path = modules/le_parameter_store/3rdparty/jsmn
 	url = https://github.com/zserge/jsmn.git
+[submodule "modules/le_tracy/3rdparty/tracy"]
+	path = modules/le_tracy/3rdparty/tracy
+	url = https://github.com/wolfpld/tracy.git
