@@ -85,6 +85,8 @@ struct rm_const<_Tp const> {
 
 } // namespace le
 
+//----------------------------------------------------------------------
+
 #ifdef PLUGINS_DYNAMIC
 // In case we have a dynamic build, we must make sure that string literals
 // potentially survive a reload - we use a lambda here, so that we can
@@ -96,9 +98,11 @@ static char const* cached_str = le_core_produce_string_literal( s ); \
 return cached_str; }()
 #else
 // No-op if we're running a static build, as it is safe to store
-// static strings in the .data segment in case we are not hot-reloading
+// static strings in the .data segment in case we are not hot-reloading.
 #	define LE_STRING_LITERAL( s ) ( s )
 #endif
+
+//----------------------------------------------------------------------
 
 // this is not yet production-ready, as it does not protect against race-conditions etc.
 #define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                \
