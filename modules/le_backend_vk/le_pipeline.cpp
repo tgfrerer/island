@@ -28,6 +28,8 @@ static constexpr auto LOGGER_LABEL = "le_pipeline";
 #include <vulkan/vulkan.h>
 #include "private/le_backend_vk/le_backend_types_pipeline.inl"
 
+#include "le_tracy.h"
+
 typedef void ( *file_watcher_callback_fun_t )( char const*, void* );
 
 struct specialization_map_info_t {
@@ -524,6 +526,8 @@ static bool translate_to_spirv_code(
     std::vector<uint32_t>&     spirvCode,
     std::set<std::string>&     includesSet,
     std::string const&         shaderDefines ) {
+
+	ZoneScoped;
 
 	bool result = false;
 

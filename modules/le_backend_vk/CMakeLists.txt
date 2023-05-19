@@ -9,6 +9,7 @@ depends_on_island_module(le_file_watcher)
 depends_on_island_module(le_window)
 depends_on_island_module(le_swapchain_vk)
 depends_on_island_module(le_renderer)
+depends_on_island_module(le_tracy)
 
 add_compile_definitions(SPIRV_REFLECT_USE_SYSTEM_SPIRV_H)
 add_compile_definitions(VK_NO_PROTOTYPES)

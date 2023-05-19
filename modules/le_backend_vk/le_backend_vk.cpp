@@ -10,6 +10,8 @@
 #include "private/le_renderer/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
+#include "le_tracy.h"
+
 #include <bitset>
 #include <cassert>
 #include <filesystem>
@@ -2144,6 +2146,7 @@ static constexpr auto ANY_WRITE_VK_ACCESS_2_FLAGS =
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
+	ZoneScoped;
 
 	// create renderpasses
 	const auto& syncChainTable = frame.syncChainTable;
@@ -2561,6 +2564,7 @@ VkImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
 // output: framebuffer, append newly created imageViews to retained resources list.
 static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& device ) {
 
+	ZoneScoped;
 	for ( auto& pass : frame.passes ) {
 
 		if ( pass.type != le::QueueFlagBits::eGraphics ) {
@@ -7564,6 +7568,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 // ----------------------------------------------------------------------
 static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
+	ZoneScoped;
+
 	static auto logger         = LeLog( LOGGER_LABEL );
 	auto&       frame          = self->mFrames[ frameIndex ];
 	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ]->queue; // will not change for the duration of the program.
@@ -7580,6 +7586,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	render_complete_semaphore_submit_infos.reserve( frame.frame_owned_swapchain_state.size() );
 
 	{
+		ZoneScopedN( "ApplyWaitSemaphores" );
 		// apply swapchain wait semaphores
 		for ( auto const& [ key, swp ] : frame.frame_owned_swapchain_state ) {
 
@@ -7623,6 +7630,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	for ( auto const& current_submission : frame.queue_submission_data ) {
 
+		ZoneScopedN( "SubmitToQueue" );
 		// Prepare command buffers for submission
 		std::vector<VkCommandBufferSubmitInfo> command_buffer_submit_infos;
 		command_buffer_submit_infos.reserve( current_submission.command_pool->buffers.size() ); // one command buffer per pass
@@ -7665,6 +7673,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	}
 
 	{
+		ZoneScopedN( "SubmitTimelineWaitSemaphores" );
 		/// Now that we have submitted our payloads, we can wait for any timeline semaphores from this frame.
 		/// This is so that whatever gets executed on parallel queues will have time to complete until draw has completed.
 		///
@@ -7715,6 +7724,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 	bool overall_result = true;
 
 	{
+		ZoneScopedN( "Present" );
 		// submit frame for present using the graphics queue
 		using namespace le_swapchain_vk;
 
@@ -7910,4 +7920,8 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 
 	// Global settings object for backend - once a backend is initialized, this object is set to readonly.
 	api_i->backend_settings_singleton = static_cast<le_backend_vk_settings_o*>( *p_settings_singleton_addr );
+
+#ifdef LE_LOAD_TRACING_LIBRARY
+	LE_LOAD_TRACING_LIBRARY;
+#endif
 }
