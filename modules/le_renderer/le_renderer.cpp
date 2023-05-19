@@ -795,6 +795,7 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 
 	// logger.info( "+++ NEXT FRAME\n" );
 	++self->currentFrameNumber;
+	FrameMark; // We have completed the current frame - this signals it to tracy
 }
 
 // ----------------------------------------------------------------------
