@@ -1814,6 +1814,7 @@ static void frame_track_resource_state(
     BackendFrameData& frame, le_renderpass_o** ppPasses,
     size_t numRenderPasses, const std::vector<le_img_resource_handle>& swapchain_images ) {
 
+	ZoneScoped;
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
 	//
 	// * An EXECUTION DEPENDENCY tells us which stage needs to be complete (srcStage) before another named stage (dstStage) may execute.
@@ -1976,6 +1977,7 @@ static void frame_track_resource_state(
 
 // ----------------------------------------------------------------------
 static void backend_debug_print_framedata( BackendFrameData const& frame ) {
+	ZoneScoped;
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	for ( auto const& [ handle, resource ] : frame.availableResources ) {
@@ -1998,6 +2000,7 @@ static void backend_debug_print_framedata( BackendFrameData const& frame ) {
 
 /// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
 static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
+	ZoneScoped;
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto&       frame  = self->mFrames[ frameIndex ];
 	VkDevice    device = self->device->getVkDevice();
@@ -2024,6 +2027,7 @@ static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 /// \brief: Frees all frame local resources
 /// \preliminary: frame fence must have been crossed.
 static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
+	ZoneScoped;
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -2144,11 +2148,9 @@ static constexpr auto ANY_WRITE_VK_ACCESS_2_FLAGS =
 // Executes on the DISPATCH FRAME
 //
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
-
-	static auto logger = LeLog( LOGGER_LABEL );
 	ZoneScoped;
+	static auto logger = LeLog( LOGGER_LABEL );
 
-	// create renderpasses
 	const auto& syncChainTable = frame.syncChainTable;
 
 	// Note: This should be trivial to parallelize.
@@ -2652,7 +2654,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 // Executes on the DISPATCH FRAME
 //
 static void backend_create_descriptor_pools( BackendFrameData& frame, VkDevice& device, size_t numRenderPasses ) {
-
+	ZoneScoped;
 	// Make sure that there is one descriptorpool for every renderpass.
 	// descriptor pools which were created previously will be re-used,
 	// if we're suddenly rendering more frames, we will add additional
@@ -2741,6 +2743,7 @@ static int32_t backend_allocate_image( le_backend_o*                  self,
                                        VkImage*                       pImage,
                                        VmaAllocation*                 pAllocation,
                                        VmaAllocationInfo*             pAllocationInfo ) {
+	ZoneScoped;
 
 	auto result = vmaCreateImage( self->mAllocator,
 	                              pImageCreateInfo,
@@ -2754,6 +2757,7 @@ static int32_t backend_allocate_image( le_backend_o*                  self,
 // ----------------------------------------------------------------------
 
 static void backend_destroy_image( le_backend_o* self, VkImage image, VmaAllocation allocation ) {
+	ZoneScoped;
 	vmaDestroyImage( self->mAllocator, image, allocation );
 }
 
@@ -2765,6 +2769,7 @@ static int32_t backend_allocate_buffer( le_backend_o*                  self,
                                         VkBuffer*                      pBuffer,
                                         VmaAllocation*                 pAllocation,
                                         VmaAllocationInfo*             pAllocationInfo ) {
+	ZoneScoped;
 	auto result = vmaCreateBuffer( self->mAllocator, pBufferCreateInfo, pAllocationCreateInfo, pBuffer, pAllocation, pAllocationInfo );
 	return result;
 }
@@ -2772,6 +2777,7 @@ static int32_t backend_allocate_buffer( le_backend_o*                  self,
 // ----------------------------------------------------------------------
 
 static void backend_destroy_buffer( le_backend_o* self, VkBuffer buffer, VmaAllocation allocation ) {
+	ZoneScoped;
 	vmaDestroyBuffer( self->mAllocator, buffer, allocation );
 }
 
@@ -2779,6 +2785,7 @@ static void backend_destroy_buffer( le_backend_o* self, VkBuffer buffer, VmaAllo
 // Allocates and creates a physical vulkan resource using vmaAlloc given an allocator
 // Returns an AllocatedResourceVk, currently does not do any error checking.
 static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& alloc, const ResourceCreateInfo& resourceInfo, VkDevice device = nullptr ) {
+	ZoneScoped;
 	static auto         logger = LeLog( LOGGER_LABEL );
 	AllocatedResourceVk res{};
 	res.info = resourceInfo;
@@ -3038,6 +3045,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 // Creates a new staging allocator
 // Typically, there is one staging allocator associated to each frame.
 static le_staging_allocator_o* staging_allocator_create( VmaAllocator const vmaAlloc, VkDevice const device ) {
+	ZoneScoped;
 	auto self       = new le_staging_allocator_o{};
 	self->allocator = vmaAlloc;
 	self->device    = device;
@@ -3059,6 +3067,7 @@ static le_staging_allocator_o* staging_allocator_create( VmaAllocator const vmaA
 //
 // Staging memory is typically cache coherent, ie. does not need to be flushed.
 static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numBytes, void** pData, le_buf_resource_handle* resource_handle ) {
+	ZoneScoped;
 
 	auto lock = std::scoped_lock( self->mtx );
 
@@ -3141,6 +3150,7 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 
 /// Frees all allocations held by the staging allocator given in `self`
 static void staging_allocator_reset( le_staging_allocator_o* self ) {
+	ZoneScoped;
 	auto lock = std::scoped_lock( self->mtx );
 
 	assert( self->buffers.size() == self->allocations.size() && self->buffers.size() == self->allocationInfo.size() &&
@@ -3165,6 +3175,7 @@ static void staging_allocator_reset( le_staging_allocator_o* self ) {
 
 // Destroys a staging allocator (and implicitly all of its derived objects)
 static void staging_allocator_destroy( le_staging_allocator_o* self ) {
+	ZoneScoped;
 
 	// Reset the object first so that dependent objects (vmaAllocations, vulkan objects) are cleaned up.
 	staging_allocator_reset( self );
@@ -3176,6 +3187,7 @@ static void staging_allocator_destroy( le_staging_allocator_o* self ) {
 
 // Frees any resources which are marked for being recycled in the current frame.
 inline void frame_release_binned_resources( BackendFrameData& frame, VmaAllocator& allocator ) {
+	ZoneScoped;
 	for ( auto& a : frame.binnedResources ) {
 		if ( a.second.info.isBuffer() ) {
 			vmaDestroyBuffer( allocator, a.second.as.buffer, a.second.allocation );
@@ -3189,6 +3201,7 @@ inline void frame_release_binned_resources( BackendFrameData& frame, VmaAllocato
 // ----------------------------------------------------------------------
 
 static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_resource_info_t const& rhs ) {
+	ZoneScoped;
 
 	// return superset of lhs and rhs in lhs
 	assert( lhs.type == rhs.type );
@@ -3275,6 +3288,7 @@ static void collect_resource_infos_per_resource(
     size_t                                                            numRenderPasses,
     std::unordered_map<le_resource_handle, le_resource_info_t> const& frame_declared_resources, // | pre-declared resources (declared via module)
     std::unordered_map<le_resource_handle, le_resource_info_t>&       active_resources ) {
+	ZoneScoped;
 
 	using namespace le_renderer;
 
@@ -3396,6 +3410,7 @@ static void collect_resource_infos_per_resource(
 
 static void insert_msaa_versions(
     std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
+	ZoneScoped;
 	// For each image resource which is specified with versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
@@ -3450,6 +3465,7 @@ static void insert_msaa_versions(
 // ----------------------------------------------------------------------
 
 static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info, const char* prefix = "" ) {
+	ZoneScoped;
 	static auto logger = LeLog( LOGGER_LABEL );
 	if ( info.isBuffer() ) {
 		logger.info( "%-15s : %-32s : %11d : %30s : %-30s", prefix, handle->data->debug_name, info.bufferInfo.size, "-",
@@ -3492,6 +3508,7 @@ static void patch_renderpass_extents(
     size_t            numRenderPasses,
     uint32_t          default_width,
     uint32_t          default_height ) {
+	ZoneScoped;
 	using namespace le_renderer;
 
 	auto passes_end = passes + numRenderPasses;
@@ -3519,7 +3536,7 @@ static void patch_renderpass_extents(
 // ----------------------------------------------------------------------
 
 static bool inferImageFormat( le_backend_o* self, le_img_resource_handle const& resource, le::ImageUsageFlags const& usageFlags, ResourceCreateInfo* createInfo ) {
-
+	ZoneScoped;
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	// If image format was not specified, we must try to
@@ -3551,6 +3568,7 @@ static void patchImageUsageForMipLevels( ResourceCreateInfo* createInfo ) {
 // ----------------------------------------------------------------------
 
 static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance, VkDevice device_, BackendFrameData::ResourceMap_T& resources ) {
+	ZoneScoped;
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	// We capture the check for extension as a static, as this is not expected to
@@ -3630,7 +3648,7 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 // backend, but not used by the frame) - these could possibly be recycled, too.
 
 static void backend_allocate_resources( le_backend_o* self, BackendFrameData& frame, le_renderpass_o** passes, size_t numRenderPasses ) {
-
+	ZoneScoped;
 	/*
 	- Frame is only ever allowed to reference frame-local resources.
 	- "Acquire" therefore means we create local copies of backend-wide resource handles.
@@ -3887,7 +3905,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 // Allocates ImageViews, Samplers and Textures requested by individual passes
 // these are tied to the lifetime of the frame, and will be re-created
 static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
-
+	ZoneScoped;
 	using namespace le_renderer;
 	static auto       logger = LeLog( LOGGER_LABEL );
 	le::QueueFlagBits pass_type{};
@@ -4111,6 +4129,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
                                                 le_resource_info_t const* declared_resources_infos,
                                                 size_t const&             declared_resources_count ) {
 
+	ZoneScoped;
 	auto& frame = self->mFrames[ frameIndex ];
 
 	static VkDevice device = self->device->getVkDevice();
@@ -4643,6 +4662,7 @@ static BackendFrameData::CommandPool* backend_frame_data_produce_command_pool(
     uint32_t          queue_family_index,
     VkDevice          device ) {
 
+	ZoneScoped;
 	BackendFrameData::CommandPool* pool = nullptr;
 
 	// search through available command pools to see if we could recycle one with a matching
@@ -4682,7 +4702,7 @@ static BackendFrameData::CommandPool* backend_frame_data_produce_command_pool(
 
 // predictable, repeatable response given queue flags
 static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o* self, VkQueueFlags flags ) {
-
+	ZoneScoped;
 	uint32_t lowest_num_extra_bits = ~uint32_t( 0 );
 	uint32_t found_family          = ~uint32_t( 0 );
 
@@ -4715,7 +4735,7 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 // Must execute on the RECORD FRAME
 //
 static void backend_acquire_swapchain_resources( le_backend_o* self, size_t frameIndex ) {
-
+	ZoneScoped;
 	auto& frame = self->mFrames[ frameIndex ];
 
 	static VkDevice device = self->device->getVkDevice();
@@ -4879,7 +4899,7 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 //
 inline DescriptorData* find_descriptor_with_binding_number_and_array_idx(
     std::vector<DescriptorData>& descriptor_set, uint32_t binding_number, uint32_t array_idx = 0 ) {
-
+	ZoneScoped;
 	for ( auto& d : descriptor_set ) {
 		if ( d.bindingNumber == binding_number &&
 		     d.arrayIndex == array_idx ) {
@@ -4895,6 +4915,7 @@ inline DescriptorData* find_descriptor_with_binding_number_and_array_idx(
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
+	ZoneScoped;
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( LE_PRINT_DEBUG_MESSAGES ) {
