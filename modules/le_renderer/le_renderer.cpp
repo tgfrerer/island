@@ -22,6 +22,8 @@
 #include "private/le_renderer/le_resource_handle_t.inl"
 #include "private/le_renderer/le_rendergraph.h"
 
+#include "le_tracy.h"
+
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -484,6 +486,8 @@ static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ) {
 
 static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_rendergraph_o* graph_, size_t frameNumber ) {
 
+	ZoneScoped;
+
 	// High-level
 	// - resolve rendergraph: which render passes do contribute?
 	// - consolidate resources, synchronisation for resources
@@ -531,6 +535,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 
 static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o* self, size_t frameIndex ) {
 
+	ZoneScoped;
 	using namespace le_backend_vk; // for vk_bakend_i
 	using namespace le_renderer;   // for rendergraph_i
 
@@ -583,6 +588,7 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 // translate intermediate draw lists into vk command buffers, and sync primitives
 static const FrameData::State& renderer_process_frame( le_renderer_o* self, size_t frameIndex ) {
 
+	ZoneScoped;
 	using namespace le_backend_vk; // for vk_bakend_i
 
 	auto& frame = self->frames[ frameIndex ];
@@ -603,6 +609,7 @@ static const FrameData::State& renderer_process_frame( le_renderer_o* self, size
 
 static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
+	ZoneScoped;
 	using namespace le_backend_vk; // for vk_backend_i
 	auto& frame = self->frames[ frameIndex ];
 
@@ -623,11 +630,13 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 static le_img_resource_handle renderer_get_swapchain_resource( le_renderer_o* self, le_swapchain_handle swapchain ) {
 	using namespace le_backend_vk;
+	ZoneScoped;
 	return vk_backend_i.get_swapchain_resource( self->backend, swapchain );
 }
 
 static le_img_resource_handle renderer_get_swapchain_resource_default( le_renderer_o* self ) {
 	using namespace le_backend_vk;
+	ZoneScoped;
 	return vk_backend_i.get_swapchain_resource_default( self->backend );
 }
 
@@ -635,6 +644,7 @@ static le_img_resource_handle renderer_get_swapchain_resource_default( le_render
 
 static bool renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height ) {
 	using namespace le_backend_vk;
+	ZoneScoped;
 	return vk_backend_i.get_swapchain_extent( self->backend, swapchain, p_width, p_height );
 }
 
@@ -642,6 +652,7 @@ static bool renderer_get_swapchain_extent( le_renderer_o* self, le_swapchain_han
 
 static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapchain_settings_t const* settings ) {
 	using namespace le_backend_vk;
+	ZoneScoped;
 	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.add_swapchain( self->backend, settings );
 };
@@ -649,18 +660,21 @@ static le_swapchain_handle renderer_add_swapchain( le_renderer_o* self, le_swapc
 
 static bool renderer_remove_swapchain( le_renderer_o* self, le_swapchain_handle swapchain ) {
 	using namespace le_backend_vk;
+	ZoneScoped;
 	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.remove_swapchain( self->backend, swapchain );
 };
 
 static bool renderer_get_swapchains( le_renderer_o* self, size_t* num_swapchains, le_swapchain_handle* p_swapchain_handles ) {
 	using namespace le_backend_vk;
+	ZoneScoped;
 	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.get_swapchains( self->backend, num_swapchains, p_swapchain_handles );
 }
 // ----------------------------------------------------------------------
 
 static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
+	ZoneScoped;
 
 	static auto logger = LeLog( "le_renderer" );
 	using namespace le_backend_vk;
@@ -867,4 +881,5 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	register_le_rendergraph_api( api );
 
 	register_le_command_buffer_encoder_api( api );
+	LE_LOAD_TRACING_LIBRARY;
 }

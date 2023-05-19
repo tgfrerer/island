@@ -5,6 +5,7 @@ depends_on_island_module(le_backend_vk)
 depends_on_island_module(le_swapchain_vk)
 depends_on_island_module(le_jobs)
 depends_on_island_module(le_log)
+depends_on_island_module(le_tracy)
 
 
 set (SOURCES "le_renderer.cpp")
