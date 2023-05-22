@@ -82,6 +82,10 @@ static const auto& api        = le_tracy_api_i;
 static const auto& le_tracy_i = api->le_tracy_i;
 } // namespace le_tracy
 
+#	if ( WIN32 ) and defined( PLUGINS_DYNAMIC ) and defined( TRACY_ENABLE )
+#		pragma comment( lib, "modules/TracyClient.lib" )
+#	endif
+
 #endif // __cplusplus
 
 #endif
