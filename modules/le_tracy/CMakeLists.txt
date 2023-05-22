@@ -24,21 +24,13 @@ set (SOURCES "le_tracy.cpp")
 set (SOURCES ${SOURCES} "le_tracy.h")
 
 if (${PLUGINS_DYNAMIC})
-
     add_library(${TARGET} SHARED ${SOURCES})
-
     add_dynamic_linker_flags()
-  
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
-
 else()
-
     add_library(${TARGET} STATIC ${SOURCES})
-
     add_static_lib( ${TARGET} )
-
 endif()
-
 
 # If tracing is enabled, and in case we are running a static build, 
 # we must make the tracy lib available to the app by linking it against
@@ -47,7 +39,6 @@ if (${TRACY_ENABLE} AND NOT ${PLUGINS_DYNAMIC})
 	MESSAGE( STATUS "TracyClient enabled.")
 	set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} TracyClient CACHE INTERNAL "plugins_libs_dependencies")
 endif()
-
 
 if (${TRACY_ENABLE})
 	if (WIN32)

@@ -10,7 +10,8 @@
  *
  * 	add_compile_definitions( TRACY_ENABLE )
  *
- * To enable passing log messages to tracy, add LE_TRACY_ENABLE_LOG(-1)
+ * To enable passing log messages to tracy, add
+ *		LE_TRACY_ENABLE_LOG(-1)
  * to where you initialize your main app.
  *
  * Every module which uses tracy must load the tracy library, you
