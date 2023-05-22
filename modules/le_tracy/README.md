@@ -5,18 +5,17 @@ following compiler definition into your topmost CMakeLists.txt file:
 
 	add_compile_definitions( TRACY_ENABLE )
 
-To enable passing log messages to tracy, add
- 	LE_TRACY_ENABLE_LOG(-1)
-to where you initialize your main app.
+To enable passing log messages to Tracy, add the single statement:
+`LE_TRACY_ENABLE_LOG(-1)` to where you initialize your main app 
+(this is most likely your `app::initialize()` method). 
 
-Every module which uses tracy must load the tracy library, you
+Every module which uses Tracy must load the tracy library; you
 must do this via an explicit library load, by adding
 
-	#ifdef LE_LOAD_TRACING_LIBRARY
  	LE_LOAD_TRACING_LIBRARY
-	#endif
 
-To where you initialize this module's api pointers in its cpp file.
+to where you initialize the module's api pointers in its cpp file. In case 
+Tracy is not used this statement melts away to a no-op.
 
 ---------------------------------------------------------------------- 
 # TRACY PROFILER
