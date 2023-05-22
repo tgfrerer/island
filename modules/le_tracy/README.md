@@ -17,9 +17,9 @@ must do this via an explicit library load, by adding
 to where you initialize the module's api pointers in its cpp file. In case 
 Tracy is not used this statement melts away to a no-op.
 
----------------------------------------------------------------------- 
 # TRACY PROFILER
----------------------------------------------------------------------- 
+
+<img width="350" src="resources/readme/tracy.png" align="right" />
 
 To view Tracy captures, you need to run the Tracy Profiler application, which 
 you first must compile from source. You find the source for the Profiler 

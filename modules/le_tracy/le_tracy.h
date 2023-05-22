@@ -23,9 +23,7 @@
  * to where you initialize the module's api pointers in its cpp file. In case 
  * Tracy is not used this statement melts away to a no-op.
  * 
- * ---------------------------------------------------------------------- 
  * # TRACY PROFILER
- * ---------------------------------------------------------------------- 
  * 
  * To view Tracy captures, you need to run the Tracy Profiler application, which 
  * you first must compile from source. You find the source for the Profiler 
