@@ -9,6 +9,7 @@ depends_on_island_module(le_ui_event)
 depends_on_island_module(le_renderer)
 depends_on_island_module(le_pipeline_builder)
 depends_on_island_module(le_camera)
+depends_on_island_module(le_tracy)
 
 set (PROJECT_NAME "hello_triangle_app")
 

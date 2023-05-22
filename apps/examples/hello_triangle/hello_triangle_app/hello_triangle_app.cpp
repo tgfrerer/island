@@ -5,6 +5,7 @@
 #include "le_pipeline_builder.h"
 #include "le_camera.h"
 #include "le_ui_event.h"
+#include "le_tracy.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -31,6 +32,7 @@ typedef hello_triangle_app_o app_o;
 // ----------------------------------------------------------------------
 
 static void app_initialize() {
+	LE_TRACY_ENABLE_LOG( -1 );
 	le::Window::init();
 };
 
