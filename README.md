@@ -87,12 +87,12 @@ can build a single, statically linked and optimised binary.
   windows can decide whether they want to subscribe to gamepad events
   - and to which gamepads to subscribe to. 
 
+  <img width="350" src="resources/readme/tracy.png" align="right" />
+
 * **Tracy intergation** nano-second-resolution profiling via 
   [Tracy](https://github.com/wolfpld/tracy) - enable this by 
   uncommenting a single line in the app CMakeLists file. Profiling 
   works with both hot-reloading and optimised static builds.
-  
-  <img width="350" src="resources/readme/tracy.png" align="right" />
 
 * **Multi-Window** Island allows you to hook up multiple swapchains to
   a single application. You can dynamically add and remove swapchains
