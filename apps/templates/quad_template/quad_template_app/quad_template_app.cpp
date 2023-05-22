@@ -38,6 +38,11 @@ static void app_terminate() {
 // ----------------------------------------------------------------------
 
 static quad_template_app_o* quad_template_app_create() {
+
+	// If you want to disable validation layers in a debug build,
+	// set LE_SETTING_SHOULD_USE_VALIDATION_LAYERS to false:
+	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
+
 	auto app = new ( quad_template_app_o );
 
 	le::Window::Settings settings;

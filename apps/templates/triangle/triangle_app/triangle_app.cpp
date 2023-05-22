@@ -42,6 +42,11 @@ static void app_reset_camera( app_o* self ); // ffdecl.
 // ----------------------------------------------------------------------
 
 static app_o* app_create() {
+
+	// If you want to disable validation layers in a debug build,
+	// set LE_SETTING_SHOULD_USE_VALIDATION_LAYERS to false:
+	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
+
 	auto app = new ( app_o );
 
 	le::Window::Settings settings;
