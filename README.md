@@ -84,8 +84,8 @@ can build a single, statically linked and optimised binary.
 
 * **Gamepad** support: the default camera can be steered with
   a gamepad-just connect your gamepad and you are set; application
-  windows can decide whether they want to subscribe to gamepad events
-  - and to which gamepads to subscribe to. 
+  windows can decide whether they want to subscribe to gamepad events- 
+  and to which gamepads to subscribe to. 
 
   <img width="350" src="resources/readme/tracy.png" align="right" />
 
