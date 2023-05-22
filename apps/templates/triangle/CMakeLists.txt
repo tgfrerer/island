@@ -9,7 +9,8 @@ set (PROJECT_NAME "Island-Triangle")
 
 project (${PROJECT_NAME})
 
-# set to number of worker threads if you wish to use multi-threaded rendering
+# Set to number of worker threads if you wish to use multi-threaded rendering
+# (currently this will only work correctly under Linux)
 # add_compile_definitions( LE_MT=4 )
 
 # To enable tracing with Tracy, uncomment the following line
