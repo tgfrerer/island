@@ -91,8 +91,9 @@ can build a single, statically linked and optimised binary.
 
 * **Tracy intergation** nano-second-resolution profiling via 
   [Tracy](https://github.com/wolfpld/tracy) - enable this by 
-  uncommenting a single line in the app CMakeLists file. Profiling 
-  works with both hot-reloading and optimised static builds.
+  [uncommenting a single line](modules/le_tracy/README.md) in the 
+  app CMakeLists file. Profiling works with both hot-reloading and 
+  optimised static builds.
 
 * **Multi-Window** Island allows you to hook up multiple swapchains to
   a single application. You can dynamically add and remove swapchains
