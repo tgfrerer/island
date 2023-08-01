@@ -243,7 +243,7 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 
 		for ( auto d = deviceList.begin(); d != deviceList.end(); d++ ) {
 			VkPhysicalDeviceProperties device_properties{};
-			vkGetPhysicalDeviceProperties( self->vkPhysicalDevice, &device_properties );
+			vkGetPhysicalDeviceProperties( *d, &device_properties );
 			if ( device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ) {
 				self->vkPhysicalDevice = *d;
 				break;
