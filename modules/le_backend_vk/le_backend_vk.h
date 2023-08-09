@@ -95,6 +95,7 @@ struct le_pipeline_layout_info {
 	uint64_t set_layout_keys[ 8 ]    = {}; // maximum number of DescriptorSets is 8
 	uint64_t set_layout_count        = 0;  // number of actually used DescriptorSetLayouts for this layout
 	uint32_t active_vk_shader_stages = 0;  // bitfield of VkShaderStageFlagBits
+	uint32_t push_constants_enabled  = 0;  // whether push constant buffers are enabled or not: They might be disabled unintentionally if not used in shader and optimised away
 };
 
 struct le_pipeline_and_layout_info_t {

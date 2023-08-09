@@ -1988,6 +1988,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 	uint64_t           push_constant_buffer_size = 0;
 	shader_modules_collect_info( self->shaderManager, shader_modules, shader_modules_count, &push_constant_buffer_size, &active_shader_stages );
 	info.active_vk_shader_stages = uint32_t( active_shader_stages );
+	info.push_constants_enabled  = ( push_constant_buffer_size > 0 ) ? 1 : 0;
 
 	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
 	info.pipeline_layout_key = shader_modules_get_pipeline_layout_hash( self->shaderManager, shader_modules, shader_modules_count );

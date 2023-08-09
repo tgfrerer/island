@@ -5847,6 +5847,21 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					case le::CommandType::eSetPushConstantData: {
 						if ( currentPipelineLayout ) {
+
+#ifndef NDEBUG
+							// Only do extra check when compiling for Debug:
+							//
+							// If current pipeline has not push constants enabled, then exit early, and print an error message.
+							if ( ( currentPipeline.layout_info.push_constants_enabled & 0x1 ) == false ) {
+								// We only want to print this message once.
+								if ( LE_DEBUG_TRUE_ONCE_IF_CHANGED( uint64_t( currentPipeline.pipeline ) ) ) {
+									LeLog( LOGGER_LABEL ).warn( "Push Constants used, but none available for this particular Pipeline: %p\n"
+									                            "\t>> Perhaps Push Constants have been optimised out in shader code as their members are not used by the shader(s)?",
+									                            currentPipeline.pipeline );
+								}
+								break; // early-out, prevents rest of command to be interpreted
+							}
+#endif
 							auto*              le_cmd               = static_cast<le::CommandSetPushConstantData*>( dataIt );
 							VkShaderStageFlags active_shader_stages = VkShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
 							vkCmdPushConstants( cmd, currentPipelineLayout, active_shader_stages, 0, uint32_t( le_cmd->info.num_bytes ), ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)

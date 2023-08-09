@@ -103,6 +103,20 @@ return cached_str; }()
 #endif
 
 //----------------------------------------------------------------------
+// return true the first time this gets evaluated, and on every
+// successive call if the value in X has changed. This is useful
+// to prevent logging the same error more than once, for example.
+#define LE_DEBUG_TRUE_ONCE_IF_CHANGED( X )    \
+	[]( uint64_t val ) {                      \
+		static uint64_t is_first_time = ~val; \
+		if ( is_first_time == val ) {         \
+			return false;                     \
+		}                                     \
+		is_first_time = val;                  \
+		return true;                          \
+	}( X )
+
+//----------------------------------------------------------------------
 
 // this is not yet production-ready, as it does not protect against race-conditions etc.
 #define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                \
