@@ -222,17 +222,14 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 
 #ifdef LE_FEATURE_MESH_SHADER_NV
 
-	self->requested_device_features.get<VkPhysicalDeviceMeshShaderFeaturesNV>()
-	    .setMeshShader( true )
-	    .setTaskShader( true );
+	self->requested_device_features.mesh_shader.meshShader = true;
+	self->requested_device_features.mesh_shader.taskShader = true;
 
 	// We require 8 bit integers, and 16 bit floats for when we use mesh shaders -
 	// because most use cases will want to make use of these.
 
-	self->requested_device_features.get<VkPhysicalDeviceVulkan12Features>()
-	    .setShaderInt8( true )    //
-	    .setShaderFloat16( true ) //
-	    ;
+	self->requested_device_features.vk_12.shaderInt8    = true;
+	self->requested_device_features.vk_12.shaderFloat16 = true;
 #endif
 
 	return self;
