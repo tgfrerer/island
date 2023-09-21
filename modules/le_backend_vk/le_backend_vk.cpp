@@ -1453,23 +1453,20 @@ static void backend_setup( le_backend_o* self ) {
 
 		using namespace le_backend_vk;
 
-		// assert( !self->swapchainImageFormat.empty() && "must have at least one swapchain image format available." );
+		// This is the most common image format for attachments - it is guaranteed to be available by any
+		VkFormat default_format_color_attachment         = {};
+		VkFormat default_format_depth_stencil_attachment = {};
+		VkFormat default_format_sampled_image            = {};
 
-		if ( !self->swapchains.empty() ) {
-			// Take the first swapchain, and use this to specify the default format for a color attachment
-			// Note that we take swapchain with index 1, as index 0 must not exist (it represents an invalid swapchain index or handle)
-			self->defaultFormatColorAttachment = le::Format( self->swapchains.at( 1 ).swapchain_surface_format.format );
-		} else {
-			self->defaultFormatColorAttachment = le::Format::eB8G8R8A8Unorm;
-		}
+		vk_device_i.get_default_image_formats(
+		    *self->device,
+		    reinterpret_cast<VkFormatEnum*>( &default_format_color_attachment ),
+		    reinterpret_cast<VkFormatEnum*>( &default_format_depth_stencil_attachment ),
+		    reinterpret_cast<VkFormatEnum*>( &default_format_sampled_image ) );
 
-		self->defaultFormatDepthStencilAttachment =
-		    static_cast<le::Format>( VkFormat( *vk_device_i.get_default_depth_stencil_format( *self->device ) ) );
-
-		// We hard-code default format for sampled images, since this is the most likely
-		// format we will encounter bitmaps to be encoded in, and there is no good way
-		// to infer it.
-		self->defaultFormatSampledImage = le::Format::eR8G8B8A8Unorm;
+		self->defaultFormatColorAttachment        = le::Format( default_format_color_attachment );
+		self->defaultFormatDepthStencilAttachment = le::Format( default_format_depth_stencil_attachment );
+		self->defaultFormatSampledImage           = le::Format( default_format_sampled_image );
 	}
 }
 

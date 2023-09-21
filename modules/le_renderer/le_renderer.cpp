@@ -390,10 +390,20 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 
 		renderer_request_swapchain_capabilities( self, self->settings.swapchain_settings, self->settings.num_swapchain_settings );
 
+#if ( LE_MT > 0 )
+		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
+#endif
+
 		// We can now initialize the backend so that it hopefully conforms to
 		// any requirements and capabilities that have been requested so far...
 		//
 		le_backend_vk::vk_backend_i.initialise( self->backend );
+
+		// We setup our backend so that the backend's allocator becomes
+		// available in case that any swapchain implementation needs to allocate resources
+		// via the backend. (This is currently the case with the image swapchain, which
+		// will use the backend to allocate its target images)
+		le_backend_vk::vk_backend_i.setup( self->backend );
 
 		// Now that we have backend device and instance, we can use this to
 		// create surfaces for swapchains for example.
@@ -402,7 +412,7 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 		//  - via the global backend_settings singleton -
 		// so that the number of data frames is less or equal to the number of
 		// available images in the swapchain.
-
+		//
 		for ( size_t i = 0; i < self->settings.num_swapchain_settings; i++ ) {
 			auto p_swapchain_settings = &self->settings.swapchain_settings[ i ];
 			if ( p_swapchain_settings && !p_swapchain_settings->defer_create ) {
@@ -410,12 +420,6 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 				renderer_add_swapchain( self, p_swapchain_settings );
 			}
 		}
-
-#if ( LE_MT > 0 )
-		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
-#endif
-
-		le_backend_vk::vk_backend_i.setup( self->backend );
 	}
 
 	self->backendDataFramesCount = le_backend_vk::vk_backend_i.get_data_frames_count( self->backend );

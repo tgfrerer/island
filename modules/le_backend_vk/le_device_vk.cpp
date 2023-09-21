@@ -43,6 +43,8 @@ struct le_device_o {
 	std::set<std::string> requestedDeviceExtensions;
 
 	VkFormat defaultDepthStencilFormat;
+	VkFormat defaultColorAttachmentFormat;
+	VkFormat defaultSampledImageFormat;
 
 	uint32_t referenceCount = 0;
 };
@@ -389,31 +391,70 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 		self->queues_flags[ i ]        = available_queues[ i ].queue_family_flags;
 	}
 
-	// Query possible depth formats, find the
-	// first format that supports attachment as a depth stencil
-	//
-	// Since all depth formats may be optional, we need to find a suitable depth format to use
-	// Start with the highest precision packed format
-	std::vector<VkFormat> depthFormats = {
-	    VK_FORMAT_D32_SFLOAT_S8_UINT,
-	    VK_FORMAT_D32_SFLOAT,
-	    VK_FORMAT_D24_UNORM_S8_UINT,
-	    VK_FORMAT_D16_UNORM,
-	    VK_FORMAT_D16_UNORM_S8_UINT };
-
-	for ( auto& format : depthFormats ) {
-		VkFormatProperties2 props2 = {
-		    .sType            = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
-		    .pNext            = nullptr, // optional
-		    .formatProperties = {},
-		};
-		;
-		vkGetPhysicalDeviceFormatProperties2( self->vkPhysicalDevice, format, &props2 );
-		// Format must support depth stencil attachment for optimal tiling
-		if ( props2.formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT ) {
-			self->defaultDepthStencilFormat = VkFormat( format );
-			break;
+	auto find_first_supported_format = []( le_device_o* device, std::vector<VkFormat> const& formats, VkFormatFeatureFlags const& required_flags ) {
+		for ( auto& format : formats ) {
+			VkFormatProperties2 props2 = {
+			    .sType            = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
+			    .pNext            = nullptr, // optional
+			    .formatProperties = {},
+			};
+			vkGetPhysicalDeviceFormatProperties2( device->vkPhysicalDevice, format, &props2 );
+			// Format must support optimal tiling
+			if ( props2.formatProperties.optimalTilingFeatures & required_flags ) {
+				return VkFormat( format );
+				break;
+			}
 		}
+		return VkFormat( VK_FORMAT_UNDEFINED );
+	};
+
+	self->defaultDepthStencilFormat =
+	    find_first_supported_format(
+	        self,
+	        {
+	            VK_FORMAT_D32_SFLOAT_S8_UINT,
+	            VK_FORMAT_D32_SFLOAT,
+	            VK_FORMAT_D24_UNORM_S8_UINT,
+	            VK_FORMAT_D16_UNORM,
+	            VK_FORMAT_D16_UNORM_S8_UINT,
+	        },
+	        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT );
+
+	if ( self->defaultDepthStencilFormat == VK_FORMAT_UNDEFINED ) {
+		le::Log( LOGGER_LABEL ).error( "Could not figure out default depth stencil image format" );
+		exit( 1 );
+	}
+
+	self->defaultColorAttachmentFormat =
+	    find_first_supported_format(
+	        self,
+	        {
+	            VK_FORMAT_B8G8R8A8_SRGB,
+	            VK_FORMAT_R8G8B8A8_SRGB,
+	            VK_FORMAT_B8G8R8A8_UNORM,
+	            VK_FORMAT_R8G8B8A8_UNORM,
+	        },
+	        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT );
+
+	if ( self->defaultColorAttachmentFormat == VK_FORMAT_UNDEFINED ) {
+		le::Log( LOGGER_LABEL ).error( "Could not figure out default color attachment image format" );
+		exit( 1 );
+	}
+
+	self->defaultSampledImageFormat =
+	    find_first_supported_format(
+	        self,
+	        {
+	            VK_FORMAT_B8G8R8A8_SRGB,
+	            VK_FORMAT_R8G8B8A8_SRGB,
+	            VK_FORMAT_B8G8R8A8_UNORM,
+	            VK_FORMAT_R8G8B8A8_UNORM,
+	        },
+	        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT );
+
+	if ( self->defaultSampledImageFormat == VK_FORMAT_UNDEFINED ) {
+		le::Log( LOGGER_LABEL ).error( "Could not figure out default sampled image format" );
+		exit( 1 );
 	}
 
 	return self;
@@ -516,9 +557,12 @@ static void le_device_get_queues_info( le_device_o* self, uint32_t* queue_count,
 	}
 }
 // ----------------------------------------------------------------------
+LE_WRAP_ENUM_IN_STRUCT( VkFormat, VkFormatEnum ); // define wrapper struct `VkFormatEnum`
 
-static VkFormatEnum const* device_get_default_depth_stencil_format( le_device_o* self ) {
-	return reinterpret_cast<VkFormatEnum const*>( &self->defaultDepthStencilFormat );
+static void device_get_default_image_formats( le_device_o* self, VkFormatEnum* format_color_attachment, VkFormatEnum* format_depth_stencil_attachment, VkFormatEnum* format_sampled_image ) {
+	*format_depth_stencil_attachment = reinterpret_cast<VkFormatEnum&>( self->defaultDepthStencilFormat );
+	*format_color_attachment         = reinterpret_cast<VkFormatEnum&>( self->defaultColorAttachmentFormat );
+	*format_sampled_image            = reinterpret_cast<VkFormatEnum&>( self->defaultSampledImageFormat );
 }
 
 // ----------------------------------------------------------------------
@@ -578,7 +622,7 @@ void register_le_device_vk_api( void* api_ ) {
 	device_i.get_reference_count                           = device_get_reference_count;
 	device_i.get_queue_family_indices                      = device_get_queue_family_indices;
 	device_i.get_queues_info                               = le_device_get_queues_info;
-	device_i.get_default_depth_stencil_format              = device_get_default_depth_stencil_format;
+	device_i.get_default_image_formats                     = device_get_default_image_formats;
 	device_i.get_vk_physical_device                        = device_get_vk_physical_device;
 	device_i.get_vk_device                                 = device_get_vk_device;
 	device_i.get_vk_physical_device_properties             = device_get_vk_physical_device_properties;

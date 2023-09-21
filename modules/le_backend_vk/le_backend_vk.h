@@ -64,7 +64,7 @@ struct VkMemoryAllocateInfo;
 struct VkSpecializationMapEntry;
 struct VkPhysicalDeviceFeatures2;
 
-struct VkFormatEnum;
+struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 struct BackendRenderPass;
 struct BackendQueueInfo;
 
@@ -84,7 +84,6 @@ struct BuildAccelerationStructureFlagsKHR;
 struct LeShaderSourceLanguageEnum;
 // enum class LeResourceType : uint8_t;
 
-struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 
 struct le_resource_info_t;
 
@@ -217,11 +216,11 @@ struct le_backend_vk_api {
 		le_device_o *			    ( *increase_reference_count                ) ( le_device_o* self_ );
 		uint32_t                    ( *get_reference_count                     ) ( le_device_o* self_ );
 
-        void                        ( *get_queue_family_indices                ) ( le_device_o* self, uint32_t * family_indices, uint32_t* num_family_indices);
-        void                        (* get_queues_info                         ) ( le_device_o* self, uint32_t* queue_count, VkQueue_T** queues, uint32_t* queues_family_index, VkQueueFlags* queues_flags);
-		VkFormatEnum const*         ( *get_default_depth_stencil_format        ) ( le_device_o* self_ );
-		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_device_o* self_ );
-		VkDevice_T*                 ( *get_vk_device                           ) ( le_device_o* self_ );
+        void                        ( *get_queue_family_indices                ) ( le_device_o* self, uint32_t * family_indices, uint32_t* num_family_indices );
+        void                        ( *get_queues_info                         ) ( le_device_o* self, uint32_t* queue_count, VkQueue_T** queues, uint32_t* queues_family_index, VkQueueFlags* queues_flags );
+		void 						( *get_default_image_formats    	       ) ( le_device_o* self, VkFormatEnum* format_color_attachment, VkFormatEnum* format_depth_stencil_attachment, VkFormatEnum* format_sampled_image );
+		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_device_o* self );
+		VkDevice_T*                 ( *get_vk_device                           ) ( le_device_o* self );
 		bool                        ( *is_extension_available                  ) ( le_device_o* self, char const * extension_name);
 
 		const VkPhysicalDeviceProperties*       ( *get_vk_physical_device_properties        ) ( le_device_o* self );
