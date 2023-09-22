@@ -30,7 +30,7 @@ static void swapchain_inc_ref( le_swapchain_o* base ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o* swapchain_create( le_swapchain_vk_api::swapchain_interface_t const& interface, le_backend_o* backend, const le_swapchain_settings_t* settings ) {
+static le_swapchain_o* swapchain_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
 
 	post_reload_hook( backend );
 
@@ -39,7 +39,20 @@ static le_swapchain_o* swapchain_create( le_swapchain_vk_api::swapchain_interfac
 	*le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_o" ) ) = backend;
 #endif
 
-	auto obj = interface.create( interface, backend, settings );
+	le_swapchain_o* obj = nullptr;
+
+	switch ( settings->type ) {
+	case ( le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN ):
+		obj = le_swapchain_vk::api->swapchain_direct_i.create( backend, settings );
+		break;
+	case ( le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN ):
+		obj = le_swapchain_vk::api->swapchain_img_i.create( backend, settings );
+		break;
+	case ( le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ):
+		obj = le_swapchain_vk::api->swapchain_khr_i.create( backend, settings );
+		break;
+	}
+
 	swapchain_inc_ref( obj );
 	return obj;
 }

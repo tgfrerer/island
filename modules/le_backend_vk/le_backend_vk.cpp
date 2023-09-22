@@ -958,7 +958,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	switch ( swapchain_settings.type ) {
 	case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
 		// Create a windowless swapchain
-		swapchain = swapchain_i.create( api->swapchain_direct_i, self, &swapchain_settings );
+		swapchain = swapchain_i.create( self, &swapchain_settings );
 		break;
 	}
 	case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
@@ -973,7 +973,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 			    } );
 
 			swapchain_settings.khr_settings.vk_surface = maybe_swapchain_surface.get();
-			swapchain                                  = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, &swapchain_settings );
+			swapchain                                  = swapchain_i.create( self, &swapchain_settings );
 		} else {
 			logger.error( "No window specified for LE_KHR_SWAPCHAIN" );
 			return nullptr;
@@ -982,7 +982,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	}
 	case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
 		// Create an image swapchain
-		swapchain = swapchain_i.create( api->swapchain_img_i, self, &swapchain_settings );
+		swapchain = swapchain_i.create( self, &swapchain_settings );
 		break;
 	}
 	default:

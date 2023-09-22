@@ -264,9 +264,9 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o* swapchain_khr_create( const le_swapchain_vk_api::swapchain_interface_t& interface, le_backend_o* backend, const le_swapchain_settings_t* settings ) {
+static le_swapchain_o* swapchain_khr_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
 
-	auto base  = new le_swapchain_o( interface );
+	auto base  = new le_swapchain_o( le_swapchain_vk::api->swapchain_khr_i );
 	base->data = new khr_data_o{};
 	auto self  = static_cast<khr_data_o*>( base->data );
 

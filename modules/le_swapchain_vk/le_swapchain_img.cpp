@@ -323,9 +323,9 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o* swapchain_img_create( const le_swapchain_vk_api::swapchain_interface_t& interface, le_backend_o* backend, const le_swapchain_settings_t* settings ) {
+static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	auto        base   = new le_swapchain_o( interface );
+	auto        base   = new le_swapchain_o( le_swapchain_vk::api->swapchain_img_i );
 	base->data         = new img_data_o{};
 	auto self          = static_cast<img_data_o*>( base->data );
 

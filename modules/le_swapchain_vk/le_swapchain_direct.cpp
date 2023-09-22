@@ -295,11 +295,11 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o* swapchain_direct_create( const le_swapchain_vk_api::swapchain_interface_t& interface, le_backend_o* backend, const le_swapchain_settings_t* settings ) {
+static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	auto base  = new le_swapchain_o( interface );
+	auto base  = new le_swapchain_o( le_swapchain_vk::api->swapchain_direct_i );
 	base->data = new swp_direct_data_o{};
 	auto self  = static_cast<swp_direct_data_o*>( base->data );
 
