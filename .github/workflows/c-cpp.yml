@@ -83,3 +83,7 @@ jobs:
       if: startsWith(matrix.name, 'ubuntu')
       run: |
           ./scripts/ci/run_tests.sh;
+
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
