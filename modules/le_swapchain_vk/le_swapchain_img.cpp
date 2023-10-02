@@ -401,6 +401,9 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 		assert( self->pipe != nullptr );
 #endif // _MSC_VER
 	}
+
+	logger.info( "Created Swapchain: %p: Image Swapchain", base );
+
 	return base;
 }
 
@@ -413,7 +416,8 @@ static le_swapchain_o* swapchain_img_create_from_old_swapchain( le_swapchain_o* 
 
 static void swapchain_img_destroy( le_swapchain_o* base ) {
 
-	auto self = static_cast<img_data_o* const>( base->data );
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto        self   = static_cast<img_data_o* const>( base->data );
 
 	if ( self->pipe ) {
 #ifdef _MSC_VER
@@ -472,6 +476,8 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 
 	delete self; // delete object's data
 	delete base; // delete object
+
+	logger.info( "Deleted Swapchain: %p: Image Swapchain", base );
 }
 
 // ----------------------------------------------------------------------
