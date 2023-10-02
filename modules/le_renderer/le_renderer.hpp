@@ -127,18 +127,9 @@ class SwapchainSettingsBuilder {
   public:
 	// Factory function, returns settings builder that applies to external settings object
 
-	SwapchainSettingsBuilder( T& parent_, le_swapchain_settings_t* external_settings, le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN )
+	SwapchainSettingsBuilder( T& parent_, le_swapchain_settings_t* external_settings = nullptr, le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN )
 	    : parent( parent_ )
-	    , self( *external_settings ) {
-		initialize( type );
-	}
-
-	SwapchainSettingsBuilder( le_swapchain_settings_t* external_settings, le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN )
-	    : self( *external_settings ) {
-		initialize( type );
-	}
-
-	SwapchainSettingsBuilder( le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ) {
+	    , self( external_settings ? *external_settings : default_data ) {
 		initialize( type );
 	}
 
