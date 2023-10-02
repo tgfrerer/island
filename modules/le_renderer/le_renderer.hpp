@@ -225,6 +225,10 @@ class RendererInfoBuilder {
 		}
 	}
 
+	operator le_renderer_settings_t const&() {
+		return self;
+	}
+
 	le_renderer_settings_t const& build() {
 		// if an initial window was given and nothing else,
 		// we must make sure that the setting still counts.
