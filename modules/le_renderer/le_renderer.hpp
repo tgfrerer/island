@@ -19,149 +19,210 @@ using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 			return *this;                                                                 \
 		}
 
-class RendererInfoBuilder {
-	le_renderer_settings_t   info{};
-	le_renderer_settings_t&  self               = info;
-	le_swapchain_settings_t* swapchain_settings = nullptr;
-	le_window_o*             initial_window     = nullptr;
+template <typename T>
+class KhrSwapchainInfoBuilder {
+	T&                                       parent;
+	le_swapchain_settings_t::khr_settings_t& settings;
 
   public:
-	RendererInfoBuilder( le_window_o* window = nullptr )
-	    : swapchain_settings( info.swapchain_settings )
-	    , initial_window( window ) {
-		if ( window && info.swapchain_settings->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN ) {
-			info.swapchain_settings->khr_settings.window = window;
-			info.swapchain_settings->type                = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
+	KhrSwapchainInfoBuilder( T& parent_ )
+	    : parent( parent_ )
+	    , settings( parent.self.khr_settings ) {
+		parent.self.init_khr_settings();
+	}
+
+	KhrSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
+		settings.presentmode_hint = presentmode_hint;
+		return *this;
+	}
+
+	KhrSwapchainInfoBuilder& setWindow( le_window_o* window = nullptr ) {
+		settings.window = window;
+		return *this;
+	}
+
+	T& end() {
+		return parent;
+	}
+};
+
+template <typename T>
+class DirectSwapchainInfoBuilder {
+	T&                                                   parent;
+	le_swapchain_settings_t::khr_direct_mode_settings_t& settings;
+
+  public:
+	DirectSwapchainInfoBuilder( T& parent_ )
+	    : parent( parent_ )
+	    , settings( parent.self.khr_direct_mode_settings ) {
+		parent.self.init_khr_direct_mode_settings();
+	}
+
+	DirectSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
+		settings.presentmode_hint = presentmode_hint;
+		return *this;
+	}
+
+	DirectSwapchainInfoBuilder& setDisplayName( char const* display_name = "" ) {
+		settings.display_name = display_name;
+		return *this;
+	}
+
+	T& end() {
+		return parent;
+	}
+};
+
+template <typename T>
+class ImgSwapchainInfoBuilder {
+	T&                                       parent;
+	le_swapchain_settings_t::img_settings_t& settings;
+
+	static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
+
+  public:
+	ImgSwapchainInfoBuilder( T& parent_ )
+	    : parent( parent_ )
+	    , settings( parent_.self.img_settings ) {
+		parent.self.init_img_settings();
+		setPipeCmd();
+	}
+
+	ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
+		settings.pipe_cmd = pipe_cmd;
+		return *this;
+	}
+
+	T& end() {
+		return parent;
+	}
+};
+
+template <typename T>
+class SwapchainSettingsBuilder {
+	le_swapchain_settings_t  default_data = {};
+	le_swapchain_settings_t& self         = default_data;
+	T&                       parent;
+
+	void initialize( le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ) {
+		self = le_swapchain_settings_t();
+
+		switch ( type ) {
+		case le_swapchain_settings_t::LE_KHR_SWAPCHAIN:
+			self.init_khr_settings();
+			break;
+		case le_swapchain_settings_t::LE_DIRECT_SWAPCHAIN:
+			self.init_khr_direct_mode_settings();
+			break;
+		case le_swapchain_settings_t::LE_IMG_SWAPCHAIN:
+			self.init_img_settings();
+			break;
 		}
 	}
 
-	class SwapchainInfoBuilder {
-		RendererInfoBuilder&      parent;
-		le_swapchain_settings_t*& self;
+	friend class ImgSwapchainInfoBuilder<SwapchainSettingsBuilder>;
+	friend class KhrSwapchainInfoBuilder<SwapchainSettingsBuilder>;
+	friend class DirectSwapchainInfoBuilder<SwapchainSettingsBuilder>;
 
-	  public:
-		SwapchainInfoBuilder( RendererInfoBuilder& parent_ )
-		    : parent( parent_ )
-		    , self( parent.swapchain_settings ) {
-		}
+  public:
+	// Factory function, returns settings builder that applies to external settings object
 
-		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setWidthHint, uint32_t, width_hint, = 640 )
-		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setHeightHint, uint32_t, height_hint, = 480 )
-		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
-		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
+	SwapchainSettingsBuilder( T& parent_, le_swapchain_settings_t* external_settings, le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN )
+	    : parent( parent_ )
+	    , self( *external_settings ) {
+		initialize( type );
+	}
 
-		class KhrSwapchainInfoBuilder {
-			SwapchainInfoBuilder& parent;
+	SwapchainSettingsBuilder( le_swapchain_settings_t* external_settings, le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN )
+	    : self( *external_settings ) {
+		initialize( type );
+	}
 
-		  public:
-			KhrSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
-			    : parent( parent_ ) {
-				parent.self->init_khr_settings();
-			}
+	SwapchainSettingsBuilder( le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ) {
+		initialize( type );
+	}
 
-			KhrSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
-				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
-				return *this;
-			}
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setWidthHint, uint32_t, width_hint, = 640 )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setHeightHint, uint32_t, height_hint, = 480 )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setDeferCreate, bool, defer_create, = false )
 
-			KhrSwapchainInfoBuilder& setWindow( le_window_o* window = nullptr ) {
-				this->parent.parent.swapchain_settings->khr_settings.window = window;
-				return *this;
-			}
-
-			SwapchainInfoBuilder& end() {
-				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
-				return parent;
-			}
-		};
-
-		class DirectSwapchainInfoBuilder {
-			SwapchainInfoBuilder& parent;
-
-		  public:
-			DirectSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
-			    : parent( parent_ ) {
-				parent.self->init_khr_direct_mode_settings();
-			}
-
-			DirectSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
-				this->parent.parent.swapchain_settings->khr_direct_mode_settings.presentmode_hint = presentmode_hint;
-				return *this;
-			}
-
-			DirectSwapchainInfoBuilder& setDisplayName( char const* display_name = "" ) {
-				this->parent.parent.swapchain_settings->khr_direct_mode_settings.display_name = display_name;
-				return *this;
-			}
-
-			SwapchainInfoBuilder& end() {
-				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
-				return parent;
-			}
-		};
-
-		class ImgSwapchainInfoBuilder {
-			SwapchainInfoBuilder& parent;
-
-			static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
-
-		  public:
-			ImgSwapchainInfoBuilder( SwapchainInfoBuilder& parent_ )
-			    : parent( parent_ ) {
-				parent.self->init_img_settings();
-				setPipeCmd();
-			}
-
-			ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
-				parent.parent.swapchain_settings->img_settings.pipe_cmd = pipe_cmd;
-				return *this;
-			}
-
-			SwapchainInfoBuilder& end() {
-				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
-				return parent;
-			}
-		};
-
-		DirectSwapchainInfoBuilder mDirectSwapchainInfoBuilder{ *this }; // order matters, last one will be default, because initialisation overwrites.
-		ImgSwapchainInfoBuilder    mImgSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
-		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
-
-		KhrSwapchainInfoBuilder& asWindowSwapchain() {
-			this->self->init_khr_settings();
-			return mKhrSwapchainInfoBuilder;
-		}
-
-		ImgSwapchainInfoBuilder& asImgSwapchain() {
-			this->self->init_img_settings();
-			return mImgSwapchainInfoBuilder;
-		}
-
-		DirectSwapchainInfoBuilder& asDirectSwapchain() {
-			this->self->init_khr_direct_mode_settings();
-			return mDirectSwapchainInfoBuilder;
-		}
-
-		RendererInfoBuilder& end() {
-			parent.info.num_swapchain_settings++;
-			parent.swapchain_settings++;
-			return parent;
-		}
+	ImgSwapchainInfoBuilder<SwapchainSettingsBuilder> asImgSwapchain() {
+		return *this;
 	};
 
-	SwapchainInfoBuilder mSwapchainInfoBuilder{ *this };
+	KhrSwapchainInfoBuilder<SwapchainSettingsBuilder> asWindowSwapchain() {
+		return *this;
+	}
 
-	SwapchainInfoBuilder& addSwapchain() {
-		return mSwapchainInfoBuilder;
+	DirectSwapchainInfoBuilder<SwapchainSettingsBuilder> asDirectSwapchain() {
+		return *this;
+	}
+
+	auto& end() {
+		return parent;
+	}
+
+	le_swapchain_settings_t build() {
+		return self;
+	};
+
+	operator le_swapchain_settings_t&() {
+		return self;
+	};
+};
+
+class RendererInfoBuilder {
+	le_renderer_settings_t   renderer_settings  = {};
+	le_renderer_settings_t&  self               = renderer_settings;
+	le_swapchain_settings_t* swapchain_settings = nullptr;
+	le_window_o*             initial_window     = nullptr;
+	friend class SwapchainSettingsBuilder<RendererInfoBuilder>;
+
+  public:
+	RendererInfoBuilder( le_window_o* window = nullptr )
+	    : swapchain_settings( renderer_settings.swapchain_settings )
+	    , initial_window( window ) {
+		if ( window ) {
+			auto builder = le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
+			builder.asWindowSwapchain()
+			    .setWindow( window )
+			    .end();
+		}
+	}
+
+	le::SwapchainSettingsBuilder<RendererInfoBuilder> addSwapchain() {
+		if ( initial_window ) {
+			auto builder = le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings );
+			builder.asWindowSwapchain()
+			    .setWindow( initial_window )
+			    .end();
+			initial_window = nullptr;
+			return builder;
+		} else {
+			return le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
+		}
 	}
 
 	/// If you want to add a swapchain later, you must have declared one of its type
 	/// to the renderer. This will not automatically create the swapchain on renderer setup,
 	/// but it will create the renderer and the backend with the necessary extensions
 	/// for this swapchain to work.
-	SwapchainInfoBuilder& declareSwapchain() {
-		info.swapchain_settings[ info.num_swapchain_settings ].defer_create = true;
-		return mSwapchainInfoBuilder;
+	SwapchainSettingsBuilder<RendererInfoBuilder> declareSwapchain() {
+		if ( initial_window ) {
+			auto builder = le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings );
+			builder.asWindowSwapchain()
+			    .setWindow( initial_window )
+			    .end();
+			initial_window = nullptr;
+			builder.setDeferCreate( true );
+			return builder;
+		} else {
+			auto builder = le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
+			builder.setDeferCreate( true );
+			return builder;
+		}
 	}
 
 	le_renderer_settings_t const& build() {
@@ -171,13 +232,7 @@ class RendererInfoBuilder {
 		// will have been applied to the first element, and
 		// end() will have been called on the Builder, which
 		// will have incremented `num_swapchain_settings`.
-		if ( initial_window &&
-		     info.num_swapchain_settings <= 1 &&
-		     info.swapchain_settings[ 0 ].type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN ) {
-			info.swapchain_settings[ 0 ].khr_settings.window = initial_window;
-			info.num_swapchain_settings                      = 1;
-		}
-		return info;
+		return self;
 	};
 };
 // ----------------------------------------------------------------------
