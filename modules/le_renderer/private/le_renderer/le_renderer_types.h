@@ -260,22 +260,25 @@ struct le_swapchain_settings_t {
 	};
 
 	void init_khr_settings() {
+		this->type                          = LE_KHR_SWAPCHAIN;
 		this->khr_settings.presentmode_hint = khr_settings_t::Presentmode::eDefault;
 		this->khr_settings.vk_surface       = nullptr;
 		this->khr_settings.window           = nullptr;
 	}
 	void init_khr_direct_mode_settings() {
+		this->type                                      = LE_DIRECT_SWAPCHAIN;
 		this->khr_direct_mode_settings.presentmode_hint = khr_settings_t::Presentmode::eDefault;
 		this->khr_direct_mode_settings.display_name     = "";
 		this->khr_direct_mode_settings.vk_surface       = nullptr;
 	}
 	void init_img_settings() {
+		this->type                  = LE_IMG_SWAPCHAIN;
 		this->img_settings.pipe_cmd = "";
 	}
 };
 
 struct le_renderer_settings_t {
-	le_swapchain_settings_t swapchain_settings[ 16 ] = {};
+	le_swapchain_settings_t swapchain_settings[ 16 ] = {}; // todo: rename this to initial_swapchain_settings; make sure that this is only accessed during renderer::setup, and not any later. convert this into a linked list!
 	size_t                  num_swapchain_settings   = 0;
 	// TODO: add a hint for number of swapchain frames
 };
