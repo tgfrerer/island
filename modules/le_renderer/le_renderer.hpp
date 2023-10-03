@@ -152,15 +152,15 @@ class SwapchainSettingsBuilderT {
 		return *this;
 	}
 
-	auto& end() {
-		return parent;
+	T& end() {
+		return *parent;
 	}
 
-	le_swapchain_settings_t build() {
+	le_swapchain_settings_t const& build() {
 		return self;
 	};
 
-	operator le_swapchain_settings_t&() {
+	operator le_swapchain_settings_t const&() {
 		return self;
 	};
 };
@@ -228,12 +228,6 @@ class RendererInfoBuilder {
 	}
 
 	le_renderer_settings_t const& build() {
-		// if an initial window was given and nothing else,
-		// we must make sure that the setting still counts.
-		// if the builder pattern was used, then the window
-		// will have been applied to the first element, and
-		// end() will have been called on the Builder, which
-		// will have incremented `num_swapchain_settings`.
 		return self;
 	};
 };
