@@ -995,7 +995,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	char swapchain_name[ 64 ];
 
-	snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Modern_Swapchain_Image_Handle[%lu]", swapchain_index );
+	snprintf( swapchain_name, sizeof( swapchain_name ), "Swapchain_Image_Handle[%lu]", swapchain_index );
 
 	swapchain_data_t swapchain_data( swapchain );
 	swapchain_data.swapchain_surface_format = *swapchain_i.get_surface_format( swapchain );
