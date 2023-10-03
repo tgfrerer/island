@@ -1,5 +1,4 @@
-#pragma once 
-
+#pragma once
 
 enum SettingType : uint64_t {
 	eInt       = hash_64_fnv1a_const( "int" ),
@@ -7,6 +6,7 @@ enum SettingType : uint64_t {
 	eInt32_t   = hash_64_fnv1a_const( "int32_t" ),
 	eStdString = hash_64_fnv1a_const( "std::string" ),
 	eBool      = hash_64_fnv1a_const( "bool" ),
+	eConstBool = hash_64_fnv1a_const( "const bool" ),
 };
 struct LeSettingEntry {
 	std::string name;

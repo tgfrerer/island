@@ -1090,6 +1090,9 @@ static void cb_get_setting_command( Command const* cmd, std::string const& str, 
 		if ( found_setting != nullptr ) {
 			void* setting = found_setting->p_opj;
 			switch ( found_setting->type_hash ) {
+			case ( SettingType::eConstBool ):
+				msg << found_setting->name << " [ const bool ] == '" << ( ( *( const bool* )found_setting->p_opj ) ? "true" : "false" ) << "'\n\r";
+				break;
 			case ( SettingType::eBool ):
 				msg << found_setting->name << " [ bool ] == '" << ( ( *( bool* )found_setting->p_opj ) ? "true" : "false" ) << "'\n\r";
 				break;
@@ -1115,14 +1118,24 @@ static void cb_get_setting_command( Command const* cmd, std::string const& str, 
 };
 
 static void cb_set_setting_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	static auto logger = le::Log( LOG_CHANNEL );
 	if ( tokens.size() == 3 ) {
 		auto setting_name  = tokens[ 1 ];
 		auto setting_value = tokens[ 2 ];
 		auto found_setting = le_core_get_setting_entry( setting_name );
 
 		if ( found_setting != nullptr ) {
-			void* setting = found_setting->p_opj;
+			std::ostringstream msg;
+			void*              setting = found_setting->p_opj;
 			switch ( found_setting->type_hash ) {
+			case SettingType::eConstBool:
+				logger.warn( "Cannot set value for setting: '%s'. Settings with type `const bool` "
+				             "cannot be altered at runtime. They can only be set on startup, and "
+				             "the first evaluated value of the setting remains the canonical "
+				             "value for the duration of the program.",
+				             found_setting->name.c_str() );
+				break;
+
 			case SettingType::eBool:
 				*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 10 ) );
 				break;
@@ -1445,7 +1458,7 @@ static void le_console_process_input() {
 
 		if ( token_idx != 0 ) {
 			logger.info( "found command: %s", cmd->getName().c_str() );
-			logger.info( "command parent: %x", cmd->getParent() );
+			logger.info( "command parent: %s", cmd->getParent()->getName().c_str() );
 			if ( cmd->execute_command ) {
 				cmd->execute_command( cmd, msg, tokens, connection.get() );
 			}
