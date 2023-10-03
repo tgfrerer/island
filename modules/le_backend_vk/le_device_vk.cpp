@@ -445,8 +445,8 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 	    find_first_supported_format(
 	        self,
 	        {
-	            VK_FORMAT_B8G8R8A8_UNORM,
 	            VK_FORMAT_R8G8B8A8_UNORM,
+	            VK_FORMAT_B8G8R8A8_UNORM,
 	            VK_FORMAT_B8G8R8A8_SRGB,
 	            VK_FORMAT_R8G8B8A8_SRGB,
 	        },
