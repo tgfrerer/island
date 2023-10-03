@@ -24,8 +24,18 @@ le_render_module_add_blit_pass(
 		le::GraphicsEncoder encoder{ encoder_ };
 		auto*       pm = encoder.getPipelineManager();
 
-		static auto quadVert = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
-		static auto blitFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/fullscreenQuad.frag" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_frag" ) ).build();
+		static auto quadVert =
+		    LeShaderModuleBuilder( pm )
+		        .setShaderStage( le::ShaderStage::eVertex )
+		        .setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" )
+		        .setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) )
+		        .build();
+		static auto blitFrag =
+		    LeShaderModuleBuilder( pm )
+		        .setShaderStage( le::ShaderStage::eFragment )
+		        .setSourceFilePath( "./resources/shaders/fullscreenQuad.frag" )
+		        .setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_frag" ) )
+		        .build();
 
 		static auto pipeline =
 		    LeGraphicsPipelineBuilder( pm )
