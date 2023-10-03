@@ -367,23 +367,38 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 
 		timestamp_tag << std::put_time( std::localtime( &time_now ), "_%y-%m-%d_%OH-%OM-%OS" );
 
+		std::string pix_fmt = "rgba";
+
+		switch ( self->windowSurfaceFormat.format ) {
+		case ( VK_FORMAT_R8G8B8A8_UNORM ): // fall-through
+		case ( VK_FORMAT_R8G8B8A8_SRGB ):
+			pix_fmt = "rgba";
+			break;
+		case ( VK_FORMAT_B8G8R8A8_UNORM ):
+		case ( VK_FORMAT_B8G8R8A8_SRGB ):
+			pix_fmt = "bgra";
+			break;
+		default:
+			pix_fmt = "rgba";
+		}
+
 		// -- Initialise ffmpeg as a receiver for our frames by selecting one of
 		// these possible command line options.
 		const char* commandLines[] = {
-		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high isl%s.mp4",
-		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -filter_complex \"[0:v] fps=30,split [a][b];[a] palettegen [p];[b][p] paletteuse\" isl%s.gif",
-		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec nvenc_hevc -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 4 -b:v 2500k -maxrate:v 50000k -vf \"minterpolate=mi_mode=blend:mc_mode=aobmc:mi_mode=mci,framerate=30\" isl%s.mov",
-		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec h264_nvenc  -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 10 -b:v 5000k -maxrate:v 50000k -pix_fmt yuv420p -r 60 -profile:v high isl%s.mp4",
-		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4",
-		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 isl%s_%%03d.png",
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high isl%s.mp4",
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -filter_complex \"[0:v] fps=30,split [a][b];[a] palettegen [p];[b][p] paletteuse\" isl%s.gif",
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -vcodec nvenc_hevc -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 4 -b:v 2500k -maxrate:v 50000k -vf \"minterpolate=mi_mode=blend:mc_mode=aobmc:mi_mode=mci,framerate=30\" isl%s.mov",
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -vcodec h264_nvenc  -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 10 -b:v 5000k -maxrate:v 50000k -pix_fmt yuv420p -r 60 -profile:v high isl%s.mp4",
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4",
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 isl%s_%%03d.png",
 		};
 
 		char cmd[ 1024 ]{};
 
 		if ( self->pipe_cmd.empty() ) {
-			snprintf( cmd, sizeof( cmd ), commandLines[ 3 ], self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
+			snprintf( cmd, sizeof( cmd ), commandLines[ 3 ], pix_fmt.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
 		} else {
-			snprintf( cmd, sizeof( cmd ), self->pipe_cmd.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
+			snprintf( cmd, sizeof( cmd ), self->pipe_cmd.c_str(), pix_fmt.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
 		}
 
 		logger.info( "Image swapchain opening pipe using command line: '%s'", cmd );
