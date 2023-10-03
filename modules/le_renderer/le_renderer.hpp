@@ -99,10 +99,11 @@ class ImgSwapchainInfoBuilder {
 };
 
 template <typename T>
-class SwapchainSettingsBuilder {
+class SwapchainSettingsBuilderT {
+
 	le_swapchain_settings_t  default_data = {};
 	le_swapchain_settings_t& self         = default_data;
-	T&                       parent;
+	T*                       parent       = nullptr;
 
 	void initialize( le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ) {
 		self = le_swapchain_settings_t();
@@ -120,34 +121,34 @@ class SwapchainSettingsBuilder {
 		}
 	}
 
-	friend class ImgSwapchainInfoBuilder<SwapchainSettingsBuilder>;
-	friend class KhrSwapchainInfoBuilder<SwapchainSettingsBuilder>;
-	friend class DirectSwapchainInfoBuilder<SwapchainSettingsBuilder>;
+	friend class ImgSwapchainInfoBuilder<SwapchainSettingsBuilderT>;
+	friend class KhrSwapchainInfoBuilder<SwapchainSettingsBuilderT>;
+	friend class DirectSwapchainInfoBuilder<SwapchainSettingsBuilderT>;
 
   public:
 	// Factory function, returns settings builder that applies to external settings object
 
-	SwapchainSettingsBuilder( T& parent_, le_swapchain_settings_t* external_settings = nullptr, le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN )
+	SwapchainSettingsBuilderT( T* parent_ = nullptr, le_swapchain_settings_t* external_settings = nullptr, le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN )
 	    : parent( parent_ )
 	    , self( external_settings ? *external_settings : default_data ) {
 		initialize( type );
 	}
 
-	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setWidthHint, uint32_t, width_hint, = 640 )
-	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setHeightHint, uint32_t, height_hint, = 480 )
-	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
-	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
-	BUILDER_IMPLEMENT( SwapchainSettingsBuilder, setDeferCreate, bool, defer_create, = false )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setWidthHint, uint32_t, width_hint, = 640 )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setHeightHint, uint32_t, height_hint, = 480 )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setImagecountHint, uint32_t, imagecount_hint, = 3 )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
+	BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setDeferCreate, bool, defer_create, = false )
 
-	ImgSwapchainInfoBuilder<SwapchainSettingsBuilder> asImgSwapchain() {
+	ImgSwapchainInfoBuilder<SwapchainSettingsBuilderT> asImgSwapchain() {
 		return *this;
 	};
 
-	KhrSwapchainInfoBuilder<SwapchainSettingsBuilder> asWindowSwapchain() {
+	KhrSwapchainInfoBuilder<SwapchainSettingsBuilderT> asWindowSwapchain() {
 		return *this;
 	}
 
-	DirectSwapchainInfoBuilder<SwapchainSettingsBuilder> asDirectSwapchain() {
+	DirectSwapchainInfoBuilder<SwapchainSettingsBuilderT> asDirectSwapchain() {
 		return *this;
 	}
 
@@ -164,35 +165,41 @@ class SwapchainSettingsBuilder {
 	};
 };
 
+using SwapchainSettingsBuilder = SwapchainSettingsBuilderT<void>; // shorthand for when used on its own.
+
 class RendererInfoBuilder {
 	le_renderer_settings_t   renderer_settings  = {};
 	le_renderer_settings_t&  self               = renderer_settings;
 	le_swapchain_settings_t* swapchain_settings = nullptr;
 	le_window_o*             initial_window     = nullptr;
-	friend class SwapchainSettingsBuilder<RendererInfoBuilder>;
+	friend class SwapchainSettingsBuilderT<RendererInfoBuilder>;
 
   public:
 	RendererInfoBuilder( le_window_o* window = nullptr )
 	    : swapchain_settings( renderer_settings.swapchain_settings )
 	    , initial_window( window ) {
 		if ( window ) {
-			auto builder = le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
+			// if a window was given, this means that we should generate a default window swapchain
+			auto builder = le::SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
 			builder.asWindowSwapchain()
 			    .setWindow( window )
 			    .end();
 		}
 	}
 
-	le::SwapchainSettingsBuilder<RendererInfoBuilder> addSwapchain() {
+	SwapchainSettingsBuilderT<RendererInfoBuilder> addSwapchain() {
+
 		if ( initial_window ) {
-			auto builder = le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings );
+			// if a window was given when initialising the renderer info builder, we must initialize the swapchain with
+			//
+			auto builder = le::SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings );
 			builder.asWindowSwapchain()
 			    .setWindow( initial_window )
 			    .end();
 			initial_window = nullptr;
 			return builder;
 		} else {
-			return le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
+			return le::SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
 		}
 	}
 
@@ -200,9 +207,9 @@ class RendererInfoBuilder {
 	/// to the renderer. This will not automatically create the swapchain on renderer setup,
 	/// but it will create the renderer and the backend with the necessary extensions
 	/// for this swapchain to work.
-	SwapchainSettingsBuilder<RendererInfoBuilder> declareSwapchain() {
+	SwapchainSettingsBuilderT<RendererInfoBuilder> declareSwapchain() {
 		if ( initial_window ) {
-			auto builder = le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings );
+			auto builder = le::SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings );
 			builder.asWindowSwapchain()
 			    .setWindow( initial_window )
 			    .end();
@@ -210,7 +217,7 @@ class RendererInfoBuilder {
 			builder.setDeferCreate( true );
 			return builder;
 		} else {
-			auto builder = le::SwapchainSettingsBuilder<RendererInfoBuilder>( *this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
+			auto builder = le::SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
 			builder.setDeferCreate( true );
 			return builder;
 		}
