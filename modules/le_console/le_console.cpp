@@ -1080,6 +1080,40 @@ static void cb_autocomplete_command( Command const* cmd, std::string const& str,
 	}
 }
 
+static void cb_get_setting_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
+	if ( tokens.size() == 2 ) {
+		std::ostringstream msg;
+		auto               setting_name  = tokens[ 1 ];
+		auto               setting_value = tokens[ 2 ];
+		auto               found_setting = le_core_get_setting_entry( setting_name );
+
+		if ( found_setting != nullptr ) {
+			void* setting = found_setting->p_opj;
+			switch ( found_setting->type_hash ) {
+			case ( SettingType::eBool ):
+				msg << found_setting->name << " [ bool ] == '" << ( ( *( bool* )found_setting->p_opj ) ? "true" : "false" ) << "'\n\r";
+				break;
+			case ( SettingType::eInt32_t ):
+				msg << found_setting->name << " [ int32_t ] == '" << ( *( int32_t* )found_setting->p_opj ) << "'\n\r";
+				break;
+			case ( SettingType::eUint32_t ):
+				msg << found_setting->name << " [ uint32_t ] == '" << ( *( uint32_t* )found_setting->p_opj ) << "'\n\r";
+				break;
+			case ( SettingType::eInt ):
+				msg << found_setting->name << " [ int ] == '" << ( *( int* )found_setting->p_opj ) << "'\n\r";
+				break;
+			case ( SettingType::eStdString ):
+				msg << found_setting->name << " [ std::string ] == '" << ( *( std::string* )found_setting->p_opj ) << "'\n\r";
+				break;
+			default:
+				msg << found_setting->name << " [ unknown ] == '" << std::hex << found_setting->p_opj << "'\n\r";
+				break;
+			}
+		}
+		connection->channel_out.post( msg.str() );
+	}
+};
+
 static void cb_set_setting_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
 	if ( tokens.size() == 3 ) {
 		auto setting_name  = tokens[ 1 ];
@@ -1260,7 +1294,22 @@ static void le_console_setup_commands( le_console_o* self ) {
 		}
 	}
 
+	// "get command" - used to manipulate settings
+	Command* get_command = Command::New( "get" );
+	{
+		// Create a local copy of global settings
+		le_settings_map_t current_settings;
+		le_core_copy_settings_entries( &current_settings, nullptr );
+
+		// add a subcommand for each settings entry
+		for ( auto& e : current_settings.map ) {
+			get_command->addSubCommand(
+			    Command::New( std::string( e.second.name ), cb_get_setting_command ) );
+		}
+	}
+
 	self->cmd
+	    ->addSubCommand( get_command )
 	    ->addSubCommand( set_command )
 	    ->addSubCommand( Command::New( "help", cb_show_help_command ) )
 	    ->addSubCommand( Command::New( "settings", cb_list_settings_command ) )
