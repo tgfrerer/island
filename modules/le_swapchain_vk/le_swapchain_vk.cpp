@@ -12,7 +12,7 @@
 #endif
 #include "util/volk/volk.h"
 
-void post_reload_hook( le_backend_o* backend ) {
+static void post_reload_hook( le_backend_o* backend ) {
 #ifdef PLUGINS_DYNAMIC
 	if ( backend ) {
 		VkResult result = volkInitialize();
