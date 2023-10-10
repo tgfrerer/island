@@ -3,6 +3,11 @@
 import sys
 import argparse
 
+try:
+    import gnureadline as readline
+except ImportError:
+    import readline
+
 parser = argparse.ArgumentParser(description='Generate Vulkan struct templates based on user input.')
 parser.add_argument("--vk_path", default="/usr/share/vulkan/registry", help='absolute path to vulkan registry')
 
@@ -67,10 +72,17 @@ def str2bool(v) -> bool:
 
 print("// Enter a Vulkan struct name to begin, Ctl+D to end interactive session:")
 
-for line in sys.stdin:
+
+while True:
     body = ""
+    try:
+        line = input("('q' to quit): ")
+    except EOFError:
+        exit(0)
     line = line.split("#")[0]  # remove any comment lines
-    if line:
+    if line in ["q", "quit", "exit"]:
+        break
+    else:
         # only continue if there is anything left of the line to process (comment lines will be empty at this point)
         params = line.split(",")
         for i, p in enumerate(params):
