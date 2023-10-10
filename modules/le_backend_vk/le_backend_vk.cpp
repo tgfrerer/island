@@ -3150,6 +3150,13 @@ static void staging_allocator_reset( le_staging_allocator_o* self ) {
 	ZoneScoped;
 	auto lock = std::scoped_lock( self->mtx );
 
+	if ( self->buffers.empty() ) {
+		// early-out
+		return;
+	}
+
+	// ---------| invariant: buffers are not empty
+
 	assert( self->buffers.size() == self->allocations.size() && self->buffers.size() == self->allocationInfo.size() &&
 	        "buffers, allocations, and allocationInfos sizes must match." );
 
