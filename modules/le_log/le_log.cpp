@@ -8,6 +8,12 @@
 #include <cstdarg>
 #include <vector>
 
+#ifdef _MSC_VER
+#	include <intrin.h> // for debugbreak()
+#else
+#	include <csignal>  // for std::raise
+#endif
+
 struct le_log_channel_o {
 	std::string name = "DEFAULT";
 #if defined( LE_LOG_LEVEL )
@@ -144,6 +150,17 @@ static void le_log_implementation( const le_log_channel_o* channel, const char* 
 	va_start( arglist, msg );
 	le_log_printf( channel, level, msg, arglist );
 	va_end( arglist );
+// Additionally, trigger a breakpoint if we have encountered an error, in case we're running in debug mode.
+#ifndef NDEBUG
+	// Raise a breakpoint on ERROR in case we're running in debug mode.
+	if ( level == LeLog::Level::eError ) {
+#	ifdef _MSC_VER
+		__debugbreak(); // see: https://docs.microsoft.com/en-us/cpp/intrinsics/debugbreak?view=msvc-170
+#	else
+		std::raise( SIGINT );
+#	endif
+	}
+#endif
 }
 
 // ----------------------------------------------------------------------
