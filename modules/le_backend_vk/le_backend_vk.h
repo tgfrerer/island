@@ -172,6 +172,7 @@ struct le_backend_vk_api {
 		VkPhysicalDevice_T*       ( *get_vk_physical_device   )(le_backend_o const * self);
 
         BackendQueueInfo*         ( *get_default_graphics_queue_info )(le_backend_o* self);
+		uint32_t 				  ( *find_queue_family_index_from_requirements )( le_backend_o* self, VkQueueFlags flags );
 
 		int32_t ( *allocate_image )
 		(
