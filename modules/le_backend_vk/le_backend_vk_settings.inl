@@ -49,6 +49,17 @@ static bool le_backend_vk_settings_set_requested_queue_capabilities( VkQueueFlag
 		return false;
 	}
 }
+static bool le_backend_vk_settings_add_requested_queue_capabilities( VkQueueFlags* queues, uint32_t num_queues ) {
+	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
+	if ( self->readonly == false && queues != nullptr && num_queues > 0 ) {
+		self->requested_queues_capabilities.insert( self->requested_queues_capabilities.end(), queues, queues + num_queues );
+		return true;
+	} else {
+		static auto logger = LeLog( "le_backend_vk_settings" );
+		logger.error( "Cannot set queue capabilities" );
+		return false;
+	}
+}
 static void le_backend_vk_settings_get_requested_queue_capabilities( VkQueueFlags* queues, uint32_t* num_queues ) {
 	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
 	if ( num_queues ) {

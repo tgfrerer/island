@@ -114,7 +114,9 @@ struct le_backend_vk_api {
 		bool ( *set_data_frames_count )( uint32_t data_frames_count );
 
 		void ( *get_requested_queue_capabilities )( VkQueueFlags* queues, uint32_t* num_queues );
+		/// prefer add over set - as set will erase any previously added queues
 		bool ( *set_requested_queue_capabilities )( VkQueueFlags* queues, uint32_t num_queues );
+		bool ( *add_requested_queue_capabilities )( VkQueueFlags* queues, uint32_t num_queues );
 	};
 
 	// clang-format off
