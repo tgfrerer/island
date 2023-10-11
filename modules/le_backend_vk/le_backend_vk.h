@@ -198,6 +198,9 @@ struct le_backend_vk_api {
 		    VmaAllocationInfo *            pAllocationInfo
 		);
 
+		int32_t (* map_gpu_memory   ) ( le_backend_o* self, VmaAllocation_T* allocation, void**ppData );
+		void    (* unmap_gpu_memory ) ( le_backend_o* self, VmaAllocation_T* allocation );
+
 		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
 
 	};

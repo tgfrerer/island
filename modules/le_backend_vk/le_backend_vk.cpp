@@ -2770,6 +2770,17 @@ static int32_t backend_allocate_buffer( le_backend_o*                  self,
 	auto result = vmaCreateBuffer( self->mAllocator, pBufferCreateInfo, pAllocationCreateInfo, pBuffer, pAllocation, pAllocationInfo );
 	return result;
 }
+// ----------------------------------------------------------------------
+
+static int32_t backend_map_gpu_memory( le_backend_o* self, VmaAllocation_T* allocation, void** ppData ) {
+	ZoneScoped;
+	return vmaMapMemory( self->mAllocator, allocation, ppData );
+}
+
+static void backend_unmap_gpu_memory( le_backend_o* self, VmaAllocation_T* allocation ) {
+	ZoneScoped;
+	vmaUnmapMemory( self->mAllocator, allocation );
+}
 
 // ----------------------------------------------------------------------
 
@@ -7919,7 +7930,9 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.destroy_image                   = backend_destroy_image;
 	private_backend_i.allocate_buffer                 = backend_allocate_buffer;
 	private_backend_i.destroy_buffer                  = backend_destroy_buffer;
-	private_backend_i.get_default_graphics_queue_info = backend_get_default_graphics_queue_info;
+	private_backend_i.map_gpu_memory                            = backend_map_gpu_memory;
+	private_backend_i.unmap_gpu_memory                          = backend_unmap_gpu_memory;
+	private_backend_i.get_default_graphics_queue_info           = backend_get_default_graphics_queue_info;
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
