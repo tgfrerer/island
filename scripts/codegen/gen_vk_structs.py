@@ -13,6 +13,7 @@ readline.parse_and_bind('bind_key("Control-v", "paste")')
 
 parser = argparse.ArgumentParser(description='Generate Vulkan struct templates based on user input.')
 parser.add_argument("--vk_path", default="/usr/share/vulkan/registry", help='absolute path to vulkan registry')
+parser.add_argument("--registry", default="vk.xml", help='registry file to load (try video.xml for video)')
 
 args = parser.parse_args()
 
@@ -24,7 +25,7 @@ sys.path.append(vk_registry_path)
 from reg import Registry
 
 reg = Registry()
-reg.loadFile(vk_registry_path + "/vk.xml")
+reg.loadFile(vk_registry_path + "/" + args.registry)
 
 def generate_struct(struct_name):
 
