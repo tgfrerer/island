@@ -8,6 +8,9 @@ try:
 except ImportError:
     import readline
 
+# allow copy-paste 
+readline.parse_and_bind('bind_key("Control-v", "paste")')
+
 parser = argparse.ArgumentParser(description='Generate Vulkan struct templates based on user input.')
 parser.add_argument("--vk_path", default="/usr/share/vulkan/registry", help='absolute path to vulkan registry')
 
