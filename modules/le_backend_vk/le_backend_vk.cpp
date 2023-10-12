@@ -2734,20 +2734,25 @@ le::Format infer_image_format_from_le_image_usage_flags( le_backend_o* self, le:
 }
 // ----------------------------------------------------------------------
 
-static int32_t backend_allocate_image( le_backend_o*                  self,
-                                       VkImageCreateInfo const*       pImageCreateInfo,
-                                       VmaAllocationCreateInfo const* pAllocationCreateInfo,
-                                       VkImage*                       pImage,
-                                       VmaAllocation*                 pAllocation,
-                                       VmaAllocationInfo*             pAllocationInfo ) {
+static int32_t backend_allocate_image(
+    le_backend_o*                  self,
+    VkImageCreateInfo const*       pImageCreateInfo,
+    VmaAllocationCreateInfo const* pAllocationCreateInfo,
+    VkImage*                       pImage,
+    VmaAllocation*                 pAllocation,
+    VmaAllocationInfo*             pAllocationInfo ) {
+
 	ZoneScoped;
 
-	auto result = vmaCreateImage( self->mAllocator,
-	                              pImageCreateInfo,
-	                              pAllocationCreateInfo,
-	                              pImage,
-	                              pAllocation,
-	                              pAllocationInfo );
+	auto result =
+	    vmaCreateImage(
+	        self->mAllocator,
+	        pImageCreateInfo,
+	        pAllocationCreateInfo,
+	        pImage,
+	        pAllocation,
+	        pAllocationInfo );
+
 	return result;
 }
 
@@ -2760,17 +2765,47 @@ static void backend_destroy_image( le_backend_o* self, VkImage image, VmaAllocat
 
 // ----------------------------------------------------------------------
 
-static int32_t backend_allocate_buffer( le_backend_o*                  self,
-                                        VkBufferCreateInfo const*      pBufferCreateInfo,
-                                        VmaAllocationCreateInfo const* pAllocationCreateInfo,
-                                        VkBuffer*                      pBuffer,
-                                        VmaAllocation*                 pAllocation,
-                                        VmaAllocationInfo*             pAllocationInfo ) {
+static int32_t backend_allocate_buffer(
+    le_backend_o*                  self,
+    VkBufferCreateInfo const*      pBufferCreateInfo,
+    VmaAllocationCreateInfo const* pAllocationCreateInfo,
+    VkBuffer*                      pBuffer,
+    VmaAllocation*                 pAllocation,
+    VmaAllocationInfo*             pAllocationInfo ) {
+
 	ZoneScoped;
-	auto result = vmaCreateBuffer( self->mAllocator, pBufferCreateInfo, pAllocationCreateInfo, pBuffer, pAllocation, pAllocationInfo );
+
+	auto result =
+	    vmaCreateBuffer(
+	        self->mAllocator,
+	        pBufferCreateInfo,
+	        pAllocationCreateInfo,
+	        pBuffer,
+	        pAllocation,
+	        pAllocationInfo );
+
 	return result;
 }
 // ----------------------------------------------------------------------
+static int32_t backend_allocate_gpu_memory(
+    le_backend_o*                  self,
+    VmaAllocationCreateInfo const* pAllocationCreateInfo,
+    VkMemoryRequirements*          pMemoryRequirements,
+    VmaAllocation*                 pAllocation,
+    VmaAllocationInfo*             pAllocationInfo ) {
+
+	ZoneScoped;
+
+	auto result =
+	    vmaAllocateMemory(
+	        self->mAllocator,
+	        pMemoryRequirements,
+	        pAllocationCreateInfo,
+	        pAllocation,
+	        pAllocationInfo );
+
+	return result;
+}
 
 static int32_t backend_map_gpu_memory( le_backend_o* self, VmaAllocation_T* allocation, void** ppData ) {
 	ZoneScoped;
@@ -2780,6 +2815,11 @@ static int32_t backend_map_gpu_memory( le_backend_o* self, VmaAllocation_T* allo
 static void backend_unmap_gpu_memory( le_backend_o* self, VmaAllocation_T* allocation ) {
 	ZoneScoped;
 	vmaUnmapMemory( self->mAllocator, allocation );
+}
+
+static void backend_free_gpu_memory( le_backend_o* self, VmaAllocation_T* allocation ) {
+	ZoneScoped;
+	vmaFreeMemory( self->mAllocator, allocation );
 }
 
 // ----------------------------------------------------------------------
@@ -7921,17 +7961,19 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
 
-	auto& private_backend_i                           = api_i->private_backend_vk_i;
-	private_backend_i.get_vk_device                   = backend_get_vk_device;
-	private_backend_i.get_vk_physical_device          = backend_get_vk_physical_device;
-	private_backend_i.get_le_device                   = backend_get_le_device;
-	private_backend_i.get_instance                    = backend_get_instance;
-	private_backend_i.allocate_image                  = backend_allocate_image;
-	private_backend_i.destroy_image                   = backend_destroy_image;
-	private_backend_i.allocate_buffer                 = backend_allocate_buffer;
-	private_backend_i.destroy_buffer                  = backend_destroy_buffer;
+	auto& private_backend_i                                     = api_i->private_backend_vk_i;
+	private_backend_i.get_vk_device                             = backend_get_vk_device;
+	private_backend_i.get_vk_physical_device                    = backend_get_vk_physical_device;
+	private_backend_i.get_le_device                             = backend_get_le_device;
+	private_backend_i.get_instance                              = backend_get_instance;
+	private_backend_i.allocate_image                            = backend_allocate_image;
+	private_backend_i.destroy_image                             = backend_destroy_image;
+	private_backend_i.allocate_buffer                           = backend_allocate_buffer;
+	private_backend_i.destroy_buffer                            = backend_destroy_buffer;
+	private_backend_i.allocate_gpu_memory                       = backend_allocate_gpu_memory;
 	private_backend_i.map_gpu_memory                            = backend_map_gpu_memory;
 	private_backend_i.unmap_gpu_memory                          = backend_unmap_gpu_memory;
+	private_backend_i.free_gpu_memory                           = backend_free_gpu_memory;
 	private_backend_i.get_default_graphics_queue_info           = backend_get_default_graphics_queue_info;
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
 

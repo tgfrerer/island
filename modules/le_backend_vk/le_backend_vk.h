@@ -188,18 +188,24 @@ struct le_backend_vk_api {
 
 		void (*destroy_image)(le_backend_o* self, struct VkImage_T * image, struct VmaAllocation_T* allocation);
 
-		int32_t ( *allocate_buffer )
-		(
+		int32_t ( *allocate_buffer )(
 		    le_backend_o*                  self,
 		    VkBufferCreateInfo const*      pBufferCreateInfo,
-		    VmaAllocationCreateInfo const *pAllocationCreateInfo,
-		    VkBuffer_T* *                  pBuffer,
-		    VmaAllocation_T **             pAllocation,
-		    VmaAllocationInfo *            pAllocationInfo
-		);
+		    VmaAllocationCreateInfo const* pAllocationCreateInfo,
+		    VkBuffer_T**                   pBuffer,
+		    VmaAllocation_T**              pAllocation,
+		    VmaAllocationInfo*             pAllocationInfo );
+
+		int32_t ( *allocate_gpu_memory )(
+		    le_backend_o*                  self,
+		    VmaAllocationCreateInfo const* pAllocationCreateInfo,
+		    VkMemoryRequirements*          pMemoryRequirements,
+		    VmaAllocation_T**              pAllocation,
+		    VmaAllocationInfo*             pAllocationInfo );
 
 		int32_t (* map_gpu_memory   ) ( le_backend_o* self, VmaAllocation_T* allocation, void**ppData );
 		void    (* unmap_gpu_memory ) ( le_backend_o* self, VmaAllocation_T* allocation );
+		void    (* free_gpu_memory  ) ( le_backend_o* self, VmaAllocation_T* allocation );
 
 		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
 
