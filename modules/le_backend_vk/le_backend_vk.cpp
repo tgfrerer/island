@@ -2790,7 +2790,7 @@ static int32_t backend_allocate_buffer(
 static int32_t backend_allocate_gpu_memory(
     le_backend_o*                  self,
     VmaAllocationCreateInfo const* pAllocationCreateInfo,
-    VkMemoryRequirements*          pMemoryRequirements,
+    VkMemoryRequirements const*    pMemoryRequirements,
     VmaAllocation*                 pAllocation,
     VmaAllocationInfo*             pAllocationInfo ) {
 

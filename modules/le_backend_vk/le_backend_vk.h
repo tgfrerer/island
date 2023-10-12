@@ -199,7 +199,7 @@ struct le_backend_vk_api {
 		int32_t ( *allocate_gpu_memory )(
 		    le_backend_o*                  self,
 		    VmaAllocationCreateInfo const* pAllocationCreateInfo,
-		    VkMemoryRequirements*          pMemoryRequirements,
+		    VkMemoryRequirements const*    pMemoryRequirements,
 		    VmaAllocation_T**              pAllocation,
 		    VmaAllocationInfo*             pAllocationInfo );
 
