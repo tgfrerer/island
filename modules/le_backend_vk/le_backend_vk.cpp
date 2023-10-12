@@ -2677,7 +2677,7 @@ static void backend_create_descriptor_pools( BackendFrameData& frame, VkDevice& 
 	    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
 	    VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
 	    VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT,
-	    VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+	    // VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, // Disabled to pacify validation with vk 1.3.261
 	};
 
 	constexpr size_t DESCRIPTOR_TYPE_COUNT = sizeof( DESCRIPTOR_TYPES ) / sizeof( VkDescriptorType );
