@@ -250,15 +250,9 @@ static void cbe_set_viewport( le_command_buffer_encoder_o* self,
 };
 // ----------------------------------------------------------------------
 // copy user data into command stream
-static void cbe_video_decoder_execute_callback( le_command_buffer_encoder_o* self, le::CommandVideoDecoderExecuteCallback::callback_fun_t* fun, void* user_data, size_t user_data_num_bytes ) {
-
-	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandVideoDecoderExecuteCallback>( user_data_num_bytes ); // placement new!
-	cmd->info = { fun, user_data_num_bytes };
-	// We point to the next available position in the data stream
-	// so that we can store the data for scissors inline.
-	void* data = ( cmd + 1 );
-	cmd->header.info.size += user_data_num_bytes; // we must increase the size of this command by its payload size
-	memcpy( data, user_data, user_data_num_bytes );
+static void cbe_video_decoder_execute_callback( le_command_buffer_encoder_o* self, le::CommandVideoDecoderExecuteCallback::callback_fun_t* fun, void* user_data ) {
+	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandVideoDecoderExecuteCallback>(); // placement new!
+	cmd->info = { fun, user_data };
 }
 
 // ----------------------------------------------------------------------

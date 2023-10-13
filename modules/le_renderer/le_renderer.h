@@ -190,7 +190,7 @@ struct le_renderer_api {
  	};
 
 	struct command_buffer_video_decoder_encoder_interface_t{
-		void                         ( *execute_callback  )( le_command_buffer_encoder_o *self, le::CommandVideoDecoderExecuteCallback::callback_fun_t* fun, void * user_data, size_t user_data_num_bytes);
+		void                         ( *execute_callback  )( le_command_buffer_encoder_o *self, le::CommandVideoDecoderExecuteCallback::callback_fun_t* fun, void * user_data);
  	};
 
 	struct command_buffer_rtx_encoder_interface_t{

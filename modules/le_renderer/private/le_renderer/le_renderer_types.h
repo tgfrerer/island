@@ -839,7 +839,7 @@ struct CommandVideoDecoderExecuteCallback {
 
 	struct {
 		callback_fun_t* callback;
-		uint64_t        user_data_num_bytes;
+		void*           user_data;
 	} info;
 };
 } // namespace le
