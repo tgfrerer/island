@@ -6771,6 +6771,17 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						break;
 					}
+
+					case le::CommandType::eVideoDecoderExecuteCallback: {
+						auto* le_cmd       = static_cast<le::CommandVideoDecoderExecuteCallback*>( dataIt );
+						void* payload_addr = le_cmd + 1;
+
+						// Call the callback uncritically, passing along the currently mapped vulkan command buffer.
+						// You need to know what you are doing with this.
+						le_cmd->info.callback( cmd, payload_addr );
+
+						break;
+					}
 					default: {
 						assert( false && "command not handled" );
 					}

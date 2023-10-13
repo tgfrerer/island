@@ -580,6 +580,7 @@ enum class CommandType : uint32_t {
 	eBindRtxPipeline,
 	eWriteToBuffer,
 	eWriteToImage,
+	eVideoDecoderExecuteCallback,
 };
 
 struct CommandHeader {
@@ -831,6 +832,16 @@ struct CommandWriteToImage {
 	} info;
 };
 
+struct CommandVideoDecoderExecuteCallback {
+	CommandHeader header = { { { CommandType::eVideoDecoderExecuteCallback, sizeof( CommandVideoDecoderExecuteCallback ) } } };
+
+	typedef void( callback_fun_t )( struct VkCommandBuffer_T* cmd, void* user_data );
+
+	struct {
+		callback_fun_t* callback;
+		uint64_t        user_data_num_bytes;
+	} info;
+};
 } // namespace le
 
 #endif

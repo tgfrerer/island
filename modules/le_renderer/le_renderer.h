@@ -189,6 +189,10 @@ struct le_renderer_api {
 		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buf_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
  	};
 
+	struct command_buffer_video_decoder_encoder_interface_t{
+		void                         ( *execute_callback  )( le_command_buffer_encoder_o *self, le::CommandVideoDecoderExecuteCallback::callback_fun_t* fun, void * user_data, size_t user_data_num_bytes);
+ 	};
+
 	struct command_buffer_rtx_encoder_interface_t{
 
 		void 						 ( *build_rtx_tlas         )( le_command_buffer_encoder_o *self, le_tlas_resource_handle const* tlas_handle, le_rtx_geometry_instance_t const * instances, le_blas_resource_handle const * blas_handles, uint32_t instances_count);
@@ -226,6 +230,8 @@ struct le_renderer_api {
 	command_buffer_transfer_encoder_interface_t le_cbe_transfer_i;
 	command_buffer_rtx_encoder_interface_t      le_cbe_rtx_i;
 
+	command_buffer_video_decoder_encoder_interface_t le_cbe_video_decoder_i;
+
 	helpers_interface_t                			helpers_i;
 };
 
@@ -246,7 +252,9 @@ static const auto& encoder_graphics_i = api->le_cbe_graphics_i;
 static const auto& encoder_compute_i  = api->le_cbe_compute_i;
 static const auto& encoder_transfer_i = api->le_cbe_transfer_i;
 static const auto& encoder_rtx_i      = api->le_cbe_rtx_i;
-static const auto& helpers_i          = api->helpers_i;
+static const auto& encoder_video_decoder_i = api->le_cbe_video_decoder_i;
+
+static const auto& helpers_i = api->helpers_i;
 
 } // namespace le_renderer
 
