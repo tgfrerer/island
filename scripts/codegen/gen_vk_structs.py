@@ -2,6 +2,7 @@
 
 import sys
 import argparse
+import ipdb
 
 try:
     import gnureadline as readline
@@ -51,18 +52,26 @@ def generate_struct(struct_name):
         member_name = ""
         member_value = member.get('values') or '0'
         member_optional = member.get('optional') == 'true'
+        member_type = ''
         for elem in member:
             if elem.tag == 'name':
                 member_name = elem.text
-            if elem.tag == 'type' and elem.text == 'void':
-                member_value = "nullptr"
+            if elem.tag == 'type':
+                if elem.text == 'void':
+                    member_value = 'nullptr'
+                else:
+                    member_type = ((elem.text or '').strip() + ' ' ) + ((member.text or '').strip() + ' ') + ((elem.tail or '').strip())
+                    member_type = member_type.strip()
+                    if '*' in elem.tail:
+                        member_value = 'nullptr'
+                
 
         if member_optional:
-            txt = "\t.{: <" + str(longest_name_len + 2) + "} = {}, // optional\n"
+            txt = "\t.{: <" + str(longest_name_len + 2) + "} = {}, // {}, optional\n"
         else:
-            txt = "\t.{: <" + str(longest_name_len + 2) + "} = {}, \n"
+            txt = "\t.{: <" + str(longest_name_len + 2) + "} = {}, // {} \n"
         # print(txt)
-        body += txt.format(member_name, member_value)
+        body += txt.format(member_name, member_value, member_type)
         # ipdb.set_trace()
 
     body += "};\n"
