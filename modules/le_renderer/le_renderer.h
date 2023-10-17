@@ -69,8 +69,6 @@ struct le_renderer_api {
 
 	};
 
-
-
 	struct helpers_interface_t {
 		le_resource_info_t (*get_default_resource_info_for_image)();
 		le_resource_info_t (*get_default_resource_info_for_buffer)();
@@ -128,7 +126,7 @@ struct le_renderer_api {
 	struct rendergraph_private_interface_t {
 		void                 ( *build                  ) ( le_rendergraph_o *self, size_t frameNumber );
 		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
-		void                 ( *setup_passes           ) ( le_rendergraph_o *self, le_rendergraph_o *gb );
+		void                 ( *setup_passes           ) ( le_rendergraph_o *self, le_rendergraph_o *dst );
     };
 
 	struct command_buffer_encoder_interface_t {

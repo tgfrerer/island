@@ -506,7 +506,6 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 
 	// ---------| invariant: Frame was previously acquired successfully.
 
-
 	// - build up dependencies for graph, create table of unique resources for graph
 
 	// setup passes calls `setup` callback on all passes - this initalises virtual resources,
@@ -515,7 +514,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	using namespace le_renderer; // for rendergraph_i, rendergraph_i
 	le_renderer::api->le_rendergraph_private_i.setup_passes( graph_, frame.rendergraph );
 
-	// find out which renderpasses contribute, only add contributing render passes to
+	// Find out which renderpasses contribute, only add contributing render passes to
 	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
