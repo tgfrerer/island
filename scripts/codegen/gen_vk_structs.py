@@ -59,6 +59,7 @@ def generate_struct(struct_name):
             if elem.tag == 'type':
                 if elem.text == 'void':
                     member_value = 'nullptr'
+                    member_type = 'void *'
                 else:
                     member_type = ((elem.text or '').strip() + ' ' ) + ((member.text or '').strip() + ' ') + ((elem.tail or '').strip())
                     member_type = member_type.strip()
