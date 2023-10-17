@@ -211,7 +211,7 @@ ISL_API_ATTR void le_core_release_callback_forwarder_addr_impl( void* p_function
 
 /// USE THIS METHOD FOR CALLBACK FORWARDING
 #	define le_core_forward_callback( x ) \
-		le_core_get_callback_forwarder_addr_impl( ( void* )&x )
+		( typeof( x ) )le_core_get_callback_forwarder_addr_impl( ( void* )&x )
 #	define le_core_forward_callback_release( x ) \
 		le_core_release_callback_forwarder_addr_impl( ( void* )x )
 #else
