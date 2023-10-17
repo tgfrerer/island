@@ -18,6 +18,7 @@ struct le_allocator_o;
 struct le_staging_allocator_o;
 struct le_resource_handle_t; // defined in renderer_types
 struct le_command_stream_t;
+struct le_on_frame_clear_callback_data_t;
 
 struct le_pipeline_manager_o;
 
@@ -208,6 +209,7 @@ struct le_backend_vk_api {
 		void    (* free_gpu_memory  ) ( le_backend_o* self, VmaAllocation_T* allocation );
 
 		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
+		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
 
 	};
 

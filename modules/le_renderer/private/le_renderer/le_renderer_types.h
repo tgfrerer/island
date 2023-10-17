@@ -96,6 +96,14 @@ struct LeResourceUsageFlags {
 	} as;
 };
 
+// Callback type for a resource that needs to be notified that the current frame has been cleared
+// we use this to tie lifetime of objects to the lifetime of the current frame by decrementing
+// an intrusive pointer counter on each callback. (in le_video_decoder for example)
+struct le_on_frame_clear_callback_data_t {
+	void ( *cb_fun )( void* user_data ); // function pointer to call upon clear
+	void* user_data;                     // user data to pass into function
+};
+
 namespace le {
 enum class ShaderSourceLanguage : uint32_t {
 	eGlsl    = 0,

@@ -528,6 +528,8 @@ struct BackendFrameData {
 	VkFence  frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
 	uint64_t frameNumber = 0;       // current frame number
 
+	std::vector<le_on_frame_clear_callback_data_t> on_clear_callbacks; // callbacks to call on frame clear
+
 	struct CommandPool {
 		VkCommandPool                pool;                // One pool per submission - must be allocated from the same queue the commands get submitted to.
 		std::vector<VkCommandBuffer> buffers;             // Allocated from pool, reset when frame gets recycled via pool.reset
@@ -793,6 +795,13 @@ static void backend_destroy( le_backend_o* self ) {
 	for ( auto& frameData : self->mFrames ) {
 
 		using namespace le_backend_vk;
+
+		{
+			for ( auto& c : frameData.on_clear_callbacks ) {
+				c.cb_fun( c.user_data );
+			}
+			frameData.on_clear_callbacks.clear();
+		}
 
 		// -- destroy per-frame data
 
@@ -2032,6 +2041,19 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	auto&    frame  = self->mFrames[ frameIndex ];
 	VkDevice device = self->device->getVkDevice();
+
+	if ( !frame.on_clear_callbacks.empty() ) {
+		// Call clear callbacks, if any have been set via the renderer.
+		for ( auto& c : frame.on_clear_callbacks ) {
+			// call each callback in clear callbacks
+			c.cb_fun( c.user_data );
+		}
+		// We use these clear callbacks to decrement an intrusive pointer counter
+		// in video decoder, for example, so that we can make sure that the lifetime
+		// of any video resource is at least as long as there are frames referencing
+		// the video resource.
+		frame.on_clear_callbacks.clear();
+	}
 
 	// le::Log( LOGGER_LABEL ).info( "=[%3d]== clear frame ", frameIndex );
 
@@ -4786,6 +4808,13 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 
 	return cache_entry.first->second;
 }
+// ----------------------------------------------------------------------
+static void backend_frame_add_on_clear_callbacks( le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count ) {
+	ZoneScoped;
+	auto& frame = self->mFrames[ frame_index ];
+	frame.on_clear_callbacks.insert( frame.on_clear_callbacks.end(), callbacks, callbacks + callbacks_count );
+}
+// ----------------------------------------------------------------------
 
 // Must execute on the RECORD FRAME
 //
@@ -7986,6 +8015,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.free_gpu_memory                           = backend_free_gpu_memory;
 	private_backend_i.get_default_graphics_queue_info           = backend_get_default_graphics_queue_info;
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
+	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;

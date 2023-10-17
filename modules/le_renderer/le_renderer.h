@@ -122,6 +122,7 @@ struct le_renderer_api {
 		void                 ( *reset            ) ( le_rendergraph_o *self );
 		void                 ( *add_renderpass   ) ( le_rendergraph_o *self, le_renderpass_o *rp );
 		void                 ( *declare_resource ) ( le_rendergraph_o *self, le_resource_handle const & resource_id, le_resource_info_t const & info);
+		void  				 ( *add_on_frame_clear_callback )( le_rendergraph_o* self, le_on_frame_clear_callback_data_t* callbacks, uint32_t callbacks_count );
 	};
 
 	struct rendergraph_private_interface_t {

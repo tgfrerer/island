@@ -1113,6 +1113,9 @@ static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rend
 	dst_rendergraph->declared_resources_id   = std::move( src_rendergraph->declared_resources_id );
 	dst_rendergraph->declared_resources_info = std::move( src_rendergraph->declared_resources_info );
 
+	// Move any callbacks that have been attached to the src_rendergraph
+	dst_rendergraph->on_frame_clear_callbacks = std::move( src_rendergraph->on_frame_clear_callbacks );
+
 	src_rendergraph->passes.clear();
 };
 
@@ -1121,6 +1124,11 @@ static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rend
 static void rendergraph_declare_resource( le_rendergraph_o* self, le_resource_handle const& resource_id, le_resource_info_t const& info ) {
 	self->declared_resources_id.emplace_back( resource_id );
 	self->declared_resources_info.emplace_back( info );
+}
+
+// ----------------------------------------------------------------------
+static void rendergraph_add_on_frame_clear_callback( le_rendergraph_o* self, le_on_frame_clear_callback_data_t* callbacks, uint32_t callbacks_count ) {
+	self->on_frame_clear_callbacks.insert( self->on_frame_clear_callbacks.end(), callbacks, callbacks + callbacks_count );
 }
 
 // ----------------------------------------------------------------------
@@ -1135,6 +1143,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_i.reset            = rendergraph_reset;
 	le_rendergraph_i.add_renderpass   = rendergraph_add_renderpass;
 	le_rendergraph_i.declare_resource = rendergraph_declare_resource;
+	le_rendergraph_i.add_on_frame_clear_callback = rendergraph_add_on_frame_clear_callback;
 
 	auto& le_rendergraph_private_i        = le_renderer_api_i->le_rendergraph_private_i;
 	le_rendergraph_private_i.setup_passes = rendergraph_setup_passes;

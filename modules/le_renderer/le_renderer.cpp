@@ -519,6 +519,15 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
+	// Register any clear callbacks for the current frame so that any object with frame lifetime
+	// can be cleaned up on frame clear:
+	if ( !frame.rendergraph->on_frame_clear_callbacks.empty() ) {
+		le_backend_vk::private_backend_vk_i.frame_add_on_clear_callbacks(
+		    self->backend, frameIndex,
+		    frame.rendergraph->on_frame_clear_callbacks.data(),
+		    frame.rendergraph->on_frame_clear_callbacks.size() );
+	}
+
 	// declare any resources that come from swapchains
 	le_backend_vk::vk_backend_i.acquire_swapchain_resources( self->backend, frameIndex );
 
