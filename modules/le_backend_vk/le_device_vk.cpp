@@ -356,7 +356,7 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 		}
 	}
 
-	auto features = le_backend_vk::settings_i.get_requested_physical_device_features_chain();
+	auto features = le_backend_vk::settings_i.get_physical_device_features_chain();
 
 	VkDeviceCreateInfo deviceCreateInfo = {
 	    .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,

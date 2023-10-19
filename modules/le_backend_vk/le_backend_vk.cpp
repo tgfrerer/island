@@ -753,7 +753,7 @@ static VkBufferUsageFlags defaults_get_buffer_usage_scratch() {
 
 	// Enable shader_device_address for scratch buffer, if raytracing feature is requested
 	static auto settings = le_backend_vk::api->backend_settings_singleton;
-	if ( settings->requested_device_features.ray_tracing_pipeline.rayTracingPipeline ) {
+	if ( settings->physical_device_features.ray_tracing_pipeline.rayTracingPipeline ) {
 		flags |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 	}
 
@@ -1346,7 +1346,7 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 
 	// Enable shader_device_address for scratch buffer, if raytracing feature is requested
 	auto settings = le_backend_vk::api->backend_settings_singleton;
-	if ( settings->requested_device_features.vk_12.bufferDeviceAddress ) {
+	if ( settings->physical_device_features.vk_12.bufferDeviceAddress ) {
 		createInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	}
 	createInfo.device = device;
@@ -8044,7 +8044,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	auto& backend_settings_i                                        = api_i->le_backend_settings_i;
 	backend_settings_i.add_required_device_extension                = le_backend_vk_settings_add_required_device_extension;
 	backend_settings_i.add_required_instance_extension              = le_backend_vk_settings_add_required_instance_extension;
-	backend_settings_i.get_requested_physical_device_features_chain = le_backend_vk_get_requested_physical_device_features_chain;
+	backend_settings_i.get_physical_device_features_chain           = le_backend_vk_get_physical_device_features_chain;
 	backend_settings_i.set_concurrency_count                        = le_backend_vk_settings_set_concurrency_count;
 	backend_settings_i.get_requested_queue_capabilities             = le_backend_vk_settings_get_requested_queue_capabilities;
 	backend_settings_i.add_requested_queue_capabilities             = le_backend_vk_settings_add_requested_queue_capabilities;

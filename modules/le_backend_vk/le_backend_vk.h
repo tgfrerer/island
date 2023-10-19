@@ -109,7 +109,7 @@ struct le_backend_vk_api {
 	{
 		bool ( *add_required_device_extension )( char const* ext );                           // returns true if successfully added - returns false if setting was already present
 		bool ( *add_required_instance_extension )( char const* ext );                         // -"-
-		VkPhysicalDeviceFeatures2 const* ( *get_requested_physical_device_features_chain )(); // readonly
+		VkPhysicalDeviceFeatures2* ( *get_physical_device_features_chain )();                 // read-write - only write before you initialise the backend.
 
 		void ( *set_concurrency_count )( uint32_t concurrency_count );
 		bool ( *set_data_frames_count )( uint32_t data_frames_count );
