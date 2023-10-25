@@ -2520,40 +2520,39 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 /// - allocatorBuffers[index] if transient,
 /// - stagingAllocator.buffers[index] if staging,
 /// otherwise, fetch from frame available resources based on an id lookup.
-static inline VkBuffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData& frame, const le_buf_resource_handle& buffer ) {
-
+static inline VkBuffer frame_data_get_buffer_from_le_resource_id( BackendFrameData const* frame, le_buf_resource_handle const buffer ) {
 	if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsVirtual ) ) {
-		return frame.allocatorBuffers[ buffer->data->index ];
+		return frame->allocatorBuffers[ buffer->data->index ];
 	} else if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsStaging ) ) {
-		return frame.stagingAllocator->buffers[ buffer->data->index ];
+		return frame->stagingAllocator->buffers[ buffer->data->index ];
 	} else {
-		return frame.availableResources.at( buffer ).as.buffer;
+		return frame->availableResources.at( buffer ).as.buffer;
 	}
 }
 
 // ----------------------------------------------------------------------
-static inline VkImage frame_data_get_image_from_le_resource_id( const BackendFrameData& frame, const le_img_resource_handle& img ) {
-	return frame.availableResources.at( img ).as.image;
+static inline VkImage frame_data_get_image_from_le_resource_id( BackendFrameData const* frame, le_img_resource_handle const img ) {
+	return frame->availableResources.at( img ).as.image;
 }
 
 // ----------------------------------------------------------------------
-static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const& frame, const le_img_resource_handle& img ) {
-	return frame.availableResources.at( img ).info.imageInfo.format;
+static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const* frame, le_img_resource_handle const img ) {
+	return frame->availableResources.at( img ).info.imageInfo.format;
 }
 
 // ----------------------------------------------------------------------
 
-static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData& frame, const le_resource_handle& rsp ) {
-	return frame.availableResources.at( rsp );
+static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData* frame, le_resource_handle const rsp ) {
+	return frame->availableResources.at( rsp );
 }
 
 // ----------------------------------------------------------------------
 // if specific format for texture was not specified, return format of referenced image
-static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const& frame, le_image_sampler_info_t const& texInfo ) {
-	if ( texInfo.imageView.format == le::Format::eUndefined ) {
-		return ( frame_data_get_image_format_from_resource_id( frame, texInfo.imageView.imageId ) );
+static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const* frame, le_image_sampler_info_t const* texInfo ) {
+	if ( texInfo->imageView.format == le::Format::eUndefined ) {
+		return ( frame_data_get_image_format_from_resource_id( frame, texInfo->imageView.imageId ) );
 	} else {
-		return static_cast<VkFormat>( texInfo.imageView.format );
+		return static_cast<VkFormat>( texInfo->imageView.format );
 	}
 }
 
@@ -2612,7 +2611,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 			    .layerCount     = 1,
 			};
 
-			VkImage img = frame_data_get_image_from_le_resource_id( frame, attachment->resource );
+			VkImage img = frame_data_get_image_from_le_resource_id( &frame, attachment->resource );
 
 			VkImageViewCreateInfo imageViewCreateInfo{
 			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -4027,7 +4026,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				// to set the format to whatever was inferred when the image was allocated and placed
 				// in available resources.
 
-				AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( frame, r );
+				AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( &frame, r );
 
 				auto const& imageFormat = le::Format( vk_resource_info.info.imageInfo.format );
 
@@ -4108,7 +4107,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				{
 					// Set or create vkImageview
 
-					auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) );
+					auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( &frame, &texInfo ) );
 
 					VkImageSubresourceRange subresourceRange{
 					    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
@@ -4124,7 +4123,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 					    .pNext            = nullptr, // optional
 					    .flags            = 0,       // optional
-					    .image            = frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ),
+					    .image            = frame_data_get_image_from_le_resource_id( &frame, texInfo.imageView.imageId ),
 					    .viewType         = VkImageViewType( texInfo.imageView.image_view_type ),
 					    .format           = VkFormat( imageFormat ),
 					    .components       = {}, // default component mapping
@@ -4714,6 +4713,7 @@ static void debug_print_command( void*& cmd ) {
                 case (le::CommandType::eDrawMeshTasks): os << "eDrawMeshTasks"; break;
                 case (le::CommandType::eTraceRays): os << "eTraceRays"; break;
                 case (le::CommandType::eSetArgumentTlas): os << "eSetArgumentTlas"; break;
+                case (le::CommandType::eVideoDecoderExecuteCallback): os << "eVideoDecoderExecuteCallback"; break;
 			}
 	// clang-format on
 
@@ -5289,7 +5289,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							}
 						}
 
-						auto dstImage = frame_data_get_image_from_le_resource_id( frame, static_cast<le_img_resource_handle>( op.resource ) );
+						auto dstImage = frame_data_get_image_from_le_resource_id( &frame, static_cast<le_img_resource_handle>( op.resource ) );
 
 						VkImageMemoryBarrier2 imageLayoutTransfer{
 						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -5685,7 +5685,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							{
 								rtx_state.sbt_buffer = le_cmd->info.sbt_buffer;
 
-								VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.sbt_buffer );
+								VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.sbt_buffer );
 
 								VkBufferDeviceAddressInfo info = {
 								    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
@@ -5803,7 +5803,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    .dstAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.dstAccessMask ),    // and making memory visible to dst stage
 						    .srcQueueFamilyIndex = 0,
 						    .dstQueueFamilyIndex = 0,
-						    .buffer              = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ),
+						    .buffer              = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer ),
 						    .offset              = le_cmd->info.offset,
 						    .size                = le_cmd->info.range,
 						};
@@ -5996,7 +5996,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							DescriptorData::BufferInfo& buffer_info = descriptor_data->bufferInfo;
 
-							buffer_info.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
+							buffer_info.buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer_id );
 							buffer_info.range  = le_cmd->info.range;
 
 							if ( buffer_info.range == 0 ) {
@@ -6173,7 +6173,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					} break;
 					case le::CommandType::eBindIndexBuffer: {
 						auto* le_cmd = static_cast<le::CommandBindIndexBuffer*>( dataIt );
-						auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
+						auto  buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer );
 						vkCmdBindIndexBuffer( cmd, buffer, le_cmd->info.offset, static_cast<VkIndexType>( le_cmd->info.indexType ) );
 					} break;
 
@@ -6200,7 +6200,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						le_buf_resource_handle le_buffer = *p_buffers;
 
-						VkBuffer vk_buffer                  = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+						VkBuffer vk_buffer                  = frame_data_get_buffer_from_le_resource_id( &frame, le_buffer );
 						vertexInputBindings[ firstBinding ] = vk_buffer;
 
 						for ( uint32_t b = 1; b != numBuffers; ++b ) {
@@ -6210,7 +6210,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							le_buf_resource_handle next_buffer = p_buffers[ b ];
 							if ( next_buffer != le_buffer ) {
 								le_buffer = next_buffer;
-								vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+								vk_buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_buffer );
 							}
 							vertexInputBindings[ b + firstBinding ] = vk_buffer;
 						}
@@ -6230,8 +6230,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    .size      = le_cmd->info.numBytes,
 						};
 
-						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
-						auto dstBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.dst_buffer_id );
+						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.src_buffer_id );
+						auto dstBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.dst_buffer_id );
 
 						vkCmdCopyBuffer( cmd, srcBuffer, dstBuffer, 1, &region );
 
@@ -6242,8 +6242,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						auto* le_cmd = static_cast<le::CommandWriteToImage*>( dataIt );
 
-						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
-						auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
+						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.src_buffer_id );
+						auto dstImage  = frame_data_get_image_from_le_resource_id( &frame, le_cmd->info.dst_image_id );
 
 						// We define a range that covers all miplevels. this is useful as it allows us to transform
 						// Image layouts in bulk, covering the full mip chain.
@@ -6526,7 +6526,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						auto const blas_end = blas_handle_begin + num_blas_handles;
 
-						VkBuffer scratchBuffer = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
+						VkBuffer scratchBuffer = frame_data_get_buffer_from_le_resource_id( &frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
 
 						for ( auto blas_handle = blas_handle_begin; blas_handle != blas_end; blas_handle++ ) {
 
@@ -6547,8 +6547,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 								// TODO: we may want to cache this - so that we don't have to lookup addresses more than once
 
-								VkBuffer vertex_buffer = frame_data_get_buffer_from_le_resource_id( frame, g.vertex_buffer );
-								VkBuffer index_buffer  = frame_data_get_buffer_from_le_resource_id( frame, g.index_buffer );
+								VkBuffer vertex_buffer = frame_data_get_buffer_from_le_resource_id( &frame, g.vertex_buffer );
+								VkBuffer index_buffer  = frame_data_get_buffer_from_le_resource_id( &frame, g.index_buffer );
 
 								VkDeviceOrHostAddressConstKHR vertex_addr = { .deviceAddress = 0 };
 								VkDeviceOrHostAddressConstKHR index_addr  = { .deviceAddress = 0 };
@@ -6733,8 +6733,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// instances information is encoded via buffer, but that buffer is also available as host memory,
 						// because it is held in staging_buffer_mapped_memory...
-						VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id );
-						VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
+						VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.staging_buffer_id );
+						VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( &frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
 
 						VkDeviceOrHostAddressConstKHR instanceBufferDeviceAddress = {};
 
