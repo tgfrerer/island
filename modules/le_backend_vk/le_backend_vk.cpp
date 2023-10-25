@@ -6808,7 +6808,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// Call the callback uncritically, passing along the currently mapped vulkan command buffer.
 						// You need to know what you are doing with this.
-						le_cmd->info.callback( cmd, le_cmd->info.user_data );
+						le_cmd->info.callback( cmd, le_cmd->info.user_data, &frame );
 
 						break;
 					}

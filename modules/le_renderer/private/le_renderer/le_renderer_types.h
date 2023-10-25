@@ -843,7 +843,7 @@ struct CommandWriteToImage {
 struct CommandVideoDecoderExecuteCallback {
 	CommandHeader header = { { { CommandType::eVideoDecoderExecuteCallback, sizeof( CommandVideoDecoderExecuteCallback ) } } };
 
-	typedef void( callback_fun_t )( struct VkCommandBuffer_T* cmd, void* user_data );
+	typedef void( callback_fun_t )( struct VkCommandBuffer_T* cmd, void* user_data, void const* p_backend_frame_data );
 
 	struct {
 		callback_fun_t* callback;
