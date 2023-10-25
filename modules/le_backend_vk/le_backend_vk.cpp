@@ -8018,6 +8018,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.get_default_graphics_queue_info           = backend_get_default_graphics_queue_info;
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
 	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
+	private_backend_i.frame_data_get_image_from_le_resource_id  = frame_data_get_image_from_le_resource_id;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;

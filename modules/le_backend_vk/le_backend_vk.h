@@ -64,6 +64,7 @@ struct VkMemoryRequirements;
 struct VkMemoryAllocateInfo;
 struct VkSpecializationMapEntry;
 struct VkPhysicalDeviceFeatures2;
+struct BackendFrameData;
 
 struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 struct BackendRenderPass;
@@ -210,6 +211,8 @@ struct le_backend_vk_api {
 
 		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
 		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
+	
+		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_img_resource_handle_t* img );
 
 	};
 
