@@ -249,6 +249,9 @@ le_resource_handle renderer_produce_resource_handle(
 		// As this is a multimap, there can be any number of textures with the same
 		// key "unnamed" in the map.
 		handle = &resource_handle_library->resource_handles.emplace( *p_data, le_resource_handle_t{ p_data } )->second;
+		// we tag the element with a debug name that contains the handle so that
+		// the debug name is unique.
+		sprintf( handle->data->debug_name, "[%p]", handle );
 	}
 
 	// handle is a pointer to the element in the container, and as such it is
