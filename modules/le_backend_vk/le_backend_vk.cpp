@@ -4190,6 +4190,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				frame.textures_per_pass[ pass_idx ][ textureId ] = tex;
 			} else {
 				// The frame already has an element with such a texture id.
+				logger.error( "texture '%s' must have been defined multiple times using identical id within the same renderpass.", textureId );
 				assert( false && "texture must have been defined multiple times using identical id within the same renderpass." );
 			}
 		} // end for all textureIds
@@ -6110,7 +6111,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    find_descriptor_with_binding_number_and_array_idx(
 						        argumentState.setData[ b->setIndex ], b->binding );
 
-						// fetch texture information based on texture id from command
+						// fetch image view information based on image_id from command
 						if ( bindingData ) {
 
 							auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
