@@ -7226,6 +7226,18 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 	std::unordered_map<le_resource_handle, ownership_transfer_t> queue_ownership_transfers;     // note that the transfer must happen on both queues - first release, then acquire.
 	bool                                                         must_wait_for_acquire = false; /// signals whether multiple queues of the same family await a resoruce to become acquired
 
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
+		for ( auto& [ le_resource_handle, qf ] : self->resource_queue_family_ownership[ 0 ] ) {
+			logger.info( "*[%4d]* Resource : [%s] qf%d ",
+			             frameIndex, le_resource_handle->data->debug_name, qf );
+		}
+	}
+
+	// Initialise back buffer with current state - we do this so that we don't accidentally
+	// "forget" resources that are not referenced in the current frame - these still belong
+	// to a queue, until they are deleted!
+	self->resource_queue_family_ownership[ 1 ] = self->resource_queue_family_ownership[ 0 ];
+
 	// For all resources test if family ownership matches
 	// since we last used this resource - if not, change it, and note the change.
 	for ( auto const& submission_data : frame.queue_submission_data ) {
@@ -7237,6 +7249,9 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 				auto found_queue_family_ownership = self->resource_queue_family_ownership[ 0 ].find( r );
 				// definitely write to the back buffer
 				self->resource_queue_family_ownership[ 1 ][ r ] = submission_queue_family_idx;
+
+				// logger.info( "*[%4d]* Resource : [%s] qf%d -> qf%d (used with queue index:%d)",
+				//              frameIndex, r->data->debug_name, found_queue_family_ownership->second, submission_queue_family_idx, submission_data.queue_idx );
 
 				// There was already an element in there - we must compare
 				if ( found_queue_family_ownership != self->resource_queue_family_ownership[ 0 ].end() &&
@@ -7250,20 +7265,20 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 					                                                               // that will acquire the resource, as it is this one specifically that
 					                                                               // will need to wait for the release semaphore to signal
 
-					auto transfer_inserted_it = queue_ownership_transfers.emplace( change.resource, change );
+					auto [ transfer_it, was_emplaced ] = queue_ownership_transfers.emplace( change.resource, change );
 
-					if ( transfer_inserted_it.second == false ) {
+					if ( was_emplaced == false ) {
 
 						// There was already an ownership change for this resource - make sure that it only differs
 						// in the dst queue, but not in dst queue family.
 
-						if ( change.dst_queue_family_index == transfer_inserted_it.first->second.dst_queue_family_index ) {
+						if ( change.dst_queue_family_index == transfer_it->second.dst_queue_family_index ) {
 
 							// Add a queue index to the list of queues which wait for this transfer,
 							// the first destination queue will do the acquire, all other destination
 							// queues will have to wait for this acquire to complete in an extra step.
-							transfer_inserted_it.first->second.dst_queue_index.push_back( submission_data.queue_idx );
-							if ( submission_data.queue_idx != transfer_inserted_it.first->second.dst_queue_index[ 0 ] ) {
+							transfer_it->second.dst_queue_index.push_back( submission_data.queue_idx );
+							if ( submission_data.queue_idx != transfer_it->second.dst_queue_index[ 0 ] ) {
 								// only wait for acquire if it's a different queue than the first queue
 								must_wait_for_acquire = true;
 							}
@@ -7272,8 +7287,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 							logger.error( "resource `%s` cannot be owned by two differing queue families: %d != %d",
 							              r->data->debug_name,
 							              change.dst_queue_family_index,
-							              transfer_inserted_it.first->second.dst_queue_family_index );
-							assert( change.dst_queue_family_index == transfer_inserted_it.first->second.dst_queue_family_index && "resource cannot be owned by more than one queue family" );
+							              transfer_it->second.dst_queue_family_index );
+							assert( change.dst_queue_family_index == transfer_it->second.dst_queue_family_index && "resource cannot be owned by more than one queue family" );
 						}
 					}
 
