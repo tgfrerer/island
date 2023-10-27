@@ -1840,6 +1840,10 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_TRANSFER_WRITE_BIT ) ) {
+				requestedState.visible_access = resources_access[ i ];
+				requestedState.stage          = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT; // why does this fix work? i think it might be that it sets the sync_chain to what the decode pass leaves the texture layout in
+				requestedState.layout         = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 			}
 
 			else {
