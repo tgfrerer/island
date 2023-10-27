@@ -103,9 +103,12 @@ static bool le_backend_vk_settings_add_required_device_extension( le_backend_vk_
 		// Enable StorageBuffer16BitAccess if corresponding extension was requested.
 		if ( std::string( ext ).find( VK_KHR_16BIT_STORAGE_EXTENSION_NAME ) != std::string::npos ) {
 			self->physical_device_features.vk_11.storageBuffer16BitAccess = VK_TRUE;
-			self->physical_device_features.vk_11.samplerYcbcrConversion   = VK_TRUE;
 			self->physical_device_features.features.features.shaderInt16  = VK_TRUE;
 		}
+
+		// enable ycbcr conversion as we need it for video textures, and it could
+		// be useful for other things.
+		self->physical_device_features.vk_11.samplerYcbcrConversion = VK_TRUE;
 
 		// we need timeline semaphores for multi-queue ops
 		self->physical_device_features.vk_12.timelineSemaphore = VK_TRUE;

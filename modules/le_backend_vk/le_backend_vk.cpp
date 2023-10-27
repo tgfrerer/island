@@ -52,6 +52,7 @@ static constexpr auto LOGGER_LABEL     = "le_backend_vk";
 #	include <intrin.h> // for __lzcnt
 #endif
 
+
 #ifndef LE_PRINT_DEBUG_MESSAGES
 #	define LE_PRINT_DEBUG_MESSAGES false
 #endif
@@ -4034,7 +4035,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 //
 // Allocates ImageViews, Samplers and Textures requested by individual passes
 // these are tied to the lifetime of the frame, and will be re-created
-static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
+static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses, VkSamplerYcbcrConversionInfo* ycbcr_conversion_info = nullptr ) {
 	ZoneScoped;
 	using namespace le_renderer;
 	static auto       logger = LeLog( LOGGER_LABEL );
@@ -4155,11 +4156,13 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 
 				auto& texInfo = textureInfos[ i ];
 
-				VkImageView imageView{};
+				// -- Store Texture with frame so that decoder can find references
+				BackendFrameData::Texture tex;
+
+				auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( &frame, &texInfo ) );
 				{
 					// Set or create vkImageview
 
-					auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( &frame, &texInfo ) );
 
 					VkImageSubresourceRange subresourceRange{
 					    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
@@ -4170,8 +4173,9 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					};
 
 					// TODO: fill in additional image view create info based on info from pass...
+					VkImageViewCreateInfo imageViewCreateInfo;
 
-					VkImageViewCreateInfo imageViewCreateInfo{
+					imageViewCreateInfo = {
 					    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 					    .pNext            = nullptr, // optional
 					    .flags            = 0,       // optional
@@ -4182,58 +4186,61 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					    .subresourceRange = subresourceRange,
 					};
 
-					vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
+					if ( VkFormat( imageFormat ) == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
+						// if image is a planar image - we must create an image view with a sampler that can
+						// convert such an image
+                        imageViewCreateInfo.pNext = ycbcr_conversion_info;
+					}
+
+					vkCreateImageView( device, &imageViewCreateInfo, nullptr, &tex.imageView );
 
 					// Store vk object references with frame-owned resources, so that
 					// the vk objects can be destroyed when frame crosses the fence.
 
 					AbstractPhysicalResource res;
-					res.asImageView = imageView;
+					res.asImageView = tex.imageView;
 					res.type        = AbstractPhysicalResource::Type::eImageView;
 
 					frame.ownedResources.emplace_front( std::move( res ) );
 				}
 
-				VkSampler sampler{};
 				{
-					// Create VkSampler object on device.
+					// Create VkSampler object on device in case we don't use an
+					// immutable sampler
 
-					VkSamplerCreateInfo samplerCreateInfo{
-					    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-					    .pNext                   = nullptr, // optional
-					    .flags                   = 0,       // optional
-					    .magFilter               = VkFilter( texInfo.sampler.magFilter ),
-					    .minFilter               = VkFilter( texInfo.sampler.minFilter ),
-					    .mipmapMode              = VkSamplerMipmapMode( texInfo.sampler.mipmapMode ),
-					    .addressModeU            = VkSamplerAddressMode( texInfo.sampler.addressModeU ),
-					    .addressModeV            = VkSamplerAddressMode( texInfo.sampler.addressModeV ),
-					    .addressModeW            = VkSamplerAddressMode( texInfo.sampler.addressModeW ),
-					    .mipLodBias              = texInfo.sampler.mipLodBias,
-					    .anisotropyEnable        = texInfo.sampler.anisotropyEnable,
-					    .maxAnisotropy           = texInfo.sampler.maxAnisotropy,
-					    .compareEnable           = texInfo.sampler.compareEnable,
-					    .compareOp               = VkCompareOp( texInfo.sampler.compareOp ),
-					    .minLod                  = texInfo.sampler.minLod,
-					    .maxLod                  = texInfo.sampler.maxLod,
-					    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
-					    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
-					};
+					if ( VkFormat( imageFormat ) != VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
 
-					vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler );
-					// Now store vk object references with frame-owned resources, so that
-					// the vk objects can be destroyed when frame crosses the fence.
+						VkSamplerCreateInfo samplerCreateInfo{
+						    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+						    .pNext                   = nullptr, // optional
+						    .flags                   = 0,       // optional
+						    .magFilter               = VkFilter( texInfo.sampler.magFilter ),
+						    .minFilter               = VkFilter( texInfo.sampler.minFilter ),
+						    .mipmapMode              = VkSamplerMipmapMode( texInfo.sampler.mipmapMode ),
+						    .addressModeU            = VkSamplerAddressMode( texInfo.sampler.addressModeU ),
+						    .addressModeV            = VkSamplerAddressMode( texInfo.sampler.addressModeV ),
+						    .addressModeW            = VkSamplerAddressMode( texInfo.sampler.addressModeW ),
+						    .mipLodBias              = texInfo.sampler.mipLodBias,
+						    .anisotropyEnable        = texInfo.sampler.anisotropyEnable,
+						    .maxAnisotropy           = texInfo.sampler.maxAnisotropy,
+						    .compareEnable           = texInfo.sampler.compareEnable,
+						    .compareOp               = VkCompareOp( texInfo.sampler.compareOp ),
+						    .minLod                  = texInfo.sampler.minLod,
+						    .maxLod                  = texInfo.sampler.maxLod,
+						    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
+						    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
+						};
+						vkCreateSampler( device, &samplerCreateInfo, nullptr, &tex.sampler );
+						// Now store vk object references with frame-owned resources, so that
+                        // the vk objects can be destroyed when frame crosses the fence.
 
-					AbstractPhysicalResource res;
+                        AbstractPhysicalResource res;
 
-					res.asSampler = sampler;
-					res.type      = AbstractPhysicalResource::Type::eSampler;
-					frame.ownedResources.emplace_front( std::move( res ) );
+                        res.asSampler = tex.sampler;
+						res.type      = AbstractPhysicalResource::Type::eSampler;
+						frame.ownedResources.emplace_front( std::move( res ) );
+					}
 				}
-
-				// -- Store Texture with frame so that decoder can find references
-				BackendFrameData::Texture tex;
-				tex.imageView = imageView;
-				tex.sampler   = sampler;
 
 				frame.textures_per_pass[ pass_idx ][ textureId ] = tex;
 			} else {
@@ -4386,7 +4393,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	}
 
 	// -- allocate any transient vk objects such as image samplers, and image views
-	frame_allocate_transient_resources( frame, device, passes, numRenderPasses );
+	frame_allocate_transient_resources( frame, device, passes, numRenderPasses, &self->vk_sampler_ycbcr_conversion_info );
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	backend_create_renderpasses( frame, device );
@@ -4483,9 +4490,9 @@ static le_staging_allocator_o* backend_get_staging_allocator( le_backend_o* self
 
 void debug_print_le_pipeline_layout_info( le_pipeline_layout_info* info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	logger.debug( "pipeline layout: %x", info->pipeline_layout_key );
+    logger.info( "pipeline layout: %x", info->pipeline_layout_key );
 	for ( size_t i = 0; i != info->set_layout_count; i++ ) {
-		logger.debug( "set layout key : %x", info->set_layout_keys[ i ] );
+        logger.info( "set layout key : %x", info->set_layout_keys[ i ] );
 	}
 }
 
@@ -5459,11 +5466,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							// -- potentially compile and create pipeline here, based on current pass and subpass
 							auto requestedPipeline = le_pipeline_manager_i.produce_graphics_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
 
-							if ( /* DISABLES CODE */ ( false ) ) {
+                            if ( /* DISABLES CODE */ ( false ) ) {
 
 								// Print pipeline debug info when a new pipeline gets bound.
 
-								logger.debug( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
+                                logger.info( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
 								debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
 							}
 

@@ -24,6 +24,7 @@ struct le_shader_binding_info {
 	                             //
 	uint64_t stage_bits;         // Corresponds to bitfield of le::ShaderStage
 	                             //
+	VkSampler immutable_sampler; // optional: immutable sampler
 	uint64_t name_hash;          // fnv64_hash of parameter name as given in shader.
 	                             //
 	                             // NOTE: The above field `name_hash` doubles as a marker,
@@ -46,12 +47,14 @@ struct le_shader_binding_info {
 		       type == lhs.type &&
 		       dynamic_offset_idx == lhs.dynamic_offset_idx &&
 		       range == lhs.range &&
+		       immutable_sampler == lhs.immutable_sampler &&
 		       stage_bits == lhs.stage_bits &&
 		       name_hash == lhs.name_hash;
 	}
 };
 // ----------------------------------------------------------------------
 struct le_descriptor_set_layout_t {
+	std::vector<VkSampler*>             immutable_samplers;            // may be empty - if set, owns this VkSampler
 	std::vector<le_shader_binding_info> binding_info;                  // binding info for this set
 	VkDescriptorSetLayout               vk_descriptor_set_layout;      // vk object
 	VkDescriptorUpdateTemplate          vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements

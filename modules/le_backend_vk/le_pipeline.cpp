@@ -37,6 +37,8 @@ struct specialization_map_info_t {
 	std::vector<char>                     data;
 };
 
+static constexpr auto TEXTURE_NAME_YCBCR_REQUEST_STRING = "__ycbcr__"; // add this string to a shader texture name to signal that we require an immutable YcBcR conversion sampler for this binding
+
 struct le_shader_module_o {
 	uint64_t                                       hash                = 0;     ///< hash taken from spirv code + hash_shader_defines
 	uint64_t                                       hash_shader_defines = 0;     ///< hash taken from shader defines string
@@ -52,7 +54,13 @@ struct le_shader_module_o {
 	le::ShaderStageFlagBits                        stage                     = {};
 	uint64_t                                       push_constant_buffer_size = 0; ///< number of bytes for push constant buffer, zero indicates no push constant buffer in use.
 	le::ShaderSourceLanguage                       source_language           = le::ShaderSourceLanguage::eDefault;
-	specialization_map_info_t                      specialization_map_info; ///< information concerning specialization constants for this shader stage
+	specialization_map_info_t                      specialization_map_info;       ///< information concerning specialization constants for this shader stage
+
+	enum class ImmutableSamplerRequestedValue : uint64_t                          ///<  sentinel values used to signal that an immutable binding needs to be filled wit a special sampler
+	{
+		eNone  = 0,
+		eYcBcR = hash_64_fnv1a_const( TEXTURE_NAME_YCBCR_REQUEST_STRING ),
+	};
 };
 
 // A table from `handle` -> `object*`, protected by mutex.
@@ -877,6 +885,17 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			// Dynamic uniform buffers need to specify a range given in bytes.
 			if ( info.type == le::DescriptorType::eUniformBufferDynamic ) {
 				info.range = binding->block.size;
+			}
+
+			if ( std::string::npos != std::string( binding->name ).find( TEXTURE_NAME_YCBCR_REQUEST_STRING ) ) {
+
+				// If the binding name contains the special string value "__ycbcr__", then
+				// we set the .immutable_sampler value with a special sentinel - this
+				// will be replaced by an actual immutable VkSampler when creating the
+				// DescriptorSet, see `le_pipeline_cache_produce_descriptor_set_layout`
+
+				logger.info( "Detected immutable sampler: [%s]", binding->name );
+				info.immutable_sampler = VkSampler( le_shader_module_o::ImmutableSamplerRequestedValue::eYcBcR );
 			}
 
 			// For buffer Types the name of the binding we're interested in is the type name.
@@ -1766,6 +1785,7 @@ static VkPipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o* 
 
 /// \brief returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
 static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_manager_o* self, std::vector<le_shader_binding_info> const& bindings, VkDescriptorSetLayout* layout ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto& descriptorSetLayouts = self->descriptorSetLayouts; // FIXME: this method only needs rw access to this, and the device
 
@@ -1788,14 +1808,101 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 		vk_bindings.reserve( bindings.size() );
 
+		// We must add immutable samplers here if they have been requested.
+		//
+		// You can request immutable samplers by annotating texture names with
+		// special endings.
+		//
+		// <https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html>
+		//
+		//  pImmutableSamplers affects initialization of samplers. If descriptorType
+		//  specifies a `VK_DESCRIPTOR_TYPE_SAMPLER` or
+		//  `VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLE` type descriptor, then
+		//  pImmutableSamplers can be used to initialize a set of immutable samplers.
+		//  Immutable samplers are permanently bound into the set layout and must not be
+		//  changed; updating a `VK_DESCRIPTOR_TYPE_SAMPLER` descriptor with immutable
+		//  samplers is not allowed and updates to
+		//  a `VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER` descriptor with immutable samplers
+		//  does not modify the samplers (the image views are updated, but the sampler
+		//  updates are ignored). If pImmutableSamplers is not NULL, then it is a pointer
+		//  to an array of sampler handles that will be copied into the set layout and used
+		//  for the corresponding binding. Only the sampler handles are copied; the sampler
+		//  objects must not be destroyed before the final use of the set layout and any
+		//  descriptor pools and sets created using it. If pImmutableSamplers is NULL, then
+		//  the sampler slots are dynamic and sampler handles must be bound into descriptor
+		//  sets using this layout. If descriptorType is not one of these descriptor types,
+		//  then pImmutableSamplers is ignored.
+		//
+		//
+		// Q: how will an immutable sampler affect the layout hash?
+		//
+		// A: The sentinel is part of the hashed data - we assume that immutable samplers
+		// using the same sentinel and therefore the same conversion sampler are compatible.
+		//
+		//
+		// Q: how is VkSampler lifetime managed?
+		// A: all immutable samplers for a setlayout are stored with the set layout. once the
+		//    setlayout is destroyed, the samplers are destroyed, too.
+
+		// Note that we allocate VkSamplers on the free store so that their address stays constant
+		// Any VkSampler allocated will get freed again in `le_pipeline_manager_destroy`.
+		std::vector<VkSampler*> immutable_samplers;
+
 		for ( const auto& b : bindings ) {
+
+			VkSampler* maybe_immutable_sampler = nullptr;
+
+			if ( b.immutable_sampler && ( b.immutable_sampler == VkSampler( le_shader_module_o::ImmutableSamplerRequestedValue::eYcBcR ) ) ) {
+
+				maybe_immutable_sampler = new VkSampler( 0 );
+
+				VkSamplerYcbcrConversionInfo* conversion_info =
+				    static_cast<VkSamplerYcbcrConversionInfo*>(
+				        le_backend_vk::private_backend_vk_i.get_sampler_ycbcr_conversion_info( self->backend ) );
+
+				// TOOD: we must create a VkSampler (and reget_sampler_ycbcr_conversion_infoto
+				// whatever is in our immutable sampler.
+				VkSamplerCreateInfo sampler_create_info = {
+				    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, // VkStructureType
+				    .pNext                   = conversion_info,                       // void *, optional
+				    .flags                   = 0,                                     // VkSamplerCreateFlags, optional
+				    .magFilter               = VK_FILTER_LINEAR,                      // VkFilter
+				    .minFilter               = VK_FILTER_LINEAR,                      // VkFilter
+				    .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,         // VkSamplerMipmapMode
+				    .addressModeU            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, // VkSamplerAddressMode
+				    .addressModeV            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, // VkSamplerAddressMode
+				    .addressModeW            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, // VkSamplerAddressMode
+				    .mipLodBias              = 0,                                     // float
+				    .anisotropyEnable        = 0,                                     // VkBool32
+				    .maxAnisotropy           = 0,                                     // float
+				    .compareEnable           = 0,                                     // VkBool32
+				    .compareOp               = VK_COMPARE_OP_LESS,                    // VkCompareOp
+				    .minLod                  = 0.f,                                   // float
+				    .maxLod                  = 1.f,                                   // float
+				    .borderColor             = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK, // VkBorderColor
+				    .unnormalizedCoordinates = 0,                                     // VkBool32
+				};
+
+				VkResult result = vkCreateSampler( self->device, &sampler_create_info, nullptr, maybe_immutable_sampler );
+				if ( result != VK_SUCCESS ) {
+					logger.error( "could not create immutable sampler" );
+				} else {
+					immutable_samplers.push_back( maybe_immutable_sampler );
+				}
+			}
+
 			VkDescriptorSetLayoutBinding binding = {
 			    .binding            = b.binding,
 			    .descriptorType     = VkDescriptorType( b.type ),
-			    .descriptorCount    = b.count, // optional
+			    .descriptorCount    = b.count,                 // optional
 			    .stageFlags         = VkShaderStageFlags( b.stage_bits ),
-			    .pImmutableSamplers = nullptr, // optional
+			    .pImmutableSamplers = maybe_immutable_sampler, // optional
 			};
+
+			if ( maybe_immutable_sampler && binding.descriptorCount > 1 ) {
+				binding.descriptorCount = 1;
+				logger.warn( "If binding has an immutable sampler, it must have just a single binding." );
+			}
 
 			vk_bindings.emplace_back( std::move( binding ) );
 		}
@@ -1893,6 +2000,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 		le_layout_info.vk_descriptor_set_layout      = *layout;
 		le_layout_info.binding_info                  = bindings;
 		le_layout_info.vk_descriptor_update_template = updateTemplate;
+		le_layout_info.immutable_samplers            = immutable_samplers;
 
 		bool result = descriptorSetLayouts.try_insert( set_layout_hash, &le_layout_info );
 
@@ -2474,13 +2582,15 @@ static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o* se
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_manager_o* le_pipeline_manager_create( le_device_o* le_device ) {
+static le_pipeline_manager_o* le_pipeline_manager_create( le_backend_o* backend ) {
 	auto self = new le_pipeline_manager_o();
 
 	using namespace le_backend_vk;
-	self->le_device = le_device;
-	vk_device_i.increase_reference_count( le_device );
-	self->device = vk_device_i.get_vk_device( le_device );
+
+	self->backend   = backend;
+	self->le_device = private_backend_vk_i.get_le_device( self->backend );
+	vk_device_i.increase_reference_count( self->le_device );
+	self->device = vk_device_i.get_vk_device( self->le_device );
 
 	VkPipelineCacheCreateInfo info = {
 	    .sType           = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
@@ -2512,6 +2622,10 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o* self ) {
 	self->descriptorSetLayouts.iterator(
 	    []( le_descriptor_set_layout_t* e, void* user_data ) {
 		    VkDevice device = *static_cast<VkDevice*>( user_data );
+		    for ( auto& s : e->immutable_samplers ) {
+			    vkDestroySampler( device, *s, nullptr );
+			    delete s;
+		    }
 		    if ( e->vk_descriptor_set_layout ) {
 			    vkDestroyDescriptorSetLayout( device, e->vk_descriptor_set_layout, nullptr );
 			    logger.info( "Destroyed VkDescriptorSetLayout: %p", e->vk_descriptor_set_layout );
