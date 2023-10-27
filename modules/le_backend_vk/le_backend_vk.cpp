@@ -1337,7 +1337,7 @@ static void backend_initialise( le_backend_o* self ) {
 	if ( self->must_track_resources_queue_family_ownership ) {
 		le::Log( LOGGER_LABEL ).info( "Multiple queue families detected - tracking queue ownership per-resource." );
 	}
-	self->pipelineCache = le_pipeline_manager_i.create( *self->device );
+	self->pipelineCache = le_pipeline_manager_i.create( self );
 }
 // ----------------------------------------------------------------------
 

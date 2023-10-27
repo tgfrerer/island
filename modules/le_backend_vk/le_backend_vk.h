@@ -247,7 +247,7 @@ struct le_backend_vk_api {
 	};
 
 	struct le_pipeline_manager_interface_t {
-		le_pipeline_manager_o*                   ( *create                            ) ( le_device_o * device        );
+		le_pipeline_manager_o*                   ( *create                            ) ( le_backend_o * backend );
 		void                                     ( *destroy                           ) ( le_pipeline_manager_o* self );
 
 		bool                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_gpso_handle *gpsoHandle);

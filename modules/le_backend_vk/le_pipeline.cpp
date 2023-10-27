@@ -225,8 +225,9 @@ struct le_shader_manager_o {
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
 //       to consolidate after the frame has been processed.
 struct le_pipeline_manager_o {
-	le_device_o* le_device = nullptr; // arc-owning, increases reference count, decreases on destruction
-	VkDevice     device    = nullptr;
+	le_backend_o* backend   = nullptr; // weak, non-owning
+	le_device_o*  le_device = nullptr; // arc-owning, increases reference count, decreases on destruction
+	VkDevice      device    = nullptr;
 
 	std::mutex mtx;
 
