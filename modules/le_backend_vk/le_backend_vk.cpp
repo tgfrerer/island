@@ -643,6 +643,10 @@ struct le_backend_o {
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
 	le::Format defaultFormatSampledImage           = {}; ///< default image format used for sampled images
 
+    // default conversion sampler for ycbcr format images
+    VkSamplerYcbcrConversion     vk_sampler_ycbcr_conversion = nullptr;
+    VkSamplerYcbcrConversionInfo vk_sampler_ycbcr_conversion_info;
+
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
 
 	// Siloed per-frame memory
@@ -791,6 +795,12 @@ static void backend_destroy( le_backend_o* self ) {
 	}
 
 	vkDeviceWaitIdle( self->device.get()->getVkDevice() );
+
+	// if we created a conversion sampler, we must destroy it here.
+	if ( self->vk_sampler_ycbcr_conversion ) {
+		vkDestroySamplerYcbcrConversion( device, self->vk_sampler_ycbcr_conversion, nullptr );
+		self->vk_sampler_ycbcr_conversion = nullptr;
+	}
 
 	for ( auto& frameData : self->mFrames ) {
 
@@ -1200,6 +1210,10 @@ static le_backend_vk_instance_o* backend_get_instance( le_backend_o* self ) {
 	return self->instance;
 }
 
+static VkSamplerYcbcrConversionInfo* backend_get_sampler_ycbcr_conversion_info( le_backend_o* self ) {
+	return &self->vk_sampler_ycbcr_conversion_info;
+}
+
 // ----------------------------------------------------------------------
 // ffdecl.
 static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators );
@@ -1455,6 +1469,40 @@ static void backend_setup( le_backend_o* self ) {
 			// -- create linear allocators for each frame
 			backend_create_transient_allocators( self, i, num_allocators );
 		}
+	}
+
+	{
+
+        // Create YcBcR conversion sampler - we use this to derive samplers that can deal with images
+        // in format: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM
+        // TODO: is it okay that we use one global conversion sampler here - or do we need to create
+        // one per frame and per imageview?
+
+        VkSamplerYcbcrConversionCreateInfo sampler_ycbcr_conversion_create_info = {
+		    .sType                       = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO, // VkStructureType
+		    .pNext                       = nullptr,                                                // void *, optional
+		    .format                      = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM,                     // VkFormat
+		    .ycbcrModel                  = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709,            // VkSamplerYcbcrModelConversion
+		    .ycbcrRange                  = VK_SAMPLER_YCBCR_RANGE_ITU_NARROW,                      // VkSamplerYcbcrRange
+		    .components                  = {},                                                     // VkComponentMapping
+		    .xChromaOffset               = VK_CHROMA_LOCATION_MIDPOINT,                            // VkChromaLocation
+		    .yChromaOffset               = VK_CHROMA_LOCATION_MIDPOINT,                            // VkChromaLocation
+		    .chromaFilter                = VK_FILTER_NEAREST,                                      // VkFilter
+		    .forceExplicitReconstruction = 0,                                                      // VkBool32
+		};
+
+		VkResult result = vkCreateSamplerYcbcrConversion(
+            self->device->getVkDevice(), &sampler_ycbcr_conversion_create_info, nullptr,
+		    &self->vk_sampler_ycbcr_conversion );
+		if ( result != VK_SUCCESS ) {
+			logger.error( "could not create Ycbcr Conversion Sampler" );
+		}
+
+		self->vk_sampler_ycbcr_conversion_info = {
+		    .sType      = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO, // VkStructureType
+		    .pNext      = nullptr,                                         // void *, optional
+		    .conversion = self->vk_sampler_ycbcr_conversion,               // VkSamplerYcbcrConversion
+		};
 	}
 
 	{
@@ -8039,6 +8087,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
 	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
 	private_backend_i.frame_data_get_image_from_le_resource_id  = frame_data_get_image_from_le_resource_id;
+	private_backend_i.get_sampler_ycbcr_conversion_info         = backend_get_sampler_ycbcr_conversion_info;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;

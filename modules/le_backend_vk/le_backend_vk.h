@@ -56,6 +56,7 @@ struct VkBuffer_T;
 struct VkPhysicalDevice_T;
 struct VkQueue_T;
 struct VkPhysicalDeviceProperties;
+struct VkSamplerYcbcrConversionInfo;
 struct VkPhysicalDeviceMemoryProperties;
 struct VkPhysicalDeviceRayTracingPipelinePropertiesKHR;
 struct VkImageCreateInfo;
@@ -214,6 +215,7 @@ struct le_backend_vk_api {
 	
 		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_img_resource_handle_t* img );
 
+		VkSamplerYcbcrConversionInfo* (*get_sampler_ycbcr_conversion_info)(le_backend_o* self);
 	};
 
 	struct instance_interface_t {

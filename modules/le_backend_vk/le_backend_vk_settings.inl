@@ -103,6 +103,7 @@ static bool le_backend_vk_settings_add_required_device_extension( le_backend_vk_
 		// Enable StorageBuffer16BitAccess if corresponding extension was requested.
 		if ( std::string( ext ).find( VK_KHR_16BIT_STORAGE_EXTENSION_NAME ) != std::string::npos ) {
 			self->physical_device_features.vk_11.storageBuffer16BitAccess = VK_TRUE;
+			self->physical_device_features.vk_11.samplerYcbcrConversion   = VK_TRUE;
 			self->physical_device_features.features.features.shaderInt16  = VK_TRUE;
 		}
 
@@ -209,6 +210,7 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	};
 
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
+	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME );
 
 	// Apply some customisations
 
