@@ -1,16 +1,16 @@
 #include "le_timebase.h"
 
 #include <chrono>
+#include "private/le_timebase/le_timebase_ticks_type.h"
 
-using Tick     = std::chrono::duration<uint64_t, std::ratio<1, LE_TIME_TICKS_PER_SECOND>>; /// LE_TIME_TICKS_PER_SECOND ticks per second.
 using NanoTime = std::chrono::time_point<std::chrono::steady_clock>;
 
 struct le_timebase_o {
 
 	NanoTime now;                          // time point at update()
 	NanoTime initial_time;                 // time point at reset()
-	Tick     ticks_before_update;          // number of total ticks passed up until last update
-	Tick     ticks_before_previous_update; // number of total ticks passed up until previous update
+	le::Ticks ticks_before_update;          // number of total ticks passed up until last update
+	le::Ticks ticks_before_previous_update; // number of total ticks passed up until previous update
 };
 
 static void le_timebase_reset( le_timebase_o* self ) {
@@ -44,11 +44,11 @@ static void le_timebase_update( le_timebase_o* self, uint64_t fixed_interval ) {
 	self->ticks_before_previous_update = self->ticks_before_update;
 
 	if ( fixed_interval ) {
-		self->ticks_before_update += Tick( fixed_interval );
+		self->ticks_before_update += le::Ticks( fixed_interval );
 		self->now = NanoTime( self->initial_time ) + std::chrono::duration_cast<NanoTime::duration>( self->ticks_before_update );
 	} else {
 		self->now                 = std::chrono::steady_clock::now();
-		self->ticks_before_update = std::chrono::duration_cast<Tick>( self->now - self->initial_time );
+		self->ticks_before_update = std::chrono::duration_cast<le::Ticks>( self->now - self->initial_time );
 	}
 }
 

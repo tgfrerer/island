@@ -7,8 +7,43 @@
  * Timebase needs to be updated once per frame update, and can then be queried read-only
  * throughout any methods called from within the same frame update.
  *
- * Internally, all time durations are expressed in Ticks, of which fit
+ * If you call update with a delta value, timebase's internal clock is advanced by this
+ * value, interpreted as a duration given in `le::Ticks`.
+ *
+ * If you omit a value, or update timebase with value 0, then the system steady clock will
+ * be used to calculate the delta duration since the last update.
+ *
+ * ----------------------------------------------------------------------
+ *
+ * Internally, all time durations are expressed in le::Ticks, of which fit
  * LE_TIME_TICKS_PER_SECOND into one second.
+ *
+ * By default, we are using microsecond (1/1'000'000) resolution.
+ *
+ * You can override this by defining LE_TIME_TICKS_PER_SECOND in the master
+ * CMakeLists.txt file, with the directive:
+ *
+ * add_compile_definitions( LE_TIME_TICKS_PER_SECOND=1000 )
+ *
+ * Note that if you use a resolution that is too coarse, the smoothness of your
+ * animations will suffer.
+ *
+ * ----------------------------------------------------------------------
+ *
+ * You can cast le::Tick back to durations by including:
+ *
+ * #include <chrono>
+ * #include "private/le_timebase/le_timebase_tick_type.h"
+ *
+ * ----------------------------------------------------------------------
+ *
+ * The following shows how to cast le::Ticks to seconds, for example:
+ *
+ * le::Ticks my_ticks(1000); // 1000 ticks
+ *
+ * float my_seconds = std::chrono::duration_cast<std::duration<float>>(my_ticks).count();
+ *
+ * You can of course duration_cast to any type of std::chrono::duration.
  *
  */
 
@@ -17,7 +52,9 @@
 
 struct le_timebase_o;
 
-#define LE_TIME_TICKS_PER_SECOND 12000
+#ifndef LE_TIME_TICKS_PER_SECOND
+#	define LE_TIME_TICKS_PER_SECOND 1000000
+#endif
 
 struct le_timebase_api {
 
@@ -60,8 +97,8 @@ class LeTimebase : NoCopy, NoMove {
 		le_timebase::le_timebase_i.destroy( self );
 	}
 
-	void update( uint64_t fixed_interval_ticks = 0 ) {
-		le_timebase::le_timebase_i.update( self, fixed_interval_ticks );
+	void update( uint64_t delta_ticks = 0 ) {
+		le_timebase::le_timebase_i.update( self, delta_ticks );
 	}
 
 	void reset() {
