@@ -1293,6 +1293,8 @@ static void backend_initialise( le_backend_o* self ) {
 	    settings->required_device_extensions.data(),
 	    uint32_t( settings->required_device_extensions.size() ) );
 
+    self->queueFamilyIndexGraphics = uint32_t(~0);
+
 	{ // initialise queues
 		uint32_t num_queues = 0;
 		uint32_t previous_queue_family_index;
