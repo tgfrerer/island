@@ -219,11 +219,6 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 
 	self->physical_device_features.vk_13.synchronization2 = VK_TRUE; // use synchronisation2 by default
 
-#ifdef LE_FEATURE_VIDEO
-	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_VIDEO_QUEUE_EXTENSION_NAME );
-	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_VIDEO_DECODE_QUEUE_EXTENSION_NAME );
-#endif
-
 #ifdef LE_FEATURE_RTX
 	self->physical_device_features.vk_12.bufferDeviceAddress                    = true; // needed for rtx
 	self->physical_device_features.ray_tracing_pipeline.rayTracingPipeline      = true;
