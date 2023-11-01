@@ -43,6 +43,9 @@
  *
  * float my_seconds = std::chrono::duration_cast<std::duration<float>>(my_ticks).count();
  *
+ * Note that a conversion to a non-rational (floating-point-type) duration will be lossy,
+ * as are all floating point operations.
+ *
  * You can of course duration_cast to any type of std::chrono::duration.
  *
  */
@@ -56,6 +59,7 @@ struct le_timebase_o;
 #	define LE_TIME_TICKS_PER_SECOND 1000000
 #endif
 
+// clang-format off
 struct le_timebase_api {
 
 	struct le_timebase_interface_t {

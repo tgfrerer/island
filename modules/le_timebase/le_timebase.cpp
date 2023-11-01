@@ -3,22 +3,24 @@
 #include <chrono>
 #include "private/le_timebase/le_timebase_ticks_type.h"
 
-using NanoTime = std::chrono::time_point<std::chrono::steady_clock>;
+using TimeTicks = std::chrono::time_point<std::chrono::steady_clock, le::Ticks>;
 
 struct le_timebase_o {
 
-	NanoTime now;                          // time point at update()
-	NanoTime initial_time;                 // time point at reset()
+	TimeTicks now;                          // time point at update()
+	TimeTicks initial_time;                 // time point at reset()
 	le::Ticks ticks_before_update;          // number of total ticks passed up until last update
 	le::Ticks ticks_before_previous_update; // number of total ticks passed up until previous update
 };
+
+// ----------------------------------------------------------------------
 
 static void le_timebase_reset( le_timebase_o* self ) {
 
 	self->ticks_before_update          = {}; // should reset to zero
 	self->ticks_before_previous_update = {}; // should reset to zero
 
-	self->now = std::chrono::steady_clock::now();
+	self->now = std::chrono::round<le::Ticks>( std::chrono::steady_clock::now() );
 
 	self->initial_time = self->now;
 }
@@ -39,16 +41,16 @@ static void le_timebase_destroy( le_timebase_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_timebase_update( le_timebase_o* self, uint64_t fixed_interval ) {
+static void le_timebase_update( le_timebase_o* self, uint64_t delta_ticks ) {
 
 	self->ticks_before_previous_update = self->ticks_before_update;
 
-	if ( fixed_interval ) {
-		self->ticks_before_update += le::Ticks( fixed_interval );
-		self->now = NanoTime( self->initial_time ) + std::chrono::duration_cast<NanoTime::duration>( self->ticks_before_update );
+	if ( delta_ticks ) {
+		self->ticks_before_update += le::Ticks( delta_ticks );
+		self->now = self->initial_time + self->ticks_before_update;
 	} else {
-		self->now                 = std::chrono::steady_clock::now();
-		self->ticks_before_update = std::chrono::duration_cast<le::Ticks>( self->now - self->initial_time );
+		self->now                 = std::chrono::round<le::Ticks>( std::chrono::steady_clock::now() );
+		self->ticks_before_update = self->now - self->initial_time;
 	}
 }
 
