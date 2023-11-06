@@ -1852,7 +1852,8 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 			VkSampler* maybe_immutable_sampler = nullptr;
 
-			if ( b.immutable_sampler && ( b.immutable_sampler == VkSampler( le_shader_module_o::ImmutableSamplerRequestedValue::eYcBcR ) ) ) {
+			if ( b.immutable_sampler &&
+			     b.immutable_sampler == VkSampler( le_shader_module_o::ImmutableSamplerRequestedValue::eYcBcR ) ) {
 
 				maybe_immutable_sampler = new VkSampler( 0 );
 
@@ -1860,8 +1861,6 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 				    static_cast<VkSamplerYcbcrConversionInfo*>(
 				        le_backend_vk::private_backend_vk_i.get_sampler_ycbcr_conversion_info( self->backend ) );
 
-				// TOOD: we must create a VkSampler (and reget_sampler_ycbcr_conversion_infoto
-				// whatever is in our immutable sampler.
 				VkSamplerCreateInfo sampler_create_info = {
 				    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, // VkStructureType
 				    .pNext                   = conversion_info,                       // void *, optional
@@ -1894,9 +1893,9 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 			VkDescriptorSetLayoutBinding binding = {
 			    .binding            = b.binding,
 			    .descriptorType     = VkDescriptorType( b.type ),
-			    .descriptorCount    = b.count,                 // optional
+			    .descriptorCount    = b.count,
 			    .stageFlags         = VkShaderStageFlags( b.stage_bits ),
-			    .pImmutableSamplers = maybe_immutable_sampler, // optional
+			    .pImmutableSamplers = maybe_immutable_sampler,
 			};
 
 			if ( maybe_immutable_sampler && binding.descriptorCount > 1 ) {
@@ -1920,8 +1919,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 		// -- Create descriptorUpdateTemplate
 		//
 		// The template needs to be created so that data for a VkDescriptorSet
-		// can be read from a vector of tightly packed
-		// DescriptorData elements.
+		// can be read from a vector of tightly packed DescriptorData elements.
 		//
 
 		VkDescriptorUpdateTemplate updateTemplate;
