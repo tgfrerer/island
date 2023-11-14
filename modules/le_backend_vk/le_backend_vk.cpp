@@ -52,7 +52,6 @@ static constexpr auto LOGGER_LABEL     = "le_backend_vk";
 #	include <intrin.h> // for __lzcnt
 #endif
 
-
 #ifndef LE_PRINT_DEBUG_MESSAGES
 #	define LE_PRINT_DEBUG_MESSAGES false
 #endif
@@ -1835,6 +1834,28 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+				// Test whether the previous state for this resource is already what we need it to be
+				//
+				if ( !syncChain.empty() ) {
+					auto const& previous_sync_state = syncChain.back();
+					//
+					// If the previous state was a read-only operation and the resource was
+					// using the same layout (layout transfers are an implicit read/write op),
+					// and the current state does only read from memory that is available
+					// and visible, then we don't need to issue a separate barrier.
+					//
+					//
+					// If the image is in a state that signals that it has not changed
+					// since it was last used (see finalState in frame_track_resource_state) then
+					// we can also assume that a barrier will not be needed.
+					//
+					//
+					if ( previous_sync_state.layout == requestedState.layout && previous_sync_state.stage == VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT && previous_sync_state.visible_access == VkAccessFlagBits2( 0 ) ) {
+						continue;
+					}
+				}
+
 			} else if ( resources_access[ i ] & ( VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
 			                                      VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT |
 			                                      VK_ACCESS_2_SHADER_READ_BIT |
@@ -1844,7 +1865,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
 			} else if ( resources_access[ i ] & ( VK_ACCESS_2_TRANSFER_WRITE_BIT ) ) {
 				requestedState.visible_access = resources_access[ i ];
-				requestedState.stage          = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT; // why does this fix work? i think it might be that it sets the sync_chain to what the decode pass leaves the texture layout in
+				requestedState.stage          = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
 				requestedState.layout         = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 			}
 
@@ -1854,8 +1875,10 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 		} else {
 			// Resources other than Images are ignored
+
 			// TODO: whe should probably process buffers here, as skipping the loop here
 			// means that Buffers don't ever get added to explicit_sync_ops.
+
 			continue;
 		}
 
@@ -6314,9 +6337,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// Image layouts in bulk, covering the full mip chain.
 						VkImageSubresourceRange rangeAllRemainingMiplevels{
 						    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-						    .baseMipLevel   = le_cmd->info.dst_miplevel,
-						    .levelCount     = VK_REMAINING_MIP_LEVELS, // we want all miplevels to be in transferDstOptimal.
-						    .baseArrayLayer = le_cmd->info.dst_array_layer,
+							.baseMipLevel   = std::min( le_cmd->info.num_miplevels, le_cmd->info.dst_miplevel + 1 ), // TODO: we must make sure that baseMipLevel never is greater than the total number of mip levels available for this image.
+							.levelCount     = VK_REMAINING_MIP_LEVELS,                                               // we want all miplevels to be in transferDstOptimal.
+							.baseArrayLayer = le_cmd->info.dst_array_layer,
 						    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // we want the range to encompass all layers
 						};
 
@@ -6337,21 +6360,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .size                = le_cmd->info.numBytes,
 							};
 
-							// Note: this barrier is to prepare the image resource for receiving data
-							VkImageMemoryBarrier2 imageLayoutToTransferDstOptimal{
-							    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-							    .pNext               = nullptr,                             // optional
-							    .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, // wait for nothing as no memory must be made available
-							    .srcAccessMask       = {},                                  // no memory must be made available - our image is garbage data at first
-							    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,    // layout transiton must complete before transfer operation
-							    .dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,      // make memory visible to transferWrite - so that we may write
-							    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-							    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .image               = dstImage,
-							    .subresourceRange    = rangeAllRemainingMiplevels,
-							};
+							// Note: The Renderpass will have prepared this resource to be written to
+							// so that it will be in LAYOUT_TRANSFER_DST_OPTIMAL at this point
+
 							VkDependencyInfo dependency_info{
 							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
 							    .pNext                    = nullptr,
@@ -6360,8 +6371,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .pMemoryBarriers          = 0,
 							    .bufferMemoryBarrierCount = 1,
 							    .pBufferMemoryBarriers    = &bufferTransferBarrier,
-							    .imageMemoryBarrierCount  = 1,
-							    .pImageMemoryBarriers     = &imageLayoutToTransferDstOptimal,
+								.imageMemoryBarrierCount  = 0,
+								.pImageMemoryBarriers     = nullptr,
 							};
 
 							vkCmdPipelineBarrier2( cmd, &dependency_info );
@@ -6524,61 +6535,79 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// Transition image from transfer src optimal to shader read only optimal layout
 
-						{
-							VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
-							    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-							    .pNext               = nullptr,
-							    .srcStageMask        = 0,
-							    .srcAccessMask       = 0,
-							    .dstStageMask        = 0,
-							    .dstAccessMask       = 0,
-							    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-							    .newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .image               = dstImage,
-							    .subresourceRange    = rangeAllRemainingMiplevels,
-							};
-							;
+						if ( le_cmd->info.num_miplevels > 1 ) {
 
-							if ( le_cmd->info.num_miplevels > 1 ) {
+							const uint32_t base_miplevel = le_cmd->info.dst_miplevel;
+							{
+								VkImageMemoryBarrier2 revert_prepare_blit{
+									.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+									.pNext               = nullptr,                              //
+									.srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
+									.srcAccessMask       = VK_ACCESS_2_NONE,                     // make transfer write memory available (flush) to layout transition
+									.dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
+									.dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // make cache (after layout transition) visible to transferRead op
+									.oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // layout transition from transfer dst optimal,
+									.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
+									.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									.image               = dstImage,
+									.subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
+								};
+
+								VkDependencyInfo dependency_info{
+									.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+									.pNext                    = nullptr,
+									.dependencyFlags          = 0,
+									.memoryBarrierCount       = 0,
+									.pMemoryBarriers          = 0,
+									.bufferMemoryBarrierCount = 0,
+									.pBufferMemoryBarriers    = 0,
+									.imageMemoryBarrierCount  = 1,
+									.pImageMemoryBarriers     = &revert_prepare_blit,
+								};
+
+								vkCmdPipelineBarrier2( cmd, &dependency_info );
+							}
+							{
+								VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
+									.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+									.pNext               = nullptr,
+									.srcStageMask        = 0,
+									.srcAccessMask       = 0,
+									.dstStageMask        = 0,
+									.dstAccessMask       = 0,
+									.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+									.newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+									.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									.image               = dstImage,
+									.subresourceRange    = rangeAllRemainingMiplevels,
+								};
 
 								// If there were additional miplevels, the miplevel generation logic ensures that all subresources
 								// are left in transfer_src layout.
 
-								imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
-								imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything that fragment shader does
-								imageLayoutToShaderReadOptimal.srcAccessMask = {};                                       // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
-								imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make layout transitioned image visible to shader read in FragmentShader stage
-								imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;     // transition from transfer src optimal
-								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ...to shader readonly optimal -and make transitioned image available;
-							} else {
+								imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;     // anything in transfer must happen-before
+								imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;     // anything that fragment shader does
+								imageLayoutToShaderReadOptimal.srcAccessMask = VK_ACCESS_2_NONE;                     // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
+								imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;       // make layout transitioned image visible to shader read in FragmentShader stage
+								imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; // transition from transfer src optimal
+								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; // ...to shader readonly optimal -and make transitioned image available;
 
-								// If there are no additional miplevels, the single subresource will still be in
-								// transfer_dst layout after pixel data was uploaded to it.
+								VkDependencyInfo dependency_info{
+									.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+									.pNext                    = nullptr,
+									.dependencyFlags          = 0,
+									.memoryBarrierCount       = 0,
+									.pMemoryBarriers          = 0,
+									.bufferMemoryBarrierCount = 0,
+									.pBufferMemoryBarriers    = 0,
+									.imageMemoryBarrierCount  = 1,
+									.pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
+								};
 
-								imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
-								imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything in fragment shader
-								imageLayoutToShaderReadOptimal.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;           // make available what is in transferwrite - image layout transition will need it
-								imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make visible the result of the image layout transition to shader read in FragmentShader stage
-								imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;     // transition the single one subresource , which is in transfer dst optimal...
-								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ... to shader readonly optimal -and make the transitioned image available;
-								;
+								vkCmdPipelineBarrier2( cmd, &dependency_info ); // images: prepare for shader read
 							}
-
-							VkDependencyInfo dependency_info{
-							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-							    .pNext                    = nullptr,
-							    .dependencyFlags          = 0,
-							    .memoryBarrierCount       = 0,
-							    .pMemoryBarriers          = 0,
-							    .bufferMemoryBarrierCount = 0,
-							    .pBufferMemoryBarriers    = 0,
-							    .imageMemoryBarrierCount  = 1,
-							    .pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
-							};
-
-							vkCmdPipelineBarrier2( cmd, &dependency_info ); // images: prepare for shader read
 						}
 
 						break;
