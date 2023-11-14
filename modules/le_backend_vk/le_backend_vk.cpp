@@ -644,9 +644,9 @@ struct le_backend_o {
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
 	le::Format defaultFormatSampledImage           = {}; ///< default image format used for sampled images
 
-    // default conversion sampler for ycbcr format images
-    VkSamplerYcbcrConversion     vk_sampler_ycbcr_conversion = nullptr;
-    VkSamplerYcbcrConversionInfo vk_sampler_ycbcr_conversion_info;
+	// default conversion sampler for ycbcr format images
+	VkSamplerYcbcrConversion     vk_sampler_ycbcr_conversion = nullptr;
+	VkSamplerYcbcrConversionInfo vk_sampler_ycbcr_conversion_info;
 
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
 
@@ -1293,7 +1293,7 @@ static void backend_initialise( le_backend_o* self ) {
 	    settings->required_device_extensions.data(),
 	    uint32_t( settings->required_device_extensions.size() ) );
 
-    self->queueFamilyIndexGraphics = uint32_t(~0);
+	self->queueFamilyIndexGraphics = uint32_t( ~0 );
 
 	{ // initialise queues
 		uint32_t num_queues = 0;
@@ -1476,12 +1476,12 @@ static void backend_setup( le_backend_o* self ) {
 
 	{
 
-        // Create YcBcR conversion sampler - we use this to derive samplers that can deal with images
-        // in format: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM
-        // TODO: is it okay that we use one global conversion sampler here - or do we need to create
-        // one per frame and per imageview?
+		// Create YcBcR conversion sampler - we use this to derive samplers that can deal with images
+		// in format: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM
+		// TODO: is it okay that we use one global conversion sampler here - or do we need to create
+		// one per frame and per imageview?
 
-        VkSamplerYcbcrConversionCreateInfo sampler_ycbcr_conversion_create_info = {
+		VkSamplerYcbcrConversionCreateInfo sampler_ycbcr_conversion_create_info = {
 		    .sType                       = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO, // VkStructureType
 		    .pNext                       = nullptr,                                                // void *, optional
 		    .format                      = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM,                     // VkFormat
@@ -1495,7 +1495,7 @@ static void backend_setup( le_backend_o* self ) {
 		};
 
 		VkResult result = vkCreateSamplerYcbcrConversion(
-            self->device->getVkDevice(), &sampler_ycbcr_conversion_create_info, nullptr,
+		    self->device->getVkDevice(), &sampler_ycbcr_conversion_create_info, nullptr,
 		    &self->vk_sampler_ycbcr_conversion );
 		if ( result != VK_SUCCESS ) {
 			logger.error( "could not create Ycbcr Conversion Sampler" );
@@ -1853,8 +1853,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 			}
 
 		} else {
-			// Resources other than Images are ignored.
-
+			// Resources other than Images are ignored
 			// TODO: whe should probably process buffers here, as skipping the loop here
 			// means that Buffers don't ever get added to explicit_sync_ops.
 			continue;
@@ -1977,6 +1976,7 @@ static void frame_track_resource_state(
 	// If they were lower, that would mean that an implicit sync has already taken care of this
 	// image resource operation, in which case we want to deactivate the barrier, as it is not needed.
 	//
+
 	// Note that only resources of type image may be implicitly synced.
 
 	typedef std::unordered_map<le_resource_handle, uint32_t> SyncChainMap;
@@ -4169,7 +4169,6 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				{
 					// Set or create vkImageview
 
-
 					VkImageSubresourceRange subresourceRange{
 					    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
 					    .baseMipLevel   = 0,
@@ -4195,7 +4194,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					if ( VkFormat( imageFormat ) == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
 						// if image is a planar image - we must create an image view with a sampler that can
 						// convert such an image
-                        imageViewCreateInfo.pNext = ycbcr_conversion_info;
+						imageViewCreateInfo.pNext = ycbcr_conversion_info;
 					}
 
 					vkCreateImageView( device, &imageViewCreateInfo, nullptr, &tex.imageView );
@@ -4238,11 +4237,11 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 						};
 						vkCreateSampler( device, &samplerCreateInfo, nullptr, &tex.sampler );
 						// Now store vk object references with frame-owned resources, so that
-                        // the vk objects can be destroyed when frame crosses the fence.
+						// the vk objects can be destroyed when frame crosses the fence.
 
-                        AbstractPhysicalResource res;
+						AbstractPhysicalResource res;
 
-                        res.asSampler = tex.sampler;
+						res.asSampler = tex.sampler;
 						res.type      = AbstractPhysicalResource::Type::eSampler;
 						frame.ownedResources.emplace_front( std::move( res ) );
 					}
@@ -4496,9 +4495,9 @@ static le_staging_allocator_o* backend_get_staging_allocator( le_backend_o* self
 
 void debug_print_le_pipeline_layout_info( le_pipeline_layout_info* info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-    logger.info( "pipeline layout: %x", info->pipeline_layout_key );
+	logger.info( "pipeline layout: %x", info->pipeline_layout_key );
 	for ( size_t i = 0; i != info->set_layout_count; i++ ) {
-        logger.info( "set layout key : %x", info->set_layout_keys[ i ] );
+		logger.info( "set layout key : %x", info->set_layout_keys[ i ] );
 	}
 }
 
@@ -5472,11 +5471,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							// -- potentially compile and create pipeline here, based on current pass and subpass
 							auto requestedPipeline = le_pipeline_manager_i.produce_graphics_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
 
-                            if ( /* DISABLES CODE */ ( false ) ) {
+							if ( /* DISABLES CODE */ ( false ) ) {
 
 								// Print pipeline debug info when a new pipeline gets bound.
 
-                                logger.info( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
+								logger.info( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
 								debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
 							}
 
@@ -8124,15 +8123,15 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	}
 
 	// implemented in `le_backend_vk_settings.inl`
-	auto& backend_settings_i                                        = api_i->le_backend_settings_i;
-	backend_settings_i.add_required_device_extension                = le_backend_vk_settings_add_required_device_extension;
-	backend_settings_i.add_required_instance_extension              = le_backend_vk_settings_add_required_instance_extension;
-	backend_settings_i.get_physical_device_features_chain           = le_backend_vk_get_physical_device_features_chain;
-	backend_settings_i.set_concurrency_count                        = le_backend_vk_settings_set_concurrency_count;
-	backend_settings_i.get_requested_queue_capabilities             = le_backend_vk_settings_get_requested_queue_capabilities;
-	backend_settings_i.add_requested_queue_capabilities             = le_backend_vk_settings_add_requested_queue_capabilities;
-	backend_settings_i.set_requested_queue_capabilities             = le_backend_vk_settings_set_requested_queue_capabilities;
-	backend_settings_i.set_data_frames_count                        = le_backend_vk_settings_set_data_frames_count;
+	auto& backend_settings_i                              = api_i->le_backend_settings_i;
+	backend_settings_i.add_required_device_extension      = le_backend_vk_settings_add_required_device_extension;
+	backend_settings_i.add_required_instance_extension    = le_backend_vk_settings_add_required_instance_extension;
+	backend_settings_i.get_physical_device_features_chain = le_backend_vk_get_physical_device_features_chain;
+	backend_settings_i.set_concurrency_count              = le_backend_vk_settings_set_concurrency_count;
+	backend_settings_i.get_requested_queue_capabilities   = le_backend_vk_settings_get_requested_queue_capabilities;
+	backend_settings_i.add_requested_queue_capabilities   = le_backend_vk_settings_add_requested_queue_capabilities;
+	backend_settings_i.set_requested_queue_capabilities   = le_backend_vk_settings_set_requested_queue_capabilities;
+	backend_settings_i.set_data_frames_count              = le_backend_vk_settings_set_data_frames_count;
 
 	void** p_settings_singleton_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) );
 
