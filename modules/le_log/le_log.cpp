@@ -6,7 +6,9 @@
 #include <mutex>
 #include <unordered_map>
 #include <cstdarg>
+#include <cstdio>
 #include <vector>
+#include <string>
 
 #ifdef _MSC_VER
 #	include <intrin.h> // for debugbreak()
