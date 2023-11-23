@@ -1127,7 +1127,7 @@ static void rendergraph_declare_resource( le_rendergraph_o* self, le_resource_ha
 }
 
 // ----------------------------------------------------------------------
-static void rendergraph_add_on_frame_clear_callback( le_rendergraph_o* self, le_on_frame_clear_callback_data_t* callbacks, uint32_t callbacks_count ) {
+static void rendergraph_add_on_frame_clear_callbacks( le_rendergraph_o* self, le_on_frame_clear_callback_data_t* callbacks, uint32_t callbacks_count ) {
 	self->on_frame_clear_callbacks.insert( self->on_frame_clear_callbacks.end(), callbacks, callbacks + callbacks_count );
 }
 
@@ -1143,7 +1143,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_i.reset            = rendergraph_reset;
 	le_rendergraph_i.add_renderpass   = rendergraph_add_renderpass;
 	le_rendergraph_i.declare_resource = rendergraph_declare_resource;
-	le_rendergraph_i.add_on_frame_clear_callback = rendergraph_add_on_frame_clear_callback;
+	le_rendergraph_i.add_on_frame_clear_callbacks = rendergraph_add_on_frame_clear_callbacks;
 
 	auto& le_rendergraph_private_i        = le_renderer_api_i->le_rendergraph_private_i;
 	le_rendergraph_private_i.setup_passes = rendergraph_setup_passes;
