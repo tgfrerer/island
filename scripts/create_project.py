@@ -6,7 +6,6 @@ from os import path
 import shutil
 from shutil import copystat
 
-
 SCRIPTS_PATH = os.path.dirname(os.path.realpath(__file__))
 CWD_PATH = os.path.realpath(os.getcwd())
 
@@ -139,6 +138,7 @@ if (os.path.isabs(template_source_dir) is False):
 
 
 template_name = args.template_name
+template_name = os.path.dirname(template_name)
 project_name_camelcase_capitalised = to_titled_camel_case(project_name)
 template_name_camelcase_capitalised = to_titled_camel_case(template_name)
 
