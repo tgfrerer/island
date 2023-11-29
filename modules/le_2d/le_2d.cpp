@@ -643,8 +643,8 @@ static void le_2d_draw_primitives( le_2d_o* self ) {
 	 * are issued.
 	 */
 
-	le::Encoder encoder{ self->encoder };
-	auto*       pm = encoder.getPipelineManager();
+	le::GraphicsEncoder encoder{ self->encoder };
+	auto*               pm = encoder.getPipelineManager();
 
 	static auto vert = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.vert" ).setShaderStage( le::ShaderStage::eVertex ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) ).build();
 	static auto frag = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.frag" ).setShaderStage( le::ShaderStage::eFragment ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) ).build();
