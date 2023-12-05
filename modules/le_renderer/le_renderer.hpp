@@ -374,16 +374,15 @@ class Renderer {
 		le_renderer::renderer_i.destroy( self );
 	}
 
-
 	void setup( le_renderer_settings_t const& settings ) {
 		le_renderer::renderer_i.setup( self, &settings );
 	}
 
 	void setup( le_window_o* window = nullptr ) {
 		if ( window ) {
-			 le_renderer::renderer_i.setup( self, &le::RendererInfoBuilder( window ).build() );
+			le_renderer::renderer_i.setup( self, &le::RendererInfoBuilder( window ).build() );
 		} else {
-			 le_renderer::renderer_i.setup( self, &le::RendererInfoBuilder().build() );
+			le_renderer::renderer_i.setup( self, &le::RendererInfoBuilder().build() );
 		}
 	}
 
@@ -818,6 +817,8 @@ class GraphicsEncoder {
 		return *this;
 	}
 
+	/// \param firstBinding: first binding index
+	/// \param pOffsets: byte offset per-binding. consider initialising this with a stack-allocated array as in `uint64_t offsets[] = {0};`
 	GraphicsEncoder& bindVertexBuffers( uint32_t const& firstBinding, uint32_t const& bindingCount, le_buf_resource_handle const* pBufferId, uint64_t const* pOffsets ) {
 		le_renderer::encoder_graphics_i.bind_vertex_buffers( self, firstBinding, bindingCount, pBufferId, pOffsets );
 		return *this;
