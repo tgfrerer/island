@@ -349,15 +349,15 @@ static void le_shader_compiler_print_error_context( const char* errMsg, const st
 	std::filesystem::path errorFilePath  = errorFileName.empty() ? "" : std::filesystem::canonical( std::filesystem::path( errorFileName ) );
 	std::filesystem::path sourceFilePath = std::filesystem::canonical( std::filesystem::path( sourceFileName ) );
 
-	logger.error( "Shader module compilation failed." );
+	logger.warn( "Shader module compilation failed." );
 	if ( errorFilePath.empty() ) {
-		logger.error( "%s:%d : %s", std::filesystem::relative( sourceFilePath ).c_str(), lineNumber, errorMessage.c_str() );
+		logger.warn( "%s:%d : %s", std::filesystem::relative( sourceFilePath ).c_str(), lineNumber, errorMessage.c_str() );
 	} else if ( errorFilePath != sourceFilePath ) {
 		// error happened in include file.
-		logger.error( "%s contains error in included file:", std::filesystem::relative( std::filesystem::path( sourceFileName ) ).c_str() );
-		logger.error( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
+		logger.warn( "%s contains error in included file:", std::filesystem::relative( std::filesystem::path( sourceFileName ) ).c_str() );
+		logger.warn( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
 	} else {
-		logger.error( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
+		logger.warn( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
 	}
 
 	std::istringstream sourceCode( shaderSource );
@@ -395,11 +395,11 @@ static void le_shader_compiler_print_error_context( const char* errMsg, const st
 						sourceContext << char( 0x1B ) << "[0m";
 					}
 
-					logger.error( "%s", sourceContext.str().c_str() );
+					logger.warn( "%s", sourceContext.str().c_str() );
 				}
 
 				if ( currentLineNumber >= lineNumber + 2 ) {
-					logger.error( "" ); // add line break for better readability
+					logger.warn( "" ); // add line break for better readability
 					break;
 				}
 			}
