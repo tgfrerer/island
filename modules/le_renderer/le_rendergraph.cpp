@@ -146,7 +146,13 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 		// Resource was already used : this should be fine if declared with identical access_flags,
 		// otherwise it is an error.
-		assert( false );
+
+		logger.error( "Resource '%s' declarem more than once for Renderpass '%s'.\n\n"
+		              "\tHINT: Check if you didn't accidentally sample from this resource (via a texture) "
+		              "while it is already bound as a ColorAttachment.",
+		              self->resources[ resource_idx ]->data->debug_name,
+		              self->debugName );
+
 		self->resources_access_flags[ resource_idx ] = self->resources_access_flags[ resource_idx ] | access_flags;
 	}
 
@@ -1137,12 +1143,12 @@ void register_le_rendergraph_api( void* api_ ) {
 
 	auto le_renderer_api_i = static_cast<le_renderer_api*>( api_ );
 
-	auto& le_rendergraph_i            = le_renderer_api_i->le_rendergraph_i;
-	le_rendergraph_i.create           = rendergraph_create;
-	le_rendergraph_i.destroy          = rendergraph_destroy;
-	le_rendergraph_i.reset            = rendergraph_reset;
-	le_rendergraph_i.add_renderpass   = rendergraph_add_renderpass;
-	le_rendergraph_i.declare_resource = rendergraph_declare_resource;
+	auto& le_rendergraph_i                        = le_renderer_api_i->le_rendergraph_i;
+	le_rendergraph_i.create                       = rendergraph_create;
+	le_rendergraph_i.destroy                      = rendergraph_destroy;
+	le_rendergraph_i.reset                        = rendergraph_reset;
+	le_rendergraph_i.add_renderpass               = rendergraph_add_renderpass;
+	le_rendergraph_i.declare_resource             = rendergraph_declare_resource;
 	le_rendergraph_i.add_on_frame_clear_callbacks = rendergraph_add_on_frame_clear_callbacks;
 
 	auto& le_rendergraph_private_i        = le_renderer_api_i->le_rendergraph_private_i;
