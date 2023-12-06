@@ -1340,8 +1340,6 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ),
 	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
 
-	static_assert( sizeof( VkSpecializationMapEntry ) == sizeof( VkSpecializationMapEntry ), "SpecializationMapEntry must be of same size, whether using vkhpp or not." );
-
 	le_shader_module_o* cached_module = self->shaderModules.try_find( handle );
 
 	if ( cached_module && cached_module->hash == module.hash ) {
