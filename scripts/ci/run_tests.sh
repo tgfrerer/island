@@ -3,6 +3,7 @@
 # list apps you want to test
 
 apps_list=("
+  examples/video_player_example:Island-VideoPlayerExample
 	templates/quad_template:Island-QuadTemplate
 	templates/triangle:Island-Triangle
 	examples/test_log:Island-TestLog
