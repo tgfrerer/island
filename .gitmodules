@@ -26,3 +26,7 @@
 [submodule "modules/le_tracy/3rdparty/tracy"]
 	path = modules/le_tracy/3rdparty/tracy
 	url = https://github.com/wolfpld/tracy.git
+[submodule "modules/le_video_decoder/3rdparty/minimp4"]
+	path = modules/le_video_decoder/3rdparty/minimp4
+    url = https://github.com/lieff/minimp4
+
