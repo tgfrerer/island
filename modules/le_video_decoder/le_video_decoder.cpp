@@ -22,22 +22,22 @@
 
 #include <assert.h>
 
+// If in doubt about anything related to h.264, refer to the
+// h.264 standard document as seen at: <https://www.itu.int/rec/T-REC-H.264-202108-I/>
+
 #define H264_IMPLEMENTATION
 #include "3rdparty/h264/h264.h"
 
 #define MINIMP4_IMPLEMENTATION
 #include "3rdparty/minimp4/minimp4.h"
 
-// ----------------------------------------------------------------------
-// We must include so that volk can load vulkan entry points for us in case
-// we are running this module as a dynamic library. If we are running as
-// a unified release executable, the backend will load all vulkan function
-// pointers and they will therefore be available here anyway.
-
-// If in doubt, refer to h.264 standard document as seen at:
-// <https://www.itu.int/rec/T-REC-H.264-202108-I/>
-
 #ifdef PLUGINS_DYNAMIC
+// ----------------------------------------------------------------------
+// We must include volk here, so that it can load vulkan entry points for
+// us in case we are running this module as a dynamic library.
+// If we are running as a unified release executable, the backend will
+// load all vulkan function pointers and they will therefore be available
+// here anyway.
 #	define VOLK_IMPLEMENTATION
 #endif
 #include "util/volk/volk.h"
