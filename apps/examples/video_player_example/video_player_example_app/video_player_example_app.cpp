@@ -388,6 +388,7 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 static void app_update_gui( app_o* self, uint64_t current_ticks ) {
 	le_imgui::le_imgui_i.begin_frame( self->gui );
 
+	ImGui::SetNextWindowSize( ImVec2(0,0) ); // setting to 0 meant to auto-fit
 	ImGui::Begin( "Video Example" );
 
 	if ( ImGui::Button( "Add Video Player" ) ) {
