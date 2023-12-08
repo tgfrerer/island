@@ -198,16 +198,16 @@ ISL_API_ATTR DLL_CORE_API char const* le_get_argument_name_from_hash( uint64_t v
 // Read more about callback forwarding here:
 // <https://poniesandlight.co.uk/reflect/callbacks_and_hot_reloading/>
 //
-#if !defined( NDEBUG ) && defined( __x86_64__ )
+#if !defined( NDEBUG ) && defined( __unix__ ) || defined(_WIN64)
 /// return: immovable function pointer which can be used as callback, even with hot-reloading.
 ///         calls via this pointer will be forwarded to the current address of the callback
 ///         funtion, without the caller noticing anything about it.
 /// params: p_function_pointer: address of pointer to function which you wish to execute.
 ///         This secondary level of indirection is necessary so that we can pass api entries
 ///         as callback entries. Api entries get automatically updated when an api is reloaded.
-ISL_API_ATTR void* le_core_get_callback_forwarder_addr_impl( void* p_function_pointer );
+ISL_API_ATTR DLL_CORE_API void* le_core_get_callback_forwarder_addr_impl( void* p_function_pointer );
 // release a function pointer forwarder
-ISL_API_ATTR void le_core_release_callback_forwarder_addr_impl( void* p_function_pointer );
+ISL_API_ATTR DLL_CORE_API void le_core_release_callback_forwarder_addr_impl( void* p_function_pointer );
 
 /// USE THIS METHOD FOR CALLBACK FORWARDING
 #	define le_core_forward_callback( x ) \

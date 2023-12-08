@@ -16,9 +16,13 @@
 #include <memory>
 #include <mutex>
 
-#ifndef _WIN32
+#ifndef _WIN64
 #	include <sys/mman.h>
 #	include <unistd.h>
+#endif
+
+#ifdef _WIN64
+#	include "windows.h"
 #endif
 
 #include "3rdparty/src/spooky/SpookyV2.h"
@@ -83,13 +87,12 @@ ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const*
 	const uint64_t key            = hash_64_fnv1a( name );
 
 	// Fetch (or create and fetch) an entry from the store.
-	auto result = [ & ]() -> auto{
+	auto result = [ & ]() -> auto {
 		std::scoped_lock          lock( get_settings_store_mutex() );
 		static le_settings_map_t& store = get_global_settings_store();
 		return store.map.emplace( key, LeSettingEntry() );
-	}
-	(); // Note: this immediately evaluates the lambda.
-	    // We do this to that we can have the shortest possible lock on le_settings_store_mutex
+	}(); // Note: this immediately evaluates the lambda.
+	     // We do this to that we can have the shortest possible lock on le_settings_store_mutex
 
 	// Test if anything was actually inserted to the map:
 	if ( result.second == true ) {
@@ -445,7 +448,7 @@ ISL_API_ATTR char const* le_get_argument_name_from_hash( uint64_t value ) {
 
 // callback forwarding --------------------------------------------------
 
-#if !defined( NDEBUG ) && defined( __x86_64__ )
+#if !defined( NDEBUG ) && defined( __unix__ ) || defined( _WIN64 )
 
 /// Callback forwarding works via a virtual plt/got table:
 ///
@@ -489,6 +492,16 @@ ISL_API_ATTR char const* le_get_argument_name_from_hash( uint64_t value ) {
 /// to which it points reloads.
 ///
 
+static size_t get_page_size() {
+#	ifdef __unix__
+	return sysconf( _SC_PAGESIZE );
+#	elif defined( _WIN64 )
+	SYSTEM_INFO sys_info;
+	GetSystemInfo( &sys_info );
+	return sys_info.dwPageSize;
+#	endif
+}
+
 class PltGot {
 	void*                plt_got    = nullptr;
 	size_t               plt_got_sz = 0;
@@ -513,14 +526,20 @@ class PltGot {
 
   public:
 	PltGot()
-	    : PAGE_SIZE( sysconf( _SC_PAGESIZE ) )
+	    : PAGE_SIZE( get_page_size() )
 	    , MAX_CALLBACK_FORWARDERS_PER_PAGE( PAGE_SIZE / ( 16 ) )
 	    , usage_markers( ( MAX_CALLBACK_FORWARDERS_PER_PAGE + 7 ) / 8, 0 ) // allocate greedily to make sure we have enough bits to cover all
 	{
 
 		plt_got_sz = PAGE_SIZE * 2;
-		plt_got    = mmap( NULL, plt_got_sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 );
+
+#	ifdef __unix__
+		plt_got = mmap( NULL, plt_got_sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 );
 		assert( plt_got != MAP_FAILED && "Map did not succeed" );
+#	elif defined( _WIN64 )
+		plt_got = ( char* )VirtualAlloc( NULL, PAGE_SIZE * 2, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
+		assert( plt_got != NULL && "Map did not succeed" );
+#	endif
 
 		plt_page = static_cast<char*>( plt_got );
 		got_page = plt_page + PAGE_SIZE;
@@ -548,13 +567,26 @@ class PltGot {
 		// Now we set permissions for this page to be exec + read only.
 		// We keep read/write for the second page, as second page will
 		// contain the got, which we might want to update externally.
-
+#	ifdef __unix__
 		mprotect( plt_got, PAGE_SIZE, PROT_READ | PROT_EXEC );
+#	elif defined( _WIN64 )
+		DWORD prev_protect;
+		BOOL  result = TRUE;
+		result       = VirtualProtect( plt_got, PAGE_SIZE, PAGE_EXECUTE_READ, &prev_protect );
+		assert( TRUE == result && "Could not set Read|Execute bits on page." );
+		result = FlushInstructionCache( GetCurrentProcess(), plt_got, PAGE_SIZE );
+		assert( TRUE == result && "Could not flush instruction cache on page." );
+#	endif
 	};
 
 	~PltGot() {
+#	ifdef __unix__
 		int result = munmap( plt_got, plt_got_sz );
-		assert( result != -1 && "unmap failed" );
+		assert( result != -1 && "freeing pages failed" );
+#	elif defined( _WIN64 )
+		BOOL result = VirtualFree( plt_got, 0, MEM_RELEASE );
+		assert( result == TRUE && "freeing pages failed" );
+#	endif
 	};
 
 	bool new_entry( void** plt, void** got ) {
