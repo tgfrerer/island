@@ -45,8 +45,7 @@
 static constexpr char const* vk_err_to_c_str( const VkResult& tp );                                                                // ffdecl
 static void                  post_reload_hook( le_backend_o* backend );                                                            // ffdecl
 static std::vector<uint8_t>  load_file( const std::filesystem::path& file_path, bool* success );                                   // ffdecl
-static int                   demux_h264_data( std::ifstream& input_file, ssize_t input_size, struct le_video_data_h264_t* video ); // ffdecl
-static bool                  le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_ticks_ );
+static int                   demux_h264_data( std::ifstream& input_file, size_t input_size, struct le_video_data_h264_t* video ); // ffdecl
 // ----------------------------------------------------------------------
 
 static auto LOGGER_LABEL = "le_video_decoder";
@@ -675,17 +674,17 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 			auto& sl = pps_scaling_lists_array_h264[ i ];
 			sl       = {};
 			{
-				typeof( sl.scaling_list_present_mask ) j;
+				decltype( sl.scaling_list_present_mask ) j;
 				for ( j = 0; j != ARRAY_SIZE( pps.pic_scaling_list_present_flag ); j++ ) {
 					sl.scaling_list_present_mask |=
-					    static_cast<typeof( j )>( pps.pic_scaling_list_present_flag[ j ] ) << j;
+					    static_cast<decltype( j )>( pps.pic_scaling_list_present_flag[ j ] ) << j;
 				}
 			}
 			{
-				typeof( sl.use_default_scaling_matrix_mask ) j;
+				decltype( sl.use_default_scaling_matrix_mask ) j;
 				for ( j = 0; j != ARRAY_SIZE( pps.UseDefaultScalingMatrix4x4Flag ); j++ ) {
 					sl.use_default_scaling_matrix_mask |=
-					    static_cast<typeof( j )>( pps.UseDefaultScalingMatrix4x4Flag[ j ] ) << j;
+					    static_cast<decltype( j )>( pps.UseDefaultScalingMatrix4x4Flag[ j ] ) << j;
 				}
 			}
 
@@ -866,17 +865,17 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 				StdVideoH264ScalingLists& sl = sps_array_h264_scaling_lists[ i ];
 				sl                           = {};
 				{
-					typeof( sl.scaling_list_present_mask ) j;
+					decltype( sl.scaling_list_present_mask ) j;
 					for ( j = 0; j != ARRAY_SIZE( sps.seq_scaling_list_present_flag ); j++ ) {
 						sl.scaling_list_present_mask |=
-						    static_cast<typeof( j )>( sps.seq_scaling_list_present_flag[ j ] ) << j;
+						    static_cast<decltype( j )>( sps.seq_scaling_list_present_flag[ j ] ) << j;
 					}
 				}
 				{
-					typeof( sl.use_default_scaling_matrix_mask ) j;
+					decltype( sl.use_default_scaling_matrix_mask ) j;
 					for ( j = 0; j != ARRAY_SIZE( sps.UseDefaultScalingMatrix4x4Flag ); j++ ) {
 						sl.use_default_scaling_matrix_mask |=
-						    static_cast<typeof( j )>( sps.UseDefaultScalingMatrix4x4Flag[ j ] ) << j;
+						    static_cast<decltype( j )>( sps.UseDefaultScalingMatrix4x4Flag[ j ] ) << j;
 					}
 				}
 
@@ -2577,7 +2576,7 @@ static std::vector<uint8_t> load_file( const std::filesystem::path& file_path, b
 
 // ----------------------------------------------------------------------
 // demux data stream and store result into le_video_data_h264_t
-static int demux_h264_data( std::ifstream& input_file, ssize_t input_size, le_video_data_h264_t* video ) {
+static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_video_data_h264_t* video ) {
 	int         spspps_bytes;
 	const void* spspps;
 
