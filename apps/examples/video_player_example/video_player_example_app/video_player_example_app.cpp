@@ -199,8 +199,10 @@ static void app_process_ui_events( app_o* self ) {
 				} else if ( e.key == LeUiEvent::NamedKey::eP ) {
 					self->video_players[ 0 ].video_player->play();
 				} else if ( e.key == LeUiEvent::NamedKey::eSpace ) {
-					bool is_paused = self->video_players[ 1 ].video_player->get_pause_state();
-					self->video_players[ 1 ].video_player->set_pause_state( !is_paused );
+					if ( !self->video_players.empty() ) {
+						bool is_paused = self->video_players.back().video_player->get_pause_state();
+						self->video_players.back().video_player->set_pause_state( !is_paused );
+					}
 
 				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
 					self->cameraController.setPivotDistance( 0 );
@@ -388,7 +390,7 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 static void app_update_gui( app_o* self, uint64_t current_ticks ) {
 	le_imgui::le_imgui_i.begin_frame( self->gui );
 
-	ImGui::SetNextWindowSize( ImVec2(0,0) ); // setting to 0 meant to auto-fit
+	ImGui::SetNextWindowSize( ImVec2( 0, 0 ) ); // setting to 0 meant to auto-fit
 	ImGui::Begin( "Video Example" );
 
 	if ( ImGui::Button( "Add Video Player" ) ) {
