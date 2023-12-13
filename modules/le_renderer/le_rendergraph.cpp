@@ -147,7 +147,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		// Resource was already used : this should be fine if declared with identical access_flags,
 		// otherwise it is an error.
 
-		logger.error( "Resource '%s' declarem more than once for Renderpass '%s'.\n\n"
+		logger.error( "Resource '%s' declared more than once for Renderpass '%s'.\n\n"
 		              "\tHINT: Check if you didn't accidentally sample from this resource (via a texture) "
 		              "while it is already bound as a ColorAttachment.",
 		              self->resources[ resource_idx ]->data->debug_name,
