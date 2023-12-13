@@ -689,6 +689,8 @@ class ImageInfoBuilder : NoCopy, NoMove {
 	}
 };
 
+using ImageResourceInfoBuilder = ImageInfoBuilder;
+
 // ----------------------------------------------------------------------
 
 class BufferInfoBuilder : NoCopy, NoMove {
@@ -723,6 +725,7 @@ class BufferInfoBuilder : NoCopy, NoMove {
 		return res;
 	}
 };
+using BufferResourceInfoBuilder = BufferInfoBuilder;
 
 // ----------------------------------------------------------------------
 
