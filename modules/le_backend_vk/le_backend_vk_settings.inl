@@ -63,7 +63,7 @@ static bool le_backend_vk_settings_add_requested_queue_capabilities( VkQueueFlag
 static void le_backend_vk_settings_get_requested_queue_capabilities( VkQueueFlags* queues, uint32_t* num_queues ) {
 	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
 	if ( num_queues ) {
-		*num_queues = uint32_t(self->requested_queues_capabilities.size());
+		*num_queues = uint32_t( self->requested_queues_capabilities.size() );
 	}
 	if ( queues ) {
 		memcpy( queues, self->requested_queues_capabilities.data(), self->requested_queues_capabilities.size() * sizeof( VkQueueFlags ) );
@@ -106,9 +106,16 @@ static bool le_backend_vk_settings_add_required_device_extension( le_backend_vk_
 			self->physical_device_features.features.features.shaderInt16  = VK_TRUE;
 		}
 
+		// GENERALLY, we deem it safe to enable any features that are part of
+		// the ROADMAP 2022 Profile.
+		// See <https://docs.vulkan.org/spec/latest/appendices/roadmap.html#roadmap-2022>
+
 		// enable ycbcr conversion as we need it for video textures, and it could
 		// be useful for other things.
 		self->physical_device_features.vk_11.samplerYcbcrConversion = VK_TRUE;
+
+		// VULKAN ROADMAP 2022: enable independent blend
+		self->physical_device_features.features.features.independentBlend = VK_TRUE;
 
 		// we need timeline semaphores for multi-queue ops
 		self->physical_device_features.vk_12.timelineSemaphore = VK_TRUE;
@@ -280,7 +287,7 @@ static bool le_backend_vk_settings_set_data_frames_count( uint32_t data_frames_c
 		return false;
 	}
 	// ----------| invariant: settings is not readonly
-	self->data_frames_count        = data_frames_count;
+	self->data_frames_count = data_frames_count;
 	return true;
 }
 
