@@ -30,7 +30,8 @@ using StrokeJoinType = le_2d_api::StrokeJoinType;
 // A drawing context, owner of all primitives.
 struct le_2d_o {
 	le_command_buffer_encoder_o*    encoder = nullptr;
-	std::vector<le_2d_primitive_o*> primitives; // owning
+	std::vector<le_2d_primitive_o*> primitives;     // owning
+	le_gpso_handle                  maybe_pipeline; // non-owning, optional
 };
 
 struct node_data_t {
@@ -116,10 +117,11 @@ void le_2d_primitive_update_hash( le_2d_primitive_o* obj ) {
 
 // ----------------------------------------------------------------------
 
-static le_2d_o* le_2d_create( le_command_buffer_encoder_o* encoder ) {
+static le_2d_o* le_2d_create( le_command_buffer_encoder_o* encoder, le_gpso_handle optional_custom_pipeline ) {
 	auto self     = new le_2d_o();
 	self->encoder = encoder;
 	self->primitives.reserve( 4096 / 8 );
+	self->maybe_pipeline = optional_custom_pipeline;
 	//	std::cout << "create 2d ctx: " << std::dec << self->id << std::flush << std::endl;
 	return self;
 }
@@ -644,12 +646,21 @@ static void le_2d_draw_primitives( le_2d_o* self ) {
 	 */
 
 	le::GraphicsEncoder encoder{ self->encoder };
-	auto*               pm = encoder.getPipelineManager();
 
-	static auto vert = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.vert" ).setShaderStage( le::ShaderStage::eVertex ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) ).build();
-	static auto frag = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.frag" ).setShaderStage( le::ShaderStage::eFragment ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) ).build();
+	// Use custom pipeline, if a custom pipeline has been specified
+	// otherwise use the default pipeline that we supply for drawing
+	// lines.
+	if ( self->maybe_pipeline ) {
+		encoder
+		    .bindGraphicsPipeline( self->maybe_pipeline )
+		    .setLineWidth( 1.0f );
+	} else {
+		auto* pm = encoder.getPipelineManager();
 
-	// clang-format off
+		static auto vert = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.vert" ).setShaderStage( le::ShaderStage::eVertex ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) ).build();
+		static auto frag = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.frag" ).setShaderStage( le::ShaderStage::eFragment ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) ).build();
+
+		// clang-format off
 	static auto pipeline =
 	    LeGraphicsPipelineBuilder( pm )
 	        .addShaderStage( vert )
@@ -669,23 +680,24 @@ static void le_2d_draw_primitives( le_2d_o* self ) {
                 .end()
 	        .end()
 			.withRasterizationState()
-//				.setPolygonMode(le::PolygonMode::eLine)
-//				.setCullMode(le::CullModeFlagBits::eBack)
-//				.setFrontFace(le::FrontFace::eCounterClockwise)
+	            .setPolygonMode(le::PolygonMode::eLine)
+//	            .setCullMode(le::CullModeFlagBits::eBack)
+	            .setFrontFace(le::FrontFace::eCounterClockwise)
 			.end()
 	        .build();
-	// clang-format on
+	    // clang-format on
 
-	// Note: we can use DepthCompareOp::NotEqual to prevent overdraw for individual paths.
-	// This is useful for paths which self-overlap. If we want to draw such paths with
-	// transparency or blend them onto the screen, we would not like to see the self-overlap.
-	//
-	// We must then make sure though to monotonously increase a depth uniform for each path (layer)
-	// drawn, otherwise no overlap at all will be drawn.
+	    // Note: we can use DepthCompareOp::NotEqual to prevent overdraw for individual paths.
+	    // This is useful for paths which self-overlap. If we want to draw such paths with
+	    // transparency or blend them onto the screen, we would not like to see the self-overlap.
+	    //
+	    // We must then make sure though to monotonously increase a depth uniform for each path (layer)
+	    // drawn, otherwise no overlap at all will be drawn.
 
-	encoder
-	    .bindGraphicsPipeline( pipeline )
-	    .setLineWidth( 1.0f );
+	    encoder
+		    .bindGraphicsPipeline( pipeline )
+		    .setLineWidth( 1.0f );
+	}
 
 	// Calculate view projection matrix
 	// for 2D, this will be a simple orthographic projection, which means that the view matrix
