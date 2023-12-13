@@ -443,14 +443,19 @@ static void shader_options_parse_macro_definitions_string( shaderc_compile_optio
 		// ',' or end of string: triggers new macro being issued.
 		// '=' : triggers end of macro definition, start of macro value
 
-		char const* def_start = macroDefinitionsStr; // start of definition string slice
-		char const* val_start = nullptr;             // start of value string (may be nullptr)
-		size_t      def_sz    = 0;                   // number or characters used for definition (must be >0)
-		size_t      val_sz    = 0;                   // number of characters used for value (may be 0)
+		char const* def_start   = macroDefinitionsStr; // start of definition string slice
+		char const* val_start   = nullptr;             // start of value string (may be nullptr)
+		size_t      def_sz      = 0;                   // number or characters used for definition (must be >0)
+		size_t      val_sz      = 0;                   // number of characters used for value (may be 0)
+		int         parens_open = 0;
 
 		for ( ;; c++ ) {
 
-			if ( *c == '=' ) {
+			if ( *c == '(' ) {
+				parens_open++;
+			} else if ( *c == ')' ) {
+				parens_open--;
+			} else if ( *c == '=' ) {
 				def_sz    = c - def_start;
 				val_start = c + 1; // value must follow
 				val_sz    = 0;     // reset
@@ -458,6 +463,10 @@ static void shader_options_parse_macro_definitions_string( shaderc_compile_optio
 			} else if ( *c == ',' || c == str_end ) {
 
 				if ( val_start ) {
+					if ( parens_open ) {
+						// we might be defining a list, parens '(' are open.
+						continue;
+					}
 					// We're closing a value
 					val_sz = c - val_start;
 				} else {
