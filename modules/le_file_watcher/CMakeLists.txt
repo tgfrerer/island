@@ -8,7 +8,6 @@ set ( SOURCES ${SOURCES} "le_file_watcher_win32.cpp" )
 set ( SOURCES ${SOURCES} "le_file_watcher_linux.cpp" )
 
 if (${PLUGINS_DYNAMIC})
-    set ( SOURCES ${SOURCES} "le_tweakable.h" )
     add_library(${TARGET} SHARED ${SOURCES})
     add_dynamic_linker_flags()
     target_compile_definitions(${TARGET} PUBLIC "PLUGINS_DYNAMIC=1")
