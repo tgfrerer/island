@@ -18,6 +18,7 @@ struct le_allocator_o;
 struct le_staging_allocator_o;
 struct le_resource_handle_t; // defined in renderer_types
 struct le_command_stream_t;
+struct le_on_frame_clear_callback_data_t;
 
 struct le_pipeline_manager_o;
 
@@ -55,6 +56,7 @@ struct VkBuffer_T;
 struct VkPhysicalDevice_T;
 struct VkQueue_T;
 struct VkPhysicalDeviceProperties;
+struct VkSamplerYcbcrConversionInfo;
 struct VkPhysicalDeviceMemoryProperties;
 struct VkPhysicalDeviceRayTracingPipelinePropertiesKHR;
 struct VkImageCreateInfo;
@@ -63,6 +65,7 @@ struct VkMemoryRequirements;
 struct VkMemoryAllocateInfo;
 struct VkSpecializationMapEntry;
 struct VkPhysicalDeviceFeatures2;
+struct BackendFrameData;
 
 struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 struct BackendRenderPass;
@@ -108,7 +111,7 @@ struct le_backend_vk_api {
 	{
 		bool ( *add_required_device_extension )( char const* ext );                           // returns true if successfully added - returns false if setting was already present
 		bool ( *add_required_instance_extension )( char const* ext );                         // -"-
-		VkPhysicalDeviceFeatures2 const* ( *get_requested_physical_device_features_chain )(); // readonly
+		VkPhysicalDeviceFeatures2* ( *get_physical_device_features_chain )();                 // read-write - only write before you initialise the backend.
 
 		void ( *set_concurrency_count )( uint32_t concurrency_count );
 		bool ( *set_data_frames_count )( uint32_t data_frames_count );
@@ -208,7 +211,11 @@ struct le_backend_vk_api {
 		void    (* free_gpu_memory  ) ( le_backend_o* self, VmaAllocation_T* allocation );
 
 		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
+		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
+	
+		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_img_resource_handle_t* img );
 
+		VkSamplerYcbcrConversionInfo* (*get_sampler_ycbcr_conversion_info)(le_backend_o* self);
 	};
 
 	struct instance_interface_t {
@@ -242,7 +249,7 @@ struct le_backend_vk_api {
 	};
 
 	struct le_pipeline_manager_interface_t {
-		le_pipeline_manager_o*                   ( *create                            ) ( le_device_o * device        );
+		le_pipeline_manager_o*                   ( *create                            ) ( le_backend_o * backend );
 		void                                     ( *destroy                           ) ( le_pipeline_manager_o* self );
 
 		bool                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_gpso_handle *gpsoHandle);

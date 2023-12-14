@@ -166,6 +166,7 @@ static void cbe_trace_rays( le_command_buffer_encoder_o* self, uint32_t width, u
 	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandTraceRays>(); // placement new!
 	cmd->info = { width, height, depth, 0 };
 }
+
 // ----------------------------------------------------------------------
 
 static void cbe_draw( le_command_buffer_encoder_o* self,
@@ -247,6 +248,12 @@ static void cbe_set_viewport( le_command_buffer_encoder_o* self,
 	}
 
 };
+// ----------------------------------------------------------------------
+// copy user data into command stream
+static void cbe_video_decoder_execute_callback( le_command_buffer_encoder_o* self, le::CommandVideoDecoderExecuteCallback::callback_fun_t* fun, void* user_data ) {
+	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandVideoDecoderExecuteCallback>(); // placement new!
+	cmd->info = { fun, user_data };
+}
 
 // ----------------------------------------------------------------------
 
@@ -943,6 +950,7 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	auto& cbe_compute_i  = static_cast<le_renderer_api*>( api_ )->le_cbe_compute_i;
 	auto& cbe_transfer_i = static_cast<le_renderer_api*>( api_ )->le_cbe_transfer_i;
 	auto& cbe_rtx_i      = static_cast<le_renderer_api*>( api_ )->le_cbe_rtx_i;
+	auto& cbe_video_decoder_i = static_cast<le_renderer_api*>( api_ )->le_cbe_video_decoder_i;
 
 	cbe_base_i = {
 	    .create               = cbe_create,
@@ -1007,5 +1015,9 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	    .sbt_validate      = sbt_validate,
 	    .bind_rtx_pipeline = cbe_bind_rtx_pipeline,
 	    .trace_rays        = cbe_trace_rays,
+	};
+
+	cbe_video_decoder_i = {
+	    .execute_callback = cbe_video_decoder_execute_callback,
 	};
 }

@@ -133,7 +133,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 		    if ( false == imgui->imguiTexture.wasUploaded ) {
 
 			    le::TransferEncoder encoder{ p_encoder };
-			    size_t      numBytes = size_t( imgui->imguiTexture.width ) * size_t( imgui->imguiTexture.height ) * 4;
+				size_t              numBytes = size_t( imgui->imguiTexture.width ) * size_t( imgui->imguiTexture.height ) * 4;
 
 			    auto writeInfo = le::WriteToImageSettingsBuilder()
 			                         .setImageW( int32_t( imgui->imguiTexture.width ) )
@@ -331,6 +331,12 @@ void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, uint32_
 		switch ( event->event ) {
 		case LeUiEvent::Type::eKey: {
 			auto& e = event->key;
+
+			if ( e.key == le::UiEvent::NamedKey::eUnknown ) {
+				break;
+			};
+
+			// -----------| invariant: key is not -1 (unknown)
 
 			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
 				io.KeysDown[ uint32_t( e.key ) ] = true;

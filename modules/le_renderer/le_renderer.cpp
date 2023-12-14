@@ -9,7 +9,6 @@
 
 #include <iostream>
 #include <iomanip>
-#include <chrono>
 #include <vector>
 #include "assert.h"
 #include <mutex>
@@ -249,6 +248,9 @@ le_resource_handle renderer_produce_resource_handle(
 		// As this is a multimap, there can be any number of textures with the same
 		// key "unnamed" in the map.
 		handle = &resource_handle_library->resource_handles.emplace( *p_data, le_resource_handle_t{ p_data } )->second;
+		// we tag the element with a debug name that contains the handle so that
+		// the debug name is unique.
+		sprintf( handle->data->debug_name, "[%p]", handle );
 	}
 
 	// handle is a pointer to the element in the container, and as such it is
@@ -506,7 +508,6 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 
 	// ---------| invariant: Frame was previously acquired successfully.
 
-
 	// - build up dependencies for graph, create table of unique resources for graph
 
 	// setup passes calls `setup` callback on all passes - this initalises virtual resources,
@@ -515,9 +516,18 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	using namespace le_renderer; // for rendergraph_i, rendergraph_i
 	le_renderer::api->le_rendergraph_private_i.setup_passes( graph_, frame.rendergraph );
 
-	// find out which renderpasses contribute, only add contributing render passes to
+	// Find out which renderpasses contribute, only add contributing render passes to
 	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
+
+	// Register any clear callbacks for the current frame so that any object with frame lifetime
+	// can be cleaned up on frame clear:
+	if ( !frame.rendergraph->on_frame_clear_callbacks.empty() ) {
+		le_backend_vk::private_backend_vk_i.frame_add_on_clear_callbacks(
+		    self->backend, frameIndex,
+		    frame.rendergraph->on_frame_clear_callbacks.data(),
+		    frame.rendergraph->on_frame_clear_callbacks.size() );
+	}
 
 	// declare any resources that come from swapchains
 	le_backend_vk::vk_backend_i.acquire_swapchain_resources( self->backend, frameIndex );

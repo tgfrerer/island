@@ -96,6 +96,14 @@ struct LeResourceUsageFlags {
 	} as;
 };
 
+// Callback type for a resource that needs to be notified that the current frame has been cleared
+// we use this to tie lifetime of objects to the lifetime of the current frame by decrementing
+// an intrusive pointer counter on each callback. (in le_video_decoder for example)
+struct le_on_frame_clear_callback_data_t {
+	void ( *cb_fun )( void* user_data ); // function pointer to call upon clear
+	void* user_data;                     // user data to pass into function
+};
+
 namespace le {
 enum class ShaderSourceLanguage : uint32_t {
 	eGlsl    = 0,
@@ -580,6 +588,7 @@ enum class CommandType : uint32_t {
 	eBindRtxPipeline,
 	eWriteToBuffer,
 	eWriteToImage,
+	eVideoDecoderExecuteCallback,
 };
 
 struct CommandHeader {
@@ -831,6 +840,16 @@ struct CommandWriteToImage {
 	} info;
 };
 
+struct CommandVideoDecoderExecuteCallback {
+	CommandHeader header = { { { CommandType::eVideoDecoderExecuteCallback, sizeof( CommandVideoDecoderExecuteCallback ) } } };
+
+	typedef void( callback_fun_t )( struct VkCommandBuffer_T* cmd, void* user_data, void const* p_backend_frame_data );
+
+	struct {
+		callback_fun_t* callback;
+		void*           user_data;
+	} info;
+};
 } // namespace le
 
 #endif

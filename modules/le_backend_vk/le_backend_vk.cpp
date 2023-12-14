@@ -528,6 +528,8 @@ struct BackendFrameData {
 	VkFence  frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
 	uint64_t frameNumber = 0;       // current frame number
 
+	std::vector<le_on_frame_clear_callback_data_t> on_clear_callbacks; // callbacks to call on frame clear
+
 	struct CommandPool {
 		VkCommandPool                pool;                // One pool per submission - must be allocated from the same queue the commands get submitted to.
 		std::vector<VkCommandBuffer> buffers;             // Allocated from pool, reset when frame gets recycled via pool.reset
@@ -641,6 +643,10 @@ struct le_backend_o {
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
 	le::Format defaultFormatSampledImage           = {}; ///< default image format used for sampled images
 
+	// default conversion sampler for ycbcr format images
+	VkSamplerYcbcrConversion     vk_sampler_ycbcr_conversion = nullptr;
+	VkSamplerYcbcrConversionInfo vk_sampler_ycbcr_conversion_info;
+
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
 
 	// Siloed per-frame memory
@@ -751,7 +757,7 @@ static VkBufferUsageFlags defaults_get_buffer_usage_scratch() {
 
 	// Enable shader_device_address for scratch buffer, if raytracing feature is requested
 	static auto settings = le_backend_vk::api->backend_settings_singleton;
-	if ( settings->requested_device_features.ray_tracing_pipeline.rayTracingPipeline ) {
+	if ( settings->physical_device_features.ray_tracing_pipeline.rayTracingPipeline ) {
 		flags |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 	}
 
@@ -790,9 +796,22 @@ static void backend_destroy( le_backend_o* self ) {
 
 	vkDeviceWaitIdle( self->device.get()->getVkDevice() );
 
+	// if we created a conversion sampler, we must destroy it here.
+	if ( self->vk_sampler_ycbcr_conversion ) {
+		vkDestroySamplerYcbcrConversion( device, self->vk_sampler_ycbcr_conversion, nullptr );
+		self->vk_sampler_ycbcr_conversion = nullptr;
+	}
+
 	for ( auto& frameData : self->mFrames ) {
 
 		using namespace le_backend_vk;
+
+		{
+			for ( auto& c : frameData.on_clear_callbacks ) {
+				c.cb_fun( c.user_data );
+			}
+			frameData.on_clear_callbacks.clear();
+		}
 
 		// -- destroy per-frame data
 
@@ -1191,6 +1210,10 @@ static le_backend_vk_instance_o* backend_get_instance( le_backend_o* self ) {
 	return self->instance;
 }
 
+static VkSamplerYcbcrConversionInfo* backend_get_sampler_ycbcr_conversion_info( le_backend_o* self ) {
+	return &self->vk_sampler_ycbcr_conversion_info;
+}
+
 // ----------------------------------------------------------------------
 // ffdecl.
 static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators );
@@ -1269,6 +1292,8 @@ static void backend_initialise( le_backend_o* self ) {
 	    settings->required_device_extensions.data(),
 	    uint32_t( settings->required_device_extensions.size() ) );
 
+	self->queueFamilyIndexGraphics = uint32_t( ~0 );
+
 	{ // initialise queues
 		uint32_t num_queues = 0;
 		uint32_t previous_queue_family_index;
@@ -1328,7 +1353,7 @@ static void backend_initialise( le_backend_o* self ) {
 	if ( self->must_track_resources_queue_family_ownership ) {
 		le::Log( LOGGER_LABEL ).info( "Multiple queue families detected - tracking queue ownership per-resource." );
 	}
-	self->pipelineCache = le_pipeline_manager_i.create( *self->device );
+	self->pipelineCache = le_pipeline_manager_i.create( self );
 }
 // ----------------------------------------------------------------------
 
@@ -1337,7 +1362,7 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 
 	// Enable shader_device_address for scratch buffer, if raytracing feature is requested
 	auto settings = le_backend_vk::api->backend_settings_singleton;
-	if ( settings->requested_device_features.vk_12.bufferDeviceAddress ) {
+	if ( settings->physical_device_features.vk_12.bufferDeviceAddress ) {
 		createInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	}
 	createInfo.device = device;
@@ -1446,6 +1471,40 @@ static void backend_setup( le_backend_o* self ) {
 			// -- create linear allocators for each frame
 			backend_create_transient_allocators( self, i, num_allocators );
 		}
+	}
+
+	{
+
+		// Create YcBcR conversion sampler - we use this to derive samplers that can deal with images
+		// in format: VK_FORMAT_G8_B8R8_2PLANE_420_UNORM
+		// TODO: is it okay that we use one global conversion sampler here - or do we need to create
+		// one per frame and per imageview?
+
+		VkSamplerYcbcrConversionCreateInfo sampler_ycbcr_conversion_create_info = {
+		    .sType                       = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO, // VkStructureType
+		    .pNext                       = nullptr,                                                // void *, optional
+		    .format                      = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM,                     // VkFormat
+		    .ycbcrModel                  = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709,            // VkSamplerYcbcrModelConversion
+		    .ycbcrRange                  = VK_SAMPLER_YCBCR_RANGE_ITU_NARROW,                      // VkSamplerYcbcrRange
+		    .components                  = {},                                                     // VkComponentMapping
+		    .xChromaOffset               = VK_CHROMA_LOCATION_MIDPOINT,                            // VkChromaLocation
+		    .yChromaOffset               = VK_CHROMA_LOCATION_MIDPOINT,                            // VkChromaLocation
+		    .chromaFilter                = VK_FILTER_NEAREST,                                      // VkFilter
+		    .forceExplicitReconstruction = 0,                                                      // VkBool32
+		};
+
+		VkResult result = vkCreateSamplerYcbcrConversion(
+		    self->device->getVkDevice(), &sampler_ycbcr_conversion_create_info, nullptr,
+		    &self->vk_sampler_ycbcr_conversion );
+		if ( result != VK_SUCCESS ) {
+			logger.error( "could not create Ycbcr Conversion Sampler" );
+		}
+
+		self->vk_sampler_ycbcr_conversion_info = {
+		    .sType      = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO, // VkStructureType
+		    .pNext      = nullptr,                                         // void *, optional
+		    .conversion = self->vk_sampler_ycbcr_conversion,               // VkSamplerYcbcrConversion
+		};
 	}
 
 	{
@@ -1775,6 +1834,28 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+				// Test whether the previous state for this resource is already what we need it to be
+				//
+				if ( !syncChain.empty() ) {
+					auto const& previous_sync_state = syncChain.back();
+					//
+					// If the previous state was a read-only operation and the resource was
+					// using the same layout (layout transfers are an implicit read/write op),
+					// and the current state does only read from memory that is available
+					// and visible, then we don't need to issue a separate barrier.
+					//
+					//
+					// If the image is in a state that signals that it has not changed
+					// since it was last used (see finalState in frame_track_resource_state) then
+					// we can also assume that a barrier will not be needed.
+					//
+					//
+					if ( previous_sync_state.layout == requestedState.layout && previous_sync_state.stage == VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT && previous_sync_state.visible_access == VkAccessFlagBits2( 0 ) ) {
+						continue;
+					}
+				}
+
 			} else if ( resources_access[ i ] & ( VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
 			                                      VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT |
 			                                      VK_ACCESS_2_SHADER_READ_BIT |
@@ -1782,6 +1863,10 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_TRANSFER_WRITE_BIT ) ) {
+				requestedState.visible_access = resources_access[ i ];
+				requestedState.stage          = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+				requestedState.layout         = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 			}
 
 			else {
@@ -1789,10 +1874,11 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 			}
 
 		} else {
-			// Resources other than Images are ignored.
+			// Resources other than Images are ignored
 
 			// TODO: whe should probably process buffers here, as skipping the loop here
 			// means that Buffers don't ever get added to explicit_sync_ops.
+
 			continue;
 		}
 
@@ -1913,6 +1999,7 @@ static void frame_track_resource_state(
 	// If they were lower, that would mean that an implicit sync has already taken care of this
 	// image resource operation, in which case we want to deactivate the barrier, as it is not needed.
 	//
+
 	// Note that only resources of type image may be implicitly synced.
 
 	typedef std::unordered_map<le_resource_handle, uint32_t> SyncChainMap;
@@ -2033,6 +2120,19 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	auto&    frame  = self->mFrames[ frameIndex ];
 	VkDevice device = self->device->getVkDevice();
 
+	if ( !frame.on_clear_callbacks.empty() ) {
+		// Call clear callbacks, if any have been set via the renderer.
+		for ( auto& c : frame.on_clear_callbacks ) {
+			// call each callback in clear callbacks
+			c.cb_fun( c.user_data );
+		}
+		// We use these clear callbacks to decrement an intrusive pointer counter
+		// in video decoder, for example, so that we can make sure that the lifetime
+		// of any video resource is at least as long as there are frames referencing
+		// the video resource.
+		frame.on_clear_callbacks.clear();
+	}
+
 	// le::Log( LOGGER_LABEL ).info( "=[%3d]== clear frame ", frameIndex );
 
 	// -------- Invariant: fence has been crossed, all resources protected by fence
@@ -2139,7 +2239,13 @@ static constexpr auto ANY_WRITE_VK_ACCESS_2_FLAGS =
       VK_ACCESS_2_SHADER_WRITE_BIT |
       VK_ACCESS_2_TRANSFER_WRITE_BIT |
       VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
-      VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT );
+      VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT
+
+#ifdef VK_ENABLE_BETA_EXTENSIONS
+      | VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR |
+      VK_ACCESS_2_VIDEO_ENCODE_WRITE_BIT_KHR
+#endif
+    );
 
 // ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
@@ -2496,40 +2602,39 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 /// - allocatorBuffers[index] if transient,
 /// - stagingAllocator.buffers[index] if staging,
 /// otherwise, fetch from frame available resources based on an id lookup.
-static inline VkBuffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData& frame, const le_buf_resource_handle& buffer ) {
-
+static inline VkBuffer frame_data_get_buffer_from_le_resource_id( BackendFrameData const* frame, le_buf_resource_handle const buffer ) {
 	if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsVirtual ) ) {
-		return frame.allocatorBuffers[ buffer->data->index ];
+		return frame->allocatorBuffers[ buffer->data->index ];
 	} else if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsStaging ) ) {
-		return frame.stagingAllocator->buffers[ buffer->data->index ];
+		return frame->stagingAllocator->buffers[ buffer->data->index ];
 	} else {
-		return frame.availableResources.at( buffer ).as.buffer;
+		return frame->availableResources.at( buffer ).as.buffer;
 	}
 }
 
 // ----------------------------------------------------------------------
-static inline VkImage frame_data_get_image_from_le_resource_id( const BackendFrameData& frame, const le_img_resource_handle& img ) {
-	return frame.availableResources.at( img ).as.image;
+static inline VkImage frame_data_get_image_from_le_resource_id( BackendFrameData const* frame, le_img_resource_handle const img ) {
+	return frame->availableResources.at( img ).as.image;
 }
 
 // ----------------------------------------------------------------------
-static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const& frame, const le_img_resource_handle& img ) {
-	return frame.availableResources.at( img ).info.imageInfo.format;
+static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const* frame, le_img_resource_handle const img ) {
+	return frame->availableResources.at( img ).info.imageInfo.format;
 }
 
 // ----------------------------------------------------------------------
 
-static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData& frame, const le_resource_handle& rsp ) {
-	return frame.availableResources.at( rsp );
+static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData* frame, le_resource_handle const rsp ) {
+	return frame->availableResources.at( rsp );
 }
 
 // ----------------------------------------------------------------------
 // if specific format for texture was not specified, return format of referenced image
-static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const& frame, le_image_sampler_info_t const& texInfo ) {
-	if ( texInfo.imageView.format == le::Format::eUndefined ) {
-		return ( frame_data_get_image_format_from_resource_id( frame, texInfo.imageView.imageId ) );
+static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const* frame, le_image_sampler_info_t const* texInfo ) {
+	if ( texInfo->imageView.format == le::Format::eUndefined ) {
+		return ( frame_data_get_image_format_from_resource_id( frame, texInfo->imageView.imageId ) );
 	} else {
-		return static_cast<VkFormat>( texInfo.imageView.format );
+		return static_cast<VkFormat>( texInfo->imageView.format );
 	}
 }
 
@@ -2588,7 +2693,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 			    .layerCount     = 1,
 			};
 
-			VkImage img = frame_data_get_image_from_le_resource_id( frame, attachment->resource );
+			VkImage img = frame_data_get_image_from_le_resource_id( &frame, attachment->resource );
 
 			VkImageViewCreateInfo imageViewCreateInfo{
 			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -3959,7 +4064,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 //
 // Allocates ImageViews, Samplers and Textures requested by individual passes
 // these are tied to the lifetime of the frame, and will be re-created
-static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses ) {
+static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses, VkSamplerYcbcrConversionInfo* ycbcr_conversion_info = nullptr ) {
 	ZoneScoped;
 	using namespace le_renderer;
 	static auto       logger = LeLog( LOGGER_LABEL );
@@ -4003,7 +4108,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				// to set the format to whatever was inferred when the image was allocated and placed
 				// in available resources.
 
-				AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( frame, r );
+				AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( &frame, r );
 
 				auto const& imageFormat = le::Format( vk_resource_info.info.imageInfo.format );
 
@@ -4080,11 +4185,12 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 
 				auto& texInfo = textureInfos[ i ];
 
-				VkImageView imageView{};
+				// -- Store Texture with frame so that decoder can find references
+				BackendFrameData::Texture tex;
+
+				auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( &frame, &texInfo ) );
 				{
 					// Set or create vkImageview
-
-					auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) );
 
 					VkImageSubresourceRange subresourceRange{
 					    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
@@ -4095,74 +4201,79 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					};
 
 					// TODO: fill in additional image view create info based on info from pass...
+					VkImageViewCreateInfo imageViewCreateInfo;
 
-					VkImageViewCreateInfo imageViewCreateInfo{
+					imageViewCreateInfo = {
 					    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 					    .pNext            = nullptr, // optional
 					    .flags            = 0,       // optional
-					    .image            = frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ),
+					    .image            = frame_data_get_image_from_le_resource_id( &frame, texInfo.imageView.imageId ),
 					    .viewType         = VkImageViewType( texInfo.imageView.image_view_type ),
 					    .format           = VkFormat( imageFormat ),
 					    .components       = {}, // default component mapping
 					    .subresourceRange = subresourceRange,
 					};
 
-					vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
+					if ( VkFormat( imageFormat ) == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
+						// if image is a planar image - we must create an image view with a sampler that can
+						// convert such an image
+						imageViewCreateInfo.pNext = ycbcr_conversion_info;
+					}
+
+					vkCreateImageView( device, &imageViewCreateInfo, nullptr, &tex.imageView );
 
 					// Store vk object references with frame-owned resources, so that
 					// the vk objects can be destroyed when frame crosses the fence.
 
 					AbstractPhysicalResource res;
-					res.asImageView = imageView;
+					res.asImageView = tex.imageView;
 					res.type        = AbstractPhysicalResource::Type::eImageView;
 
 					frame.ownedResources.emplace_front( std::move( res ) );
 				}
 
-				VkSampler sampler{};
 				{
-					// Create VkSampler object on device.
+					// Create VkSampler object on device in case we don't use an
+					// immutable sampler
 
-					VkSamplerCreateInfo samplerCreateInfo{
-					    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-					    .pNext                   = nullptr, // optional
-					    .flags                   = 0,       // optional
-					    .magFilter               = VkFilter( texInfo.sampler.magFilter ),
-					    .minFilter               = VkFilter( texInfo.sampler.minFilter ),
-					    .mipmapMode              = VkSamplerMipmapMode( texInfo.sampler.mipmapMode ),
-					    .addressModeU            = VkSamplerAddressMode( texInfo.sampler.addressModeU ),
-					    .addressModeV            = VkSamplerAddressMode( texInfo.sampler.addressModeV ),
-					    .addressModeW            = VkSamplerAddressMode( texInfo.sampler.addressModeW ),
-					    .mipLodBias              = texInfo.sampler.mipLodBias,
-					    .anisotropyEnable        = texInfo.sampler.anisotropyEnable,
-					    .maxAnisotropy           = texInfo.sampler.maxAnisotropy,
-					    .compareEnable           = texInfo.sampler.compareEnable,
-					    .compareOp               = VkCompareOp( texInfo.sampler.compareOp ),
-					    .minLod                  = texInfo.sampler.minLod,
-					    .maxLod                  = texInfo.sampler.maxLod,
-					    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
-					    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
-					};
+					if ( VkFormat( imageFormat ) != VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
 
-					vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler );
-					// Now store vk object references with frame-owned resources, so that
-					// the vk objects can be destroyed when frame crosses the fence.
+						VkSamplerCreateInfo samplerCreateInfo{
+						    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+						    .pNext                   = nullptr, // optional
+						    .flags                   = 0,       // optional
+						    .magFilter               = VkFilter( texInfo.sampler.magFilter ),
+						    .minFilter               = VkFilter( texInfo.sampler.minFilter ),
+						    .mipmapMode              = VkSamplerMipmapMode( texInfo.sampler.mipmapMode ),
+						    .addressModeU            = VkSamplerAddressMode( texInfo.sampler.addressModeU ),
+						    .addressModeV            = VkSamplerAddressMode( texInfo.sampler.addressModeV ),
+						    .addressModeW            = VkSamplerAddressMode( texInfo.sampler.addressModeW ),
+						    .mipLodBias              = texInfo.sampler.mipLodBias,
+						    .anisotropyEnable        = texInfo.sampler.anisotropyEnable,
+						    .maxAnisotropy           = texInfo.sampler.maxAnisotropy,
+						    .compareEnable           = texInfo.sampler.compareEnable,
+						    .compareOp               = VkCompareOp( texInfo.sampler.compareOp ),
+						    .minLod                  = texInfo.sampler.minLod,
+						    .maxLod                  = texInfo.sampler.maxLod,
+						    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
+						    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
+						};
+						vkCreateSampler( device, &samplerCreateInfo, nullptr, &tex.sampler );
+						// Now store vk object references with frame-owned resources, so that
+						// the vk objects can be destroyed when frame crosses the fence.
 
-					AbstractPhysicalResource res;
+						AbstractPhysicalResource res;
 
-					res.asSampler = sampler;
-					res.type      = AbstractPhysicalResource::Type::eSampler;
-					frame.ownedResources.emplace_front( std::move( res ) );
+						res.asSampler = tex.sampler;
+						res.type      = AbstractPhysicalResource::Type::eSampler;
+						frame.ownedResources.emplace_front( std::move( res ) );
+					}
 				}
-
-				// -- Store Texture with frame so that decoder can find references
-				BackendFrameData::Texture tex;
-				tex.imageView = imageView;
-				tex.sampler   = sampler;
 
 				frame.textures_per_pass[ pass_idx ][ textureId ] = tex;
 			} else {
 				// The frame already has an element with such a texture id.
+				logger.error( "texture '%s' must have been defined multiple times using identical id within the same renderpass.", textureId );
 				assert( false && "texture must have been defined multiple times using identical id within the same renderpass." );
 			}
 		} // end for all textureIds
@@ -4310,7 +4421,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	}
 
 	// -- allocate any transient vk objects such as image samplers, and image views
-	frame_allocate_transient_resources( frame, device, passes, numRenderPasses );
+	frame_allocate_transient_resources( frame, device, passes, numRenderPasses, &self->vk_sampler_ycbcr_conversion_info );
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	backend_create_renderpasses( frame, device );
@@ -4407,9 +4518,9 @@ static le_staging_allocator_o* backend_get_staging_allocator( le_backend_o* self
 
 void debug_print_le_pipeline_layout_info( le_pipeline_layout_info* info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	logger.debug( "pipeline layout: %x", info->pipeline_layout_key );
+	logger.info( "pipeline layout: %x", info->pipeline_layout_key );
 	for ( size_t i = 0; i != info->set_layout_count; i++ ) {
-		logger.debug( "set layout key : %x", info->set_layout_keys[ i ] );
+		logger.info( "set layout key : %x", info->set_layout_keys[ i ] );
 	}
 }
 
@@ -4690,6 +4801,7 @@ static void debug_print_command( void*& cmd ) {
                 case (le::CommandType::eDrawMeshTasks): os << "eDrawMeshTasks"; break;
                 case (le::CommandType::eTraceRays): os << "eTraceRays"; break;
                 case (le::CommandType::eSetArgumentTlas): os << "eSetArgumentTlas"; break;
+                case (le::CommandType::eVideoDecoderExecuteCallback): os << "eVideoDecoderExecuteCallback"; break;
 			}
 	// clang-format on
 
@@ -4786,6 +4898,13 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 
 	return cache_entry.first->second;
 }
+// ----------------------------------------------------------------------
+static void backend_frame_add_on_clear_callbacks( le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count ) {
+	ZoneScoped;
+	auto& frame = self->mFrames[ frame_index ];
+	frame.on_clear_callbacks.insert( frame.on_clear_callbacks.end(), callbacks, callbacks + callbacks_count );
+}
+// ----------------------------------------------------------------------
 
 // Must execute on the RECORD FRAME
 //
@@ -5258,7 +5377,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							}
 						}
 
-						auto dstImage = frame_data_get_image_from_le_resource_id( frame, static_cast<le_img_resource_handle>( op.resource ) );
+						auto dstImage = frame_data_get_image_from_le_resource_id( &frame, static_cast<le_img_resource_handle>( op.resource ) );
 
 						VkImageMemoryBarrier2 imageLayoutTransfer{
 						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -5379,7 +5498,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 								// Print pipeline debug info when a new pipeline gets bound.
 
-								logger.debug( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
+								logger.info( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
 								debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
 							}
 
@@ -5654,7 +5773,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							{
 								rtx_state.sbt_buffer = le_cmd->info.sbt_buffer;
 
-								VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.sbt_buffer );
+								VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.sbt_buffer );
 
 								VkBufferDeviceAddressInfo info = {
 								    .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
@@ -5772,7 +5891,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    .dstAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.dstAccessMask ),    // and making memory visible to dst stage
 						    .srcQueueFamilyIndex = 0,
 						    .dstQueueFamilyIndex = 0,
-						    .buffer              = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ),
+						    .buffer              = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer ),
 						    .offset              = le_cmd->info.offset,
 						    .size                = le_cmd->info.range,
 						};
@@ -5965,7 +6084,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							DescriptorData::BufferInfo& buffer_info = descriptor_data->bufferInfo;
 
-							buffer_info.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
+							buffer_info.buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer_id );
 							buffer_info.range  = le_cmd->info.range;
 
 							if ( buffer_info.range == 0 ) {
@@ -6075,7 +6194,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    find_descriptor_with_binding_number_and_array_idx(
 						        argumentState.setData[ b->setIndex ], b->binding );
 
-						// fetch texture information based on texture id from command
+						// fetch image view information based on image_id from command
 						if ( bindingData ) {
 
 							auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
@@ -6142,7 +6261,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					} break;
 					case le::CommandType::eBindIndexBuffer: {
 						auto* le_cmd = static_cast<le::CommandBindIndexBuffer*>( dataIt );
-						auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
+						auto  buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer );
 						vkCmdBindIndexBuffer( cmd, buffer, le_cmd->info.offset, static_cast<VkIndexType>( le_cmd->info.indexType ) );
 					} break;
 
@@ -6169,7 +6288,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						le_buf_resource_handle le_buffer = *p_buffers;
 
-						VkBuffer vk_buffer                  = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+						VkBuffer vk_buffer                  = frame_data_get_buffer_from_le_resource_id( &frame, le_buffer );
 						vertexInputBindings[ firstBinding ] = vk_buffer;
 
 						for ( uint32_t b = 1; b != numBuffers; ++b ) {
@@ -6179,7 +6298,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							le_buf_resource_handle next_buffer = p_buffers[ b ];
 							if ( next_buffer != le_buffer ) {
 								le_buffer = next_buffer;
-								vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+								vk_buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_buffer );
 							}
 							vertexInputBindings[ b + firstBinding ] = vk_buffer;
 						}
@@ -6199,8 +6318,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    .size      = le_cmd->info.numBytes,
 						};
 
-						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
-						auto dstBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.dst_buffer_id );
+						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.src_buffer_id );
+						auto dstBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.dst_buffer_id );
 
 						vkCmdCopyBuffer( cmd, srcBuffer, dstBuffer, 1, &region );
 
@@ -6211,16 +6330,16 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						auto* le_cmd = static_cast<le::CommandWriteToImage*>( dataIt );
 
-						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
-						auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
+						auto srcBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.src_buffer_id );
+						auto dstImage  = frame_data_get_image_from_le_resource_id( &frame, le_cmd->info.dst_image_id );
 
 						// We define a range that covers all miplevels. this is useful as it allows us to transform
 						// Image layouts in bulk, covering the full mip chain.
 						VkImageSubresourceRange rangeAllRemainingMiplevels{
 						    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-						    .baseMipLevel   = le_cmd->info.dst_miplevel,
-						    .levelCount     = VK_REMAINING_MIP_LEVELS, // we want all miplevels to be in transferDstOptimal.
-						    .baseArrayLayer = le_cmd->info.dst_array_layer,
+							.baseMipLevel   = std::min( le_cmd->info.num_miplevels, le_cmd->info.dst_miplevel + 1 ), // TODO: we must make sure that baseMipLevel never is greater than the total number of mip levels available for this image.
+							.levelCount     = VK_REMAINING_MIP_LEVELS,                                               // we want all miplevels to be in transferDstOptimal.
+							.baseArrayLayer = le_cmd->info.dst_array_layer,
 						    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // we want the range to encompass all layers
 						};
 
@@ -6241,21 +6360,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .size                = le_cmd->info.numBytes,
 							};
 
-							// Note: this barrier is to prepare the image resource for receiving data
-							VkImageMemoryBarrier2 imageLayoutToTransferDstOptimal{
-							    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-							    .pNext               = nullptr,                             // optional
-							    .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, // wait for nothing as no memory must be made available
-							    .srcAccessMask       = {},                                  // no memory must be made available - our image is garbage data at first
-							    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,    // layout transiton must complete before transfer operation
-							    .dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,      // make memory visible to transferWrite - so that we may write
-							    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-							    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .image               = dstImage,
-							    .subresourceRange    = rangeAllRemainingMiplevels,
-							};
+							// Note: The Renderpass will have prepared this resource to be written to
+							// so that it will be in LAYOUT_TRANSFER_DST_OPTIMAL at this point
+
 							VkDependencyInfo dependency_info{
 							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
 							    .pNext                    = nullptr,
@@ -6264,8 +6371,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .pMemoryBarriers          = 0,
 							    .bufferMemoryBarrierCount = 1,
 							    .pBufferMemoryBarriers    = &bufferTransferBarrier,
-							    .imageMemoryBarrierCount  = 1,
-							    .pImageMemoryBarriers     = &imageLayoutToTransferDstOptimal,
+								.imageMemoryBarrierCount  = 0,
+								.pImageMemoryBarriers     = nullptr,
 							};
 
 							vkCmdPipelineBarrier2( cmd, &dependency_info );
@@ -6428,61 +6535,79 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// Transition image from transfer src optimal to shader read only optimal layout
 
-						{
-							VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
-							    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-							    .pNext               = nullptr,
-							    .srcStageMask        = 0,
-							    .srcAccessMask       = 0,
-							    .dstStageMask        = 0,
-							    .dstAccessMask       = 0,
-							    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-							    .newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-							    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-							    .image               = dstImage,
-							    .subresourceRange    = rangeAllRemainingMiplevels,
-							};
-							;
+						if ( le_cmd->info.num_miplevels > 1 ) {
 
-							if ( le_cmd->info.num_miplevels > 1 ) {
+							const uint32_t base_miplevel = le_cmd->info.dst_miplevel;
+							{
+								VkImageMemoryBarrier2 revert_prepare_blit{
+									.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+									.pNext               = nullptr,                              //
+									.srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
+									.srcAccessMask       = VK_ACCESS_2_NONE,                     // make transfer write memory available (flush) to layout transition
+									.dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
+									.dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // make cache (after layout transition) visible to transferRead op
+									.oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // layout transition from transfer dst optimal,
+									.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
+									.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									.image               = dstImage,
+									.subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
+								};
+
+								VkDependencyInfo dependency_info{
+									.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+									.pNext                    = nullptr,
+									.dependencyFlags          = 0,
+									.memoryBarrierCount       = 0,
+									.pMemoryBarriers          = 0,
+									.bufferMemoryBarrierCount = 0,
+									.pBufferMemoryBarriers    = 0,
+									.imageMemoryBarrierCount  = 1,
+									.pImageMemoryBarriers     = &revert_prepare_blit,
+								};
+
+								vkCmdPipelineBarrier2( cmd, &dependency_info );
+							}
+							{
+								VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
+									.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+									.pNext               = nullptr,
+									.srcStageMask        = 0,
+									.srcAccessMask       = 0,
+									.dstStageMask        = 0,
+									.dstAccessMask       = 0,
+									.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+									.newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+									.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+									.image               = dstImage,
+									.subresourceRange    = rangeAllRemainingMiplevels,
+								};
 
 								// If there were additional miplevels, the miplevel generation logic ensures that all subresources
 								// are left in transfer_src layout.
 
-								imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
-								imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything that fragment shader does
-								imageLayoutToShaderReadOptimal.srcAccessMask = {};                                       // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
-								imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make layout transitioned image visible to shader read in FragmentShader stage
-								imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;     // transition from transfer src optimal
-								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ...to shader readonly optimal -and make transitioned image available;
-							} else {
+								imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;     // anything in transfer must happen-before
+								imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;     // anything that fragment shader does
+								imageLayoutToShaderReadOptimal.srcAccessMask = VK_ACCESS_2_NONE;                     // no memory needs to be made available - nothing to flush, as previous barriers ensure flush
+								imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;       // make layout transitioned image visible to shader read in FragmentShader stage
+								imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; // transition from transfer src optimal
+								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; // ...to shader readonly optimal -and make transitioned image available;
 
-								// If there are no additional miplevels, the single subresource will still be in
-								// transfer_dst layout after pixel data was uploaded to it.
+								VkDependencyInfo dependency_info{
+									.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+									.pNext                    = nullptr,
+									.dependencyFlags          = 0,
+									.memoryBarrierCount       = 0,
+									.pMemoryBarriers          = 0,
+									.bufferMemoryBarrierCount = 0,
+									.pBufferMemoryBarriers    = 0,
+									.imageMemoryBarrierCount  = 1,
+									.pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
+								};
 
-								imageLayoutToShaderReadOptimal.srcStageMask  = VK_PIPELINE_STAGE_2_TRANSFER_BIT;         // anything in transfer must happen-before
-								imageLayoutToShaderReadOptimal.dstStageMask  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;  // anything in fragment shader
-								imageLayoutToShaderReadOptimal.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;           // make available what is in transferwrite - image layout transition will need it
-								imageLayoutToShaderReadOptimal.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;              // make visible the result of the image layout transition to shader read in FragmentShader stage
-								imageLayoutToShaderReadOptimal.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;     // transition the single one subresource , which is in transfer dst optimal...
-								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // ... to shader readonly optimal -and make the transitioned image available;
-								;
+								vkCmdPipelineBarrier2( cmd, &dependency_info ); // images: prepare for shader read
 							}
-
-							VkDependencyInfo dependency_info{
-							    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-							    .pNext                    = nullptr,
-							    .dependencyFlags          = 0,
-							    .memoryBarrierCount       = 0,
-							    .pMemoryBarriers          = 0,
-							    .bufferMemoryBarrierCount = 0,
-							    .pBufferMemoryBarriers    = 0,
-							    .imageMemoryBarrierCount  = 1,
-							    .pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
-							};
-
-							vkCmdPipelineBarrier2( cmd, &dependency_info ); // images: prepare for shader read
 						}
 
 						break;
@@ -6495,7 +6620,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						auto const blas_end = blas_handle_begin + num_blas_handles;
 
-						VkBuffer scratchBuffer = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
+						VkBuffer scratchBuffer = frame_data_get_buffer_from_le_resource_id( &frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
 
 						for ( auto blas_handle = blas_handle_begin; blas_handle != blas_end; blas_handle++ ) {
 
@@ -6516,8 +6641,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 								// TODO: we may want to cache this - so that we don't have to lookup addresses more than once
 
-								VkBuffer vertex_buffer = frame_data_get_buffer_from_le_resource_id( frame, g.vertex_buffer );
-								VkBuffer index_buffer  = frame_data_get_buffer_from_le_resource_id( frame, g.index_buffer );
+								VkBuffer vertex_buffer = frame_data_get_buffer_from_le_resource_id( &frame, g.vertex_buffer );
+								VkBuffer index_buffer  = frame_data_get_buffer_from_le_resource_id( &frame, g.index_buffer );
 
 								VkDeviceOrHostAddressConstKHR vertex_addr = { .deviceAddress = 0 };
 								VkDeviceOrHostAddressConstKHR index_addr  = { .deviceAddress = 0 };
@@ -6702,8 +6827,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						// instances information is encoded via buffer, but that buffer is also available as host memory,
 						// because it is held in staging_buffer_mapped_memory...
-						VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id );
-						VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
+						VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.staging_buffer_id );
+						VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( &frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
 
 						VkDeviceOrHostAddressConstKHR instanceBufferDeviceAddress = {};
 
@@ -6768,6 +6893,16 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						VkAccelerationStructureBuildRangeInfoKHR* p_build_ranges = &build_ranges;
 
 						vkCmdBuildAccelerationStructuresKHR( cmd, 1, &info, &p_build_ranges );
+
+						break;
+					}
+
+					case le::CommandType::eVideoDecoderExecuteCallback: {
+						auto* le_cmd = static_cast<le::CommandVideoDecoderExecuteCallback*>( dataIt );
+
+						// Call the callback uncritically, passing along the currently mapped vulkan command buffer.
+						// You need to know what you are doing with this.
+						le_cmd->info.callback( cmd, le_cmd->info.user_data, &frame );
 
 						break;
 					}
@@ -7181,6 +7316,18 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 	std::unordered_map<le_resource_handle, ownership_transfer_t> queue_ownership_transfers;     // note that the transfer must happen on both queues - first release, then acquire.
 	bool                                                         must_wait_for_acquire = false; /// signals whether multiple queues of the same family await a resoruce to become acquired
 
+	if ( LE_PRINT_DEBUG_MESSAGES ) {
+		for ( auto& [ le_resource_handle, qf ] : self->resource_queue_family_ownership[ 0 ] ) {
+			logger.info( "*[%4d]* Resource : [%s] qf%d ",
+			             frameIndex, le_resource_handle->data->debug_name, qf );
+		}
+	}
+
+	// Initialise back buffer with current state - we do this so that we don't accidentally
+	// "forget" resources that are not referenced in the current frame - these still belong
+	// to a queue, until they are deleted!
+	self->resource_queue_family_ownership[ 1 ] = self->resource_queue_family_ownership[ 0 ];
+
 	// For all resources test if family ownership matches
 	// since we last used this resource - if not, change it, and note the change.
 	for ( auto const& submission_data : frame.queue_submission_data ) {
@@ -7192,6 +7339,9 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 				auto found_queue_family_ownership = self->resource_queue_family_ownership[ 0 ].find( r );
 				// definitely write to the back buffer
 				self->resource_queue_family_ownership[ 1 ][ r ] = submission_queue_family_idx;
+
+				// logger.info( "*[%4d]* Resource : [%s] qf%d -> qf%d (used with queue index:%d)",
+				//              frameIndex, r->data->debug_name, found_queue_family_ownership->second, submission_queue_family_idx, submission_data.queue_idx );
 
 				// There was already an element in there - we must compare
 				if ( found_queue_family_ownership != self->resource_queue_family_ownership[ 0 ].end() &&
@@ -7205,20 +7355,20 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 					                                                               // that will acquire the resource, as it is this one specifically that
 					                                                               // will need to wait for the release semaphore to signal
 
-					auto transfer_inserted_it = queue_ownership_transfers.emplace( change.resource, change );
+					auto [ transfer_it, was_emplaced ] = queue_ownership_transfers.emplace( change.resource, change );
 
-					if ( transfer_inserted_it.second == false ) {
+					if ( was_emplaced == false ) {
 
 						// There was already an ownership change for this resource - make sure that it only differs
 						// in the dst queue, but not in dst queue family.
 
-						if ( change.dst_queue_family_index == transfer_inserted_it.first->second.dst_queue_family_index ) {
+						if ( change.dst_queue_family_index == transfer_it->second.dst_queue_family_index ) {
 
 							// Add a queue index to the list of queues which wait for this transfer,
 							// the first destination queue will do the acquire, all other destination
 							// queues will have to wait for this acquire to complete in an extra step.
-							transfer_inserted_it.first->second.dst_queue_index.push_back( submission_data.queue_idx );
-							if ( submission_data.queue_idx != transfer_inserted_it.first->second.dst_queue_index[ 0 ] ) {
+							transfer_it->second.dst_queue_index.push_back( submission_data.queue_idx );
+							if ( submission_data.queue_idx != transfer_it->second.dst_queue_index[ 0 ] ) {
 								// only wait for acquire if it's a different queue than the first queue
 								must_wait_for_acquire = true;
 							}
@@ -7227,8 +7377,8 @@ static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameI
 							logger.error( "resource `%s` cannot be owned by two differing queue families: %d != %d",
 							              r->data->debug_name,
 							              change.dst_queue_family_index,
-							              transfer_inserted_it.first->second.dst_queue_family_index );
-							assert( change.dst_queue_family_index == transfer_inserted_it.first->second.dst_queue_family_index && "resource cannot be owned by more than one queue family" );
+							              transfer_it->second.dst_queue_family_index );
+							assert( change.dst_queue_family_index == transfer_it->second.dst_queue_family_index && "resource cannot be owned by more than one queue family" );
 						}
 					}
 
@@ -7976,6 +8126,9 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.free_gpu_memory                           = backend_free_gpu_memory;
 	private_backend_i.get_default_graphics_queue_info           = backend_get_default_graphics_queue_info;
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
+	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
+	private_backend_i.frame_data_get_image_from_le_resource_id  = frame_data_get_image_from_le_resource_id;
+	private_backend_i.get_sampler_ycbcr_conversion_info         = backend_get_sampler_ycbcr_conversion_info;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;
@@ -7999,15 +8152,15 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	}
 
 	// implemented in `le_backend_vk_settings.inl`
-	auto& backend_settings_i                                        = api_i->le_backend_settings_i;
-	backend_settings_i.add_required_device_extension                = le_backend_vk_settings_add_required_device_extension;
-	backend_settings_i.add_required_instance_extension              = le_backend_vk_settings_add_required_instance_extension;
-	backend_settings_i.get_requested_physical_device_features_chain = le_backend_vk_get_requested_physical_device_features_chain;
-	backend_settings_i.set_concurrency_count                        = le_backend_vk_settings_set_concurrency_count;
-	backend_settings_i.get_requested_queue_capabilities             = le_backend_vk_settings_get_requested_queue_capabilities;
-	backend_settings_i.add_requested_queue_capabilities             = le_backend_vk_settings_add_requested_queue_capabilities;
-	backend_settings_i.set_requested_queue_capabilities             = le_backend_vk_settings_set_requested_queue_capabilities;
-	backend_settings_i.set_data_frames_count                        = le_backend_vk_settings_set_data_frames_count;
+	auto& backend_settings_i                              = api_i->le_backend_settings_i;
+	backend_settings_i.add_required_device_extension      = le_backend_vk_settings_add_required_device_extension;
+	backend_settings_i.add_required_instance_extension    = le_backend_vk_settings_add_required_instance_extension;
+	backend_settings_i.get_physical_device_features_chain = le_backend_vk_get_physical_device_features_chain;
+	backend_settings_i.set_concurrency_count              = le_backend_vk_settings_set_concurrency_count;
+	backend_settings_i.get_requested_queue_capabilities   = le_backend_vk_settings_get_requested_queue_capabilities;
+	backend_settings_i.add_requested_queue_capabilities   = le_backend_vk_settings_add_requested_queue_capabilities;
+	backend_settings_i.set_requested_queue_capabilities   = le_backend_vk_settings_set_requested_queue_capabilities;
+	backend_settings_i.set_data_frames_count              = le_backend_vk_settings_set_data_frames_count;
 
 	void** p_settings_singleton_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) );
 

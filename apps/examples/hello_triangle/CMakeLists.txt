@@ -13,7 +13,7 @@ project(${PROJECT_NAME})
 # (currently this will only work correctly under Linux) add_compile_definitions(
 # LE_MT=4 )
 
-# To enable tracing with Tracy, uncomment the following line
+# To enable tracing with Tracy, uncomment the following line:
 # add_compile_definitions( TRACY_ENABLE )
 
 # Vulkan Validation layers are enabled by default for Debug builds. Uncomment

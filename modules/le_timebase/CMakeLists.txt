@@ -5,6 +5,7 @@ set (TARGET le_timebase)
 
 set (SOURCES "le_timebase.cpp")
 set (SOURCES ${SOURCES} "le_timebase.h")
+set (SOURCES ${SOURCES} "private/le_timebase/le_timebase_ticks_type.h")
 
 if (${PLUGINS_DYNAMIC})
 

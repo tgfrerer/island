@@ -6,7 +6,6 @@ from os import path
 import shutil
 from shutil import copystat
 
-
 SCRIPTS_PATH = os.path.dirname(os.path.realpath(__file__))
 CWD_PATH = os.path.realpath(os.getcwd())
 
@@ -137,8 +136,7 @@ if (os.path.isabs(template_source_dir) is False):
     # are relative to where the script was executed
     template_source_dir = os.path.join(CWD_PATH, template_source_dir)
 
-
-template_name = args.template_name
+template_name = args.template_name.rstrip(os.path.sep) # remove any trailing path separators that might have come via autocomplete
 project_name_camelcase_capitalised = to_titled_camel_case(project_name)
 template_name_camelcase_capitalised = to_titled_camel_case(template_name)
 
@@ -154,6 +152,7 @@ template_source_dir = os.path.normpath(
 print('App name: %s' % project_name)
 print('App module directory: %s' % app_module_dir)
 print('Template source directory: %s' % template_source_dir)
+
 
 # Go through all files in target directory recursively,
 # and apply replacements to their contents

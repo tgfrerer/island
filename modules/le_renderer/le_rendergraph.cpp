@@ -146,7 +146,13 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 		// Resource was already used : this should be fine if declared with identical access_flags,
 		// otherwise it is an error.
-		assert( false );
+
+		logger.error( "Resource '%s' declared more than once for Renderpass '%s'.\n\n"
+		              "\tHINT: Check if you didn't accidentally sample from this resource (via a texture) "
+		              "while it is already bound as a ColorAttachment.",
+		              self->resources[ resource_idx ]->data->debug_name,
+		              self->debugName );
+
 		self->resources_access_flags[ resource_idx ] = self->resources_access_flags[ resource_idx ] | access_flags;
 	}
 
@@ -1113,6 +1119,9 @@ static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rend
 	dst_rendergraph->declared_resources_id   = std::move( src_rendergraph->declared_resources_id );
 	dst_rendergraph->declared_resources_info = std::move( src_rendergraph->declared_resources_info );
 
+	// Move any callbacks that have been attached to the src_rendergraph
+	dst_rendergraph->on_frame_clear_callbacks = std::move( src_rendergraph->on_frame_clear_callbacks );
+
 	src_rendergraph->passes.clear();
 };
 
@@ -1124,17 +1133,23 @@ static void rendergraph_declare_resource( le_rendergraph_o* self, le_resource_ha
 }
 
 // ----------------------------------------------------------------------
+static void rendergraph_add_on_frame_clear_callbacks( le_rendergraph_o* self, le_on_frame_clear_callback_data_t* callbacks, uint32_t callbacks_count ) {
+	self->on_frame_clear_callbacks.insert( self->on_frame_clear_callbacks.end(), callbacks, callbacks + callbacks_count );
+}
+
+// ----------------------------------------------------------------------
 
 void register_le_rendergraph_api( void* api_ ) {
 
 	auto le_renderer_api_i = static_cast<le_renderer_api*>( api_ );
 
-	auto& le_rendergraph_i            = le_renderer_api_i->le_rendergraph_i;
-	le_rendergraph_i.create           = rendergraph_create;
-	le_rendergraph_i.destroy          = rendergraph_destroy;
-	le_rendergraph_i.reset            = rendergraph_reset;
-	le_rendergraph_i.add_renderpass   = rendergraph_add_renderpass;
-	le_rendergraph_i.declare_resource = rendergraph_declare_resource;
+	auto& le_rendergraph_i                        = le_renderer_api_i->le_rendergraph_i;
+	le_rendergraph_i.create                       = rendergraph_create;
+	le_rendergraph_i.destroy                      = rendergraph_destroy;
+	le_rendergraph_i.reset                        = rendergraph_reset;
+	le_rendergraph_i.add_renderpass               = rendergraph_add_renderpass;
+	le_rendergraph_i.declare_resource             = rendergraph_declare_resource;
+	le_rendergraph_i.add_on_frame_clear_callbacks = rendergraph_add_on_frame_clear_callbacks;
 
 	auto& le_rendergraph_private_i        = le_renderer_api_i->le_rendergraph_private_i;
 	le_rendergraph_private_i.setup_passes = rendergraph_setup_passes;

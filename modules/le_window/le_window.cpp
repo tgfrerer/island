@@ -784,7 +784,7 @@ static int init() {
 	// for our particular controller in the database.
 	// you may have to add further mappings for your device in case it is not present
 
-	char const* xbox_series_x_controller_mapping = "050000005e040000130b000015050000,Xbox Wireless Controller,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,misc1:b15,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Linux";
+	char const* xbox_series_x_controller_mapping = "050000005e040000130b000017050000,Xbox Wireless Controller,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,misc1:b15,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Linux";
 
 	glfwUpdateGamepadMappings( xbox_series_x_controller_mapping );
 

@@ -95,7 +95,7 @@ struct le_2d_api {
 
 	struct le_2d_interface_t {
 
-		le_2d_o *    ( * create                   ) ( le_command_buffer_encoder_o* encoder);
+		le_2d_o *    ( * create                   ) ( le_command_buffer_encoder_o* encoder, struct le_gpso_handle_t* optional_custom_pipeline );
 		void         ( * destroy                  ) ( le_2d_o* self );
 
 	};
@@ -112,8 +112,8 @@ LE_MODULE_LOAD_DEFAULT( le_2d );
 
 namespace le_2d {
 static const auto& api          = le_2d_api_i;
-static const auto& le_2d_i      = api -> le_2d_i;
-static const auto& le_2d_prim_i = api -> le_2d_primitive_i;
+static const auto& le_2d_i      = api->le_2d_i;
+static const auto& le_2d_prim_i = api->le_2d_primitive_i;
 
 } // namespace le_2d
 
@@ -136,8 +136,8 @@ class Le2D : NoCopy, NoMove {
 	le_2d_o* self;
 
   public:
-	Le2D( le_command_buffer_encoder_o* encoder_ )
-	    : self( le_2d::le_2d_i.create( encoder_ ) ) {
+    Le2D( le_command_buffer_encoder_o* encoder_, struct le_gpso_handle_t* optional_custom_pipeline = nullptr )
+        : self( le_2d::le_2d_i.create( encoder_, optional_custom_pipeline ) ) {
 	}
 
 	~Le2D() {
