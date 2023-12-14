@@ -74,8 +74,8 @@ static_assert( align_to( 9, 4 ) == 12, "must be 12" );
 static_assert( align_to( 9, 3 ) == 9, "must be 9" );
 
 static bool should_use_queries() {
-	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_QUERIES, true );
-	return *LE_SETTING_SHOULD_USE_QUERIES;
+	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VIDEO_STATUS_QUERIES, true );
+	return *LE_SETTING_SHOULD_USE_VIDEO_STATUS_QUERIES;
 }
 
 #define USE_YCBCR_SAMPLER

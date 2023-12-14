@@ -49,8 +49,8 @@ struct video_player_example_app_o {
 
 typedef video_player_example_app_o app_o;
 
-LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
-LE_SETTING( const bool, LE_SETTING_SHOULD_USE_QUERIES, true );
+LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );    // For backend: whether to use validation layers in Debug builds. Default 'true'. Recommended.
+LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VIDEO_STATUS_QUERIES, true ); // For video decoder: whether to use video Queries
 
 // Set USE_FIXED_TIME_INTERVAL to true to step a fixed time interval every update.
 constexpr static bool USE_FIXED_TIME_INTERVAL = false;
