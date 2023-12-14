@@ -14,4 +14,5 @@ techniques to do so. Generally the aim is to be simple, except perhaps with the 
 ![Bitonic Merge Sort Example](bitonic_merge_sort_example/screenshot.jpg) | [Bitonic Merge Sort Example](bitonic_merge_sort_example/) Sort millions of pixels in parallel on the GPU.
 ![3D lut color grading example](lut_grading_example/screenshot.jpg) | [3D LUT color grading example](lut_grading_example/) load a 3D image and use it as a lookup table for a color-grading post-processing effect (mouse drag to sweep effect).
 ![ImGui Example](imgui_example/screenshot.png) | [imgui example](imgui_example/) use imgui to show a user interface, allow the user to change window background using the user interface.
+![Video Player Example](video_player_example/screenshot.jpg) | [video player example](video_player_example/) play hardware accelerated videos, using the `le_video_decoder` module and Vulkan Video
 
