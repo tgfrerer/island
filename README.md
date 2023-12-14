@@ -42,7 +42,7 @@ can build a single, statically linked and optimised binary.
   average multi-core machine.
 
 * **Code tweaks**: Near-instant in-code parameter tweaks for Debug
-  builds (no need to recompile) by using a special `TWEAK()` macro.
+  builds (no need to recompile) by using a special `LE_TWEAK()` macro.
 
 * **Vulkan backend**: Island has a Vulkan rendering backend, which, on
   Linux, allows access to new and experimental GPU features soon after
@@ -69,6 +69,10 @@ can build a single, statically linked and optimised binary.
   be transferred between queue families, this happens automatically.
   More about how Island distributes workloads across renderqueues and
   synchronises them in [this blog post][rendergraph_sync_blog].
+
+* **Vulkan Video Decode** hardware accelerated video decode using just
+  the new Vulkan Video api, and no external decoding dependencies,
+  synchronising video images implicitly and simply.  
 
 * **Static release binaries**: While Island is highly modular and
   dynamic when compiled for Debug, it can compile into a single,
@@ -103,9 +107,9 @@ can build a single, statically linked and optimised binary.
 * **Straight to video**: Island can render straight to screen using
   the direct rendering swapchain, or use any number of available
   options for a window-based vulkan swapchain. It's also easy to
-  render straight to an mp4 file, or an image sequence without showing
-  a window, by selecting the appropriate `le_swapchain`
-  specialisation.
+  render straight to an mp4 file (via ffmpeg), or an image sequence
+  without showing a window, by selecting the appropriate
+  `le_swapchain` specialisation.
 
 * **Helpers**: minimal effort to enable multisampling, import images,
   import, display and use fonts
@@ -160,6 +164,9 @@ generator.
   projects, based on project templates
 + [Module generator][module-generator]: Generates scaffolding for new
   modules.
++ [Vulkan Struct Scaffold generator][struct-generator] Generates
+  scaffolding for Vulkan structs, so you don't ever have to type
+  `VK_STRUCTURE_TYPE...` ever again.
 
 ## Project Generator
 
@@ -242,6 +249,7 @@ listed here:
 | `le_window` | [glfw][glfw] | window i/o system | 
 | `le_swapchain` | - | windowed, direct, or straight-to-video output | 
 | `le_renderer` | - | record command buffers, evaluate rendergraphs |
+| `le_video_decoder` | - | hardware accelerated video decoding using Vulkan Video API |
 | `le_backend` | - | interact with GPU via Vulkan, manage GPU resources |
 
 To use a module, name it as a dependency in your applidation module's
@@ -367,6 +375,8 @@ a modern rendering API (Vulkan), to learn by trying out ideas around
 modern realtime-rendering, and to have a framework to create [visual
 experiments](http://instagram.com/tgfrerer) with.
 
-[our_machinery]: https://ourmachinery.com/ 
-[our_mach_blog]: https://ourmachinery.com/post/little-machines-working-together-part-1/
-[readme-win]: README_WINDOWS.md
+[our_machinery]: https://ourmachinery.com/ [our_mach_blog]:
+https://ourmachinery.com/post/little-machines-working-together-part-1/
+[readme-win]: README_WINDOWS.md 
+
+[struct-generator]: scripts/codegen/gen_vk_structs.py
