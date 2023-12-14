@@ -88,17 +88,19 @@ static void app_add_video_player( app_o* self ) {
 	video_and_texture_t video;
 
 	static char const* video_player_examples[] = {
-	    "./local_resources/test_data/out_ref.mp4", // foreman
 	    "./local_resources/test_data/milo.mp4",    // fauna
+	    "./local_resources/test_data/out_ref.mp4", // foreman
 	};
 
 	video.video_player         = new le::VideoPlayer( self->renderer, video_player_examples[ self->video_players.size() % 2 ] );
 	video.video_texture_handle = le::Renderer::produceTextureHandle( nullptr );
 
-	// We must forward the callback in case we want to be able to hot-reload this app,
+	// We must **forward** the callback in case we want to be able to hot-reload this app,
 	// as the callback address needs to be automatically updated if the app gets reloaded.
 	//
-	video.video_player->set_on_playback_complete_callback( le_core_forward_callback( video_player_example_app_api_i->video_player_example_app_i.on_video_playback_complete ), self );
+	video.video_player->set_on_playback_complete_callback(
+	    le_core_forward_callback( video_player_example_app_api_i->video_player_example_app_i.on_video_playback_complete ),
+	    self );
 
 	self->video_players.push_back( video );
 }

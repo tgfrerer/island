@@ -42,9 +42,9 @@
 #endif
 #include "util/volk/volk.h"
 
-static constexpr char const* vk_err_to_c_str( const VkResult& tp );                                                                // ffdecl
-static void                  post_reload_hook( le_backend_o* backend );                                                            // ffdecl
-static std::vector<uint8_t>  load_file( const std::filesystem::path& file_path, bool* success );                                   // ffdecl
+static constexpr char const* vk_err_to_c_str( const VkResult& tp );                                                               // ffdecl
+static void                  post_reload_hook( le_backend_o* backend );                                                           // ffdecl
+static std::vector<uint8_t>  load_file( const std::filesystem::path& file_path, bool* success );                                  // ffdecl
 static int                   demux_h264_data( std::ifstream& input_file, size_t input_size, struct le_video_data_h264_t* video ); // ffdecl
 // ----------------------------------------------------------------------
 
