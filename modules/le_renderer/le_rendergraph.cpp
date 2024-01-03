@@ -460,14 +460,14 @@ static bool generate_dot_file_for_rendergraph(
 		auto const& p = self->passes[ i ];
 
 		if ( nodes[ i ].is_contributing ) {
-			os << "\"" << p->debugName << "\""
+			os << "\"" << nodes[ i ].debug_name << "_" << nodes[ i ].unique_id << "\""
 			   << "[label = <<table border='0' cellborder='1' cellspacing='0'><tr><td border='"
 			   << ( nodes[ i ].is_root ? "10" : "0" )
 			   << "' sides='b' cellpadding='3'><b>"
 			   << ( nodes[ i ].is_root ? "⊥ " : "" )
 			   << p->debugName << "</b></td>";
 		} else {
-			os << "\"" << p->debugName << "\""
+			os << "\"" << nodes[ i ].debug_name << "_" << nodes[ i ].unique_id << "\""
 			   << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='"
 			   << ( nodes[ i ].is_root ? "10" : "0" )
 			   << "' sides='b' cellpadding='3'><b>"
@@ -553,10 +553,10 @@ static bool generate_dot_file_for_rendergraph(
 				if ( ( nodes[ k ].reads & res_filter ).any() ||
 				     ( nodes[ k ].writes & nodes[ k ].reads & res_filter ).any() ) {
 
-					os << "\"" << p->debugName << "\":"
+					os << "\"" << nodes[ i ].debug_name << "_" << nodes[ i ].unique_id << "\":"
 					   << "\"" << needle->data->debug_name << "\""
 					   << ":s"
-					   << " -> \"" << self->passes[ k ]->debugName << "\":"
+					   << " -> \"" << nodes[ k ].debug_name << "_" << nodes[ k ].unique_id << "\":"
 					   << "\"" << needle->data->debug_name << "\""
 					   << ":n"
 					   << ( nodes[ k ].is_contributing == false ? "[style=dashed]" : "" )
@@ -686,16 +686,19 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
 
-	std::vector<Node>                                          nodes;
+	std::vector<Node>                                          nodes;         // There is exactly one Node per `pass` - their indices correspond
 	std::array<le_resource_handle, LE_MAX_NUM_GRAPH_RESOURCES> uniqueHandles; // lookup for resource handles.
 	size_t                                                     numUniqueResources = 0;
 
 	// Translate all passes into a node
 	//   Get list of resources per pass and build node from this
 
+	uint64_t node_unique_id = 0;
+
 	for ( auto const& p : self->passes ) {
 
 		Node node{};
+		node.unique_id = ++node_unique_id;
 
 		const size_t numResources = p->resources.size();
 
