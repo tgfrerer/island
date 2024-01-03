@@ -136,16 +136,16 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>    passes;                     //
-	std::vector<le_resource_handle>  declared_resources_id;      // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t>  declared_resources_info;    // | pre-declared resources (declared via module)
-	std::vector<le::RootPassesField> root_passes_affinity_masks; // vector of masks, one per distinct subgraph within the rendergraph,
-	                                                             // each mask represents a filter: passes whose root_passes_affinity
-	                                                             // match via OR are contributing to the distinct tree whose key it was tested against.
-	                                                             // Each entry represents a distinct tree which can be submitted as a
-	                                                             // separate (and resource-isolated) queue submission.
-	                                                             //
-	std::vector<char const*> root_debug_names;                   // not owning: pointers to debug_names for root passes held within passes, in same order as RootPassesField indices
-	std::vector<le_on_frame_clear_callback_data_t> on_frame_clear_callbacks;           // passed on to the backend: callbacks which get called once the backend frame into which this renderpass was placed gets cleared
+	std::vector<le_renderpass_o*>    passes;                                 //
+	std::vector<le_resource_handle>  declared_resources_id;                  // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>  declared_resources_info;                // | pre-declared resources (declared via module)
+	std::vector<le::RootPassesField> root_passes_affinity_masks;             // vector of masks, one per distinct subgraph within the rendergraph,
+	                                                                         // each mask represents a filter: passes whose root_passes_affinity
+	                                                                         // match via OR are contributing to the distinct tree whose key it was tested against.
+	                                                                         // Each entry represents a distinct tree which can be submitted as a
+	                                                                         // separate (and resource-isolated) queue submission.
+	                                                                         //
+	std::vector<char const*>                       root_debug_names;         // not owning: pointers to debug_names for root passes held within passes, in same order as RootPassesField indices
+	std::vector<le_on_frame_clear_callback_data_t> on_frame_clear_callbacks; // passed on to the backend: callbacks which get called once the backend frame into which this renderpass was placed gets cleared
 };
 #endif
