@@ -1,7 +1,6 @@
 #ifndef LE_RENDERGRAPH_H
 #define LE_RENDERGRAPH_H
 
-using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
 // ----------------------------------------------------------------------
 
 namespace le {
@@ -93,15 +92,6 @@ static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
 }
 
 // ----------------------------------------------------------------------
-
-struct Node {
-	ResourceField       reads               = 0;
-	ResourceField       writes              = 0;
-	le::RootPassesField root_nodes_affinity = 0;       // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
-	bool                is_root             = false;   // whether this node is a root node
-	bool                is_contributing     = false;   // whether this node contributes to a root node
-	char const*         debug_name          = nullptr; // non-owning pointer to char[256]
-};
 
 // these are some sanity checks for le_renderer_types
 static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );

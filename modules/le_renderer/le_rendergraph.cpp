@@ -32,6 +32,18 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 #include "le_log.h"
 
+using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
+
+struct Node {
+	ResourceField       reads               = 0;
+	ResourceField       writes              = 0;
+	le::RootPassesField root_nodes_affinity = 0;       // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
+	bool                is_root             = false;   // whether this node is a root node
+	bool                is_contributing     = false;   // whether this node contributes to a root node
+	char const*         debug_name          = nullptr; // non-owning pointer to char[256]
+	uint64_t            unique_id           = 0;       // unique id for each node, assigned upon node creation
+};
+
 // ----------------------------------------------------------------------
 
 static le_renderpass_o* renderpass_create( const char* renderpass_name, const le::QueueFlagBits& type_ ) {
