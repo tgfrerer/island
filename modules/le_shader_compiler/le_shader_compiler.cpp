@@ -541,7 +541,7 @@ static bool le_shader_compiler_compile_source(
 	    le_shaderc_include_result_destroy,
 	    &result->includes );
 
-	shaderc_compile_options_set_target_env( local_options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2 );
+	shaderc_compile_options_set_target_env( local_options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3 );
 	shaderc_compile_options_set_target_spirv( local_options, shaderc_spirv_version_1_5 );
 
 	// -- Preprocess GLSL source - this will expand macros and includes
@@ -576,6 +576,7 @@ static bool le_shader_compiler_compile_source(
 		}
 		result->result = preprocessorResult;
 		shaderc_compile_options_release( local_options );
+		shaderc_result_release( preprocessorResult );
 		return false;
 	}
 
@@ -602,6 +603,7 @@ static bool le_shader_compiler_compile_source(
 	}
 
 	shaderc_compile_options_release( local_options );
+	shaderc_result_release( preprocessorResult );
 
 	return true;
 }
