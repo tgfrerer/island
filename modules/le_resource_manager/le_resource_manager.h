@@ -7,7 +7,7 @@
 
 Helper module for dealing with image resources. ResourceManager automatically
 loads image resources from file, and uploads image resources, and declares
-image resources to a rendermodule.
+image resources to a render graph.
 
 Once an image was uploaded, it will not be transferred again, ResourceManager
 keeps track of uploaded images.
@@ -37,9 +37,9 @@ keeps track of uploaded images.
 
     // In app.update():
 
-    self->resource_manager.update(render_module);
+    self->resource_manager.update( rendergraph );
 
-Call update with the rendermodule you want to use the resources with.
+Call update with the rendergraph that you want to use the resources with.
 
 * * *
 
@@ -54,7 +54,7 @@ when you specify the image info for the resource
             le::ImageInfoBuilder()
                 .setImageType( le::ImageType::e2D )
                 .setExtent( 1024, 1024 )
-                .setCreateFlags( LE_IMAGE_CREATE_CUBE_COMPATIBLE_BIT )
+                .setCreateFlags( le::ImageCreateFlagBits::eCubeCompatible )
                 .setArrayLayers( 6 )
                 .build();
 
@@ -74,7 +74,7 @@ when you specify the image info for the resource
 #include "le_core.h"
 
 struct le_resource_manager_o;
-struct le_rendergraph_o; // ffdecl. (from le_renderer)
+struct le_rendergraph_o;   // ffdecl. (from le_renderer)
 struct le_resource_info_t; // ffdecl. (from le_renderer)
 
 LE_OPAQUE_HANDLE( le_img_resource_handle ); // declared in le_renderer.h
@@ -86,8 +86,8 @@ struct le_resource_manager_api {
 
 		le_resource_manager_o *  ( * create    ) ( );
 		void                     ( * destroy   ) ( le_resource_manager_o* self );
-		void                     ( * update    ) ( le_resource_manager_o* self, le_rendergraph_o* module );
-        void                     ( * add_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle, le_resource_info_t const * image_info, char const * const * arr_image_paths);
+		void                     ( * update    ) ( le_resource_manager_o* self, le_rendergraph_o* rendergraph);
+		void                     ( * add_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle, le_resource_info_t const * image_info, char const ** arr_image_paths);
 
 	};
 
@@ -102,7 +102,7 @@ LE_MODULE_LOAD_DEFAULT( le_resource_manager );
 
 namespace le_resource_manager {
 static const auto& api                   = le_resource_manager_api_i;
-static const auto& le_resource_manager_i = api -> le_resource_manager_i;
+static const auto& le_resource_manager_i = api->le_resource_manager_i;
 } // namespace le_resource_manager
 
 class LeResourceManager : NoCopy, NoMove {
@@ -118,11 +118,11 @@ class LeResourceManager : NoCopy, NoMove {
 		le_resource_manager::le_resource_manager_i.destroy( self );
 	}
 
-	void update( le_rendergraph_o* module ) {
-		le_resource_manager::le_resource_manager_i.update( self, module );
+	void update( le_rendergraph_o* rendergraph ) {
+		le_resource_manager::le_resource_manager_i.update( self, rendergraph );
 	}
 
-	void add_item( le_img_resource_handle const& image_handle, le_resource_info_t const& image_info, char const* const* arr_image_paths ) {
+	void add_item( le_img_resource_handle const& image_handle, le_resource_info_t const& image_info, char const** arr_image_paths ) {
 		le_resource_manager::le_resource_manager_i.add_item( self, &image_handle, &image_info, arr_image_paths );
 	}
 

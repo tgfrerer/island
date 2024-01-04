@@ -67,7 +67,7 @@ static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
 // ----------------------------------------------------------------------
 static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_data ) {
 	le::TransferEncoder encoder{ pEncoder };
-	auto        manager = static_cast<le_resource_manager_o*>( user_data );
+	auto                manager = static_cast<le_resource_manager_o*>( user_data );
 
 	// we will probably end up with a number of write operations which will all target the same image resource,
 	// but will write into different aspects of memory associated with the resource.
@@ -86,7 +86,7 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 		for ( uint32_t layer = 0; layer != num_layers; layer++ ) {
 
-			// we can fill in the correct handling for mutliple mip levels later.
+			// we can fill in the correct handling for mutiple mip levels later.
 			// for now, assert that there is exatcly one mip level.
 			if ( r.image_layers[ layer ].was_uploaded ) {
 				continue;
@@ -109,6 +109,7 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 				        .setImageH( height )
 				        .setImageW( width )
 				        .setImageD( depth )
+
 				        .build();
 
 				auto     pixels    = r.image_layers[ layer ].pixels;
@@ -125,13 +126,13 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 // ----------------------------------------------------------------------
 
-static void le_resource_manager_update( le_resource_manager_o* manager, le_rendergraph_o* module ) {
+static void le_resource_manager_update( le_resource_manager_o* manager, le_rendergraph_o* rg ) {
 	using namespace le_renderer;
 
 	// TODO: reload any images if you detect that their source on disk has changed.
 
 	for ( auto& r : manager->resources ) {
-		rendergraph_i.declare_resource( module, r.image_handle, r.image_info );
+		rendergraph_i.declare_resource( rg, r.image_handle, r.image_info );
 	}
 
 	auto renderPassTransfer =
@@ -140,7 +141,7 @@ static void le_resource_manager_update( le_resource_manager_o* manager, le_rende
 	        .setExecuteCallback( manager, execTransferPass ) //
 	    ;
 
-	rendergraph_i.add_renderpass( module, renderPassTransfer );
+	rendergraph_i.add_renderpass( rg, renderPassTransfer );
 }
 
 // ----------------------------------------------------------------------
@@ -172,7 +173,7 @@ static void infer_from_le_format( le::Format const& format, uint32_t* num_channe
 static void le_resource_manager_add_item( le_resource_manager_o*        self,
                                           le_img_resource_handle const* image_handle,
                                           le_resource_info_t const*     image_info,
-                                          char const* const*            image_paths ) {
+                                          char const**                  image_paths ) {
 
 	le_resource_manager_o::resource_item_t item{};
 
