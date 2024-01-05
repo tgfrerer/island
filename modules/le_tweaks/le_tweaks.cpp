@@ -12,6 +12,7 @@
 
 #include <cstring>
 #include <string>
+#include <unordered_map>
 
 // ----------------------------------------------------------------------
 // We use `class` here purely for RAAI, to ensure the destructor
@@ -37,28 +38,55 @@ static FileWatcher aux_source_watcher{};
 
 using CbData = le_tweaks_api::CbData;
 
-static int le_tweaks_add_watch( CbData* cb_data, char const* file_path ) {
+struct tweak_entry_t {
+	CbData* cb_data  = nullptr;
+	int     watch_id = 0;
+};
+
+static auto& fetch_existing_tweaks_per_file() {
+	static std::unordered_map<std::string, tweak_entry_t> existing_tweaks_per_file;
+	return existing_tweaks_per_file;
+}
+
+static int le_tweaks_add_watch( CbData* cb_data ) {
 
 	le_file_watcher_watch_settings watch;
-	watch.filePath           = file_path;
+	watch.filePath           = cb_data->file_path;
 	watch.callback_user_data = cb_data;
 
-	// Only open source file once per translation unit - we ensure this
-	// by storing all callback data in a linked list, and we're
-	// adding to the end of the linked list if we detect that
-	// there's already an element in the list.
-	//
-	// The callback itself is only added once, but will receive its user_data
-	// parameter containing a linked list of all other tweakable watches for
-	// this file.
-	//
-	// If the file triggers a callback, we go through all elements
-	// in the linked list of callback parameters, and apply the values we
-	// parse from the file at the given line numbers per list item.
-	static CbData* has_previous_cb = nullptr;
+	/* We only want to open source files once per-file.
+	 *
+	 * We can do this by adding only one single watch per-file, and chaining any tweaks that apply to a file
+	 * that we are already watching to the first watch entry by way of a linked list.
+	 *
+	 * When a cpp file gets hot-reloaded, we must remove any watches that apply to this file. We do this by
+	 * triggering an explicit destructor on the first watch entry for this file when the library gets unloaded.
+	 *
+	 * This destructor then removes the watch associated with the file. (See le_tweaks_destroy_watch) -
+	 * this gets called via the destructor of CbData if the CbData object has an explicit destructor pointer
+	 * set.
+	 *
+	 */
 
-	if ( nullptr == has_previous_cb ) {
+	tweak_entry_t cb_entry{ cb_data, -1 };
 
+	auto [ tweak, was_inserted ] = fetch_existing_tweaks_per_file().try_emplace( cb_data->file_path, cb_entry );
+
+	if ( was_inserted ) {
+		// A new entry was inserted - we must set its explicit destructor
+		// so that this entry knows to remove its file watcher.
+		//
+		// Only the first entry has an actual file watch associated with it,
+		// subsequent tweaks are just linked to the first entry so that
+		// for each file, all linked entries get evaluated.
+		//
+		LeLog( "le_tweaks" ).info( "+ WATCH: %s", cb_data->file_path );
+
+		cb_data->p_watch_destructor = le_tweaks::le_tweaks_i.destroy_watch;
+		cb_data->next               = nullptr;
+
+		// This callback will get triggered by the file watcher when
+		// our watched source file gets updated:
 		watch.callback_fun = []( const char* path, void* user_data ) -> void {
 			auto cb_data = static_cast<CbData*>( user_data );
 
@@ -145,7 +173,7 @@ static int le_tweaks_add_watch( CbData* cb_data, char const* file_path ) {
 						// Applied tweak.
 						long long   len = strstr( str_start, ")" ) - str_start;
 						std::string s   = { str_start, str_start + len + 1 };
-						logger.info( "Applied tweak at line #%d", current_line_num );
+						logger.info( "> TWEAK %s:%d", cb_data->file_path, current_line_num );
 					}
 
 					// -- Check if there is a next tweak in our linked list of tweaks.
@@ -177,15 +205,27 @@ static int le_tweaks_add_watch( CbData* cb_data, char const* file_path ) {
 			file.close();
 		}; // watch.callback_fun
 
-		has_previous_cb = cb_data;
-
-		return le_file_watcher_api_i->le_file_watcher_i.add_watch( aux_source_watcher, &watch );
+		tweak->second.watch_id = le_file_watcher_api_i->le_file_watcher_i.add_watch( aux_source_watcher, &watch );
 	} else {
-		// Add to linked list instead of adding a new callback for this file.
-		has_previous_cb->next = cb_data;
-		has_previous_cb       = cb_data;
-		return 0;
+
+		// There was already a watch set up for this file - we add this tweak
+		// to the linked list of tweaks that already exist for this file.
+		CbData* p_last = tweak->second.cb_data;
+		while ( p_last->next ) {
+			p_last = p_last->next;
+		}
+		p_last->next = cb_data;
 	}
+
+	// you need to batch watches by file, and count them. once the last watch for a file is gone,
+	// you can remove the file from the list of watchers.
+	//
+	// note that the container of previous watches will be zero if the
+	// tweak library gets reloaded.
+
+	LeLog( "le_tweaks" ).info( "+ TWEAK: %s:%d", cb_data->file_path, cb_data->line_num );
+
+	return tweak->second.watch_id;
 };
 
 // ----------------------------------------------------------------------
@@ -196,9 +236,36 @@ static void le_tweaks_update() {
 
 // ----------------------------------------------------------------------
 
+static void le_tweaks_destroy_watch( CbData* self ) {
+
+	// Try to find a watch for the file path referenced by `self`.
+	auto& tweaks = fetch_existing_tweaks_per_file();
+	auto  it     = tweaks.find( self->file_path );
+
+	if ( it != tweaks.end() ) {
+		// We found an entry - this means that a watch for this file path exists. We must remove the watch.
+		LeLog( "le_tweaks" ).info( "- WATCH: %s", self->file_path );
+		le_file_watcher_api_i->le_file_watcher_i.remove_watch( aux_source_watcher, it->second.watch_id );
+		tweaks.erase( it );
+	}
+
+	// Report that we removed all tweaks for this watched file
+	CbData* list_entry = self;
+
+	do {
+		LeLog( "le_tweaks" ).info( "- TWEAK: %s:%d", list_entry->file_path, list_entry->line_num );
+		list_entry = list_entry->next;
+	} while ( list_entry != nullptr );
+
+	self->next = nullptr;
+}
+
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_tweaks, api ) {
 	auto& le_tweaks_i = static_cast<le_tweaks_api*>( api )->le_tweaks_i;
 
-	le_tweaks_i.update    = le_tweaks_update;
-	le_tweaks_i.add_watch = le_tweaks_add_watch;
+	le_tweaks_i.update        = le_tweaks_update;
+	le_tweaks_i.add_watch     = le_tweaks_add_watch;
+	le_tweaks_i.destroy_watch = le_tweaks_destroy_watch;
 }

@@ -50,17 +50,20 @@ struct le_tweaks_api {
 			uint64_t raw;
 		};
 
-		uint32_t       line_num;
-		Type           type;
-		Data           data;
+		uint32_t    line_num;
+		Type        type;
+		Data        data;
+		char const* file_path;
+
 		struct CbData* next; // linked list.
 
-#define INITIALISER( T, TID )                          \
-	explicit CbData( uint32_t line_num_, TID param ) { \
-	    line_num = line_num_;                          \
-	    data.T   = param;                              \
-	    type     = Type::T;                            \
-	    next     = nullptr;                            \
+#define INITIALISER( T, TID )                                            \
+	explicit CbData( uint32_t line_num_, TID param, const char* path ) { \
+	    line_num  = line_num_;                                           \
+	    data.T    = param;                                               \
+	    type      = Type::T;                                             \
+	    file_path = path;                                                \
+	    next      = nullptr;                                             \
 	}
 
 		INITIALISER( u64, uint64_t )
@@ -72,12 +75,23 @@ struct le_tweaks_api {
 		INITIALISER( b32, bool )
 
 #undef INITIALISER
+
+		void ( *p_watch_destructor )( CbData* self ); // f
+
+		~CbData() {
+			// we call the destructor so that we can clean up any callbacks on file reload
+			// before they get triggered.
+			if ( p_watch_destructor ) {
+				p_watch_destructor( this );
+			}
+		};
 	};
 
 	// clang-format off
 	struct le_tweaks_interface_t {
 		void ( *update    )();
-		int  ( *add_watch )( CbData* cb_data, char const* file_path );
+		int  ( *add_watch )( CbData* cb_data );
+		void (*destroy_watch)(CbData* cb_data);
 	};
 	// clang-format on
 
@@ -99,14 +113,15 @@ static const auto& le_tweaks_i = api->le_tweaks_i;
 
 // ----------------------------------------------------------------------
 
-#	define LE_TWEAK( x )                                                                                           \
-	    []( auto val, uint32_t line, char const* file_path )                                                        \
-	        -> decltype( val )& {                                                                                   \
-	        static le_tweaks_api::CbData cb_data( line, val );                                                      \
-	        static int                   val_watch = le_tweaks_api_i->le_tweaks_i.add_watch( &cb_data, file_path ); \
-	        ( void )val_watch; /* <- this does nothing, only to suppress unused variable warning */                 \
-	        return reinterpret_cast<decltype( val )&>( cb_data.data );                                              \
-	    }( x, __LINE__, __FILE__ )
+#	define LE_TWEAK( x )                                                                                \
+	    []( auto val )                                                                                   \
+	        -> decltype( val )& {                                                                        \
+	        static char const*           file_path = __FILE__;                                           \
+	        static le_tweaks_api::CbData cb_data( __LINE__, val, file_path );                            \
+	        static int                   val_watch = le_tweaks_api_i->le_tweaks_i.add_watch( &cb_data ); \
+	        ( void )val_watch; /* <- this does nothing, only to suppress unused variable warning */      \
+	        return reinterpret_cast<decltype( val )&>( cb_data.data );                                   \
+	    }( x )
 
 // ----------------------------------------------------------------------
 
