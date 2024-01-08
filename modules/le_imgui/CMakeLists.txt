@@ -2,9 +2,15 @@ depends_on_island_module(le_pipeline_builder)
 depends_on_island_module(le_renderer)
 depends_on_island_module(le_ui_event)
 
+
 # n.b. configure_file will replace any cmake variables it finds in the file with their values.    
-configure_file("CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/CMakeLists.txt @ONLY)
-configure_file("imconfig.h" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/imconfig.h COPYONLY)
+if (EXISTS ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/LICENSE.txt)
+	configure_file("CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/CMakeLists.txt @ONLY)
+	configure_file("imconfig.h" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/imconfig.h COPYONLY)
+else()
+	message( FATAL_ERROR "\nImgui git submodule not found. \nHint: Run `git submodule init; git submodule update`; first...")
+
+endif()
 
 add_subdirectory( 3rdparty/imgui )
 
