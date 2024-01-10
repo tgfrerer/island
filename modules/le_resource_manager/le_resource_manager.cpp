@@ -101,8 +101,9 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 		uint32_t layer_index = 0;
 		for ( auto& layer : r.image_layers ) {
 
-			// we can fill in the correct handling for mutiple mip levels later.
+			// We can fill in the correct handling for mutiple mip levels later.
 			// for now, assert that there is exatcly one mip level.
+
 			if ( layer.was_uploaded ) {
 				layer_index++;
 				continue;
@@ -125,7 +126,6 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 				        .setImageH( height )
 				        .setImageW( width )
 				        .setImageD( depth )
-
 				        .build();
 
 				auto     pixels    = layer.pixels;
