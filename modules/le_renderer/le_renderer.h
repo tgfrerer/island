@@ -27,6 +27,9 @@ LE_OPAQUE_HANDLE( le_swapchain_handle );
 #define LE_IMG_RESOURCE( x ) \
 	le_renderer::renderer_i.produce_img_resource_handle( ( x ), 0, 0, 0 )
 
+#define LE_TEXTURE_NAME( x ) \
+	le_renderer::renderer_i.produce_texture_handle( ( x ) )
+
 struct le_shader_binding_table_o;
 
 // clang-format off
@@ -243,14 +246,14 @@ LE_MODULE_LOAD_DEFAULT( le_renderer );
 namespace le_renderer {
 static const auto& api = le_renderer_api_i;
 
-static const auto& renderer_i         = api->le_renderer_i;
-static const auto& renderpass_i       = api->le_renderpass_i;
-static const auto& rendergraph_i      = api->le_rendergraph_i;
-static const auto& encoder_i          = api->le_command_buffer_encoder_i;
-static const auto& encoder_graphics_i = api->le_cbe_graphics_i;
-static const auto& encoder_compute_i  = api->le_cbe_compute_i;
-static const auto& encoder_transfer_i = api->le_cbe_transfer_i;
-static const auto& encoder_rtx_i      = api->le_cbe_rtx_i;
+static const auto& renderer_i              = api->le_renderer_i;
+static const auto& renderpass_i            = api->le_renderpass_i;
+static const auto& rendergraph_i           = api->le_rendergraph_i;
+static const auto& encoder_i               = api->le_command_buffer_encoder_i;
+static const auto& encoder_graphics_i      = api->le_cbe_graphics_i;
+static const auto& encoder_compute_i       = api->le_cbe_compute_i;
+static const auto& encoder_transfer_i      = api->le_cbe_transfer_i;
+static const auto& encoder_rtx_i           = api->le_cbe_rtx_i;
 static const auto& encoder_video_decoder_i = api->le_cbe_video_decoder_i;
 
 static const auto& helpers_i = api->helpers_i;
