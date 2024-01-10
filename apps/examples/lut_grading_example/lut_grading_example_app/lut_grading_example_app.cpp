@@ -20,8 +20,8 @@ struct lut_grading_example_app_o {
 	uint32_t mouse_button_state = 0;   // state of all mouse buttons - this uint32 is used as an array of 32 bools, really.
 
 	LeResourceManager      resource_manager;
-	le_img_resource_handle SRC_IMG_HANDLE;
-	le_img_resource_handle COLOR_LUT_IMG_HANDLE;
+	le_img_resource_handle SRC_IMG_HANDLE       = LE_IMG_RESOURCE( "lut_image" );
+	le_img_resource_handle COLOR_LUT_IMG_HANDLE = LE_IMG_RESOURCE( "source_image" );
 };
 
 // ----------------------------------------------------------------------
@@ -67,12 +67,9 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 	        .setExtent( 64, 64, 64 )
 	        .build();
 
-	app->COLOR_LUT_IMG_HANDLE = le::Renderer::produceImageHandle( "lut_image" ); // LE_IMG_RESOURCE("lut_image");
-	app->SRC_IMG_HANDLE       = le::Renderer::produceImageHandle( "source_image" );
-
 	// Instruct resource manager to load data for images from given path
-	app->resource_manager.add_item( app->COLOR_LUT_IMG_HANDLE, image_info_color_lut_texture, &hald_lut );
-	app->resource_manager.add_item( app->SRC_IMG_HANDLE, le::ImageInfoBuilder().build(), &src_image_path );
+	app->resource_manager.add_item( app->COLOR_LUT_IMG_HANDLE, image_info_color_lut_texture, &hald_lut, true );
+	app->resource_manager.add_item( app->SRC_IMG_HANDLE, le::ImageInfoBuilder().build(), &src_image_path, true );
 
 	return app;
 }
@@ -129,9 +126,6 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	// resource_manager uploads image data to gpu if image has not yet been uploaded.
 	self->resource_manager.update( renderGraph );
 
-	static auto src_image_texture = le::Renderer::produceTextureHandle( "src_image" );
-	static auto lut_image_texture = le::Renderer::produceTextureHandle( "color_lut_image" );
-
 	// Specialise Sampler and ImageView information for 3d lut texture
 	auto lut_tex_info =
 	    le::ImageSamplerInfoBuilder()
@@ -156,8 +150,12 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 
 	static le_img_resource_handle SWAPCHAIN_IMG = self->renderer.getSwapchainResource();
 
+	static auto src_image_texture = LE_TEXTURE_NAME( "src_image_texture" );
+	static auto lut_image_texture = LE_TEXTURE_NAME( "lut_image_texture" );
+
 	// Note that callbacks for renderpasses are given inline here - but
-	// you could just as well pass function pointers instead of lambdas
+	// you could just as well pass function pointers instead of lambdas.
+	//
 	// To see how, look at the other examples.
 	auto renderPassMain =
 	    le::RenderPass( "main" )
@@ -165,7 +163,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	        .sampleTexture( lut_image_texture, lut_tex_info )      // Declare texture name: color lut image
 	        .sampleTexture( src_image_texture, src_imag_tex_info ) // Declare texture name: src image
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-		        auto        app = static_cast<lut_grading_example_app_o*>( user_data );
+	            auto                app = static_cast<lut_grading_example_app_o*>( user_data );
 		        le::GraphicsEncoder encoder{ encoder_ };
 
 		        // Draw main scene
@@ -183,9 +181,6 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 		                        .setSourceFilePath( "./local_resources/shaders/fullscreen.frag" )
 		                        .build() )
 		                .build();
-
-		        static auto src_image_texture = le::Renderer::produceTextureHandle( "src_image" );
-		        static auto lut_image_texture = le::Renderer::produceTextureHandle( "color_lut_image" );
 
 		        encoder
 		            .bindGraphicsPipeline( pipelineLutGradingExample )
