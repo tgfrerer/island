@@ -2,21 +2,34 @@
 #include "le_core.h"
 #include "le_renderer.hpp"
 #include "le_pixels.h"
+#include "le_file_watcher.h"
+#include "le_log.h"
 
 #include <string>
 #include <vector>
 #include <assert.h>
 
+#include <unordered_map>
+
 #include "private/le_renderer/le_resource_handle_t.inl"
+
+static auto logger = le::Log( "resource_manager" );
 
 // ----------------------------------------------------------------------
 
 struct le_resource_manager_o {
 
+	le_file_watcher_o* file_watcher = nullptr;
+
 	struct image_data_layer_t {
-		le_pixels_o* pixels;
-		std::string  path;
-		bool         was_uploaded = false;
+		le_pixels_o*                   pixels;
+		std::string                    path;
+		bool                           was_uploaded     = false;
+		bool                           extents_inferred = false;
+		le_resource_info_t::ImageInfo* image_info; // non-owning
+		int                            watch_id = -1;
+		uint32_t                       width;
+		uint32_t                       height;
 	};
 
 	struct resource_item_t {
@@ -25,11 +38,12 @@ struct le_resource_manager_o {
 		std::vector<image_data_layer_t> image_layers; // must have at least one element
 	};
 
-	std::vector<resource_item_t> resources;
+	std::unordered_map<le_resource_handle, resource_item_t> resources;
 };
 
 // TODO:
 // * add a method to remove resources from the manager
+// * add a method to update resources from within the manager
 
 // ----------------------------------------------------------------------
 static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
@@ -44,7 +58,7 @@ static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
 
 	bool needsTransfer = false;
 
-	for ( auto const& r : manager->resources ) {
+	for ( auto const& [ k, r ] : manager->resources ) {
 
 		bool uses_resource = false;
 
@@ -76,7 +90,7 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 	using namespace le_pixels;
 
-	for ( auto& r : manager->resources ) {
+	for ( auto& [ k, r ] : manager->resources ) {
 
 		uint32_t const num_layers     = uint32_t( r.image_layers.size() );
 		uint32_t const image_width    = r.image_info.image.extent.width;
@@ -84,11 +98,13 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 		uint32_t const image_depth    = r.image_info.image.extent.depth;
 		uint32_t const num_mip_levels = r.image_info.image.mipLevels;
 
-		for ( uint32_t layer = 0; layer != num_layers; layer++ ) {
+		uint32_t layer_index = 0;
+		for ( auto& layer : r.image_layers ) {
 
 			// we can fill in the correct handling for mutiple mip levels later.
 			// for now, assert that there is exatcly one mip level.
-			if ( r.image_layers[ layer ].was_uploaded ) {
+			if ( layer.was_uploaded ) {
+				layer_index++;
 				continue;
 			}
 
@@ -97,48 +113,53 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 			for ( uint32_t mip_level = 0; mip_level != 1; mip_level++ ) {
 
 				assert( mip_level == 0 && "mip level greater than 0 not implemented" );
-				uint32_t width  = image_width >> mip_level;
-				uint32_t height = image_height >> mip_level;
+				uint32_t width  = layer.extents_inferred ? ( layer.width >> mip_level ) : ( image_width >> mip_level );
+				uint32_t height = layer.extents_inferred ? ( layer.height >> mip_level ) : ( image_height >> mip_level );
 				uint32_t depth  = image_depth;
 
 				le_write_to_image_settings_t write_info =
 				    le::WriteToImageSettingsBuilder()
 				        .setDstMiplevel( mip_level )
 				        .setNumMiplevels( num_mip_levels )
-				        .setArrayLayer( layer ) // faces are indexed: +x, -x, +y, -y, +z, -z
+				        .setArrayLayer( layer_index ) // faces are indexed: +x, -x, +y, -y, +z, -z
 				        .setImageH( height )
 				        .setImageW( width )
 				        .setImageD( depth )
 
 				        .build();
 
-				auto     pixels    = r.image_layers[ layer ].pixels;
+				auto     pixels    = layer.pixels;
 				auto     info      = le_pixels_i.get_info( pixels );
 				uint32_t num_bytes = info.byte_count; // TODO: make sure to get correct byte count for mip level, or compressed image.
 				void*    bytes     = le_pixels_i.get_data( pixels );
 
 				encoder.writeToImage( r.image_handle, write_info, bytes, num_bytes );
 			}
-			r.image_layers[ layer ].was_uploaded = true;
+			layer.was_uploaded = true;
+			layer_index++;
 		}
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_resource_manager_update( le_resource_manager_o* manager, le_rendergraph_o* rg ) {
+static void le_resource_manager_update( le_resource_manager_o* self, le_rendergraph_o* rg ) {
 	using namespace le_renderer;
 
-	// TODO: reload any images if you detect that their source on disk has changed.
+	// Poll for any files that might have changed on-disk -
+	// this will trigger callbacks for any files which have changed.
+	if ( self->file_watcher ) {
+		le_file_watcher::le_file_watcher_i.poll_notifications( self->file_watcher );
+	}
 
-	for ( auto& r : manager->resources ) {
-		rendergraph_i.declare_resource( rg, r.image_handle, r.image_info );
+	for ( auto& [ k, r ] : self->resources ) {
+		rendergraph_i.declare_resource( rg, k, r.image_info );
 	}
 
 	auto renderPassTransfer =
 	    le::RenderPass( "xfer_le_resource_manager", le::QueueFlagBits::eTransfer )
-	        .setSetupCallback( manager, setupTransferPass )  // decide whether to go forward
-	        .setExecuteCallback( manager, execTransferPass ) //
+	        .setSetupCallback( self, setupTransferPass )  // decide whether to go forward
+	        .setExecuteCallback( self, execTransferPass ) //
 	    ;
 
 	rendergraph_i.add_renderpass( rg, renderPassTransfer );
@@ -162,8 +183,54 @@ static void infer_from_le_format( le::Format const& format, uint32_t* num_channe
 		*pixels_type  = le_pixels_info::Type::eUInt16;
 		return;
 	default:
+		logger.error( "Unhandled image format" );
 		assert( false && "Unhandled image format." );
 	}
+}
+
+// ----------------------------------------------------------------------
+
+static void update_image_array_layer( le_resource_manager_o::image_data_layer_t& layer_data ) {
+
+	// we must find out the pixels type from image info format
+	uint32_t             num_channels = 0;
+	le_pixels_info::Type pixels_type{};
+
+	infer_from_le_format( layer_data.image_info->format, &num_channels, &pixels_type );
+
+	le_pixels_o* new_pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), num_channels, pixels_type );
+
+	if ( layer_data.pixels && new_pixels ) {
+		le_pixels::le_pixels_i.destroy( layer_data.pixels );
+	}
+
+	if ( new_pixels ) {
+		layer_data.pixels = new_pixels;
+	} else {
+		return;
+	}
+
+	auto info = le_pixels::le_pixels_i.get_info( layer_data.pixels );
+	if ( layer_data.extents_inferred ) {
+		layer_data.image_info->extent.depth  = info.depth;
+		layer_data.image_info->extent.width  = info.width;
+		layer_data.image_info->extent.height = info.height;
+	}
+	layer_data.width  = info.width;
+	layer_data.height = info.height;
+
+	layer_data.image_info->usage |= ( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage );
+
+	layer_data.was_uploaded = false;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_resource_manager_file_watcher_callback( char const* path, void* user_data ) {
+	// we must update the image array layer in question
+	auto layer = static_cast<le_resource_manager_o::image_data_layer_t*>( user_data );
+	logger.info( "Reloading file: %s", path );
+	update_image_array_layer( *layer );
 }
 
 // ----------------------------------------------------------------------
@@ -173,58 +240,67 @@ static void infer_from_le_format( le::Format const& format, uint32_t* num_channe
 static void le_resource_manager_add_item( le_resource_manager_o*        self,
                                           le_img_resource_handle const* image_handle,
                                           le_resource_info_t const*     image_info,
-                                          char const**                  image_paths ) {
+                                          char const**                  image_paths,
+                                          bool                          should_watch ) {
 
-	le_resource_manager_o::resource_item_t item{};
+    auto [ it, was_emplaced ] = self->resources.emplace( *image_handle, le_resource_manager_o::resource_item_t{} );
 
-	item.image_handle = *image_handle;
-	item.image_info   = *image_info;
-	item.image_layers.reserve( image_info->image.arrayLayers );
+	if ( was_emplaced ) {
+		auto& item = it->second;
 
-	bool extents_inferred = false;
-	if ( item.image_info.image.extent.width == 0 ||
-	     item.image_info.image.extent.height == 0 ||
-	     item.image_info.image.extent.depth == 0 ) {
-		extents_inferred = true;
-	}
+		item.image_handle = *image_handle;
+		item.image_info   = *image_info;
+		item.image_layers.resize( image_info->image.arrayLayers );
 
-	for ( size_t i = 0; i != item.image_info.image.arrayLayers; ++i ) {
-		le_resource_manager_o::image_data_layer_t layer_data{};
-		layer_data.path         = std::string{ image_paths[ i ] };
-		layer_data.was_uploaded = false;
-
-		// we must find out the pixels type from image info format
-		uint32_t             num_channels = 0;
-		le_pixels_info::Type pixels_type{};
-
-		infer_from_le_format( item.image_info.image.format, &num_channels, &pixels_type );
-
-		layer_data.pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), num_channels, pixels_type );
-
-		if ( extents_inferred ) {
-			auto info                           = le_pixels::le_pixels_i.get_info( layer_data.pixels );
-			item.image_info.image.extent.depth  = std::max( item.image_info.image.extent.depth, info.depth );
-			item.image_info.image.extent.width  = std::max( item.image_info.image.extent.width, info.width );
-			item.image_info.image.extent.height = std::max( item.image_info.image.extent.height, info.height );
+		bool extents_inferred = false;
+		if ( item.image_info.image.extent.width == 0 ||
+		     item.image_info.image.extent.height == 0 ||
+		     item.image_info.image.extent.depth == 0 ) {
+			extents_inferred = true;
 		}
 
-		item.image_layers.emplace_back( layer_data );
+		{
+			int i = 0;
+			for ( auto& l : item.image_layers ) {
+				l.path             = image_paths[ i ];
+				l.was_uploaded     = false;
+				l.image_info       = &item.image_info.image;
+				l.extents_inferred = extents_inferred;
+
+				update_image_array_layer( l );
+				i++;
+			}
+		}
+
+		if ( should_watch ) {
+			if ( nullptr == self->file_watcher ) {
+				self->file_watcher = le_file_watcher::le_file_watcher_i.create();
+			}
+			for ( auto& l : item.image_layers ) {
+				le_file_watcher_watch_settings watch_settings{};
+				watch_settings.filePath           = l.path.c_str();
+				watch_settings.callback_fun       = le_core_forward_callback( le_resource_manager::api->le_resource_manager_private_i.file_watcher_callback );
+				watch_settings.callback_user_data = &l;
+				l.watch_id                        = le_file_watcher::le_file_watcher_i.add_watch( self->file_watcher, &watch_settings );
+			}
+		}
+
+		assert( item.image_info.image.extent.width != 0 &&
+		        item.image_info.image.extent.height != 0 &&
+		        item.image_info.image.extent.depth != 0 &&
+		        "Image extents for resource are not valid." );
+	} else {
+		logger.error( "Resource '%s' added more than once.", ( *image_handle )->data->debug_name );
 	}
 
-	item.image_info.image.usage = le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage;
-
-	assert( item.image_info.image.extent.width != 0 &&
-	        item.image_info.image.extent.height != 0 &&
-	        item.image_info.image.extent.depth != 0 &&
-	        "Image extents for resource are not valid." );
-
-	self->resources.emplace_back( item );
+	//	self->resources.emplace_back( item );
 }
 
 // ----------------------------------------------------------------------
 
 static le_resource_manager_o* le_resource_manager_create() {
 	auto self = new le_resource_manager_o{};
+
 	return self;
 }
 
@@ -234,7 +310,11 @@ static void le_resource_manager_destroy( le_resource_manager_o* self ) {
 
 	using namespace le_pixels;
 
-	for ( auto& r : self->resources ) {
+	if ( self->file_watcher ) {
+		le_file_watcher::le_file_watcher_i.destroy( self->file_watcher );
+	}
+
+	for ( auto& [ k, r ] : self->resources ) {
 		for ( auto& l : r.image_layers ) {
 			if ( l.pixels ) {
 				le_pixels_i.destroy( l.pixels );
@@ -248,10 +328,13 @@ static void le_resource_manager_destroy( le_resource_manager_o* self ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
-	auto& le_resource_manager_i = static_cast<le_resource_manager_api*>( api )->le_resource_manager_i;
+	auto& le_resource_manager_i         = static_cast<le_resource_manager_api*>( api )->le_resource_manager_i;
+	auto& le_resource_manager_private_i = static_cast<le_resource_manager_api*>( api )->le_resource_manager_private_i;
 
 	le_resource_manager_i.create   = le_resource_manager_create;
 	le_resource_manager_i.destroy  = le_resource_manager_destroy;
 	le_resource_manager_i.update   = le_resource_manager_update;
 	le_resource_manager_i.add_item = le_resource_manager_add_item;
+
+	le_resource_manager_private_i.file_watcher_callback = le_resource_manager_file_watcher_callback;
 }

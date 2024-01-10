@@ -1,6 +1,8 @@
 # list modules this module depends on
 depends_on_island_module(le_renderer)
 depends_on_island_module(le_pixels)
+depends_on_island_module(le_file_watcher)
+depends_on_island_module(le_log)
 
 set (TARGET le_resource_manager)
 
