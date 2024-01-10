@@ -16,6 +16,10 @@
 static auto logger = le::Log( "resource_manager" );
 
 // ----------------------------------------------------------------------
+// TODO:
+// * add a method to remove resources from the manager
+// * add a method to update resources from within the manager
+// ----------------------------------------------------------------------
 
 struct le_resource_manager_o {
 
@@ -41,11 +45,8 @@ struct le_resource_manager_o {
 	std::unordered_map<le_resource_handle, resource_item_t> resources;
 };
 
-// TODO:
-// * add a method to remove resources from the manager
-// * add a method to update resources from within the manager
-
 // ----------------------------------------------------------------------
+
 static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
 	le::RenderPass rp{ pRp };
 	auto           manager = static_cast<le_resource_manager_o const*>( user_data );
@@ -79,6 +80,7 @@ static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
 }
 
 // ----------------------------------------------------------------------
+
 static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_data ) {
 	le::TransferEncoder encoder{ pEncoder };
 	auto                manager = static_cast<le_resource_manager_o*>( user_data );
@@ -139,30 +141,6 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 			layer_index++;
 		}
 	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_resource_manager_update( le_resource_manager_o* self, le_rendergraph_o* rg ) {
-	using namespace le_renderer;
-
-	// Poll for any files that might have changed on-disk -
-	// this will trigger callbacks for any files which have changed.
-	if ( self->file_watcher ) {
-		le_file_watcher::le_file_watcher_i.poll_notifications( self->file_watcher );
-	}
-
-	for ( auto& [ k, r ] : self->resources ) {
-		rendergraph_i.declare_resource( rg, k, r.image_info );
-	}
-
-	auto renderPassTransfer =
-	    le::RenderPass( "xfer_le_resource_manager", le::QueueFlagBits::eTransfer )
-	        .setSetupCallback( self, setupTransferPass )  // decide whether to go forward
-	        .setExecuteCallback( self, execTransferPass ) //
-	    ;
-
-	rendergraph_i.add_renderpass( rg, renderPassTransfer );
 }
 
 // ----------------------------------------------------------------------
@@ -234,6 +212,59 @@ static void le_resource_manager_file_watcher_callback( char const* path, void* u
 }
 
 // ----------------------------------------------------------------------
+
+static le_resource_manager_o* le_resource_manager_create() {
+	auto self = new le_resource_manager_o{};
+
+	return self;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_resource_manager_destroy( le_resource_manager_o* self ) {
+
+	using namespace le_pixels;
+
+	if ( self->file_watcher ) {
+		le_file_watcher::le_file_watcher_i.destroy( self->file_watcher );
+	}
+
+	for ( auto& [ k, r ] : self->resources ) {
+		for ( auto& l : r.image_layers ) {
+			if ( l.pixels ) {
+				le_pixels_i.destroy( l.pixels );
+				l.pixels = nullptr;
+			}
+		}
+	}
+	delete ( self );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_resource_manager_update( le_resource_manager_o* self, le_rendergraph_o* rg ) {
+	using namespace le_renderer;
+
+	// Poll for any files that might have changed on-disk -
+	// this will trigger callbacks for any files which have changed.
+	if ( self->file_watcher ) {
+		le_file_watcher::le_file_watcher_i.poll_notifications( self->file_watcher );
+	}
+
+	for ( auto& [ k, r ] : self->resources ) {
+		rendergraph_i.declare_resource( rg, k, r.image_info );
+	}
+
+	auto renderPassTransfer =
+	    le::RenderPass( "xfer_le_resource_manager", le::QueueFlagBits::eTransfer )
+	        .setSetupCallback( self, setupTransferPass )  // decide whether to go forward
+	        .setExecuteCallback( self, execTransferPass ) //
+	    ;
+
+	rendergraph_i.add_renderpass( rg, renderPassTransfer );
+}
+
+// ----------------------------------------------------------------------
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
 // Most meta-data about the image file is loaded via image_info
@@ -290,39 +321,8 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 		        item.image_info.image.extent.depth != 0 &&
 		        "Image extents for resource are not valid." );
 	} else {
-		logger.error( "Resource '%s' added more than once.", ( *image_handle )->data->debug_name );
+		logger.error( "Resource '%s' was added more than once.", ( *image_handle )->data->debug_name );
 	}
-
-	//	self->resources.emplace_back( item );
-}
-
-// ----------------------------------------------------------------------
-
-static le_resource_manager_o* le_resource_manager_create() {
-	auto self = new le_resource_manager_o{};
-
-	return self;
-}
-
-// ----------------------------------------------------------------------
-
-static void le_resource_manager_destroy( le_resource_manager_o* self ) {
-
-	using namespace le_pixels;
-
-	if ( self->file_watcher ) {
-		le_file_watcher::le_file_watcher_i.destroy( self->file_watcher );
-	}
-
-	for ( auto& [ k, r ] : self->resources ) {
-		for ( auto& l : r.image_layers ) {
-			if ( l.pixels ) {
-				le_pixels_i.destroy( l.pixels );
-				l.pixels = nullptr;
-			}
-		}
-	}
-	delete ( self );
 }
 
 // ----------------------------------------------------------------------
