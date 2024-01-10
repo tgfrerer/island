@@ -20,8 +20,8 @@ struct lut_grading_example_app_o {
 	uint32_t mouse_button_state = 0;   // state of all mouse buttons - this uint32 is used as an array of 32 bools, really.
 
 	LeResourceManager      resource_manager;
-	le_img_resource_handle SRC_IMG_HANDLE       = LE_IMG_RESOURCE( "lut_image" );
-	le_img_resource_handle COLOR_LUT_IMG_HANDLE = LE_IMG_RESOURCE( "source_image" );
+	le_img_resource_handle SRC_IMG_HANDLE       = LE_IMG_RESOURCE( "source_image" );
+	le_img_resource_handle COLOR_LUT_IMG_HANDLE = LE_IMG_RESOURCE( "lut_image" );
 };
 
 // ----------------------------------------------------------------------
