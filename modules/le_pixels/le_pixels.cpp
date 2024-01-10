@@ -108,9 +108,9 @@ static le_pixels_o* le_pixels_create( image_source_info_t const& info ) {
 	if ( !self->image_data ) {
 
 		if ( info.type == image_source_info_t::Type::eFile ) {
-			logger.error("ERROR: Could not load image from file: '%s'", info.data.as_file.file_path );
+			logger.warn( "Could not load image from file: '%s'", info.data.as_file.file_path );
 		} else {
-			logger.error( "ERROR: Could not load image from buffer at address: %p", info.data.as_buffer.buffer );
+			logger.error( "Could not load image from buffer at address: %p", info.data.as_buffer.buffer );
 		}
 
 		// If we didn't manage to load an image, this object is invalid,
