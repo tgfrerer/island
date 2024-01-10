@@ -327,14 +327,47 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 
 // ----------------------------------------------------------------------
 
+static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img_resource_handle const* resource_handle ) {
+
+	auto it = self->resources.find( *resource_handle );
+
+	if ( it == self->resources.end() ) {
+		logger.warn( "Could not remove resource. Resource '%s' not found.", ( *resource_handle )->data->debug_name );
+		return false;
+	}
+
+	// ----------| Invariant: Resource was found
+
+	auto [ k, r ] = *it;
+
+	for ( auto& l : r.image_layers ) {
+
+		if ( l.watch_id != -1 ) {
+			le_file_watcher::le_file_watcher_i.remove_watch( self->file_watcher, l.watch_id );
+			l.watch_id = -1;
+		}
+		if ( l.pixels ) {
+			le_pixels::le_pixels_i.destroy( l.pixels );
+			l.pixels = nullptr;
+		}
+	}
+
+	self->resources.erase( it );
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
 	auto& le_resource_manager_i         = static_cast<le_resource_manager_api*>( api )->le_resource_manager_i;
 	auto& le_resource_manager_private_i = static_cast<le_resource_manager_api*>( api )->le_resource_manager_private_i;
 
-	le_resource_manager_i.create   = le_resource_manager_create;
-	le_resource_manager_i.destroy  = le_resource_manager_destroy;
-	le_resource_manager_i.update   = le_resource_manager_update;
-	le_resource_manager_i.add_item = le_resource_manager_add_item;
+	le_resource_manager_i.create      = le_resource_manager_create;
+	le_resource_manager_i.destroy     = le_resource_manager_destroy;
+	le_resource_manager_i.update      = le_resource_manager_update;
+	le_resource_manager_i.add_item    = le_resource_manager_add_item;
+	le_resource_manager_i.remove_item = le_resource_manager_remove_item;
 
 	le_resource_manager_private_i.file_watcher_callback = le_resource_manager_file_watcher_callback;
 }

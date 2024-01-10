@@ -113,7 +113,7 @@ struct le_resource_manager_api {
 		void                     ( * destroy   ) ( le_resource_manager_o* self );
 		void                     ( * update    ) ( le_resource_manager_o* self, le_rendergraph_o* rendergraph);
 		void                     ( * add_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle, le_resource_info_t const * image_info, char const ** arr_image_paths, bool should_watch);
-
+		bool 					 ( * remove_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle);
 
 	};
 
@@ -155,6 +155,10 @@ class LeResourceManager : NoCopy, NoMove {
 
 	void add_item( le_img_resource_handle const& image_handle, le_resource_info_t const& image_info, char const** arr_image_paths, bool should_watch = false ) {
 		le_resource_manager::le_resource_manager_i.add_item( self, &image_handle, &image_info, arr_image_paths, should_watch );
+	}
+
+	bool remove_item( le_img_resource_handle const& image_handle ) {
+		return le_resource_manager::le_resource_manager_i.remove_item( self, &image_handle );
 	}
 
 	operator auto() {
