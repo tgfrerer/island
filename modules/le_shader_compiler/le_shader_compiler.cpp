@@ -132,7 +132,7 @@ static le_shader_compilation_result_o* le_shader_compilation_result_create() {
 
 // ---------------------------------------------------------------
 
-static void le_shader_compilation_result_detroy( le_shader_compilation_result_o* self ) {
+static void le_shader_compilation_result_destroy( le_shader_compilation_result_o* self ) {
 	if ( self->result != nullptr ) {
 		shaderc_result_release( self->result );
 	}
@@ -622,7 +622,7 @@ LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
 	compiler_i.result_get_bytes    = le_shader_compilation_result_get_result_bytes;
 	compiler_i.result_get_success  = le_shader_compilation_result_get_result_success;
 	compiler_i.result_get_includes = le_shader_compilation_result_get_next_includes_path;
-	compiler_i.result_destroy      = le_shader_compilation_result_detroy;
+	compiler_i.result_destroy      = le_shader_compilation_result_destroy;
 
 #ifdef PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libshaderc_shared.so" );
