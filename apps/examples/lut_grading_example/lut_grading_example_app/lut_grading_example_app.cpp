@@ -3,7 +3,6 @@
 #include "le_window.h"
 #include "le_renderer.hpp"
 #include "le_pipeline_builder.h"
-#include "le_pixels.h" // only needed for static build
 #include "le_resource_manager.h"
 #include "le_ui_event.h"
 
