@@ -23,6 +23,6 @@ layout (set = 0, binding = 0) uniform Mvp
 
 void main(){
 	
-	// outFragColor = vec4(inTexCoord, 0, 1);
+	// outFragColor = vec4(inData.texCoord, 0, 1);
 	outFragColor = inData.vertexColor;
 }
