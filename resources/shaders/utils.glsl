@@ -133,3 +133,21 @@ vec4 colorFromHexRGBA(in uint hexVal ){
 	GEN_MAP(vec3)  // maps vec3  type
 	GEN_MAP(vec4)  // maps vec4  type
 #undef GEN_MAP
+
+
+// Constant thickness grid lines 
+// -- uses a technique described by Evan Wallace in: https://www.madebyevan.com/shaders/grid/
+// License: CC0 (http://creativecommons.org/publicdomain/zero/1.0/)
+float get_grid(in const vec2 coord, in const float line_thickness){
+	vec2 grid = abs(fract(coord)-0.5) / (fwidth(coord) * line_thickness);
+	float line = min(grid.x, grid.y);
+	return line;
+}
+
+// Constant thickness lines 
+// -- uses a technique described by Evan Wallace in: https://www.madebyevan.com/shaders/grid/
+// License: CC0 (http://creativecommons.org/publicdomain/zero/1.0/)
+float get_lines(in const float coord, in const float line_thickness){
+	float line = abs(fract(coord)-0.5) / (fwidth(coord)*line_thickness);
+	return line;
+}
