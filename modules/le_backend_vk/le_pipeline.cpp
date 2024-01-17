@@ -54,9 +54,9 @@ struct le_shader_module_o {
 	le::ShaderStageFlagBits                        stage                     = {};
 	uint64_t                                       push_constant_buffer_size = 0; ///< number of bytes for push constant buffer, zero indicates no push constant buffer in use.
 	le::ShaderSourceLanguage                       source_language           = le::ShaderSourceLanguage::eDefault;
-	specialization_map_info_t                      specialization_map_info;       ///< information concerning specialization constants for this shader stage
+	specialization_map_info_t                      specialization_map_info; ///< information concerning specialization constants for this shader stage
 
-	enum class ImmutableSamplerRequestedValue : uint64_t                          ///<  sentinel values used to signal that an immutable binding needs to be filled wit a special sampler
+	enum class ImmutableSamplerRequestedValue : uint64_t ///<  sentinel values used to signal that an immutable binding needs to be filled wit a special sampler
 	{
 		eNone  = 0,
 		eYcBcR = hash_64_fnv1a_const( TEXTURE_NAME_YCBCR_REQUEST_STRING ),
@@ -1252,6 +1252,130 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 
 	self->shaderModules.clear();
 	delete self;
+}
+// ----------------------------------------------------------------------
+/// \brief create vulkan shader module based on file path
+/// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
+/// ideally, this method is only allowed to be called in the setup phase.
+///
+static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv(
+    le_shader_manager_o*              self,
+    uint32_t const*                   spirv_code,
+    uint32_t                          spirv_code_length,
+    const LeShaderSourceLanguageEnum& shader_source_language,
+    const le::ShaderStage&            moduleType,
+    le_shader_module_handle           handle,
+    VkSpecializationMapEntry const*   specialization_map_entries,
+    uint32_t                          specialization_map_entries_count,
+    void*                             specialization_map_data,
+    uint32_t                          specialization_map_data_num_bytes ) {
+
+    static auto logger = LeLog( LOGGER_LABEL );
+
+    // We use the canonical path to store a fingerprint of the file
+
+	// We include specialization data into hash calculation for this module, because specialization data
+	// is stored with the module, and therefore it contributes to the module's phenotype.
+	//
+	uint64_t hash_specialization_constants = 0;
+
+	if ( specialization_map_entries_count != 0 ) {
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_data, specialization_map_data_num_bytes, hash_specialization_constants );
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( VkSpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
+	}
+
+	uint64_t hash_input_parameters = SpookyHash::Hash64( spirv_code, spirv_code_length * sizeof( uint32_t ), hash_specialization_constants );
+
+	// If no explicit handle is given, we create one by hashing
+	// input parameters.
+	//
+	// We do this so that the same input parameters give us the same handle,
+	// this means that if the shader source changes, we can update the corresponding
+	// module.
+	//
+	// If an explicit handle is given, then we will attempt to update the module
+	// regardless of whether input parameters have changed. This can make sense for
+	// engine-internal shaders, such as imgui shaders, for which we know that there
+	// will only ever be one unique module per shader source and usage.
+	if ( handle == nullptr ) {
+		handle = reinterpret_cast<le_shader_module_handle>( hash_input_parameters );
+	}
+
+	// ---------| invariant: load was successful
+
+	// -- Make sure the file contains spir-v code.
+
+	le_shader_module_o module{};
+	module.stage               = moduleType;
+	module.filepath            = "";
+	module.macro_defines       = "";
+	module.hash_shader_defines = 0;
+
+	module.hash = hash_input_parameters;
+	module.spirv.assign( spirv_code, spirv_code + spirv_code_length );
+	module.source_language = shader_source_language;
+	module.specialization_map_info.data.assign(
+	    static_cast<char*>( specialization_map_data ),
+	    static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
+	module.specialization_map_info.entries.assign(
+	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ),
+	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
+
+	le_shader_module_o* cached_module = self->shaderModules.try_find( handle );
+
+	if ( cached_module && cached_module->hash == module.hash ) {
+		// A module with the same handle already exists, and the cached
+		// version has the same hash as our new version: no more work to do.
+		logger.info( "Found cached shader module for binary shader '%x'.", handle );
+		return handle;
+	}
+
+	//----------| Invariant: there is either no old module, or the old module does not match our new module.
+
+	shader_module_update_reflection( &module );
+
+	if ( false == shader_module_check_bindings_valid( module.bindings.data(), module.bindings.size() ) ) {
+		// we must clean up, and report an error
+		logger.error( "Shader module reports invalid bindings" );
+		assert( false );
+		return nullptr;
+	}
+	// ----------| invariant: bindings sanity check passed
+
+	VkShaderModuleCreateInfo createInfo = {
+	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+	    .pNext    = nullptr, // optional
+	    .flags    = 0,       // optional
+	    .codeSize = module.spirv.size() * sizeof( uint32_t ),
+	    .pCode    = module.spirv.data(),
+	};
+
+	vkCreateShaderModule( self->device, &createInfo, nullptr, &module.module );
+	logger.info( "Vk shader module created %p", module.module );
+
+	if ( cached_module == nullptr ) {
+		// there is no prior module - let's create a module and try to retain it in shader manager
+		bool insert_successful = self->shaderModules.try_insert( handle, &module );
+		if ( !insert_successful ) {
+			logger.error( "Could not retain shader module" );
+			vkDestroyShaderModule( self->device, module.module, nullptr );
+			logger.debug( "Vk shader module destroyed %p", module.module );
+			return nullptr;
+		}
+	} else {
+
+		le_pipeline_cache_remove_module_from_dependencies( self, handle );
+
+		// -- invariant: the old module has a different hash than our new module.
+		// we must swap the two ...
+		auto old_module = *cached_module;
+		*cached_module  = module;
+		// ... and delete the old module
+		vkDestroyShaderModule( self->device, old_module.module, nullptr );
+		logger.debug( "Vk shader module destroyed %p", old_module.module );
+	}
+
+	return handle;
 }
 
 // ----------------------------------------------------------------------
@@ -2570,6 +2694,28 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module(
 	    specialization_map_data_num_bytes );
 }
 
+static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spirv(
+    le_pipeline_manager_o*          self,
+    uint32_t const*                 spirv_code,
+    uint32_t                        spirv_code_length,
+    const le::ShaderStage&          moduleType,
+    le_shader_module_handle         handle,
+    VkSpecializationMapEntry const* specialization_map_entries,
+    uint32_t                        specialization_map_entries_count,
+    void*                           specialization_map_data,
+    uint32_t                        specialization_map_data_num_bytes ) {
+    return le_shader_manager_create_shader_module_from_spirv(
+        self->shaderManager,
+        spirv_code,
+        spirv_code_length,
+        moduleType,
+        handle,
+        specialization_map_entries,
+        specialization_map_entries_count,
+        specialization_map_data,
+        specialization_map_data_num_bytes );
+}
+
 // ----------------------------------------------------------------------
 
 static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o* self ) {
@@ -2685,6 +2831,7 @@ void register_le_pipeline_vk_api( void* api_ ) {
 		i.destroy = le_pipeline_manager_destroy;
 
 		i.create_shader_module              = le_pipeline_manager_create_shader_module;
+		i.create_shader_module_from_spirv   = le_pipeline_manager_create_shader_module_from_spirv;
 		i.update_shader_modules             = le_pipeline_manager_update_shader_modules;
 		i.introduce_graphics_pipeline_state = le_pipeline_manager_introduce_graphics_pipeline_state;
 		i.introduce_compute_pipeline_state  = le_pipeline_manager_introduce_compute_pipeline_state;

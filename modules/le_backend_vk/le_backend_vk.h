@@ -87,7 +87,6 @@ struct BuildAccelerationStructureFlagsKHR;
 struct LeShaderSourceLanguageEnum;
 // enum class LeResourceType : uint8_t;
 
-
 struct le_resource_info_t;
 
 struct le_backend_vk_settings_o; // global settings for backend singleton
@@ -109,9 +108,9 @@ struct le_backend_vk_api {
 
 	struct backend_vk_settings_interface_t // global settings for backend - must be set before backend setup- after that, settings are read-only.
 	{
-		bool ( *add_required_device_extension )( char const* ext );                           // returns true if successfully added - returns false if setting was already present
-		bool ( *add_required_instance_extension )( char const* ext );                         // -"-
-		VkPhysicalDeviceFeatures2* ( *get_physical_device_features_chain )();                 // read-write - only write before you initialise the backend.
+		bool ( *add_required_device_extension )( char const* ext );           // returns true if successfully added - returns false if setting was already present
+		bool ( *add_required_instance_extension )( char const* ext );         // -"-
+		VkPhysicalDeviceFeatures2* ( *get_physical_device_features_chain )(); // read-write - only write before you initialise the backend.
 
 		void ( *set_concurrency_count )( uint32_t concurrency_count );
 		bool ( *set_data_frames_count )( uint32_t data_frames_count );
@@ -261,6 +260,7 @@ struct le_backend_vk_api {
 		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle cpsoHandle);
 
 		le_shader_module_handle                  ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const le::ShaderStageFlagBits& moduleType, char const *macro_definitions, le_shader_module_handle handle, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
+		le_shader_module_handle                  ( *create_shader_module_from_spirv   ) ( le_pipeline_manager_o* self, uint32_t const * spirv_code, uint32_t spirv_code_length, const le::ShaderStageFlagBits& moduleType, le_shader_module_handle handle, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 
         bool                                     ( *graphics_pipeline_add_shader_stage )(le_pipeline_manager_o* self, le_gpso_handle gpsoHandle, le_shader_module_handle shader_stage);

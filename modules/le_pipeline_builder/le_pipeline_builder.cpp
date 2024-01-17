@@ -76,27 +76,59 @@ struct le_rtx_pipeline_builder_o {
 // ----------------------------------------------------------------------
 
 struct le_shader_module_builder_o {
-	le_pipeline_manager_o*                pipeline_manager       = nullptr;
-	std::string                           source_file_path       = {};
-	std::string                           source_defines_string  = {};
-	le::ShaderStage                       shader_stage           = le::ShaderStage{};
-	le::ShaderSourceLanguage              shader_source_language = le::ShaderSourceLanguage::eDefault;
-	le_shader_module_handle               previous_handle        = nullptr;
+	le_pipeline_manager_o* pipeline_manager = nullptr;
+	le::ShaderStage        shader_stage     = le::ShaderStage{};
+
+	enum shader_module_builder_type_t {
+		eUndefined  = 0,
+		eFromSource = 1,
+		eFromSpirV  = 2,
+	} type = eUndefined;
+
+	// Only used when builder type is eFromSource
+	std::string              source_file_path       = {};
+	std::string              source_defines_string  = {};
+	le::ShaderSourceLanguage shader_source_language = le::ShaderSourceLanguage::eDefault;
+
+	// Only used in case builder type is eFromSpirV
+	uint32_t* spirv_code;        // non-owning
+	uint32_t  spirv_code_length; // number of uint32_t elements in spirv_code array
+
+	le_shader_module_handle               previous_handle = nullptr;
 	std::map<uint32_t, std::vector<char>> specialisation_map;
 };
+
+inline bool set_type( le_shader_module_builder_o* self, le_shader_module_builder_o::shader_module_builder_type_t type ) {
+	if ( self->type == le_shader_module_builder_o::eUndefined ) {
+		self->type = type;
+	}
+	return self->type == type;
+}
+
 static le_shader_module_builder_o* le_shader_module_builder_create( le_pipeline_manager_o* pipeline_cache ) {
 	auto self              = new le_shader_module_builder_o{};
 	self->pipeline_manager = pipeline_cache;
+	self->type             = le_shader_module_builder_o::eFromSource;
 	return self;
 }
 static void le_shader_module_builder_destroy( le_shader_module_builder_o* self ) {
 	delete self;
 }
 static void le_shader_module_builder_set_source_file_path( le_shader_module_builder_o* self, char const* source_file_path ) {
-	self->source_file_path = source_file_path;
+	if ( set_type( self, le_shader_module_builder_o::eFromSource ) ) {
+		self->source_file_path = source_file_path;
+	} else {
+		static auto logger = LeLog( LOGGER_LABEL );
+		logger.error( "Cannot set shader module to compile from source as it was set to use spir-v previously." );
+	}
 }
 static void le_shader_module_builder_set_source_defines_string( le_shader_module_builder_o* self, char const* source_defines_string ) {
-	self->source_defines_string = source_defines_string;
+	if ( set_type( self, le_shader_module_builder_o::eFromSource ) ) {
+		self->source_defines_string = source_defines_string;
+	} else {
+		static auto logger = LeLog( LOGGER_LABEL );
+		logger.error( "Cannot set source defines for a shader module that is not compiled from source. \n(Consider using specialization constants if you want precompiled shader code, yet still to be able to set shader constants at runtime.)" );
+	}
 }
 static void le_shader_module_builder_set_shader_stage( le_shader_module_builder_o* self, le::ShaderStage const& shader_stage ) {
 	self->shader_stage = shader_stage;
@@ -114,6 +146,7 @@ static void le_shader_module_builder_set_specialization_constant( le_shader_modu
 }
 static le_shader_module_handle le_shader_module_builder_build( le_shader_module_builder_o* self ) {
 	using namespace le_backend_vk;
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	// We must flatten specialization constant data and entries, if any.
 
@@ -131,17 +164,37 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 		sp_data.insert( sp_data.end(), e.second.begin(), e.second.end() );
 	}
 
-	return le_pipeline_manager_i.create_shader_module(
-	    self->pipeline_manager,
-	    self->source_file_path.c_str(),
-	    { self->shader_source_language },
-	    { self->shader_stage },
-	    self->source_defines_string.c_str(),
-	    self->previous_handle,
-	    sp_info.data(),
-	    sp_info.size(),
-	    sp_data.data(),
-	    sp_data.size() );
+	// call the correct builder function based on type
+
+	switch ( self->type ) {
+	case le_shader_module_builder_o::eFromSource:
+		return le_pipeline_manager_i.create_shader_module(
+		    self->pipeline_manager,
+		    self->source_file_path.c_str(),
+		    { self->shader_source_language },
+		    { self->shader_stage },
+		    self->source_defines_string.c_str(),
+		    self->previous_handle,
+		    sp_info.data(),
+		    sp_info.size(),
+		    sp_data.data(),
+		    sp_data.size() );
+	case le_shader_module_builder_o::eFromSpirV:
+		return le_pipeline_manager_i.create_shader_module_from_spirv(
+		    self->pipeline_manager,
+		    self->source_file_path.c_str(),
+		    { self->shader_source_language },
+		    { self->shader_stage },
+		    self->source_defines_string.c_str(),
+		    self->previous_handle,
+		    sp_info.data(),
+		    sp_info.size(),
+		    sp_data.data(),
+		    sp_data.size() );
+	default:
+		logger.error( "Could not generate shader module - shader module type not set." );
+		return nullptr;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -860,7 +913,7 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 	}
 
 	{
-		// setup compute pipleine builder api
+		// setup compute pipeline builder api
 		auto& i            = static_cast<le_pipeline_builder_api*>( api )->le_compute_pipeline_builder_i;
 		i.create           = le_compute_pipeline_builder_create;
 		i.destroy          = le_compute_pipeline_builder_destroy;
@@ -869,7 +922,7 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 	}
 
 	{
-		// setup rtx pipleine builder api
+		// setup rtx pipeline builder api
 		auto& i                           = static_cast<le_pipeline_builder_api*>( api )->le_rtx_pipeline_builder_i;
 		i.create                          = le_rtx_pipeline_builder_create;
 		i.destroy                         = le_rtx_pipeline_builder_destroy;
