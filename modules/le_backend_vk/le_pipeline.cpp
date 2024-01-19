@@ -1259,16 +1259,15 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 /// ideally, this method is only allowed to be called in the setup phase.
 ///
 static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv(
-    le_shader_manager_o*              self,
-    uint32_t const*                   spirv_code,
-    uint32_t                          spirv_code_length,
-    const LeShaderSourceLanguageEnum& shader_source_language,
-    const le::ShaderStage&            moduleType,
-    le_shader_module_handle           handle,
-    VkSpecializationMapEntry const*   specialization_map_entries,
-    uint32_t                          specialization_map_entries_count,
-    void*                             specialization_map_data,
-    uint32_t                          specialization_map_data_num_bytes ) {
+    le_shader_manager_o*            self,
+    uint32_t const*                 spirv_code,
+    uint32_t                        spirv_code_length,
+    const le::ShaderStage&          moduleType,
+    le_shader_module_handle         handle,
+    VkSpecializationMapEntry const* specialization_map_entries,
+    uint32_t                        specialization_map_entries_count,
+    void*                           specialization_map_data,
+    uint32_t                        specialization_map_data_num_bytes ) {
 
     static auto logger = LeLog( LOGGER_LABEL );
 
@@ -1313,7 +1312,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv
 
 	module.hash = hash_input_parameters;
 	module.spirv.assign( spirv_code, spirv_code + spirv_code_length );
-	module.source_language = shader_source_language;
+	module.source_language = le::ShaderSourceLanguage::eSpirv;
 	module.specialization_map_info.data.assign(
 	    static_cast<char*>( specialization_map_data ),
 	    static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );

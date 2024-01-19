@@ -182,10 +182,9 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 	case le_shader_module_builder_o::eFromSpirV:
 		return le_pipeline_manager_i.create_shader_module_from_spirv(
 		    self->pipeline_manager,
-		    self->source_file_path.c_str(),
-		    { self->shader_source_language },
+		    self->spirv_code,
+		    self->spirv_code_length,
 		    { self->shader_stage },
-		    self->source_defines_string.c_str(),
 		    self->previous_handle,
 		    sp_info.data(),
 		    sp_info.size(),
