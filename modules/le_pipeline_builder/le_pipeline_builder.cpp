@@ -91,8 +91,8 @@ struct le_shader_module_builder_o {
 	le::ShaderSourceLanguage shader_source_language = le::ShaderSourceLanguage::eDefault;
 
 	// Only used in case builder type is eFromSpirV
-	uint32_t* spirv_code;        // non-owning
-	uint32_t  spirv_code_length; // number of uint32_t elements in spirv_code array
+	uint32_t const* spirv_code;        // non-owning
+	uint32_t        spirv_code_length; // number of uint32_t elements in spirv_code array
 
 	le_shader_module_handle               previous_handle = nullptr;
 	std::map<uint32_t, std::vector<char>> specialisation_map;
@@ -108,11 +108,20 @@ inline bool set_type( le_shader_module_builder_o* self, le_shader_module_builder
 static le_shader_module_builder_o* le_shader_module_builder_create( le_pipeline_manager_o* pipeline_cache ) {
 	auto self              = new le_shader_module_builder_o{};
 	self->pipeline_manager = pipeline_cache;
-	self->type             = le_shader_module_builder_o::eFromSource;
+	self->type             = le_shader_module_builder_o::eUndefined;
 	return self;
 }
 static void le_shader_module_builder_destroy( le_shader_module_builder_o* self ) {
 	delete self;
+}
+static void le_shader_module_builder_set_spirv_code( le_shader_module_builder_o* self, uint32_t const* spirv_code, uint32_t spirv_code_length ) {
+	if ( set_type( self, le_shader_module_builder_o::eFromSpirV ) ) {
+		self->spirv_code        = spirv_code;
+		self->spirv_code_length = spirv_code_length;
+	} else {
+		static auto logger = LeLog( LOGGER_LABEL );
+		logger.error( "Cannot set shader module to compile from source as it was set to use spir-v previously." );
+	}
 }
 static void le_shader_module_builder_set_source_file_path( le_shader_module_builder_o* self, char const* source_file_path ) {
 	if ( set_type( self, le_shader_module_builder_o::eFromSource ) ) {
@@ -139,11 +148,13 @@ static void le_shader_module_builder_set_source_language( le_shader_module_build
 static void le_shader_module_builder_set_handle( le_shader_module_builder_o* self, le_shader_module_handle previous_handle ) {
 	self->previous_handle = previous_handle;
 }
+
 static void le_shader_module_builder_set_specialization_constant( le_shader_module_builder_o* self, uint32_t id, void const* value, uint32_t size ) {
 	auto& entry = self->specialisation_map[ id ];
 	entry       = std::vector<char>( size );
 	memcpy( entry.data(), value, size );
 }
+
 static le_shader_module_handle le_shader_module_builder_build( le_shader_module_builder_o* self ) {
 	using namespace le_backend_vk;
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -940,6 +951,7 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 		i.destroy                     = le_shader_module_builder_destroy;
 		i.set_source_file_path        = le_shader_module_builder_set_source_file_path;
 		i.set_source_defines_string   = le_shader_module_builder_set_source_defines_string;
+		i.set_spirv_code              = le_shader_module_builder_set_spirv_code;
 		i.set_shader_stage            = le_shader_module_builder_set_shader_stage;
 		i.set_source_language         = le_shader_module_builder_set_source_language;
 		i.set_specialization_constant = le_shader_module_builder_set_specialization_constant;

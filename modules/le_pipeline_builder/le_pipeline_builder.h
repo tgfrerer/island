@@ -181,6 +181,7 @@ struct le_pipeline_builder_api {
         void ( *destroy)                        ( le_shader_module_builder_o* self);
         void ( *set_source_file_path )          ( le_shader_module_builder_o* self, char const * source_file_path);
         void ( *set_source_defines_string )     ( le_shader_module_builder_o* self, char const * source_defines_string);
+        void ( *set_spirv_code )                ( le_shader_module_builder_o* self, uint32_t const * spirv_code, uint32_t spirv_code_length);
         void ( *set_shader_stage )              ( le_shader_module_builder_o* self, le::ShaderStageFlagBits const & shader_stage);
         void ( *set_source_language )           ( le_shader_module_builder_o* self, le::ShaderSourceLanguage const & shader_source_language);
         void ( *set_specialization_constant )   ( le_shader_module_builder_o* self, uint32_t id, void const * data, uint32_t size);
@@ -229,6 +230,11 @@ class LeShaderModuleBuilder : NoCopy, NoMove {
 
 	LeShaderModuleBuilder& setSourceFilePath( char const* source_file_path ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_source_file_path( self, source_file_path );
+		return *this;
+	}
+
+	LeShaderModuleBuilder& setSpirvCode( uint32_t const* spirv_code, uint32_t spirv_code_length ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_spirv_code( self, spirv_code, spirv_code_length );
 		return *this;
 	}
 
