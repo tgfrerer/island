@@ -4977,6 +4977,26 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			le_swapchain_o* new_swapchain = swapchain_i.create_from_old_swapchain( local_swapchain_state.swapchain_data.get_swapchain() );
 			local_swapchain_state.swapchain_data.replace_swapchain( new_swapchain );
 
+			VkSemaphoreCreateInfo const create_info = {
+			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+			    .pNext = nullptr, // optional
+			    .flags = 0,       // optional
+			};
+
+			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
+			    logger.info( "destroying present complete semaphore %x", p->semaphore );
+			    vkDestroySemaphore( device, p->semaphore, nullptr );
+			    delete ( p );
+		    } );
+			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
+
+			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
+			    logger.info( "destroying render complete semaphore %x", p->semaphore );
+			    vkDestroySemaphore( device, p->semaphore, nullptr );
+			    delete ( p );
+		    } );
+			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.renderComplete->semaphore );
+
 			if ( swapchain_i.acquire_next_image( new_swapchain,
 			                                     local_swapchain_state.presentComplete->semaphore,
 			                                     &local_swapchain_state.image_idx ) ) {
