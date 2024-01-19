@@ -207,9 +207,9 @@ LE_MODULE_REGISTER_IMPL( le_module_loader, p_api ) {
 // LINUX: these methods are to audit runtime dyanmic library linking and loading.
 //
 // To enable, start app with environment variable `LD_AUDIT` set to path of
-// lible_module_loader.so:
+// lible_core.so:
 //
-//		EXPORT LD_AUDIT=./modules/lible_module_loader.so
+//		EXPORT LD_AUDIT=./modules/lible_core.so
 
 extern "C" unsigned int
 la_version( unsigned int version ) {

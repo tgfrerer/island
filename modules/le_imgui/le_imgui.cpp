@@ -17,6 +17,14 @@
 #include <algorithm>
 #include <iterator>
 
+namespace {
+// We use an anonymous namespace here because we don't want to export our shader data to other compilation units
+// the code for these files is auto-generated via glslang, and you can recompile from source by issueing
+// `./compile_shaders.sh` in the shaders directory.
+#include "shaders/imgui_frag.h"
+#include "shaders/imgui_vert.h"
+} // namespace
+
 static le_img_resource_handle IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 
 namespace {
@@ -226,13 +234,13 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 		        .addShaderStage(
 		            LeShaderModuleBuilder( pipelineManager )
 		                .setShaderStage( le::ShaderStage::eVertex )
-		                .setSourceFilePath( "./resources/shaders/imgui.vert" )
+		                .setSpirvCode( SPIRV_SOURCE_IMGUI_VERT, sizeof( SPIRV_SOURCE_IMGUI_VERT ) / sizeof( uint32_t ) )
 		                .setHandle( LE_SHADER_MODULE_HANDLE( "imgui_vert_shader" ) )
 		                .build() )
 		        .addShaderStage(
 		            LeShaderModuleBuilder( pipelineManager )
 		                .setShaderStage( le::ShaderStage::eFragment )
-		                .setSourceFilePath( "./resources/shaders/imgui.frag" )
+		                .setSpirvCode( SPIRV_SOURCE_IMGUI_FRAG, sizeof( SPIRV_SOURCE_IMGUI_FRAG ) / sizeof( uint32_t ) )
 		                .setHandle( LE_SHADER_MODULE_HANDLE( "imgui_frag_shader" ) )
 		                .build() )
 		        .withAttributeBindingState()

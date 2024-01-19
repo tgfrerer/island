@@ -25,7 +25,7 @@
 #endif
 #include "GLFW/glfw3native.h"
 
-constexpr size_t EVENT_QUEUE_SIZE = ( 4096 * 4 ) / sizeof( LeUiEvent ); // Allocate a few pages for events
+constexpr size_t EVENT_QUEUE_SIZE                 = ( 4096 * 4 ) / sizeof( LeUiEvent ); // Allocate a few pages for events
 constexpr auto   GAMEPAD_SUBSCRIBERS_SINGLETON_ID = hash_64_fnv1a_const( "le_window_gamepad_subscribers" );
 
 struct le_window_settings_o {
@@ -335,7 +335,6 @@ static void glfw_framebuffer_resize_callback( GLFWwindow* glfwWindow, int width_
 
 	window->mSurfaceExtent.width  = uint32_t( w );
 	window->mSurfaceExtent.height = uint32_t( h );
-
 };
 
 // ----------------------------------------------------------------------
@@ -931,15 +930,15 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_settings_i.set_height          = window_settings_set_height;
 	window_settings_i.set_gamepads_active = window_settings_set_gamepads_active;
 
-	auto& callbacks_i                               = window_api_i->window_callbacks_i;
-	callbacks_i.glfw_key_callback_addr              = ( void* )glfw_window_key_callback;
-	callbacks_i.glfw_char_callback_addr             = ( void* )glfw_window_character_callback;
-	callbacks_i.glfw_cursor_pos_callback_addr       = ( void* )glfw_window_cursor_position_callback;
-	callbacks_i.glfw_cursor_enter_callback_addr     = ( void* )glfw_window_cursor_enter_callback;
-	callbacks_i.glfw_mouse_button_callback_addr     = ( void* )glfw_window_mouse_button_callback;
-	callbacks_i.glfw_scroll_callback_addr           = ( void* )glfw_window_scroll_callback;
-	callbacks_i.glfw_framebuffer_size_callback_addr = ( void* )glfw_framebuffer_resize_callback;
-	callbacks_i.glfw_drop_callback_addr             = ( void* )glfw_window_drop_callback;
+	auto& callbacks_i                                  = window_api_i->window_callbacks_i;
+	callbacks_i.glfw_key_callback_addr                 = ( void* )glfw_window_key_callback;
+	callbacks_i.glfw_char_callback_addr                = ( void* )glfw_window_character_callback;
+	callbacks_i.glfw_cursor_pos_callback_addr          = ( void* )glfw_window_cursor_position_callback;
+	callbacks_i.glfw_cursor_enter_callback_addr        = ( void* )glfw_window_cursor_enter_callback;
+	callbacks_i.glfw_mouse_button_callback_addr        = ( void* )glfw_window_mouse_button_callback;
+	callbacks_i.glfw_scroll_callback_addr              = ( void* )glfw_window_scroll_callback;
+	callbacks_i.glfw_framebuffer_size_callback_addr    = ( void* )glfw_framebuffer_resize_callback;
+	callbacks_i.glfw_drop_callback_addr                = ( void* )glfw_window_drop_callback;
 	callbacks_i.glfw_joystick_connection_callback_addr = ( void* )glfw_joystick_connection_callback;
 
 #if defined PLUGINS_DYNAMIC
