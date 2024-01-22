@@ -3,7 +3,6 @@
 #ifdef LE_API_LOADER_IMPL_LINUX
 
 #	include <dlfcn.h>
-#	include <link.h>
 
 #	include "assert.h"
 #	include <string>
@@ -203,60 +202,15 @@ LE_MODULE_REGISTER_IMPL( le_module_loader, p_api ) {
 	loader_i.load_library_persistently = load_library_persistent;
 }
 
-// ----------------------------------------------------------------------
-// LINUX: these methods are to audit runtime dyanmic library linking and loading.
-//
-// To enable, start app with environment variable `LD_AUDIT` set to path of
-// lible_core.so:
-//
-//		EXPORT LD_AUDIT=./modules/lible_core.so
+/*
 
-extern "C" unsigned int
-la_version( unsigned int version ) {
-	std::cout << "\t AUDIT: loaded auditing interface" << std::endl;
-	std::cout << std::flush;
-	return version;
-}
+  Debugging Hot-realoading issues:
 
-extern "C" unsigned int
-la_objclose( uintptr_t* cookie ) {
-	std::cout << "\t AUDIT: objclose: " << std::hex << cookie << std::endl;
-	std::cout << std::flush;
-	return 0;
-}
+  In order to debug hot-reloading or linker issues on Linux it can be useful to use rtld-audit.
+  See rtld-audit (7) manpage.
 
-extern "C" void
-la_activity( uintptr_t* cookie, unsigned int flag ) {
-	printf( "\t AUDIT: la_activity(): cookie = %p; flag = %s\n", cookie,
-	        ( flag == LA_ACT_CONSISTENT ) ? "LA_ACT_CONSISTENT" : ( flag == LA_ACT_ADD )  ? "LA_ACT_ADD"
-	                                                          : ( flag == LA_ACT_DELETE ) ? "LA_ACT_DELETE"
-	                                                                                      : "???" );
-	std::cout << std::flush;
-};
+  See README_hotreload_debugging.md
 
-extern "C" unsigned int
-la_objopen( struct link_map* map, Lmid_t lmid, uintptr_t* cookie ) {
-	printf( "\t AUDIT: la_objopen(): loading \"%s\"; lmid = %s; cookie=%p\n",
-	        map->l_name,
-	        ( lmid == LM_ID_BASE ) ? "LM_ID_BASE" : ( lmid == LM_ID_NEWLM ) ? "LM_ID_NEWLM"
-	                                                                        : "???",
-	        cookie );
-	std::cout << std::flush;
-	return LA_FLG_BINDTO | LA_FLG_BINDFROM;
-}
-
-extern "C" char*
-la_objsearch( const char* name, uintptr_t* cookie, unsigned int flag ) {
-	printf( "\t AUDIT: la_objsearch(): name = %s; cookie = %p", name, cookie );
-	printf( "; flag = %s\n",
-	        ( flag == LA_SER_ORIG ) ? "LA_SER_ORIG" : ( flag == LA_SER_LIBPATH ) ? "LA_SER_LIBPATH"
-	                                              : ( flag == LA_SER_RUNPATH )   ? "LA_SER_RUNPATH"
-	                                              : ( flag == LA_SER_DEFAULT )   ? "LA_SER_DEFAULT"
-	                                              : ( flag == LA_SER_CONFIG )    ? "LA_SER_CONFIG"
-	                                              : ( flag == LA_SER_SECURE )    ? "LA_SER_SECURE"
-	                                                                             : "???" );
-
-	return const_cast<char*>( name );
-}
+*/
 
 #endif
