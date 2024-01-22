@@ -27,7 +27,7 @@ LE_OPAQUE_HANDLE( le_swapchain_handle );
 #define LE_IMG_RESOURCE( x ) \
 	le_renderer::renderer_i.produce_img_resource_handle( ( x ), 0, 0, 0 )
 
-#define LE_TEXTURE_NAME( x ) \
+#define LE_TEXTURE( x ) \
 	le_renderer::renderer_i.produce_texture_handle( ( x ) )
 
 struct le_shader_binding_table_o;

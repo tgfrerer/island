@@ -149,8 +149,8 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 
 	static le_img_resource_handle SWAPCHAIN_IMG = self->renderer.getSwapchainResource();
 
-	static auto src_image_texture = LE_TEXTURE_NAME( "src_image_texture" );
-	static auto lut_image_texture = LE_TEXTURE_NAME( "lut_image_texture" );
+	static auto src_image_texture = LE_TEXTURE( "src_image_texture" );
+	static auto lut_image_texture = LE_TEXTURE( "lut_image_texture" );
 
 	// Note that callbacks for renderpasses are given inline here - but
 	// you could just as well pass function pointers instead of lambdas.
