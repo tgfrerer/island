@@ -23,6 +23,11 @@
 #include "le_tessellator.h"
 #include "le_path.h"
 
+namespace {
+#include "shaders/2d_primitives_frag.h"
+#include "shaders/2d_primitives_vert.h"
+} // namespace
+
 using vec2f          = glm::vec2;
 using StrokeCapType  = le_2d_api::StrokeCapType;
 using StrokeJoinType = le_2d_api::StrokeJoinType;
@@ -657,8 +662,18 @@ static void le_2d_draw_primitives( le_2d_o* self ) {
 	} else {
 		auto* pm = encoder.getPipelineManager();
 
-		static auto vert = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.vert" ).setShaderStage( le::ShaderStage::eVertex ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) ).build();
-		static auto frag = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.frag" ).setShaderStage( le::ShaderStage::eFragment ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) ).build();
+		static auto vert =
+		    LeShaderModuleBuilder( pm )
+		        .setSpirvCode( SPIRV_SOURCE_2D_PRIMITIVES_VERT, sizeof( SPIRV_SOURCE_2D_PRIMITIVES_VERT ) / sizeof( uint32_t ) )
+		        .setShaderStage( le::ShaderStage::eVertex )
+		        .setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) )
+		        .build();
+		static auto frag =
+		    LeShaderModuleBuilder( pm )
+		        .setSpirvCode( SPIRV_SOURCE_2D_PRIMITIVES_FRAG, sizeof( SPIRV_SOURCE_2D_PRIMITIVES_FRAG ) / sizeof( uint32_t ) )
+		        .setShaderStage( le::ShaderStage::eFragment )
+		        .setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) )
+		        .build();
 
 		// clang-format off
 	static auto pipeline =
@@ -680,7 +695,7 @@ static void le_2d_draw_primitives( le_2d_o* self ) {
                 .end()
 	        .end()
 			.withRasterizationState()
-	            .setPolygonMode(le::PolygonMode::eLine)
+	            .setPolygonMode(le::PolygonMode::eFill)
 //	            .setCullMode(le::CullModeFlagBits::eBack)
 	            .setFrontFace(le::FrontFace::eCounterClockwise)
 			.end()
