@@ -40,8 +40,8 @@ else()
 
 endif()
 
-set (LINKER_FLAGS ${LINKER_FLAGS} imgui)
-
-target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+# Important: WE DO NOT WANT TO DO target_link_libraries
+# As we want to link libimgui *dynamically* at run-time.
+# if we don't do so, then this module becomes un-hot-reloadable in linux
 
 source_group(${TARGET} FILES ${SOURCES})
