@@ -462,6 +462,6 @@ LE_MODULE_REGISTER_IMPL( le_imgui, api ) {
 	le_imgui_i.register_set_clipboard_string_cb = le_imgui_register_set_clipboard_string_cb;
 
 #if defined( PLUGINS_DYNAMIC )
-	le_core_load_library_persistently( "libimgui.so" );
+	le_core_load_library_persistently( "./modules/libimgui.so" );
 #endif
 }
