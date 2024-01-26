@@ -24,6 +24,8 @@ endif()
 set ( STATIC_LIBRARIES "" CACHE INTERNAL "static_libraries" )
 set ( DEPENDENCY_DEPTH 0 CACHE INTERNAL "current depth in dependency hierarchy" )
 
+set(CMAKE_DEBUG_POSTFIX "" CACHE STRING "Suffix for debug builds" FORCE)
+
 set ( PLUGIN_LIBS_DEPENDENCIES "" CACHE INTERNAL "plugins_libs_dependencies" )
 set ( PLUGIN_LINK_DIRS "")
 
