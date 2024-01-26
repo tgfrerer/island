@@ -21,6 +21,9 @@ struct le_pixels_info {
 	uint32_t byte_count;   // total number of bytes
 	Type     type;
 };
+// generic image decoder interface
+
+struct le_image_decoder_interface_t;
 
 // clang-format off
 struct le_pixels_api {
@@ -39,6 +42,7 @@ struct le_pixels_api {
 	};
 
 	le_pixels_interface_t       le_pixels_i;
+	le_image_decoder_interface_t * le_pixels_image_decoder_i = nullptr; // abstract image decoder interface -- this is an alternative interface and can be used to interact with pixels in a generic way
 };
 // clang-format on
 LE_MODULE( le_pixels );
@@ -48,7 +52,7 @@ LE_MODULE_LOAD_DEFAULT( le_pixels );
 
 namespace le_pixels {
 static const auto& api         = le_pixels_api_i;
-static const auto& le_pixels_i = api -> le_pixels_i;
+static const auto& le_pixels_i = api->le_pixels_i;
 
 } // namespace le_pixels
 

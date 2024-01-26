@@ -12,6 +12,10 @@ struct le_pixels_o {
 	le_pixels_info info{};
 };
 
+struct le_image_decoder_o {
+	// this is one way of defining an image decoder
+	le_pixels_o* pixels;
+};
 // ----------------------------------------------------------------------
 
 struct image_source_info_t {
@@ -269,6 +273,57 @@ static bool le_pixels_get_info_from_memory( unsigned char const* buffer, size_t 
 
 // ----------------------------------------------------------------------
 
+static void le_image_decoder_destroy_image_decoder( le_image_decoder_o* image_decoder_o ) {
+
+	if ( image_decoder_o ) {
+		le_pixels_destroy( image_decoder_o->pixels );
+		delete image_decoder_o->pixels;
+	}
+	delete image_decoder_o;
+	le::Log( "le_pixels" ).info( "destroyed pixels image decoder" );
+};
+// ----------------------------------------------------------------------
+
+static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* filepath ) {
+
+	auto self = new le_image_decoder_o{};
+
+	le::Log( "le_pixels" ).info( "created pixels image decoder" );
+
+	if ( filepath ) {
+		return self;
+	} else {
+		delete self;
+		return nullptr;
+	}
+};
+// ----------------------------------------------------------------------
+
+// ----------------------------------------------------------------------
+
+// TODO: we want to export the image decoder interface to a shared header --
+// so that all compilation units that implement this interface may share the
+// declaration.
+struct le_image_decoder_interface_t {
+
+	// This gets re-set automatically on api reload - because of
+	// `new le_image_decoder_interface_t{}`
+	uint64_t ( *get_api_version )() = []() -> uint64_t {
+		static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 1ull << 16 | 0ull << 0;
+		return API_VERSION;
+	}; // static method - we should provide this so that we can make sure that implementers use compatible apis
+
+	le_image_decoder_o* ( *create_image_decoder )( char const* file_name );
+	void ( *destroy_image_decoder )( le_image_decoder_o* image_decoder_o );
+
+	bool ( *decode_image_data )( le_image_decoder_o* image_decoder_o );
+	char* ( *get_image_data_description )( le_image_decoder_o* image_decoder_o );
+
+	char* ( *get_image_data )( le_image_decoder_o* image_decoder_o );
+};
+
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	auto& le_pixels_i = static_cast<le_pixels_api*>( api )->le_pixels_i;
 
@@ -281,4 +336,12 @@ LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	le_pixels_i.destroy  = le_pixels_destroy;
 	le_pixels_i.get_data = le_pixels_get_data;
 	le_pixels_i.get_info = le_pixels_get_info;
+
+	auto& le_image_decoder_i = static_cast<le_pixels_api*>( api )->le_pixels_image_decoder_i;
+
+	delete le_image_decoder_i;
+	le_image_decoder_i = new le_image_decoder_interface_t{};
+
+	le_image_decoder_i->create_image_decoder  = le_image_decoder_create_image_decoder;
+	le_image_decoder_i->destroy_image_decoder = le_image_decoder_destroy_image_decoder;
 }
