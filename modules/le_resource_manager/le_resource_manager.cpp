@@ -11,6 +11,7 @@
 
 #include <unordered_map>
 
+// only used to print debug messages:
 #include "private/le_renderer/le_resource_handle_t.inl"
 
 static auto logger = le::Log( "resource_manager" );
@@ -328,6 +329,13 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 // ----------------------------------------------------------------------
 
 static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img_resource_handle const* resource_handle ) {
+
+	// TODO: you must be careful not to remove an item that might still be used for a transfer
+	// you might want to tap into the backend's on_fence_reached callback to only remove resources
+	// once we can be sure that there is no more dependency on them.
+	//
+	// Although for now we assume that the recording step of our pipeline always happens on the same thread as the
+	// thread that declares the rendergraph.
 
 	auto it = self->resources.find( *resource_handle );
 
