@@ -5,6 +5,14 @@
 #include "assert.h"
 #include <iostream>
 #include <iomanip>
+#include <cstring> // for memcpy
+
+#include "private/le_renderer/le_vk_enums.inl"
+#include "shared/interfaces/le_image_decoder_interface.h"
+
+struct le_image_decoder_format_o {
+	le::Format format;
+};
 
 struct le_pixels_o {
 	// members
@@ -78,6 +86,7 @@ static le_pixels_o* le_pixels_create( image_source_info_t const& info ) {
 		case le_pixels_info::Type::eUInt16:
 			self->image_data = stbi_load_16_from_memory( info.data.as_buffer.buffer, info.data.as_buffer.buffer_num_bytes, &width, &height, &num_channels_in_file, info.requested_num_channels );
 			break;
+		case le_pixels_info::Type::eFloat16: // deliberate fall-through
 		case le_pixels_info::Type::eFloat32:
 			self->image_data = stbi_loadf_from_memory( info.data.as_buffer.buffer, info.data.as_buffer.buffer_num_bytes, &width, &height, &num_channels_in_file, info.requested_num_channels );
 			break;
@@ -92,6 +101,7 @@ static le_pixels_o* le_pixels_create( image_source_info_t const& info ) {
 		case le_pixels_info::Type::eUInt16:
 			self->image_data = stbi_load_16( info.data.as_file.file_path, &width, &height, &num_channels_in_file, info.requested_num_channels );
 			break;
+		case le_pixels_info::Type::eFloat16: // deliberate fall-through
 		case le_pixels_info::Type::eFloat32:
 			self->image_data = stbi_loadf( info.data.as_file.file_path, &width, &height, &num_channels_in_file, info.requested_num_channels );
 			break;
@@ -272,6 +282,42 @@ static bool le_pixels_get_info_from_memory( unsigned char const* buffer, size_t 
 }
 
 // ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+
+// load image file, and store pixels internally
+static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* filepath ) {
+
+	auto self = new le_image_decoder_o{};
+
+	le::Log( "le_pixels" ).info( "created pixels image decoder" );
+
+	if ( filepath ) {
+
+		// Note that this will resample an image if it came to have more bits per pixel.
+
+		if ( stbi_is_hdr( filepath ) ) {
+			self->pixels = le_pixels::api->le_pixels_i.create( filepath, 4, le_pixels_info::eFloat32 );
+		} else {
+
+			self->pixels = le_pixels::api->le_pixels_i.create( filepath, 4, le_pixels_info::eUInt8 );
+		};
+
+		if ( nullptr == self->pixels ) {
+			delete self;
+			self = nullptr;
+			le::Log( "le_pixels" ).error( "Could not create le_pixels for %s", filepath );
+			return self;
+		}
+
+		return self;
+	} else {
+		delete self;
+		le::Log( "le_pixels" ).error( "No filepath given for image decoder" );
+		return nullptr;
+	}
+};
+
+// ----------------------------------------------------------------------
 
 static void le_image_decoder_destroy_image_decoder( le_image_decoder_o* image_decoder_o ) {
 
@@ -280,46 +326,50 @@ static void le_image_decoder_destroy_image_decoder( le_image_decoder_o* image_de
 		delete image_decoder_o->pixels;
 	}
 	delete image_decoder_o;
+
 	le::Log( "le_pixels" ).info( "destroyed pixels image decoder" );
 };
+
 // ----------------------------------------------------------------------
 
-static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* filepath ) {
+static void le_image_decoder_get_image_data_description( le_image_decoder_o* self, le_image_decoder_format_o* p_format, uint32_t* w, uint32_t* h ) {
+	if ( p_format ) {
 
-	auto self = new le_image_decoder_o{};
-
-	le::Log( "le_pixels" ).info( "created pixels image decoder" );
-
-	if ( filepath ) {
-		return self;
-	} else {
-		delete self;
-		return nullptr;
+		switch ( self->pixels->info.type ) {
+		case ( le_pixels_info::eFloat32 ):
+			p_format->format = le::Format::eR8G8B8A8Uint;
+			break;
+		case ( le_pixels_info::eUInt8 ):
+			p_format->format = le::Format::eR8G8B8A8Uint;
+			break;
+		default:
+			p_format->format = le::Format::eUndefined;
+			le::Log( "le_pixels" ).info( "Cound not figure out pixel format" );
+		}
+	}
+	if ( w ) {
+		*w = self->pixels->info.width;
+	}
+	if ( h ) {
+		*h = self->pixels->info.height;
 	}
 };
-// ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
+// read out pixels into given array of bytes.
+// uses pixel format and w,h, to figure out the size of p_pixels
+bool le_image_decoder_read_pixels( le_image_decoder_o* self, uint8_t* pixels, size_t pixels_byte_count ) {
 
-// TODO: we want to export the image decoder interface to a shared header --
-// so that all compilation units that implement this interface may share the
-// declaration.
-struct le_image_decoder_interface_t {
+	if ( pixels_byte_count != self->pixels->info.byte_count ) {
+		le::Log( "le_pixels" ).error( "Byte count for pixels does not match. Requested: %d != Is: %d\n No pixels copied.", pixels_byte_count, self->pixels->info.byte_count );
+		return false;
+	}
 
-	// This gets re-set automatically on api reload - because of
-	// `new le_image_decoder_interface_t{}`
-	uint64_t ( *get_api_version )() = []() -> uint64_t {
-		static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 1ull << 16 | 0ull << 0;
-		return API_VERSION;
-	}; // static method - we should provide this so that we can make sure that implementers use compatible apis
+	// ----------| invariant: pixel count matches
 
-	le_image_decoder_o* ( *create_image_decoder )( char const* file_name );
-	void ( *destroy_image_decoder )( le_image_decoder_o* image_decoder_o );
+	memcpy( pixels, ( char* )self->pixels->image_data, pixels_byte_count );
 
-	bool ( *decode_image_data )( le_image_decoder_o* image_decoder_o );
-	char* ( *get_image_data_description )( le_image_decoder_o* image_decoder_o );
-
-	char* ( *get_image_data )( le_image_decoder_o* image_decoder_o );
+	return true;
 };
 
 // ----------------------------------------------------------------------
@@ -342,6 +392,8 @@ LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	delete le_image_decoder_i;
 	le_image_decoder_i = new le_image_decoder_interface_t{};
 
-	le_image_decoder_i->create_image_decoder  = le_image_decoder_create_image_decoder;
-	le_image_decoder_i->destroy_image_decoder = le_image_decoder_destroy_image_decoder;
+	le_image_decoder_i->create_image_decoder       = le_image_decoder_create_image_decoder;
+	le_image_decoder_i->destroy_image_decoder      = le_image_decoder_destroy_image_decoder;
+	le_image_decoder_i->read_pixels                = le_image_decoder_read_pixels;
+	le_image_decoder_i->get_image_data_description = le_image_decoder_get_image_data_description;
 }

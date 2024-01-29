@@ -11,7 +11,8 @@ struct le_pixels_info {
 	enum Type : uint32_t {
 		eUInt8   = ( 0 << 2 ) | 0,
 		eUInt16  = ( 1 << 2 ) | 1,
-		eFloat32 = ( 2 << 2 ) | 2, // 32 bit float type
+		eFloat16 = ( 2 << 2 ) | 1, // 16 bit float type
+		eFloat32 = ( 3 << 2 ) | 2, // 32 bit float type
 	};
 	uint32_t width;        //
 	uint32_t height;       //

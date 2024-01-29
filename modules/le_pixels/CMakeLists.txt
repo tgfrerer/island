@@ -1,4 +1,5 @@
 depends_on_island_module(le_log)
+depends_on_island_module(le_renderer)
 
 set (TARGET le_pixels)
 

@@ -13,6 +13,8 @@ set ( SOURCES ${SOURCES} le_hash_util.h )
 set ( SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
 set ( SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
 
+set (SOURCES ${SOURCES} "shared/interfaces/le_image_encoder_interface.h")
+
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
