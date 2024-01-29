@@ -33,8 +33,8 @@ struct le_resource_manager_o {
 	le_file_watcher_o* file_watcher = nullptr;
 
 	struct image_data_layer_t {
-		le_image_decoder_o*           image_decoder;
-		le_image_decoder_interface_t* decoder_i;
+		le_image_decoder_o*                 image_decoder;
+		le_image_decoder_interface_t const* decoder_i;
 
 		std::string                    path;
 		bool                           was_uploaded     = false;

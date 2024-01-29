@@ -283,13 +283,12 @@ static bool le_pixels_get_info_from_memory( unsigned char const* buffer, size_t 
 
 // ----------------------------------------------------------------------
 // ----------------------------------------------------------------------
-
 // load image file, and store pixels internally
 static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* filepath ) {
 
 	auto self = new le_image_decoder_o{};
 
-	le::Log( "le_pixels" ).info( "created pixels image decoder" );
+	le::Log( "le_pixels" ).info( "Created image decoder for file '%s'", filepath );
 
 	if ( filepath ) {
 
@@ -315,7 +314,6 @@ static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* fi
 		return nullptr;
 	}
 };
-
 // ----------------------------------------------------------------------
 
 static void le_image_decoder_destroy_image_decoder( le_image_decoder_o* image_decoder_o ) {
@@ -326,7 +324,7 @@ static void le_image_decoder_destroy_image_decoder( le_image_decoder_o* image_de
 	}
 	delete image_decoder_o;
 
-	le::Log( "le_pixels" ).info( "destroyed pixels image decoder" );
+	le::Log( "le_pixels" ).info( "Destroyed pixels image decoder" );
 };
 
 // ----------------------------------------------------------------------
@@ -374,18 +372,7 @@ bool le_image_decoder_read_pixels( le_image_decoder_o* self, uint8_t* pixels, si
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
-	auto& le_pixels_i = static_cast<le_pixels_api*>( api )->le_pixels_i;
 
-	// 	le_pixels_i.create             = le_pixels_create_from_file;
-	// 	le_pixels_i.create_from_memory = le_pixels_create_from_memory;
-	//
-	// 	le_pixels_i.get_info_from_memory = le_pixels_get_info_from_memory;
-	// 	le_pixels_i.get_info_from_file   = le_pixels_get_info_from_file;
-	//
-	// 	le_pixels_i.destroy  = le_pixels_destroy;
-	// 	le_pixels_i.get_data = le_pixels_get_data;
-	// 	le_pixels_i.get_info = le_pixels_get_info;
-	//
 	auto& le_image_decoder_i = static_cast<le_pixels_api*>( api )->le_pixels_image_decoder_i;
 
 	if ( le_image_decoder_i == nullptr ) {
