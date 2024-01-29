@@ -87,12 +87,13 @@ ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const*
 	const uint64_t key            = hash_64_fnv1a( name );
 
 	// Fetch (or create and fetch) an entry from the store.
-	auto result = [ & ]() -> auto {
+	auto result = [ & ]() -> auto{
 		std::scoped_lock          lock( get_settings_store_mutex() );
 		static le_settings_map_t& store = get_global_settings_store();
 		return store.map.emplace( key, LeSettingEntry() );
-	}(); // Note: this immediately evaluates the lambda.
-	     // We do this to that we can have the shortest possible lock on le_settings_store_mutex
+	}
+	(); // Note: this immediately evaluates the lambda.
+	    // We do this to that we can have the shortest possible lock on le_settings_store_mutex
 
 	// Test if anything was actually inserted to the map:
 	if ( result.second == true ) {
