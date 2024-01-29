@@ -14,7 +14,13 @@
 // only used to print debug messages:
 #include "private/le_renderer/le_resource_handle_t.inl"
 
+#include "shared/interfaces/le_image_decoder_interface.h"
+
 static auto logger = le::Log( "resource_manager" );
+
+struct le_image_decoder_format_o {
+	le::Format format;
+};
 
 // ----------------------------------------------------------------------
 // TODO:
@@ -27,7 +33,9 @@ struct le_resource_manager_o {
 	le_file_watcher_o* file_watcher = nullptr;
 
 	struct image_data_layer_t {
-		le_pixels_o*                   pixels;
+		le_image_decoder_o*           image_decoder;
+		le_image_decoder_interface_t* decoder_i;
+
 		std::string                    path;
 		bool                           was_uploaded     = false;
 		bool                           extents_inferred = false;
@@ -45,6 +53,33 @@ struct le_resource_manager_o {
 
 	std::unordered_map<le_resource_handle, resource_item_t> resources;
 };
+// ----------------------------------------------------------------------
+
+static void infer_from_le_format( le::Format const& format, uint32_t* num_channels, le_pixels_info::Type* pixels_type ) {
+	switch ( format ) {
+	case le::Format::eR8G8B8A8Uint: // deliberate fall-through
+	case le::Format::eR8G8B8A8Unorm:
+		*num_channels = 4;
+		*pixels_type  = le_pixels_info::Type::eUInt8;
+		return;
+	case le::Format::eR8Unorm:
+		*num_channels = 1;
+		*pixels_type  = le_pixels_info::Type::eUInt8;
+		return;
+	case le::Format::eR16G16B16A16Unorm:
+		*num_channels = 4;
+		*pixels_type  = le_pixels_info::Type::eUInt16;
+		return;
+	case le::Format::eR32G32B32A32Sfloat:
+		*num_channels = 4;
+		*pixels_type  = le_pixels_info::Type::eFloat32;
+		return;
+	case le::Format::eUndefined: // deliberate fall-through
+	default:
+		logger.error( "Unhandled image format" );
+		assert( false && "Unhandled image format." );
+	}
+}
 
 // ----------------------------------------------------------------------
 
@@ -131,13 +166,31 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 				        .setImageD( depth )
 				        .build();
 
-				auto     pixels    = layer.pixels;
-				auto     info      = le_pixels_i.get_info( pixels );
-				uint32_t num_bytes = info.byte_count; // TODO: make sure to get correct byte count for mip level, or compressed image.
-				void*    bytes     = le_pixels_i.get_data( pixels );
+				le_image_decoder_format_o decoder_format;
+
+				uint32_t             w, h, num_channels;
+				le_pixels_info::Type pixels_type;
+
+				layer.decoder_i->get_image_data_description( layer.image_decoder, &decoder_format, &w, &h );
+
+				infer_from_le_format( decoder_format.format, &num_channels, &pixels_type );
+
+				uint32_t bytes_per_pixel = num_channels * ( uint32_t( 1 ) << ( uint32_t( pixels_type ) & 0x03 ) ); // See definition of le_pixels_info
+				size_t   num_bytes       = bytes_per_pixel * w * h;
+
+				// We must now temporarily allocate memory to read pixels into
+				// TODO:
+				// The hope is that we can extend the command buffer recorder api
+				// eventually to allow us to directly map memory, and to then write
+				// into that mapped memory.
+				uint8_t* bytes = ( uint8_t* )malloc( num_bytes ); // note: this must be freed
+				layer.decoder_i->read_pixels( layer.image_decoder, bytes, num_bytes );
 
 				encoder.writeToImage( r.image_handle, write_info, bytes, num_bytes );
+
+				free( bytes );
 			}
+
 			layer.was_uploaded = true;
 			layer_index++;
 		}
@@ -146,57 +199,37 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 // ----------------------------------------------------------------------
 
-static void infer_from_le_format( le::Format const& format, uint32_t* num_channels, le_pixels_info::Type* pixels_type ) {
-	switch ( format ) {
-	case le::Format::eUndefined: // deliberate fall-through
-	case le::Format::eR8G8B8A8Unorm:
-		*num_channels = 4;
-		*pixels_type  = le_pixels_info::Type::eUInt8;
-		return;
-	case le::Format::eR8Unorm:
-		*num_channels = 1;
-		*pixels_type  = le_pixels_info::Type::eUInt8;
-		return;
-	case le::Format::eR16G16B16A16Unorm:
-		*num_channels = 4;
-		*pixels_type  = le_pixels_info::Type::eUInt16;
-		return;
-	default:
-		logger.error( "Unhandled image format" );
-		assert( false && "Unhandled image format." );
-	}
-}
-
-// ----------------------------------------------------------------------
-
 static void update_image_array_layer( le_resource_manager_o::image_data_layer_t& layer_data ) {
 
 	// we must find out the pixels type from image info format
-	uint32_t             num_channels = 0;
-	le_pixels_info::Type pixels_type{};
+	uint32_t num_channels = 0;
 
-	infer_from_le_format( layer_data.image_info->format, &num_channels, &pixels_type );
+	le_image_decoder_o* new_decoder = layer_data.decoder_i->create_image_decoder( layer_data.path.c_str() );
 
-	le_pixels_o* new_pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), num_channels, pixels_type );
-
-	if ( layer_data.pixels && new_pixels ) {
-		le_pixels::le_pixels_i.destroy( layer_data.pixels );
+	if ( layer_data.image_decoder && new_decoder ) {
+		layer_data.decoder_i->destroy_image_decoder( layer_data.image_decoder );
 	}
 
-	if ( new_pixels ) {
-		layer_data.pixels = new_pixels;
+	if ( new_decoder ) {
+		layer_data.image_decoder = new_decoder;
 	} else {
 		return;
 	}
 
-	auto info = le_pixels::le_pixels_i.get_info( layer_data.pixels );
+	le_image_decoder_format_o format;
+	uint32_t                  w, h;
+
+	layer_data.decoder_i->get_image_data_description( layer_data.image_decoder, &format, &w, &h );
+
 	if ( layer_data.extents_inferred ) {
-		layer_data.image_info->extent.depth  = info.depth;
-		layer_data.image_info->extent.width  = info.width;
-		layer_data.image_info->extent.height = info.height;
+		layer_data.image_info->extent.depth  = 1;
+		layer_data.image_info->extent.width  = w;
+		layer_data.image_info->extent.height = h;
 	}
-	layer_data.width  = info.width;
-	layer_data.height = info.height;
+
+	layer_data.width              = w;
+	layer_data.height             = h;
+	layer_data.image_info->format = format.format;
 
 	layer_data.image_info->usage |= ( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage );
 
@@ -232,9 +265,9 @@ static void le_resource_manager_destroy( le_resource_manager_o* self ) {
 
 	for ( auto& [ k, r ] : self->resources ) {
 		for ( auto& l : r.image_layers ) {
-			if ( l.pixels ) {
-				le_pixels_i.destroy( l.pixels );
-				l.pixels = nullptr;
+			if ( l.image_decoder ) {
+				l.decoder_i->destroy_image_decoder( l.image_decoder );
+				l.image_decoder = nullptr;
 			}
 		}
 	}
@@ -299,6 +332,9 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 				l.image_info       = &item.image_info.image;
 				l.extents_inferred = extents_inferred;
 
+				// TODO: pick image decoder api based on abstract image decoder that was potentially added at runtime.
+				l.decoder_i = le_pixels::api->le_pixels_image_decoder_i; // set decoder api - this should be set based on what filetype we detected in the future
+
 				update_image_array_layer( l );
 				i++;
 			}
@@ -354,9 +390,9 @@ static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img
 			le_file_watcher::le_file_watcher_i.remove_watch( self->file_watcher, l.watch_id );
 			l.watch_id = -1;
 		}
-		if ( l.pixels ) {
-			le_pixels::le_pixels_i.destroy( l.pixels );
-			l.pixels = nullptr;
+		if ( l.image_decoder ) {
+			l.decoder_i->destroy_image_decoder( l.image_decoder );
+			l.image_decoder = nullptr;
 		}
 	}
 

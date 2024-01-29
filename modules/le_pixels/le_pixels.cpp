@@ -296,17 +296,16 @@ static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* fi
 		// Note that this will resample an image if it came to have more bits per pixel.
 
 		if ( stbi_is_hdr( filepath ) ) {
-			self->pixels = le_pixels::api->le_pixels_i.create( filepath, 4, le_pixels_info::eFloat32 );
+			self->pixels = le_pixels_create_from_file( filepath, 4, le_pixels_info::eFloat32 );
 		} else {
 
-			self->pixels = le_pixels::api->le_pixels_i.create( filepath, 4, le_pixels_info::eUInt8 );
+			self->pixels = le_pixels_create_from_file( filepath, 4, le_pixels_info::eUInt8 );
 		};
 
 		if ( nullptr == self->pixels ) {
 			delete self;
-			self = nullptr;
 			le::Log( "le_pixels" ).error( "Could not create le_pixels for %s", filepath );
-			return self;
+			return nullptr;
 		}
 
 		return self;
@@ -323,7 +322,7 @@ static void le_image_decoder_destroy_image_decoder( le_image_decoder_o* image_de
 
 	if ( image_decoder_o ) {
 		le_pixels_destroy( image_decoder_o->pixels );
-		delete image_decoder_o->pixels;
+		image_decoder_o->pixels = nullptr;
 	}
 	delete image_decoder_o;
 
@@ -337,10 +336,10 @@ static void le_image_decoder_get_image_data_description( le_image_decoder_o* sel
 
 		switch ( self->pixels->info.type ) {
 		case ( le_pixels_info::eFloat32 ):
-			p_format->format = le::Format::eR8G8B8A8Uint;
+			p_format->format = le::Format::eR32G32B32A32Sfloat;
 			break;
 		case ( le_pixels_info::eUInt8 ):
-			p_format->format = le::Format::eR8G8B8A8Uint;
+			p_format->format = le::Format::eR8G8B8A8Unorm;
 			break;
 		default:
 			p_format->format = le::Format::eUndefined;
@@ -377,16 +376,16 @@ bool le_image_decoder_read_pixels( le_image_decoder_o* self, uint8_t* pixels, si
 LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	auto& le_pixels_i = static_cast<le_pixels_api*>( api )->le_pixels_i;
 
-	le_pixels_i.create             = le_pixels_create_from_file;
-	le_pixels_i.create_from_memory = le_pixels_create_from_memory;
-
-	le_pixels_i.get_info_from_memory = le_pixels_get_info_from_memory;
-	le_pixels_i.get_info_from_file   = le_pixels_get_info_from_file;
-
-	le_pixels_i.destroy  = le_pixels_destroy;
-	le_pixels_i.get_data = le_pixels_get_data;
-	le_pixels_i.get_info = le_pixels_get_info;
-
+	// 	le_pixels_i.create             = le_pixels_create_from_file;
+	// 	le_pixels_i.create_from_memory = le_pixels_create_from_memory;
+	//
+	// 	le_pixels_i.get_info_from_memory = le_pixels_get_info_from_memory;
+	// 	le_pixels_i.get_info_from_file   = le_pixels_get_info_from_file;
+	//
+	// 	le_pixels_i.destroy  = le_pixels_destroy;
+	// 	le_pixels_i.get_data = le_pixels_get_data;
+	// 	le_pixels_i.get_info = le_pixels_get_info;
+	//
 	auto& le_image_decoder_i = static_cast<le_pixels_api*>( api )->le_pixels_image_decoder_i;
 
 	delete le_image_decoder_i;
