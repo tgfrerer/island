@@ -388,8 +388,13 @@ LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	//
 	auto& le_image_decoder_i = static_cast<le_pixels_api*>( api )->le_pixels_image_decoder_i;
 
-	delete le_image_decoder_i;
-	le_image_decoder_i = new le_image_decoder_interface_t{};
+	if ( le_image_decoder_i == nullptr ) {
+		le_image_decoder_i = new le_image_decoder_interface_t{};
+	} else {
+		// Interface already existed - we have been reloaded and only just need to update
+		// function pointer addresses
+		*le_image_decoder_i = le_image_decoder_interface_t();
+	}
 
 	le_image_decoder_i->create_image_decoder       = le_image_decoder_create_image_decoder;
 	le_image_decoder_i->destroy_image_decoder      = le_image_decoder_destroy_image_decoder;
