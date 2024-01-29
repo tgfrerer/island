@@ -352,6 +352,8 @@ ISL_API_ATTR void* le_core_load_module_dynamic( char const* module_name, uint64_
 		//
 		api = le_core_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
 
+		le_core_reset_api( api, api_size_in_bytes );
+
 		module_loader_i.load( loader );
 		module_loader_i.register_api( loader, api, api_register_fun_name );
 
@@ -369,7 +371,6 @@ ISL_API_ATTR void* le_core_load_module_dynamic( char const* module_name, uint64_
 
 			watchSettings.callback_fun = []( const char*, void* user_data ) {
 				auto params = static_cast<loader_callback_params_o*>( user_data );
-				le_core_reset_api( params->api, params->api_size );
 				module_loader_i.load( params->loader );
 				module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
 			};
