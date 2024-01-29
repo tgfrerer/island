@@ -292,12 +292,6 @@ static void* le_core_create_api( uint64_t id, size_t apiStructSize, const char* 
 
 // ----------------------------------------------------------------------
 
-static void le_core_reset_api( void* api, size_t api_size ) {
-	memset( api, 0, api_size ); // blank out all entries.
-}
-
-// ----------------------------------------------------------------------
-
 ISL_API_ATTR void* le_core_load_module_static( char const* module_name, void ( *module_reg_fun )( void* ), uint64_t api_size_in_bytes ) {
 	void* api = le_core_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
 	module_reg_fun( api );
@@ -351,8 +345,6 @@ ISL_API_ATTR void* le_core_load_module_dynamic( char const* module_name, uint64_
 		// which would have the effect of allocating more than one copy of the api
 		//
 		api = le_core_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
-
-		le_core_reset_api( api, api_size_in_bytes );
 
 		module_loader_i.load( loader );
 		module_loader_i.register_api( loader, api, api_register_fun_name );
