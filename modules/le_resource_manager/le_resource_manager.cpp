@@ -481,6 +481,11 @@ static void le_resource_manager_update_decoder_interface_for_filetype( le_resour
 	// First we must lowercase the file extension
 	std::string file_ext;
 	for ( char const* c = file_extension; *c != 0; c++ ) {
+		if ( ( *c ) == '.' ) {
+			logger.warn( "Do not include dot ('.') in file extension when updating image decoder interface: '%s'",
+			             file_extension );
+			continue;
+		}
 		file_ext.push_back( std::tolower( *c ) );
 	}
 
