@@ -186,7 +186,9 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 				encoder.mapImageMemory( r.image_handle, write_info, num_bytes, &bytes );
 				assert( bytes != nullptr && "Image memory mapping must have been successful." );
-				layer.decoder_i->read_pixels( layer.image_decoder, ( uint8_t* )bytes, num_bytes );
+
+				bool read_success = layer.decoder_i->read_pixels( layer.image_decoder, ( uint8_t* )bytes, num_bytes );
+				assert( read_success && "Pixels were not read successfully." );
 			}
 
 			layer.was_uploaded = true;
