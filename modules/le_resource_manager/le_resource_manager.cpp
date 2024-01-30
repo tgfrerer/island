@@ -180,18 +180,13 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 				uint32_t bytes_per_pixel = num_channels * ( uint32_t( 1 ) << ( uint32_t( channel_data_type ) & 0x03 ) ); // See definition of le_pixels_info
 				size_t   num_bytes       = bytes_per_pixel * w * h;
 
-				// We must now temporarily allocate memory to read pixels into
-				// TODO:
-				// The hope is that we can extend the command buffer recorder api
-				// eventually to allow us to directly map memory, and to then write
-				// into that mapped memory.
-				uint8_t* bytes = ( uint8_t* )malloc( num_bytes ); // note: this must be freed
+				// We map memory via the encoder - if all goes well the encoder gives us a pointer
+				// into which we can read pixels into.
+				void* bytes = nullptr;
 
-				layer.decoder_i->read_pixels( layer.image_decoder, bytes, num_bytes );
-
-				encoder.writeToImage( r.image_handle, write_info, bytes, num_bytes );
-
-				free( bytes );
+				encoder.mapImageMemory( r.image_handle, write_info, num_bytes, &bytes );
+				assert( bytes != nullptr && "Image memory mapping must have been successful." );
+				layer.decoder_i->read_pixels( layer.image_decoder, ( uint8_t* )bytes, num_bytes );
 			}
 
 			layer.was_uploaded = true;
