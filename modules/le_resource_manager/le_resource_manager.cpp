@@ -216,11 +216,24 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 
 	le_image_decoder_format_o format = { le::Format::eR8G8B8A8Unorm };
 
-	layer_data.decoder_i->set_requested_format( layer_data.image_decoder, &format );
-
 	uint32_t w, h;
 
 	layer_data.decoder_i->get_image_data_description( layer_data.image_decoder, &format, &w, &h );
+
+	// If Format is not any of the formats that we know, we
+	// adjust the format so that it fits.
+	//
+	if ( format.format != le::Format::eR8G8B8A8Unorm &&
+	     format.format != le::Format::eR32G32B32A32Sfloat ) {
+
+		auto adjusted_format = le::Format::eR8G8B8A8Unorm;
+
+		logger.info( "File '%s' has unknown format : %s, adjusting format to: %s", layer_data.path.c_str(), le::to_str( format.format ), le::to_str( adjusted_format ) );
+
+		format.format = adjusted_format;
+	}
+
+	layer_data.decoder_i->set_requested_format( layer_data.image_decoder, &format );
 
 	if ( layer_data.extents_inferred ) {
 		layer_data.image_info->extent.depth  = 1;
