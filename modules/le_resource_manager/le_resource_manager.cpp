@@ -51,6 +51,8 @@ struct le_resource_manager_o {
 		std::vector<image_data_layer_t> image_layers; // must have at least one element
 	};
 
+	std::unordered_map<std::string, le_image_decoder_interface_t*> available_decoder_interfaces; // map from hash of lowercase file extension (`exr`, `png`, ... ) to an image decoder inferface that can deal with this extension
+
 	std::unordered_map<le_resource_handle, resource_item_t> resources;
 };
 // ----------------------------------------------------------------------
@@ -254,6 +256,12 @@ static void le_resource_manager_file_watcher_callback( char const* path, void* u
 static le_resource_manager_o* le_resource_manager_create() {
 	auto self = new le_resource_manager_o{};
 
+	auto& interface = le_resource_manager_api_i->le_resource_manager_i;
+
+	interface.update_decoder_interface_for_filetype( self, "png", le_pixels_api_i->le_pixels_image_decoder_i );
+	interface.update_decoder_interface_for_filetype( self, "jpg", le_pixels_api_i->le_pixels_image_decoder_i );
+	interface.update_decoder_interface_for_filetype( self, "jpeg", le_pixels_api_i->le_pixels_image_decoder_i );
+
 	return self;
 }
 
@@ -303,6 +311,38 @@ static void le_resource_manager_update( le_resource_manager_o* self, le_rendergr
 }
 
 // ----------------------------------------------------------------------
+
+le_image_decoder_interface_t* le_resource_manager_get_decoder_interface_for_file( le_resource_manager_o* self, std::string const& path ) {
+
+	std::size_t last_dot_pos = path.find_last_of( '.' );
+	std::string file_extension;
+	file_extension.reserve( 4 );
+
+	if ( last_dot_pos != std::string::npos ) {
+
+		// lowercase the file extension string so that we have it
+		// in the canonical form which we may look up in our map
+		size_t sz = path.size();
+		for ( size_t i = last_dot_pos + 1; i != sz; i++ ) {
+			file_extension.push_back( std::tolower( path[ i ] ) );
+		}
+
+		// Try to find the file extension in our map - if found,
+		// return the image decoder interface that was associated
+		// with this file extension.
+		//
+		auto it = self->available_decoder_interfaces.find( file_extension );
+		if ( it != self->available_decoder_interfaces.end() ) {
+			return it->second;
+		} else {
+			return nullptr;
+		}
+	}
+	// could not find a valid decoder interface for this file extension
+	return nullptr;
+}
+
+// ----------------------------------------------------------------------
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
 // Most meta-data about the image file is loaded via image_info
@@ -319,7 +359,7 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 
 		item.image_handle = *image_handle;
 		item.image_info   = *image_info;
-		item.image_layers.resize( image_info->image.arrayLayers );
+		item.image_layers.reserve( image_info->image.arrayLayers );
 
 		bool extents_inferred = false;
 		if ( item.image_info.image.extent.width == 0 ||
@@ -329,18 +369,25 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 		}
 
 		{
-			int i = 0;
-			for ( auto& l : item.image_layers ) {
+			for ( int i = 0; i != image_info->image.arrayLayers; i++ ) {
+				auto l             = le_resource_manager_o::image_data_layer_t{};
 				l.path             = image_paths[ i ];
 				l.was_uploaded     = false;
 				l.image_info       = &item.image_info.image;
 				l.extents_inferred = extents_inferred;
 
-				// TODO: pick image decoder api based on abstract image decoder that was potentially added at runtime.
-				l.decoder_i = le_pixels::api->le_pixels_image_decoder_i; // set decoder api - this should be set based on what filetype we detected in the future
+				// Pick image decoder api based on abstract image decoder that was potentially added at runtime,
+				// Depending on the file's extension.
+				l.decoder_i = le_resource_manager_get_decoder_interface_for_file( self, l.path );
+
+				if ( l.decoder_i == nullptr ) {
+					logger.warn( "Could not find image decoder for image layer sourced from file: '%s', skipping.", l.path );
+					continue;
+				}
 
 				update_image_array_layer( l );
-				i++;
+
+				item.image_layers.emplace_back( l );
 			}
 		}
 
@@ -404,6 +451,34 @@ static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img
 
 	return true;
 }
+// ----------------------------------------------------------------------
+
+static void le_resource_manager_update_decoder_interface_for_filetype( le_resource_manager_o* self, const char* file_extension, le_image_decoder_interface_t* decoder_interface ) {
+
+	// First we must lowercase the file extension
+	std::string file_ext;
+	for ( char const* c = file_extension; *c != 0; c++ ) {
+		file_ext.push_back( std::tolower( *c ) );
+	}
+
+	if ( file_ext.size() == 0 ) {
+		logger.warn( "Could not register file extension: '%s'", file_extension );
+		return;
+	}
+
+	// find out if we're replacing an existing interface
+	auto it                          = self->available_decoder_interfaces.find( file_ext );
+	bool interface_did_already_exist = ( it != self->available_decoder_interfaces.end() );
+
+	// replace or update the interface
+	self->available_decoder_interfaces.emplace_hint( it, file_ext, decoder_interface );
+
+	if ( interface_did_already_exist ) {
+		logger.info( "Updated    interface for file extension: '%s'", file_ext.c_str() );
+	} else {
+		logger.info( "Registered interface for file extension: '%s'", file_ext.c_str() );
+	}
+};
 
 // ----------------------------------------------------------------------
 
@@ -416,6 +491,8 @@ LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
 	le_resource_manager_i.update      = le_resource_manager_update;
 	le_resource_manager_i.add_item    = le_resource_manager_add_item;
 	le_resource_manager_i.remove_item = le_resource_manager_remove_item;
+
+	le_resource_manager_i.update_decoder_interface_for_filetype = le_resource_manager_update_decoder_interface_for_filetype;
 
 	le_resource_manager_private_i.file_watcher_callback = le_resource_manager_file_watcher_callback;
 }

@@ -99,8 +99,9 @@ If you want to load a 3D image, say, for a LUT, you can do the following:
 #include "le_core.h"
 
 struct le_resource_manager_o;
-struct le_rendergraph_o;   // ffdecl. (from le_renderer)
-struct le_resource_info_t; // ffdecl. (from le_renderer)
+struct le_rendergraph_o;             // ffdecl. (from le_renderer)
+struct le_resource_info_t;           // ffdecl. (from le_renderer)
+struct le_image_decoder_interface_t; // ffdecl (from le_core/shared/interfaces/le_image_decoder_interface.h)
 
 LE_OPAQUE_HANDLE( le_img_resource_handle ); // declared in le_renderer.h
 
@@ -115,6 +116,7 @@ struct le_resource_manager_api {
 		void                     ( * add_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle, le_resource_info_t const * image_info, char const ** arr_image_paths, bool should_watch);
 		bool 					 ( * remove_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle);
 
+		void (*update_decoder_interface_for_filetype)(le_resource_manager_o* self, const char* file_extension, le_image_decoder_interface_t* decoder_interface);
 	};
 
     struct le_resource_manager_private_interface_t {
