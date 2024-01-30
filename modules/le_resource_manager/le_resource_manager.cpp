@@ -55,24 +55,24 @@ struct le_resource_manager_o {
 };
 // ----------------------------------------------------------------------
 
-static void infer_from_le_format( le::Format const& format, uint32_t* num_channels, le_pixels_info::Type* pixels_type ) {
+static void infer_from_le_format( le::Format const& format, uint32_t* num_channels, le_num_type* num_type ) {
 	switch ( format ) {
 	case le::Format::eR8G8B8A8Uint: // deliberate fall-through
 	case le::Format::eR8G8B8A8Unorm:
 		*num_channels = 4;
-		*pixels_type  = le_pixels_info::Type::eUInt8;
+		*num_type     = le_num_type::eUChar;
 		return;
 	case le::Format::eR8Unorm:
 		*num_channels = 1;
-		*pixels_type  = le_pixels_info::Type::eUInt8;
+		*num_type     = le_num_type::eUChar;
 		return;
 	case le::Format::eR16G16B16A16Unorm:
 		*num_channels = 4;
-		*pixels_type  = le_pixels_info::Type::eUInt16;
+		*num_type     = le_num_type::eF16;
 		return;
 	case le::Format::eR32G32B32A32Sfloat:
 		*num_channels = 4;
-		*pixels_type  = le_pixels_info::Type::eFloat32;
+		*num_type     = le_num_type::eF32;
 		return;
 	case le::Format::eUndefined: // deliberate fall-through
 	default:
@@ -168,14 +168,14 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 				le_image_decoder_format_o decoder_format;
 
-				uint32_t             w, h, num_channels;
-				le_pixels_info::Type pixels_type;
+				uint32_t    w, h, num_channels;
+				le_num_type channel_data_type;
 
 				layer.decoder_i->get_image_data_description( layer.image_decoder, &decoder_format, &w, &h );
 
-				infer_from_le_format( decoder_format.format, &num_channels, &pixels_type );
+				infer_from_le_format( decoder_format.format, &num_channels, &channel_data_type );
 
-				uint32_t bytes_per_pixel = num_channels * ( uint32_t( 1 ) << ( uint32_t( pixels_type ) & 0x03 ) ); // See definition of le_pixels_info
+				uint32_t bytes_per_pixel = num_channels * ( uint32_t( 1 ) << ( uint32_t( channel_data_type ) & 0x03 ) ); // See definition of le_pixels_info
 				size_t   num_bytes       = bytes_per_pixel * w * h;
 
 				// We must now temporarily allocate memory to read pixels into
@@ -184,6 +184,7 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 				// eventually to allow us to directly map memory, and to then write
 				// into that mapped memory.
 				uint8_t* bytes = ( uint8_t* )malloc( num_bytes ); // note: this must be freed
+
 				layer.decoder_i->read_pixels( layer.image_decoder, bytes, num_bytes );
 
 				encoder.writeToImage( r.image_handle, write_info, bytes, num_bytes );
@@ -216,8 +217,11 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 		return;
 	}
 
-	le_image_decoder_format_o format;
-	uint32_t                  w, h;
+	le_image_decoder_format_o format = { le::Format::eR8G8B8A8Unorm };
+
+	layer_data.decoder_i->set_requested_format( layer_data.image_decoder, &format );
+
+	uint32_t w, h;
 
 	layer_data.decoder_i->get_image_data_description( layer_data.image_decoder, &format, &w, &h );
 

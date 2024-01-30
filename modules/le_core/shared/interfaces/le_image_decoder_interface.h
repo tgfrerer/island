@@ -34,5 +34,6 @@ struct le_image_decoder_interface_t {
 	// load image data from file, and read it into a pre-allocated byte array at p_pixels
 	bool ( *read_pixels )( le_image_decoder_o* image_decoder_o, uint8_t* p_pixels, size_t pixels_byte_count );
 
+	void ( *set_requested_format )( le_image_decoder_o* image_decoder_o, le_image_decoder_format_o const* format );
 	void ( *get_image_data_description )( le_image_decoder_o* image_decoder_o, le_image_decoder_format_o* p_format, uint32_t* w, uint32_t* h );
 };
