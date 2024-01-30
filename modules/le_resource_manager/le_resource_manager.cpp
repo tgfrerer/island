@@ -266,6 +266,19 @@ static void le_resource_manager_file_watcher_callback( char const* path, void* u
 static le_resource_manager_o* le_resource_manager_create() {
 	auto self = new le_resource_manager_o{};
 
+	// Register default file types with resource manager -
+	// the decoder for these files is provided by le_pixels
+	// which is a dependency of le_resource_manager.
+
+	// Feel free to add (and override) decoders at runtime -
+	// you can do so by invoking
+	//
+	// `le_resource_manager_update_decoder_interface_for_filetype`
+	// (see definition of this function further below)
+	//
+	// Image decoders may be provided by any module that implements
+	// the abstract `le_image_decoder_interface_t` interface.
+
 	auto& interface = le_resource_manager_api_i->le_resource_manager_i;
 
 	interface.update_decoder_interface_for_filetype( self, "png", le_pixels_api_i->le_pixels_image_decoder_i );
