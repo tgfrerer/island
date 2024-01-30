@@ -6,6 +6,8 @@
 #include "le_pipeline_builder.h"
 #include "le_ui_event.h"
 #include "le_pixels.h"
+#include "shared/interfaces/le_image_decoder_interface.h"
+
 #include "le_log.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
@@ -18,6 +20,12 @@
 #include <sstream>
 #include <vector>
 #include <stdlib.h> // for random
+
+// Wrapper for format enum so that we can pass this around in a c-style api without
+// completely losing type safety.
+struct le_image_decoder_format_o {
+	le::Format format;
+};
 
 struct pixels_data_t {
 	le_buf_resource_handle handle;
@@ -103,10 +111,10 @@ static bitonic_merge_sort_example_app_o* bitonic_merge_sort_example_app_create()
 // ----------------------------------------------------------------------
 
 static void bitonic_merge_sort_example_app_destroy( bitonic_merge_sort_example_app_o* self ) {
-    if (self) {
-        delete self->pixels_data;
-    }
-	delete ( self ); 
+	if ( self ) {
+		delete self->pixels_data;
+	}
+	delete ( self );
 }
 
 // ----------------------------------------------------------------------
@@ -225,7 +233,7 @@ static bool pass_sort_setup( le_renderpass_o* rp_, void* user_data ) {
 
 static void pass_noise_execute( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	le::TransferEncoder encoder{ encoder_ };
-	auto        app = static_cast<app_o*>( user_data );
+	auto                app = static_cast<app_o*>( user_data );
 
 	std::vector<uint32_t> buffer_initial_data;
 	buffer_initial_data.reserve( app->pixels_data->w * app->pixels_data->h * app->pixels_data->num_channels );
@@ -256,9 +264,10 @@ static void pass_upload_image_execute( le_command_buffer_encoder_o* encoder_, vo
 
 	// we must load image from disk
 
-	le::Pixels pixels( app->dropped_image_path.c_str(), 4 );
+	le_image_decoder_interface_t* image_decoder_api = le_pixels::api->le_pixels_image_decoder_i;
+	le_image_decoder_o*           image_decoder     = image_decoder_api->create_image_decoder( app->dropped_image_path.c_str() );
 
-	if ( !pixels.isValid() ) {
+	if ( nullptr == image_decoder ) {
 		log.warn( "Could not load image '%s'", app->dropped_image_path.c_str() );
 		app->dropped_image_path.clear();
 		return;
@@ -266,10 +275,17 @@ static void pass_upload_image_execute( le_command_buffer_encoder_o* encoder_, vo
 
 	// invariant: pixels must be valid
 
-	le_pixels_info info = pixels.getInfo();
+	uint32_t width;
+	uint32_t height;
 
-	if ( info.width * info.height < app->pixels_data->w * app->pixels_data->h ) {
-		log.warn( "Could not load image '%s': Too small: w: %d, h: %d", app->dropped_image_path.c_str(), info.width, info.height );
+	// request that the image decoder provide us with a float image
+	le_image_decoder_format_o format = { le::Format::eR8G8B8A8Unorm };
+
+	image_decoder_api->set_requested_format( image_decoder, &format );
+	image_decoder_api->get_image_data_description( image_decoder, &format, &width, &height );
+
+	if ( width * height < app->pixels_data->w * app->pixels_data->h || format.format != le::Format::eR8G8B8A8Unorm ) {
+		log.warn( "Could not load image '%s': Too small: w: %d, h: %d", app->dropped_image_path.c_str(), width, height );
 		app->dropped_image_path.clear();
 
 		app->pixels_data->unsorted = false;
@@ -287,8 +303,21 @@ static void pass_upload_image_execute( le_command_buffer_encoder_o* encoder_, vo
 
 	uint32_t num_bytes = app->pixels_data->w * app->pixels_data->h * app->pixels_data->bytes_per_channel * app->pixels_data->num_channels;
 
-	// upload pixels
-	encoder.writeToBuffer( app->pixels_data->handle, 0, pixels.getData(), num_bytes );
+	// Allocate data so that the image decoder can read pixels into
+	uint8_t* data = ( uint8_t* )malloc( num_bytes );
+
+	if ( data ) {
+
+		// Use the image decoder to read pixels into `data`
+		image_decoder_api->read_pixels( image_decoder, data, num_bytes );
+
+		// Upload pixels to buffer GPU memory
+		encoder.writeToBuffer( app->pixels_data->handle, 0, data, num_bytes );
+
+		free( data );
+	} else {
+		LeLog( "app" ).error( "Could not allocate data to hold image. %d bytes requested", num_bytes );
+	}
 
 	app->dropped_image_path.clear();
 }
@@ -302,7 +331,7 @@ static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user
 	log.info( "running compute pass..." );
 
 	le::ComputeEncoder encoder{ encoder_ };
-	auto        app = static_cast<app_o*>( user_data );
+	auto               app = static_cast<app_o*>( user_data );
 
 	size_t n = app->pixels_data->w * app->pixels_data->h;
 
@@ -452,7 +481,7 @@ static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user
 // ----------------------------------------------------------------------
 // Draw contents of buffer to screen
 static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto        app = static_cast<bitonic_merge_sort_example_app_o*>( user_data );
+	auto                app = static_cast<bitonic_merge_sort_example_app_o*>( user_data );
 	le::GraphicsEncoder encoder{ encoder_ };
 
 	// Draw main scene
