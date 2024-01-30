@@ -726,6 +726,38 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buf_resou
 
 // ----------------------------------------------------------------------
 
+static void cbe_map_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, size_t numBytes, void** p_mem_addr ) {
+
+	auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToBuffer>();
+
+	using namespace le_backend_vk; // for le_allocator_linear_i
+	le_buf_resource_handle srcResourceId;
+
+	// -- Allocate memory using staging allocator
+	//
+	// We don't use the encoder local scratch linear allocator, since memory written to buffers is
+	// typically a lot larger than uniforms and other small settings structs. Staging memory is
+	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
+	// use available memory more efficiently.
+	//
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, p_mem_addr, &srcResourceId ) ) {
+
+		cmd->info.src_buffer_id = srcResourceId;
+		cmd->info.src_offset    = 0; // staging allocator will give us a fresh buffer, and src memory will be placed at its start
+		cmd->info.dst_offset    = dst_offset;
+		cmd->info.numBytes      = numBytes;
+		cmd->info.dst_buffer_id = dst_buffer;
+
+		// -- Whoever mapped this memory may now write to it - it will be available for the full duration of this frame
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not map" << numBytes << " Bytes." << std::endl
+		          << std::flush;
+		return;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
                                 le_img_resource_handle const&       dst_img,
                                 le_write_to_image_settings_t const& writeInfo,
@@ -773,7 +805,53 @@ static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
 		return;
 	}
 }
+// ----------------------------------------------------------------------
 
+static void cbe_map_image( le_command_buffer_encoder_o*        self,
+                           le_img_resource_handle const&       dst_img,
+                           le_write_to_image_settings_t const& writeInfo,
+                           size_t                              numBytes,
+                           void**                              p_mem_addr ) {
+
+    // ----------| invariant: resource info represents an image
+
+    auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToImage>();
+
+	using namespace le_backend_vk; // for le_allocator_linear_i
+	void*                  memAddr;
+	le_buf_resource_handle stagingBufferId;
+
+	// -- Allocate memory using staging allocator
+	//
+	// We don't use the encoder local scratch linear allocator, since memory written to buffers is
+	// typically a lot larger than uniforms and other small settings structs. Staging memory is also
+	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
+	// use available memory more efficiently.
+	//
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, p_mem_addr, &stagingBufferId ) ) {
+
+		assert( writeInfo.num_miplevels != 0 ); // number of miplevels must be at least 1.
+
+		cmd->info.src_buffer_id   = stagingBufferId;           // resource id of staging buffer
+		cmd->info.numBytes        = numBytes;                  // total number of bytes from staging buffer which need to be synchronised.
+		cmd->info.dst_image_id    = dst_img;                   // resource id for target image resource
+		cmd->info.dst_miplevel    = writeInfo.dst_miplevel;    // default 0, use higher number to manually upload higher mip levels.
+		cmd->info.dst_array_layer = writeInfo.dst_array_layer; // default 0, use higher number to manually upload to array layer / or mipmap face.
+		cmd->info.num_miplevels   = writeInfo.num_miplevels;   // default is 1, *must not* be 0. More than 1 means to auto-generate these miplevels
+		cmd->info.image_w         = writeInfo.image_w;         // image extent
+		cmd->info.image_h         = writeInfo.image_h;         // image extent
+		cmd->info.image_d         = writeInfo.image_d;         // image depth
+		cmd->info.offset_x        = writeInfo.offset_x;        // x offset into image where to place data
+		cmd->info.offset_y        = writeInfo.offset_y;        // y offset into image where to place data
+		cmd->info.offset_z        = writeInfo.offset_z;        // z offset into target image
+
+		// -- You may now write data to the freshly allocated buffer - it will stay mapped for the will
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
+		return;
+	}
+}
 // ----------------------------------------------------------------------
 static void cbe_set_push_constant_data( le_command_buffer_encoder_o* self, void const* src_data, uint64_t num_bytes ) {
 
@@ -988,6 +1066,8 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	    .write_to_buffer       = cbe_write_to_buffer,
 	    .write_to_image        = cbe_write_to_image,
 	    .buffer_memory_barrier = cbe_buffer_memory_barrier,
+	    .map_image_memory      = cbe_map_image,
+	    .map_buffer_memory     = cbe_map_buffer,
 	};
 
 	cbe_rtx_i = {

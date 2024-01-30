@@ -948,6 +948,16 @@ class TransferEncoder {
 		return *this;
 	}
 
+	TransferEncoder& mapBufferMemory( le_buf_resource_handle const& dstBuffer, size_t const& byteOffsetDst, size_t const& numBytes, void** p_mem_addr ) {
+		le_renderer::encoder_transfer_i.map_buffer_memory( self, dstBuffer, byteOffsetDst, numBytes, p_mem_addr );
+		return *this;
+	}
+
+	TransferEncoder& mapImageMemory( le_img_resource_handle const& dstImg, le_write_to_image_settings_t const& writeInfo, size_t const& numBytes, void** p_mem_addr ) {
+		le_renderer::encoder_transfer_i.map_image_memory( self, dstImg, writeInfo, numBytes, p_mem_addr );
+		return *this;
+	}
+
 	TransferEncoder& bufferMemoryBarrier(
 	    le::PipelineStageFlags2 const& srcStageMask,
 	    le::PipelineStageFlags2 const& dstStageMask,
