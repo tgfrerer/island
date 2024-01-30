@@ -162,6 +162,9 @@ class LeResourceManager : NoCopy, NoMove {
 	bool remove_item( le_img_resource_handle const& image_handle ) {
 		return le_resource_manager::le_resource_manager_i.remove_item( self, &image_handle );
 	}
+	void update_decoder_interface_for_filetype( const char* file_extension, le_image_decoder_interface_t* decoder_interface ) {
+		le_resource_manager::le_resource_manager_i.update_decoder_interface_for_filetype( self, file_extension, decoder_interface );
+	}
 
 	operator auto() {
 		return self;
