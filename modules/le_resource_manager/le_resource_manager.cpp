@@ -376,7 +376,7 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 				l.decoder_i = le_resource_manager_get_decoder_interface_for_file( self, l.path );
 
 				if ( l.decoder_i == nullptr ) {
-					logger.warn( "Could not find image decoder for image layer sourced from file: '%s', skipping.", l.path );
+					logger.warn( "Could not find image decoder for image layer sourced from file: '%s', skipping.", l.path.c_str() );
 					continue;
 				}
 
