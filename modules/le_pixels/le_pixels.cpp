@@ -81,8 +81,6 @@ static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* fi
 
 	auto self = new le_image_decoder_o{};
 
-	logger.info( "Created image decoder for file '%s'", filepath );
-
 	if ( filepath ) {
 
 		int width;
@@ -94,6 +92,7 @@ static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* fi
 
 		if ( result != 1 ) {
 			delete self;
+			logger.error( "Could not open file at '%s'", filepath );
 			return nullptr;
 		}
 
@@ -127,6 +126,7 @@ static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* fi
 				self->image_inferred_format = le::Format::eR8Unorm;
 			}
 		}
+		logger.info( "Created image decoder for file '%s'", filepath );
 
 		return self;
 	} else {
