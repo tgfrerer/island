@@ -27,7 +27,7 @@ set(REQUIRES_ISLAND_CORE ON )
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
 
 # Add custom module search paths
-# add_island_module_location(${PROJECT_SOURCE_DIR}/../../modules)
+add_island_module_location(${ISLAND_BASE_DIR}/../extra_modules)
 
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)
@@ -40,7 +40,7 @@ add_subdirectory (lut_grading_example_app)
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")
 
 # create a link to local resources
-link_resources(${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources)
+link_resources(${PROJECT_SOURCE_DIR}/resources ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/local_resources)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 
