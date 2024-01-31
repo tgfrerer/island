@@ -17,9 +17,6 @@
 #include <algorithm>
 #include <iterator>
 
-#if ( WIN32 )
-#	pragma comment( lib, "bin/modules/imgui.lib" )
-#endif
 
 namespace {
 // We use an anonymous namespace here because we don't want to export our shader data to other compilation units
