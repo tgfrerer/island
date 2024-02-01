@@ -282,9 +282,9 @@ static le_resource_manager_o* le_resource_manager_create() {
 
 	auto& interface = le_resource_manager_api_i->le_resource_manager_i;
 
-	interface.update_decoder_interface_for_filetype( self, "png", le_pixels_api_i->le_pixels_image_decoder_i );
-	interface.update_decoder_interface_for_filetype( self, "jpg", le_pixels_api_i->le_pixels_image_decoder_i );
-	interface.update_decoder_interface_for_filetype( self, "jpeg", le_pixels_api_i->le_pixels_image_decoder_i );
+	interface.set_decoder_interface_for_filetype( self, "png", le_pixels_api_i->le_pixels_image_decoder_i );
+	interface.set_decoder_interface_for_filetype( self, "jpg", le_pixels_api_i->le_pixels_image_decoder_i );
+	interface.set_decoder_interface_for_filetype( self, "jpeg", le_pixels_api_i->le_pixels_image_decoder_i );
 
 	return self;
 }
@@ -488,7 +488,7 @@ static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img
 }
 // ----------------------------------------------------------------------
 
-static void le_resource_manager_update_decoder_interface_for_filetype( le_resource_manager_o* self, const char* file_extension, le_image_decoder_interface_t* decoder_interface ) {
+static void le_resource_manager_set_decoder_interface_for_filetype( le_resource_manager_o* self, const char* file_extension, le_image_decoder_interface_t* decoder_interface ) {
 
 	// First we must lowercase the file extension
 	std::string file_ext;
@@ -532,7 +532,7 @@ LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
 	le_resource_manager_i.add_item    = le_resource_manager_add_item;
 	le_resource_manager_i.remove_item = le_resource_manager_remove_item;
 
-	le_resource_manager_i.update_decoder_interface_for_filetype = le_resource_manager_update_decoder_interface_for_filetype;
+	le_resource_manager_i.set_decoder_interface_for_filetype = le_resource_manager_set_decoder_interface_for_filetype;
 
 	le_resource_manager_private_i.file_watcher_callback = le_resource_manager_file_watcher_callback;
 }
