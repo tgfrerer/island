@@ -24,7 +24,7 @@ struct le_image_decoder_format_o {
 
 // ----------------------------------------------------------------------
 // TODO:
-// * add a method to remove resources from the manager
+// * add a method to safely remove resources from the manager
 // * add a method to update resources from within the manager
 // ----------------------------------------------------------------------
 
@@ -452,12 +452,15 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 
 static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img_resource_handle const* resource_handle ) {
 
-	// TODO: you must be careful not to remove an item that might still be used for a transfer
-	// you might want to tap into the backend's on_fence_reached callback to only remove resources
-	// once we can be sure that there is no more dependency on them.
+	// TODO
+	// SAFETY: As soon as the le_command_buffer recording phase has completed,
+	// we can dispose of any items from self->resources that were referenced
+	// up to this point.
 	//
-	// Although for now we assume that the recording step of our pipeline always happens on the same thread as the
-	// thread that declares the rendergraph.
+	// This means that we should protect any resources that are currently being
+	// uploaded by keeping them until the recording step has been completed.
+	//
+	// Until this is implemented, we should not consider this method safe.
 
 	auto it = self->resources.find( *resource_handle );
 
