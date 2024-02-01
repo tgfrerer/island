@@ -755,8 +755,8 @@ struct CommandSetLineWidth {
 struct CommandBindVertexBuffers {
 	CommandHeader header = { { { CommandType::eBindVertexBuffers, sizeof( CommandBindVertexBuffers ) } } };
 	struct {
-		uint32_t                firstBinding;
-		uint32_t                bindingCount;
+		uint32_t firstBinding;
+		uint32_t bindingCount;
 	} info;
 };
 
