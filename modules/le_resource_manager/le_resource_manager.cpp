@@ -55,33 +55,6 @@ struct le_resource_manager_o {
 
 	std::unordered_map<le_resource_handle, resource_item_t> resources;
 };
-// ----------------------------------------------------------------------
-
-static void infer_from_le_format( le::Format const& format, uint32_t* num_channels, le_num_type* num_type ) {
-	switch ( format ) {
-	case le::Format::eR8G8B8A8Uint: // deliberate fall-through
-	case le::Format::eR8G8B8A8Unorm:
-		*num_channels = 4;
-		*num_type     = le_num_type::eUChar;
-		return;
-	case le::Format::eR8Unorm:
-		*num_channels = 1;
-		*num_type     = le_num_type::eUChar;
-		return;
-	case le::Format::eR16G16B16A16Unorm:
-		*num_channels = 4;
-		*num_type     = le_num_type::eF16;
-		return;
-	case le::Format::eR32G32B32A32Sfloat:
-		*num_channels = 4;
-		*num_type     = le_num_type::eF32;
-		return;
-	case le::Format::eUndefined: // deliberate fall-through
-	default:
-		logger.error( "Unhandled image format" );
-		assert( false && "Unhandled image format." );
-	}
-}
 
 // ----------------------------------------------------------------------
 
@@ -173,9 +146,15 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 				uint32_t    w, h, num_channels;
 				le_num_type channel_data_type;
 
+				assert( layer.image_decoder );
 				layer.decoder_i->get_image_data_description( layer.image_decoder, &decoder_format, &w, &h );
 
-				infer_from_le_format( decoder_format.format, &num_channels, &channel_data_type );
+				bool result = le_format_infer_channels_and_num_type( decoder_format.format, &num_channels, &channel_data_type );
+
+				if ( false == result ) {
+					logger.error( "Could not infer format info from format: %s", le::to_str( decoder_format.format ) );
+					continue;
+				}
 
 				uint32_t bytes_per_pixel = num_channels * ( uint32_t( 1 ) << ( uint32_t( channel_data_type ) & 0x03 ) ); // See definition of le_pixels_info
 				size_t   num_bytes       = bytes_per_pixel * w * h;
@@ -216,7 +195,7 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 		return;
 	}
 
-	le_image_decoder_format_o format = { le::Format::eR8G8B8A8Unorm };
+	le_image_decoder_format_o format = { le::Format::eUndefined };
 
 	uint32_t w, h;
 
@@ -225,13 +204,35 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 	// If Format is not any of the formats that we know, we
 	// adjust the format so that it fits.
 	//
-	if ( format.format != le::Format::eR8G8B8A8Unorm &&
-	     format.format != le::Format::eR32G32B32A32Sfloat ) {
 
-		auto adjusted_format = le::Format::eR8G8B8A8Unorm;
+	// conversion from -> to
+	const std::unordered_map<le::Format, le::Format> format_conversions = {
+	    { le::Format::eR8G8B8A8Unorm, le::Format::eR8G8B8A8Unorm },
+	    { le::Format::eR8G8B8Unorm, le::Format::eR8G8B8A8Unorm },
+	    { le::Format::eR8G8Unorm, le::Format::eR8G8B8A8Unorm },
+	    { le::Format::eR8Unorm, le::Format::eR8Unorm },
 
-		logger.info( "File '%s' has unknown format : %s, adjusting format to: %s", layer_data.path.c_str(), le::to_str( format.format ), le::to_str( adjusted_format ) );
+	    { le::Format::eR32G32B32A32Sfloat, le::Format::eR32G32B32A32Sfloat },
+	    { le::Format::eR32G32B32Sfloat, le::Format::eR32G32B32A32Sfloat },
+	    { le::Format::eR32G32Sfloat, le::Format::eR32G32B32A32Sfloat },
+	    { le::Format::eR32Sfloat, le::Format::eR32Sfloat },
 
+	    { le::Format::eR16G16B16A16Sfloat, le::Format::eR16G16B16A16Sfloat },
+	    { le::Format::eR16G16B16Sfloat, le::Format::eR16G16B16A16Sfloat },
+	    { le::Format::eR16G16Sfloat, le::Format::eR16G16B16A16Sfloat },
+	    { le::Format::eR16Sfloat, le::Format::eR16Sfloat },
+	};
+
+	auto found_format_it = format_conversions.find( format.format );
+
+	auto adjusted_format = le::Format::eR8G8B8A8Unorm;
+
+	if ( found_format_it != format_conversions.end() ) {
+		adjusted_format = found_format_it->second;
+	}
+
+	if ( format.format != adjusted_format ) {
+		logger.info( "File '%s' -> adjusting imported image format from %s to: %s", layer_data.path.c_str(), le::to_str( format.format ), le::to_str( adjusted_format ) );
 		format.format = adjusted_format;
 	}
 
@@ -391,6 +392,8 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 			extents_inferred = true;
 		}
 
+		item.image_info.image.format = le::Format::eUndefined;
+
 		{
 			for ( int i = 0; i != image_info->image.arrayLayers; i++ ) {
 				auto l             = le_resource_manager_o::image_data_layer_t{};
@@ -409,6 +412,15 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 				}
 
 				update_image_array_layer( l );
+
+				if ( item.image_info.image.format == le::Format::eUndefined ) {
+					item.image_info.image.format = l.image_info->format;
+				}
+
+				if ( item.image_info.image.format != l.image_info->format ) {
+					logger.error( "Layers must have consistent image format." );
+					continue;
+				}
 
 				item.image_layers.emplace_back( l );
 			}
