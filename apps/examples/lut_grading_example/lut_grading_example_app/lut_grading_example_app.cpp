@@ -5,6 +5,7 @@
 #include "le_pipeline_builder.h"
 #include "le_resource_manager.h"
 #include "le_ui_event.h"
+#include "le_exr.h" // provides the exr image decoder interface
 
 #include <iostream>
 #include <memory>
@@ -50,6 +51,10 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 	app->window.setup( settings );
 
 	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
+
+	// This is how you introduce a new image decoder to resource_manager -
+	// Now you could open '.exr' images using the resource_manager...
+	app->resource_manager.set_decoder_interface_for_filetype( "exr", le_exr_api_i->le_exr_image_decoder_i );
 
 	char const* hald_lut =
 	    "./local_resources/images/night_from_day.png";
