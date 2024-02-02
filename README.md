@@ -35,13 +35,13 @@ can build a single, statically linked and optimised binary.
   point at shader file and line number, and include a brief listing
   with problematic lines highlighted in context.
 
-* **Image hot-reloading**: If importing images via
-  `le_resource_manager` (it's simple, and recommended) - any image
-  resource can automatically hot-reloads if its source file changes.
-
 <img width="350"
 src="https://github.com/tgfrerer/island/assets/423509/b97ef461-42b1-4fbd-b3a0-c4051bb6e8d7"
 align="right" />
+
+* **Image hot-reloading**: If importing images via
+  `le_resource_manager` (it's simple, and recommended) - any image
+  resource may automatically hot-reload when its source file changes.
 
 * **Fast compile times**:  Because of Island's modular architecture,
   a recompilation & reload cycle typically takes less than 1 second,
