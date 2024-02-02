@@ -519,6 +519,48 @@ enum class le_num_type : uint8_t {
 	eF16 = eHalf,
 };
 
+static bool le_format_infer_channels_and_num_type( le::Format const& format, uint32_t* num_channels, le_num_type* num_type ) {
+	switch ( format ) {
+	case le::Format::eR8G8B8A8Uint: // deliberate fall-through
+	case le::Format::eR8G8B8A8Unorm:
+		*num_channels = 4;
+		*num_type     = le_num_type::eUChar;
+		return true;
+	case le::Format::eR8G8B8Uint: // deliberate fall-through
+	case le::Format::eR8G8B8Unorm:
+		*num_channels = 3;
+		*num_type     = le_num_type::eUChar;
+		return true;
+	case le::Format::eR8Unorm:
+		*num_channels = 1;
+		*num_type     = le_num_type::eUChar;
+		return true;
+	case le::Format::eR32Sfloat:
+		*num_channels = 1;
+		*num_type     = le_num_type::eFloat;
+		return true;
+	case le::Format::eR16G16B16Sfloat:
+		*num_channels = 3;
+		*num_type     = le_num_type::eF16;
+		return true;
+	case le::Format::eR32G32B32Sfloat:
+		*num_channels = 3;
+		*num_type     = le_num_type::eF32;
+		return true;
+	case le::Format::eR16G16B16A16Sfloat:
+		*num_channels = 4;
+		*num_type     = le_num_type::eF16;
+		return true;
+	case le::Format::eR32G32B32A32Sfloat:
+		*num_channels = 4;
+		*num_type     = le_num_type::eF32;
+		return true;
+	case le::Format::eUndefined: // deliberate fall-through
+	default:
+		return false;
+	}
+}
+
 // returns number of bytes needed to store given num_type
 constexpr uint32_t size_of( le_num_type const& tp ) {
 	return ( 1 << ( uint8_t( tp ) & 0b11 ) );
@@ -755,8 +797,8 @@ struct CommandSetLineWidth {
 struct CommandBindVertexBuffers {
 	CommandHeader header = { { { CommandType::eBindVertexBuffers, sizeof( CommandBindVertexBuffers ) } } };
 	struct {
-		uint32_t                firstBinding;
-		uint32_t                bindingCount;
+		uint32_t firstBinding;
+		uint32_t bindingCount;
 	} info;
 };
 

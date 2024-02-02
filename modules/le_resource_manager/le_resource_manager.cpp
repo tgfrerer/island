@@ -11,13 +11,20 @@
 
 #include <unordered_map>
 
+// only used to print debug messages:
 #include "private/le_renderer/le_resource_handle_t.inl"
+
+#include "shared/interfaces/le_image_decoder_interface.h"
 
 static auto logger = le::Log( "resource_manager" );
 
+struct le_image_decoder_format_o {
+	le::Format format;
+};
+
 // ----------------------------------------------------------------------
 // TODO:
-// * add a method to remove resources from the manager
+// * add a method to safely remove resources from the manager
 // * add a method to update resources from within the manager
 // ----------------------------------------------------------------------
 
@@ -26,7 +33,9 @@ struct le_resource_manager_o {
 	le_file_watcher_o* file_watcher = nullptr;
 
 	struct image_data_layer_t {
-		le_pixels_o*                   pixels;
+		le_image_decoder_o*                 image_decoder;
+		le_image_decoder_interface_t const* decoder_i;
+
 		std::string                    path;
 		bool                           was_uploaded     = false;
 		bool                           extents_inferred = false;
@@ -41,6 +50,8 @@ struct le_resource_manager_o {
 		le_resource_info_t              image_info;
 		std::vector<image_data_layer_t> image_layers; // must have at least one element
 	};
+
+	std::unordered_map<std::string, le_image_decoder_interface_t*> available_decoder_interfaces; // map from hash of lowercase file extension (`exr`, `png`, ... ) to an image decoder inferface that can deal with this extension
 
 	std::unordered_map<le_resource_handle, resource_item_t> resources;
 };
@@ -130,13 +141,35 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 				        .setImageD( depth )
 				        .build();
 
-				auto     pixels    = layer.pixels;
-				auto     info      = le_pixels_i.get_info( pixels );
-				uint32_t num_bytes = info.byte_count; // TODO: make sure to get correct byte count for mip level, or compressed image.
-				void*    bytes     = le_pixels_i.get_data( pixels );
+				le_image_decoder_format_o decoder_format;
 
-				encoder.writeToImage( r.image_handle, write_info, bytes, num_bytes );
+				uint32_t    w, h, num_channels;
+				le_num_type channel_data_type;
+
+				assert( layer.image_decoder );
+				layer.decoder_i->get_image_data_description( layer.image_decoder, &decoder_format, &w, &h );
+
+				bool result = le_format_infer_channels_and_num_type( decoder_format.format, &num_channels, &channel_data_type );
+
+				if ( false == result ) {
+					logger.error( "Could not infer format info from format: %s", le::to_str( decoder_format.format ) );
+					continue;
+				}
+
+				uint32_t bytes_per_pixel = num_channels * ( uint32_t( 1 ) << ( uint32_t( channel_data_type ) & 0x03 ) ); // See definition of le_pixels_info
+				size_t   num_bytes       = bytes_per_pixel * w * h;
+
+				// We map memory via the encoder - if all goes well the encoder gives us a pointer
+				// into which we can read pixels into.
+				void* bytes = nullptr;
+
+				encoder.mapImageMemory( r.image_handle, write_info, num_bytes, &bytes );
+				assert( bytes != nullptr && "Image memory mapping must have been successful." );
+
+				bool read_success = layer.decoder_i->read_pixels( layer.image_decoder, ( uint8_t* )bytes, num_bytes );
+				assert( read_success && "Pixels were not read successfully." );
 			}
+
 			layer.was_uploaded = true;
 			layer_index++;
 		}
@@ -145,57 +178,75 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 // ----------------------------------------------------------------------
 
-static void infer_from_le_format( le::Format const& format, uint32_t* num_channels, le_pixels_info::Type* pixels_type ) {
-	switch ( format ) {
-	case le::Format::eUndefined: // deliberate fall-through
-	case le::Format::eR8G8B8A8Unorm:
-		*num_channels = 4;
-		*pixels_type  = le_pixels_info::Type::eUInt8;
-		return;
-	case le::Format::eR8Unorm:
-		*num_channels = 1;
-		*pixels_type  = le_pixels_info::Type::eUInt8;
-		return;
-	case le::Format::eR16G16B16A16Unorm:
-		*num_channels = 4;
-		*pixels_type  = le_pixels_info::Type::eUInt16;
-		return;
-	default:
-		logger.error( "Unhandled image format" );
-		assert( false && "Unhandled image format." );
-	}
-}
-
-// ----------------------------------------------------------------------
-
 static void update_image_array_layer( le_resource_manager_o::image_data_layer_t& layer_data ) {
 
 	// we must find out the pixels type from image info format
-	uint32_t             num_channels = 0;
-	le_pixels_info::Type pixels_type{};
+	uint32_t num_channels = 0;
 
-	infer_from_le_format( layer_data.image_info->format, &num_channels, &pixels_type );
+	le_image_decoder_o* new_decoder = layer_data.decoder_i->create_image_decoder( layer_data.path.c_str() );
 
-	le_pixels_o* new_pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), num_channels, pixels_type );
-
-	if ( layer_data.pixels && new_pixels ) {
-		le_pixels::le_pixels_i.destroy( layer_data.pixels );
+	if ( layer_data.image_decoder && new_decoder ) {
+		layer_data.decoder_i->destroy_image_decoder( layer_data.image_decoder );
 	}
 
-	if ( new_pixels ) {
-		layer_data.pixels = new_pixels;
+	if ( new_decoder ) {
+		layer_data.image_decoder = new_decoder;
 	} else {
 		return;
 	}
 
-	auto info = le_pixels::le_pixels_i.get_info( layer_data.pixels );
-	if ( layer_data.extents_inferred ) {
-		layer_data.image_info->extent.depth  = info.depth;
-		layer_data.image_info->extent.width  = info.width;
-		layer_data.image_info->extent.height = info.height;
+	le_image_decoder_format_o format = { le::Format::eUndefined };
+
+	uint32_t w, h;
+
+	layer_data.decoder_i->get_image_data_description( layer_data.image_decoder, &format, &w, &h );
+
+	// If Format is not any of the formats that we know, we
+	// adjust the format so that it fits.
+	//
+
+	// conversion from -> to
+	const std::unordered_map<le::Format, le::Format> format_conversions = {
+	    { le::Format::eR8G8B8A8Unorm, le::Format::eR8G8B8A8Unorm },
+	    { le::Format::eR8G8B8Unorm, le::Format::eR8G8B8A8Unorm },
+	    { le::Format::eR8G8Unorm, le::Format::eR8G8B8A8Unorm },
+	    { le::Format::eR8Unorm, le::Format::eR8Unorm },
+
+	    { le::Format::eR32G32B32A32Sfloat, le::Format::eR32G32B32A32Sfloat },
+	    { le::Format::eR32G32B32Sfloat, le::Format::eR32G32B32A32Sfloat },
+	    { le::Format::eR32G32Sfloat, le::Format::eR32G32B32A32Sfloat },
+	    { le::Format::eR32Sfloat, le::Format::eR32Sfloat },
+
+	    { le::Format::eR16G16B16A16Sfloat, le::Format::eR16G16B16A16Sfloat },
+	    { le::Format::eR16G16B16Sfloat, le::Format::eR16G16B16A16Sfloat },
+	    { le::Format::eR16G16Sfloat, le::Format::eR16G16B16A16Sfloat },
+	    { le::Format::eR16Sfloat, le::Format::eR16Sfloat },
+	};
+
+	auto found_format_it = format_conversions.find( format.format );
+
+	auto adjusted_format = le::Format::eR8G8B8A8Unorm;
+
+	if ( found_format_it != format_conversions.end() ) {
+		adjusted_format = found_format_it->second;
 	}
-	layer_data.width  = info.width;
-	layer_data.height = info.height;
+
+	if ( format.format != adjusted_format ) {
+		logger.info( "File '%s' -> adjusting imported image format from %s to: %s", layer_data.path.c_str(), le::to_str( format.format ), le::to_str( adjusted_format ) );
+		format.format = adjusted_format;
+	}
+
+	layer_data.decoder_i->set_requested_format( layer_data.image_decoder, &format );
+
+	if ( layer_data.extents_inferred ) {
+		layer_data.image_info->extent.depth  = 1;
+		layer_data.image_info->extent.width  = w;
+		layer_data.image_info->extent.height = h;
+	}
+
+	layer_data.width              = w;
+	layer_data.height             = h;
+	layer_data.image_info->format = format.format;
 
 	layer_data.image_info->usage |= ( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage );
 
@@ -216,6 +267,25 @@ static void le_resource_manager_file_watcher_callback( char const* path, void* u
 static le_resource_manager_o* le_resource_manager_create() {
 	auto self = new le_resource_manager_o{};
 
+	// Register default file types with resource manager -
+	// the decoder for these files is provided by le_pixels
+	// which is a dependency of le_resource_manager.
+
+	// Feel free to add (and override) decoders at runtime -
+	// you can do so by invoking
+	//
+	// `le_resource_manager_update_decoder_interface_for_filetype`
+	// (see definition of this function further below)
+	//
+	// Image decoders may be provided by any module that implements
+	// the abstract `le_image_decoder_interface_t` interface.
+
+	auto& interface = le_resource_manager_api_i->le_resource_manager_i;
+
+	interface.set_decoder_interface_for_filetype( self, "png", le_pixels_api_i->le_pixels_image_decoder_i );
+	interface.set_decoder_interface_for_filetype( self, "jpg", le_pixels_api_i->le_pixels_image_decoder_i );
+	interface.set_decoder_interface_for_filetype( self, "jpeg", le_pixels_api_i->le_pixels_image_decoder_i );
+
 	return self;
 }
 
@@ -231,9 +301,9 @@ static void le_resource_manager_destroy( le_resource_manager_o* self ) {
 
 	for ( auto& [ k, r ] : self->resources ) {
 		for ( auto& l : r.image_layers ) {
-			if ( l.pixels ) {
-				le_pixels_i.destroy( l.pixels );
-				l.pixels = nullptr;
+			if ( l.image_decoder ) {
+				l.decoder_i->destroy_image_decoder( l.image_decoder );
+				l.image_decoder = nullptr;
 			}
 		}
 	}
@@ -265,6 +335,38 @@ static void le_resource_manager_update( le_resource_manager_o* self, le_rendergr
 }
 
 // ----------------------------------------------------------------------
+
+le_image_decoder_interface_t* le_resource_manager_get_decoder_interface_for_file( le_resource_manager_o* self, std::string const& path ) {
+
+	std::size_t last_dot_pos = path.find_last_of( '.' );
+	std::string file_extension;
+	file_extension.reserve( 4 );
+
+	if ( last_dot_pos != std::string::npos ) {
+
+		// lowercase the file extension string so that we have it
+		// in the canonical form which we may look up in our map
+		size_t sz = path.size();
+		for ( size_t i = last_dot_pos + 1; i != sz; i++ ) {
+			file_extension.push_back( std::tolower( path[ i ] ) );
+		}
+
+		// Try to find the file extension in our map - if found,
+		// return the image decoder interface that was associated
+		// with this file extension.
+		//
+		auto it = self->available_decoder_interfaces.find( file_extension );
+		if ( it != self->available_decoder_interfaces.end() ) {
+			return it->second;
+		} else {
+			return nullptr;
+		}
+	}
+	// could not find a valid decoder interface for this file extension
+	return nullptr;
+}
+
+// ----------------------------------------------------------------------
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
 // Most meta-data about the image file is loaded via image_info
@@ -281,7 +383,7 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 
 		item.image_handle = *image_handle;
 		item.image_info   = *image_info;
-		item.image_layers.resize( image_info->image.arrayLayers );
+		item.image_layers.reserve( image_info->image.arrayLayers );
 
 		bool extents_inferred = false;
 		if ( item.image_info.image.extent.width == 0 ||
@@ -290,16 +392,37 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 			extents_inferred = true;
 		}
 
+		item.image_info.image.format = le::Format::eUndefined;
+
 		{
-			int i = 0;
-			for ( auto& l : item.image_layers ) {
+			for ( int i = 0; i != image_info->image.arrayLayers; i++ ) {
+				auto l             = le_resource_manager_o::image_data_layer_t{};
 				l.path             = image_paths[ i ];
 				l.was_uploaded     = false;
 				l.image_info       = &item.image_info.image;
 				l.extents_inferred = extents_inferred;
 
+				// Pick image decoder api based on abstract image decoder that was potentially added at runtime,
+				// Depending on the file's extension.
+				l.decoder_i = le_resource_manager_get_decoder_interface_for_file( self, l.path );
+
+				if ( l.decoder_i == nullptr ) {
+					logger.warn( "Could not find image decoder for image layer sourced from file: '%s', skipping.", l.path.c_str() );
+					continue;
+				}
+
 				update_image_array_layer( l );
-				i++;
+
+				if ( item.image_info.image.format == le::Format::eUndefined ) {
+					item.image_info.image.format = l.image_info->format;
+				}
+
+				if ( item.image_info.image.format != l.image_info->format ) {
+					logger.error( "Layers must have consistent image format." );
+					continue;
+				}
+
+				item.image_layers.emplace_back( l );
 			}
 		}
 
@@ -329,6 +452,16 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 
 static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img_resource_handle const* resource_handle ) {
 
+	// TODO
+	// SAFETY: As soon as the le_command_buffer recording phase has completed,
+	// we can dispose of any items from self->resources that were referenced
+	// up to this point.
+	//
+	// This means that we should protect any resources that are currently being
+	// uploaded by keeping them until the recording step has been completed.
+	//
+	// Until this is implemented, we should not consider this method safe.
+
 	auto it = self->resources.find( *resource_handle );
 
 	if ( it == self->resources.end() ) {
@@ -346,9 +479,9 @@ static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img
 			le_file_watcher::le_file_watcher_i.remove_watch( self->file_watcher, l.watch_id );
 			l.watch_id = -1;
 		}
-		if ( l.pixels ) {
-			le_pixels::le_pixels_i.destroy( l.pixels );
-			l.pixels = nullptr;
+		if ( l.image_decoder ) {
+			l.decoder_i->destroy_image_decoder( l.image_decoder );
+			l.image_decoder = nullptr;
 		}
 	}
 
@@ -356,6 +489,39 @@ static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img
 
 	return true;
 }
+// ----------------------------------------------------------------------
+
+static void le_resource_manager_set_decoder_interface_for_filetype( le_resource_manager_o* self, const char* file_extension, le_image_decoder_interface_t* decoder_interface ) {
+
+	// First we must lowercase the file extension
+	std::string file_ext;
+	for ( char const* c = file_extension; *c != 0; c++ ) {
+		if ( ( *c ) == '.' ) {
+			logger.warn( "Do not include dot ('.') in file extension when updating image decoder interface: '%s'",
+			             file_extension );
+			continue;
+		}
+		file_ext.push_back( std::tolower( *c ) );
+	}
+
+	if ( file_ext.size() == 0 ) {
+		logger.warn( "Could not register file extension: '%s'", file_extension );
+		return;
+	}
+
+	// find out if we're replacing an existing interface
+	auto it                          = self->available_decoder_interfaces.find( file_ext );
+	bool interface_did_already_exist = ( it != self->available_decoder_interfaces.end() );
+
+	// replace or update the interface
+	self->available_decoder_interfaces.emplace_hint( it, file_ext, decoder_interface );
+
+	if ( interface_did_already_exist ) {
+		logger.info( "Updated    interface for file extension: '%s'", file_ext.c_str() );
+	} else {
+		logger.info( "Registered interface for file extension: '%s'", file_ext.c_str() );
+	}
+};
 
 // ----------------------------------------------------------------------
 
@@ -368,6 +534,8 @@ LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
 	le_resource_manager_i.update      = le_resource_manager_update;
 	le_resource_manager_i.add_item    = le_resource_manager_add_item;
 	le_resource_manager_i.remove_item = le_resource_manager_remove_item;
+
+	le_resource_manager_i.set_decoder_interface_for_filetype = le_resource_manager_set_decoder_interface_for_filetype;
 
 	le_resource_manager_private_i.file_watcher_callback = le_resource_manager_file_watcher_callback;
 }

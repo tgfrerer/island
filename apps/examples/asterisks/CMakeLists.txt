@@ -40,6 +40,6 @@ add_subdirectory (asterisks_app)
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")
 
 # (optional) create a link to local resources
-link_resources(${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources)
+link_resources("${PROJECT_SOURCE_DIR}/resources" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/local_resources")
 
 source_group(${PROJECT_NAME} FILES ${SOURCES})

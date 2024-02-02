@@ -189,7 +189,10 @@ struct le_renderer_api {
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_img_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
 		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buf_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
- 	};
+
+        void                         ( *map_image_memory       )( le_command_buffer_encoder_o *self, le_img_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo,  size_t numBytes, void** p_memory_addr );
+        void                         ( *map_buffer_memory      )( le_command_buffer_encoder_o *self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, size_t numBytes, void ** p_memory_addr);
+    };
 
 	struct command_buffer_video_decoder_encoder_interface_t{
 		void                         ( *execute_callback  )( le_command_buffer_encoder_o *self, le::CommandVideoDecoderExecuteCallback::callback_fun_t* fun, void * user_data);

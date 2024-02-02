@@ -2,7 +2,7 @@
 
 #include "le_renderer.h"
 
-#include "le_backend_vk.h" // for GPU allocators
+#include "le_backend_vk.h"                             // for GPU allocators
 #include "private/le_backend_vk/le_command_stream_t.h" // for le_command_stream_t
 
 #include <cstring>
@@ -42,7 +42,6 @@ static inline le_allocator_o* fetch_allocator( le_allocator_o** ppAlloc ) {
 	assert( result );
 	return result;
 }
-
 
 // ----------------------------------------------------------------------
 
@@ -85,11 +84,11 @@ struct le_shader_binding_table_o {
 //
 struct le_command_buffer_encoder_o {
 	le_command_stream_t*                    mCommandStream;
-	le_allocator_o**                        ppAllocator        = nullptr; // allocator list is owned by backend, externally
-	le_pipeline_manager_o*                  pipelineManager    = nullptr; // non-owning: owned by backend.
-	le_staging_allocator_o*                 stagingAllocator   = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
-	le::Extent2D                            extent             = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
-	std::vector<le_shader_binding_table_o*> shader_binding_tables;        // owning
+	le_allocator_o**                        ppAllocator      = nullptr; // allocator list is owned by backend, externally
+	le_pipeline_manager_o*                  pipelineManager  = nullptr; // non-owning: owned by backend.
+	le_staging_allocator_o*                 stagingAllocator = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
+	le::Extent2D                            extent           = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
+	std::vector<le_shader_binding_table_o*> shader_binding_tables;      // owning
 };
 
 // ----------------------------------------------------------------------
@@ -219,7 +218,7 @@ static void cbe_set_viewport( le_command_buffer_encoder_o* self,
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandSetViewport>( data_size ); // placement new!
 	// We point data to the next available position in the data stream
 	// so that we can store the data for viewports inline.
-	void*  data     = ( cmd + 1 ); // note: this increments a le::CommandSetViewport pointer by one time its object size, then gets the address
+	void* data = ( cmd + 1 ); // note: this increments a le::CommandSetViewport pointer by one time its object size, then gets the address
 
 	cmd->info = { firstViewport, viewportCount };
 	cmd->header.info.size += data_size; // we must increase the size of this command by its payload size
@@ -246,7 +245,6 @@ static void cbe_set_viewport( le_command_buffer_encoder_o* self,
 			pTargetViewport->height = -pTargetViewport->height;
 		}
 	}
-
 };
 // ----------------------------------------------------------------------
 // copy user data into command stream
@@ -267,13 +265,12 @@ static void cbe_set_scissor( le_command_buffer_encoder_o* self,
 
 	// We point to the next available position in the data stream
 	// so that we can store the data for scissors inline.
-	void*  data     = ( cmd + 1 );
+	void* data = ( cmd + 1 );
 
 	cmd->info = { firstScissor, scissorCount };
 	cmd->header.info.size += data_size; // we must increase the size of this command by its payload size
 
 	memcpy( data, pScissors, data_size );
-
 }
 
 // ----------------------------------------------------------------------
@@ -302,7 +299,6 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*  self,
 
 	memcpy( dataBuffers, pBuffers, data_buffers_size );
 	memcpy( dataOffsets, pOffsets, data_offsets_size );
-
 }
 
 // ----------------------------------------------------------------------
@@ -488,7 +484,6 @@ static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o* self, le_gp
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandBindGraphicsPipeline>();
 
 	cmd->info.gpsoHandle = gpsoHandle;
-
 }
 
 // ----------------------------------------------------------------------
@@ -684,7 +679,6 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_
 	// TODO: build actual sbt based on data in sbt,
 	// query handles from pipeline manager.
 	// allocate data, point to data.
-
 }
 
 // ----------------------------------------------------------------------
@@ -695,7 +689,6 @@ static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o* self, le_cps
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandBindComputePipeline>();
 
 	cmd->info.cpsoHandle = cpsoHandle;
-
 }
 
 // ----------------------------------------------------------------------
@@ -733,6 +726,38 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buf_resou
 
 // ----------------------------------------------------------------------
 
+static void cbe_map_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, size_t numBytes, void** p_mem_addr ) {
+
+	auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToBuffer>();
+
+	using namespace le_backend_vk; // for le_allocator_linear_i
+	le_buf_resource_handle srcResourceId;
+
+	// -- Allocate memory using staging allocator
+	//
+	// We don't use the encoder local scratch linear allocator, since memory written to buffers is
+	// typically a lot larger than uniforms and other small settings structs. Staging memory is
+	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
+	// use available memory more efficiently.
+	//
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, p_mem_addr, &srcResourceId ) ) {
+
+		cmd->info.src_buffer_id = srcResourceId;
+		cmd->info.src_offset    = 0; // staging allocator will give us a fresh buffer, and src memory will be placed at its start
+		cmd->info.dst_offset    = dst_offset;
+		cmd->info.numBytes      = numBytes;
+		cmd->info.dst_buffer_id = dst_buffer;
+
+		// -- Whoever mapped this memory may now write to it - it will be available for the full duration of this frame
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not map" << numBytes << " Bytes." << std::endl
+		          << std::flush;
+		return;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
                                 le_img_resource_handle const&       dst_img,
                                 le_write_to_image_settings_t const& writeInfo,
@@ -763,7 +788,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
 
 		cmd->info.src_buffer_id   = stagingBufferId;           // resource id of staging buffer
 		cmd->info.numBytes        = numBytes;                  // total number of bytes from staging buffer which need to be synchronised.
-		cmd->info.dst_image_id    = dst_img;                   // resouce id for target image resource
+		cmd->info.dst_image_id    = dst_img;                   // resource id for target image resource
 		cmd->info.dst_miplevel    = writeInfo.dst_miplevel;    // default 0, use higher number to manually upload higher mip levels.
 		cmd->info.dst_array_layer = writeInfo.dst_array_layer; // default 0, use higher number to manually upload to array layer / or mipmap face.
 		cmd->info.num_miplevels   = writeInfo.num_miplevels;   // default is 1, *must not* be 0. More than 1 means to auto-generate these miplevels
@@ -780,7 +805,53 @@ static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
 		return;
 	}
 }
+// ----------------------------------------------------------------------
 
+static void cbe_map_image( le_command_buffer_encoder_o*        self,
+                           le_img_resource_handle const&       dst_img,
+                           le_write_to_image_settings_t const& writeInfo,
+                           size_t                              numBytes,
+                           void**                              p_mem_addr ) {
+
+    // ----------| invariant: resource info represents an image
+
+    auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToImage>();
+
+	using namespace le_backend_vk; // for le_allocator_linear_i
+	void*                  memAddr;
+	le_buf_resource_handle stagingBufferId;
+
+	// -- Allocate memory using staging allocator
+	//
+	// We don't use the encoder local scratch linear allocator, since memory written to buffers is
+	// typically a lot larger than uniforms and other small settings structs. Staging memory is also
+	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
+	// use available memory more efficiently.
+	//
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, p_mem_addr, &stagingBufferId ) ) {
+
+		assert( writeInfo.num_miplevels != 0 ); // number of miplevels must be at least 1.
+
+		cmd->info.src_buffer_id   = stagingBufferId;           // resource id of staging buffer
+		cmd->info.numBytes        = numBytes;                  // total number of bytes from staging buffer which need to be synchronised.
+		cmd->info.dst_image_id    = dst_img;                   // resource id for target image resource
+		cmd->info.dst_miplevel    = writeInfo.dst_miplevel;    // default 0, use higher number to manually upload higher mip levels.
+		cmd->info.dst_array_layer = writeInfo.dst_array_layer; // default 0, use higher number to manually upload to array layer / or mipmap face.
+		cmd->info.num_miplevels   = writeInfo.num_miplevels;   // default is 1, *must not* be 0. More than 1 means to auto-generate these miplevels
+		cmd->info.image_w         = writeInfo.image_w;         // image extent
+		cmd->info.image_h         = writeInfo.image_h;         // image extent
+		cmd->info.image_d         = writeInfo.image_d;         // image depth
+		cmd->info.offset_x        = writeInfo.offset_x;        // x offset into image where to place data
+		cmd->info.offset_y        = writeInfo.offset_y;        // y offset into image where to place data
+		cmd->info.offset_z        = writeInfo.offset_z;        // z offset into target image
+
+		// -- You may now write data to the freshly allocated buffer - it will stay mapped for the will
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
+		return;
+	}
+}
 // ----------------------------------------------------------------------
 static void cbe_set_push_constant_data( le_command_buffer_encoder_o* self, void const* src_data, uint64_t num_bytes ) {
 
@@ -817,7 +888,6 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o*         self,
 	cmd->header.info.size += data_size;
 
 	memcpy( data, p_blas_handles, data_size );
-
 }
 
 // ----------------------------------------------------------------------
@@ -875,7 +945,6 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o*      self,
 
 	void* memAddr = cmd + 1; // move to position just after command
 	memcpy( memAddr, blas_handles, data_size );
-
 }
 
 // ----------------------------------------------------------------------
@@ -945,11 +1014,11 @@ le_shader_binding_table_o* sbt_validate( le_shader_binding_table_o* sbt ) {
 
 void register_le_command_buffer_encoder_api( void* api_ ) {
 
-	auto& cbe_base_i     = static_cast<le_renderer_api*>( api_ )->le_command_buffer_encoder_i;
-	auto& cbe_graphics_i = static_cast<le_renderer_api*>( api_ )->le_cbe_graphics_i;
-	auto& cbe_compute_i  = static_cast<le_renderer_api*>( api_ )->le_cbe_compute_i;
-	auto& cbe_transfer_i = static_cast<le_renderer_api*>( api_ )->le_cbe_transfer_i;
-	auto& cbe_rtx_i      = static_cast<le_renderer_api*>( api_ )->le_cbe_rtx_i;
+	auto& cbe_base_i          = static_cast<le_renderer_api*>( api_ )->le_command_buffer_encoder_i;
+	auto& cbe_graphics_i      = static_cast<le_renderer_api*>( api_ )->le_cbe_graphics_i;
+	auto& cbe_compute_i       = static_cast<le_renderer_api*>( api_ )->le_cbe_compute_i;
+	auto& cbe_transfer_i      = static_cast<le_renderer_api*>( api_ )->le_cbe_transfer_i;
+	auto& cbe_rtx_i           = static_cast<le_renderer_api*>( api_ )->le_cbe_rtx_i;
 	auto& cbe_video_decoder_i = static_cast<le_renderer_api*>( api_ )->le_cbe_video_decoder_i;
 
 	cbe_base_i = {
@@ -997,6 +1066,8 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	    .write_to_buffer       = cbe_write_to_buffer,
 	    .write_to_image        = cbe_write_to_image,
 	    .buffer_memory_barrier = cbe_buffer_memory_barrier,
+	    .map_image_memory      = cbe_map_image,
+	    .map_buffer_memory     = cbe_map_buffer,
 	};
 
 	cbe_rtx_i = {

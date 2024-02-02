@@ -10,19 +10,17 @@ struct le_tracy_o {
 	uint32_t log_level_mask = 0;
 };
 
-static void** PP_TRACY_SINGLETON = nullptr; // set via registration method
-
 static le_tracy_o* produce_tracy() {
 	static std::mutex mtx;
 	auto              lock = std::unique_lock( mtx );
 
-	le_tracy_o* self = static_cast<le_tracy_o*>( *PP_TRACY_SINGLETON );
-	if ( nullptr == self ) {
-		*PP_TRACY_SINGLETON = new le_tracy_o();
-		self                = static_cast<le_tracy_o*>( *PP_TRACY_SINGLETON );
+	auto& le_tracy_singleton = const_cast<le_tracy_api*>( le_tracy::api )->le_tracy_singleton;
+
+	if ( le_tracy_singleton == nullptr ) {
+		le_tracy_singleton = new le_tracy_o();
 	}
-	assert( self != nullptr );
-	return self;
+
+	return le_tracy_singleton;
 }
 
 // ----------------------------------------------------------------------
@@ -105,7 +103,7 @@ static void le_tracy_enable_log( uint32_t log_level_mask ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_tracy, api ) {
-	auto &le_tracy_i = static_cast<le_tracy_api *>( api )->le_tracy_i;
+	auto& le_tracy_i = static_cast<le_tracy_api*>( api )->le_tracy_i;
 
 	le_tracy_i.enable_log = le_tracy_enable_log;
 
@@ -114,14 +112,11 @@ LE_MODULE_REGISTER_IMPL( le_tracy, api ) {
 #endif
 
 #ifdef TRACY_ENABLE
-	PP_TRACY_SINGLETON = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_tracy_singleton" ) );
 
-	le_tracy_o* tracy = static_cast<le_tracy_o*>( *PP_TRACY_SINGLETON );
-
-	if ( tracy ) {
+	if ( le_tracy::api->le_tracy_singleton ) {
 		// if a tracy instance already exists, this is a sign that this module has been
 		// reloaded - in which case we want to re-register the subscriber to the log,
-		le_tracy_update_subscriber( tracy->log_level_mask );
+		le_tracy_update_subscriber( le_tracy::api->le_tracy_singleton->log_level_mask );
 	}
 #endif
 }

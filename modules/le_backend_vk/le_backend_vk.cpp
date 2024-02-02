@@ -8182,14 +8182,10 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	backend_settings_i.set_requested_queue_capabilities   = le_backend_vk_settings_set_requested_queue_capabilities;
 	backend_settings_i.set_data_frames_count              = le_backend_vk_settings_set_data_frames_count;
 
-	void** p_settings_singleton_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "backend_api_settings_singleton" ) );
-
-	if ( nullptr == *p_settings_singleton_addr ) {
-		*p_settings_singleton_addr = le_backend_vk_settings_create();
+	if ( nullptr == api_i->backend_settings_singleton ) {
+		// Global settings object for backend - this object will only get initialzed once
+		api_i->backend_settings_singleton = le_backend_vk_settings_create();
 	}
-
-	// Global settings object for backend - once a backend is initialized, this object is set to readonly.
-	api_i->backend_settings_singleton = static_cast<le_backend_vk_settings_o*>( *p_settings_singleton_addr );
 
 #ifdef LE_LOAD_TRACING_LIBRARY
 	LE_LOAD_TRACING_LIBRARY;

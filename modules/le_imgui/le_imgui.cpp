@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <iterator>
 
+
 namespace {
 // We use an anonymous namespace here because we don't want to export our shader data to other compilation units
 // the code for these files is auto-generated via glslang, and you can recompile from source by issueing

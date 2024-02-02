@@ -276,7 +276,7 @@ static bool pass_resource_setup( le_renderpass_o* pRp, void* user_data ) {
 // ----------------------------------------------------------------------
 
 static void pass_resource_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto        app = static_cast<hello_world_app_o*>( user_data );
+	auto                app = static_cast<hello_world_app_o*>( user_data );
 	le::TransferEncoder encoder{ encoder_ };
 
 	if ( false == app->worldGeometry.wasLoaded ) {
@@ -395,7 +395,7 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 // ----------------------------------------------------------------------
 
 static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto        app = static_cast<hello_world_app_o*>( user_data );
+	auto                app = static_cast<hello_world_app_o*>( user_data );
 	le::GraphicsEncoder encoder{ encoder_ };
 
 	le::Extent2D passExtent = encoder.getRenderpassExtent();
@@ -551,8 +551,8 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 
 		bool hit = hello_world_app_ray_cam_to_sun_hits_earth( app, howClose );
 
-		//		std::cout << "Hit? " << ( hit ? "true  " : " false " ) << ", distance: " << howClose << std::endl
-		//		          << std::flush;
+		// std::cout << "Hit? " << ( hit ? "true  " : " false " ) << ", distance: " << howClose << std::endl
+		//           << std::flush;
 
 		if ( !hit && fabsf( howClose ) > 1000.f ) {
 
@@ -698,7 +698,7 @@ static void hello_world_app_process_ui_events( hello_world_app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
 	LeUiEvent const* pEvents;
-	window_i.get_ui_event_queue( self->window, &pEvents,&numEvents );
+	window_i.get_ui_event_queue( self->window, &pEvents, &numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
