@@ -35,6 +35,14 @@ can build a single, statically linked and optimised binary.
   point at shader file and line number, and include a brief listing
   with problematic lines highlighted in context.
 
+* **Image hot-reloading**: If importing images via
+  `le_resource_manager` (it's simple, and recommended) - any image
+  resource can automatically hot-reloads if its source file changes.
+
+<img width="350"
+src="https://github.com/tgfrerer/island/assets/423509/b97ef461-42b1-4fbd-b3a0-c4051bb6e8d7"
+align="right" />
+
 * **Fast compile times**:  Because of Island's modular architecture,
   a recompilation & reload cycle typically takes less than 1 second,
   while the application keeps running. Compiling the whole codebase
@@ -114,17 +122,15 @@ can build a single, statically linked and optimised binary.
 * **Helpers**: minimal effort to enable multisampling, import images,
   import, display and use fonts
 
+* Support for importing **OpenEXR** images, in 16bit float, 32bit
+  float variants via the core `le_exr` module
+
 * **2D drawing context**: Draw thick lines and curves using
   `le_paths`, which specialises in 2D meshes. This module implements
   a useful subset of the SVG command palette, and includes some extras
   like for example a command to smoothen open or closed Bézier curves
   by applying the [Hobby algorithm][hobby]. Thick Bézier curves are
   drawn using [an algorithm after T. F. Hain][hain].
-
-* **glTF** Island wraps [cgltf][cgltf-link] for gltf file import, and
-  the `le_stage` module can display and render most features found in
-  gltf 2.0 files: pbrt materials, vertex animations, morph target
-  animations, and skinning animations.
 
 * **Job-system**: Cooperatively parallel workloads can be implemented
   using the `le_jobs` module, which implements a job system using
@@ -240,8 +246,6 @@ listed here:
 | `le_pipeline_builder` | - | build graphics, and compute pipelines | 
 | `le_rtx_pipeline_builder` | - | build Khronos RTX raytracing pipelines | 
 | `le_2d` | - | simplified 2d drawing context |
-| `le_gltf` | [cgltf][link-cgltf] | load and parse glTF 2.0 files |
-| `le_stage` | - | render 3d scenes, display animations | 
 | `le_timebase` | - | timekeeping, canonical clock for animations | 
 | `le_jobs` | - | fiber-based job system | 
 | `le_ecs` | - | entity-component-system | 
