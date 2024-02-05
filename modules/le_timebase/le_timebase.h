@@ -54,7 +54,21 @@
  *
  * You can of course duration_cast to any type of std::chrono::duration.
  *
- */
+ * If you want to enforce a fixed time interval:
+ *
+
+    constexpr auto USE_FIXED_TIME_INTERVAL = true;
+
+    if ( USE_FIXED_TIME_INTERVAL ) {
+        self->timebase.update(
+            std::chrono::duration_cast<le::Ticks>(
+                std::chrono::duration<float, std::ratio<1, 60 * 1>>( 1 ) )
+                .count() );
+    } else {
+        self->timebase.update();
+    }
+
+*/
 
 #include <stdint.h>
 #include "le_core.h"
