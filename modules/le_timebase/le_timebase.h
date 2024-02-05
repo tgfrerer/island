@@ -32,16 +32,22 @@
  *
  * You can cast le::Tick back to durations by including:
  *
- * #include <chrono>
- * #include "private/le_timebase/le_timebase_tick_type.h"
+ * NOTE: You *must* include <chrono> before you include `le_timebase_ticks_type.h`
+ *
+
+   #include <chrono>
+   #include "private/le_timebase/le_timebase_ticks_type.h"
+
  *
  * ----------------------------------------------------------------------
  *
  * The following shows how to cast le::Ticks to seconds, for example:
  *
- * le::Ticks my_ticks(1000); // 1000 ticks
+
+    le::Ticks my_ticks( app->timebase.getTicksSinceLastFrame() );  // first  convert from raw ticks count to le::Ticks
+    float delta_seconds = std::chrono::duration_cast<std::chrono::duration<float>>( my_ticks ).count(); // then convert from le::Ticks to seconds
+
  *
- * float my_seconds = std::chrono::duration_cast<std::duration<float>>(my_ticks).count();
  *
  * Note that a conversion to a non-rational (floating-point-type) duration will be lossy,
  * as are all floating point operations.
@@ -84,7 +90,7 @@ LE_MODULE_LOAD_DEFAULT( le_timebase );
 
 namespace le_timebase {
 static const auto& api           = le_timebase_api_i;
-static const auto& le_timebase_i = api -> le_timebase_i;
+static const auto& le_timebase_i = api->le_timebase_i;
 
 } // namespace le_timebase
 
