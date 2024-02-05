@@ -645,12 +645,17 @@ static size_t swapchain_img_get_swapchain_images_count( le_swapchain_o* base ) {
 }
 
 static bool swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* ) {
+
 	return true;
 }
 
 // ----------------------------------------------------------------------
 
 static bool swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* ) {
+	using namespace le_backend_vk;
+	// We must activate the swapchain extension otherwise we don't get to transition
+	// the image format from VK_IMAGE_LAYOUT_PRESENT_SRC_KHR --- this is not ideal.
+	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" );
 	return true;
 }
 // ----------------------------------------------------------------------
@@ -659,16 +664,16 @@ void register_le_swapchain_img_api( void* api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api*>( api_ );
 	auto& swapchain_i = api->swapchain_img_i;
 
-	swapchain_i.create                              = swapchain_img_create;
-	swapchain_i.destroy                             = swapchain_img_destroy;
-	swapchain_i.create_from_old_swapchain           = swapchain_img_create_from_old_swapchain;
+	swapchain_i.create                    = swapchain_img_create;
+	swapchain_i.destroy                   = swapchain_img_destroy;
+	swapchain_i.create_from_old_swapchain = swapchain_img_create_from_old_swapchain;
 
 	swapchain_i.acquire_next_image                  = swapchain_img_acquire_next_image;
 	swapchain_i.get_image                           = swapchain_img_get_image;
 	swapchain_i.get_image_width                     = swapchain_img_get_image_width;
 	swapchain_i.get_image_height                    = swapchain_img_get_image_height;
 	swapchain_i.get_surface_format                  = swapchain_img_get_surface_format;
-	swapchain_i.get_image_count                    = swapchain_img_get_swapchain_images_count;
+	swapchain_i.get_image_count                     = swapchain_img_get_swapchain_images_count;
 	swapchain_i.present                             = swapchain_img_present;
 	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
 	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
