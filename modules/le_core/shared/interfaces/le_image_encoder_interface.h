@@ -36,8 +36,8 @@ struct le_image_encoder_parameters_o; // parameters struct
 
 struct le_image_encoder_interface_t {
 
-	// This gets re-set automatically on api reload - because of
-	// `new le_image_encoder_interface_t{}`
+	// This gets re-set automatically on api reload
+	// Update version number if you change the interface
 	uint64_t ( *get_api_version )() = []() -> uint64_t {
 		static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 1ull << 16 | 0ull << 0;
 		return API_VERSION;
@@ -45,8 +45,8 @@ struct le_image_encoder_interface_t {
 
 	// ------------------------------
 
-	void * (*clone_image_encoder_parameters_object)(void* obj);
-	void (*destroy_image_encoder_parameters_object)(void* obj);
+	void *              ( *clone_image_encoder_parameters_object   )( void* obj );
+	void                ( *destroy_image_encoder_parameters_object )( void* obj );
 
 	// ------------------------------
 
