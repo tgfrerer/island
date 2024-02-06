@@ -248,12 +248,12 @@ struct le_swapchain_settings_t {
 	struct khr_direct_mode_settings_t {
 		khr_settings_t::Presentmode presentmode_hint;
 		struct VkSurfaceKHR_T*      vk_surface;   // Will be set by backend.
-		char const*                 display_name; // will be matched against display name
+		char const*                 display_name; // Will be matched against display name
 	};
 	struct img_settings_t {
-		struct le_image_encoder_interface_t* image_encoder_i; // ffdecl. declared in shared/interfaces/le_image_encoder_interface.h
-		void*                                image_encoder_parameters;
-		char const*                          pipe_cmd; // command used to save images - will receive stream of images via stdin
+		struct le_image_encoder_interface_t* image_encoder_i;          // ffdecl. declared in shared/interfaces/le_image_encoder_interface.h
+		void*                                image_encoder_parameters; // non-owning
+		char const*                          pipe_cmd;                 // command used to save images - will receive stream of images via stdin
 	};
 
 	Type       type            = LE_KHR_SWAPCHAIN;
