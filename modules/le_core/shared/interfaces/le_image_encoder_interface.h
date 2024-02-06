@@ -45,6 +45,8 @@ struct le_image_encoder_interface_t {
 
 	// ------------------------------
 
+	void * (*clone_image_encoder_parameters_object)(void* obj);
+	void (*destroy_image_encoder_parameters_object)(void* obj);
 
 	// ------------------------------
 

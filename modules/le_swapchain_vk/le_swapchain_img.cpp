@@ -48,7 +48,7 @@ struct img_data_o {
 	le_backend_o*                 backend = nullptr;     // Not owned. Backend owns swapchain.
 	std::vector<TransferFrame>    transferFrames;        //
 	le_image_encoder_interface_t* image_encoder_i          = nullptr;
-	void*                         image_encoder_parameters = nullptr;
+	void*                         image_encoder_parameters = nullptr; // owning - cloned via `image_encoder_i.clone_image_encoder_parameters_object()`
 	FILE*                         pipe                     = nullptr; // Pipe to ffmpeg. Owned. must be closed if opened
 	std::string                   pipe_cmd;                           // command line
 	BackendQueueInfo*             queue_info = nullptr;               // Non-owning. Present-enabled queue, initially null, set at create
@@ -67,9 +67,23 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 		    .height = self->mSettings.height_hint,
 		    .depth  = 1,
 		};
-		self->mImagecount              = self->mSettings.imagecount_hint;
-		self->image_encoder_i          = self->mSettings.img_settings.image_encoder_i;
-		self->image_encoder_parameters = self->mSettings.img_settings.image_encoder_parameters;
+		self->mImagecount = self->mSettings.imagecount_hint;
+
+		// If there exists an image encoder parameter object that we own,
+		// and that we created with an earlier version of the image encoder interface
+		// we must first destroy it, using that version of the image encoder interface.
+
+		if ( self->image_encoder_i && self->image_encoder_parameters ) {
+			self->image_encoder_i->destroy_image_encoder_parameters_object( self->image_encoder_parameters );
+		}
+
+		// Update the image encoder interface
+		self->image_encoder_i = self->mSettings.img_settings.image_encoder_i;
+
+		// Clone image encoder parameters using the given interface
+		self->image_encoder_parameters =
+		    self->image_encoder_i->clone_image_encoder_parameters_object(
+		        self->mSettings.img_settings.image_encoder_parameters );
 	}
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN );
@@ -492,6 +506,15 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 
 		vkDestroyCommandPool( self->device, self->vkCommandPool, nullptr );
 		self->vkCommandPool = nullptr;
+	}
+
+	{
+		// Delete image encoder settings object - as this was cloned when received
+		if ( self->mSettings.img_settings.image_encoder_i ) {
+			self->image_encoder_i->destroy_image_encoder_parameters_object(
+			    self->mSettings.img_settings.image_encoder_parameters );
+			self->mSettings.img_settings.image_encoder_parameters = nullptr;
+		}
 	}
 
 	delete self; // delete object's data
