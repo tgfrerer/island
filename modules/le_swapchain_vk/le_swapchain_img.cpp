@@ -510,10 +510,10 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 
 	{
 		// Delete image encoder settings object - as this was cloned when received
-		if ( self->mSettings.img_settings.image_encoder_i ) {
+		if ( self->image_encoder_i ) {
 			self->image_encoder_i->destroy_image_encoder_parameters_object(
-			    self->mSettings.img_settings.image_encoder_parameters );
-			self->mSettings.img_settings.image_encoder_parameters = nullptr;
+			    self->image_encoder_parameters );
+			self->image_encoder_parameters = nullptr;
 		}
 	}
 
