@@ -80,17 +80,16 @@ class RendererInfoBuilder {
 		T&                                       parent;
 		le_swapchain_settings_t::img_settings_t& settings;
 
-		// static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
+		static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -vcodec h264_nvenc  -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 10 -b:v 5000k -maxrate:v 50000k -pix_fmt yuv420p -r 60 -profile:v high isl%s.mp4";
 
 	  public:
 		ImgSwapchainInfoBuilder( T& parent_ )
 		    : parent( parent_ )
 		    , settings( parent_.self.img_settings ) {
 			parent.self.init_img_settings();
-			setPipeCmd();
 		}
 
-		ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = nullptr ) {
+		ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
 			settings.pipe_cmd = pipe_cmd;
 			return *this;
 		}

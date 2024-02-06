@@ -282,8 +282,10 @@ struct le_swapchain_settings_t {
 		this->khr_direct_mode_settings.vk_surface       = nullptr;
 	}
 	void init_img_settings() {
-		this->type                  = LE_IMG_SWAPCHAIN;
-		this->img_settings.pipe_cmd = "";
+		this->type                                  = LE_IMG_SWAPCHAIN;
+		this->img_settings.pipe_cmd                 = "";
+		this->img_settings.image_encoder_i          = nullptr;
+		this->img_settings.image_encoder_parameters = nullptr;
 	}
 };
 
