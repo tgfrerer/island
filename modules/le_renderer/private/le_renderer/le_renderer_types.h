@@ -521,23 +521,25 @@ enum class le_num_type : uint8_t {
 
 static bool le_format_infer_channels_and_num_type( le::Format const& format, uint32_t* num_channels, le_num_type* num_type ) {
 	switch ( format ) {
+	case le::Format::eB8G8R8A8Uint: // deliberate fall-through
+	case le::Format::eB8G8R8A8Unorm:
 	case le::Format::eR8G8B8A8Uint: // deliberate fall-through
 	case le::Format::eR8G8B8A8Unorm:
 		*num_channels = 4;
-		*num_type     = le_num_type::eUChar;
+		*num_type     = le_num_type::eU8;
 		return true;
 	case le::Format::eR8G8B8Uint: // deliberate fall-through
 	case le::Format::eR8G8B8Unorm:
 		*num_channels = 3;
-		*num_type     = le_num_type::eUChar;
+		*num_type     = le_num_type::eU8;
 		return true;
 	case le::Format::eR8Unorm:
 		*num_channels = 1;
-		*num_type     = le_num_type::eUChar;
+		*num_type     = le_num_type::eU8;
 		return true;
 	case le::Format::eR32Sfloat:
 		*num_channels = 1;
-		*num_type     = le_num_type::eFloat;
+		*num_type     = le_num_type::eF32;
 		return true;
 	case le::Format::eR16G16B16Sfloat:
 		*num_channels = 3;
