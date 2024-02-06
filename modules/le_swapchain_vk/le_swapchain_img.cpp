@@ -6,6 +6,8 @@
 #include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
 #include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
+#include "shared/interfaces/le_image_encoder_interface.h"
+
 #include <cassert>
 #include "util/vk_mem_alloc/vk_mem_alloc.h"
 #include "le_log.h"
@@ -32,22 +34,24 @@ struct TransferFrame {
 };
 
 struct img_data_o {
-	le_swapchain_settings_t    mSettings;
-	uint32_t                   mImagecount;           // Number of images in swapchain
-	uint32_t                   totalImages;           // total number of produced images
-	uint32_t                   mImageIndex;           // current image index
-	uint32_t                   vk_queue_family_index; // queue family index for the queue which this swapchain will use
-	VkExtent3D                 mSwapchainExtent;      //
-	VkSurfaceFormatKHR         windowSurfaceFormat;   //
-	uint32_t                   reserved__;            // RESERVED for packing this struct
-	VkDevice                   device;                // Owned by backend
-	VkPhysicalDevice           physicalDevice;        // Owned by backend
-	VkCommandPool              vkCommandPool;         // Command pool from wich we allocate present and acquire command buffers
-	le_backend_o*              backend = nullptr;     // Not owned. Backend owns swapchain.
-	std::vector<TransferFrame> transferFrames;        //
-	FILE*                      pipe = nullptr;        // Pipe to ffmpeg. Owned. must be closed if opened
-	std::string                pipe_cmd;              // command line
-	BackendQueueInfo*          queue_info = nullptr;  // Non-owning. Present-enabled queue, initially null, set at create
+	le_swapchain_settings_t       mSettings;
+	uint32_t                      mImagecount;           // Number of images in swapchain
+	uint32_t                      totalImages;           // total number of produced images
+	uint32_t                      mImageIndex;           // current image index
+	uint32_t                      vk_queue_family_index; // queue family index for the queue which this swapchain will use
+	VkExtent3D                    mSwapchainExtent;      //
+	VkSurfaceFormatKHR            windowSurfaceFormat;   //
+	uint32_t                      reserved__;            // RESERVED for packing this struct
+	VkDevice                      device;                // Owned by backend
+	VkPhysicalDevice              physicalDevice;        // Owned by backend
+	VkCommandPool                 vkCommandPool;         // Command pool from wich we allocate present and acquire command buffers
+	le_backend_o*                 backend = nullptr;     // Not owned. Backend owns swapchain.
+	std::vector<TransferFrame>    transferFrames;        //
+	le_image_encoder_interface_t* image_encoder_i          = nullptr;
+	void*                         image_endoder_parameters = nullptr;
+	FILE*                         pipe                     = nullptr; // Pipe to ffmpeg. Owned. must be closed if opened
+	std::string                   pipe_cmd;                           // command line
+	BackendQueueInfo*             queue_info = nullptr;               // Non-owning. Present-enabled queue, initially null, set at create
 };
 
 // ----------------------------------------------------------------------
@@ -63,7 +67,9 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 		    .height = self->mSettings.height_hint,
 		    .depth  = 1,
 		};
-		self->mImagecount = self->mSettings.imagecount_hint;
+		self->mImagecount              = self->mSettings.imagecount_hint;
+		self->image_encoder_i          = self->mSettings.img_settings.image_encoder_i;
+		self->image_endoder_parameters = self->mSettings.img_settings.image_encoder_parameters;
 	}
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN );
@@ -329,11 +335,13 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 	base->data         = new img_data_o{};
 	auto self          = static_cast<img_data_o*>( base->data );
 
+	self->mSettings                      = *settings;
 	self->backend                        = backend;
-	self->windowSurfaceFormat.format     = VkFormat( self->mSettings.format_hint );
+	self->windowSurfaceFormat.format     = VkFormat( settings->format_hint );
 	self->windowSurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 	self->mImageIndex                    = uint32_t( ~0 );
-	self->pipe_cmd                       = std::string( settings->img_settings.pipe_cmd );
+	self->pipe_cmd                       = settings->img_settings.pipe_cmd ? std::string( settings->img_settings.pipe_cmd ) : "";
+
 	{
 
 		using namespace le_backend_vk;
@@ -395,26 +403,23 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 
 		char cmd[ 1024 ]{};
 
-		if ( self->pipe_cmd.empty() ) {
-			snprintf( cmd, sizeof( cmd ), commandLines[ 3 ], pix_fmt.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
-		} else {
-			snprintf( cmd, sizeof( cmd ), self->pipe_cmd.c_str(), pix_fmt.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
-		}
-
-		logger.info( "Image swapchain opening pipe using command line: '%s'", cmd );
+		if ( !self->pipe_cmd.empty() ) {
 #ifdef _MSC_VER
-		// todo: implement windows-specific solution
+			// todo: implement windows-specific solution
 #else
+			snprintf( cmd, sizeof( cmd ), self->pipe_cmd.c_str(), pix_fmt.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
+			logger.info( "Image swapchain opening pipe using command line: '%s'", cmd );
 
-		// Open pipe to ffmpeg's stdin in binary write mode
-		self->pipe = popen( cmd, "w" );
+			// Open pipe to ffmpeg's stdin in binary write mode
+			self->pipe = popen( cmd, "w" );
 
-		if ( self->pipe == nullptr ) {
-			logger.error( "Could not open pipe. Additionally, strerror reports: $s", strerror( errno ) );
-		}
+			if ( self->pipe == nullptr ) {
+				logger.error( "Could not open pipe. Additionally, strerror reports: $s", strerror( errno ) );
+			}
 
-		assert( self->pipe != nullptr );
+			assert( self->pipe != nullptr );
 #endif // _MSC_VER
+		}
 	}
 
 	logger.info( "Created Swapchain: %p: Image Swapchain", base );
@@ -496,6 +501,9 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 }
 
 // ----------------------------------------------------------------------
+struct le_image_encoder_format_o {
+	le::Format format;
+};
 
 static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete, uint32_t* imageIndex ) {
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -517,23 +525,47 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	vkResetFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence );
 
 	self->mImageIndex = *imageIndex;
+	auto const& frame = self->transferFrames[ *imageIndex ];
 
-	// We only want to write out images which have made the round-trip
+	// We only want to write out images which have been rendered into
+	// depending on how deep your image swapchain is, you will have
+	// to wait for n steps for a frame to have passed from record, to submit, to render
+	// for it to produce some pixels
 	// the first n images will be black...
-	if ( self->totalImages > self->mImagecount ) {
-		if ( self->pipe ) {
+
+	if ( self->totalImages >= self->mImagecount ) {
+		if ( self->image_encoder_i ) {
+			char filename[ 1024 ];
+			sprintf( filename, "isl_%08d.exr", self->totalImages - self->mImagecount );
+			logger.info( "Start  Encoding Image: %s", filename );
+
+			le_image_encoder_o* encoder = self->image_encoder_i->create_image_encoder( filename, self->mSwapchainExtent.width, self->mSwapchainExtent.height );
+
+			if ( self->image_endoder_parameters ) {
+				self->image_encoder_i->set_encode_parameters( encoder, self->image_endoder_parameters );
+			}
+
+			le_image_encoder_format_o format_wrapper{ le::Format( self->windowSurfaceFormat.format ) };
+
+			self->image_encoder_i->write_pixels(
+			    encoder, ( uint8_t* )frame.bufferAllocationInfo.pMappedData,
+			    frame.bufferAllocationInfo.size,
+			    &format_wrapper );
+
+			self->image_encoder_i->destroy_image_encoder( encoder );
+			logger.info( "Finish Encoding Image: %s", filename );
+
+		} else if ( self->pipe ) {
 			// TODO: we should be able to do the write on the back thread.
 			// the back thread must signal that it is complete with writing
 			// before the next present command is executed.
 
 			// Write out frame contents to ffmpeg via pipe.
-			auto const& frame = self->transferFrames[ *imageIndex ];
 			fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->pipe );
 
 		} else {
 			char file_name[ 1024 ];
 			sprintf( file_name, "isl_%08d.rgba", self->totalImages );
-			auto const&   frame = self->transferFrames[ *imageIndex ];
 			std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
 			myfile.write( ( char* )frame.bufferAllocationInfo.pMappedData,
 			              self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
@@ -549,15 +581,15 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// std::array<VkPipelineStageFlags, 1> wait_dst_stage_mask = { VkPipelineStageFlagBits::eTransfer };
 
 	VkSubmitInfo submitInfo{
-	    .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-	    .pNext                = nullptr, // optional
-	    .waitSemaphoreCount   = 0,       // optional
-	    .pWaitSemaphores      = 0,
-	    .pWaitDstStageMask    = 0,
-	    .commandBufferCount   = 1, // optional
-	    .pCommandBuffers      = &self->transferFrames[ *imageIndex ].cmdAcquire,
-	    .signalSemaphoreCount = 1, // optional
-	    .pSignalSemaphores    = &semaphorePresentComplete,
+		.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.pNext                = nullptr, // optional
+		.waitSemaphoreCount   = 0,       // optional
+		.pWaitSemaphores      = 0,
+		.pWaitDstStageMask    = 0,
+		.commandBufferCount   = 1, // optional
+		.pCommandBuffers      = &self->transferFrames[ *imageIndex ].cmdAcquire,
+		.signalSemaphoreCount = 1, // optional
+		.pSignalSemaphores    = &semaphorePresentComplete,
 	};
 
 	{
@@ -588,15 +620,15 @@ static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue, VkSemaph
 	VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 
 	VkSubmitInfo submitInfo{
-	    .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-	    .pNext                = nullptr, // optional
-	    .waitSemaphoreCount   = 1,
-	    .pWaitSemaphores      = &renderCompleteSemaphore_, // tells us that the image has been written
-	    .pWaitDstStageMask    = &wait_dst_stage_mask,
-	    .commandBufferCount   = 1,
-	    .pCommandBuffers      = &self->transferFrames[ *pImageIndex ].cmdPresent, // copies image to buffer
-	    .signalSemaphoreCount = 0,                                                // optional
-	    .pSignalSemaphores    = 0,
+		.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.pNext                = nullptr, // optional
+		.waitSemaphoreCount   = 1,
+		.pWaitSemaphores      = &renderCompleteSemaphore_, // tells us that the image has been written
+		.pWaitDstStageMask    = &wait_dst_stage_mask,
+		.commandBufferCount   = 1,
+		.pCommandBuffers      = &self->transferFrames[ *pImageIndex ].cmdPresent, // copies image to buffer
+		.signalSemaphoreCount = 0,                                                // optional
+		.pSignalSemaphores    = 0,
 	};
 
 	vkQueueSubmit( queue, 1, &submitInfo, self->transferFrames[ *pImageIndex ].frameFence );

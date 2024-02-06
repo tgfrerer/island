@@ -80,7 +80,7 @@ class RendererInfoBuilder {
 		T&                                       parent;
 		le_swapchain_settings_t::img_settings_t& settings;
 
-		static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
+		// static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
 
 	  public:
 		ImgSwapchainInfoBuilder( T& parent_ )
@@ -90,8 +90,18 @@ class RendererInfoBuilder {
 			setPipeCmd();
 		}
 
-		ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
+		ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = nullptr ) {
 			settings.pipe_cmd = pipe_cmd;
+			return *this;
+		}
+
+		ImgSwapchainInfoBuilder& setImageEncoderInterface( le_image_encoder_interface_t* interface = nullptr ) {
+			settings.image_encoder_i = interface;
+			return *this;
+		}
+
+		ImgSwapchainInfoBuilder& setImageEncoderParameters( void* parameters = nullptr ) {
+			settings.image_encoder_parameters = parameters;
 			return *this;
 		}
 

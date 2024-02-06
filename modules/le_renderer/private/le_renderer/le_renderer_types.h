@@ -251,7 +251,9 @@ struct le_swapchain_settings_t {
 		char const*                 display_name; // will be matched against display name
 	};
 	struct img_settings_t {
-		char const* pipe_cmd; // command used to save images - will receive stream of images via stdin
+		struct le_image_encoder_interface_t* image_encoder_i; // ffdecl. declared in shared/interfaces/le_image_encoder_interface.h
+		void*                                image_encoder_parameters;
+		char const*                          pipe_cmd; // command used to save images - will receive stream of images via stdin
 	};
 
 	Type       type            = LE_KHR_SWAPCHAIN;
