@@ -48,7 +48,7 @@ struct img_data_o {
 	le_backend_o*                 backend = nullptr;     // Not owned. Backend owns swapchain.
 	std::vector<TransferFrame>    transferFrames;        //
 	le_image_encoder_interface_t* image_encoder_i          = nullptr;
-	void*                         image_endoder_parameters = nullptr;
+	void*                         image_encoder_parameters = nullptr;
 	FILE*                         pipe                     = nullptr; // Pipe to ffmpeg. Owned. must be closed if opened
 	std::string                   pipe_cmd;                           // command line
 	BackendQueueInfo*             queue_info = nullptr;               // Non-owning. Present-enabled queue, initially null, set at create
@@ -69,7 +69,7 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 		};
 		self->mImagecount              = self->mSettings.imagecount_hint;
 		self->image_encoder_i          = self->mSettings.img_settings.image_encoder_i;
-		self->image_endoder_parameters = self->mSettings.img_settings.image_encoder_parameters;
+		self->image_encoder_parameters = self->mSettings.img_settings.image_encoder_parameters;
 	}
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN );
@@ -541,8 +541,8 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 
 			le_image_encoder_o* encoder = self->image_encoder_i->create_image_encoder( filename, self->mSwapchainExtent.width, self->mSwapchainExtent.height );
 
-			if ( self->image_endoder_parameters ) {
-				self->image_encoder_i->set_encode_parameters( encoder, self->image_endoder_parameters );
+			if ( self->image_encoder_parameters ) {
+				self->image_encoder_i->set_encode_parameters( encoder, self->image_encoder_parameters );
 			}
 
 			le_image_encoder_format_o format_wrapper{ le::Format( self->windowSurfaceFormat.format ) };
