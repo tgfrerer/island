@@ -6,7 +6,7 @@
 #include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
 #include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
-#include "shared/interfaces/le_image_encoder_interface.h"
+#include "shared/interfaces/le_image_encoder_interface.h" // generic encoder interface - to use it, you must set encoder api, and image encoder parameter object via swapchain creation parameters
 
 #include <cassert>
 #include "util/vk_mem_alloc/vk_mem_alloc.h"
@@ -22,33 +22,33 @@
 static constexpr auto LOGGER_LABEL = "le_swapchain_img";
 
 struct TransferFrame {
-	VkImage           image            = nullptr; // Owned. Handle to image
-	VkBuffer          buffer           = nullptr; // Owned. Handle to buffer
-	VmaAllocation     imageAllocation  = nullptr; // Owned. Handle to image allocation
-	VmaAllocation     bufferAllocation = nullptr; // Owned. Handle to buffer allocation
-	VmaAllocationInfo imageAllocationInfo{};
-	VmaAllocationInfo bufferAllocationInfo{};
-	VkFence           frameFence;
-	VkCommandBuffer   cmdPresent; // copies from image to buffer
-	VkCommandBuffer   cmdAcquire; // transfers image back to correct layout
+	VkImage           image                = nullptr; // Owned. Handle to image
+	VkBuffer          buffer               = nullptr; // Owned. Handle to buffer
+	VmaAllocation     imageAllocation      = nullptr; // Owned. Handle to image allocation
+	VmaAllocation     bufferAllocation     = nullptr; // Owned. Handle to buffer allocation
+	VmaAllocationInfo imageAllocationInfo  = {};
+	VmaAllocationInfo bufferAllocationInfo = {};
+	VkFence           frameFence           = nullptr;
+	VkCommandBuffer   cmdPresent           = nullptr; // copies from image to buffer
+	VkCommandBuffer   cmdAcquire           = nullptr; // transfers image back to correct layout
 };
 
 struct img_data_o {
 	le_swapchain_settings_t       mSettings;
-	uint32_t                      mImagecount;           // Number of images in swapchain
-	uint32_t                      totalImages;           // total number of produced images
-	uint32_t                      mImageIndex;           // current image index
-	uint32_t                      vk_queue_family_index; // queue family index for the queue which this swapchain will use
-	VkExtent3D                    mSwapchainExtent;      //
-	VkSurfaceFormatKHR            windowSurfaceFormat;   //
-	uint32_t                      reserved__;            // RESERVED for packing this struct
-	VkDevice                      device;                // Owned by backend
-	VkPhysicalDevice              physicalDevice;        // Owned by backend
-	VkCommandPool                 vkCommandPool;         // Command pool from wich we allocate present and acquire command buffers
-	le_backend_o*                 backend = nullptr;     // Not owned. Backend owns swapchain.
-	std::vector<TransferFrame>    transferFrames;        //
-	le_image_encoder_interface_t* image_encoder_i          = nullptr;
-	void*                         image_encoder_parameters = nullptr; // owning - cloned via `image_encoder_i.clone_image_encoder_parameters_object()`
+	uint32_t                      mImagecount;                        // Number of images in swapchain
+	uint32_t                      totalImages;                        // total number of produced images
+	uint32_t                      mImageIndex;                        // current image index
+	uint32_t                      vk_queue_family_index;              // queue family index for the queue which this swapchain will use
+	VkExtent3D                    mSwapchainExtent;                   //
+	VkSurfaceFormatKHR            windowSurfaceFormat;                //
+	uint32_t                      reserved__;                         // RESERVED for packing this struct
+	VkDevice                      device;                             // Owned by backend
+	VkPhysicalDevice              physicalDevice;                     // Owned by backend
+	VkCommandPool                 vkCommandPool;                      // Command pool from wich we allocate present and acquire command buffers
+	le_backend_o*                 backend = nullptr;                  // Not owned. Backend owns swapchain.
+	std::vector<TransferFrame>    transferFrames;                     //
+	le_image_encoder_interface_t* image_encoder_i          = nullptr; // optional, non-owing: generic encoder api
+	void*                         image_encoder_parameters = nullptr; // optional, owning - cloned via `image_encoder_i.clone_image_encoder_parameters_object()`
 	FILE*                         pipe                     = nullptr; // Pipe to ffmpeg. Owned. must be closed if opened
 	std::string                   pipe_cmd;                           // command line
 	BackendQueueInfo*             queue_info = nullptr;               // Non-owning. Present-enabled queue, initially null, set at create
