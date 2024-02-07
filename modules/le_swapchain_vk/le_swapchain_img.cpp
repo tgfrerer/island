@@ -81,9 +81,11 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 		self->image_encoder_i = self->mSettings.img_settings.image_encoder_i;
 
 		// Clone image encoder parameters using the given interface
-		self->image_encoder_parameters =
-		    self->image_encoder_i->clone_image_encoder_parameters_object(
-		        self->mSettings.img_settings.image_encoder_parameters );
+		if ( self->image_encoder_i && self->mSettings.img_settings.image_encoder_parameters ) {
+			self->image_encoder_parameters =
+			    self->image_encoder_i->clone_image_encoder_parameters_object(
+			        self->mSettings.img_settings.image_encoder_parameters );
+		}
 	}
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN );
