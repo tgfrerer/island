@@ -256,7 +256,7 @@ static float camera_get_fov_radians( le_camera_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void camera_controller_set_contol_rect( le_camera_controller_o* self, float x, float y, float w, float h ) {
+static void camera_controller_set_control_rect( le_camera_controller_o* self, float x, float y, float w, float h ) {
 	self->controlRect = { x, y, w, h };
 }
 
@@ -264,7 +264,7 @@ static void camera_controller_set_contol_rect( le_camera_controller_o* self, flo
 
 // Orbits a camera around xy axis
 // based on signed normalised xy
-void camera_orbit_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedAnglesRad, float pivotDistance ) {
+static void camera_orbit_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedAnglesRad, float pivotDistance ) {
 	// process normal logic for cursor position
 
 	// build a quaternion based on rotation around x, rotation around y
@@ -282,7 +282,7 @@ void camera_orbit_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, 
 
 // ----------------------------------------------------------------------
 
-void camera_orbit_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& cameraAngleRad, float pivotDistance ) {
+static void camera_orbit_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& cameraAngleRad, float pivotDistance ) {
 	// first we must transform into the pivot point
 	// the pivot point is a point which is at normdistance from the camera in negative z
 
@@ -295,7 +295,7 @@ void camera_orbit_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, g
 
 // ----------------------------------------------------------------------
 
-void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
+static void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
 
@@ -307,7 +307,7 @@ void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_sta
 }
 
 // ----------------------------------------------------------------------
-void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
+static void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
 
@@ -320,7 +320,7 @@ void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to_cam_st
 
 // ----------------------------------------------------------------------
 
-void camera_translate_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
+static void camera_translate_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
 
