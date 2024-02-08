@@ -4,6 +4,7 @@ set (TARGET le_camera)
 depends_on_island_module(le_core)
 depends_on_island_module(le_renderer)
 depends_on_island_module(le_ui_event)
+depends_on_island_module(le_log)
 
 set (SOURCES "le_camera.cpp")
 set (SOURCES ${SOURCES} "le_camera.h")
