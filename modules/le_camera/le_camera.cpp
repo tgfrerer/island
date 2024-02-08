@@ -43,7 +43,7 @@ struct le_camera_controller_o {
 	float pivotDistance    = 0;     // if we set pivotdistance to 0 this means that the camera rotates around its own axes, other values make the camera rotate around a pivot point
 	bool  pivotDistanceSet = false; // if not set, will initialsise by distance (camera -> world origin) on first update
 
-	// float movement_speed = 1000; //
+	float movement_speed = 200;
 
 	enum Mode {
 		eNeutral = 0,
@@ -298,7 +298,6 @@ void camera_orbit_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, g
 void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
-	movement_speed *= distance_to_origin;
 
 	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
 	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ signedNorm.x, signedNorm.y, 0 } );
@@ -311,7 +310,6 @@ void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_sta
 void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
-	movement_speed *= distance_to_origin;
 
 	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
 	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ signedNorm.x, signedNorm.y, signedNorm.z } );
@@ -325,7 +323,6 @@ void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to_cam_st
 void camera_translate_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
-	movement_speed *= distance_to_origin;
 
 	auto pivot          = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
 	pivot               = glm::translate( pivot, movement_speed * glm::vec3{ 0, 0, signedNorm.z } );
@@ -459,10 +456,9 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 
 			if ( event->event == le::UiEvent::Type::eGamepad ) {
 
-				float       movement_speed = 0.5;
-				static auto logger         = le::Log( "le_camera" );
-				controller->world_to_cam   = glm::inverse( camera->view_matrix );
-				camera_translate_xyz( camera, controller->world_to_cam, translationDelta, movement_speed, controller->pivotDistance );
+				static auto logger       = le::Log( "le_camera" );
+				controller->world_to_cam = glm::inverse( camera->view_matrix );
+				camera_translate_xyz( camera, controller->world_to_cam, translationDelta, controller->movement_speed, controller->pivotDistance );
 				controller->world_to_cam = glm::inverse( camera->view_matrix );
 				camera_orbit_xy( camera, controller->world_to_cam, rotationDelta, controller->pivotDistance );
 				controller->world_to_cam = glm::inverse( camera->view_matrix );
@@ -514,12 +510,10 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 			camera_orbit_z( camera, controller->world_to_cam, rotationDelta, controller->pivotDistance );
 		} break;
 		case le_camera_controller_o::eTranslateXY: {
-			float movement_speed = 0.5;
-			camera_translate_xy( camera, controller->world_to_cam, translationDelta, movement_speed, controller->pivotDistance );
+			camera_translate_xy( camera, controller->world_to_cam, translationDelta, controller->movement_speed, controller->pivotDistance );
 		} break;
 		case le_camera_controller_o::eTranslateZ: {
-			float movement_speed = 0.5;
-			camera_translate_z( camera, controller->world_to_cam, translationDelta, movement_speed, controller->pivotDistance );
+			camera_translate_z( camera, controller->world_to_cam, translationDelta, controller->movement_speed, controller->pivotDistance );
 		} break;
 		} // end switch controller->mode
 	}
