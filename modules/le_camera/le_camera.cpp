@@ -1,7 +1,7 @@
-#include "le_camera.h"
 #include "le_core.h"
+#include "le_camera.h"
 
-#include "modules/le_log/le_log.h"
+#include "le_log.h"
 #include "private/le_renderer/le_renderer_types.h" // for le::Viewport
 #include "le_ui_event.h"
 
@@ -30,10 +30,11 @@ struct le_camera_o {
 	le::Viewport             viewport{};                         // current camera viewport
 	float                    nearClip = 10.f;
 	float                    farClip  = 10000.f;
-	std::array<glm::vec4, 6> frustumPlane;                 // right,top,far,left,bottom,near
-	bool                     projectionMatrixDirty = true; // whenever fovRadians changes, or viewport changes, this means that the projection matrix needs to be recalculated.
-	bool                     frustumPlanesDirty    = true; // whenever projection matrix changes frustum planes must be re-calculated
-	bool                     isOrthographic        = false;
+	std::array<glm::vec4, 6> frustumPlane;                    // right,top,far,left,bottom,near
+	bool                     projectionMatrixDirty    = true; // whenever fovRadians changes, or viewport changes, this means that the projection matrix needs to be recalculated.
+	bool                     frustumPlanesDirty       = true; // whenever projection matrix changes frustum planes must be re-calculated
+	bool                     is_orthographic          = false;
+	float                    orthographic_zoom_factor = 0.5; // 0.5 means eaqual zoom
 };
 
 struct le_camera_controller_o {
@@ -59,6 +60,8 @@ struct le_camera_controller_o {
 	le_mouse_event_data_o mouse_state;         // current mouse state
 	glm::vec2             mouse_pos_initial{}; // initial position of mouse on mouse_down
 };
+
+static auto logger = le::Log( "le_camera" );
 
 // ----------------------------------------------------------------------
 
@@ -93,7 +96,7 @@ static void update_frustum_planes( le_camera_o* self ) {
 	float fPL[ 6 ]{};
 	for ( size_t i = 0; i != 6; i++ ) {
 		// get the length (= magnitude of the .xyz part of the row), so that we can normalize later
-		fPL[ i ] = glm::distance(glm::vec3( fP[ i ].x, fP[ i ].y, fP[ i ].z ), glm::vec3(0));
+		fPL[ i ] = glm::distance( glm::vec3( fP[ i ].x, fP[ i ].y, fP[ i ].z ), glm::vec3( 0 ) );
 	}
 
 	for ( size_t i = 0; i < 6; i++ ) {
@@ -143,6 +146,7 @@ static void camera_get_view_matrix( le_camera_o* self, float* p_matrix ) {
 // ----------------------------------------------------------------------
 
 static void camera_set_view_matrix( le_camera_o* self, float const* viewMatrix ) {
+
 	self->view_matrix = *reinterpret_cast<glm::mat4 const*>( viewMatrix );
 }
 
@@ -181,12 +185,12 @@ static bool camera_get_is_orthographic( le_camera_o* self ) {
 static glm::mat4 const& camera_get_projection_matrix_glm( le_camera_o* self ) {
 	if ( self->projectionMatrixDirty ) {
 		// cache projection matrix calculation
-		if ( self->isOrthographic ) {
+		if ( self->is_orthographic ) {
 			self->projection_matrix =
-			    glm::orthoRH_ZO( -self->viewport.width * 0.5f,
-			                     +self->viewport.width * 0.5f,
-			                     -self->viewport.height * 0.5f,
-			                     +self->viewport.height * 0.5f,
+			    glm::orthoRH_ZO( -self->viewport.width * 0.5f * self->orthographic_zoom_factor,
+			                     +self->viewport.width * 0.5f * self->orthographic_zoom_factor,
+			                     -self->viewport.height * 0.5f * self->orthographic_zoom_factor,
+			                     +self->viewport.height * 0.5f * self->orthographic_zoom_factor,
 			                     self->nearClip,
 			                     self->farClip );
 		} else {
@@ -315,6 +319,12 @@ static void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to
 	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ signedNorm.x, signedNorm.y, signedNorm.z } );
 	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
 
+	if ( camera->is_orthographic ) {
+		float distance_to_pivot          = glm::distance( pivot * glm::vec4( 0, 0, 0, 1 ), world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
+		camera->orthographic_zoom_factor = distance_to_pivot / camera_get_unit_distance( camera );
+		camera->projectionMatrixDirty    = true;
+	}
+
 	camera->view_matrix = glm::inverse( world_to_cam );
 }
 
@@ -324,9 +334,16 @@ static void camera_translate_z( le_camera_o* camera, glm::mat4 const& world_to_c
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
 
-	auto pivot          = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
-	pivot               = glm::translate( pivot, movement_speed * glm::vec3{ 0, 0, signedNorm.z } );
-	auto world_to_cam   = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
+	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
+	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ 0, 0, signedNorm.z } );
+	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
+
+	if ( camera->is_orthographic ) {
+		float distance_to_pivot          = glm::distance( glm::vec4( 0, 0, 0, 1 ), glm::inverse( world_to_cam_start ) * glm::vec4( 0, 0, 0, 1 ) );
+		camera->orthographic_zoom_factor = distance_to_pivot / camera_get_unit_distance( camera );
+		camera->projectionMatrixDirty    = true;
+	}
+
 	camera->view_matrix = glm::inverse( world_to_cam );
 }
 
@@ -613,6 +630,6 @@ LE_MODULE_REGISTER_IMPL( le_camera, api ) {
 	le_camera_controller_i.create             = camera_controller_create;
 	le_camera_controller_i.destroy            = camera_controller_destroy;
 	le_camera_controller_i.process_events     = camera_controller_process_events;
-	le_camera_controller_i.set_control_rect   = camera_controller_set_contol_rect;
+	le_camera_controller_i.set_control_rect   = camera_controller_set_control_rect;
 	le_camera_controller_i.set_pivot_distance = camera_controller_set_pivot_distance;
 }
