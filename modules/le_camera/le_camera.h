@@ -31,6 +31,7 @@ struct le_camera_api {
 
 		void             ( * get_clip_distances       ) ( le_camera_o* self, float *nearClip, float *farClip);
 		float            ( * get_fov_radians          ) ( le_camera_o* self );
+		bool             ( * get_is_orthographic      ) ( le_camera_o* self );
 		void             ( * get_view_matrix          ) ( le_camera_o* self, float * p_matrix_4x4 );
 		void             ( * get_projection_matrix    ) ( le_camera_o* self, float * p_matrix_4x4 );
 		bool             ( * get_sphere_in_frustum    ) ( le_camera_o *self, float const *pSphereCentreInCameraSpaceFloat3, float sphereRadius );
@@ -115,6 +116,9 @@ class LeCamera : NoMove {
 
 	void setIsOrthographic( bool is_orthographic ) {
 		le_camera::le_camera_i.set_is_orthographic( self, is_orthographic );
+	}
+	bool getIsOrthographic() {
+		return le_camera::le_camera_i.get_is_orthographic( self );
 	}
 	float getFovRadians() {
 		return le_camera::le_camera_i.get_fov_radians( self );

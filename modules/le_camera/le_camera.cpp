@@ -163,9 +163,18 @@ static void camera_set_clip_distances( le_camera_o* self, float nearClip, float 
 }
 
 static void camera_set_is_orthographic( le_camera_o* self, bool is_orthographic ) {
-	self->isOrthographic        = is_orthographic;
-	self->projectionMatrixDirty = true;
-	self->frustumPlanesDirty    = true;
+	bool was_orthographic = self->is_orthographic;
+	if ( was_orthographic != is_orthographic ) {
+		self->is_orthographic       = is_orthographic;
+		self->projectionMatrixDirty = true;
+		self->frustumPlanesDirty    = true;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static bool camera_get_is_orthographic( le_camera_o* self ) {
+	return self->is_orthographic;
 }
 // ----------------------------------------------------------------------
 
@@ -603,6 +612,7 @@ LE_MODULE_REGISTER_IMPL( le_camera, api ) {
 	le_camera_i.set_clip_distances    = camera_set_clip_distances;
 	le_camera_i.get_sphere_in_frustum = camera_get_sphere_in_frustum;
 	le_camera_i.set_is_orthographic   = camera_set_is_orthographic;
+	le_camera_i.get_is_orthographic   = camera_get_is_orthographic;
 
 	auto& le_camera_controller_i = api_i->le_camera_controller_i;
 
