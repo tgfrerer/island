@@ -42,7 +42,7 @@ LE_MODULE_LOAD_DEFAULT( le_mesh );
 
 namespace le_mesh {
 const auto         api       = le_mesh_api_i;
-static const auto& le_mesh_i = api -> le_mesh_i;
+static const auto& le_mesh_i = api->le_mesh_i;
 } // namespace le_mesh
 
 class LeMesh : NoCopy, NoMove {
@@ -52,7 +52,7 @@ class LeMesh : NoCopy, NoMove {
 	le_mesh_o* self;
 
   public:
-	LeMesh()
+    LeMesh()
 	    : self( this_i.create() ) {
 	}
 
