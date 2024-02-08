@@ -66,6 +66,7 @@ static auto logger = le::Log( "le_camera" );
 // ----------------------------------------------------------------------
 
 static void camera_get_projection_matrix( le_camera_o* self, float p_matrix[ 16 ] );
+static void camera_update_zoom_if_orthographic( le_camera_o* camera, glm::mat4 const& world_to_cam );
 
 // ----------------------------------------------------------------------
 
@@ -172,6 +173,9 @@ static void camera_set_is_orthographic( le_camera_o* self, bool is_orthographic 
 		self->is_orthographic       = is_orthographic;
 		self->projectionMatrixDirty = true;
 		self->frustumPlanesDirty    = true;
+	}
+	if ( is_orthographic ) {
+		camera_update_zoom_if_orthographic( self, glm::inverse( self->view_matrix ) );
 	}
 }
 
@@ -301,8 +305,6 @@ static void camera_orbit_z( le_camera_o* camera, glm::mat4 const& world_to_cam_s
 
 static void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
-	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
-
 	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
 	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ signedNorm.x, signedNorm.y, 0 } );
 	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
@@ -311,19 +313,28 @@ static void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_
 }
 
 // ----------------------------------------------------------------------
-static void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
-	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
+static void camera_update_zoom_if_orthographic( le_camera_o* camera, glm::mat4 const& world_to_cam ) {
+	if ( !camera->is_orthographic ) {
+		return;
+	}
+	// -----------| invariant: camera is orthographic
+
+	float new_distance_to_origin     = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam * glm::vec4( 0, 0, 0, 1 ) );
+	float unit_distance              = camera_get_unit_distance( camera );
+	camera->orthographic_zoom_factor = new_distance_to_origin / ( unit_distance + std::numeric_limits<float>::epsilon() );
+
+	camera->projectionMatrixDirty = true;
+}
+
+// ----------------------------------------------------------------------
+static void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
 	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ signedNorm.x, signedNorm.y, signedNorm.z } );
 	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
 
-	if ( camera->is_orthographic ) {
-		float distance_to_pivot          = glm::distance( pivot * glm::vec4( 0, 0, 0, 1 ), world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
-		camera->orthographic_zoom_factor = distance_to_pivot / camera_get_unit_distance( camera );
-		camera->projectionMatrixDirty    = true;
-	}
+	camera_update_zoom_if_orthographic( camera, world_to_cam );
 
 	camera->view_matrix = glm::inverse( world_to_cam );
 }
@@ -332,17 +343,11 @@ static void camera_translate_xyz( le_camera_o* camera, glm::mat4 const& world_to
 
 static void camera_translate_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
-	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
-
 	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
 	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ 0, 0, signedNorm.z } );
 	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
 
-	if ( camera->is_orthographic ) {
-		float distance_to_pivot          = glm::distance( glm::vec4( 0, 0, 0, 1 ), glm::inverse( world_to_cam_start ) * glm::vec4( 0, 0, 0, 1 ) );
-		camera->orthographic_zoom_factor = distance_to_pivot / camera_get_unit_distance( camera );
-		camera->projectionMatrixDirty    = true;
-	}
+	camera_update_zoom_if_orthographic( camera, world_to_cam );
 
 	camera->view_matrix = glm::inverse( world_to_cam );
 }
@@ -428,8 +433,8 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 			glm::vec3 gamepad_x_y_z = {
 			    e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftX ) ],
 			    e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftY ) ],
-			    ( ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) -
-			      ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] + 1 ) ),
+			    ( ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eRightTrigger ) ] + 1 ) -
+			      ( e.axes[ uint32_t( le::UiEvent::NamedGamepadAxis::eLeftTrigger ) ] + 1 ) ),
 			};
 
 			translationDelta += 0.01f * remove_drift( gamepad_x_y_z, glm::vec3( 0.1 ) );
@@ -442,8 +447,8 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 
 			gamepad_rot = remove_drift( gamepad_rot, glm::vec3( 0.1 ) );
 
-			rotationDelta.x = glm::two_pi<float>() * -0.0025f * gamepad_rot.x;
-			rotationDelta.y = glm::two_pi<float>() * 0.0025f * gamepad_rot.y;
+			rotationDelta.x = glm::two_pi<float>() * -0.01f * gamepad_rot.x;
+			rotationDelta.y = glm::two_pi<float>() * 0.01f * gamepad_rot.y;
 
 			break;
 		}
