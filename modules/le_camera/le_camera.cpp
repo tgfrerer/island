@@ -323,6 +323,7 @@ static void camera_update_zoom_if_orthographic( le_camera_o* camera, glm::mat4 c
 	float new_distance_to_origin     = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam * glm::vec4( 0, 0, 0, 1 ) );
 	float unit_distance              = camera_get_unit_distance( camera );
 	camera->orthographic_zoom_factor = new_distance_to_origin / ( unit_distance + std::numeric_limits<float>::epsilon() );
+	// logger.info( "distance :% 10.4f", new_distance_to_origin );
 
 	camera->projectionMatrixDirty = true;
 }
@@ -447,8 +448,8 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 
 			gamepad_rot = remove_drift( gamepad_rot, glm::vec3( 0.1 ) );
 
-			rotationDelta.x = glm::two_pi<float>() * -0.01f * gamepad_rot.x;
-			rotationDelta.y = glm::two_pi<float>() * 0.01f * gamepad_rot.y;
+			rotationDelta.x += glm::two_pi<float>() * -0.01f * gamepad_rot.x;
+			rotationDelta.y += glm::two_pi<float>() * 0.01f * gamepad_rot.y;
 
 			break;
 		}
@@ -462,13 +463,13 @@ static void camera_controller_update_camera( le_camera_controller_o* controller,
 
 			auto mouseDelta = mouse_state.cursor_pos - controlRectCentre;
 
-			rotationDelta.x = glm::two_pi<float>() * -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 3.f );                       // map to -1..1
-			rotationDelta.y = glm::two_pi<float>() * flip * ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 3.f );                 // map to -1..1
-			rotationDelta.z = glm::two_pi<float>() - flip * fmodf( mouseInitialAngle + glm::two_pi<float>() + atan2f( mouseDelta.y, mouseDelta.x ), glm::two_pi<float>() ); // Range is expected to 0..2pi, ccw
+			rotationDelta.x += glm::two_pi<float>() * -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 3.f );                       // map to -1..1
+			rotationDelta.y += glm::two_pi<float>() * flip * ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 3.f );                 // map to -1..1
+			rotationDelta.z += glm::two_pi<float>() - flip * fmodf( mouseInitialAngle + glm::two_pi<float>() + atan2f( mouseDelta.y, mouseDelta.x ), glm::two_pi<float>() ); // Range is expected to 0..2pi, ccw
 
-			translationDelta.x = -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 1.f );        // map to -1..1
-			translationDelta.y = -flip * ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
-			translationDelta.z = ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f );         // map to -1..1
+			translationDelta.x += -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 1.f );        // map to -1..1
+			translationDelta.y += -flip * ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
+			translationDelta.z += ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f );         // map to -1..1
 		}
 
 		// -- update controller state machine based on accumulated mouse_state
