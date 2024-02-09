@@ -7,21 +7,23 @@ align="right" />
 Renders a stylised 3D terrain, drawn with height lines.  
 
 The terrain height map is loaded as a 32bit float .exr image, and
-stored into a `R32Sfloat` GPU image resource. If the image is modified
-and saved while the app is running, it will hot-reload the modified
-image.
+stored into a `R32Sfloat` GPU image resource. 
 
-Note how the lines are nicely anti-aliased, and never thicker than one
-pixel, regardless of how far or close to the camera they are - this is
-possible by using a technique described by Evan Wallace in:
-<https://www.madebyevan.com/shaders/grid/>
+* If the image is modified and saved while the app is running, it will
+  hot-reload the modified image.
 
-Note that this example app loads a 32bit float grayscale .exr image --
-but the OpenEXR image decoder in `le_exr` can load many more .exr
-image types: RGB, RGBA, 16bit and 32bit...
+* Height lines are anti-aliased, and of constant thickness, regardless
+  of how far or close to the camera they are -- this is possible by
+  using a technique described by Evan Wallace in:
+  <https://www.madebyevan.com/shaders/grid/>
 
-Note the build instructions below, as this example depends on some
-image assets not contained in the main repository. 
+* While this example loads a 32bit float grayscale (single channel)
+  image, the OpenEXR image decoder in `le_exr` can load many more
+  .exr image types: RGB, RGBA, 16bit and 32bit 
+
+* This example depends on some image assets not contained in the main
+  repository but these assets can be downloaded simply enough -- see
+  build instructions, below.
 
 ## Camera controls:
 
