@@ -10,7 +10,6 @@ depends_on_island_module(le_renderer)
 depends_on_island_module(le_pipeline_builder)
 depends_on_island_module(le_camera)
 depends_on_island_module(le_resource_manager)
-depends_on_island_module(le_exr)
 
 set (SOURCES "lut_grading_example_app.cpp")
 set (SOURCES ${SOURCES} "lut_grading_example_app.h")
