@@ -10,7 +10,7 @@ The terrain height map is loaded as a 32bit float .exr image, and
 stored into a `R32Sfloat` GPU image resource. 
 
 * If the image is modified and saved while the app is running, it will
-  hot-reload the modified image.
+  hot-reload the modified image, and draw the modified terrain.
 
 * Height lines are anti-aliased, and of constant thickness, regardless
   of how far or close to the camera they are -- this is possible by
