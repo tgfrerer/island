@@ -1,20 +1,9 @@
 #!/bin/bash
 
-# list apps you want to test
+FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-apps_list=("
-  examples/video_player_example:Island-VideoPlayerExample
-	templates/quad_template:Island-QuadTemplate
-	templates/triangle:Island-Triangle
-	examples/test_log:Island-TestLog
-	examples/hello_world:Island-HelloWorld
-	examples/hello_triangle:Island-HelloTriangle
-	examples/lut_grading_example:Island-LutGradingExample
-	examples/multi_window_example:Island-MultiWindowExample
-	examples/imgui_example:Island-ImguiExample
-	examples/asterisks:Island-Asterisks
-	examples/bitonic_merge_sort_example:Island-BitonicMergeSortExample
-")
+# Ingest the list of apps that we want to test into an array: apps_list
+mapfile -t apps_list < "${FILE_DIR}/tests.txt"
 
 tempfiles=( )
 cleanup() {
@@ -40,15 +29,15 @@ build_app(){
 	local app_name=$2
     local build_type=$3
 
-	mkdir -p $build_dir
-	pushd $build_dir
+	mkdir -p "$build_dir"
+	pushd "$build_dir" || exit
 	
-	cmake ../.. -DCMAKE_BUILD_TYPE=${build_type} -GNinja
+	cmake ../.. -DCMAKE_BUILD_TYPE="${build_type}" -GNinja
 	
 	# we store the timestamp of the last built app executable
 	local previous_hash=0
 	local default_hash=0
-	default_hash=`tar cf - modules ${app_name} | md5sum`
+    default_hash=$(tar cf - modules "${app_name}" | md5sum)
 	
 	# if no previous executable exists, we must still set the 
 	# previous_hash to something sensible
@@ -66,16 +55,16 @@ build_app(){
 	if test $return_code -ne 0
 	then
 		# something went wrong with compilation
-		popd 
+		popd || exit
 		return $return_code
 	else
 		# ninja did okay.
 		# we must now check if we have a new artifact, or if its still the same.
 
-		local current_hash=`tar cf - modules ${app_name} | md5sum`
-		popd
+        local current_hash=$(tar cf - modules "${app_name}" | md5sum)
+		popd || exit
 
-		if [[ $current_hash != $previous_hash ]];
+		if [[ $current_hash != "$previous_hash" ]];
 		then
 			# we have a new artifact
 			echo "time mismatch: $current_hash != $previous_hash"  
@@ -94,26 +83,28 @@ process_app(){
 	FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 	IFS=: read -ra app_names -d '' <<<"$1"
     local build_type="$2"
-	local app_dir=${app_names[0]}
-	local app_name=${app_names[1]}
+    local app_dir=$(echo ${app_names[0]} | xargs)
+    local app_name=$(echo ${app_names[1]} | xargs)
 	local app_base_dir="$FILE_DIR/../../apps/$app_dir"
 
-	if [ -d $app_base_dir ] 
+    # printf "'%s' '%s' '%s'\n" "${app_dir}" "${app_name}" "${app_base_dir}"
+
+	if [ -d "$app_base_dir" ] 
 	then
 		local build_dir="${app_base_dir}/build/Desktop-Test_${build_type}"
 
-		build_app $build_dir $app_name $build_type &>build.log
+		build_app "${build_dir} ${app_name} ${build_type}" &>build.log
 		local build_result=$?
 
 		# echo "BUILD result: ${build_result}" 
 
 		if test $build_result -eq 2 
 		then
-			printf "[  ==  ] %- 10s: %s\n" ${build_type} ${app_name}
+			printf "[  ==  ] %- 10s: %s\n" "${build_type}" "${app_name}"
 			return 0 
 		elif test $build_result -ne 0 
 			then
-			printf "[ FAIL ] %- 10s: %s\n" ${build_type} ${app_name}
+			printf "[ FAIL ] %- 10s: %s\n" "${build_type}" "${app_name}"
 			echo "--------------" >> build.err
 			echo "${build_type} ${app_name} BUILD FAILED: " >> build.err
 			echo "--------------" >> build.err
@@ -122,7 +113,7 @@ process_app(){
 			return 1
 		fi
 
-		printf "[  OK  ] %- 10s: %s\n" ${build_type} ${app_name}
+		printf "[  OK  ] %- 10s: %s\n" "${build_type}" "${app_name}"
 
 	else 
 		echo "directory not found: '${app_base_dir}'"
@@ -132,14 +123,12 @@ process_app(){
 
 # main script
 
-IFS=$'\n' read -ra arr -d '' <<<"$apps_list"
-
 # Set error checking trap - this will cause the script to fail 
 # at the first non-zero exit code it encounters. 
 # We can only set the trap here, as the `read` call above would
 # otherwise trigger it prematurely.
 #
-# trap 'error ${LINENO}' ERR
+trap 'error ${LINENO}' ERR
 
 if [ -f build.err ] 
 then
@@ -157,8 +146,8 @@ git submodule init
 git submodule update --depth=1
 
 
-for a in "${arr[@]}"; do 
-	b=`echo $a | tr -d [:space:]`; 
-	process_app $b Debug
-	process_app $b Release
+for a in "${apps_list[@]}"; do 
+    b=$(echo "$a" | tr -d "[:space:]"); 
+	process_app "$b" Debug
+	process_app "$b" Release
 done
