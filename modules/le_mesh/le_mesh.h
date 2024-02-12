@@ -10,7 +10,7 @@ struct le_mesh_api {
 
     typedef uint16_t default_index_type;
     typedef float default_vertex_type[3];
-    typedef float default_uv_type[2]     ;
+    typedef float default_uv_type[2];
 
 	struct le_mesh_interface_t {
 
