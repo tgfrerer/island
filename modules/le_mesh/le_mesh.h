@@ -5,6 +5,21 @@
 
 struct le_mesh_o;
 
+/*
+
+  A modern mesh API:
+
+  + we want the mesh to be able to draw itself
+  + we want a mesh to be able to optimize itself
+
+  + we want to have a pure-cpu mesh as well as a mesh that exists on the gpu.
+  + how should we draw a mesh?
+
+
+
+
+*/
+
 // clang-format off
 struct le_mesh_api {
 
@@ -19,6 +34,10 @@ struct le_mesh_api {
 
 		void (*clear)(le_mesh_o* self);
 
+
+		// I would like to change the api so that the mesh will copy into a given pointer
+		// (bounded by size or num_bytes)
+
 		void (*get_vertices )( le_mesh_o *self, size_t* count, float const **   vertices); 	// 3 floats per vertex
 		void (*get_normals  )( le_mesh_o *self, size_t* count, float const **   normals ); 	// 3 floats per vertex
 		void (*get_colours  )( le_mesh_o *self, size_t* count, float const **   colours ); 	// 4 floats per vertex
@@ -27,6 +46,12 @@ struct le_mesh_api {
 		void (*get_indices  )( le_mesh_o *self, size_t* count, uint16_t const ** indices ); // 1 uint16_t per index
 
 		void (*get_data     )( le_mesh_o *self, size_t* numVertices, size_t* numIndices, float const** vertices, float const **normals, float const **uvs, float const  ** colours, uint16_t const **indices);
+
+		// New API
+
+		void (*write_into_vertices )( le_mesh_o *self, float * const vertices, size_t * num_bytes);
+
+		// PLY import
 
 		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
 
