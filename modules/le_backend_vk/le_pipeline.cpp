@@ -56,7 +56,7 @@ struct le_shader_module_o {
 	le::ShaderSourceLanguage                       source_language           = le::ShaderSourceLanguage::eDefault;
 	specialization_map_info_t                      specialization_map_info; ///< information concerning specialization constants for this shader stage
 
-	enum class ImmutableSamplerRequestedValue : uint64_t ///<  sentinel values used to signal that an immutable binding needs to be filled wit a special sampler
+	enum class ImmutableSamplerRequestedValue : uint64_t ///<  sentinel values used to signal that an immutable binding needs to be filled with a special sampler
 	{
 		eNone  = 0,
 		eYcBcR = hash_64_fnv1a_const( TEXTURE_NAME_YCBCR_REQUEST_STRING ),
