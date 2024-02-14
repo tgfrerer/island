@@ -18,8 +18,9 @@ struct le_shader_compiler_api {
 
     struct compiler_interface_t {
 
-		le_shader_compiler_o*           (* create                ) ( );
-		void                            (* destroy               ) ( le_shader_compiler_o* self );
+		le_shader_compiler_o*   (* create                       ) ( );
+		void                    (* destroy                      ) ( le_shader_compiler_o* self );
+		void                    (* add_shader_include_directory ) ( le_shader_compiler_o* self, char const * path );
 
 		bool                    (* compile_source               ) ( le_shader_compiler_o *compiler, const char *sourceText, size_t sourceTextSize, const LeShaderSourceLanguageEnum& shader_source_language, const le::ShaderStageFlagBits& shaderType, const char *original_file_path, char const * macroDefinitionsStr, size_t macroDefinitionsStrSz, le_shader_compilation_result_o* result );
 

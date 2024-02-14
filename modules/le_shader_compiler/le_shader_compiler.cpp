@@ -186,10 +186,19 @@ static le_shader_compiler_o* le_shader_compiler_create() {
 	}
 
 	obj->include_search_directories = {
-	    "./resources/shaders/",
+	    // this is set via pipeline manager, and
+	    // `le_shader_compiler_add_shader_include_directory`
 	};
 
 	return obj;
+}
+
+// ---------------------------------------------------------------
+
+static void le_shader_compiler_add_shader_include_directory( le_shader_compiler_o* self, char const* path ) {
+	// Todo: should we test whether a directory is already
+	// part of include directories?
+	self->include_search_directories.emplace_back( path );
 }
 
 // ---------------------------------------------------------------
@@ -587,7 +596,7 @@ static bool le_shader_compiler_compile_source(
 	shader_options_parse_macro_definitions_string( local_options, macroDefinitionsStr, macroDefinitionsStrSz );
 
 	includes_callback_data_t includes_callback_data{};
-	includes_callback_data.includes           = &result->includes;
+	includes_callback_data.includes                   = &result->includes;
 	includes_callback_data.include_search_directories = &self->include_search_directories;
 
 	// Note: these callbacks don't need to be protected against hot-reloading, as their addresses only
@@ -672,9 +681,10 @@ LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
 	auto  le_shader_compiler_api_i = static_cast<le_shader_compiler_api*>( api_ );
 	auto& compiler_i               = le_shader_compiler_api_i->compiler_i;
 
-	compiler_i.create         = le_shader_compiler_create;
-	compiler_i.destroy        = le_shader_compiler_destroy;
-	compiler_i.compile_source = le_shader_compiler_compile_source;
+	compiler_i.create                       = le_shader_compiler_create;
+	compiler_i.destroy                      = le_shader_compiler_destroy;
+	compiler_i.add_shader_include_directory = le_shader_compiler_add_shader_include_directory;
+	compiler_i.compile_source               = le_shader_compiler_compile_source;
 
 	compiler_i.result_create             = le_shader_compilation_result_create;
 	compiler_i.result_get_bytes          = le_shader_compilation_result_get_result_bytes;

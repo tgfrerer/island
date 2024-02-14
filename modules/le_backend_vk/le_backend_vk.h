@@ -251,6 +251,8 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o*                   ( *create                            ) ( le_backend_o * backend );
 		void                                     ( *destroy                           ) ( le_pipeline_manager_o* self );
 
+		void                                     ( *add_shader_include_directory      ) ( le_pipeline_manager_o* self, char const * path );
+
 		bool                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_gpso_handle *gpsoHandle);
 		bool                                     ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso, le_cpso_handle *cpsoHandle);
 		bool                                     ( *introduce_rtx_pipeline_state      ) ( le_pipeline_manager_o *self, rtx_pipeline_state_o* cpso, le_rtxpso_handle *cpsoHandle);

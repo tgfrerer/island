@@ -2727,6 +2727,14 @@ static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o* se
 
 // ----------------------------------------------------------------------
 
+static void le_pipeline_add_shader_include_directory( le_pipeline_manager_o* self, char const* path ) {
+	if ( self->shaderManager && self->shaderManager->shader_compiler ) {
+		le_shader_compiler::compiler_i.add_shader_include_directory( self->shaderManager->shader_compiler, path );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static le_pipeline_manager_o* le_pipeline_manager_create( le_backend_o* backend ) {
 	auto self = new le_pipeline_manager_o();
 
@@ -2747,6 +2755,12 @@ static le_pipeline_manager_o* le_pipeline_manager_create( le_backend_o* backend 
 
 	vkCreatePipelineCache( self->device, &info, nullptr, &self->vulkanCache );
 	self->shaderManager = le_shader_manager_create( self->device );
+
+	// Add a default directory for where to look for additional shaders:
+	//
+	// You can use shaders from include directories explicitly by including
+	// them using the "angle brackets" include: `#include <my_shader.glsl>`.
+	le_pipeline_add_shader_include_directory( self, "./resources/shaders/" );
 
 	return self;
 }
@@ -2830,8 +2844,9 @@ void register_le_pipeline_vk_api( void* api_ ) {
 	{
 		auto& i = le_backend_vk_api_i->le_pipeline_manager_i;
 
-		i.create  = le_pipeline_manager_create;
-		i.destroy = le_pipeline_manager_destroy;
+		i.create                       = le_pipeline_manager_create;
+		i.destroy                      = le_pipeline_manager_destroy;
+		i.add_shader_include_directory = le_pipeline_add_shader_include_directory;
 
 		i.create_shader_module              = le_pipeline_manager_create_shader_module;
 		i.create_shader_module_from_spirv   = le_pipeline_manager_create_shader_module_from_spirv;
