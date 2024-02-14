@@ -1,25 +1,7 @@
 // ------------------------------------------------------------
 // Math
 // ------------------------------------------------------------
-
-float map(in float val_, in float range_min_, in float range_max_, in float min_, in float max_){
-	return ( min_ + ((max_ - min_)/(range_max_ - range_min_)) * clamp(val_, range_min_, range_max_));
-}
-
-vec2 map(in vec2 val_, in vec2 range_min_, in vec2 range_max_, in vec2 min_, in vec2 max_){
-	return ( min_ + ((max_ - min_)/(range_max_ - range_min_)) * clamp(val_, range_min_, range_max_));
-}
-
-vec3 map(in vec3 val_, in vec3 range_min_, in vec3 range_max_, in vec3 min_, in vec3 max_){
-	return ( min_ + ((max_ - min_)/(range_max_ - range_min_)) * clamp(val_, range_min_, range_max_));
-}
-
-vec4 map(in vec4 val_, in vec4 range_min_, in vec4 range_max_, in vec4 min_, in vec4 max_){
-	return ( min_ + ((max_ - min_)/(range_max_ - range_min_)) * clamp(val_, range_min_, range_max_));
-}
-
-// ---------
-
+ 
 vec4 getQuaternionForRotation(	
 	const in float angle, /// angle in radians 
 	const in vec3 axis) /// axis as a normalised vec3
