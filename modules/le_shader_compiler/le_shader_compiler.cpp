@@ -20,8 +20,9 @@
 static constexpr auto LOGGER_LABEL = "le_shader_compiler";
 
 struct le_shader_compiler_o {
-	shaderc_compiler_t        compiler;
-	shaderc_compile_options_t options;
+	shaderc_compiler_t                 compiler;
+	shaderc_compile_options_t          options;
+	std::vector<std::filesystem::path> include_search_directories; // shader include search directories (walked in-order)
 };
 
 // ---------------------------------------------------------------
@@ -46,8 +47,8 @@ struct le_shader_compilation_result_o {
 };
 
 struct includes_callback_data_t {
-	std::vector<std::filesystem::path> search_directories;
-	included_files_container_t*        includes;
+	included_files_container_t*               includes;
+	std::vector<std::filesystem::path> const* include_search_directories;
 };
 
 // ---------------------------------------------------------------
@@ -184,6 +185,10 @@ static le_shader_compiler_o* le_shader_compiler_create() {
 		shaderc_compile_options_set_optimization_level( obj->options, shaderc_optimization_level_performance );
 	}
 
+	obj->include_search_directories = {
+	    "./resources/shaders/",
+	};
+
 	return obj;
 }
 
@@ -276,7 +281,7 @@ static shaderc_include_result* le_shaderc_include_result_create( void*       use
 	}
 
 	// 3) Default search paths - these are the search paths that have been explicitly named (if any)
-	paths.insert( paths.end(), callback_data->search_directories.begin(), callback_data->search_directories.end() );
+	paths.insert( paths.end(), callback_data->include_search_directories->cbegin(), callback_data->include_search_directories->cend() );
 
 	std::filesystem::path requested_source_path;
 	bool                  requestedFileExists = false;
@@ -583,9 +588,7 @@ static bool le_shader_compiler_compile_source(
 
 	includes_callback_data_t includes_callback_data{};
 	includes_callback_data.includes           = &result->includes;
-	includes_callback_data.search_directories = {
-	    "./resources/shaders/",
-	}; // TODO: we want this to be set from pipeline manager
+	includes_callback_data.include_search_directories = &self->include_search_directories;
 
 	// Note: these callbacks don't need to be protected against hot-reloading, as their addresses only
 	// need to be valid for the lifetime of this function.
