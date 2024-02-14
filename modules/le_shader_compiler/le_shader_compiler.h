@@ -29,7 +29,7 @@ struct le_shader_compiler_api {
         /// \brief  iterate over include paths in current compilation result
 		/// \return false if no more paths, otherwise: true, and updates to pPath and pStrSz as side-effect
 		/// \note   lifetime of any pointers is tied to life-time of result object
-		bool                            (* result_get_includes   ) ( le_shader_compilation_result_o* res, const char** pPath, size_t* pStrSz);
+		bool                            (* result_get_included_files   ) ( le_shader_compilation_result_o* res, const char** pPath, void** it);
 		bool                            (* result_get_success    ) ( le_shader_compilation_result_o* res);
 
         // pAddr receives a pointer to spir-v binary code - this is guaranteed to be castable to uint32_t. 

@@ -34,16 +34,20 @@ struct FileData {
 // We keep IncludesList as a struct, using it as an abstract handle
 // simplifies passing it to the includer callback
 //
-struct IncludesList {
-	std::set<std::string>           paths;                    // paths to files that this translation unit depends on
-	std::set<std::string>::iterator paths_it = paths.begin(); // iterator to current element
+struct included_files_container_t {
+	std::vector<std::filesystem::path> paths; // paths to files that this translation unit depends on
 };
 
 // ---------------------------------------------------------------
 
 struct le_shader_compilation_result_o {
 	shaderc_compilation_result* result = nullptr;
-	IncludesList                includes;
+	included_files_container_t  includes;
+};
+
+struct includes_callback_data_t {
+	std::vector<std::filesystem::path> search_directories;
+	included_files_container_t*        includes;
 };
 
 // ---------------------------------------------------------------
@@ -106,15 +110,27 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 }
 
 // ---------------------------------------------------------------
+// Caller of this function must provide a pointer-to-iterator telling us from where
+// to read - if iterator is initially set at nullptr, then this means
+// to read from the beginning.
+// this method will increment the iterator with each call and will write
+// the incremented iterator back into the parameter.
+static bool le_shader_compilation_result_get_next_included_file_path( le_shader_compilation_result_o* self, const char** str, void** it_ ) {
 
-static bool le_shader_compilation_result_get_next_includes_path( le_shader_compilation_result_o* self, const char** str, size_t* strSz ) {
+	auto local_it = static_cast<std::filesystem::path*>( *it_ );
 
-	if ( self->includes.paths_it != self->includes.paths.end() ) {
+	if ( local_it == nullptr ) {
+		local_it = self->includes.paths.data();
+	}
 
-		*str   = self->includes.paths_it->c_str();
-		*strSz = self->includes.paths_it->size();
+	auto paths_end = self->includes.paths.data() + self->includes.paths.size();
 
-		self->includes.paths_it++;
+	if ( local_it != paths_end ) {
+
+		*str = local_it->c_str();
+
+		// Store successor iterator value back into value given by parameter.
+		*it_ = local_it + 1;
 		return true;
 	}
 
@@ -230,27 +246,57 @@ static shaderc_include_result* le_shaderc_include_result_create( void*       use
                                                                  const char* requesting_source,
                                                                  size_t      include_depth ) {
 
-	auto self         = new shaderc_include_result();
-	auto includesList = reinterpret_cast<IncludesList*>( user_data );
+	auto self           = new shaderc_include_result();
+	auto callback_data  = reinterpret_cast<includes_callback_data_t*>( user_data );
+	auto included_files = callback_data->includes;
 
-	std::filesystem::path requested_source_path;
+	std::vector<std::filesystem::path> paths;
+
+	// Build a list of search directories for this file
 
 	if ( shaderc_include_type_relative == type ) {
-		auto basename         = std::filesystem::path( requesting_source ).remove_filename();
-		requested_source_path = basename.append( requested_source );
+		// #include "include.glsl"
+
+		// 1) in the same directory as the file that contains the #include statement
+		paths.push_back( std::filesystem::path( requesting_source ).remove_filename() );
+
+		// 2) in the directories of the currently opened include files
+		// in the reverse order in which they were opened
+
+		for ( auto i = included_files->paths.rbegin(); i != included_files->paths.rend(); i++ ) {
+			paths.push_back( std::filesystem::path( *i ).remove_filename() );
+		}
+
 	} else {
-		requested_source_path = std::filesystem::path( requested_source );
+		// #include <include.glsl>
+		//
+		// Include paths are the same as the fallback search paths,
+		// basically any search paths that have been named explicitly.
+		// See 3)
 	}
 
-	bool requestedFileExists = std::filesystem::exists( requested_source_path );
-	bool loadSuccess         = false;
+	// 3) Default search paths - these are the search paths that have been explicitly named (if any)
+	paths.insert( paths.end(), callback_data->search_directories.begin(), callback_data->search_directories.end() );
+
+	std::filesystem::path requested_source_path;
+	bool                  requestedFileExists = false;
+
+	for ( auto const& p : paths ) {
+		requested_source_path = p / requested_source;
+		requestedFileExists   = std::filesystem::exists( requested_source_path );
+		if ( requestedFileExists ) {
+			break;
+		}
+	}
+
+	bool loadSuccess = false;
 
 	auto fileData = new FileData();
 
 	if ( requestedFileExists ) {
 		requested_source_path = std::filesystem::canonical( requested_source_path );
 
-		includesList->paths.insert( requested_source_path.string() );
+		included_files->paths.push_back( requested_source_path.string() );
 		fileData->path_str = requested_source_path.string();
 
 		// -- load file contents into fileData
@@ -535,11 +581,20 @@ static bool le_shader_compiler_compile_source(
 
 	shader_options_parse_macro_definitions_string( local_options, macroDefinitionsStr, macroDefinitionsStrSz );
 
+	includes_callback_data_t includes_callback_data{};
+	includes_callback_data.includes           = &result->includes;
+	includes_callback_data.search_directories = {
+	    "./resources/shaders/",
+	}; // TODO: we want this to be set from pipeline manager
+
+	// Note: these callbacks don't need to be protected against hot-reloading, as their addresses only
+	// need to be valid for the lifetime of this function.
+	//
 	shaderc_compile_options_set_include_callbacks(
 	    local_options,
 	    le_shaderc_include_result_create,
 	    le_shaderc_include_result_destroy,
-	    &result->includes );
+	    &includes_callback_data );
 
 	shaderc_compile_options_set_target_env( local_options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3 );
 	shaderc_compile_options_set_target_spirv( local_options, shaderc_spirv_version_1_5 );
@@ -552,11 +607,11 @@ static bool le_shader_compiler_compile_source(
 	        local_options );
 
 	// Setup iterator for include paths so that it points to the first element
-	// in the sorted set of inlcude paths
+	// in the sorted set of include paths
+	//
 	// Once the preprocessor step has completed, the set of include paths for
 	// this result object will not ever change again, and the read-out iterator
 	// can be set to the start position.
-	result->includes.paths_it = result->includes.paths.begin();
 
 	if ( shaderc_result_get_compilation_status( preprocessorResult ) != shaderc_compilation_status_success ) {
 		// If preprocessor step was not successful - return preprocessor result
@@ -618,11 +673,11 @@ LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
 	compiler_i.destroy        = le_shader_compiler_destroy;
 	compiler_i.compile_source = le_shader_compiler_compile_source;
 
-	compiler_i.result_create       = le_shader_compilation_result_create;
-	compiler_i.result_get_bytes    = le_shader_compilation_result_get_result_bytes;
-	compiler_i.result_get_success  = le_shader_compilation_result_get_result_success;
-	compiler_i.result_get_includes = le_shader_compilation_result_get_next_includes_path;
-	compiler_i.result_destroy      = le_shader_compilation_result_destroy;
+	compiler_i.result_create             = le_shader_compilation_result_create;
+	compiler_i.result_get_bytes          = le_shader_compilation_result_get_result_bytes;
+	compiler_i.result_get_success        = le_shader_compilation_result_get_result_success;
+	compiler_i.result_get_included_files = le_shader_compilation_result_get_next_included_file_path;
+	compiler_i.result_destroy            = le_shader_compilation_result_destroy;
 
 #ifdef PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libshaderc_shared.so" );

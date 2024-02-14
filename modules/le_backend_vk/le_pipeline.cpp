@@ -532,9 +532,9 @@ static bool translate_to_spirv_code(
     LeShaderSourceLanguageEnum shader_source_language,
     le::ShaderStage            moduleType,
     const char*                original_file_name,
+    std::string const&         shaderDefines,
     std::vector<uint32_t>&     spirvCode,
-    std::set<std::string>&     includesSet,
-    std::string const&         shaderDefines ) {
+    std::vector<std::string>&  included_files ) {
 
 	ZoneScoped;
 
@@ -555,11 +555,8 @@ static bool translate_to_spirv_code(
 		compiler_i.compile_source(
 		    shader_compiler,
 		    static_cast<const char*>( raw_data ), numBytes,
-		    shader_source_language,
-		    moduleType,
-		    original_file_name,
-		    shaderDefines.c_str(),
-		    shaderDefines.size(),
+		    shader_source_language, moduleType, original_file_name,
+		    shaderDefines.c_str(), shaderDefines.size(),
 		    compilation_result );
 
 		if ( compiler_i.result_get_success( compilation_result ) == true ) {
@@ -570,12 +567,13 @@ static bool translate_to_spirv_code(
 			memcpy( spirvCode.data(), addr, res_sz );
 
 			// -- grab a list of includes which this compilation unit depends on:
-			const char* pStr  = nullptr;
-			size_t      strSz = 0;
+			const char* pStr = nullptr;
 
-			while ( compiler_i.result_get_includes( compilation_result, &pStr, &strSz ) ) {
+			void* it = nullptr; // will get updated by result_get_includes
+
+			while ( compiler_i.result_get_included_files( compilation_result, &pStr, &it ) ) {
 				// -- update set of includes for this module
-				includesSet.emplace( pStr, strSz );
+				included_files.emplace_back( pStr );
 			}
 			result = true;
 		} else {
@@ -631,7 +629,7 @@ static void le_shader_file_watcher_on_callback( const char* path, void* user_dat
 
 // Thread-safety: needs exclusive access to shader_manager->moduleDependencies for full duration
 // We use a lock for this reason.
-static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shader_manager_o* self, le_shader_module_handle module, std::set<std::string>& sourcePaths ) {
+static void le_pipeline_cache_set_module_dependencies_for_watched_files( le_shader_manager_o* self, le_shader_module_handle module, std::vector<std::string>& source_files ) {
 
 	// To be able to tell quickly which modules need to be recompiled if a source file changes,
 	// we build map from source file to modules which depend on the source file.
@@ -642,11 +640,16 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        lck    = std::unique_lock( self->protected_module_dependencies.mtx );
 
-	if ( !sourcePaths.empty() ) {
+	if ( !source_files.empty() ) {
 		logger.debug( "Shader module (%p):", module );
 	}
 
-	for ( const auto& s : sourcePaths ) {
+	for ( const auto& s : source_files ) {
+
+		if ( !std::filesystem::path( s ).has_filename() ) {
+			// we only need to watch actual files, not directories.
+			continue;
+		}
 
 		// If no previous entry for this source path existed, we must insert a watch for this path
 		// the watch will call a backend method which figures out how many modules were affected.
@@ -1122,10 +1125,10 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 		return;
 	}
 
-	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet{ { module->filepath.string() } }; // let first element be the original source file path
+	std::vector<uint32_t>    spirv_code;
+	std::vector<std::string> included_files = { module->filepath.string() }; // let first element be the original source file path
 
-	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->source_language }, module->stage, module->filepath.string().c_str(), spirv_code, includesSet, module->macro_defines );
+	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->source_language }, module->stage, module->filepath.string().c_str(), module->macro_defines, spirv_code, included_files );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
@@ -1148,8 +1151,9 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	module->hash = hash_of_module;
 
 	le_pipeline_cache_remove_module_from_dependencies( self, handle );
+
 	// -- update additional include paths, if necessary.
-	le_pipeline_cache_set_module_dependencies_for_watched_file( self, handle, includesSet );
+	le_pipeline_cache_set_module_dependencies_for_watched_files( self, handle, included_files );
 
 	// ---------| Invariant: new spir-v code detected.
 
@@ -1442,10 +1446,10 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	// -- Make sure the file contains spir-v code.
 
-	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet = { { canonical_path_as_string } }; // let first element be the source file path
+	std::vector<uint32_t>    spirv_code;
+	std::vector<std::string> included_files = { canonical_path_as_string }; // this is where we collect any files that contribute to this compilation unit
 
-	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, spirv_code, includesSet, macro_defines );
+	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, macro_defines, spirv_code, included_files );
 
 	le_shader_module_o module{};
 	module.stage               = moduleType;
@@ -1519,7 +1523,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	// -- add all source files for this file to the list of watched
 	//    files that point back to this module
-	le_pipeline_cache_set_module_dependencies_for_watched_file( self, handle, includesSet );
+	le_pipeline_cache_set_module_dependencies_for_watched_files( self, handle, included_files );
 
 	return handle;
 }
