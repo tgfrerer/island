@@ -1,9 +1,11 @@
 set (TARGET le_mesh)
 
+depends_on_island_module(le_log)
+
 set (SOURCES "le_mesh.h" )
 set (SOURCES ${SOURCES} "le_mesh.cpp" )
-set (SOURCES ${SOURCES} "le_mesh_types.h" )
-set (SOURCES ${SOURCES} "le_mesh_ply.cpp" )
+# set (SOURCES ${SOURCES} "le_mesh_types.h" )
+# set (SOURCES ${SOURCES} "le_mesh_ply.cpp" )
 
 if (${PLUGINS_DYNAMIC})
     add_library(${TARGET} SHARED ${SOURCES})
