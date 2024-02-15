@@ -15,9 +15,6 @@ struct le_mesh_o;
   + we want to have a pure-cpu mesh as well as a mesh that exists on the gpu.
   + how should we draw a mesh?
 
-
-
-
 */
 
 // clang-format off
@@ -55,39 +52,51 @@ struct le_mesh_api {
 		void (*clear)(le_mesh_o* self);
 
 
-		// I would like to change the api so that the mesh will copy into a given pointer
-		// (bounded by size or num_bytes)
-
-		// void (*get_vertices )( le_mesh_o *self, size_t* count, default_vertex_type const **   vertices); 	// 3 floats per vertex
-		// void (*get_normals  )( le_mesh_o *self, size_t* count, default_normal_type const **   normals ); 	// 3 floats per vertex
-		// void (*get_colours  )( le_mesh_o *self, size_t* count, default_colour_type const **   colours ); 	// 4 floats per vertex
-		// void (*get_uvs      )( le_mesh_o *self, size_t* count, default_uv_type const **   uvs     ); 	// 2 floats per vertex
-		// void (*get_tangents )( le_mesh_o *self, size_t* count, default_tangent_type const **   tangents); 	// 3 floats per vertex
-		// void (*get_indices  )( le_mesh_o *self, size_t* count, default_index_type const ** indices ); // 1 uint16_t per index
-
-		// void (*get_data     )( le_mesh_o *self, size_t* numVertices, size_t* numIndices, float const** vertices, float const **normals, float const **uvs, float const  ** colours, uint16_t const **indices);
-
-		// New API
-
-
-		// If attributes were already set, this means that these attributes will have their pointers invalidated
+		// If attributes were already set, this means that these attributes will have their pointers invalidated - did_reallocate will tell you.
 		void   (*set_vertex_count)( le_mesh_o * self , size_t num_vertices, bool * did_reallocate);
 		size_t (*get_vertex_count)( le_mesh_o * self );
 
 		size_t (*get_index_count)(le_mesh_o* self, uint32_t * num_bytes_per_index);
 
-		// allocate attribute data
+		/// Allocate attribute data
+		/// @return                            : data pointer to where mesh memory lives. you should write into this immediately, and not keep this pointer around.
+		/// @param `attribute_name`            : enum value which attribute value we want to allocate memory for.
+		/// @param `num_bytes_per_vertex`      : number of bytes required for per-vertex for this attribute.
+		///
+		/// @note if this attribute has already been allocated, this function will just return a pointer to the attribute data.
+		/// @note the total number of vertices is set by `set_vertex_count`, which will invalidate all attribute data pointers that were queried before `set_vertex_count`.
+		///
 		void *(*allocate_attribute_data)( le_mesh_o * self, attribute_name_t attribute_name, uint32_t num_bytes_per_vertex);
 		void *(*allocate_index_data)( le_mesh_o * self, size_t num_indices, uint32_t* num_bytes_per_index); // num_bytes_per_index can be 0, will be set to 2 or 4 depending on number of vertices, must be 4 if number of vertices is (2^16)
 
-		void (*read_attribute_data_into)( le_mesh_o * self, void* target, size_t target_capacity_num_bytes, attribute_name_t attribute_name, size_t first_vertex, size_t *num_vertices, uint32_t* num_bytes_per_vertex, uint32_t stride);
+		/// Read attribute data into `target`
+		///
+		/// @param `target`                    : pointer to where to write data to
+		/// @param `target_capacity_num_bytes` : number of bytes held at `target` - this limits the maximum number of bytes that will be read into target.
+		/// @param `attribute_name`            : name of the attribute from which to read data from
+		/// @param `num_bytes_per_vertex`      : (optional) number of bytes per-vertex for this attribute, if set, this will return the actual number of bytes that this attribute requires per-vertex
+		/// @param `num_vertices`              : (optional) number of vertices to read, if not set, will assume that you want to read any available vertices. if set, will return number of vertices that were read into `target`.
+		/// @param `first_vertex`              : first vertex to read; this works as an offset, default is 0
+		void (*read_attribute_data_into)( le_mesh_o * self, void* target, size_t target_capacity_num_bytes, attribute_name_t attribute_name,  uint32_t* num_bytes_per_vertex, size_t *num_vertices, size_t first_vertex, uint32_t stride );
 
+		/// Read index data into `target`
+		///
+		/// @param `target`                    : pointer to where to write data to
+		/// @param `target_capacity_num_bytes` : number of bytes held at `target` - this limits the maximum number of bytes that will be read into target.
+		/// @param `num_bytes_per_index`       : (optional) number of bytes per-index, if set, this will return the actual number of bytes required per-index
+		/// @param `num_vertices`              : (optional) number of vertices to read, if not set, will assume that you want to read all available indices. if set, will return number of vertices that were read into `target`.
+		/// @param `first_vertex`              : first vertex to read; this works as an offset, default is 0
+		void (*read_index_data_into)( le_mesh_o* self, void*target,size_t target_capacity_num_bytes, uint32_t *num_bytes_per_index,  size_t *num_indices, size_t first_index);
+
+		/// Read attribute info into a given array of `attribute_info_t`.
+		///
+		/// @param `target`                    : (optional) pointer (or c-array) where to write data to.
+		/// @param `num_attributes_in_target`  : (required) memory available in target, given as a multiple of `sizeof(attribute_info_t)`, returns total number of attributes available in mesh.
 		void (*read_attribute_info_into)(le_mesh_o*self, attribute_info_t* target, size_t *num_attributes_in_target);
-		// void (*write_into_vertices )( le_mesh_o * self, size_t bytes_offset, float * const vertices, size_t * num_bytes);
 
 		// PLY import
 
-		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
+		// bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
 
 	};
 
@@ -123,37 +132,17 @@ class LeMesh : NoCopy, NoMove {
 		this_i.clear( self );
 	}
 
-	// void getVertices( size_t* count, le_mesh_api::default_vertex_type const** pVertices = nullptr ) {
-	// this_i.get_vertices( self, count, pVertices );
-	// }
-
-	// void getTangents( size_t* count, le_mesh_api::default_tangent_type const** pTangents = nullptr ) {
-	// this_i.get_tangents( self, count, pTangents );
-	// }
-
-	// void getColours( size_t* count, le_mesh_api::default_colour_type const** pColours = nullptr ) {
-	// this_i.get_colours( self, count, pColours );
-	// }
-
-	// void getNormals( size_t* count, le_mesh_api::default_normal_type const** pNormals = nullptr ) {
-	// this_i.get_vertices( self, count, pNormals );
-	// }
-
-	// void getUvs( size_t* count, le_mesh_api::default_uv_type const** pUvs = nullptr ) {
-	// this_i.get_uvs( self, count, pUvs );
-	// }
-
-	// void getIndices( size_t* count, le_mesh_api::default_index_type const** pIndices = nullptr ) {
-	// this_i.get_indices( self, count, pIndices );
-	// }
-
-	// void getData( size_t* numVertices, size_t* numIndices, float const** pVertices = nullptr, float const** pNormals = nullptr, float const** pUvs = nullptr, float const** pColours = nullptr, uint16_t const** pIndices = nullptr ) {
-	// this_i.get_data( self, numVertices, numIndices, pVertices, pNormals, pUvs, pColours, pIndices );
-	// }
-
-	bool loadFromPlyFile( char const* file_path ) {
-		return this_i.load_from_ply_file( self, file_path );
+	void readAttributeDataInto( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_name_t attribute_name, uint32_t* num_bytes_per_vertex = nullptr, size_t* num_vertices = nullptr, size_t first_vertex = 0, uint32_t stride = 0 ) {
+		this_i.read_attribute_data_into( self, target, target_capacity_num_bytes, attribute_name, num_bytes_per_vertex, num_vertices, first_vertex, stride );
 	}
+
+	void readIndexDataInto( void* target, size_t target_capacity_num_bytes, uint32_t* num_bytes_per_index = nullptr, size_t* num_indices = nullptr, size_t first_index = 0 ) {
+		this_i.read_index_data_into( self, target, target_capacity_num_bytes, num_bytes_per_index, num_indices, first_index );
+	}
+
+	// bool loadFromPlyFile( char const* file_path ) {
+	// 	return this_i.load_from_ply_file( self, file_path );
+	// }
 
 	operator auto() {
 		return self;
