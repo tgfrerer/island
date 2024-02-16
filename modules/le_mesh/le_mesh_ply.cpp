@@ -389,10 +389,14 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 				num_vertices = element_archetype->num_elements;
 			}
 
-			glm::vec3* pos_data     = nullptr;
-			glm::vec3* normals_data = nullptr;
-			glm::vec2* uvs_data     = nullptr;
-			glm::vec4* colours_data = nullptr;
+			glm::vec3*       pos_data         = nullptr;
+			glm::vec3 const* pos_data_end     = nullptr;
+			glm::vec3*       normals_data     = nullptr;
+			glm::vec3 const* normals_data_end = nullptr;
+			glm::vec2*       uvs_data         = nullptr;
+			glm::vec2 const* uvs_data_end     = nullptr;
+			glm::vec4*       colours_data     = nullptr;
+			glm::vec4 const* colours_data_end = nullptr;
 
 			for ( auto const& p : element_archetype->properties ) {
 
@@ -400,22 +404,34 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 				case ( Property::AttributeType::eVX ): // intentional fall-through
 				case ( Property::AttributeType::eVY ): // intentional fall-through
 				case ( Property::AttributeType::eVZ ): // intentional fall-through
-					pos_data = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::ePosition, sizeof( glm::vec3 ) );
+					if ( pos_data == nullptr ) {
+						pos_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::ePosition, sizeof( glm::vec3 ) );
+						pos_data_end = pos_data + sizeof( glm::vec3 ) * num_vertices;
+					}
 					break;
 				case ( Property::AttributeType::eNX ): // intentional fall-through
 				case ( Property::AttributeType::eNY ): // intentional fall-through
 				case ( Property::AttributeType::eNZ ): // intentional fall-through
-					normals_data = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eNormal, sizeof( glm::vec3 ) );
+					if ( normals_data == nullptr ) {
+						normals_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eNormal, sizeof( glm::vec3 ) );
+						normals_data_end = normals_data + sizeof( glm::vec3 ) * num_vertices;
+					}
 					break;
 				case ( Property::AttributeType::eColR ): // intentional fall-through
 				case ( Property::AttributeType::eColG ): // intentional fall-through
 				case ( Property::AttributeType::eColB ): // intentional fall-through
 				case ( Property::AttributeType::eColA ): // intentional fall-through
-					colours_data = ( glm::vec4* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eColour, sizeof( glm::vec4 ) );
+					if ( colours_data == nullptr ) {
+						colours_data     = ( glm::vec4* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eColour, sizeof( glm::vec4 ) );
+						colours_data_end = colours_data + sizeof( glm::vec4 ) * num_vertices;
+					}
 					break;
 				case ( Property::AttributeType::eTexU ): // intentional fall-through
 				case ( Property::AttributeType::eTexV ): // intentional fall-through
-					uvs_data = ( glm::vec2* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eColour, sizeof( glm::vec2 ) );
+					if ( uvs_data == nullptr ) {
+						uvs_data     = ( glm::vec2* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eUv, sizeof( glm::vec2 ) );
+						uvs_data_end = uvs_data + sizeof( glm::vec2 ) * num_vertices;
+					}
 					break;
 				case ( Property::AttributeType::eUnknown ):
 					break;
@@ -423,36 +439,60 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 				// TODO: check for tangents.
 			}
 
+			size_t count_positions = 0;
+
 			for ( uint32_t i = 0; i != element_archetype->num_elements && c != nullptr; ++i, c = strtok_r( nullptr, DELIMS, &c_save_ptr ) ) {
 				char* s = c;
 
+				if ( pos_data ) {
+					assert( pos_data < pos_data_end );
+				}
+				if ( normals_data ) {
+					assert( normals_data < normals_data_end );
+				}
+				if ( uvs_data ) {
+					assert( uvs_data < uvs_data_end );
+				}
+				if ( colours_data ) {
+					assert( colours_data < colours_data_end );
+				}
+
+				// clang-format off
+
 				for ( auto const& p : element_archetype->properties ) {
 
-					// clang-format off
+					// todo: you need to iterate the archetype element
+
 					switch ( p.attribute_type ) {
 					case ( Property::AttributeType::eVX )   : pos_data->x  = strtof( s, &s ); break;
 					case ( Property::AttributeType::eVY )   : pos_data->y  = strtof( s, &s ); break;
 					case ( Property::AttributeType::eVZ )   : pos_data->z  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNX )   : normals_data->x  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNY )   : normals_data->y  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNZ )   : normals_data->z  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eTexU ) : uvs_data->x = strtof( s, &s ); break;
-					case ( Property::AttributeType::eTexV ) : uvs_data->y = strtof( s, &s ); break;
+					case ( Property::AttributeType::eNX )   : if (normals_data) { normals_data->x  = strtof( s, &s ); } break;
+					case ( Property::AttributeType::eNY )   : if (normals_data) { normals_data->y  = strtof( s, &s ); } break;
+					case ( Property::AttributeType::eNZ )   : if (normals_data) { normals_data->z  = strtof( s, &s ); } break;
+					case ( Property::AttributeType::eTexU ) : if (uvs_data    ) { uvs_data->x = strtof( s, &s );      } break;
+					case ( Property::AttributeType::eTexV ) : if (uvs_data    ) { uvs_data->y = strtof( s, &s );      } break;
 					case ( Property::AttributeType::eColR ):
-						colours_data->x = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+						if ( colours_data ) { colours_data->x = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
 					case ( Property::AttributeType::eColG ):
-						colours_data->y = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+						if ( colours_data ) { colours_data->y = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
 					case ( Property::AttributeType::eColB ):
-						colours_data->z = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+						if ( colours_data ) { colours_data->z = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
 					case ( Property::AttributeType::eColA ):
-						colours_data->w = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+						if ( colours_data ) { colours_data->w = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
 					case ( Property::AttributeType::eUnknown ):
 						// TODO: what do we do if there is an unknown attribute?
 						assert( false );
 						break;
 					}
-					// clang-format on
 				}
+
+				pos_data     = pos_data     ? pos_data     + 1 : nullptr;
+				normals_data = normals_data ? normals_data + 1 : nullptr;
+				uvs_data     = uvs_data     ? uvs_data     + 1 : nullptr;
+				colours_data = colours_data ? colours_data + 1 : nullptr;
+
+				// clang-format on
 			}
 
 		} else if ( element_archetype->type == Element::Type::eFace ) {
