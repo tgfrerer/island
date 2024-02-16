@@ -170,7 +170,7 @@ static void* le_mesh_allocate_attribute_data( le_mesh_o* self, le_mesh_api::attr
 
 // ----------------------------------------------------------------------
 
-void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, uint32_t* num_bytes_per_index ) {
+static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, uint32_t* num_bytes_per_index ) {
 
 	if ( nullptr == num_bytes_per_index ) {
 		logger.error( "You must specify the number of bytes per index pointer." );
