@@ -272,7 +272,7 @@ static void le_mesh_read_attribute_info_into( le_mesh_o* self, le_mesh_api::attr
 
 // ----------------------------------------------------------------------
 
-// ISL_API_ATTR void le_module_register_le_mesh_load_from_ply( void* api ); // ffdecl.
+ISL_API_ATTR void le_module_register_le_mesh_load_from_ply( void* api ); // ffdecl.
 
 // ----------------------------------------------------------------------
 

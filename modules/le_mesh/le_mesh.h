@@ -96,7 +96,7 @@ struct le_mesh_api {
 
 		// PLY import
 
-		// bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
+		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
 
 	};
 
@@ -140,9 +140,9 @@ class LeMesh : NoCopy, NoMove {
 		this_i.read_index_data_into( self, target, target_capacity_num_bytes, num_bytes_per_index, num_indices, first_index );
 	}
 
-	// bool loadFromPlyFile( char const* file_path ) {
-	// 	return this_i.load_from_ply_file( self, file_path );
-	// }
+	bool loadFromPlyFile( char const* file_path ) {
+		return this_i.load_from_ply_file( self, file_path );
+	}
 
 	operator auto() {
 		return self;

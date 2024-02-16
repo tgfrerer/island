@@ -1,7 +1,5 @@
 #include "le_mesh.h"
-#include "le_mesh_types.h" //
 
-#include <math.h>
 #include <vector>
 #include <filesystem> // for file loading
 #include <iostream>   // for file loading
@@ -9,6 +7,10 @@
 #include <iomanip>    // for file loading
 #include <cstring>
 #include <cassert>
+
+#include "glm/vec2.hpp"
+#include "glm/vec3.hpp"
+#include "glm/vec4.hpp"
 
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
@@ -361,6 +363,8 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 
 	le_mesh_api_i->le_mesh_i.clear( self );
 
+	size_t num_vertices = 0;
+
 	// - Load file data
 
 	Element const* element_archetype     = elements.data();
@@ -379,28 +383,39 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 		if ( element_archetype->type == Element::Type::eVertex ) {
 
 			// - Make space over all attributes for number of elements.
+			if ( num_vertices == 0 ) {
+				bool was_reallocated = false;
+				le_mesh_api_i->le_mesh_i.set_vertex_count( self, element_archetype->num_elements, &was_reallocated );
+				num_vertices = element_archetype->num_elements;
+			}
+
+			glm::vec3* pos_data     = nullptr;
+			glm::vec3* normals_data = nullptr;
+			glm::vec2* uvs_data     = nullptr;
+			glm::vec4* colours_data = nullptr;
 
 			for ( auto const& p : element_archetype->properties ) {
+
 				switch ( p.attribute_type ) {
 				case ( Property::AttributeType::eVX ): // intentional fall-through
 				case ( Property::AttributeType::eVY ): // intentional fall-through
 				case ( Property::AttributeType::eVZ ): // intentional fall-through
-					self->vertices.resize( element_archetype->num_elements, {} );
+					pos_data = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::ePosition, sizeof( glm::vec3 ) );
 					break;
 				case ( Property::AttributeType::eNX ): // intentional fall-through
 				case ( Property::AttributeType::eNY ): // intentional fall-through
 				case ( Property::AttributeType::eNZ ): // intentional fall-through
-					self->normals.resize( element_archetype->num_elements, {} );
+					normals_data = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eNormal, sizeof( glm::vec3 ) );
 					break;
 				case ( Property::AttributeType::eColR ): // intentional fall-through
 				case ( Property::AttributeType::eColG ): // intentional fall-through
 				case ( Property::AttributeType::eColB ): // intentional fall-through
 				case ( Property::AttributeType::eColA ): // intentional fall-through
-					self->colours.resize( element_archetype->num_elements, {} );
+					colours_data = ( glm::vec4* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eColour, sizeof( glm::vec4 ) );
 					break;
 				case ( Property::AttributeType::eTexU ): // intentional fall-through
 				case ( Property::AttributeType::eTexV ): // intentional fall-through
-					self->uvs.resize( element_archetype->num_elements, {} );
+					uvs_data = ( glm::vec2* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eColour, sizeof( glm::vec2 ) );
 					break;
 				case ( Property::AttributeType::eUnknown ):
 					break;
@@ -411,31 +426,26 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 			for ( uint32_t i = 0; i != element_archetype->num_elements && c != nullptr; ++i, c = strtok_r( nullptr, DELIMS, &c_save_ptr ) ) {
 				char* s = c;
 
-				auto* v_data  = self->vertices.empty() ? nullptr : &self->vertices[ i ];
-				auto* n_data  = self->normals.empty() ? nullptr : &self->normals[ i ];
-				auto* uv_data = self->uvs.empty() ? nullptr : &self->uvs[ i ];
-				auto* c_data  = self->colours.empty() ? nullptr : &self->colours[ i ];
-
 				for ( auto const& p : element_archetype->properties ) {
 
 					// clang-format off
 					switch ( p.attribute_type ) {
-					case ( Property::AttributeType::eVX )   : v_data->x  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eVY )   : v_data->y  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eVZ )   : v_data->z  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNX )   : n_data->x  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNY )   : n_data->y  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNZ )   : n_data->z  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eTexU ) : uv_data->x = strtof( s, &s ); break;
-					case ( Property::AttributeType::eTexV ) : uv_data->y = strtof( s, &s ); break;
+					case ( Property::AttributeType::eVX )   : pos_data->x  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eVY )   : pos_data->y  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eVZ )   : pos_data->z  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eNX )   : normals_data->x  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eNY )   : normals_data->y  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eNZ )   : normals_data->z  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eTexU ) : uvs_data->x = strtof( s, &s ); break;
+					case ( Property::AttributeType::eTexV ) : uvs_data->y = strtof( s, &s ); break;
 					case ( Property::AttributeType::eColR ):
-						c_data->x = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+						colours_data->x = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
 					case ( Property::AttributeType::eColG ):
-						c_data->y = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+						colours_data->y = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
 					case ( Property::AttributeType::eColB ):
-						c_data->z = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+						colours_data->z = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
 					case ( Property::AttributeType::eColA ):
-						c_data->w = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+						colours_data->w = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
 					case ( Property::AttributeType::eUnknown ):
 						// TODO: what do we do if there is an unknown attribute?
 						assert( false );
@@ -448,26 +458,54 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 		} else if ( element_archetype->type == Element::Type::eFace ) {
 
 			// must be 3 indices per face - because our meshes can only be built from triangles, not quads or anything else.
-			self->indices.resize( element_archetype->num_elements * 3, {} );
 
-			auto*       current_index = self->indices.data();
-			auto* const indices_end   = self->indices.data() + self->indices.size();
+			uint32_t num_bytes_per_index = sizeof( uint16_t ); // hint for 16bit indices, might be updated mesh-side if it detects that it has more than 65535 vertices.
+			size_t   num_indices         = element_archetype->num_elements * 3;
+			void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( self, num_indices, &num_bytes_per_index );
 
-			// this goes through line-by line.
-			for ( size_t line_num = 0;
-			      ( line_num != element_archetype->num_elements ) && ( current_index < indices_end ) && ( c != nullptr );
-			      ++line_num ) {
+			// In case the mesh has more than 65535 vertices, index type will automatically have
+			// been assigned to be uint32_t, in which case the bytes per index will be 4.
 
-				char* s = c;
+			if ( num_bytes_per_index == 2 ) {
+				auto       current_index = ( uint16_t* )index_data;
+				auto const indices_end   = current_index + num_indices;
 
-				auto three = strtoul( s, &s, 0 );
-				assert( three == 3 ); // first element must be three
+				// this goes through line-by line.
+				for ( size_t line_num = 0;
+				      ( line_num != element_archetype->num_elements ) && ( current_index < indices_end ) && ( c != nullptr );
+				      ++line_num ) {
 
-				*current_index++ = strtoul( s, &s, 0 ); // first index
-				*current_index++ = strtoul( s, &s, 0 ); // second index
-				*current_index++ = strtoul( s, &s, 0 ); // third index
+					char* s = c;
 
-				c = strtok_r( nullptr, DELIMS, &c_save_ptr );
+					auto three = strtoul( s, &s, 0 );
+					assert( three == 3 ); // first element must be three
+
+					*current_index++ = strtoul( s, &s, 0 ); // first index
+					*current_index++ = strtoul( s, &s, 0 ); // second index
+					*current_index++ = strtoul( s, &s, 0 ); // third index
+
+					c = strtok_r( nullptr, DELIMS, &c_save_ptr );
+				}
+			} else if ( num_bytes_per_index == 4 ) {
+				auto       current_index = ( uint32_t* )index_data;
+				auto const indices_end   = current_index + num_indices;
+
+				// this goes through line-by line.
+				for ( size_t line_num = 0;
+				      ( line_num != element_archetype->num_elements ) && ( current_index < indices_end ) && ( c != nullptr );
+				      ++line_num ) {
+
+					char* s = c;
+
+					auto three = strtoul( s, &s, 0 );
+					assert( three == 3 ); // first element must be three
+
+					*current_index++ = strtoul( s, &s, 0 ); // first index
+					*current_index++ = strtoul( s, &s, 0 ); // second index
+					*current_index++ = strtoul( s, &s, 0 ); // third index
+
+					c = strtok_r( nullptr, DELIMS, &c_save_ptr );
+				}
 			}
 
 			// parse face properties
