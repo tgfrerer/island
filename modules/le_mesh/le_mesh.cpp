@@ -9,7 +9,7 @@
 static auto logger = le::Log( "le_mesh" );
 
 struct attribute_descriptor_t {
-    uint32_t num_bytes = {};
+	uint32_t num_bytes = {};
 };
 
 /*
@@ -61,11 +61,6 @@ static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* targe
                                               le_mesh_api::attribute_name_t attribute_name,
                                               uint32_t* num_bytes_per_vertex, size_t* num_vertices, size_t first_vertex, uint32_t stride ) {
 
-	if ( stride != 0 ) {
-		logger.error( "writing stride other than 0 not implemented yet" );
-		return;
-	}
-
 	// ---------| invariant: stride is 0
 
 	if ( !self->attributes.contains( attribute_name ) ) {
@@ -101,10 +96,38 @@ static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* targe
 		*num_bytes_per_vertex = attr_desc.num_bytes; // write back number of bytes per vertex
 	}
 
+	if ( stride < attr_desc.num_bytes ) {
+		logger.error( "stride may not be lower than attribute byte count: %d < %d", stride, attr_desc.num_bytes );
+	}
+
+	if ( stride * num_vertices_to_copy > target_capacity_num_bytes ) {
+		logger.error( "not enough capacity in target (%d) to store requested bumber of bytes (%d)", target_capacity_num_bytes, stride * num_vertices_to_copy );
+		return;
+	}
+
 	if ( target ) {
-		size_t num_bytes_to_copy = num_vertices_to_copy * attr_desc.num_bytes;
-		size_t offset_in_bytes   = first_vertex * attr_desc.num_bytes;
-		memcpy( target, bytes_vec.data() + offset_in_bytes, num_bytes_to_copy );
+
+		if ( stride == attr_desc.num_bytes || stride == 0 ) {
+			// source and target are contiguous - we can use a straightforward memcpy
+			size_t num_bytes_to_copy = num_vertices_to_copy * attr_desc.num_bytes;
+			size_t offset_in_bytes   = first_vertex * attr_desc.num_bytes;
+			memcpy( target, bytes_vec.data() + offset_in_bytes, num_bytes_to_copy );
+		} else {
+			// target is not contiguous, but strided, we must manually copy
+			size_t offset_in_bytes = first_vertex * attr_desc.num_bytes;
+
+			uint8_t const* data_source = bytes_vec.data() + offset_in_bytes;
+			uint8_t*       data_target = reinterpret_cast<uint8_t*>( target );
+
+			for ( size_t i = 0; i != num_vertices_to_copy; i++ ) {
+				memcpy(
+				    data_target,
+				    data_source,
+				    attr_desc.num_bytes );
+				data_target += stride;
+				data_source += attr_desc.num_bytes;
+			}
+		}
 	}
 }
 
