@@ -65,6 +65,7 @@ struct le_mesh_api {
 		///
 		/// @note if this attribute has already been allocated, this function will just return a pointer to the attribute data.
 		/// @note the total number of vertices is set by `set_vertex_count`, which will invalidate all attribute data pointers that were queried before `set_vertex_count`.
+		/// @warning writing into allocated data is super finnicky - you must make sure that you don't write over the boundaries of the data that you allocated.
 		///
 		void *(*allocate_attribute_data)( le_mesh_o * self, attribute_name_t attribute_name, uint32_t num_bytes_per_vertex);
 		void *(*allocate_index_data)( le_mesh_o * self, size_t num_indices, uint32_t* num_bytes_per_index); // num_bytes_per_index can be 0, will be set to 2 or 4 depending on number of vertices, must be 4 if number of vertices is (2^16)
@@ -130,6 +131,10 @@ class LeMesh : NoCopy, NoMove {
 
 	void clear() {
 		this_i.clear( self );
+	}
+
+	size_t getIndexCount( uint32_t* num_bytes_per_index = nullptr ) {
+		return this_i.get_index_count( self, num_bytes_per_index );
 	}
 
 	size_t getVertexCount() {
