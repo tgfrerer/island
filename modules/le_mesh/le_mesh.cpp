@@ -33,7 +33,7 @@ struct le_mesh_o {
 // ----------------------------------------------------------------------
 
 static le_mesh_o* le_mesh_create() {
-	auto self = new le_mesh_o();
+	auto self = new le_mesh_o{};
 
 	return self;
 }
@@ -189,7 +189,7 @@ static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, u
 		self->indices_num_bytes_per_index = *num_bytes_per_index;
 	}
 
-	self->indices_data.resize( ( self->indices_num_bytes_per_index ) * num_indices );
+	self->indices_data.resize( self->indices_num_bytes_per_index * num_indices );
 
 	return self->indices_data.data();
 }
