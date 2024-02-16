@@ -57,7 +57,7 @@ static void le_mesh_clear( le_mesh_o* self ) {
 
 // ----------------------------------------------------------------------
 // write contents of
-static void le_mesh_read_attribute_data_into( le_mesh_o* self, void* target, size_t target_capacity_num_bytes,
+static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes,
                                               le_mesh_api::attribute_name_t attribute_name,
                                               uint32_t* num_bytes_per_vertex, size_t* num_vertices, size_t first_vertex, uint32_t stride ) {
 
@@ -75,8 +75,8 @@ static void le_mesh_read_attribute_data_into( le_mesh_o* self, void* target, siz
 
 	// ---------| invariant: mesh contains this attribute
 
-	auto& bytes_vec = self->attributes[ attribute_name ];
-	auto& attr_desc = self->attribute_descriptors[ attribute_name ];
+	auto& bytes_vec = self->attributes.at( attribute_name );
+	auto& attr_desc = self->attribute_descriptors.at( attribute_name );
 
 	size_t num_vertices_available = self->num_vertices;
 	// If num_vertices is not set, all available vertices should be used.
@@ -110,7 +110,7 @@ static void le_mesh_read_attribute_data_into( le_mesh_o* self, void* target, siz
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_read_index_data_into( le_mesh_o* self, void* target, size_t target_capacity_num_bytes, uint32_t* num_bytes_per_index, size_t* num_indices, size_t first_index ) {
+static void le_mesh_read_index_data_into( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, uint32_t* num_bytes_per_index, size_t* num_indices, size_t first_index ) {
 
 	auto& bytes_vec = self->indices_data;
 
