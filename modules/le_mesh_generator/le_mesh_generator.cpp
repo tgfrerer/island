@@ -154,6 +154,8 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
 			*mesh_position++ = vertex;
 			*mesh_normal++   = normal;
 			*mesh_tangent++  = tangent;
+
+			verticesRow.push_back( index++ );
 		}
 
 		grid.emplace_back( verticesRow );
