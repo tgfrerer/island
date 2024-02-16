@@ -179,7 +179,7 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
 	uint32_t num_bytes_per_index = 0;
 	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, num_indices, &num_bytes_per_index );
 
-	if ( num_bytes_per_index = 2 ) {
+	if ( num_bytes_per_index == 2 ) {
 		auto i = reinterpret_cast<uint16_t*>( index_data );
 		for ( iy = 0; iy < heightSegments; iy++ ) {
 			for ( ix = 0; ix < widthSegments; ix++ ) {
