@@ -283,6 +283,7 @@ static le_resource_manager_o* le_resource_manager_create() {
 	auto& interface = le_resource_manager_api_i->le_resource_manager_i;
 
 	interface.set_decoder_interface_for_filetype( self, "png", le_pixels_api_i->le_pixels_image_decoder_i );
+	interface.set_decoder_interface_for_filetype( self, "tga", le_pixels_api_i->le_pixels_image_decoder_i );
 	interface.set_decoder_interface_for_filetype( self, "jpg", le_pixels_api_i->le_pixels_image_decoder_i );
 	interface.set_decoder_interface_for_filetype( self, "jpeg", le_pixels_api_i->le_pixels_image_decoder_i );
 
