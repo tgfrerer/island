@@ -132,6 +132,13 @@ class LeMesh : NoCopy, NoMove {
 		this_i.clear( self );
 	}
 
+	size_t getVertexCount() {
+		return this_i.get_vertex_count( self );
+	}
+
+	void readAttributeInfoInto( le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
+		this_i.read_attribute_info_into( self, target, num_attributes_in_target );
+	}
 
 	void readAttributeDataInto( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_name_t attribute_name, uint32_t* num_bytes_per_vertex = nullptr, size_t* num_vertices = nullptr, size_t first_vertex = 0, uint32_t stride = 0 ) const {
 		this_i.read_attribute_data_into( self, target, target_capacity_num_bytes, attribute_name, num_bytes_per_vertex, num_vertices, first_vertex, stride );
