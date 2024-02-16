@@ -279,7 +279,7 @@ ISL_API_ATTR void le_module_register_le_mesh_load_from_ply( void* api ); // ffde
 LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	auto& le_mesh_i = static_cast<le_mesh_api*>( api )->le_mesh_i;
 
-	// le_module_register_le_mesh_load_from_ply( api );
+	le_module_register_le_mesh_load_from_ply( api );
 
 	le_mesh_i.allocate_attribute_data  = le_mesh_allocate_attribute_data;
 	le_mesh_i.allocate_index_data      = le_mesh_allocate_index_data;
