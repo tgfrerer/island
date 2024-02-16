@@ -132,14 +132,13 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
 
 			float u = ix / float( widthSegments );
 
-			// normal
-			normal.x = cosf( phiStart + u * phiLength ) * sinf( thetaStart + v * thetaLength );
-			normal.y = cosf( thetaStart + v * thetaLength );
-			normal.z = sinf( phiStart + u * phiLength ) * sinf( thetaStart + v * thetaLength );
-
 			// vertex
-			vertex = radius * normal * glm::vec3( -1, 1, 1 );
+			vertex.x = -radius * cosf( phiStart + u * phiLength ) * sinf( thetaStart + v * thetaLength );
+			vertex.y = radius * cosf( thetaStart + v * thetaLength );
+			vertex.z = radius * sinf( phiStart + u * phiLength ) * sinf( thetaStart + v * thetaLength );
 
+			// normal
+			normal = glm::normalize( vertex );
 			// We could calculate tangents based on the fact that each tangent field (x/y/z) is the derivative of the
 			// corresponding vertex field (x/y/z) - but for a sphere we can take advantage of the special case where we say the
 			// tangent is normalized the cross product of the y-axis with V-Origin. Since our sphere is centred on the origin,
