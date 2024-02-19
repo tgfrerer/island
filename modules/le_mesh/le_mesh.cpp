@@ -100,7 +100,7 @@ static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* targe
 		logger.error( "stride may not be lower than attribute byte count: %d < %d", stride, attr_desc.num_bytes );
 	}
 
-	if ( stride * num_vertices_to_copy > target_capacity_num_bytes ) {
+	if ( ( ( stride - 1 ) * num_vertices_to_copy + attr_desc.num_bytes ) > target_capacity_num_bytes ) {
 		logger.error( "not enough capacity in target (%d) to store requested bumber of bytes (%d)", target_capacity_num_bytes, stride * num_vertices_to_copy );
 		return;
 	}
