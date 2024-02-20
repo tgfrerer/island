@@ -103,7 +103,7 @@ class LeVideoDecoder : NoCopy, NoMove {
 		}
 	}
 
-	/// Note: only call update once per app update cylce - and call update before using any of the
+	/// Note: only call update once per app update cyclce - and call update before using any of the
 	/// resources provided by the video decoder, meaning call update() before get_lastest_available_frame()
 	void update( le_rendergraph_o* rendergraph, uint64_t ticks ) {
 		le_video_decoder::le_video_decoder_i.update( self, rendergraph, ticks );
