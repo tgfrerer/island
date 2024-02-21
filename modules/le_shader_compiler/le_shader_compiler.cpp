@@ -36,7 +36,7 @@ struct FileData {
 // simplifies passing it to the includer callback
 //
 struct included_files_container_t {
-	std::vector<std::filesystem::path> paths; // paths to files that this translation unit depends on
+	std::vector<std::string> paths; // paths to files that this translation unit depends on
 };
 
 // ---------------------------------------------------------------
@@ -118,7 +118,7 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 // the incremented iterator back into the parameter.
 static bool le_shader_compilation_result_get_next_included_file_path( le_shader_compilation_result_o* self, const char** str, void** it_ ) {
 
-	auto local_it = static_cast<std::filesystem::path*>( *it_ );
+	auto local_it = static_cast<std::string*>( *it_ );
 
 	if ( local_it == nullptr ) {
 		local_it = self->includes.paths.data();
