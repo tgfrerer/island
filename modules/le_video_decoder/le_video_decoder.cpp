@@ -252,11 +252,11 @@ struct le_video_decoder_o {
 
 		distinct_dst_image_info_t* maybe_dst_image_info; // only used if dst and dpb images do not coincide.
 
-		size_t   gpu_bitstream_offset;   // offset into the bitstream buffer to reach this slice
-		size_t   gpu_bitstream_capacity; // total bytes for this slice of the bitstream buffer
-		size_t   gpu_bitstream_size;     // used bytes for this slice
+		size_t   gpu_bitstream_offset;           ///< offset into the bitstream buffer to reach this slice
+		size_t   gpu_bitstream_capacity;         ///< total bytes for this slice of the bitstream buffer
+		size_t   gpu_bitstream_used_bytes_count; ///< used bytes for this slice
 		uint8_t* gpu_bitstream_slice_mapped_memory_address = nullptr;
-		size_t   decoded_frame_index; // index of this frame in the video stream
+		size_t   decoded_frame_index; ///< index of this frame in the video stream
 	};
 
 	std::vector<video_decoder_memory_frame> memory_frames;
@@ -1062,6 +1062,8 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 		// Allocate memory frames for each decoded frame - on each invocation of the decoder,
 		// we generate another frame. each frame holds one image that contains the decoded
 		// frame and that can be shared with other queues.
+		//
+		// Each memory frame also reserves 1/nth of the available mapped memory for gpu transfers.
 
 		using namespace le_backend_vk;
 		VmaAllocationCreateInfo allocation_create_info{};
@@ -1092,6 +1094,17 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
         self->memory_frames.resize( num_memory_frames );
 
 		int i = 0;
+
+		/*
+		 * Assign 1/n th of the allocated mapped memory to each memory frame -
+		 * The important thing to know at this point is the number of bytes
+		 * needed to transfer the largest raw data frame.
+		 *
+		 * This information is known via self->video_data->max_memory_frame_size_bytes
+		 * but if we are running this as a stream decoder we might need a different
+		 * heuristic; and we might even need to do adjust this during runtime.
+		 *
+		 */
 
 		for ( auto& f : self->memory_frames ) {
 
@@ -1149,11 +1162,11 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 				};
 			}
 
-			// assign one/nth of the bitstream buffer capacity to this frame
+			// Assign one/nth of the bitstream buffer capacity to this frame
 
 			f.gpu_bitstream_capacity                    = self->video_data->max_memory_frame_size_bytes;
 			f.gpu_bitstream_offset                      = i * self->video_data->max_memory_frame_size_bytes;
-			f.gpu_bitstream_size                        = 0; // initially no bytes are used
+			f.gpu_bitstream_used_bytes_count            = 0; // initially no bytes are used
 			f.gpu_bitstream_slice_mapped_memory_address = ( ( uint8_t* )pData ) + f.gpu_bitstream_offset;
 
 			i++;
@@ -1324,7 +1337,7 @@ static void le_video_decoder_on_backend_frame_clear_cb( void* user_data ) {
 	//
 	// This works similar to arena allocation: resetting the size de-allocates the whole range for
 	// the current gpu_bitstream.
-	cp->gpu_bitstream_size = 0;
+	cp->gpu_bitstream_used_bytes_count = 0;
 
 	// Now, we must decrease the reference count to decoder,
 	// as we did increase it earlier.
@@ -1577,17 +1590,17 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 			std::vector<VkBufferMemoryBarrier2> buffer_memory_barriers(
 			    {
 			        {
-			            .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,         // VkStructureType
-			            .pNext               = nullptr,                                           // void *, optional
-			            .srcStageMask        = VK_PIPELINE_STAGE_2_HOST_BIT,                      // VkPipelineStageFlags2, optional
-			            .srcAccessMask       = VK_ACCESS_2_HOST_WRITE_BIT,                        // VkAccessFlags2, optional
-			            .dstStageMask        = VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR,          // VkPipelineStageFlags2, optional
-			            .dstAccessMask       = VK_ACCESS_2_VIDEO_DECODE_READ_BIT_KHR,             // VkAccessFlags2, optional
-			            .srcQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index, // uint32_t
-			            .dstQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index, // uint32_t
-			            .buffer              = decoder->gpu_bitstream_buffer.buffer,              // VkBuffer
-			            .offset              = decoder_memory_frame->gpu_bitstream_offset,        // VkDeviceSize
-			            .size                = decoder_memory_frame->gpu_bitstream_size,          // VkDeviceSize
+			            .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,            // VkStructureType
+			            .pNext               = nullptr,                                              // void *, optional
+			            .srcStageMask        = VK_PIPELINE_STAGE_2_HOST_BIT,                         // VkPipelineStageFlags2, optional
+			            .srcAccessMask       = VK_ACCESS_2_HOST_WRITE_BIT,                           // VkAccessFlags2, optional
+			            .dstStageMask        = VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR,             // VkPipelineStageFlags2, optional
+			            .dstAccessMask       = VK_ACCESS_2_VIDEO_DECODE_READ_BIT_KHR,                // VkAccessFlags2, optional
+			            .srcQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index,    // uint32_t
+			            .dstQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index,    // uint32_t
+			            .buffer              = decoder->gpu_bitstream_buffer.buffer,                 // VkBuffer
+			            .offset              = decoder_memory_frame->gpu_bitstream_offset,           // VkDeviceSize
+			            .size                = decoder_memory_frame->gpu_bitstream_used_bytes_count, // VkDeviceSize
 			        },
 			    } );
 
@@ -1746,7 +1759,7 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 			    .srcBufferOffset = decoder_memory_frame->gpu_bitstream_offset, // VkDeviceSize
 			    .srcBufferRange =
 			        align_to(
-			            decoder_memory_frame->gpu_bitstream_size,
+			            decoder_memory_frame->gpu_bitstream_used_bytes_count,
 			            decoder->properties.capabilities.minBitstreamBufferSizeAlignment ), // VkDeviceSize
 
 			    .dstPictureResource  = dst_picture_resource,                          // VkVideoPictureResourceInfoKHR
@@ -2041,7 +2054,7 @@ static void print_frame_state( std::vector<le_video_decoder_o::video_decoder_mem
 
 static void copy_video_frame( std::ifstream& mp4_filestream, le_video_decoder_o::video_decoder_memory_frame* memory_frame, le_video_data_h264_t::data_frame_info_t const& data_frame ) {
 
-	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_size;
+	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_used_bytes_count;
 	// const uint8_t* src_buffer  = src_bytes + data_frame.src_offset;
 	int64_t frame_bytes = data_frame.src_frame_bytes;
 
@@ -2088,13 +2101,13 @@ static void copy_video_frame( std::ifstream& mp4_filestream, le_video_decoder_o:
 			continue;
 		}
 
-		if ( memory_frame->gpu_bitstream_size + size <= memory_frame->gpu_bitstream_capacity ) {
+		if ( memory_frame->gpu_bitstream_used_bytes_count + size <= memory_frame->gpu_bitstream_capacity ) {
 			memcpy( dst_buffer, h264::nal_start_code, sizeof( h264::nal_start_code ) );
 			mp4_filestream.read( ( char* )( dst_buffer + sizeof( h264::nal_start_code ) ), size - 4 );
-			memory_frame->gpu_bitstream_size += size;
+			memory_frame->gpu_bitstream_used_bytes_count += size;
 		} else {
 			logger.error( "Cannot copy frame data into frame bitstream - out of memory. Frame capacity: %d, frame current size %d, extra size: %d",
-			              memory_frame->gpu_bitstream_capacity, memory_frame->gpu_bitstream_size, size );
+			              memory_frame->gpu_bitstream_capacity, memory_frame->gpu_bitstream_used_bytes_count, size );
 		}
 		break;
 	}
@@ -2385,8 +2398,8 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		                  self->video_data->frames_infos[ recording_memory_frame.decoded_frame_index ] );
 
 		// align memory for good measure
-		recording_memory_frame.gpu_bitstream_size =
-		    align_to( recording_memory_frame.gpu_bitstream_size, self->properties.capabilities.minBitstreamBufferSizeAlignment );
+		recording_memory_frame.gpu_bitstream_used_bytes_count =
+		    align_to( recording_memory_frame.gpu_bitstream_used_bytes_count, self->properties.capabilities.minBitstreamBufferSizeAlignment );
 
 		// we need to update the size value
 
