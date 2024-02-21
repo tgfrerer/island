@@ -237,7 +237,7 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	    .imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 	    .imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
 	    .queueFamilyIndexCount = 0, // optional
-	    .pQueueFamilyIndices   = 0,
+		.pQueueFamilyIndices   = nullptr,
 	    .preTransform          = preTransform,
 	    .compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 	    .presentMode           = self->mPresentMode,
@@ -368,7 +368,7 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	case VK_ERROR_SURFACE_LOST_KHR: // |
 	case VK_ERROR_OUT_OF_DATE_KHR:  // |
 	{
-		logger.error( "Could not acquire next image: %s", to_str( self->lastError ) );
+		logger.warn( "Could not acquire next image: %s", to_str( self->lastError ) );
 		return false;
 	}
 	default:
@@ -498,16 +498,16 @@ void register_le_swapchain_khr_api( void* api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api*>( api_ );
 	auto& swapchain_i = api->swapchain_khr_i;
 
-	swapchain_i.create                              = swapchain_khr_create;
-	swapchain_i.create_from_old_swapchain           = swapchain_create_from_old_swapchain;
-	swapchain_i.destroy                             = swapchain_khr_destroy;
+	swapchain_i.create                    = swapchain_khr_create;
+	swapchain_i.create_from_old_swapchain = swapchain_create_from_old_swapchain;
+	swapchain_i.destroy                   = swapchain_khr_destroy;
 
 	swapchain_i.acquire_next_image                  = swapchain_khr_acquire_next_image;
 	swapchain_i.get_image                           = swapchain_khr_get_image;
 	swapchain_i.get_image_width                     = swapchain_khr_get_image_width;
 	swapchain_i.get_image_height                    = swapchain_khr_get_image_height;
 	swapchain_i.get_surface_format                  = swapchain_khr_get_surface_format;
-	swapchain_i.get_image_count                    = swapchain_khr_get_swapchain_images_count;
+	swapchain_i.get_image_count                     = swapchain_khr_get_swapchain_images_count;
 	swapchain_i.present                             = swapchain_khr_present;
 	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
 	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;

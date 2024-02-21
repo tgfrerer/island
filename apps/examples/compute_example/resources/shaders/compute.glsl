@@ -83,6 +83,7 @@ void main(){
 
 	particle[index].pos.xz = (x_zero - sum_xz);
 	particle[index].pos.y  = sum_y;
+    particle[index].pos.w  = 1;
 
 }
 

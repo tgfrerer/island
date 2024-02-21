@@ -1,26 +1,40 @@
 #include "le_mesh.h"
 #include "le_core.h"
+#include "le_log.h"
 
-#include <math.h>
 #include <vector>
-#include <filesystem> // for file loading
-#include <iostream>   // for file loading
-#include <fstream>    // for file loading
-#include <iomanip>    // for file loading
+#include <cstring> // for memcopy
+#include <map>
 
-#include <cstring>
+static auto logger = le::Log( "le_mesh" );
 
-#include "le_mesh_types.h" //
+struct attribute_descriptor_t {
+	uint32_t num_bytes = {};
+};
 
-#ifdef _WIN32
-#	define __PRETTY_FUNCTION__ __FUNCSIG__
-#	define strtok_r strtok_s
-#endif //
+/*
+
+  TODO: We want a way to convert our mesh from SOA to AOS, so that we may interleave
+  attributes. this only makes sense if we know which attributes we will need when drawing.
+
+*/
+
+struct le_mesh_o {
+	// yes, `map`, and not `unordered_map`, we want this to be sorted by attribute name when we iterate over it,
+	// and the key is an int, and there are not many elements.
+	size_t                                                          num_vertices = 0; // number of vertices - all attributes must have this count
+	std::map<le_mesh_api::attribute_name_t, std::vector<uint8_t>>   attributes;
+	std::map<le_mesh_api::attribute_name_t, attribute_descriptor_t> attribute_descriptors; // currently only holds size in bytes
+
+	uint32_t             indices_num_bytes_per_index = 0;
+	std::vector<uint8_t> indices_data; // indices, can be u16, or u32 - depends on greatest index
+};
 
 // ----------------------------------------------------------------------
 
 static le_mesh_o* le_mesh_create() {
-	auto self = new le_mesh_o();
+	auto self = new le_mesh_o{};
+
 	return self;
 }
 
@@ -33,600 +47,273 @@ static void le_mesh_destroy( le_mesh_o* self ) {
 // ----------------------------------------------------------------------
 
 static void le_mesh_clear( le_mesh_o* self ) {
-	self->vertices.clear();
-	self->normals.clear();
-	self->uvs.clear();
-	self->tangents.clear();
-	self->colours.clear();
-	self->indices.clear();
+	self->attributes.clear();
+	self->attribute_descriptors.clear();
+	self->indices_data.clear();
+
+	self->num_vertices                = 0;
+	self->indices_num_bytes_per_index = 0;
+}
+
+// ----------------------------------------------------------------------
+// write contents of
+static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes,
+                                              le_mesh_api::attribute_name_t attribute_name,
+                                              uint32_t* num_bytes_per_vertex, size_t* num_vertices, size_t first_vertex, uint32_t stride ) {
+
+	// ---------| invariant: stride is 0
+
+	if ( !self->attributes.contains( attribute_name ) ) {
+		logger.error( "mesh does not have an attribute for this type: %d", attribute_name );
+		return;
+	}
+
+	// ---------| invariant: mesh contains this attribute
+
+	auto& bytes_vec = self->attributes.at( attribute_name );
+	auto& attr_desc = self->attribute_descriptors.at( attribute_name );
+
+	size_t num_vertices_available = self->num_vertices;
+	// If num_vertices is not set, all available vertices should be used.
+	size_t num_vertices_requested = ( num_vertices ) ? ( *num_vertices ) : num_vertices_available;
+
+	if ( first_vertex >= num_vertices_available ) {
+		return;
+	}
+
+	//---------- | invariant:  vertex_offset < vertices_available
+
+	size_t num_vertices_to_copy = std::min( num_vertices_requested, num_vertices_available - first_vertex );
+
+	// Now, limit number of vertices to however many as we can store back into the target
+	num_vertices_to_copy = std::min( target_capacity_num_bytes / attr_desc.num_bytes, num_vertices_to_copy );
+
+	if ( num_vertices ) {
+		*num_vertices = num_vertices_to_copy; // write back number of vertices that were actually copied
+	}
+
+	if ( num_bytes_per_vertex ) {
+		*num_bytes_per_vertex = attr_desc.num_bytes; // write back number of bytes per vertex
+	}
+
+	if ( stride < attr_desc.num_bytes ) {
+		logger.error( "stride may not be lower than attribute byte count: %d < %d", stride, attr_desc.num_bytes );
+	}
+
+	if ( ( ( stride - 1 ) * num_vertices_to_copy + attr_desc.num_bytes ) > target_capacity_num_bytes ) {
+		logger.error( "not enough capacity in target (%d) to store requested bumber of bytes (%d)", target_capacity_num_bytes, stride * num_vertices_to_copy );
+		return;
+	}
+
+	if ( target ) {
+
+		if ( stride == attr_desc.num_bytes || stride == 0 ) {
+			// source and target are contiguous - we can use a straightforward memcpy
+			size_t num_bytes_to_copy = num_vertices_to_copy * attr_desc.num_bytes;
+			size_t offset_in_bytes   = first_vertex * attr_desc.num_bytes;
+			memcpy( target, bytes_vec.data() + offset_in_bytes, num_bytes_to_copy );
+		} else {
+			// target is not contiguous, but strided, we must manually copy
+			size_t offset_in_bytes = first_vertex * attr_desc.num_bytes;
+
+			uint8_t const* data_source = bytes_vec.data() + offset_in_bytes;
+			uint8_t*       data_target = reinterpret_cast<uint8_t*>( target );
+
+			for ( size_t i = 0; i != num_vertices_to_copy; i++ ) {
+				memcpy(
+				    data_target,
+				    data_source,
+				    attr_desc.num_bytes );
+				data_target += stride;
+				data_source += attr_desc.num_bytes;
+			}
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_vertices( le_mesh_o* self, size_t* count, float const** vertices ) {
-	if ( count ) {
-		*count = self->vertices.size();
-	}
-	if ( vertices ) {
-		*vertices = static_cast<float*>( &self->vertices[ 0 ].x );
-	}
-}
+static void le_mesh_read_index_data_into( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, uint32_t* num_bytes_per_index, size_t* num_indices, size_t first_index ) {
 
-// ----------------------------------------------------------------------
+	auto& bytes_vec = self->indices_data;
 
-static void le_mesh_get_tangents( le_mesh_o* self, size_t* count, float const** tangents ) {
-	if ( count ) {
-		*count = self->tangents.size();
-	}
-	if ( tangents ) {
-		*tangents = static_cast<float*>( &self->tangents[ 0 ].x );
-	}
-}
+	size_t num_indices_available = bytes_vec.size() / self->indices_num_bytes_per_index;
+	size_t num_indices_requested = ( num_indices ) ? ( *num_indices ) : num_indices_available;
 
-// ----------------------------------------------------------------------
-
-static void le_mesh_get_indices( le_mesh_o* self, size_t* count, uint16_t const** indices ) {
-	if ( count ) {
-		*count = self->indices.size();
+	if ( first_index >= num_indices_available ) {
+		return;
 	}
-	if ( indices ) {
-		*indices = self->indices.data();
+
+	size_t num_indices_to_copy = std::min( num_indices_requested, num_indices_available - first_index );
+
+	// Now, limit number of vertices to however many as we can store back into the target
+	num_indices_to_copy = std::min( target_capacity_num_bytes / self->indices_num_bytes_per_index, num_indices_to_copy );
+
+	if ( num_indices ) {
+		*num_indices = num_indices_to_copy;
+	}
+	if ( num_bytes_per_index ) {
+		*num_bytes_per_index = self->indices_num_bytes_per_index;
+	}
+	if ( target ) {
+		size_t offset_in_bytes   = first_index * self->indices_num_bytes_per_index;
+		size_t num_bytes_to_copy = num_indices_to_copy * self->indices_num_bytes_per_index;
+		memcpy( target, bytes_vec.data() + offset_in_bytes, num_bytes_to_copy );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_normals( le_mesh_o* self, size_t* count, float const** normals ) {
-	if ( count ) {
-		*count = self->normals.size();
-	}
-	if ( normals ) {
-		*normals = static_cast<float*>( &self->normals[ 0 ].x );
-	}
-}
+static void* le_mesh_allocate_attribute_data( le_mesh_o* self, le_mesh_api::attribute_name_t attribute_name, uint32_t num_bytes_per_vertex ) {
 
-// ----------------------------------------------------------------------
+	// allocate memory from the mesh -
+	// make sure that all vertex attributes have the same number of vertices.
 
-static void le_mesh_get_colours( le_mesh_o* self, size_t* count, float const** colours ) {
-	if ( count ) {
-		*count = self->colours.size();
-	}
-	if ( colours ) {
-		*colours = static_cast<float*>( &self->colours[ 0 ].x );
-	}
-}
+	auto& attr            = self->attributes[ attribute_name ];
+	auto& attr_descriptor = self->attribute_descriptors[ attribute_name ];
 
-// ----------------------------------------------------------------------
-
-static void le_mesh_get_uvs( le_mesh_o* self, size_t* count, float const** uvs ) {
-	if ( count ) {
-		*count = self->normals.size();
-	}
-	if ( uvs ) {
-		*uvs = static_cast<float*>( &self->uvs[ 0 ].x );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_mesh_get_data( le_mesh_o* self, size_t* numVertices, size_t* numIndices, float const** vertices, float const** normals, float const** uvs, float const** colours, uint16_t const** indices ) {
-	if ( numVertices ) {
-		*numVertices = self->vertices.size();
-	}
-	if ( numIndices ) {
-		*numIndices = self->indices.size();
+	if ( attr_descriptor.num_bytes == 0 ) {
+		attr_descriptor.num_bytes = num_bytes_per_vertex;
 	}
 
-	if ( vertices ) {
-		*vertices = self->vertices.empty() ? nullptr : static_cast<float const*>( &self->vertices[ 0 ].x );
+	if ( attr_descriptor.num_bytes != num_bytes_per_vertex ) {
+		logger.error( "Attribute size does not match. "
+		              "Requested: %d, was declared previously as: %d",
+		              num_bytes_per_vertex, attr_descriptor.num_bytes );
+		return nullptr;
 	}
 
-	if ( colours ) {
-		*colours = self->colours.empty() ? nullptr : static_cast<float const*>( &self->colours[ 0 ].x );
-	}
+	attr_descriptor.num_bytes = num_bytes_per_vertex;
+	attr.resize( num_bytes_per_vertex * self->num_vertices );
 
-	if ( normals ) {
-		*normals = self->normals.empty() ? nullptr : static_cast<float const*>( &self->normals[ 0 ].x );
-	}
+	// if we were successful, then return pointer to memory
 
-	if ( uvs ) {
-		*uvs = self->uvs.empty() ? nullptr : static_cast<float const*>( &self->uvs[ 0 ].x );
-	}
-
-	if ( indices ) {
-		*indices = self->indices.data();
-	}
-}
-
-// ----------------------------------------------------------------------
-/// \brief   file loader utility method
-/// \details loads file given by filepath and returns a vector of chars if successful
-/// \note    returns an empty vector if not successful
-static std::vector<char> load_file( const std::filesystem::path& file_path, bool* success ) {
-
-	std::vector<char> contents;
-
-	size_t        fileSize = 0;
-	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
-
-	if ( !file.is_open() ) {
-		std::cerr << "Unable to open file: " << std::filesystem::canonical( file_path ) << std::endl
-		          << std::flush;
-		*success = false;
-		return contents;
-	}
-
-	//	std::cout << "OK Opened file:" << std::filesystem::canonical( file_path ) << std::endl
-	//	          << std::flush;
-
-	// ----------| invariant: file is open
-
-	auto endOfFilePos = file.tellg();
-
-	if ( endOfFilePos > 0 ) {
-		fileSize = size_t( endOfFilePos );
-	} else {
-		*success = false;
-		return contents;
-	}
-
-	// ----------| invariant: file has some bytes to read
-	contents.resize( fileSize );
-
-	file.seekg( 0, std::ios::beg );
-	file.read( contents.data(), endOfFilePos );
-	file.close();
-
-	*success = true;
-	return contents;
-}
-
-// ----------------------------------------------------------------------
-
-inline int does_start_with( char const* haystack, char const* needle, size_t& needle_len ) {
-	needle_len = strlen( needle );
-	return 0 == strncmp( haystack, needle, needle_len );
+	return attr.data();
 };
 
 // ----------------------------------------------------------------------
-/// \brief loads mesh from ply file
-/// \note any contents of mesh will be cleared before loading
-/// \return true upon success, false otherwise.
-static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ ) {
 
-	// - Make sure file exists
+static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, uint32_t* num_bytes_per_index ) {
 
-	std::filesystem::path file_path{ file_path_ };
-
-	if ( !std::filesystem::exists( file_path ) ) {
-		std::cerr << "File not found: '" << file_path << "'";
-		return false;
+	if ( nullptr == num_bytes_per_index ) {
+		logger.error( "You must specify the number of bytes per index pointer." );
+		return nullptr;
 	}
 
-	// --------| invariant: File path exists
+	// If number of vertices is greater than what can be represented with an 16 bit index, we must use
+	// 32 bit indices.
 
-	// - Build mesh attributes structure based on header.
+	{
+		uint32_t required_num_bytes_per_index = ( self->num_vertices <= ( 1 << 16 ) ) ? 2 : 4;
 
-	/*
-	 * element vertex structure: attribute index tells us where to store data which we parse
-	 */
-
-	struct Property {
-
-		// data type for the property
-		enum class Type : uint8_t {
-			eUnknown,
-			eList,
-			eFloat,
-			eUchar,
-			eUint,
-		};
-
-		// name for attribute in context of a mesh
-		enum class AttributeType : uint8_t {
-			eUnknown,
-			eVX,
-			eVY,
-			eVZ,
-			eNX,
-			eNY,
-			eNZ,
-			eTexU,
-			eTexV,
-			eColR,
-			eColG,
-			eColB,
-			eColA,
-		};
-
-		Type          type              = Type::eUnknown;
-		AttributeType attribute_type    = AttributeType::eUnknown; // only used for attributes - not lists.
-		Type          list_size_type    = Type::eUnknown;          // only used for lists
-		Type          list_content_type = Type::eUnknown;          // only used for lists
-		char const*   name              = nullptr;
-		uint8_t       name_len          = 0; ///< number of chars for name (does not include \0)
-	};
-
-	struct Element {
-
-		enum class Type : uint8_t {
-			eUnknown,
-			eVertex,
-			eFace,
-		};
-		char const*           name;
-		Type                  type;
-		uint8_t               name_len; ///< number of chars for name (does not include \0)
-		uint32_t              num_elements;
-		std::vector<Property> properties;
-	};
-
-	// - Check that the header is correct (consistent, has minimum necessary attributes)
-
-	// - Read file into memory
-	bool              file_load_success = true;
-	std::vector<char> file_data         = load_file( file_path, &file_load_success );
-
-	if ( !file_load_success ) {
-		std::cerr << "File could not be loaded: '" << file_path << "'";
-		return false;
+		// Go for the lowest number of bytes per index that you can get away with,
+		// but respect the client's request if they want a higher number of indices.
+		*num_bytes_per_index              = std::min( std::max( required_num_bytes_per_index, *num_bytes_per_index ), uint32_t( 4 ) );
+		self->indices_num_bytes_per_index = *num_bytes_per_index;
 	}
 
-	static auto DELIMS{ "\r\n\0" };
-	char*       c_save_ptr; //< we use the re-entrant version of strtok, for which state is stored in here
+	self->indices_data.resize( self->indices_num_bytes_per_index * num_indices );
 
-	// --------| invariant: file was loaded.
-
-	char* c = strtok_r( file_data.data(), DELIMS, &c_save_ptr );
-
-	if ( 0 != strcmp( c, "ply" ) ) {
-		std::cerr << "Invalid file header: '" << file_path << "'";
-		return false;
-	}
-
-	c = strtok_r( nullptr, DELIMS, &c_save_ptr );
-
-	if ( 0 != strcmp( c, "format ascii 1.0" ) ) {
-		std::cerr << "Invalid file header: '" << file_path << "'";
-		return false;
-	}
-
-	c = strtok_r( nullptr, DELIMS, &c_save_ptr );
-
-	// Parse header data into a vector of Element
-	std::vector<Element> elements;
-
-	for ( ; c != nullptr; c = strtok_r( nullptr, DELIMS, &c_save_ptr ) ) {
-
-		size_t last_search_string_len = 0;
-
-		if ( does_start_with( c, "comment", last_search_string_len ) ) {
-			// Anything after a comment will be ignored
-			continue;
-		}
-
-		else if ( does_start_with( c, "element", last_search_string_len ) ) {
-			Element element;
-
-			// Note: This method replaces spaces between in-element tokens with \0 characters.
-			auto parse_element_line = []( char* c, Element& element ) -> bool {
-				element.name = c;
-				char* c_next = strchr( c, ' ' );
-				if ( c_next == nullptr ) {
-					// There must be a space character
-					assert( false );
-					return false;
-				}
-				*c_next          = 0; // insert an end-of-string token
-				element.name_len = uint8_t( c_next - c );
-
-				if ( 0 == strncmp( element.name, "vertex", element.name_len ) ) {
-					element.type = Element::Type::eVertex;
-				} else if ( 0 == strncmp( element.name, "face", element.name_len ) ) {
-					element.type = Element::Type::eFace;
-				}
-
-				c = c_next + 1; // adding one because we don't want the zero terminator.
-
-				element.num_elements = uint32_t( strtoul( c, nullptr, 0 ) );
-				return true;
-			};
-
-			c += last_search_string_len + 1;
-
-			// fetch name of element, and count of elements
-			parse_element_line( c, element );
-
-			elements.emplace_back( std::move( element ) );
-
-			continue;
-		}
-
-		else if ( does_start_with( c, "property", last_search_string_len ) ) {
-			Property property;
-
-			// Note: this replaces spaces between in-element tokens with \0 characters.
-			auto parse_property_line = []( char* c, Property& property ) -> bool {
-				size_t last_search_string_len = 0;
-
-				// now, we expect either list or [float|uchar] as property type
-				if ( does_start_with( c, "list", last_search_string_len ) ) {
-					c += last_search_string_len + 1;
-					property.type = Property::Type::eList;
-
-					// next item will be list size type
-
-					if ( does_start_with( c, "uchar", last_search_string_len ) ) {
-						property.list_size_type = Property::Type::eUchar;
-						c += last_search_string_len + 1;
-					} else if ( does_start_with( c, "uint", last_search_string_len ) ) {
-						property.list_size_type = Property::Type::eUint;
-						c += last_search_string_len + 1;
-					} else {
-						std::cerr << "Unknown list size type: '" << c << "'" << std::endl
-						          << std::flush;
-						assert( false );
-					}
-
-					// next item will be list content type
-
-					if ( does_start_with( c, "uchar", last_search_string_len ) ) {
-						property.list_content_type = Property::Type::eUchar;
-						c += last_search_string_len + 1;
-					} else if ( does_start_with( c, "uint", last_search_string_len ) ) {
-						property.list_content_type = Property::Type::eUint;
-						c += last_search_string_len + 1;
-					} else {
-						std::cerr << "Unknown list content type: '" << c << "'" << std::endl
-						          << std::flush;
-						assert( false );
-					}
-
-					// last item will be list name
-
-					property.name     = c;
-					property.name_len = uint8_t( strlen( c ) );
-					return true;
-				} else {
-
-					// Non-list type
-
-					if ( does_start_with( c, "float", last_search_string_len ) ) {
-						property.type = Property::Type::eFloat;
-					} else if ( does_start_with( c, "uint", last_search_string_len ) ) {
-						property.type = Property::Type::eUint;
-					} else if ( does_start_with( c, "uchar", last_search_string_len ) ) {
-						property.type = Property::Type::eUchar;
-					} else {
-						// Unknown property type.
-						std::cerr << __PRETTY_FUNCTION__ << ": Unknown property type: " << c << std::endl
-						          << std::flush;
-						assert( false );
-						return false;
-					}
-
-					c += last_search_string_len + 1;
-					property.name     = c;
-					property.name_len = uint8_t( strlen( c ) );
-
-					if ( 0 == strncmp( c, "x", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eVX;
-					} else if ( 0 == strncmp( c, "y", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eVY;
-					} else if ( 0 == strncmp( c, "z", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eVZ;
-					} else if ( 0 == strncmp( c, "nx", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eNX;
-					} else if ( 0 == strncmp( c, "ny", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eNY;
-					} else if ( 0 == strncmp( c, "nz", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eNZ;
-					} else if ( 0 == strncmp( c, "s", property.name_len ) ||
-					            0 == strncmp( c, "u", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eTexU;
-					} else if ( 0 == strncmp( c, "t", property.name_len ) ||
-					            0 == strncmp( c, "v", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eTexV;
-					} else if ( 0 == strncmp( c, "red", property.name_len ) ||
-					            0 == strncmp( c, "r", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eColR;
-					} else if ( 0 == strncmp( c, "green", property.name_len ) ||
-					            0 == strncmp( c, "g", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eColG;
-					} else if ( 0 == strncmp( c, "blue", property.name_len ) ||
-					            0 == strncmp( c, "b", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eColB;
-					} else if ( 0 == strncmp( c, "alpha", property.name_len ) ||
-					            0 == strncmp( c, "a", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eColA;
-					} else {
-						std::cerr << "WARNING: Attribute name not recognised: '" << c << "'" << std::endl
-						          << std::flush;
-					}
-
-					return true;
-				}
-				std::cerr << "Expected property type must be either 'list', or one of non-list type: uchar, float, uint, but given: " << c << std::endl
-				          << std::flush;
-				assert( false );
-				return false;
-			};
-
-			c += last_search_string_len + 1;
-
-			if ( !elements.empty() && parse_property_line( c, property ) ) {
-				elements.back().properties.emplace_back( std::move( property ) );
-			}
-
-			continue;
-		}
-
-		else if ( does_start_with( c, "end_header", last_search_string_len ) ) {
-			// we have reached the marker which signals the end of the header.
-			// - Move file data pointer past "end_header" line
-			c = strtok_r( nullptr, DELIMS, &c_save_ptr );
-			break;
-		}
-
-		// The following code only gets executed if none of the above if clauses has
-		// been triggered - this means that there is something wrong with
-		// the file. we must exit.
-
-		std::cerr << "ERROR: " << __PRETTY_FUNCTION__ << "Invalid file header data: '" << c << "'" << std::endl
-		          << std::flush;
-
-		assert( false );
-
-		return false;
-	}
-
-	// - Clear mesh
-
-	le_mesh_clear( self );
-
-	// - Load file data
-
-	Element const* element_archetype     = elements.data();
-	auto const     element_archetype_end = elements.data() + elements.size();
-
-	// What follows now is a list of elements, one element per line.
-	// elements have properties, which are separated by commas.
-
-	for ( ; element_archetype != element_archetype_end; element_archetype++ ) {
-
-		// Check whether the current property is still part of the current element
-		// Otherwise move to the next element
-
-		// Element archetype can be either face vertex or face
-
-		if ( element_archetype->type == Element::Type::eVertex ) {
-
-			// - Make space over all attributes for number of elements.
-
-			for ( auto const& p : element_archetype->properties ) {
-				switch ( p.attribute_type ) {
-				case ( Property::AttributeType::eVX ): // intentional fall-through
-				case ( Property::AttributeType::eVY ): // intentional fall-through
-				case ( Property::AttributeType::eVZ ): // intentional fall-through
-					self->vertices.resize( element_archetype->num_elements, {} );
-					break;
-				case ( Property::AttributeType::eNX ): // intentional fall-through
-				case ( Property::AttributeType::eNY ): // intentional fall-through
-				case ( Property::AttributeType::eNZ ): // intentional fall-through
-					self->normals.resize( element_archetype->num_elements, {} );
-					break;
-				case ( Property::AttributeType::eColR ): // intentional fall-through
-				case ( Property::AttributeType::eColG ): // intentional fall-through
-				case ( Property::AttributeType::eColB ): // intentional fall-through
-				case ( Property::AttributeType::eColA ): // intentional fall-through
-					self->colours.resize( element_archetype->num_elements, {} );
-					break;
-				case ( Property::AttributeType::eTexU ): // intentional fall-through
-				case ( Property::AttributeType::eTexV ): // intentional fall-through
-					self->uvs.resize( element_archetype->num_elements, {} );
-					break;
-				case ( Property::AttributeType::eUnknown ):
-					break;
-				}
-				// TODO: check for tangents.
-			}
-
-			for ( uint32_t i = 0; i != element_archetype->num_elements && c != nullptr; ++i, c = strtok_r( nullptr, DELIMS, &c_save_ptr ) ) {
-				char* s = c;
-
-				auto* v_data  = self->vertices.empty() ? nullptr : &self->vertices[ i ];
-				auto* n_data  = self->normals.empty() ? nullptr : &self->normals[ i ];
-				auto* uv_data = self->uvs.empty() ? nullptr : &self->uvs[ i ];
-				auto* c_data  = self->colours.empty() ? nullptr : &self->colours[ i ];
-
-				for ( auto const& p : element_archetype->properties ) {
-
-					// clang-format off
-					switch ( p.attribute_type ) {
-					case ( Property::AttributeType::eVX )   : v_data->x  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eVY )   : v_data->y  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eVZ )   : v_data->z  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNX )   : n_data->x  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNY )   : n_data->y  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNZ )   : n_data->z  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eTexU ) : uv_data->x = strtof( s, &s ); break;
-					case ( Property::AttributeType::eTexV ) : uv_data->y = strtof( s, &s ); break;
-					case ( Property::AttributeType::eColR ):
-						c_data->x = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
-					case ( Property::AttributeType::eColG ):
-						c_data->y = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
-					case ( Property::AttributeType::eColB ):
-						c_data->z = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
-					case ( Property::AttributeType::eColA ):
-						c_data->w = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
-					case ( Property::AttributeType::eUnknown ):
-						// TODO: what do we do if there is an unknown attribute?
-						assert( false );
-						break;
-					}
-					// clang-format on
-				}
-			}
-
-		} else if ( element_archetype->type == Element::Type::eFace ) {
-
-			// must be 3 indices per face - because our meshes can only be built from triangles, not quads or anything else.
-			self->indices.resize( element_archetype->num_elements * 3, {} );
-
-			auto*       current_index = self->indices.data();
-			auto* const indices_end   = self->indices.data() + self->indices.size();
-
-			// this goes through line-by line.
-			for ( size_t line_num = 0;
-			      ( line_num != element_archetype->num_elements ) && ( current_index < indices_end ) && ( c != nullptr );
-			      ++line_num ) {
-
-				char* s = c;
-
-				auto three = strtoul( s, &s, 0 );
-				assert( three == 3 ); // first element must be three
-
-				*current_index++ = strtoul( s, &s, 0 ); // first index
-				*current_index++ = strtoul( s, &s, 0 ); // second index
-				*current_index++ = strtoul( s, &s, 0 ); // third index
-
-				c = strtok_r( nullptr, DELIMS, &c_save_ptr );
-			}
-
-			// parse face properties
-		}
-		if ( element_archetype->type == Element::Type::eUnknown ) {
-			// Not implemented yet.
-
-			auto skip_lines = [ & ]( char const* c, Element const* archetype ) {
-				for ( uint32_t i = 0; i != archetype->num_elements && c != nullptr; ++i ) {
-					c = strtok_r( nullptr, DELIMS, &c_save_ptr );
-				}
-			};
-
-			skip_lines( c, element_archetype );
-
-			break;
-		}
-	}
-
-	return true;
+	return self->indices_data.data();
 }
+
+// ----------------------------------------------------------------------
+
+static void le_mesh_set_vertex_count( le_mesh_o* self, size_t num_vertices, bool* did_reallocate ) {
+
+	self->num_vertices = num_vertices;
+
+	for ( auto& a : self->attributes ) {
+
+		auto& [ key, attribute_data ] = a;
+		auto& attribute_descriptor    = self->attribute_descriptors.at( key );
+
+		// Find size, make sure that it matches with num-vertices.
+		//
+		// If it doesn't re-allocate this attribute so that it fits
+		// fill with zeroes, if necessary.
+
+		if ( ( attribute_data.size() / attribute_descriptor.num_bytes ) < num_vertices ) {
+			*did_reallocate = true;
+			attribute_data.resize( num_vertices * attribute_descriptor.num_bytes, {} );
+		}
+	}
+
+	*did_reallocate = true;
+};
+
+// ----------------------------------------------------------------------
+
+static size_t le_mesh_get_vertex_count( le_mesh_o* self ) {
+	return self->num_vertices;
+}
+
+// ----------------------------------------------------------------------
+
+static size_t le_mesh_get_index_count( le_mesh_o* self, uint32_t* num_bytes_per_index ) {
+
+	if ( num_bytes_per_index ) {
+		*num_bytes_per_index = self->indices_num_bytes_per_index;
+	}
+
+	return self->indices_data.size() / self->indices_num_bytes_per_index;
+};
+
+// ----------------------------------------------------------------------
+// read attribute info into a given array of data
+static void le_mesh_read_attribute_info_into( le_mesh_o* self, le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
+
+	if ( nullptr == num_attributes_in_target ) {
+		return;
+	}
+
+	// ----------| invariant: num_attributes_in_target was set
+
+	size_t num_available_slots = *num_attributes_in_target;
+
+	// write back the number of attributes that this mesh contains.
+	*num_attributes_in_target = self->attributes.size();
+
+	if ( target ) {
+
+		for ( auto const& a_e : self->attribute_descriptors ) {
+			if ( num_available_slots == 0 ) {
+				break;
+			}
+
+			auto& [ key, a ] = a_e;
+
+			*target++ = {
+			    .name             = key,
+			    .bytes_per_vertex = a.num_bytes,
+			};
+
+			num_available_slots--;
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+
+ISL_API_ATTR void le_module_register_le_mesh_load_from_ply( void* api ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	auto& le_mesh_i = static_cast<le_mesh_api*>( api )->le_mesh_i;
 
-	le_mesh_i.get_vertices = le_mesh_get_vertices;
-	le_mesh_i.get_indices  = le_mesh_get_indices;
-	le_mesh_i.get_uvs      = le_mesh_get_uvs;
-	le_mesh_i.get_tangents = le_mesh_get_tangents;
-	le_mesh_i.get_normals  = le_mesh_get_normals;
-	le_mesh_i.get_colours  = le_mesh_get_colours;
-	le_mesh_i.get_data     = le_mesh_get_data;
+	le_module_register_le_mesh_load_from_ply( api );
 
-	le_mesh_i.load_from_ply_file = le_mesh_load_from_ply_file;
+	le_mesh_i.allocate_attribute_data  = le_mesh_allocate_attribute_data;
+	le_mesh_i.allocate_index_data      = le_mesh_allocate_index_data;
+	le_mesh_i.read_attribute_data_into = le_mesh_read_attribute_data_into;
+
+	le_mesh_i.set_vertex_count = le_mesh_set_vertex_count;
+	le_mesh_i.get_vertex_count = le_mesh_get_vertex_count;
+
+	le_mesh_i.get_index_count          = le_mesh_get_index_count;
+	le_mesh_i.read_attribute_info_into = le_mesh_read_attribute_info_into;
+	le_mesh_i.read_index_data_into     = le_mesh_read_index_data_into;
 
 	le_mesh_i.clear   = le_mesh_clear;
 	le_mesh_i.create  = le_mesh_create;

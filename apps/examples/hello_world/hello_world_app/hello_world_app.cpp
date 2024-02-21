@@ -38,7 +38,7 @@ struct WorldGeometry {
 	le_buf_resource_handle  vertex_buffer_handle = LE_BUF_RESOURCE( "WORLD_VERTICES" );
 	le_resource_info_t      vertex_buffer_info   = {};
 	std::array<uint64_t, 4> buffer_offsets       = {};
-	size_t                  vertexDataByteCount  = {}; // total byte count of vertex data
+	size_t                  vertexBytesCount     = {}; // total byte count of vertex data
 	size_t                  vertexCount          = 0;  // number of Vertices
 	le_buf_resource_handle  index_buffer_handle  = LE_BUF_RESOURCE( "WORLD_INDICES" );
 	le_resource_info_t      index_buffer_info    = {};
@@ -140,20 +140,25 @@ static hello_world_app_o* hello_world_app_create() {
 		// Generate geometry for earth sphere
 		LeMeshGenerator::generateSphere( app->sphereMesh, 6360, 120, 120 ); // earth radius given in km.
 
-		size_t vertexCount;
-		size_t indexCount;
-		app->sphereMesh.getData( &vertexCount, &indexCount ); // only fetch counts so we can calculate memory requirements for vertex buffer, index buffer
+		size_t   vertexCount     = app->sphereMesh.getVertexCount();
+		uint32_t bytes_per_index = 2;
+		size_t   indexCount      = app->sphereMesh.getIndexCount( &bytes_per_index );
 
-		app->worldGeometry.vertexDataByteCount = vertexCount * sizeof( float ) * ( 3 + 3 + 2 + 3 );
-		app->worldGeometry.vertexCount         = vertexCount;
-		app->worldGeometry.indexCount          = indexCount;
-		app->worldGeometry.index_buffer_info   = le::BufferInfoBuilder()
+		app->worldGeometry.vertexBytesCount = vertexCount *
+		                                      ( sizeof( glm::vec3 ) + // position
+		                                        sizeof( glm::vec3 ) + // normal
+		                                        sizeof( glm::vec2 ) + // uv
+		                                        sizeof( glm::vec3 )   // tangent
+		                                      );
+		app->worldGeometry.vertexCount       = vertexCount;
+		app->worldGeometry.indexCount        = indexCount;
+		app->worldGeometry.index_buffer_info = le::BufferInfoBuilder()
 		                                           .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer | le::BufferUsageFlagBits::eTransferDst ) )
-		                                           .setSize( uint32_t( indexCount * sizeof( uint16_t ) ) )
+		                                           .setSize( uint32_t( indexCount * bytes_per_index ) )
 		                                           .build();
 		app->worldGeometry.vertex_buffer_info = le::BufferInfoBuilder()
 		                                            .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer | le::BufferUsageFlagBits::eTransferDst ) )
-		                                            .setSize( uint32_t( app->worldGeometry.vertexDataByteCount ) )
+		                                            .setSize( uint32_t( app->worldGeometry.vertexBytesCount ) )
 		                                            .build();
 	}
 
@@ -284,40 +289,51 @@ static void pass_resource_exec( le_command_buffer_encoder_o* encoder_, void* use
 		// fetch sphere geometry
 		auto& geom = app->worldGeometry;
 
-		uint16_t const* sphereIndices{};
-		float const*    sphereVertices{};
-		float const*    sphereNormals{};
-		float const*    sphereUvs{};
-		size_t          numVertices{};
-		size_t          numIndices{};
-		float const*    sphereTangents{};
-		app->sphereMesh.getData( &numVertices, &numIndices, &sphereVertices, &sphereNormals, &sphereUvs, nullptr, &sphereIndices );
-		size_t numTangents;
-		app->sphereMesh.getTangents( &numTangents, &sphereTangents );
-		uint32_t offset = 0;
+		uint32_t num_bytes_per_index = 0;
+		size_t   num_indices         = app->sphereMesh.getIndexCount( &num_bytes_per_index );
+		size_t   num_vertices        = app->sphereMesh.getVertexCount();
 
-		// upload vertex positions
-		geom.buffer_offsets[ 0 ] = 0;
-		encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereVertices, numVertices * sizeof( float ) * 3 );
-		offset += numVertices * sizeof( float ) * 3;
+		void* gpu_memory = nullptr;
+		if ( encoder.mapBufferMemory( geom.vertex_buffer_handle, 0, app->worldGeometry.vertexBytesCount, &gpu_memory ) ) {
 
-		// upload vertex normals
-		geom.buffer_offsets[ 1 ] = offset;
-		encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereNormals, numVertices * sizeof( float ) * 3 );
-		offset += numVertices * sizeof( float ) * 3;
+			// successfully mapped buffer memory
 
-		// upload vertex uvs
-		geom.buffer_offsets[ 2 ] = offset;
-		encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereUvs, numVertices * sizeof( float ) * 2 );
-		offset += numVertices * sizeof( float ) * 2;
+			size_t offset = 0;
 
-		// upload vertex tangents
-		geom.buffer_offsets[ 3 ] = offset;
-		encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereTangents, numTangents * sizeof( float ) * 3 );
-		offset += numVertices * sizeof( float ) * 3;
+			{ // upload vertex positions
+				size_t num_bytes_to_read = num_vertices * sizeof( glm::vec3 );
+				geom.buffer_offsets[ 0 ] = 0;
+				app->sphereMesh.readAttributeDataInto( ( char* )( gpu_memory ) + offset, num_bytes_to_read, le_mesh_api::ePosition );
+				offset += num_bytes_to_read;
+			}
+
+			{ // upload vertex normals
+				size_t num_bytes_to_read = num_vertices * sizeof( glm::vec3 );
+				geom.buffer_offsets[ 1 ] = offset;
+				app->sphereMesh.readAttributeDataInto( ( char* )( gpu_memory ) + offset, num_bytes_to_read, le_mesh_api::eNormal );
+				offset += num_bytes_to_read;
+			}
+
+			{ // upload vertex uvs
+				size_t num_bytes_to_read = num_vertices * sizeof( glm::vec2 );
+				geom.buffer_offsets[ 2 ] = offset;
+				app->sphereMesh.readAttributeDataInto( ( char* )( gpu_memory ) + offset, num_bytes_to_read, le_mesh_api::eUv );
+				offset += num_bytes_to_read;
+			}
+
+			{ // upload vertex tangents
+				size_t num_bytes_to_read = num_vertices * sizeof( glm::vec3 );
+				geom.buffer_offsets[ 3 ] = offset;
+				app->sphereMesh.readAttributeDataInto( ( char* )( gpu_memory ) + offset, num_bytes_to_read, le_mesh_api::eTangent );
+				offset += num_bytes_to_read;
+			}
+		};
 
 		// upload indices
-		encoder.writeToBuffer( geom.index_buffer_handle, 0, sphereIndices, numIndices * sizeof( uint16_t ) );
+
+		if ( encoder.mapBufferMemory( geom.index_buffer_handle, 0, num_indices * num_bytes_per_index, &gpu_memory ) ) {
+			app->sphereMesh.readIndexDataInto( gpu_memory, num_indices * num_bytes_per_index );
+		};
 
 		geom.wasLoaded = true;
 	}

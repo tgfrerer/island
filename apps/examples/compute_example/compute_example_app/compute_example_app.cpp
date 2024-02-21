@@ -132,7 +132,7 @@ static bool pass_initialise_setup( le_renderpass_o* pRp, void* user_data ) {
 
 static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 
-	auto        app = static_cast<compute_example_app_o*>( user_data );
+	auto                app = static_cast<compute_example_app_o*>( user_data );
 	le::TransferEncoder encoder( encoder_ );
 
 	LeMesh mesh;
@@ -143,38 +143,31 @@ static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* u
 		// This is really annoying - we must use vec4 instead of vec3 for vertex position
 		// as ssbo alignment only allows us vec4 - we can't have that packed tightly
 
-		float const* vertData = nullptr;
-		size_t       numVerts = 0;
+		size_t num_vertices          = mesh.getVertexCount();
+		size_t num_vertex_data_bytes = num_vertices * sizeof( glm::vec4 );
 
-		std::vector<float> tmp_vertices;
-		tmp_vertices.reserve( ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) );
+		void* gpu_memory = nullptr;
+		if ( encoder.mapBufferMemory( app->gpu_mesh->vertex_handle, 0, num_vertex_data_bytes, &gpu_memory ) ) {
 
-		mesh.getVertices( &numVerts, &vertData );
-		float const* v     = vertData;
-		auto const   end_v = vertData + ( numVerts * 3 );
-
-		for ( ; v != end_v; ) {
-			tmp_vertices.emplace_back( *v++ );
-			tmp_vertices.emplace_back( *v++ );
-			tmp_vertices.emplace_back( *v++ );
-			tmp_vertices.emplace_back( 1 );
+			mesh.readAttributeDataInto( gpu_memory, num_vertex_data_bytes, le_mesh_api::ePosition, nullptr, nullptr, 0, sizeof( glm::vec4 ) );
 		}
-
-		encoder.writeToBuffer( app->gpu_mesh->vertex_handle, 0, tmp_vertices.data(), tmp_vertices.size() * sizeof( float ) );
 	}
-	{
-		uint16_t const* indexData  = nullptr;
-		size_t          numIndices = 0;
 
-		mesh.getIndices( &numIndices, &indexData );
-		encoder.writeToBuffer( app->gpu_mesh->index_handle, 0, indexData, numIndices * sizeof( uint16_t ) );
+	{
+		void*    gpu_memory          = nullptr;
+		uint32_t num_bytes_per_index = 2;
+		size_t   num_indices         = mesh.getIndexCount( &num_bytes_per_index );
+		size_t   num_bytes_to_write  = num_indices * num_bytes_per_index;
+		if ( encoder.mapBufferMemory( app->gpu_mesh->index_handle, 0, num_bytes_to_write, &gpu_memory ) ) {
+			mesh.readIndexDataInto( gpu_memory, num_bytes_to_write, &num_bytes_per_index, &num_indices, 0 );
+		}
 	}
 }
 
 // ----------------------------------------------------------------------
 
 static void pass_compute_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto        app = static_cast<compute_example_app_o*>( user_data );
+	auto               app = static_cast<compute_example_app_o*>( user_data );
 	le::ComputeEncoder encoder{ encoder_ };
 
 	// Compute pipelines are delightfully simple to set up - they only need to
@@ -225,7 +218,7 @@ static bool pass_draw_setup( le_renderpass_o* pRp, void* user_data ) {
 // ----------------------------------------------------------------------
 
 static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto        app = static_cast<compute_example_app_o*>( user_data );
+	auto                app = static_cast<compute_example_app_o*>( user_data );
 	le::GraphicsEncoder encoder{ encoder_ };
 
 	le::Extent2D extents;

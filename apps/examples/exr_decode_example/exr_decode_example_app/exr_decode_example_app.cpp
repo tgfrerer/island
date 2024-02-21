@@ -32,6 +32,7 @@ struct GpuMeshData {
 	size_t                 pos_num_bytes;
 	size_t                 uv_num_bytes;
 	size_t                 indices_num_bytes;
+	le::IndexType          index_type;
 };
 
 struct exr_decode_example_app_o {
@@ -87,27 +88,41 @@ static exr_decode_example_app_o* exr_decode_example_app_create() {
 	app->renderer.setup( app->window );
 
 	{
-		LeMeshGenerator::generatePlane( app->mesh, 1024, 1024, 64, 64 );
+		LeMeshGenerator::generatePlane( app->mesh, 1024, 1024, 256, 256 );
 
-		size_t vertex_count = 0;
-		size_t uv_count     = 0;
-		size_t index_count  = 0;
+		uint32_t index_num_bytes_per_index = 0;
+		size_t   index_count               = 0;
 
-		app->mesh.getVertices( &vertex_count, nullptr );
-		app->mesh.getUvs( &uv_count, nullptr );
-		app->mesh.getIndices( &index_count, nullptr );
+		index_count = le_mesh::le_mesh_i.get_index_count( app->mesh, &index_num_bytes_per_index );
+
+		size_t vertex_count = le_mesh::le_mesh_i.get_vertex_count( app->mesh );
+
+		le_mesh_api::attribute_info_t attribute_info[ 4 ] = {};
+		size_t                        num_attributes      = sizeof( attribute_info ) / sizeof( attribute_info[ 0 ] );
+
+		le_mesh::le_mesh_i.read_attribute_info_into( app->mesh, attribute_info, &num_attributes );
+
+		auto get_num_bytes = [ & ]( le_mesh_api::attribute_name_t name ) -> size_t {
+			for ( auto& e : attribute_info ) {
+				if ( e.name == name ) {
+					return e.bytes_per_vertex;
+				}
+			}
+			return 0;
+		};
 
 		// Initialize handles, and size infos for gpu mesh data:
 		app->gpu_mesh = new GpuMeshData{
 		    LE_BUF_RESOURCE( "vertex_buffer" ),
 		    LE_BUF_RESOURCE( "uv_buffer" ),
 		    LE_BUF_RESOURCE( "index_buffer" ),
-		    vertex_count, // vertex_num_bytes
-		    uv_count,     // uv_num_bytes
-		    index_count,  // indices_num_bytes
-		    vertex_count * sizeof( le_mesh_api::default_vertex_type ),
-		    uv_count * sizeof( le_mesh_api::default_uv_type ),
-		    index_count * sizeof( le_mesh_api::default_index_type ),
+		    vertex_count,
+		    vertex_count,
+		    index_count,
+		    vertex_count * get_num_bytes( le_mesh_api::ePosition ),
+		    vertex_count * get_num_bytes( le_mesh_api::eUv ),
+		    index_count * index_num_bytes_per_index,
+		    index_num_bytes_per_index == 2 ? le::IndexType::eUint16 : le::IndexType::eUint32,
 	    };
 	}
 
@@ -170,22 +185,32 @@ static void pass_upload_mesh_data_exec( le_command_buffer_encoder_o* encoder_, v
 
 	// Upload mesh data
 	{
-		float const* vert_data = nullptr;
-		size_t       num_verts = 0;
-		app->mesh.getVertices( &num_verts, &vert_data );
-		encoder.writeToBuffer( app->gpu_mesh->pos_handle, 0, vert_data, app->gpu_mesh->pos_num_bytes );
-	}
-	{
-		float const* uvs;
-		size_t       num_uvs;
-		app->mesh.getUvs( &num_uvs, &uvs );
-		encoder.writeToBuffer( app->gpu_mesh->uv_handle, 0, uvs, app->gpu_mesh->uv_num_bytes );
-	}
-	{
-		uint16_t const* index_data  = nullptr;
-		size_t          num_indices = 0;
-		app->mesh.getIndices( &num_indices, &index_data );
-		encoder.writeToBuffer( app->gpu_mesh->index_handle, 0, index_data, app->gpu_mesh->indices_num_bytes );
+
+		void*  gpu_buffer_data = nullptr;
+		size_t num_vertices    = app->gpu_mesh->pos_count;
+		size_t num_bytes       = 0;
+
+		// Upload attribute data
+
+		// Get a pointer to gpu mapped memory that will be uploaded to pos_handle at offset 0.
+		// Then read the data from our mesh into that memory address.
+
+		num_bytes = app->gpu_mesh->pos_num_bytes;
+		if ( encoder.mapBufferMemory( app->gpu_mesh->pos_handle, 0, num_bytes, &gpu_buffer_data ) ) {
+			app->mesh.readAttributeDataInto( gpu_buffer_data, num_bytes, le_mesh_api::attribute_name_t::ePosition );
+		}
+
+		num_bytes = app->gpu_mesh->uv_num_bytes;
+		if ( encoder.mapBufferMemory( app->gpu_mesh->uv_handle, 0, num_bytes, &gpu_buffer_data ) ) {
+			app->mesh.readAttributeDataInto( gpu_buffer_data, num_bytes, le_mesh_api::attribute_name_t::eUv );
+		}
+
+		// upload index data
+
+		num_bytes = app->gpu_mesh->indices_num_bytes;
+		if ( encoder.mapBufferMemory( app->gpu_mesh->index_handle, 0, num_bytes, &gpu_buffer_data ) ) {
+			app->mesh.readIndexDataInto( gpu_buffer_data, num_bytes );
+		}
 	}
 }
 
@@ -226,7 +251,9 @@ static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 	                .setSourceFilePath( "./local_resources/shaders/isolines.frag" )
 	                .build() )
 	        .withInputAssemblyState()
+
 	        .setTopology( le::PrimitiveTopology::eTriangleList )
+
 	        .end()
 	        .withRasterizationState()
 	        // .setPolygonMode( le::PolygonMode::eLine )
@@ -254,8 +281,8 @@ static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 	    .bindGraphicsPipeline( psoDefaultGraphics )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo_t ) )
 	    .bindVertexBuffers( 0, 2, buffers, bufferOffsets )
-	    .bindIndexBuffer( app->gpu_mesh->index_handle, 0 )
 	    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), app->tex_unit_0 )
+	    .bindIndexBuffer( app->gpu_mesh->index_handle, 0, app->gpu_mesh->index_type )
 	    .drawIndexed( app->gpu_mesh->indices_count );
 }
 

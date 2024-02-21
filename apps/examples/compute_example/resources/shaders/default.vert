@@ -37,7 +37,7 @@ void main()
 {
 	outData.texCoord = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
 	outData.texColor = vec4(1);
-	vec4 position = projectionMatrix * viewMatrix * modelMatrix * pos;
+	vec4 position = projectionMatrix * viewMatrix * modelMatrix * vec4(pos.xyz,1);
 
 	gl_Position = position;
 }

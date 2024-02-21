@@ -30,13 +30,21 @@ struct window_and_swapchain_t {
 	le_swapchain_handle swapchain;
 };
 
+struct cached_mesh_data_t {
+	std::unordered_map<le_mesh_api::attribute_name_t, std::vector<char>> attributes;
+	std::vector<char>                                                    indices;
+	size_t                                                               indices_count;
+	le::IndexType                                                        index_type;
+};
+
 struct multi_window_example_app_o {
 	std::unordered_map<uint64_t, window_and_swapchain_t> windows;
 	le::Renderer                                         renderer;
 	LeCameraController                                   cameraController;
 	LeCamera                                             camera;
-	LeMesh                                               mesh;
 	uint64_t                                             frame_counter = 0;
+	cached_mesh_data_t                                   mesh;
+	std::vector<uint8_t>                                 test_vec;
 };
 
 // ----------------------------------------------------------------------
@@ -119,6 +127,39 @@ static multi_window_example_app_o* app_create() {
 		app->windows[ 1 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
 	}
 
+	{
+		// Import mesh data into local cache.
+
+		LeMesh meshImporter;
+
+		// Creature model created by user sugamo on poly.google.com: <https://poly.google.com/user/cyypmbztDpj>
+		// Licensed CC-BY.
+		static bool result = meshImporter.loadFromPlyFile( "./local_resources/meshes/sugamo-doraemon.ply" );
+		assert( result );
+
+		std::vector<le_mesh_api::attribute_info_t> attribute_infos( 5 );
+
+		size_t num_attribute_infos = attribute_infos.size();
+		meshImporter.readAttributeInfoInto( attribute_infos.data(), &num_attribute_infos );
+		attribute_infos.resize( num_attribute_infos );
+
+		size_t num_vertices = meshImporter.getVertexCount();
+
+		for ( auto& a : attribute_infos ) {
+			auto& attribute_data = app->mesh.attributes[ a.name ];
+			attribute_data.resize( a.bytes_per_vertex * num_vertices );
+			meshImporter.readAttributeDataInto( attribute_data.data(), attribute_data.size(), a.name );
+		}
+
+		uint32_t num_bytes_per_index = 0;
+		size_t   num_indices         = meshImporter.getIndexCount( &num_bytes_per_index );
+		app->mesh.index_type         = ( num_bytes_per_index == 2 ) ? le::IndexType::eUint16 : le::IndexType::eUint32;
+		app->mesh.indices_count      = num_indices;
+
+		app->mesh.indices.resize( num_bytes_per_index * num_indices );
+		meshImporter.readIndexDataInto( app->mesh.indices.data(), app->mesh.indices.size() );
+	}
+
 	reset_camera( app, app->windows[ 0 ] ); // set up the camera
 
 	return app;
@@ -142,7 +183,7 @@ static void reset_camera( multi_window_example_app_o* self, window_and_swapchain
 // ----------------------------------------------------------------------
 
 static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto        app = static_cast<multi_window_example_app_o*>( user_data );
+	auto                app = static_cast<multi_window_example_app_o*>( user_data );
 	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto [ screenWidth, screenHeight ] = encoder.getRenderpassExtent();
@@ -205,14 +246,7 @@ static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_
 	        .end()
 	        .build();
 
-	uint16_t const* meshIndices  = nullptr;
-	float const*    meshVertices = nullptr;
-	float const*    meshColours  = nullptr;
-	float const*    meshNormals  = nullptr;
-	float const*    meshUvs      = nullptr;
-	size_t          numVertices  = 0;
-	size_t          numIndices   = 0;
-	app->mesh.getData( &numVertices, &numIndices, &meshVertices, &meshNormals, &meshUvs, &meshColours, &meshIndices );
+	uniforms.color = { 1, 1, 1, 1 };
 
 	encoder
 	    .setScissors( 0, 1, scissors )
@@ -220,27 +254,29 @@ static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_
 	    ;
 
 	encoder
-	    .setVertexData( meshVertices, numVertices * 3 * sizeof( float ), 0 )
-	    .setVertexData( meshNormals, numVertices * 3 * sizeof( float ), 1 )
-	    .setVertexData( meshUvs, numVertices * 2 * sizeof( float ), 2 )
-	    .setVertexData( meshColours, numVertices * 4 * sizeof( float ), 3 )
-	    .setIndexData( meshIndices, numIndices * sizeof( uint16_t ) );
-
-	uniforms.color = { 1, 1, 1, 1 };
+	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::ePosition ].data(),
+	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::ePosition ].size(), 0 )
+	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eNormal ].data(),
+	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eNormal ].size(), 1 )
+	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eUv ].data(),
+	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eUv ].size(), 2 )
+	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eColour ].data(),
+	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eColour ].size(), 3 )
+	    .setIndexData( app->mesh.indices.data(), app->mesh.indices.size(), app->mesh.index_type );
 
 	encoder
 	    .bindGraphicsPipeline( pipelineDefault )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Uniform_Data" ), &uniforms, sizeof( UniformsUbo_t ) )
-	    .setLineWidth( 1.f )                   //
-	    .drawIndexed( uint32_t( numIndices ) ) //
+	    .setLineWidth( 1.f )                    //
+	    .drawIndexed( app->mesh.indices_count ) //
 	    ;
 }
 
 // ----------------------------------------------------------------------
 
 static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto        app = static_cast<multi_window_example_app_o*>( user_data );
+	auto                app = static_cast<multi_window_example_app_o*>( user_data );
 	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto [ screenWidth, screenHeight ] = encoder.getRenderpassExtent();
@@ -304,15 +340,6 @@ static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_
 	        .end()
 	        .build();
 
-	uint16_t const* meshIndices  = nullptr;
-	float const*    meshVertices = nullptr;
-	float const*    meshColours  = nullptr;
-	float const*    meshNormals  = nullptr;
-	float const*    meshUvs      = nullptr;
-	size_t          numVertices  = 0;
-	size_t          numIndices   = 0;
-	app->mesh.getData( &numVertices, &numIndices, &meshVertices, &meshNormals, &meshUvs, &meshColours, &meshIndices );
-
 	uniforms.color = { 1, 1, 1, 1 };
 
 	encoder
@@ -321,18 +348,22 @@ static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_
 	    ;
 
 	encoder
-	    .setVertexData( meshVertices, numVertices * 3 * sizeof( float ), 0 )
-	    .setVertexData( meshNormals, numVertices * 3 * sizeof( float ), 1 )
-	    .setVertexData( meshUvs, numVertices * 2 * sizeof( float ), 2 )
-	    .setVertexData( meshColours, numVertices * 4 * sizeof( float ), 3 )
-	    .setIndexData( meshIndices, numIndices * sizeof( uint16_t ) );
+	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::ePosition ].data(),
+	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::ePosition ].size(), 0 )
+	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eNormal ].data(),
+	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eNormal ].size(), 1 )
+	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eUv ].data(),
+	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eUv ].size(), 2 )
+	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eColour ].data(),
+	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eColour ].size(), 3 )
+	    .setIndexData( app->mesh.indices.data(), app->mesh.indices.size(), app->mesh.index_type );
 
 	encoder
 	    .bindGraphicsPipeline( pipelineWireframe )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Uniform_Data" ), &uniforms, sizeof( UniformsUbo_t ) )
-	    .setLineWidth( 1.f )                   //
-	    .drawIndexed( uint32_t( numIndices ) ) //
+	    .setLineWidth( 1.f )                    //
+	    .drawIndexed( app->mesh.indices_count ) //
 	    ;
 }
 
@@ -405,7 +436,6 @@ static bool app_update( multi_window_example_app_o* self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	le::Window::pollEvents();
 
-
 	for ( auto it = self->windows.begin(); it != self->windows.end(); ) {
 		if ( it->second.window.shouldClose() ) {
 			self->renderer.removeSwapchain( it->second.swapchain );
@@ -438,11 +468,6 @@ static bool app_update( multi_window_example_app_o* self ) {
 	for ( auto& [ idx, window ] : self->windows ) {
 		app_process_ui_events( self, window );
 	}
-
-	// Creature model created by user sugamo on poly.google.com: <https://poly.google.com/user/cyypmbztDpj>
-	// Licensed CC-BY.
-	static bool result = self->mesh.loadFromPlyFile( "./local_resources/meshes/sugamo-doraemon.ply" );
-	assert( result );
 
 	// We initialise the swapchain image handles to nullptr so that they are in a known default state
 	// if there is no window / swapchain associated with them.
