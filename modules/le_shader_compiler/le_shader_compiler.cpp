@@ -191,9 +191,10 @@ static std::vector<char> load_file( const std::filesystem::path& file_path, bool
 	std::vector<char> contents;
 
 	size_t        fileSize = 0;
-	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
+	std::ifstream file( file_path.c_str(), std::ios::in | std::ios::binary | std::ios::ate );
 
 	if ( !file.is_open() ) {
+
 		logger.error( "Unable to open file: '%s'", std::filesystem::canonical( file_path ).c_str() );
 		*success = false;
 		return contents;
