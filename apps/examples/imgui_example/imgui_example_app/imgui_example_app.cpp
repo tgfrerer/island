@@ -237,7 +237,7 @@ static bool app_update( imgui_example_app_o* self ) {
 
 	le::RenderGraph rendergraph{};
 
-	// You must set up rendergraph resources before you begin an imgui frame
+	// You must set up imgui's rendergraph resources before you begin an imgui frame
 	le_imgui::le_imgui_i.setup_resources( self->gui, rendergraph, float( swapchainWidth ), float( swapchainHeight ) );
 
 	{
@@ -252,7 +252,7 @@ static bool app_update( imgui_example_app_o* self ) {
 		{
 			ImGui::Text( "This image has been rendered in a different renderpass:" );
 			render_target_image_1_requested_extents = ImGui::GetContentRegionAvail();
-			ImGui::Image( texture_handle_1, render_target_image_1_requested_extents );
+			ImGui::Image( texture_handle_1, render_target_image_1_requested_extents ); // You must remember to make this texture available to the renderpass that draws the GUI!
 		}
 		ImGui::End();
 
@@ -286,7 +286,7 @@ static bool app_update( imgui_example_app_o* self ) {
 	// This is the root renderpass, that is the renderpass that will render to screen.
 	// we use it to draw the GUI.
 	//
-	// Note:  that since the GUI will draw the image that we rendered
+	// Note:  Since the GUI will draw the image that we rendered
 	//        into in pass_draw_into_render_target_image_1, we must make this
 	//        image available as a texture.
 	//
