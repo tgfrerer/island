@@ -127,9 +127,73 @@ static void app_process_ui_events( app_o* self, std::vector<LeUiEvent> const& ev
 		self->window.toggleFullscreen();
 	}
 }
+
 // ----------------------------------------------------------------------
 
-static void renderpass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data );
+static void renderpass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto                app = static_cast<imgui_example_app_o*>( user_data );
+	le::GraphicsEncoder encoder{ encoder_ };
+
+	auto extents = encoder.getRenderpassExtent();
+
+	le::Viewport viewports[ 1 ] = {
+	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
+	};
+
+	app->camera.setViewport( viewports[ 0 ] );
+
+	// Data as it is laid out in the shader ubo
+	struct MvpUbo {
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 projection;
+	};
+
+	// Draw main scene
+
+	static auto pipelineImguiExample =
+	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./resources/shaders/default.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./resources/shaders/default.frag" )
+	                .build() )
+	        .build();
+
+	float norm_angle = ( app->frame_counter % 360 ) / float( 360 );
+
+	MvpUbo mvp;
+	mvp.model = glm::mat4( 1.f ); // identity matrix
+	mvp.model = glm::rotate( mvp.model, glm::two_pi<float>() * norm_angle, glm::vec3{ 0, 0, 1 } );
+	mvp.model = glm::scale( mvp.model, glm::vec3( 4.5 ) );
+
+	app->camera.getViewMatrix( ( float* )( &mvp.view ) );
+	app->camera.getProjectionMatrix( ( float* )( &mvp.projection ) );
+
+	glm::vec3 imgui_examplePositions[] = {
+	    { -50, -50, 0 },
+	    { 50, -50, 0 },
+	    { 0, 50, 0 },
+	};
+
+	glm::vec4 imgui_exampleColors[] = {
+	    { 1, 0, 0, 1.f },
+	    { 0, 1, 0, 1.f },
+	    { 0, 0, 1, 1.f },
+	};
+
+	encoder
+	    .bindGraphicsPipeline( pipelineImguiExample )
+	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
+	    .setVertexData( imgui_examplePositions, sizeof( imgui_examplePositions ), 0 )
+	    .setVertexData( imgui_exampleColors, sizeof( imgui_exampleColors ), 1 )
+	    .draw( 3 );
+}
 
 // ----------------------------------------------------------------------
 
@@ -167,126 +231,93 @@ static bool app_update( imgui_example_app_o* self ) {
 	uint32_t swapchainWidth = 0, swapchainHeight = 0;
 	self->renderer.getSwapchainExtent( &swapchainWidth, &swapchainHeight );
 
-	le::RenderGraph renderGraph{};
+	static auto texture_handle_1                        = LE_TEXTURE( "src_texture_handle_1" );
+	static auto render_target_image_1                   = LE_IMG_RESOURCE( "render_target_image_1" );
+	ImVec2      render_target_image_1_requested_extents = {};
 
-	le_imgui::le_imgui_i.setup_resources( self->gui, renderGraph, float( swapchainWidth ), float( swapchainHeight ) );
+	le::RenderGraph rendergraph{};
+
+	// You must set up rendergraph resources before you begin an imgui frame
+	le_imgui::le_imgui_i.setup_resources( self->gui, rendergraph, float( swapchainWidth ), float( swapchainHeight ) );
+
 	{
+		// All ImGui Drawing happens inside this block.
 
 		le_imgui::le_imgui_i.begin_frame( self->gui );
 
 		ImGui::ShowMetricsWindow();
 		ImGui::ShowDemoWindow();
 
+		ImGui::Begin( "Rendered Image" );
+		{
+			ImGui::Text( "This image has been rendered in a different renderpass:" );
+			render_target_image_1_requested_extents = ImGui::GetContentRegionAvail();
+			ImGui::Image( texture_handle_1, render_target_image_1_requested_extents );
+		}
+		ImGui::End();
+
 		ImGui::Begin( "Background Color Chooser" ); // begin window
+		{
+			// Background colour edit
+			if ( ImGui::ColorEdit3( "Background Color", &self->backgroundColor.x ) ) {
+			}
 
-		// Background color edit
-		if ( ImGui::ColorEdit3( "Background Color", &self->backgroundColor.x ) ) {
+			if ( ImGui::Button( "White Background" ) ) {
+				self->backgroundColor = { 1, 1, 1, 1 };
+			}
 		}
-
-		if ( ImGui::Button( "White Background" ) ) {
-			self->backgroundColor = { 1, 1, 1, 1 };
-		}
-
 		ImGui::End(); // end window
 
 		le_imgui::le_imgui_i.end_frame( self->gui );
 	}
 
-	le::RenderPass passToScreen( "root", le::QueueFlagBits::eGraphics );
-
-	passToScreen
-	    .setSetupCallback( self, []( le_renderpass_o* pRp, void* user_data ) {
-		    auto rp  = le::RenderPass{ pRp };
-		    auto app = static_cast<imgui_example_app_o*>( user_data );
-
-		    // Attachment resource info may be further specialised using le::ImageAttachmentInfoBuilder().
-
-		    auto info =
-		        le::ImageAttachmentInfoBuilder()
-		            .setColorClearValue( reinterpret_cast<le::ClearValue&>( app->backgroundColor ) )
-		            .build();
-
-		    rp
-		        .addColorAttachment( app->renderer.getSwapchainResource(), info ) // color attachment
-		        .setIsRoot( true );
-
-		    return true;
-	    } )
-	    .setExecuteCallback( self, renderpass_main_exec ) //
+	// This renderpass will draw a rgb triangle into image render_target_image_1
+	// Note that we specify the width and height of the renderpass, which will
+	// set the image dimensions automatically to these values.
+	//
+	auto pass_draw_into_render_target_image_1 =
+	    le::RenderPass( "to_image", le::QueueFlagBits::eGraphics )
+	        .setWidth( render_target_image_1_requested_extents.x )
+	        .setHeight( render_target_image_1_requested_extents.y )
+	        .addColorAttachment( render_target_image_1 )      //
+	        .setExecuteCallback( self, renderpass_main_exec ) //
 	    ;
 
-	le_imgui::le_imgui_i.draw( self->gui, passToScreen );
+	// This is the root renderpass, that is the renderpass that will render to screen.
+	// we use it to draw the GUI.
+	//
+	// Note:  that since the GUI will draw the image that we rendered
+	//        into in pass_draw_into_render_target_image_1, we must make this
+	//        image available as a texture.
+	//
+	// Note:  We do not set an execute callback: We could draw into this renderpass here,
+	//        but the most important draw calls will be the ones that are added via
+	//        `le_imgui_i.draw()`:
+	//
+	auto pass_to_screen =
+	    le::RenderPass( "to_screen", le::QueueFlagBits::eGraphics )
+	        .addColorAttachment( self->renderer.getSwapchainResource(),
+	                             le::ImageAttachmentInfoBuilder()
+	                                 .setColorClearValue( reinterpret_cast<le::ClearValue&>( self->backgroundColor ) )
+	                                 .build() )                       // swapchain color attachment is the color attachment that goes to the swapchain and therefore becomes visible.
+	        .sampleTexture( texture_handle_1, render_target_image_1 ) // associate texture_handle_1 with render_target_image_1, and make it available for sampling inside the renderpass
+	    ;
 
-	renderGraph.addRenderPass( passToScreen );
+	//
+	le_imgui::le_imgui_i.draw( self->gui, pass_to_screen );
 
-	self->renderer.update( renderGraph );
+	// Add renderpasses to rendergraph
+
+	rendergraph
+	    .addRenderPass( pass_draw_into_render_target_image_1 )
+	    .addRenderPass( pass_to_screen ) //
+	    ;
+
+	self->renderer.update( rendergraph );
 
 	self->frame_counter++;
 
 	return true; // keep app alive
-}
-
-// ----------------------------------------------------------------------
-
-static void renderpass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto        app = static_cast<imgui_example_app_o*>( user_data );
-	le::GraphicsEncoder encoder{ encoder_ };
-
-	auto extents = encoder.getRenderpassExtent();
-
-	le::Viewport viewports[ 1 ] = {
-	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
-	};
-
-	app->camera.setViewport( viewports[ 0 ] );
-
-	// Data as it is laid out in the shader ubo
-	struct MvpUbo {
-		glm::mat4 model;
-		glm::mat4 view;
-		glm::mat4 projection;
-	};
-
-	// Draw main scene
-
-	static auto pipelineImguiExample =
-	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage(
-	            LeShaderModuleBuilder( encoder.getPipelineManager() )
-	                .setShaderStage( le::ShaderStage::eVertex )
-	                .setSourceFilePath( "./resources/shaders/default.vert" )
-	                .build() )
-	        .addShaderStage(
-	            LeShaderModuleBuilder( encoder.getPipelineManager() )
-	                .setShaderStage( le::ShaderStage::eFragment )
-	                .setSourceFilePath( "./resources/shaders/default.frag" )
-	                .build() )
-	        .build();
-
-	MvpUbo mvp;
-	mvp.model = glm::mat4( 1.f ); // identity matrix
-	mvp.model = glm::scale( mvp.model, glm::vec3( 4.5 ) );
-	app->camera.getViewMatrix( ( float* )( &mvp.view ) );
-	app->camera.getProjectionMatrix( ( float* )( &mvp.projection ) );
-
-	glm::vec3 imgui_examplePositions[] = {
-	    { -50, -50, 0 },
-	    { 50, -50, 0 },
-	    { 0, 50, 0 },
-	};
-
-	glm::vec4 imgui_exampleColors[] = {
-	    { 1, 0, 0, 1.f },
-	    { 0, 1, 0, 1.f },
-	    { 0, 0, 1, 1.f },
-	};
-
-	encoder
-	    .bindGraphicsPipeline( pipelineImguiExample )
-	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
-	    .setVertexData( imgui_examplePositions, sizeof( imgui_examplePositions ), 0 )
-	    .setVertexData( imgui_exampleColors, sizeof( imgui_exampleColors ), 1 )
-	    .draw( 3 );
 }
 
 // ----------------------------------------------------------------------
