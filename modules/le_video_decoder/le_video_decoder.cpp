@@ -2069,20 +2069,50 @@ static void print_frame_state( std::vector<le_video_decoder_o::video_decoder_mem
 };
 // ----------------------------------------------------------------------
 
-static void copy_video_frame( std::ifstream& mp4_filestream, le_video_decoder_o::video_decoder_memory_frame* memory_frame, le_video_data_h264_t::data_frame_info_t const& data_frame ) {
+static void copy_video_frame( std::ifstream&                                  mp4_filestream,
+                              le_video_decoder_o::video_decoder_memory_frame* memory_frame,
+                              le_video_data_h264_t::data_frame_info_t const&  data_frame_deprecated, /* get rid of this */
+                              size_t                                          sample_index,
+                              MP4D_track_t*                                   track ) {
 
 	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_used_bytes_count;
 	// const uint8_t* src_buffer  = src_bytes + data_frame.src_offset;
-	int64_t frame_bytes = data_frame.src_frame_bytes;
+	uint64_t mp4_stream_offset = data_frame_deprecated.src_offset;
+	uint64_t frame_num_bytes   = data_frame_deprecated.src_frame_bytes;
 
-	// TODO: This uses an absolute seek into the file stream - we
-	// might want to use a relative offset. We could store relative
-	// offsets with the frame once we have processed the full file
-	// when demuxing.
+	if ( true ) {
 
-	mp4_filestream.seekg( data_frame.src_offset, std::ios_base::beg );
+		// DONE: Calculate offset and frame size via mp4 track information
 
-	while ( frame_bytes > 0 ) {
+		unsigned found_frame_index;
+		int      nchunk = sample_to_chunk( track, sample_index, &found_frame_index ); // imported via minimp4
+
+		if ( nchunk < 0 ) {
+			assert( false && "something went wrong" );
+		}
+
+		mp4_stream_offset = track->chunk_offset[ nchunk ];
+
+		for ( ; found_frame_index < sample_index; found_frame_index++ ) {
+			mp4_stream_offset += track->entry_size[ found_frame_index ];
+		}
+
+		frame_num_bytes = track->entry_size[ found_frame_index ];
+
+		// if ( timestamp ) {
+		//	*timestamp = track->timestamp[ found_frame_index ];
+		// }
+		// if ( duration ) {
+		//	*duration = track->duration[ found_frame_index ];
+		// }
+
+		assert( mp4_stream_offset == data_frame_deprecated.src_offset );
+		assert( frame_num_bytes == data_frame_deprecated.src_frame_bytes );
+	}
+
+	mp4_filestream.seekg( mp4_stream_offset, std::ios_base::beg );
+
+	while ( frame_num_bytes > 0 ) {
 
 		// NOTE: The initial 4 bytes containing the frame size info will not be copied over to the dst frame.
 		//
@@ -2098,7 +2128,7 @@ static void copy_video_frame( std::ifstream& mp4_filestream, le_video_decoder_o:
 		                ( ( uint32_t )( src_buffer[ 2 ] ) << 8 ) |
 		                src_buffer[ 3 ];
 		size += 4;
-		assert( frame_bytes >= size );
+		assert( frame_num_bytes >= size );
 
 		// TODO: You might want to guard against EOF
 		uint8_t nal_header_byte = mp4_filestream.peek();
@@ -2111,10 +2141,18 @@ static void copy_video_frame( std::ifstream& mp4_filestream, le_video_decoder_o:
 		// Skip over any frame data that is not idr slice or non-idr slice
 		if ( nal.type != h264::NAL_UNIT_TYPE_CODED_SLICE_IDR &&
 		     nal.type != h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
-			frame_bytes -= size;
+			frame_num_bytes -= size;
 			mp4_filestream.seekg( size - 4, std::ios_base::cur );
 			continue;
 		}
+
+		// we should parse frame information here - and place
+		// header info into the current frame so that it will be available when we
+		// hand the frame over to the gpu for encoding.
+		//
+
+		// TODO: find out what information will be needed for decoding
+		// and then extract it here
 
 		if ( memory_frame->gpu_bitstream_used_bytes_count + size <= memory_frame->gpu_bitstream_capacity ) {
 			memcpy( dst_buffer, h264::nal_start_code, sizeof( h264::nal_start_code ) );
@@ -2126,6 +2164,13 @@ static void copy_video_frame( std::ifstream& mp4_filestream, le_video_decoder_o:
 		}
 		break;
 	}
+
+	// Record picture order count into memory frame - so that
+	// the playhead may pick from the most recent decoded frame.
+
+	// TODO: calculate presentation time stamp based on
+	// gop, poc, and sample durations
+
 }
 
 // ----------------------------------------------------------------------
@@ -2410,7 +2455,8 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		// we can do this without invoking any vulkan commands as the memory is mapped.
 
 		copy_video_frame( self->mp4_filestream, &recording_memory_frame,
-		                  self->video_data->frames_infos[ recording_memory_frame.decoded_frame_index ] );
+		                  self->video_data->frames_infos[ recording_memory_frame.decoded_frame_index ],
+		                  recording_memory_frame.decoded_frame_index, &self->mp4_demux.track[ 0 ] ); // FIXME: we should not hardcode the track index here
 
 		// align memory for good measure
 		recording_memory_frame.gpu_bitstream_used_bytes_count =
