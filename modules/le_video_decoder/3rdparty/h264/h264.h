@@ -807,7 +807,7 @@ namespace h264 {
 			}
 	    }
     }
-    static void read_dec_ref_pic_marking( SliceHeader* sh, NALHeader* nal, Bitstream* b ) {
+    static void read_dec_ref_pic_marking( SliceHeader* sh, NALHeader const* nal, Bitstream* b ) {
 	    if ( nal->type == 5 ) {
 		    sh->drpm.no_output_of_prior_pics_flag = b->u1();
 			sh->drpm.long_term_reference_flag = b->u1();
@@ -842,7 +842,7 @@ namespace h264 {
 			}
 	    }
     }
-    static void read_slice_header( SliceHeader* sh, NALHeader* nal, const PPS* pps_array, const SPS* sps_array, Bitstream* b ) {
+    static void read_slice_header( SliceHeader* sh, NALHeader const * nal, const PPS* pps_array, const SPS* sps_array, Bitstream* b ) {
 	    sh->first_mb_in_slice    = b->ue();
 	    sh->slice_type = b->ue();
 		sh->pic_parameter_set_id = b->ue();
