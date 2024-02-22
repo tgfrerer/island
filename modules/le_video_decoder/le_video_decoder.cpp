@@ -2077,9 +2077,7 @@ static void copy_video_frame( std::ifstream& mp4_filestream, le_video_decoder_o:
 
 	while ( frame_bytes > 0 ) {
 
-		// NOTE:
-		// The initial 4 bytes containing the frame size info
-		// will not be copied over to the dst frame.
+		// NOTE: The initial 4 bytes containing the frame size info will not be copied over to the dst frame.
 		//
 
 		// NOTE: It's important to keep src_buffer as uint8_t, otherwise signed
@@ -2407,8 +2405,8 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		copy_video_frame( self->mp4_filestream, &recording_memory_frame,
 		                  self->video_data->frames_infos[ recording_memory_frame.decoded_frame_index ] );
 
-		    // align memory for good measure
-		    recording_memory_frame.gpu_bitstream_used_bytes_count =
+		// align memory for good measure
+		recording_memory_frame.gpu_bitstream_used_bytes_count =
 		    align_to( recording_memory_frame.gpu_bitstream_used_bytes_count, self->properties.capabilities.minBitstreamBufferSizeAlignment );
 
 		// we need to update the size value
