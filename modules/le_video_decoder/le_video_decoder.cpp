@@ -42,10 +42,10 @@
 #endif
 #include "util/volk/volk.h"
 
-static constexpr char const* vk_err_to_c_str( const VkResult& tp );                                                               // ffdecl
-static void                  post_reload_hook( le_backend_o* backend );                                                           // ffdecl
-static std::vector<uint8_t>  load_file( const std::filesystem::path& file_path, bool* success );                                  // ffdecl
-static int                   demux_h264_data( std::ifstream& input_file, size_t input_size, struct le_video_data_h264_t* video ); // ffdecl
+static constexpr char const* vk_err_to_c_str( const VkResult& tp );                                                                                  // ffdecl
+static void                  post_reload_hook( le_backend_o* backend );                                                                              // ffdecl
+static std::vector<uint8_t>  load_file( const std::filesystem::path& file_path, bool* success );                                                     // ffdecl
+static int                   demux_h264_data( std::ifstream& input_file, size_t input_size, struct le_video_data_h264_t* video, MP4D_demux_t* mp4 ); // ffdecl
 // ----------------------------------------------------------------------
 
 static auto LOGGER_LABEL = "le_video_decoder";
@@ -290,6 +290,7 @@ struct le_video_decoder_o {
 	uint32_t                dpb_target_slot_idx = 0; // current slot index into which to place the reconstructed picture
 
 	std::ifstream mp4_filestream;
+	MP4D_demux_t  mp4_demux;
 
 	// video bitstream buffer - this is what the gpu reads, and the cpu writes to
 	le_video_gpu_bitstream_buffer_t gpu_bitstream_buffer{};
@@ -488,13 +489,17 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 	if ( self->mp4_filestream.is_open() == false ) {
 		logger.error( "Unable to open file: '%s'", std::filesystem::canonical( file_path ).c_str() );
 	} else {
+
+		self->mp4_demux = {};
+
 		size_t mp4_filestream_size = self->mp4_filestream.tellg(); // get size for file
 		self->mp4_filestream.seekg( 0, std::ios::beg );            // rewind filestream to start
 		self->video_data = new le_video_data_h264_t{};
 		demux_h264_data(
 		    self->mp4_filestream,
 		    mp4_filestream_size,
-		    self->video_data );
+		    self->video_data,
+		    &self->mp4_demux );
 
 		// We now know the max number of bytes per bitstream data frame, now
 		// we must make this number fit the alignment criteria
@@ -1292,6 +1297,8 @@ static void le_video_decoder_destroy( le_video_decoder_o* self ) {
 			private_backend_vk_i.destroy_buffer( self->backend, self->gpu_bitstream_buffer.buffer, self->gpu_bitstream_buffer.allocation );
 			self->gpu_bitstream_buffer = {};
 		}
+
+		MP4D_close( &self->mp4_demux );
 
 		delete self;
 
@@ -2721,11 +2728,10 @@ static void calculate_frame_info( h264::NALHeader const*                   nal,
 
 // ----------------------------------------------------------------------
 // demux data stream and store result into le_video_data_h264_t
-static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_video_data_h264_t* video ) {
+static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_video_data_h264_t* video, MP4D_demux_t* mp4 ) {
 	int         spspps_bytes;
 	const void* spspps;
 
-	MP4D_demux_t mp4 = {};
 	// we're initially following this file:
 	// https://github.com/turanszkij/WickedEngine/blob/df906ed231071947ff20f8fa7503e5c6b6c2b7c1/WickedEngine/wiVideo.cpp#L176
 
@@ -2766,19 +2772,19 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 	    .last_offset = 0,
 	};
 
-	MP4D_open( &mp4, read_callback, &read_callback_user_data, input_size );
+	MP4D_open( mp4, read_callback, &read_callback_user_data, input_size );
 
-	video->title   = std::string( mp4.tag.title == nullptr ? "" : ( char* )mp4.tag.title );
-	video->album   = std::string( mp4.tag.album == nullptr ? "" : ( char* )mp4.tag.album );
-	video->artist  = std::string( mp4.tag.artist == nullptr ? "" : ( char* )mp4.tag.artist );
-	video->year    = std::string( mp4.tag.year == nullptr ? "" : ( char* )mp4.tag.year );
-	video->comment = std::string( mp4.tag.comment == nullptr ? "" : ( char* )mp4.tag.comment );
-	video->genre   = std::string( mp4.tag.genre == nullptr ? "" : ( char* )mp4.tag.genre );
+	video->title   = std::string( mp4->tag.title == nullptr ? "" : ( char* )mp4->tag.title );
+	video->album   = std::string( mp4->tag.album == nullptr ? "" : ( char* )mp4->tag.album );
+	video->artist  = std::string( mp4->tag.artist == nullptr ? "" : ( char* )mp4->tag.artist );
+	video->year    = std::string( mp4->tag.year == nullptr ? "" : ( char* )mp4->tag.year );
+	video->comment = std::string( mp4->tag.comment == nullptr ? "" : ( char* )mp4->tag.comment );
+	video->genre   = std::string( mp4->tag.genre == nullptr ? "" : ( char* )mp4->tag.genre );
 
 	// for ( int ntrack = 0; ntrack < mp4.track_count; ntrack++ )
 	int ntrack = 0; // NOTE: is it possible to have videos with more than one track? YES: but only one track will be video - other tracks may be audio etc.
 	{
-		MP4D_track_t& track        = mp4.track[ ntrack ];
+		MP4D_track_t& track        = mp4->track[ ntrack ];
 		unsigned      sum_duration = 0;
 		int           i            = 0;
 		if ( track.handler_type == MP4D_HANDLER_TYPE_VIDE ) { // assume h264
@@ -2802,7 +2808,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 				int         size  = 0;
 				int         index = 0;
 
-				while ( ( data = MP4D_read_sps( &mp4, ntrack, index, &size ) ) ) {
+				while ( ( data = MP4D_read_sps( mp4, ntrack, index, &size ) ) ) {
 
 					const uint8_t* sps_data = ( const uint8_t* )data;
 
@@ -2837,7 +2843,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 				int         size  = 0;
 				int         index = 0;
 
-				while ( ( data = MP4D_read_pps( &mp4, ntrack, index, &size ) ) ) {
+				while ( ( data = MP4D_read_pps( mp4, ntrack, index, &size ) ) ) {
 					const uint8_t* pps_data = ( const uint8_t* )data;
 
 					h264::Bitstream bs = {};
@@ -2892,7 +2898,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 			for ( uint32_t sample_idx = 0; sample_idx < track.sample_count; sample_idx++ ) {
 
 				uint32_t           frame_bytes, timestamp, duration;
-				MP4D_file_offset_t ofs = MP4D_frame_offset( &mp4, ntrack, sample_idx, &frame_bytes, &timestamp, &duration );
+				MP4D_file_offset_t ofs = MP4D_frame_offset( mp4, ntrack, sample_idx, &frame_bytes, &timestamp, &duration );
 				track_duration += duration;
 
 				le_video_data_h264_t::data_frame_info_t& info = video->frames_infos.emplace_back();
@@ -3022,15 +3028,14 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 
 		} else if ( track.handler_type == MP4D_HANDLER_TYPE_SOUN ) { // assume aac
 			// NOTE: AUDIO IS NOT YET IMPLEMENTED
-			for ( i = 0; i < mp4.track[ ntrack ].sample_count; i++ ) {
+			for ( i = 0; i < mp4->track[ ntrack ].sample_count; i++ ) {
 				unsigned           frame_bytes, timestamp, duration;
-				MP4D_file_offset_t ofs = MP4D_frame_offset( &mp4, ntrack, i, &frame_bytes, &timestamp, &duration );
+				MP4D_file_offset_t ofs = MP4D_frame_offset( mp4, ntrack, i, &frame_bytes, &timestamp, &duration );
 				logger.info( "ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", ( unsigned )ofs, frame_bytes, timestamp, duration );
 			}
 		}
 	}
 
-	MP4D_close( &mp4 );
 	return 0;
 }
 
