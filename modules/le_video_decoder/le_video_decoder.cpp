@@ -1349,13 +1349,14 @@ static void le_video_decoder_on_backend_frame_clear_cb( void* user_data ) {
 // ----------------------------------------------------------------------
 // This happens during backend::process
 //
-// NOTE: `memory_frame_num` is the current memory frame of the decoder and
+// NOTE: `decoder_memory_frame` is the current memory frame of the decoder and
 // has nothing to do with video frames. We use it to limit memory
 // accesses to the decoder to only things that are held within
 // the memory frame indexed by self_frame_num.
 static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_video_decoder_o::video_decoder_memory_frame* decoder_memory_frame, void const* backend_frame_data ) {
 
-	size_t   decoded_frame_index = decoder_memory_frame->decoded_frame_index; // running sample num in stream - monotonically increasing
+	size_t decoded_frame_index = decoder_memory_frame->decoded_frame_index; // running sample num in stream - monotonically increasing
+
 	uint32_t dpb_target_slot_idx = decoder->dpb_target_slot_idx;
 
 	h264::SliceHeader* slice_header = ( h264::SliceHeader* )( decoder->video_data->slice_header_bytes.data() ) + decoded_frame_index;
@@ -1372,10 +1373,11 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 	bool frame_is_reference = false;
 
 	{
-		uint64_t  pts                  = frame_info.duration_in_timescale_units;
-		uint64_t  pts_seconds          = pts / decoder->video_data->timescale;
-		double    pts_rest             = ( pts - ( decoder->video_data->timescale * pts_seconds ) ) / double( decoder->video_data->timescale );
-		le::Ticks pts_ticks            = std::chrono::seconds( pts_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( pts_rest ) );
+		// Convert duration from timescale units to le::Ticks
+		uint64_t  d                    = frame_info.duration_in_timescale_units;
+		uint64_t  d_seconds            = d / decoder->video_data->timescale;
+		double    d_rest               = ( d - ( decoder->video_data->timescale * d_seconds ) ) / double( decoder->video_data->timescale );
+		le::Ticks pts_ticks            = std::chrono::seconds( d_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( d_rest ) );
 		decoder_memory_frame->duration = pts_ticks;
 	}
 
@@ -2803,6 +2805,8 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 						src_buffer += size;
 						continue;
 					}
+
+					// ----------| Invariant: Frame is either of type eFrameTypeIntra or eFrameTypePredictive
 
 					/*
 					 * Decode Picture Order Count
