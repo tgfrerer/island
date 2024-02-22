@@ -1,3 +1,4 @@
+// clang-format off
 #ifndef H264_H
 #define H264_H
 
@@ -941,3 +942,5 @@ namespace h264 {
     } // namespace h264
 
 #endif // H264_H
+
+// clang-format on
