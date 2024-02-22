@@ -2725,8 +2725,8 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 				}
 			}
 
-			const std::vector<h264::PPS> pps_array = { ( const h264::PPS* )video->pps_bytes.data(), ( const h264::PPS* )video->pps_bytes.data() + video->pps_count };
-			const std::vector<h264::SPS> sps_array = { ( const h264::SPS* )video->sps_bytes.data(), ( const h264::SPS* )video->sps_bytes.data() + video->sps_count };
+			h264::PPS const* pps_array = reinterpret_cast<h264::PPS const*>( video->pps_bytes.data() );
+			h264::SPS const* sps_array = reinterpret_cast<h264::SPS const*>( video->sps_bytes.data() );
 
 			video->width     = track.SampleDescription.video.width;
 			video->height    = track.SampleDescription.video.height;
@@ -2817,7 +2817,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
 					h264::SliceHeader* slice_header = ( h264::SliceHeader* )video->slice_header_bytes.data() + sample_idx;
 					*slice_header                   = {};
-					h264::read_slice_header( slice_header, &nal, pps_array.data(), sps_array.data(), &bs );
+					h264::read_slice_header( slice_header, &nal, pps_array, sps_array, &bs );
 
 					const h264::PPS& pps = pps_array[ slice_header->pic_parameter_set_id ];
 					const h264::SPS& sps = sps_array[ pps.seq_parameter_set_id ];
