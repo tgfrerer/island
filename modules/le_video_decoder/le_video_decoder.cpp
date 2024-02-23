@@ -2718,8 +2718,9 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 
 			le_renderer_api_i->le_rendergraph_i.add_on_frame_clear_callbacks( rg, &callback_data, 1 );
 		}
-		//
+
 		self->current_decoded_frame = ( self->current_decoded_frame + 1 ) % self->video_data->frames_infos.size();
+
 	} else if ( self->playback_state == le_video_decoder_o::eInitial ) {
 		// in case the player was only just initialized,
 		// once there are no more frames to decode, we can set the player to pause state
