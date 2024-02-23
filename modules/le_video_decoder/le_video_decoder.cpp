@@ -112,8 +112,8 @@ struct frame_info_t {
 	int       gop                    = 0; // group of pictures
 	int       display_order          = 0;
 
-	size_t   pts;      // presentation time stamp, in video duration units
-	uint32_t duration; // in video duration units
+	size_t   pts_in_timescale_units;      // presentation time stamp, in video timescale units
+	uint32_t duration_in_timescale_units; // in video timescale units
 
 	h264::SliceHeader slice_header;
 };
@@ -2352,9 +2352,9 @@ static void copy_video_frame( std::ifstream&                                  mp
 
 			// TODO: calculate presentation time stamp
 
-			memory_frame->frame_info.duration = frame_duration;
-			memory_frame->ticks_pts           = pts;                                                     // presentation time stamp
-			memory_frame->ticks_duration      = video_time_to_ticks( frame_duration, track->timescale ); // duration
+			memory_frame->frame_info.duration_in_timescale_units = frame_duration;
+			memory_frame->ticks_pts                              = pts;                                                     // presentation time stamp
+			memory_frame->ticks_duration                         = video_time_to_ticks( frame_duration, track->timescale ); // duration
 			memory_frame->gpu_bitstream_used_bytes_count += size;
 
 		} else {
