@@ -304,6 +304,7 @@ struct le_video_decoder_o {
 
 	std::ifstream mp4_filestream;
 	MP4D_demux_t  mp4_demux;
+	size_t        last_i_frame_timestamp; // FIXME: this is decoder state, we should place this somewhere better, ideally
 
 	// video bitstream buffer - this is what the gpu reads, and the cpu writes to
 	le_video_gpu_bitstream_buffer_t gpu_bitstream_buffer{};
@@ -406,6 +407,7 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 	size_t num_memory_frames = 0;
 
 	self->latest_memory_frame_available_for_rendering = -1; // signal that there are no frames available for rendering yet
+	self->last_i_frame_timestamp                      = 0;  // internal state for copy_video_frame
 
 	// ----------------------------------------------------------------------
 	// Fill in templates for info structures that we will need to query device
@@ -2151,9 +2153,6 @@ static void calculate_frame_info_new( h264::NALHeader const*   nal,
 		info.poc = pic_order_cnt_msb + pic_order_cnt_lsb; // same as top field order count
 		info.gop = prev->poc_cycle;
 
-		logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
-		             info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
-
 		//  TODO: check for memory management operation command 5
 
 		if ( nal->idc != 0 ) {
@@ -2206,6 +2205,9 @@ static void calculate_frame_info_new( h264::NALHeader const*   nal,
 		break;
 	}
 
+	logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
+	             info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
+
 	// Accept frame beginning NAL unit:
 	info.nal_ref_idc   = nal->idc;
 	info.nal_unit_type = nal->type;
@@ -2220,13 +2222,15 @@ static void copy_video_frame( std::ifstream&                                  mp
                               MP4D_track_t*                                   track,
                               pic_order_count_state_t*                        pic_order_count_state,
                               h264::SPS const*                                sps_array,
-                              h264::PPS const*                                pps_array ) {
+                              h264::PPS const*                                pps_array,
+                              size_t*                                         last_i_frame_timestamp ) {
 
 	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_used_bytes_count;
 	// const uint8_t* src_buffer  = src_bytes + data_frame.src_offset;
 	uint64_t mp4_stream_offset = data_frame_deprecated.src_offset;
 	uint64_t frame_num_bytes   = data_frame_deprecated.src_frame_bytes;
-
+	uint64_t frame_timestamp   = 0;
+	uint64_t frame_duration    = 0;
 	if ( true ) {
 
 		// DONE: Calculate offset and frame size via mp4 track information
@@ -2246,10 +2250,9 @@ static void copy_video_frame( std::ifstream&                                  mp
 
 		frame_num_bytes = track->entry_size[ found_frame_index ];
 
-		// memory_frame.timestamp = track->timestamp[ found_frame_index ];
-		// if ( duration ) {
-		memory_frame->frame_info.duration = track->duration[ found_frame_index ];
-		// }
+		frame_timestamp = track->timestamp[ found_frame_index ];
+
+		frame_duration = track->duration[ found_frame_index ];
 
 		assert( mp4_stream_offset == data_frame_deprecated.src_offset );
 		assert( frame_num_bytes == data_frame_deprecated.src_frame_bytes );
@@ -2319,12 +2322,36 @@ static void copy_video_frame( std::ifstream&                                  mp
 			// Update slice header and poc, gop data from coded data
 			calculate_frame_info_new( &nal, pps_array, sps_array, &bs, pic_order_count_state, memory_frame->frame_info );
 
+			bool idr_flag = ( nal.type == h264::NAL_UNIT_TYPE::NAL_UNIT_TYPE_CODED_SLICE_IDR ); // (7-1)
+
+			if ( idr_flag ) {
+				// reset the timestamp for last i-frame
+				*last_i_frame_timestamp = frame_timestamp;
+			}
+
+			// Calculate presentation time stamp:
+			//
+			// (Timecode of last i-frame) + (presentation order count of the current frame) * (frame duration)
+			//
+			le::Ticks pts =
+			    video_time_to_ticks(
+			        ( *last_i_frame_timestamp ) + ( frame_duration * memory_frame->frame_info.poc / 2 ), track->timescale );
+
 			// record picture order count
 
 			// TODO: calculate presentation time stamp
 
-			memory_frame->ticks_pts      = data_frame_deprecated.timestamp_in_ticks;                                   // presentation time stamp
-			memory_frame->ticks_duration = video_time_to_ticks( memory_frame->frame_info.duration, track->timescale ); // duration
+			memory_frame->frame_info.duration = frame_duration;
+			memory_frame->ticks_pts           = pts; // presentation time stamp
+			// memory_frame->ticks_pts           = data_frame_deprecated.timestamp_in_ticks;                // presentation time stamp
+			memory_frame->ticks_duration = video_time_to_ticks( frame_duration, track->timescale ); // duration
+
+			uint64_t ticks_count_cached = data_frame_deprecated.timestamp_in_ticks.count();
+			uint64_t ticks_calculated   = pts.count();
+
+			if ( ticks_calculated != ticks_count_cached ) {
+				logger.warn( "ticks do not match. cached: % 10d != % 10d", ticks_count_cached, ticks_calculated );
+			}
 
 			memory_frame->gpu_bitstream_used_bytes_count += size;
 		} else {
@@ -2630,7 +2657,8 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		    &self->mp4_demux.track[ 0 ], // FIXME: we should not hardcode the track index here
 		    &self->pic_order_count_state,
 		    ( h264::SPS* )self->video_data->sps_bytes.data(),
-		    ( h264::PPS* )self->video_data->pps_bytes.data() );
+		    ( h264::PPS* )self->video_data->pps_bytes.data(),
+		    &self->last_i_frame_timestamp );
 
 		// align memory for good measure
 		recording_memory_frame.gpu_bitstream_used_bytes_count =
