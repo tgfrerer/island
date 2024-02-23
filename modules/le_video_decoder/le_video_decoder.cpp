@@ -112,6 +112,9 @@ struct frame_info_t {
 	int       gop                    = 0; // group of pictures
 	int       display_order          = 0;
 
+	size_t   pts;      // presentation time stamp, in video duration units
+	uint32_t duration; // in video duration units
+
 	h264::SliceHeader slice_header;
 };
 
@@ -160,10 +163,8 @@ struct le_video_data_h264_t {
 		FrameType deprecated_frame_type             = FrameType::eFrameTypeUnknown;
 		uint8_t   deprecated_nal_unit_type          = 0; // network abstraction layer unit type
 		uint32_t  deprecated_nal_ref_idc            = 0; // network abstraction layer reference
-		int       deprecated_poc                    = 0; // picture order count (==TopFieldOrderCount)
 		int       deprecated_bottom_field_order_cnt = 0;
 		int       deprecated_top_field_order_cnt    = 0;
-		int       deprecated_gop                    = 0; // group of pictures
 		int       deprecated_display_order          = 0;
 
 		frame_info_t info; // frame info (contains slice header)
@@ -253,12 +254,12 @@ struct le_video_decoder_o {
 		uint32_t            id;      // memory frame index, query index
 		le_video_decoder_o* decoder; // weak
 
-		uint64_t poc; // picture order count
+		uint64_t deprecated_poc; // picture order count
 
 		le_img_resource_handle rendergraph_image_resource; // The image resource belonging to the rendergraph into which we copy the decoded frame
-		uint32_t               flags    = 0;
-		le::Ticks              pts      = {}; ///< presentation time stamp, relative to video start time
-		le::Ticks              duration = {};
+		uint32_t               flags          = 0;
+		le::Ticks              ticks_pts      = {}; ///< presentation time stamp, relative to video start time
+		le::Ticks              ticks_duration = {};
 
 		enum State : uint32_t {
 			eIdle = 0,
@@ -1403,7 +1404,8 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 
 	uint32_t dpb_target_slot_idx = decoder->dpb_target_slot_idx;
 
-	auto& frame_info = decoder->video_data->frames_infos[ decoded_frame_index ];
+	// auto& frame_info = decoder->video_data->frames_infos[ decoded_frame_index ];
+	auto const& frame_info = decoder_memory_frame->frame_info;
 
 	// use slice header from frame instead
 	h264::SliceHeader const* slice_header = &decoder_memory_frame->frame_info.slice_header;
@@ -1418,20 +1420,6 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 
 	bool frame_is_reference = false;
 
-	{
-		// Convert duration from timescale units to le::Ticks
-		uint64_t  d                    = frame_info.duration_in_timescale_units;
-		uint64_t  d_seconds            = d / decoder->video_data->timescale;
-		double    d_rest               = ( d - ( decoder->video_data->timescale * d_seconds ) ) / double( decoder->video_data->timescale );
-		le::Ticks pts_ticks            = std::chrono::seconds( d_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( d_rest ) );
-		decoder_memory_frame->duration = pts_ticks;
-	}
-
-	// record picture order count
-	decoder_memory_frame->pts      = frame_info.timestamp_in_ticks;
-	decoder_memory_frame->duration = frame_info.duration_in_ticks;
-	decoder_memory_frame->poc      = frame_info.deprecated_poc;
-
 	std::deque<le_video_decoder_o::dpb_state_t> dpb_state;
 
 	VkImage rendergraph_dst_image =
@@ -1440,7 +1428,7 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 	            ( BackendFrameData const* )backend_frame_data,
 	            decoder_memory_frame->rendergraph_image_resource );
 
-	if ( frame_info.deprecated_nal_unit_type == 5 ) {
+	if ( frame_info.nal_unit_type == 5 ) {
 		// If this picture has an IDR (immediate decoder reset) flag,
 		// this means that we must delete all previous reference images
 		// logger.warn( "idr frame detected" );
@@ -1686,9 +1674,9 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 			        .FrameNum    = uint16_t( slice_header->frame_num ),                                                               // uint16_t
 			        .reserved    = 0,                                                                                                 // uint16_t
 			        .PicOrderCnt = {
-			            frame_info.deprecated_poc, // top field
-			            frame_info.deprecated_poc, // bottom field
-			        },                             // int32_t[] // pic order count
+			            frame_info.poc, // top field
+			            frame_info.poc, // bottom field
+			        },                  // int32_t[] // pic order count
 			    };
 
 			const VkVideoDecodeH264DpbSlotInfoKHR VK_VIDEO_DECODE_H264_DPB_SLOT_INFO_TEMPLATE =
@@ -1731,12 +1719,12 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 			    .flags = {
 			        .field_pic_flag = uint32_t( slice_header->field_pic_flag ),
 			        .is_intra       = uint32_t(
-			                  frame_info.deprecated_frame_type == FrameType::eFrameTypeIntra ),
-			        .IdrPicFlag               = uint32_t( frame_info.deprecated_nal_unit_type == 5 ), // IdrPicFlag = ( ( nal_unit_type = = 5 ) ? 1 : 0 )"  // ITU-T H.264 Spec
+			                  frame_info.frame_type == FrameType::eFrameTypeIntra ),
+			        .IdrPicFlag               = uint32_t( frame_info.nal_unit_type == 5 ), // IdrPicFlag = ( ( nal_unit_type = = 5 ) ? 1 : 0 )"  // ITU-T H.264 Spec
 			        .bottom_field_flag        = uint32_t( slice_header->field_pic_flag && slice_header->bottom_field_flag ),
-			        .is_reference             = uint32_t( frame_info.deprecated_nal_ref_idc != 0 ), // following vkSpec: "as defined in section 3.136 of the ITU-T H.264 Specification "
-			        .complementary_field_pair = uint32_t( 0 ),                                      // FIXME: see function which calculates field pair in NVIDIA vulkan example
-			    },                                                                                  // StdVideoDecodeH264PictureInfoFlags
+			        .is_reference             = uint32_t( frame_info.nal_ref_idc != 0 ), // following vkSpec: "as defined in section 3.136 of the ITU-T H.264 Specification "
+			        .complementary_field_pair = uint32_t( 0 ),                           // FIXME: see function which calculates field pair in NVIDIA vulkan example
+			    },                                                                       // StdVideoDecodeH264PictureInfoFlags
 			    .seq_parameter_set_id = uint8_t( pps.seq_parameter_set_id ),
 			    .pic_parameter_set_id = uint8_t( slice_header->pic_parameter_set_id ),
 			    .reserved1            = 0,
@@ -1744,9 +1732,9 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 			    .frame_num            = uint16_t( slice_header->frame_num ),
 			    .idr_pic_id           = uint8_t( slice_header->idr_pic_id ),
 			    .PicOrderCnt          = {
-			                 frame_info.deprecated_poc,
-			                 frame_info.deprecated_poc, // make sure this is correct
-			    },                             // int32_t[2]
+			                 frame_info.poc,
+			                 frame_info.poc, // make sure this is correct
+			    },                  // int32_t[2]
 			};
 
 			VkVideoDecodeH264PictureInfoKHR h264_picture_info = {
@@ -2093,7 +2081,7 @@ static void print_frame_state( std::vector<le_video_decoder_o::video_decoder_mem
 	size_t i = 0;
 	logger.info( "* * * * * * * * * * " );
 	for ( auto const& f : frames ) {
-		logger.info( "Memory frame: % 2d -> [% 20s], poc: % 10d, pts: % 10llu", i, state_to_string( f.state ), f.poc, f.pts );
+		logger.info( "Memory frame: % 2d -> [% 20s], poc: % 10d, pts: % 10llu", i, state_to_string( f.state ), f.deprecated_poc, f.ticks_pts );
 		i++;
 	}
 	logger.info( "* * * * * * * * * * " );
@@ -2259,11 +2247,9 @@ static void copy_video_frame( std::ifstream&                                  mp
 
 		frame_num_bytes = track->entry_size[ found_frame_index ];
 
-		// if ( timestamp ) {
-		//	*timestamp = track->timestamp[ found_frame_index ];
-		// }
+		// memory_frame.timestamp = track->timestamp[ found_frame_index ];
 		// if ( duration ) {
-		//	*duration = track->duration[ found_frame_index ];
+		memory_frame->frame_info.duration = track->duration[ found_frame_index ];
 		// }
 
 		assert( mp4_stream_offset == data_frame_deprecated.src_offset );
@@ -2333,6 +2319,9 @@ static void copy_video_frame( std::ifstream&                                  mp
 			h264::read_nal_header( &nal, &bs );
 			// Update slice header and poc, gop data from coded data
 			calculate_frame_info_new( &nal, pps_array, sps_array, &bs, pic_order_count_state, memory_frame->frame_info );
+			// record picture order count
+			memory_frame->ticks_pts      = data_frame_deprecated.timestamp_in_ticks; // presentation time stamp
+			memory_frame->ticks_duration = data_frame_deprecated.duration_in_ticks;  // duration
 
 			memory_frame->gpu_bitstream_used_bytes_count += size;
 		} else {
@@ -2498,8 +2487,8 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 			//
 			// Our current playhead position is the origin - which is why we do an inverse
 			// origin transform here by subtracting to the origin.
-			int64_t frame_ticks_relative_to_playhead = ( total_ticks - delta_ticks + int64_t( f.pts.count() ) ) % total_ticks;
-			int64_t frame_duration                   = f.duration.count();
+			int64_t frame_ticks_relative_to_playhead = ( total_ticks - delta_ticks + int64_t( f.ticks_pts.count() ) ) % total_ticks;
+			int64_t frame_duration                   = f.ticks_duration.count();
 
 			// We want a complement-notation, so that things that are too far away get displayed as negative
 			// instead of high positive. This is useful in case we are looping and the playhead is wrapping around,
@@ -2590,7 +2579,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		if constexpr ( false ) {
 			logger.info( "closest frame: %d, %10ul",
 			             closest_decoded_frame_idx,
-			             self->memory_frames[ closest_decoded_frame_idx ].pts );
+			             self->memory_frames[ closest_decoded_frame_idx ].ticks_pts );
 		}
 	}
 
@@ -2603,7 +2592,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		if ( self->latest_memory_frame_available_for_rendering > -1 ) {
 			logger.info( "current visible frame [%d] poc: % 8d",
 			             self->latest_memory_frame_available_for_rendering,
-			             self->memory_frames[ self->latest_memory_frame_available_for_rendering ].poc );
+			             self->memory_frames[ self->latest_memory_frame_available_for_rendering ].frame_info.poc );
 		}
 	}
 
@@ -2722,7 +2711,7 @@ static le_img_resource_handle le_video_decoder_get_latest_available_frame( le_vi
 	if ( false ) {
 		logger.info( "showing frame: % 2d, % 10d",
 		             self->latest_memory_frame_available_for_rendering,
-		             self->memory_frames[ self->latest_memory_frame_available_for_rendering ].pts );
+		             self->memory_frames[ self->latest_memory_frame_available_for_rendering ].ticks_pts );
 	}
 	// --------| invariant: there is a frame available.
 	return self->memory_frames[ self->latest_memory_frame_available_for_rendering ].rendergraph_image_resource;
@@ -2736,7 +2725,7 @@ bool le_video_decoder_get_latest_available_frame_index( le_video_decoder_o* self
 		return false;
 	}
 	if ( frame_index ) {
-		*frame_index = self->memory_frames[ self->latest_memory_frame_available_for_rendering ].poc;
+		*frame_index = self->memory_frames[ self->latest_memory_frame_available_for_rendering ].frame_info.poc;
 	}
 	// --------| invariant: there is a frame available.
 	return true;
@@ -3066,10 +3055,8 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					info.deprecated_frame_type             = info.info.frame_type;
 					info.deprecated_nal_unit_type          = info.info.nal_unit_type;
 					info.deprecated_nal_ref_idc            = info.info.nal_ref_idc;
-					info.deprecated_poc                    = info.info.poc;
 					info.deprecated_bottom_field_order_cnt = info.info.bottom_field_order_cnt;
 					info.deprecated_top_field_order_cnt    = info.info.top_field_order_cnt;
-					info.deprecated_gop                    = info.info.gop;
 					info.deprecated_display_order          = info.info.display_order;
 
 					info.size = sizeof( h264::nal_start_code ) + size - 4;
@@ -3112,8 +3099,8 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					const le_video_data_h264_t::data_frame_info_t& frameA = video->frames_infos[ a ];
 					const le_video_data_h264_t::data_frame_info_t& frameB = video->frames_infos[ b ];
 
-					uint64_t prioA = ( uint64_t( frameA.deprecated_gop ) << uint64_t( 32 ) ) | uint64_t( frameA.deprecated_poc );
-					uint64_t prioB = ( uint64_t( frameB.deprecated_gop ) << uint64_t( 32 ) ) | uint64_t( frameB.deprecated_poc );
+					uint64_t prioA = ( uint64_t( frameA.info.gop ) << uint64_t( 32 ) ) | uint64_t( frameA.info.poc );
+					uint64_t prioB = ( uint64_t( frameB.info.gop ) << uint64_t( 32 ) ) | uint64_t( frameB.info.poc );
 					return prioA < prioB;
 				} );
 
@@ -3249,8 +3236,8 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 				//
 				// Our current playhead position is the origin - which is why we do an inverse
 				// origin transform here by subtracting to the origin.
-				int64_t frame_ticks_relative_to_playhead = ( total_ticks - delta_ticks + int64_t( f.pts.count() ) ) % total_ticks;
-				int64_t frame_duration                   = f.duration.count();
+				int64_t frame_ticks_relative_to_playhead = ( total_ticks - delta_ticks + int64_t( f.ticks_pts.count() ) ) % total_ticks;
+				int64_t frame_duration                   = f.ticks_duration.count();
 				if ( frame_ticks_relative_to_playhead > total_ticks / 2 ) {
 					frame_ticks_relative_to_playhead -= total_ticks;
 				}
