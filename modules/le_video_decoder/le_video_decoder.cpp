@@ -2093,7 +2093,7 @@ static void print_frame_state( std::vector<le_video_decoder_o::video_decoder_mem
  * (tig) see ITU-T H.264 (08/2021) pp.113
  *
  */
-static void calculate_frame_info_new( h264::NALHeader const*   nal,
+static void calculate_frame_info( h264::NALHeader const*   nal,
                                       h264::PPS const*         pps_array,
                                       h264::SPS const*         sps_array,
                                       h264::Bitstream*         bs,
@@ -2336,7 +2336,7 @@ static void copy_video_frame( std::ifstream&                                  mp
 			bs.init( dst_buffer + sizeof( h264::nal_start_code ), size - 4 );
 			h264::read_nal_header( &nal, &bs );
 			// Update slice header and poc, gop data from coded data
-			calculate_frame_info_new( &nal, pps_array, sps_array, &bs, pic_order_count_state, memory_frame->frame_info );
+			calculate_frame_info( &nal, pps_array, sps_array, &bs, pic_order_count_state, memory_frame->frame_info );
 
 			bool idr_flag = ( nal.type == h264::NAL_UNIT_TYPE::NAL_UNIT_TYPE_CODED_SLICE_IDR ); // (7-1)
 
@@ -2355,8 +2355,6 @@ static void copy_video_frame( std::ifstream&                                  mp
 			            ( frame_duration * memory_frame->frame_info.poc ),
 			        track->timescale );
 
-			// TODO: calculate presentation time stamp
-
 			memory_frame->frame_info.duration_in_timescale_units = frame_duration;
 			memory_frame->ticks_pts                              = pts;                                                     // presentation time stamp
 			memory_frame->ticks_duration                         = video_time_to_ticks( frame_duration, track->timescale ); // duration
@@ -2371,9 +2369,6 @@ static void copy_video_frame( std::ifstream&                                  mp
 
 	// Record picture order count into memory frame - so that
 	// the playhead may pick from the most recent decoded frame.
-
-	// TODO: calculate presentation time stamp based on
-	// gop, poc, and sample durations
 }
 
 // ----------------------------------------------------------------------
