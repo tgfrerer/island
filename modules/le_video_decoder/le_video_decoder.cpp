@@ -2094,11 +2094,11 @@ static void print_frame_state( std::vector<le_video_decoder_o::video_decoder_mem
  *
  */
 static void calculate_frame_info( h264::NALHeader const*   nal,
-                                      h264::PPS const*         pps_array,
-                                      h264::SPS const*         sps_array,
-                                      h264::Bitstream*         bs,
-                                      pic_order_count_state_t* prev,
-                                      frame_info_t&            info ) {
+                                  h264::PPS const*         pps_array,
+                                  h264::SPS const*         sps_array,
+                                  h264::Bitstream*         bs,
+                                  pic_order_count_state_t* prev,
+                                  frame_info_t&            info ) {
 
 	// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
 	h264::SliceHeader* slice_header = &info.slice_header; // TODO: clean this up
@@ -2232,10 +2232,16 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 		info.poc = info.bottom_field_order_cnt;
 	}
 
-	// if constexpr ( false ) {
-	logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
-	             info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
-	//}
+	// FIXME: some videos increment poc by 2 for every frame, some don't,
+	// and there seems to be no really good way to tell.
+	// the only thing we could do is to look at the current group of pictures
+	// and then to sort them by poc.
+	info.poc /= 2;
+
+	if constexpr ( false ) {
+		logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
+		             info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
+	}
 
 	// Accept frame beginning NAL unit:
 	info.nal_ref_idc   = nal->idc;
@@ -2375,7 +2381,7 @@ static void copy_video_frame( std::ifstream&                                  mp
 // Only call this once per app update cycle!
 static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o* rendergraph, uint64_t ticks ) {
 
-	if constexpr ( false ) {
+	if constexpr ( true ) {
 		print_frame_state( self->memory_frames );
 	}
 
@@ -2460,7 +2466,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 
 	int64_t delta_ticks = self->ticks_at_playhead.count();
 
-	if constexpr ( false ) {
+	if constexpr ( true ) {
 		logger.info( "Update. current delta time : %f", std::chrono::duration<double>( self->ticks_at_playhead ).count() );
 		logger.info( "Update. current delta ticks: %d", ( self->ticks_at_playhead ).count() );
 	}
@@ -2616,12 +2622,12 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		}
 	}
 
-	if constexpr ( false ) {
+	if constexpr ( true ) {
 		print_frame_state( self->memory_frames );
 		logger.info( "\n" );
 	}
 
-	if constexpr ( false ) {
+	if constexpr ( true ) {
 		if ( self->latest_memory_frame_available_for_rendering > -1 ) {
 			logger.info( "current visible frame [%d] poc: % 8d",
 			             self->latest_memory_frame_available_for_rendering,
@@ -3186,6 +3192,8 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 	// A: No. We only look at i-frames and i-frames must be in monotonic increasing order - the occurrance
 	//    of an i-frame or a frame with nal_unit_type == 5 (IDR, "immediate decoder reset") causes the dpb
 	//    to clear, this implies that each i-frame marks the beginning of a new sub-sequence of frames.
+
+	self->pic_order_count_state = {}; // reset pic order count state.
 
 	uint64_t  previous_i_frame_idx   = 0;
 	le::Ticks last_i_frame_timestamp = {};
