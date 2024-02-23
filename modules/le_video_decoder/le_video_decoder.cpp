@@ -2139,18 +2139,16 @@ static void calculate_frame_info_new( h264::NALHeader const*   nal,
 			pic_order_cnt_msb = prev->pic_order_cnt_msb;
 		}
 
-		{
-			// Top and bottom field order count in case the picture is a field
-			if ( !slice_header->field_pic_flag || !slice_header->bottom_field_flag ) {
-				info.top_field_order_cnt = pic_order_cnt_msb + pic_order_cnt_lsb;
-			}
-			if ( !slice_header->field_pic_flag ) {
-				info.bottom_field_order_cnt = info.top_field_order_cnt + slice_header->delta_pic_order_cnt_bottom;
-			} else if ( slice_header->bottom_field_flag ) {
-				info.bottom_field_order_cnt = pic_order_cnt_msb + slice_header->pic_order_cnt_lsb;
-			}
+		// Top and bottom field order count in case the picture is a field
+		if ( !slice_header->bottom_field_flag ) {
+			info.top_field_order_cnt = pic_order_cnt_msb + pic_order_cnt_lsb;
 		}
-		info.poc = pic_order_cnt_msb + pic_order_cnt_lsb; // same as top field order count
+		if ( !slice_header->field_pic_flag ) {
+			info.bottom_field_order_cnt = info.top_field_order_cnt + slice_header->delta_pic_order_cnt_bottom;
+		} else {
+			info.bottom_field_order_cnt = pic_order_cnt_msb + slice_header->pic_order_cnt_lsb;
+		}
+
 		info.gop = prev->poc_cycle;
 
 		//  TODO: check for memory management operation command 5
@@ -2192,17 +2190,47 @@ static void calculate_frame_info_new( h264::NALHeader const*   nal,
 			tmp_pic_order_count = 2 * ( frame_num_offset + slice_header->frame_num );
 		}
 
+		// Top and bottom field order count in case the picture is a field
+		//
+		//
+		if ( !slice_header->field_pic_flag ) {
+			// This picture is a frame - we only expect poc to increase in steps of 1
+			//
+			// FIXME: THIS IS A HACK - as the poc will otherwise increase in increments
+			// of 2, we divide the picture order count here so that it increases
+			// in increments of 1... there needs to be a better way to calculate a presentation
+			// time stamp from a presentation order, but unless we first ingest a full
+			// group of pictures (== anything between two IDR frames) at a time, and then
+			// associate time stamps to each frame, we must use a hack like this.
+			info.top_field_order_cnt    = tmp_pic_order_count / 2;
+			info.bottom_field_order_cnt = tmp_pic_order_count / 2;
+		} else if ( slice_header->bottom_field_flag ) {
+			info.bottom_field_order_cnt = tmp_pic_order_count;
+		} else {
+			info.top_field_order_cnt = tmp_pic_order_count;
+		}
+
 		// (tig) we don't care about bottom or top fields as we assume progressive
 		// if it were otherwise, for interleaved either the top or the bottom
 		// field shall be set - depending on whether the current picture is the
 		// top or the bottom field as indicated by bottom_field_flag
-		info.poc = tmp_pic_order_count;
 		if ( tmp_pic_order_count == 0 ) {
 			prev->poc_cycle++;
 		}
 		info.gop = prev->poc_cycle;
 
 		break;
+	}
+
+	if ( !slice_header->field_pic_flag ) {
+		// not a field pic - that means we assume the picture is a frame (it does not consist of bottom and top field)
+		info.poc = std::min( info.top_field_order_cnt, info.bottom_field_order_cnt );
+	} else if ( !slice_header->bottom_field_flag ) {
+		info.poc = info.top_field_order_cnt;
+		// top field
+	} else {
+		// bottom field
+		info.poc = info.bottom_field_order_cnt;
 	}
 
 	logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
@@ -2335,7 +2363,7 @@ static void copy_video_frame( std::ifstream&                                  mp
 			//
 			le::Ticks pts =
 			    video_time_to_ticks(
-			        ( *last_i_frame_timestamp ) + ( frame_duration * memory_frame->frame_info.poc / 2 ), track->timescale );
+			        ( *last_i_frame_timestamp ) + ( frame_duration * memory_frame->frame_info.poc ), track->timescale );
 
 			// record picture order count
 
