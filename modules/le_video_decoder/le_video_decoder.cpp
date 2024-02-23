@@ -1393,8 +1393,10 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 
 	uint32_t dpb_target_slot_idx = decoder->dpb_target_slot_idx;
 
-	h264::SliceHeader* slice_header = ( h264::SliceHeader* )( decoder->video_data->slice_header_bytes.data() ) + decoded_frame_index;
-	auto&              frame_info   = decoder->video_data->frames_infos[ decoded_frame_index ];
+	auto& frame_info = decoder->video_data->frames_infos[ decoded_frame_index ];
+
+	// use slice header from frame instead
+	h264::SliceHeader const* slice_header = &decoder_memory_frame->frame_info.slice_header;
 
 	auto pps_array = ( h264::PPS* )decoder->video_data->pps_bytes.data();
 	auto sps_array = ( h264::SPS* )decoder->video_data->sps_bytes.data();
@@ -2211,7 +2213,9 @@ static void calculate_frame_info_new( h264::NALHeader const*   nal,
 	info.nal_ref_idc   = nal->idc;
 	info.nal_unit_type = nal->type;
 };
+
 // ----------------------------------------------------------------------
+
 static void copy_video_frame( std::ifstream&                                  mp4_filestream,
                               le_video_decoder_o::video_decoder_memory_frame* memory_frame,
                               le_video_data_h264_t::data_frame_info_t const&  data_frame_deprecated, /* get rid of this */
@@ -2220,6 +2224,7 @@ static void copy_video_frame( std::ifstream&                                  mp
                               pic_order_count_state_t*                        pic_order_count_state,
                               h264::SPS const*                                sps_array,
                               h264::PPS const*                                pps_array ) {
+
 	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_used_bytes_count;
 	// const uint8_t* src_buffer  = src_bytes + data_frame.src_offset;
 	uint64_t mp4_stream_offset = data_frame_deprecated.src_offset;
@@ -2261,7 +2266,6 @@ static void copy_video_frame( std::ifstream&                                  mp
 
 		// NOTE: The initial 4 bytes containing the frame size info will not be copied over to the dst frame.
 		//
-
 		// NOTE: It's important to keep src_buffer as uint8_t, otherwise signed
 		// char will mess up the endianness transform (you might end up with
 		// negative values)
