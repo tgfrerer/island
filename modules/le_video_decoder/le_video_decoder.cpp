@@ -3129,16 +3129,22 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					// ----------| Invariant: Frame is either of type eFrameTypeIntra or eFrameTypePredictive
 
 					h264::SliceHeader* slice_header = ( h264::SliceHeader* )video->slice_header_bytes.data() + sample_idx;
-					*slice_header                   = {};
+					// *slice_header                   = {};
 
-					calculate_frame_info( &nal, slice_header, pps_array, sps_array, &bs, &pic_order_count_state, info );
-
-					bs.init( &src_buffer[ 4 ], frame_bytes - 4 );
-					h264::read_nal_header( &nal, &bs );
+					// calculate_frame_info( &nal, slice_header, pps_array, sps_array, &bs, &pic_order_count_state, info );
 
 					calculate_frame_info_new( &nal, pps_array, sps_array, &bs, &pic_order_count_state, info.info );
 
-					// *slice_header = info.info.slice_header;
+					// TODO: remove this once we have finished the refactor
+					*slice_header                          = info.info.slice_header;
+					info.deprecated_frame_type             = info.info.frame_type;
+					info.deprecated_nal_unit_type          = info.info.nal_unit_type;
+					info.deprecated_nal_ref_idc            = info.info.nal_ref_idc;
+					info.deprecated_poc                    = info.info.poc;
+					info.deprecated_bottom_field_order_cnt = info.info.bottom_field_order_cnt;
+					info.deprecated_top_field_order_cnt    = info.info.top_field_order_cnt;
+					info.deprecated_gop                    = info.info.gop;
+					info.deprecated_display_order          = info.info.display_order;
 
 					info.size = sizeof( h264::nal_start_code ) + size - 4;
 					break;
