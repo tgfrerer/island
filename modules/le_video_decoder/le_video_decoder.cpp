@@ -2245,7 +2245,6 @@ static void calculate_frame_info_new( h264::NALHeader const*   nal,
 
 static void copy_video_frame( std::ifstream&                                  mp4_filestream,
                               le_video_decoder_o::video_decoder_memory_frame* memory_frame,
-                              le_video_data_h264_t::data_frame_info_t const&  data_frame_deprecated, /* get rid of this */
                               size_t                                          sample_index,
                               MP4D_track_t*                                   track,
                               pic_order_count_state_t*                        pic_order_count_state,
@@ -2254,15 +2253,15 @@ static void copy_video_frame( std::ifstream&                                  mp
                               size_t*                                         last_i_frame_timestamp ) {
 
 	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_used_bytes_count;
-	// const uint8_t* src_buffer  = src_bytes + data_frame.src_offset;
-	uint64_t mp4_stream_offset = data_frame_deprecated.src_offset;
-	uint64_t frame_num_bytes   = data_frame_deprecated.src_frame_bytes;
+
+	uint64_t mp4_stream_offset = 0;
+	uint64_t frame_num_bytes   = 0;
 	uint64_t frame_timestamp   = 0;
 	uint64_t frame_duration    = 0;
-	if ( true ) {
 
-		// DONE: Calculate offset and frame size via mp4 track information
-
+	{
+		// Calculate position into file (or stream) for current frame
+		//
 		unsigned found_frame_index;
 		int      nchunk = sample_to_chunk( track, sample_index, &found_frame_index ); // imported via minimp4
 
@@ -2277,13 +2276,8 @@ static void copy_video_frame( std::ifstream&                                  mp
 		}
 
 		frame_num_bytes = track->entry_size[ found_frame_index ];
-
 		frame_timestamp = track->timestamp[ found_frame_index ];
-
-		frame_duration = track->duration[ found_frame_index ];
-
-		assert( mp4_stream_offset == data_frame_deprecated.src_offset );
-		assert( frame_num_bytes == data_frame_deprecated.src_frame_bytes );
+		frame_duration  = track->duration[ found_frame_index ];
 	}
 
 	mp4_filestream.seekg( mp4_stream_offset, std::ios_base::beg );
@@ -2325,13 +2319,6 @@ static void copy_video_frame( std::ifstream&                                  mp
 			continue;
 		}
 
-		// if ( nal.type != h264::NAL_UNIT_TYPE_CODED_SLICE_IDR &&
-		//      nal.type != h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
-		// 	frame_num_bytes -= size;
-		// 	mp4_filestream.seekg( size - 4, std::ios_base::cur );
-		// 	continue;
-		// }
-
 		// we should parse frame information here - and place
 		// header info into the current frame so that it will be available when we
 		// hand the frame over to the gpu for encoding.
@@ -2363,25 +2350,17 @@ static void copy_video_frame( std::ifstream&                                  mp
 			//
 			le::Ticks pts =
 			    video_time_to_ticks(
-			        ( *last_i_frame_timestamp ) + ( frame_duration * memory_frame->frame_info.poc ), track->timescale );
-
-			// record picture order count
+			        ( *last_i_frame_timestamp ) +
+			            ( frame_duration * memory_frame->frame_info.poc ),
+			        track->timescale );
 
 			// TODO: calculate presentation time stamp
 
 			memory_frame->frame_info.duration = frame_duration;
-			memory_frame->ticks_pts           = pts; // presentation time stamp
-			// memory_frame->ticks_pts           = data_frame_deprecated.timestamp_in_ticks;                // presentation time stamp
-			memory_frame->ticks_duration = video_time_to_ticks( frame_duration, track->timescale ); // duration
-
-			uint64_t ticks_count_cached = data_frame_deprecated.timestamp_in_ticks.count();
-			uint64_t ticks_calculated   = pts.count();
-
-			if ( ticks_calculated != ticks_count_cached ) {
-				logger.warn( "ticks do not match. cached: % 10d != % 10d", ticks_count_cached, ticks_calculated );
-			}
-
+			memory_frame->ticks_pts           = pts;                                                     // presentation time stamp
+			memory_frame->ticks_duration      = video_time_to_ticks( frame_duration, track->timescale ); // duration
 			memory_frame->gpu_bitstream_used_bytes_count += size;
+
 		} else {
 			logger.error( "Cannot copy frame data into frame bitstream - out of memory. Frame capacity: %d, frame current size %d, extra size: %d",
 			              memory_frame->gpu_bitstream_capacity, memory_frame->gpu_bitstream_used_bytes_count, size );
@@ -2680,7 +2659,6 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		copy_video_frame(
 		    self->mp4_filestream,
 		    &recording_memory_frame,
-		    self->video_data->frames_infos[ recording_memory_frame.decoded_frame_index ],
 		    recording_memory_frame.decoded_frame_index,
 		    &self->mp4_demux.track[ 0 ], // FIXME: we should not hardcode the track index here
 		    &self->pic_order_count_state,
