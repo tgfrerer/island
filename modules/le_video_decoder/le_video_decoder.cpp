@@ -119,6 +119,7 @@ struct frame_info_t {
 };
 
 struct le_video_data_h264_t {
+	uint32_t             video_track_id = 0; // index of video track in mp4_demux->tracks
 	std::string          title;
 	std::string          album;
 	std::string          artist;
@@ -300,7 +301,8 @@ struct le_video_decoder_o {
 
 	std::ifstream mp4_filestream;
 	MP4D_demux_t  mp4_demux;
-	size_t        last_i_frame_timestamp; // FIXME: this is decoder state, we should place this somewhere better, ideally
+
+	size_t last_i_frame_timestamp; // FIXME: this is decoder state, we should place this somewhere better, ideally
 
 	// video bitstream buffer - this is what the gpu reads, and the cpu writes to
 	le_video_gpu_bitstream_buffer_t gpu_bitstream_buffer{};
@@ -2656,7 +2658,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		    self->mp4_filestream,
 		    &recording_memory_frame,
 		    recording_memory_frame.decoded_frame_index,
-		    &self->mp4_demux.track[ 0 ], // FIXME: we should not hardcode the track index here
+		    &self->mp4_demux.track[ self->video_data->video_track_id ],
 		    &self->pic_order_count_state,
 		    ( h264::SPS* )self->video_data->sps_bytes.data(),
 		    ( h264::PPS* )self->video_data->pps_bytes.data(),
@@ -2919,7 +2921,8 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 			switch ( track.object_type_indication ) {
 			case MP4_OBJECT_TYPE_AVC:
 				// all good
-				video->video_profile = le_video_data_h264_t::VideoProfile::VideoProfileAvc;
+				video->video_profile  = le_video_data_h264_t::VideoProfile::VideoProfileAvc;
+				video->video_track_id = ntrack;
 				break;
 			case MP4_OBJECT_TYPE_HEVC:
 				logger.error( "h.265 (HEVC) is not yet implemented for decode." );
