@@ -280,11 +280,15 @@ struct le_video_decoder_o {
 		size_t   gpu_bitstream_used_bytes_count; ///< used bytes for this slice
 		uint8_t* gpu_bitstream_slice_mapped_memory_address = nullptr;
 		size_t   decoded_frame_index; ///< index of this frame in the video stream
+
+		frame_info_t frame_info;
 	};
 
 	std::vector<video_decoder_memory_frame> memory_frames;
 	int32_t                                 memory_frame_idx_recording                  = -1; ///< index of memory frame that is currently recording (currently active in the execute callback)
 	int32_t                                 latest_memory_frame_available_for_rendering = -1; // -1 means none.
+
+	pic_order_count_state_t pic_order_count_state = {}; // current pic order count state FIXME: what happens to this when we seek, or rewind?
 
 	struct dpb_image_array_t {
 		VkImage           image;      // this is an array image
@@ -2082,14 +2086,140 @@ static void print_frame_state( std::vector<le_video_decoder_o::video_decoder_mem
 	}
 	logger.info( "* * * * * * * * * * " );
 };
-// ----------------------------------------------------------------------
 
+// ----------------------------------------------------------------------
+/*
+ * Decode Picture Order Count
+ * (tig) see ITU-T H.264 (08/2021) pp.113
+ *
+ */
+static void calculate_frame_info_new( h264::NALHeader const*   nal,
+                                      h264::PPS const*         pps_array,
+                                      h264::SPS const*         sps_array,
+                                      h264::Bitstream*         bs,
+                                      pic_order_count_state_t* prev,
+                                      frame_info_t&            info ) {
+
+	// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
+	h264::SliceHeader* slice_header = &info.slice_header; // TODO: clean this up
+	h264::read_slice_header( slice_header, nal, pps_array, sps_array, bs );
+
+	const h264::PPS& pps = pps_array[ slice_header->pic_parameter_set_id ];
+	const h264::SPS& sps = sps_array[ pps.seq_parameter_set_id ];
+
+	uint32_t max_frame_num         = uint32_t( 1 ) << uint32_t( ( sps.log2_max_frame_num_minus4 + 4 ) );
+	int      max_pic_order_cnt_lsb = 1 << ( sps.log2_max_pic_order_cnt_lsb_minus4 + 4 );
+	int      pic_order_cnt_lsb     = slice_header->pic_order_cnt_lsb;
+	int      pic_order_cnt_msb     = 0;
+
+	// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
+	bool idr_flag = ( nal->type == h264::NAL_UNIT_TYPE::NAL_UNIT_TYPE_CODED_SLICE_IDR ); // (7-1)
+
+	switch ( sps.pic_order_cnt_type ) {
+
+	case 0: {
+		// TYPE 0
+		// Rec. ITU-T H.264 (08/2021) page 114
+
+		if ( idr_flag ) {
+			prev->pic_order_cnt_msb = 0;
+			prev->pic_order_cnt_lsb = 0;
+			prev->poc_cycle++;
+		}
+
+		if ( ( pic_order_cnt_lsb < prev->pic_order_cnt_lsb ) &&
+		     ( prev->pic_order_cnt_lsb - pic_order_cnt_lsb ) >= max_pic_order_cnt_lsb / 2 ) {
+			pic_order_cnt_msb = prev->pic_order_cnt_msb + max_pic_order_cnt_lsb;
+		} else if (
+		    ( pic_order_cnt_lsb > prev->pic_order_cnt_lsb ) &&
+		    ( pic_order_cnt_lsb - prev->pic_order_cnt_lsb ) > max_pic_order_cnt_lsb / 2 ) {
+			pic_order_cnt_msb = prev->pic_order_cnt_msb - max_pic_order_cnt_lsb;
+		} else {
+			pic_order_cnt_msb = prev->pic_order_cnt_msb;
+		}
+
+		{
+			// Top and bottom field order count in case the picture is a field
+			if ( !slice_header->field_pic_flag || !slice_header->bottom_field_flag ) {
+				info.top_field_order_cnt = pic_order_cnt_msb + pic_order_cnt_lsb;
+			}
+			if ( !slice_header->field_pic_flag ) {
+				info.bottom_field_order_cnt = info.top_field_order_cnt + slice_header->delta_pic_order_cnt_bottom;
+			} else if ( slice_header->bottom_field_flag ) {
+				info.bottom_field_order_cnt = pic_order_cnt_msb + slice_header->pic_order_cnt_lsb;
+			}
+		}
+		info.poc = pic_order_cnt_msb + pic_order_cnt_lsb; // same as top field order count
+		info.gop = prev->poc_cycle;
+
+		// logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
+		//              info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev_pic_order_cnt_msb, prev_pic_order_cnt_lsb );
+
+		//  TODO: check for memory management operation command 5
+
+		if ( nal->idc != 0 ) {
+			prev->pic_order_cnt_msb = pic_order_cnt_msb;
+			prev->pic_order_cnt_lsb = pic_order_cnt_lsb;
+		}
+		break;
+	}
+
+	case 1: {
+		// TYPE 1
+		assert( false && "not implemented" );
+		break;
+	}
+	case 2:
+		// TYPE 2
+		int frame_num_offset = 0;
+
+		if ( idr_flag ) {
+			frame_num_offset = 0;
+		} else if ( prev->frame_num > slice_header->frame_num ) {
+			frame_num_offset = prev->frame_offset + max_frame_num;
+		} else {
+			frame_num_offset = prev->frame_offset;
+		}
+
+		prev->frame_offset = frame_num_offset;
+		prev->frame_num    = slice_header->frame_num;
+
+		int tmp_pic_order_count = 0;
+
+		if ( idr_flag ) {
+			tmp_pic_order_count = 0;
+		} else if ( nal->idc == h264::NAL_REF_IDC( 0 ) ) {
+			tmp_pic_order_count = 2 * ( frame_num_offset + slice_header->frame_num ) - 1;
+		} else {
+			tmp_pic_order_count = 2 * ( frame_num_offset + slice_header->frame_num );
+		}
+
+		// (tig) we don't care about bottom or top fields as we assume progressive
+		// if it were otherwise, for interleaved either the top or the bottom
+		// field shall be set - depending on whether the current picture is the
+		// top or the bottom field as indicated by bottom_field_flag
+		info.poc = tmp_pic_order_count;
+		if ( tmp_pic_order_count == 0 ) {
+			prev->poc_cycle++;
+		}
+		info.gop = prev->poc_cycle;
+
+		break;
+	}
+
+	// Accept frame beginning NAL unit:
+	info.nal_ref_idc   = nal->idc;
+	info.nal_unit_type = nal->type;
+};
+// ----------------------------------------------------------------------
 static void copy_video_frame( std::ifstream&                                  mp4_filestream,
                               le_video_decoder_o::video_decoder_memory_frame* memory_frame,
                               le_video_data_h264_t::data_frame_info_t const&  data_frame_deprecated, /* get rid of this */
                               size_t                                          sample_index,
-                              MP4D_track_t*                                   track ) {
-
+                              MP4D_track_t*                                   track,
+                              pic_order_count_state_t*                        pic_order_count_state,
+                              h264::SPS const*                                sps_array,
+                              h264::PPS const*                                pps_array ) {
 	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_used_bytes_count;
 	// const uint8_t* src_buffer  = src_bytes + data_frame.src_offset;
 	uint64_t mp4_stream_offset = data_frame_deprecated.src_offset;
@@ -2154,24 +2284,41 @@ static void copy_video_frame( std::ifstream&                                  mp
 		h264::read_nal_header( &nal, &bs );
 
 		// Skip over any frame data that is not idr slice or non-idr slice
-		if ( nal.type != h264::NAL_UNIT_TYPE_CODED_SLICE_IDR &&
-		     nal.type != h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
+		if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_IDR ) {
+			memory_frame->frame_info.frame_type = FrameType::eFrameTypeIntra;
+		} else if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
+			memory_frame->frame_info.frame_type = FrameType::eFrameTypePredictive;
+		} else {
+			// Continue search for frame beginning NAL unit:
 			frame_num_bytes -= size;
 			mp4_filestream.seekg( size - 4, std::ios_base::cur );
 			continue;
 		}
 
+		// if ( nal.type != h264::NAL_UNIT_TYPE_CODED_SLICE_IDR &&
+		//      nal.type != h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
+		// 	frame_num_bytes -= size;
+		// 	mp4_filestream.seekg( size - 4, std::ios_base::cur );
+		// 	continue;
+		// }
+
 		// we should parse frame information here - and place
 		// header info into the current frame so that it will be available when we
 		// hand the frame over to the gpu for encoding.
 		//
+		// ----------| Invariant: Frame is either of type eFrameTypeIntra or eFrameTypePredictive
 
-		// TODO: find out what information will be needed for decoding
-		// and then extract it here
+		memory_frame->frame_info.slice_header = {};
 
-		if ( memory_frame->gpu_bitstream_used_bytes_count + size <= memory_frame->gpu_bitstream_capacity ) {
+		if ( memory_frame->gpu_bitstream_used_bytes_count + ( size - 4 ) + sizeof( h264::nal_start_code ) <= memory_frame->gpu_bitstream_capacity ) {
 			memcpy( dst_buffer, h264::nal_start_code, sizeof( h264::nal_start_code ) );
 			mp4_filestream.read( ( char* )( dst_buffer + sizeof( h264::nal_start_code ) ), size - 4 );
+
+			// Init byte stream to the full size of whatever we copied to the gpu
+			bs.init( dst_buffer + sizeof( h264::nal_start_code ), size - 4 );
+			// Update slice header and poc, gop data from coded data
+			calculate_frame_info_new( &nal, pps_array, sps_array, &bs, pic_order_count_state, memory_frame->frame_info );
+
 			memory_frame->gpu_bitstream_used_bytes_count += size;
 		} else {
 			logger.error( "Cannot copy frame data into frame bitstream - out of memory. Frame capacity: %d, frame current size %d, extra size: %d",
@@ -2468,9 +2615,15 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		// Here, we want to upload the data for the currently recorded frame to the bitstream.
 		// we can do this without invoking any vulkan commands as the memory is mapped.
 
-		copy_video_frame( self->mp4_filestream, &recording_memory_frame,
-		                  self->video_data->frames_infos[ recording_memory_frame.decoded_frame_index ],
-		                  recording_memory_frame.decoded_frame_index, &self->mp4_demux.track[ 0 ] ); // FIXME: we should not hardcode the track index here
+		copy_video_frame(
+		    self->mp4_filestream,
+		    &recording_memory_frame,
+		    self->video_data->frames_infos[ recording_memory_frame.decoded_frame_index ],
+		    recording_memory_frame.decoded_frame_index,
+		    &self->mp4_demux.track[ 0 ], // FIXME: we should not hardcode the track index here
+		    &self->pic_order_count_state,
+		    ( h264::SPS* )self->video_data->sps_bytes.data(),
+		    ( h264::PPS* )self->video_data->pps_bytes.data() );
 
 		// align memory for good measure
 		recording_memory_frame.gpu_bitstream_used_bytes_count =
@@ -2662,6 +2815,8 @@ static std::vector<uint8_t> load_file( const std::filesystem::path& file_path, b
 	return contents;
 }
 
+// ----------------------------------------------------------------------
+
 static void calculate_frame_info( h264::NALHeader const*                   nal,
                                   h264::SliceHeader*                       slice_header,
                                   h264::PPS const*                         pps_array,
@@ -2778,130 +2933,6 @@ static void calculate_frame_info( h264::NALHeader const*                   nal,
 	// Accept frame beginning NAL unit:
 	info.deprecated_nal_ref_idc   = nal->idc;
 	info.deprecated_nal_unit_type = nal->type;
-};
-// ----------------------------------------------------------------------
-/*
- * Decode Picture Order Count
- * (tig) see ITU-T H.264 (08/2021) pp.113
- *
- */
-static void calculate_frame_info_new( h264::NALHeader const*   nal,
-                                      h264::PPS const*         pps_array,
-                                      h264::SPS const*         sps_array,
-                                      h264::Bitstream*         bs,
-                                      pic_order_count_state_t* prev,
-                                      frame_info_t&            info ) {
-
-	// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
-	h264::SliceHeader* slice_header = &info.slice_header; // TODO: clean this up
-	h264::read_slice_header( slice_header, nal, pps_array, sps_array, bs );
-
-	const h264::PPS& pps = pps_array[ slice_header->pic_parameter_set_id ];
-	const h264::SPS& sps = sps_array[ pps.seq_parameter_set_id ];
-
-	uint32_t max_frame_num         = uint32_t( 1 ) << uint32_t( ( sps.log2_max_frame_num_minus4 + 4 ) );
-	int      max_pic_order_cnt_lsb = 1 << ( sps.log2_max_pic_order_cnt_lsb_minus4 + 4 );
-	int      pic_order_cnt_lsb     = slice_header->pic_order_cnt_lsb;
-	int      pic_order_cnt_msb     = 0;
-
-	// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
-	bool idr_flag = ( nal->type == h264::NAL_UNIT_TYPE::NAL_UNIT_TYPE_CODED_SLICE_IDR ); // (7-1)
-
-	switch ( sps.pic_order_cnt_type ) {
-
-	case 0: {
-		// TYPE 0
-		// Rec. ITU-T H.264 (08/2021) page 114
-
-		if ( idr_flag ) {
-			prev->pic_order_cnt_msb = 0;
-			prev->pic_order_cnt_lsb = 0;
-			prev->poc_cycle++;
-		}
-
-		if ( ( pic_order_cnt_lsb < prev->pic_order_cnt_lsb ) &&
-		     ( prev->pic_order_cnt_lsb - pic_order_cnt_lsb ) >= max_pic_order_cnt_lsb / 2 ) {
-			pic_order_cnt_msb = prev->pic_order_cnt_msb + max_pic_order_cnt_lsb;
-		} else if (
-		    ( pic_order_cnt_lsb > prev->pic_order_cnt_lsb ) &&
-		    ( pic_order_cnt_lsb - prev->pic_order_cnt_lsb ) > max_pic_order_cnt_lsb / 2 ) {
-			pic_order_cnt_msb = prev->pic_order_cnt_msb - max_pic_order_cnt_lsb;
-		} else {
-			pic_order_cnt_msb = prev->pic_order_cnt_msb;
-		}
-
-		{
-			// Top and bottom field order count in case the picture is a field
-			if ( !slice_header->field_pic_flag || !slice_header->bottom_field_flag ) {
-				info.top_field_order_cnt = pic_order_cnt_msb + pic_order_cnt_lsb;
-			}
-			if ( !slice_header->field_pic_flag ) {
-				info.bottom_field_order_cnt = info.top_field_order_cnt + slice_header->delta_pic_order_cnt_bottom;
-			} else if ( slice_header->bottom_field_flag ) {
-				info.bottom_field_order_cnt = pic_order_cnt_msb + slice_header->pic_order_cnt_lsb;
-			}
-		}
-		info.poc = pic_order_cnt_msb + pic_order_cnt_lsb; // same as top field order count
-		info.gop = prev->poc_cycle;
-
-		// logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
-		//              info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev_pic_order_cnt_msb, prev_pic_order_cnt_lsb );
-
-		//  TODO: check for memory management operation command 5
-
-		if ( nal->idc != 0 ) {
-			prev->pic_order_cnt_msb = pic_order_cnt_msb;
-			prev->pic_order_cnt_lsb = pic_order_cnt_lsb;
-		}
-		break;
-	}
-
-	case 1: {
-		// TYPE 1
-		assert( false && "not implemented" );
-		break;
-	}
-	case 2:
-		// TYPE 2
-		int frame_num_offset = 0;
-
-		if ( idr_flag ) {
-			frame_num_offset = 0;
-		} else if ( prev->frame_num > slice_header->frame_num ) {
-			frame_num_offset = prev->frame_offset + max_frame_num;
-		} else {
-			frame_num_offset = prev->frame_offset;
-		}
-
-		prev->frame_offset = frame_num_offset;
-		prev->frame_num    = slice_header->frame_num;
-
-		int tmp_pic_order_count = 0;
-
-		if ( idr_flag ) {
-			tmp_pic_order_count = 0;
-		} else if ( nal->idc == h264::NAL_REF_IDC( 0 ) ) {
-			tmp_pic_order_count = 2 * ( frame_num_offset + slice_header->frame_num ) - 1;
-		} else {
-			tmp_pic_order_count = 2 * ( frame_num_offset + slice_header->frame_num );
-		}
-
-		// (tig) we don't care about bottom or top fields as we assume progressive
-		// if it were otherwise, for interleaved either the top or the bottom
-		// field shall be set - depending on whether the current picture is the
-		// top or the bottom field as indicated by bottom_field_flag
-		info.poc = tmp_pic_order_count;
-		if ( tmp_pic_order_count == 0 ) {
-			prev->poc_cycle++;
-		}
-		info.gop = prev->poc_cycle;
-
-		break;
-	}
-
-	// Accept frame beginning NAL unit:
-	info.nal_ref_idc   = nal->idc;
-	info.nal_unit_type = nal->type;
 };
 
 // ----------------------------------------------------------------------
