@@ -2152,8 +2152,8 @@ static void calculate_frame_info_new( h264::NALHeader const*   nal,
 		info.poc = pic_order_cnt_msb + pic_order_cnt_lsb; // same as top field order count
 		info.gop = prev->poc_cycle;
 
-		// logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
-		//              info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev_pic_order_cnt_msb, prev_pic_order_cnt_lsb );
+		logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
+		             info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
 
 		//  TODO: check for memory management operation command 5
 
@@ -2316,6 +2316,7 @@ static void copy_video_frame( std::ifstream&                                  mp
 
 			// Init byte stream to the full size of whatever we copied to the gpu
 			bs.init( dst_buffer + sizeof( h264::nal_start_code ), size - 4 );
+			h264::read_nal_header( &nal, &bs );
 			// Update slice header and poc, gop data from coded data
 			calculate_frame_info_new( &nal, pps_array, sps_array, &bs, pic_order_count_state, memory_frame->frame_info );
 
