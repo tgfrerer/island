@@ -160,7 +160,6 @@ struct le_video_data_h264_t {
 		le::Ticks timestamp_in_ticks;
 		le::Ticks duration_in_ticks;
 
-
 		frame_info_t info; // frame info (contains slice header)
 	};
 	uint64_t                       max_memory_frame_size_bytes; // max required size to capture one frame of data - this needs to be aligned!
@@ -319,10 +318,16 @@ using MemoryFrameState    = le_video_decoder_o::video_decoder_memory_frame::Stat
 
 // ----------------------------------------------------------------------
 
-static uint64_t video_time_to_ticks_count( uint64_t video_time_units, uint64_t time_scale ) {
+static le::Ticks video_time_to_ticks( uint64_t video_time_units, uint64_t time_scale ) {
 	uint64_t full_seconds = video_time_units / time_scale;
 	double   tu_rest      = ( video_time_units - ( time_scale * full_seconds ) ) / double( time_scale );
-	return ( std::chrono::seconds( full_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( tu_rest ) ) ).count();
+	return ( std::chrono::seconds( full_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( tu_rest ) ) );
+}
+
+// ----------------------------------------------------------------------
+
+static uint64_t video_time_to_ticks_count( uint64_t video_time_units, uint64_t time_scale ) {
+	return video_time_to_ticks( video_time_units, time_scale ).count();
 }
 
 // ----------------------------------------------------------------------
@@ -2313,9 +2318,13 @@ static void copy_video_frame( std::ifstream&                                  mp
 			h264::read_nal_header( &nal, &bs );
 			// Update slice header and poc, gop data from coded data
 			calculate_frame_info_new( &nal, pps_array, sps_array, &bs, pic_order_count_state, memory_frame->frame_info );
+
 			// record picture order count
-			memory_frame->ticks_pts      = data_frame_deprecated.timestamp_in_ticks; // presentation time stamp
-			memory_frame->ticks_duration = data_frame_deprecated.duration_in_ticks;  // duration
+
+			// TODO: calculate presentation time stamp
+
+			memory_frame->ticks_pts      = data_frame_deprecated.timestamp_in_ticks;                                   // presentation time stamp
+			memory_frame->ticks_duration = video_time_to_ticks( memory_frame->frame_info.duration, track->timescale ); // duration
 
 			memory_frame->gpu_bitstream_used_bytes_count += size;
 		} else {
@@ -3225,7 +3234,7 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 				// Our current playhead position is the origin - which is why we do an inverse
 				// origin transform here by subtracting to the origin.
 				int64_t frame_ticks_relative_to_playhead = ( total_ticks - delta_ticks + int64_t( f.ticks_pts.count() ) ) % total_ticks;
-				int64_t frame_duration                   = f.ticks_duration.count();
+
 				if ( frame_ticks_relative_to_playhead > total_ticks / 2 ) {
 					frame_ticks_relative_to_playhead -= total_ticks;
 				}
