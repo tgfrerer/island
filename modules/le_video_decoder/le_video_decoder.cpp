@@ -120,6 +120,7 @@ struct frame_info_t {
 
 struct le_video_data_h264_t {
 	uint32_t             video_track_id = 0; // index of video track in mp4_demux->tracks
+	uint64_t             num_frames     = 0;
 	std::string          title;
 	std::string          album;
 	std::string          artist;
@@ -2231,8 +2232,10 @@ static void calculate_frame_info_new( h264::NALHeader const*   nal,
 		info.poc = info.bottom_field_order_cnt;
 	}
 
+	// if constexpr ( false ) {
 	logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
 	             info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
+	//}
 
 	// Accept frame beginning NAL unit:
 	info.nal_ref_idc   = nal->idc;
@@ -2721,7 +2724,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 			le_renderer_api_i->le_rendergraph_i.add_on_frame_clear_callbacks( rg, &callback_data, 1 );
 		}
 
-		self->current_decoded_frame = ( self->current_decoded_frame + 1 ) % self->video_data->frames_infos.size();
+		self->current_decoded_frame = ( self->current_decoded_frame + 1 ) % self->video_data->num_frames;
 
 	} else if ( self->playback_state == le_video_decoder_o::eInitial ) {
 		// in case the player was only just initialized,
@@ -2861,19 +2864,6 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 	int         spspps_bytes;
 	const void* spspps;
 
-	// we're initially following this file:
-	// https://github.com/turanszkij/WickedEngine/blob/df906ed231071947ff20f8fa7503e5c6b6c2b7c1/WickedEngine/wiVideo.cpp#L176
-
-	/*
-	 *
-	 * For now, we read the demuxed data into the video object.
-	 * Later, we might direcly want to map it into gpu memory.
-	 *
-	 * We might also keep the option open to stream the data, so that
-	 * it becomes possible to deal with data that is not completely
-	 * preloaded. This will also be more efficient in terms of memory.
-	 *
-	 */
 	struct read_callback_user_data_t {
 		std::ifstream* stream;
 		size_t         last_offset; // last absolute offset given in bytes.
@@ -2923,6 +2913,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 				// all good
 				video->video_profile  = le_video_data_h264_t::VideoProfile::VideoProfileAvc;
 				video->video_track_id = ntrack;
+				video->num_frames     = track.sample_count;
 				break;
 			case MP4_OBJECT_TYPE_HEVC:
 				logger.error( "h.265 (HEVC) is not yet implemented for decode." );
@@ -2999,8 +2990,6 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 			video->bit_rate  = track.avg_bitrate_bps;
 			video->timescale = track.timescale;
 
-			// std::chrono::duration<uint64_t, std::ratio<1, 90000>>();
-
 			// track timescale is given as fraction of one second
 			double timescale_rcp = 1.0 / double( track.timescale );
 
@@ -3010,109 +2999,112 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 			video->slice_header_bytes.reserve( track.sample_count * sizeof( h264::SliceHeader ) );
 			video->slice_header_count = track.sample_count;
 
-			uint32_t track_duration       = 0;
+			uint64_t track_duration       = track.timestamp[ track.sample_count - 1 ] + track.duration[ track.sample_count - 1 ];
 			uint64_t max_frame_size_bytes = 0;
 			uint64_t input_file_position  = 0;         // current position in input file
 			input_file.seekg( 0, std::ios_base::beg ); // return file position to 0
 
-			// TODO: Ideally, we would be doing all this only on-demand, and we would build
-			// info only for the currently decoded frame.
-			//
-			// Right now, this means we are reading and parsing in the full file before we are
-			// able to play...
-			//
-			// One benefit that we get from this is that we can precisely calculate the total
-			// frame data size. If we cannot calculate it, we should be able to use some heuristics
-			// based on the image extents to get us a big enough bunch of bytes to store encoded
-			// frames into.
-			for ( uint32_t sample_idx = 0; sample_idx < track.sample_count; sample_idx++ ) {
+#if false
+			if constexpr ( false ) {
 
-				uint32_t           frame_bytes, timestamp, duration;
-				MP4D_file_offset_t ofs = MP4D_frame_offset( mp4, ntrack, sample_idx, &frame_bytes, &timestamp, &duration );
-				track_duration += duration;
+				// TODO: Ideally, we would be doing all this only on-demand, and we would build
+				// info only for the currently decoded frame.
+				//
+				// Right now, this means we are reading and parsing in the full file before we are
+				// able to play...
+				//
+				// One benefit that we get from this is that we can precisely calculate the total
+				// frame data size. If we cannot calculate it, we should be able to use some heuristics
+				// based on the image extents to get us a big enough bunch of bytes to store encoded
+				// frames into.
+				for ( uint32_t sample_idx = 0; sample_idx < track.sample_count; sample_idx++ ) {
 
-				le_video_data_h264_t::data_frame_info_t& info = video->frames_infos.emplace_back();
-				info.src_offset                               = ofs;
-				info.src_frame_bytes                          = frame_bytes;
+					uint32_t           frame_bytes, timestamp, duration;
+					MP4D_file_offset_t ofs = MP4D_frame_offset( mp4, ntrack, sample_idx, &frame_bytes, &timestamp, &duration );
+					track_duration += duration;
 
-				std::vector<uint8_t> src_buffer_data( frame_bytes );
-				uint8_t*             src_buffer = src_buffer_data.data();
+					le_video_data_h264_t::data_frame_info_t& info = video->frames_infos.emplace_back();
+					info.src_offset                               = ofs;
+					info.src_frame_bytes                          = frame_bytes;
 
-				// if ( file_pointer_bytes != ofs ) {
-				//	logger.error( "File pointer bytes not equal to offset: %d != %d", file_pointer_bytes, ofs );
-				// }
+					std::vector<uint8_t> src_buffer_data( frame_bytes );
+					uint8_t*             src_buffer = src_buffer_data.data();
 
-				if ( ofs - input_file_position != 0 ) {
-					input_file.seekg( ofs - input_file_position, std::ios_base::cur );
-				}
-				if ( input_file.eof() ) {
-					logger.error( "input file failed" );
-				}
-				// read a whole frame's worth of data into src_buffer_data
-				input_file.read( ( char* )src_buffer, frame_bytes );
+					// if ( file_pointer_bytes != ofs ) {
+					//	logger.error( "File pointer bytes not equal to offset: %d != %d", file_pointer_bytes, ofs );
+					// }
 
-				input_file_position = ofs + frame_bytes;
+					if ( ofs - input_file_position != 0 ) {
+						input_file.seekg( ofs - input_file_position, std::ios_base::cur );
+					}
+					if ( input_file.eof() ) {
+						logger.error( "input file failed" );
+					}
+					// read a whole frame's worth of data into src_buffer_data
+					input_file.read( ( char* )src_buffer, frame_bytes );
 
-				while ( frame_bytes > 0 ) {
+					input_file_position = ofs + frame_bytes;
 
-					uint32_t size = ( ( uint32_t )src_buffer[ 0 ] << 24 ) |
-					                ( ( uint32_t )src_buffer[ 1 ] << 16 ) |
-					                ( ( uint32_t )src_buffer[ 2 ] << 8 ) |
-					                src_buffer[ 3 ];
-					size += 4;
-					assert( frame_bytes >= size );
+					while ( frame_bytes > 0 ) {
 
-					h264::Bitstream bs = {};
-					bs.init( &src_buffer[ 4 ], frame_bytes - 4 );
-					h264::NALHeader nal = {};
-					h264::read_nal_header( &nal, &bs );
+						uint32_t size = ( ( uint32_t )src_buffer[ 0 ] << 24 ) |
+						                ( ( uint32_t )src_buffer[ 1 ] << 16 ) |
+						                ( ( uint32_t )src_buffer[ 2 ] << 8 ) |
+						                src_buffer[ 3 ];
+						size += 4;
+						assert( frame_bytes >= size );
 
-					if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_IDR ) {
-						info.info.frame_type = FrameType::eFrameTypeIntra;
-					} else if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
-						info.info.frame_type = FrameType::eFrameTypePredictive;
-					} else {
-						// Continue search for frame beginning NAL unit:
-						frame_bytes -= size;
-						src_buffer += size;
-						continue;
+						h264::Bitstream bs = {};
+						bs.init( &src_buffer[ 4 ], frame_bytes - 4 );
+						h264::NALHeader nal = {};
+						h264::read_nal_header( &nal, &bs );
+
+						if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_IDR ) {
+							info.info.frame_type = FrameType::eFrameTypeIntra;
+						} else if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
+							info.info.frame_type = FrameType::eFrameTypePredictive;
+						} else {
+							// Continue search for frame beginning NAL unit:
+							frame_bytes -= size;
+							src_buffer += size;
+							continue;
+						}
+
+						// ----------| Invariant: Frame is either of type eFrameTypeIntra or eFrameTypePredictive
+
+						h264::SliceHeader* slice_header = ( h264::SliceHeader* )video->slice_header_bytes.data() + sample_idx;
+						// *slice_header                   = {};
+
+						// calculate_frame_info( &nal, slice_header, pps_array, sps_array, &bs, &pic_order_count_state, info );
+
+						calculate_frame_info_new( &nal, pps_array, sps_array, &bs, &pic_order_count_state, info.info );
+
+						// TODO: remove this once we have finished the refactor
+						*slice_header = info.info.slice_header;
+
+						info.size = sizeof( h264::nal_start_code ) + size - 4;
+						break;
 					}
 
-					// ----------| Invariant: Frame is either of type eFrameTypeIntra or eFrameTypePredictive
+					if ( max_frame_size_bytes < info.size ) {
+						max_frame_size_bytes = info.size;
+					}
 
-					h264::SliceHeader* slice_header = ( h264::SliceHeader* )video->slice_header_bytes.data() + sample_idx;
-					// *slice_header                   = {};
-
-					// calculate_frame_info( &nal, slice_header, pps_array, sps_array, &bs, &pic_order_count_state, info );
-
-					calculate_frame_info_new( &nal, pps_array, sps_array, &bs, &pic_order_count_state, info.info );
-
-					// TODO: remove this once we have finished the refactor
-					*slice_header = info.info.slice_header;
-
-					info.size = sizeof( h264::nal_start_code ) + size - 4;
-					break;
-				}
-
-				if ( max_frame_size_bytes < info.size ) {
-					max_frame_size_bytes = info.size;
-				}
-
-				{
-					uint64_t  pts_seconds   = timestamp / video->timescale;
-					double    pts_rest      = ( timestamp - ( video->timescale * pts_seconds ) ) / double( video->timescale );
-					le::Ticks pts_ticks     = std::chrono::seconds( pts_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( pts_rest ) );
-					info.timestamp_in_ticks = pts_ticks;
-				}
-				{
-					uint64_t  duration_seconds = duration / video->timescale;
-					double    duration_rest    = ( duration - ( video->timescale * duration_seconds ) ) / double( video->timescale );
-					le::Ticks duration_ticks   = std::chrono::seconds( duration_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( duration_rest ) );
-					info.duration_in_ticks     = duration_ticks;
+					if constexpr ( false ) {
+						uint64_t  pts_seconds   = timestamp / video->timescale;
+						double    pts_rest      = ( timestamp - ( video->timescale * pts_seconds ) ) / double( video->timescale );
+						le::Ticks pts_ticks     = std::chrono::seconds( pts_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( pts_rest ) );
+						info.timestamp_in_ticks = pts_ticks;
+					}
+					if constexpr ( false ) {
+						uint64_t  duration_seconds = duration / video->timescale;
+						double    duration_rest    = ( duration - ( video->timescale * duration_seconds ) ) / double( video->timescale );
+						le::Ticks duration_ticks   = std::chrono::seconds( duration_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( duration_rest ) );
+						info.duration_in_ticks     = duration_ticks;
+					}
 				}
 			}
-
-			{
+			if constexpr ( false ) {
 				// Calculate the frame display order index for each frame, and update frame infos with calculated index
 
 				video->frame_display_order.resize( video->frames_infos.size() );
@@ -3140,18 +3132,13 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					next_timestamp_in_ticks += f.duration_in_ticks;
 				}
 			}
+#endif
 
-			video->max_memory_frame_size_bytes = max_frame_size_bytes; // store maximum aligned size, this will be the amount of memory we need at minimum for the gpu bitstream buffer.
+			video->max_memory_frame_size_bytes = video->padded_width * video->padded_height * sizeof( uint8_t ) * 3; // we're pessimistic: uncompressed size should never be more than rgb * width * height, right?
 			video->average_frames_per_second   = float( double( track.timescale ) / double( track_duration ) * track.sample_count );
 			video->duration_in_seconds         = float( double( track_duration ) * timescale_rcp );
 			video->duration_in_timescale_units = track_duration;
-
-			{
-				uint64_t tu              = video->duration_in_timescale_units;
-				uint64_t full_seconds    = tu / video->timescale;
-				double   tu_rest         = ( tu - ( video->timescale * full_seconds ) ) / double( video->timescale );
-				video->duration_in_ticks = std::chrono::seconds( full_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( tu_rest ) );
-			}
+			video->duration_in_ticks           = video_time_to_ticks( track_duration, track.timescale );
 
 		} else if ( track.handler_type == MP4D_HANDLER_TYPE_SOUN ) { // assume aac
 			// NOTE: AUDIO IS NOT YET IMPLEMENTED
