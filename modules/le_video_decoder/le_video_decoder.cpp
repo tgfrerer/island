@@ -247,8 +247,6 @@ struct le_video_decoder_o {
 		uint32_t            id;      // memory frame index, query index
 		le_video_decoder_o* decoder; // weak
 
-		uint64_t deprecated_poc; // picture order count
-
 		le_img_resource_handle rendergraph_image_resource; // The image resource belonging to the rendergraph into which we copy the decoded frame
 		uint32_t               flags          = 0;
 		le::Ticks              ticks_pts      = {}; ///< presentation time stamp, relative to video start time
@@ -2082,7 +2080,7 @@ static void print_frame_state( std::vector<le_video_decoder_o::video_decoder_mem
 	size_t i = 0;
 	logger.info( "* * * * * * * * * * " );
 	for ( auto const& f : frames ) {
-		logger.info( "Memory frame: % 2d -> [% 20s], poc: % 10d, pts: % 10llu", i, state_to_string( f.state ), f.deprecated_poc, f.ticks_pts );
+		logger.info( "Memory frame: % 2d -> [% 20s], poc: % 10d, pts: % 10llu", i, state_to_string( f.state ), f.frame_info.poc, f.ticks_pts );
 		i++;
 	}
 	logger.info( "* * * * * * * * * * " );
