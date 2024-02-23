@@ -322,6 +322,16 @@ struct le_video_decoder_o {
 using MemoryFrameFlagBits = le_video_decoder_o::video_decoder_memory_frame::FlagBits;
 using MemoryFrameState    = le_video_decoder_o::video_decoder_memory_frame::State;
 
+// ----------------------------------------------------------------------
+
+static uint64_t video_time_to_ticks_count( uint64_t video_time_units, uint64_t time_scale ) {
+	uint64_t full_seconds = video_time_units / time_scale;
+	double   tu_rest      = ( video_time_units - ( time_scale * full_seconds ) ) / double( time_scale );
+	return ( std::chrono::seconds( full_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( tu_rest ) ) ).count();
+}
+
+// ----------------------------------------------------------------------
+
 static void le_video_decoder_init() {
 	//	// adding this during initialisation means there is no way for the application
 	//	// to start if it does not support the correct extension
