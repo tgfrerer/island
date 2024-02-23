@@ -145,18 +145,16 @@ struct le_video_data_h264_t {
 	VideoProfile video_profile = VideoProfile::VideoProfileUnknown;
 
 	float     average_frames_per_second   = 0;
-	float     duration_in_seconds         = 0;
-	uint64_t  duration_in_timescale_units = 0;
-	le::Ticks duration_in_ticks           = {};
+	float     duration_in_seconds         = 0;  // duration for the whole movie
+	uint64_t  duration_in_timescale_units = 0;  // duration for the whole movie
+	le::Ticks duration_in_ticks           = {}; // duration for the whole movie
 
 	uint64_t timescale = 1; //< inverse scale factor for time. 1 second = (1 / one_over_timescale)
 
 	struct data_frame_info_t {
-		uint64_t  src_offset                   = 0; // offset into original stream
-		uint64_t  src_frame_bytes              = 0; // number of bytes used by this frame in original stream
-		uint64_t  size                         = 0;
-		uint64_t  timestamp_in_timescale_units = 0;
-		uint64_t  duration_in_timescale_units  = 0;
+		uint64_t  src_offset      = 0; // offset into original stream
+		uint64_t  src_frame_bytes = 0; // number of bytes used by this frame in original stream
+		uint64_t  size            = 0;
 		le::Ticks timestamp_in_ticks;
 		le::Ticks duration_in_ticks;
 
@@ -3096,18 +3094,13 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					max_frame_size_bytes = info.size;
 				}
 
-				info.timestamp_in_timescale_units = timestamp;
-				info.duration_in_timescale_units  = duration;
-
 				{
-					uint64_t  pts           = timestamp;
-					uint64_t  pts_seconds   = pts / video->timescale;
-					double    pts_rest      = ( pts - ( video->timescale * pts_seconds ) ) / double( video->timescale );
+					uint64_t  pts_seconds   = timestamp / video->timescale;
+					double    pts_rest      = ( timestamp - ( video->timescale * pts_seconds ) ) / double( video->timescale );
 					le::Ticks pts_ticks     = std::chrono::seconds( pts_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( pts_rest ) );
 					info.timestamp_in_ticks = pts_ticks;
 				}
 				{
-					uint64_t  duration         = info.duration_in_timescale_units;
 					uint64_t  duration_seconds = duration / video->timescale;
 					double    duration_rest    = ( duration - ( video->timescale * duration_seconds ) ) / double( video->timescale );
 					le::Ticks duration_ticks   = std::chrono::seconds( duration_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( duration_rest ) );
@@ -3138,11 +3131,8 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 				le::Ticks next_timestamp_in_ticks( 0 );
 				for ( size_t i = 0; i < video->frame_display_order.size(); ++i ) {
 					// logger.info( "frame % 4d timestamp: % 10d", video->frame_display_order[ i ], next_timestamp );
-					auto& f                        = video->frames_infos[ video->frame_display_order[ i ] ];
-					f.info.display_order           = ( int )i;
-					f.timestamp_in_timescale_units = next_timestamp;
-					f.timestamp_in_ticks           = next_timestamp_in_ticks;
-					next_timestamp += f.duration_in_timescale_units;
+					auto& f              = video->frames_infos[ video->frame_display_order[ i ] ];
+					f.info.display_order = ( int )i;
 					next_timestamp_in_ticks += f.duration_in_ticks;
 				}
 			}
