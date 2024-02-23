@@ -160,12 +160,6 @@ struct le_video_data_h264_t {
 		le::Ticks timestamp_in_ticks;
 		le::Ticks duration_in_ticks;
 
-		FrameType deprecated_frame_type             = FrameType::eFrameTypeUnknown;
-		uint8_t   deprecated_nal_unit_type          = 0; // network abstraction layer unit type
-		uint32_t  deprecated_nal_ref_idc            = 0; // network abstraction layer reference
-		int       deprecated_bottom_field_order_cnt = 0;
-		int       deprecated_top_field_order_cnt    = 0;
-		int       deprecated_display_order          = 0;
 
 		frame_info_t info; // frame info (contains slice header)
 	};
@@ -3031,9 +3025,9 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					h264::read_nal_header( &nal, &bs );
 
 					if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_IDR ) {
-						info.deprecated_frame_type = FrameType::eFrameTypeIntra;
+						info.info.frame_type = FrameType::eFrameTypeIntra;
 					} else if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
-						info.deprecated_frame_type = FrameType::eFrameTypePredictive;
+						info.info.frame_type = FrameType::eFrameTypePredictive;
 					} else {
 						// Continue search for frame beginning NAL unit:
 						frame_bytes -= size;
@@ -3051,13 +3045,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					calculate_frame_info_new( &nal, pps_array, sps_array, &bs, &pic_order_count_state, info.info );
 
 					// TODO: remove this once we have finished the refactor
-					*slice_header                          = info.info.slice_header;
-					info.deprecated_frame_type             = info.info.frame_type;
-					info.deprecated_nal_unit_type          = info.info.nal_unit_type;
-					info.deprecated_nal_ref_idc            = info.info.nal_ref_idc;
-					info.deprecated_bottom_field_order_cnt = info.info.bottom_field_order_cnt;
-					info.deprecated_top_field_order_cnt    = info.info.top_field_order_cnt;
-					info.deprecated_display_order          = info.info.display_order;
+					*slice_header = info.info.slice_header;
 
 					info.size = sizeof( h264::nal_start_code ) + size - 4;
 					break;
@@ -3110,7 +3098,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 				for ( size_t i = 0; i < video->frame_display_order.size(); ++i ) {
 					// logger.info( "frame % 4d timestamp: % 10d", video->frame_display_order[ i ], next_timestamp );
 					auto& f                        = video->frames_infos[ video->frame_display_order[ i ] ];
-					f.deprecated_display_order     = ( int )i;
+					f.info.display_order           = ( int )i;
 					f.timestamp_in_timescale_units = next_timestamp;
 					f.timestamp_in_ticks           = next_timestamp_in_ticks;
 					next_timestamp += f.duration_in_timescale_units;
@@ -3187,7 +3175,7 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 
 	for ( size_t i = 0; i != self->video_data->frames_infos.size(); i++ ) {
 		auto const& f = self->video_data->frames_infos[ i ];
-		if ( f.deprecated_frame_type == FrameType::eFrameTypeIntra || f.deprecated_nal_unit_type == 5 ) {
+		if ( f.info.frame_type == FrameType::eFrameTypeIntra || f.info.nal_unit_type == 5 ) {
 			if ( f.timestamp_in_ticks <= playhead_target ) {
 				previous_i_frame_idx   = i;
 				last_i_frame_timestamp = f.timestamp_in_ticks;
