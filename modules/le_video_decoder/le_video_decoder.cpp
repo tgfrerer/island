@@ -162,11 +162,10 @@ struct le_video_data_h264_t {
 
 		frame_info_t info; // frame info (contains slice header)
 	};
-	uint64_t                       max_memory_frame_size_bytes; // max required size to capture one frame of data - this needs to be aligned!
-	std::vector<data_frame_info_t> frames_infos;
-	std::vector<size_t>            frame_display_order;
-	uint32_t                       num_dpb_slots          = 0;
-	uint32_t                       max_reference_pictures = 0;
+	uint64_t max_memory_frame_size_bytes; // max required size to capture one frame of data - this needs to be aligned!
+	std::vector<size_t> frame_display_order;
+	uint32_t            num_dpb_slots          = 0;
+	uint32_t            max_reference_pictures = 0;
 };
 
 struct le_video_decoder_o {
@@ -1404,7 +1403,6 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 
 	uint32_t dpb_target_slot_idx = decoder->dpb_target_slot_idx;
 
-	// auto& frame_info = decoder->video_data->frames_infos[ decoded_frame_index ];
 	auto const& frame_info = decoder_memory_frame->frame_info;
 
 	// use slice header from frame instead
@@ -2996,7 +2994,6 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 
 			pic_order_count_state_t pic_order_count_state = {};
 
-			video->frames_infos.reserve( track.sample_count );
 			video->slice_header_bytes.reserve( track.sample_count * sizeof( h264::SliceHeader ) );
 			video->slice_header_count = track.sample_count;
 
@@ -3198,19 +3195,19 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 	uint64_t  previous_i_frame_idx   = 0;
 	le::Ticks last_i_frame_timestamp = {};
 
-	for ( size_t i = 0; i != self->video_data->frames_infos.size(); i++ ) {
-		auto const& f = self->video_data->frames_infos[ i ];
-		if ( f.info.frame_type == FrameType::eFrameTypeIntra || f.info.nal_unit_type == 5 ) {
-			if ( f.timestamp_in_ticks <= playhead_target ) {
-				previous_i_frame_idx   = i;
-				last_i_frame_timestamp = f.timestamp_in_ticks;
-			} else {
-				// we have overshot, the previous iframe index is the one that
-				// we want.
-				break;
-			}
-		}
-	}
+	// for ( size_t i = 0; i != self->video_data->frames_infos.size(); i++ ) {
+	// 	auto const& f = self->video_data->frames_infos[ i ];
+	// 	if ( f.info.frame_type == FrameType::eFrameTypeIntra || f.info.nal_unit_type == 5 ) {
+	// 		if ( f.timestamp_in_ticks <= playhead_target ) {
+	// 			previous_i_frame_idx   = i;
+	// 			last_i_frame_timestamp = f.timestamp_in_ticks;
+	// 		} else {
+	// 			// we have overshot, the previous iframe index is the one that
+	// 			// we want.
+	// 			break;
+	// 		}
+	// 	}
+	// }
 
 	// logger.info( "*** closest i-frame: %d", previous_i_frame_idx );
 
