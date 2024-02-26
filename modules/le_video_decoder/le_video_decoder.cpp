@@ -150,14 +150,11 @@ struct le_video_data_h264_t {
 	float     duration_in_seconds         = 0;  // duration for the whole movie
 	uint64_t  duration_in_timescale_units = 0;  // duration for the whole movie
 	le::Ticks duration_in_ticks           = {}; // duration for the whole movie
-
-	uint64_t timescale = 1; //< inverse scale factor for time. 1 second = (1 / one_over_timescale)
-
-	uint64_t max_memory_frame_size_bytes; // max required size to capture one frame of data - this needs to be aligned!
-
-	uint32_t num_dpb_slots          = 0;
-	uint32_t max_reference_pictures = 0; // maximum number of active reference pictures (note that a picture may be a field, in which case 2 pictures make a frame)
-	uint32_t poc_interval           = 0; // distance between two neighbouring POC elements (determined via heuristic in create_video, used for PTS calculation)
+	uint64_t  timescale                   = 1;  // inverse scale factor for time. 1 second = (1 / one_over_timescale)
+	uint64_t  max_memory_frame_size_bytes = 0;  // max required size to capture one frame of data - this needs to be aligned!
+	uint32_t  num_dpb_slots               = 0;
+	uint32_t  max_reference_pictures      = 0; // maximum number of active reference pictures (note that a picture may be a field, in which case 2 pictures make a frame)
+	uint32_t  poc_interval                = 0; // distance between two neighbouring POC elements (determined via heuristic in create_video, used for PTS calculation)
 };
 
 struct le_video_decoder_o {
@@ -229,12 +226,15 @@ struct le_video_decoder_o {
 	};
 
 	struct video_decoder_memory_frame {
-		// similar to our general backend, the video decoder has a concept of frame-local memory
-		// anything that is touched by the callback in a non-read-only manner should only be interacted with via
-		// the memory frame.
-		// You place data in here during the record pass (renderer)
-		// You read data from here during the execute pass (backend)
-		// Data is freed when the frame comes around.
+		//
+		// Similar to our general backend, the video decoder has a concept of frame-local memory
+		// anything that is touched by the callback in a non-read-only manner should only be
+		// interacted with via the memory frame.
+		//
+		// + You place data in here during the record pass (renderer)
+		// + You read data from here during the execute pass (backend)
+		// + Data is freed when the frame comes around.
+		//
 		uint32_t            id;      // memory frame index, query index
 		le_video_decoder_o* decoder; // weak reference
 
@@ -258,11 +258,11 @@ struct le_video_decoder_o {
 
 		distinct_dst_image_info_t* maybe_dst_image_info; // only used if dst and dpb images do not coincide.
 
-		size_t   gpu_bitstream_offset;           ///< offset into the bitstream buffer to reach this slice
-		size_t   gpu_bitstream_capacity;         ///< total bytes for this slice of the bitstream buffer
-		size_t   gpu_bitstream_used_bytes_count; ///< used bytes for this slice
-		uint8_t* gpu_bitstream_slice_mapped_memory_address = nullptr;
-		size_t   decoded_frame_index; ///< index of this frame in the video stream
+		size_t   gpu_bitstream_offset;                                ///< offset into the bitstream buffer to reach this slice
+		size_t   gpu_bitstream_capacity;                              ///< total bytes for this slice of the bitstream buffer
+		size_t   gpu_bitstream_used_bytes_count;                      ///< used bytes for this slice
+		uint8_t* gpu_bitstream_slice_mapped_memory_address = nullptr; ///< base address for this slice
+		size_t   decoded_frame_index;                                 ///< index of this frame in the video stream
 
 		frame_info_t frame_info;
 	};
@@ -324,8 +324,10 @@ static uint64_t video_time_to_ticks_count( uint64_t video_time_units, uint64_t t
 // ----------------------------------------------------------------------
 
 static void le_video_decoder_init() {
-	//	// adding this during initialisation means there is no way for the application
-	//	// to start if it does not support the correct extension
+
+	//	Adding this during initialisation means there is no way for the application
+	//	to start if the local hardware does not support the correct extensions.
+
 	bool result = true;
 
 	result &= le_backend_vk::settings_i.add_required_device_extension(
@@ -377,8 +379,9 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 
 	self->reference_count++;
 
-	// we can grab the backend via the renderer - maybe this should be something
+	// We can grab the backend via the renderer - maybe this should be something
 	// that the video player does, and not us...
+
 	le_backend_o* backend = le_renderer_api_i->le_renderer_i.get_backend( renderer );
 
 	if ( backend ) {
@@ -1270,10 +1273,10 @@ static void le_video_decoder_destroy( le_video_decoder_o* self ) {
 
 		for ( auto& el : self->dpb_image_array ) {
 
-			// destroy image view
+			// Destroy image view
 			vkDestroyImageView( self->device, el.image_view, nullptr );
 
-			// destroy image, and its allocation
+			// Destroy image, and its allocation
 			private_backend_vk_i.destroy_image(
 			    self->backend,
 			    el.image,
@@ -1287,7 +1290,7 @@ static void le_video_decoder_destroy( le_video_decoder_o* self ) {
 			self->vk_video_session_parameters = nullptr;
 		}
 
-		// if any pdb allocations were made, we must undo these here
+		// If any pdb allocations were made, we must undo these here
 		for ( auto& allocation : self->session_memory_allocations ) {
 			if ( allocation ) {
 				private_backend_vk_i.free_gpu_memory( self->backend, allocation );
@@ -1296,7 +1299,7 @@ static void le_video_decoder_destroy( le_video_decoder_o* self ) {
 			}
 		}
 
-		// destroy the video session: note: part-ownership of the session should go to the
+		// Destroy the video session: note: part-ownership of the session should go to the
 		// frame so that the frame may keep the session alife until it has been reset.
 		// destroying the video session should be triggered by the backend frame reset once
 		// a session is in-flight.
@@ -2216,11 +2219,6 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 		info->poc = info->bottom_field_order_cnt;
 	}
 
-	// FIXME: some videos increment poc by 2 for every frame, some don't,
-	// and there seems to be no really good way to tell.
-	// the only thing we could do is to look at the current group of pictures
-	// and then to sort them by poc.
-
 	if constexpr ( false ) {
 		logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
 		             info->poc, pic_order_cnt_msb, pic_order_cnt_lsb, info->gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
@@ -2339,9 +2337,9 @@ static void copy_video_frame_bitstream_to_gpu_buffer(
 
 			assert( last_i_frame_info->gop == memory_frame->frame_info.gop );
 
-			// Calculate presentation time stamp:
+			// Calculate presentation time stamp (PTS):
 			//
-			// (Timecode of last i-frame) + (presentation order count of the current frame / poc_interval) * (frame duration)
+			// (Timecode of last i-frame) + (presentation order count of this frame / poc_interval) * (frame duration)
 			//
 			// poc_interval is calculated based on a heuristic during demux_h264_data.
 			//
@@ -2362,9 +2360,6 @@ static void copy_video_frame_bitstream_to_gpu_buffer(
 		}
 		break;
 	}
-
-	// Record picture order count into memory frame - so that
-	// the playhead may pick from the most recent decoded frame.
 }
 
 // ----------------------------------------------------------------------
@@ -3208,8 +3203,6 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 	//    of an i-frame or a frame with nal_unit_type == 5 (IDR, "immediate decoder reset") causes the dpb
 	//    to clear, this implies that each i-frame marks the beginning of a new sub-sequence of frames.
 
-	self->pic_order_count_state = {}; // reset pic order count state.
-
 	// RECIPE:
 	//
 	// 1. Find the index of the frame that has the closest timestamp to the target timestamp.
@@ -3270,6 +3263,9 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 	// Set current_decoded frame to the previous i-frame so that this
 	// i-frame gets decoded next.
 	self->current_decoded_frame = closest_frame_idx;
+
+	// Reset the pic_order_count_state (mostly important for poc_cycle)
+	self->pic_order_count_state = {}; // reset pic order count state.
 
 	// Now we need to invalidate all frames which have been decoded until now.
 	// we only keep the frame which is the closest to the current playhead.
