@@ -2573,7 +2573,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 			                                                     // to be, while still considered part of the same group of pictures.
 
 			if ( frame_ticks_relative_to_playhead >= -frame_duration ) {
-				// This frame starts somewhere after one full frame duration before the playead
+				// This frame starts somewhere after one full frame duration before the playhead
 				if ( frame_ticks_relative_to_playhead < closest_offset ) {
 
 					if ( closest_decoded_frame_idx != self->latest_memory_frame_available_for_rendering &&
