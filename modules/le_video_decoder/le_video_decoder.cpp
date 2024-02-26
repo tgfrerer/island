@@ -111,6 +111,7 @@ struct frame_info_t {
 	int       top_field_order_cnt    = 0;
 	int       gop                    = 0; // group of pictures
 	int       display_order          = 0;
+	uint32_t  max_frame_num          = 0;
 
 	size_t   pts_in_timescale_units;      // presentation time stamp, in video timescale units
 	uint32_t duration_in_timescale_units; // in video timescale units
@@ -2109,6 +2110,8 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 	int      pic_order_cnt_lsb     = slice_header->pic_order_cnt_lsb;
 	int      pic_order_cnt_msb     = 0;
 
+	info.max_frame_num = max_frame_num;
+
 	// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
 	bool idr_flag = ( nal->type == h264::NAL_UNIT_TYPE::NAL_UNIT_TYPE_CODED_SLICE_IDR ); // (7-1)
 
@@ -2566,10 +2569,8 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 			// and everything from half a duration in difference to be
 			// negative
 
-			const int64_t GOP_SIZE = 32; // Maximum distance in sequence that decoded frames are allowed
-			                             // to be, while still considered part of the same group of pictures.
-			                             //
-			                             // This should be calculated using max_pic_order_cnt_lsb
+			const int64_t GOP_SIZE = f.frame_info.max_frame_num; // Maximum distance in sequence that decoded frames are allowed
+			                                                     // to be, while still considered part of the same group of pictures.
 
 			if ( frame_ticks_relative_to_playhead >= -frame_duration ) {
 				// This frame starts somewhere after one full frame duration before the playead
