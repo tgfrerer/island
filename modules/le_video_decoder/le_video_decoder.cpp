@@ -134,10 +134,8 @@ struct le_video_data_h264_t {
 	uint32_t             bit_rate      = 0;
 	std::vector<uint8_t> sps_bytes;
 	std::vector<uint8_t> pps_bytes;
-	std::vector<uint8_t> slice_header_bytes;
-	uint32_t             sps_count          = 0;
-	uint32_t             pps_count          = 0;
-	uint32_t             slice_header_count = 0;
+	uint32_t             sps_count = 0;
+	uint32_t             pps_count = 0;
 	enum class VideoProfile : uint32_t {
 		VideoProfileUnknown = 0,
 		VideoProfileAvc,  // h264
@@ -241,11 +239,11 @@ struct le_video_decoder_o {
 		// similar to our general backend, the video decoder has a concept of frame-local memory
 		// anything that is touched by the callback in a non-read-only manner should only be interacted with via
 		// the memory frame.
-		// you place data in here during the record pass (renderer)
-		// you read data from here during the execute pass (backend)
-		// data is freed when the frame comes around.
+		// You place data in here during the record pass (renderer)
+		// You read data from here during the execute pass (backend)
+		// Data is freed when the frame comes around.
 		uint32_t            id;      // memory frame index, query index
-		le_video_decoder_o* decoder; // weak
+		le_video_decoder_o* decoder; // weak reference
 
 		le_img_resource_handle rendergraph_image_resource; // The image resource belonging to the rendergraph into which we copy the decoded frame
 		uint32_t               flags          = 0;
@@ -2240,15 +2238,16 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 
 // ----------------------------------------------------------------------
 
-static void copy_video_frame( std::ifstream&                                  mp4_filestream,
-                              le_video_decoder_o::video_decoder_memory_frame* memory_frame,
-                              size_t                                          sample_index,
-                              MP4D_track_t*                                   track,
-                              pic_order_count_state_t*                        pic_order_count_state,
-                              h264::SPS const*                                sps_array,
-                              h264::PPS const*                                pps_array,
-                              uint32_t                                        poc_interval,
-                              frame_info_t*                                   last_i_frame_info ) {
+static void copy_video_frame_bitstream_to_gpu_buffer(
+    std::ifstream&                                  mp4_filestream,
+    le_video_decoder_o::video_decoder_memory_frame* memory_frame,
+    size_t                                          sample_index,
+    MP4D_track_t*                                   track,
+    pic_order_count_state_t*                        pic_order_count_state,
+    h264::SPS const*                                sps_array,
+    h264::PPS const*                                pps_array,
+    uint32_t                                        poc_interval,
+    frame_info_t*                                   last_i_frame_info ) {
 
 	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_used_bytes_count;
 
@@ -2654,7 +2653,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		// Here, we want to upload the data for the currently recorded frame to the bitstream.
 		// we can do this without invoking any vulkan commands as the memory is mapped.
 
-		copy_video_frame(
+		copy_video_frame_bitstream_to_gpu_buffer(
 		    self->mp4_filestream,
 		    &recording_memory_frame,
 		    recording_memory_frame.decoded_frame_index,
@@ -2990,9 +2989,6 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 
 			// track timescale is given as fraction of one second
 			double timescale_rcp = 1.0 / double( track.timescale );
-
-			video->slice_header_bytes.reserve( track.sample_count * sizeof( h264::SliceHeader ) );
-			video->slice_header_count = track.sample_count;
 
 			{
 				// Calculate POC interval
