@@ -2874,7 +2874,6 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 		size_t                     offset_delta = offset - data->last_offset;
 
 		data->stream->seekg( offset_delta, std::ios_base::cur );
-		// data->stream->seekg( offset );
 		data->stream->read( ( char* )buffer, size );
 
 		// store last offset, so that we can calculate the next offset_delta
