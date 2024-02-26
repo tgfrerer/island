@@ -162,10 +162,11 @@ struct le_video_data_h264_t {
 
 		frame_info_t info; // frame info (contains slice header)
 	};
-	uint64_t max_memory_frame_size_bytes; // max required size to capture one frame of data - this needs to be aligned!
+	uint64_t            max_memory_frame_size_bytes; // max required size to capture one frame of data - this needs to be aligned!
 	std::vector<size_t> frame_display_order;
 	uint32_t            num_dpb_slots          = 0;
 	uint32_t            max_reference_pictures = 0;
+	uint32_t            poc_interval           = 0; // distance between two neighbouring POC elements (determined via heuristic in create_video, used for PTS calculation)
 };
 
 struct le_video_decoder_o {
@@ -302,7 +303,7 @@ struct le_video_decoder_o {
 	std::ifstream mp4_filestream;
 	MP4D_demux_t  mp4_demux;
 
-	size_t last_i_frame_timestamp; // FIXME: this is decoder state, we should place this somewhere better, ideally
+	frame_info_t last_i_frame_info; // FIXME: this is decoder state, we should place this somewhere better, ideally
 
 	// video bitstream buffer - this is what the gpu reads, and the cpu writes to
 	le_video_gpu_bitstream_buffer_t gpu_bitstream_buffer{};
@@ -405,7 +406,7 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 	size_t num_memory_frames = 0;
 
 	self->latest_memory_frame_available_for_rendering = -1; // signal that there are no frames available for rendering yet
-	self->last_i_frame_timestamp                      = 0;  // internal state for copy_video_frame
+	self->last_i_frame_info                           = {}; // internal state for copy_video_frame
 
 	// ----------------------------------------------------------------------
 	// Fill in templates for info structures that we will need to query device
@@ -2191,16 +2192,8 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 		//
 		//
 		if ( !slice_header->field_pic_flag ) {
-			// This picture is a frame - we only expect poc to increase in steps of 1
-			//
-			// FIXME: THIS IS A HACK - as the poc will otherwise increase in increments
-			// of 2, we divide the picture order count here so that it increases
-			// in increments of 1... there needs to be a better way to calculate a presentation
-			// time stamp from a presentation order, but unless we first ingest a full
-			// group of pictures (== anything between two IDR frames) at a time, and then
-			// associate time stamps to each frame, we must use a hack like this.
-			info.top_field_order_cnt    = tmp_pic_order_count / 2;
-			info.bottom_field_order_cnt = tmp_pic_order_count / 2;
+			info.top_field_order_cnt    = tmp_pic_order_count;
+			info.bottom_field_order_cnt = tmp_pic_order_count;
 		} else if ( slice_header->bottom_field_flag ) {
 			info.bottom_field_order_cnt = tmp_pic_order_count;
 		} else {
@@ -2234,7 +2227,6 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 	// and there seems to be no really good way to tell.
 	// the only thing we could do is to look at the current group of pictures
 	// and then to sort them by poc.
-	info.poc /= 2;
 
 	if constexpr ( false ) {
 		logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
@@ -2255,7 +2247,8 @@ static void copy_video_frame( std::ifstream&                                  mp
                               pic_order_count_state_t*                        pic_order_count_state,
                               h264::SPS const*                                sps_array,
                               h264::PPS const*                                pps_array,
-                              size_t*                                         last_i_frame_timestamp ) {
+                              uint32_t                                        poc_interval,
+                              frame_info_t*                                   last_i_frame_info ) {
 
 	uint8_t* dst_buffer = memory_frame->gpu_bitstream_slice_mapped_memory_address + memory_frame->gpu_bitstream_used_bytes_count;
 
@@ -2346,17 +2339,22 @@ static void copy_video_frame( std::ifstream&                                  mp
 
 			if ( idr_flag ) {
 				// reset the timestamp for last i-frame
-				*last_i_frame_timestamp = frame_timestamp;
+				*last_i_frame_info                        = memory_frame->frame_info;
+				last_i_frame_info->pts_in_timescale_units = frame_timestamp;
 			}
+
+			assert( last_i_frame_info->gop == memory_frame->frame_info.gop );
 
 			// Calculate presentation time stamp:
 			//
-			// (Timecode of last i-frame) + (presentation order count of the current frame) * (frame duration)
+			// (Timecode of last i-frame) + (presentation order count of the current frame / poc_interval) * (frame duration)
+			//
+			// poc_interval is calculated based on a heuristic during demux_h264_data.
 			//
 			le::Ticks pts =
 			    video_time_to_ticks(
-			        ( *last_i_frame_timestamp ) +
-			            ( frame_duration * memory_frame->frame_info.poc ),
+			        ( last_i_frame_info->pts_in_timescale_units ) +
+			            ( frame_duration * ( memory_frame->frame_info.poc / poc_interval ) ),
 			        track->timescale );
 
 			memory_frame->frame_info.duration_in_timescale_units = frame_duration;
@@ -2379,7 +2377,7 @@ static void copy_video_frame( std::ifstream&                                  mp
 // Only call this once per app update cycle!
 static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o* rendergraph, uint64_t ticks ) {
 
-	if constexpr ( true ) {
+	if constexpr ( false ) {
 		print_frame_state( self->memory_frames );
 	}
 
@@ -2464,7 +2462,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 
 	int64_t delta_ticks = self->ticks_at_playhead.count();
 
-	if constexpr ( true ) {
+	if constexpr ( false ) {
 		logger.info( "Update. current delta time : %f", std::chrono::duration<double>( self->ticks_at_playhead ).count() );
 		logger.info( "Update. current delta ticks: %d", ( self->ticks_at_playhead ).count() );
 	}
@@ -2620,12 +2618,12 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		}
 	}
 
-	if constexpr ( true ) {
+	if constexpr ( false ) {
 		print_frame_state( self->memory_frames );
 		logger.info( "\n" );
 	}
 
-	if constexpr ( true ) {
+	if constexpr ( false ) {
 		if ( self->latest_memory_frame_available_for_rendering > -1 ) {
 			logger.info( "current visible frame [%d] poc: % 8d",
 			             self->latest_memory_frame_available_for_rendering,
@@ -2664,7 +2662,8 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		    &self->pic_order_count_state,
 		    ( h264::SPS* )self->video_data->sps_bytes.data(),
 		    ( h264::PPS* )self->video_data->pps_bytes.data(),
-		    &self->last_i_frame_timestamp );
+		    self->video_data->poc_interval,
+		    &self->last_i_frame_info );
 
 		// align memory for good measure
 		recording_memory_frame.gpu_bitstream_used_bytes_count =
@@ -2992,45 +2991,38 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 			// track timescale is given as fraction of one second
 			double timescale_rcp = 1.0 / double( track.timescale );
 
-			pic_order_count_state_t pic_order_count_state = {};
-
 			video->slice_header_bytes.reserve( track.sample_count * sizeof( h264::SliceHeader ) );
 			video->slice_header_count = track.sample_count;
 
-			uint64_t track_duration       = track.timestamp[ track.sample_count - 1 ] + track.duration[ track.sample_count - 1 ];
-			uint64_t max_frame_size_bytes = 0;
-			uint64_t input_file_position  = 0;         // current position in input file
-			input_file.seekg( 0, std::ios_base::beg ); // return file position to 0
+			{
+				// Calculate POC interval
 
-#if false
-			if constexpr ( false ) {
+				// This is the interval between two successive Picture Order Counts. The interval
+				// is often 2, but could also be 1. Once we know the interval, we can calculate
+				// the time between two successive frames by looking at their POCs.
 
-				// TODO: Ideally, we would be doing all this only on-demand, and we would build
-				// info only for the currently decoded frame.
+				uint64_t input_file_position = 0;          // current position in input file
+				input_file.seekg( 0, std::ios_base::beg ); // return file position to 0
+
+				// Get the POC (=picture order count) for the first n frames where n is num_dpb_slots +1.
 				//
-				// Right now, this means we are reading and parsing in the full file before we are
-				// able to play...
+				// Once we have a list of frames like this, we can place them in order, and the
+				// difference between the first two elements will be the standard POC increment between successive frames.
+				// we can later use this standard increment to calculate PTS (=presentation time stamp) from poc.
 				//
-				// One benefit that we get from this is that we can precisely calculate the total
-				// frame data size. If we cannot calculate it, we should be able to use some heuristics
-				// based on the image extents to get us a big enough bunch of bytes to store encoded
-				// frames into.
-				for ( uint32_t sample_idx = 0; sample_idx < track.sample_count; sample_idx++ ) {
+				// This assumes that the poc increases in constant intervals.
+
+				pic_order_count_state_t pic_order_count_state = {};
+				std::vector<uint64_t>   gop_pocs;
+				gop_pocs.reserve( video->num_dpb_slots + 1 );
+
+				for ( uint32_t sample_idx = 0; ( sample_idx < video->num_dpb_slots + 1 ) && sample_idx != track.sample_count; sample_idx++ ) {
 
 					uint32_t           frame_bytes, timestamp, duration;
 					MP4D_file_offset_t ofs = MP4D_frame_offset( mp4, ntrack, sample_idx, &frame_bytes, &timestamp, &duration );
-					track_duration += duration;
-
-					le_video_data_h264_t::data_frame_info_t& info = video->frames_infos.emplace_back();
-					info.src_offset                               = ofs;
-					info.src_frame_bytes                          = frame_bytes;
 
 					std::vector<uint8_t> src_buffer_data( frame_bytes );
 					uint8_t*             src_buffer = src_buffer_data.data();
-
-					// if ( file_pointer_bytes != ofs ) {
-					//	logger.error( "File pointer bytes not equal to offset: %d != %d", file_pointer_bytes, ofs );
-					// }
 
 					if ( ofs - input_file_position != 0 ) {
 						input_file.seekg( ofs - input_file_position, std::ios_base::cur );
@@ -3042,6 +3034,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 					input_file.read( ( char* )src_buffer, frame_bytes );
 
 					input_file_position = ofs + frame_bytes;
+					frame_info_t info   = {};
 
 					while ( frame_bytes > 0 ) {
 
@@ -3058,9 +3051,9 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 						h264::read_nal_header( &nal, &bs );
 
 						if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_IDR ) {
-							info.info.frame_type = FrameType::eFrameTypeIntra;
+							info.frame_type = FrameType::eFrameTypeIntra;
 						} else if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
-							info.info.frame_type = FrameType::eFrameTypePredictive;
+							info.frame_type = FrameType::eFrameTypePredictive;
 						} else {
 							// Continue search for frame beginning NAL unit:
 							frame_bytes -= size;
@@ -3070,67 +3063,25 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 
 						// ----------| Invariant: Frame is either of type eFrameTypeIntra or eFrameTypePredictive
 
-						h264::SliceHeader* slice_header = ( h264::SliceHeader* )video->slice_header_bytes.data() + sample_idx;
-						// *slice_header                   = {};
+						calculate_frame_info( &nal, pps_array, sps_array, &bs, &pic_order_count_state, info );
+						gop_pocs.emplace_back( ( uint64_t( info.gop ) << 32 ) | uint64_t( info.poc ) );
 
-						// calculate_frame_info( &nal, slice_header, pps_array, sps_array, &bs, &pic_order_count_state, info );
-
-						calculate_frame_info_new( &nal, pps_array, sps_array, &bs, &pic_order_count_state, info.info );
-
-						// TODO: remove this once we have finished the refactor
-						*slice_header = info.info.slice_header;
-
-						info.size = sizeof( h264::nal_start_code ) + size - 4;
 						break;
 					}
-
-					if ( max_frame_size_bytes < info.size ) {
-						max_frame_size_bytes = info.size;
-					}
-
-					if constexpr ( false ) {
-						uint64_t  pts_seconds   = timestamp / video->timescale;
-						double    pts_rest      = ( timestamp - ( video->timescale * pts_seconds ) ) / double( video->timescale );
-						le::Ticks pts_ticks     = std::chrono::seconds( pts_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( pts_rest ) );
-						info.timestamp_in_ticks = pts_ticks;
-					}
-					if constexpr ( false ) {
-						uint64_t  duration_seconds = duration / video->timescale;
-						double    duration_rest    = ( duration - ( video->timescale * duration_seconds ) ) / double( video->timescale );
-						le::Ticks duration_ticks   = std::chrono::seconds( duration_seconds ) + std::chrono::round<le::Ticks>( std::chrono::duration<double>( duration_rest ) );
-						info.duration_in_ticks     = duration_ticks;
-					}
 				}
+
+				if ( gop_pocs.size() < 2 ) {
+					video->poc_interval = 0;
+				} else {
+					std::sort( gop_pocs.begin(), gop_pocs.end() );
+					video->poc_interval = gop_pocs[ 1 ] - gop_pocs[ 0 ];
+				}
+
+				logger.info( "poc_interval: %d", video->poc_interval );
 			}
-			if constexpr ( false ) {
-				// Calculate the frame display order index for each frame, and update frame infos with calculated index
 
-				video->frame_display_order.resize( video->frames_infos.size() );
-
-				for ( size_t i = 0; i < video->frames_infos.size(); ++i ) {
-					video->frame_display_order[ i ] = i;
-				}
-
-				std::sort( video->frame_display_order.begin(), video->frame_display_order.end(), [ & ]( size_t a, size_t b ) {
-					const le_video_data_h264_t::data_frame_info_t& frameA = video->frames_infos[ a ];
-					const le_video_data_h264_t::data_frame_info_t& frameB = video->frames_infos[ b ];
-
-					uint64_t prioA = ( uint64_t( frameA.info.gop ) << uint64_t( 32 ) ) | uint64_t( frameA.info.poc );
-					uint64_t prioB = ( uint64_t( frameB.info.gop ) << uint64_t( 32 ) ) | uint64_t( frameB.info.poc );
-					return prioA < prioB;
-				} );
-
-				// FIXME: this is a hack -we want to use poc to display images correctly, not a timestamp, if we can.
-				uint64_t  next_timestamp = 0;
-				le::Ticks next_timestamp_in_ticks( 0 );
-				for ( size_t i = 0; i < video->frame_display_order.size(); ++i ) {
-					// logger.info( "frame % 4d timestamp: % 10d", video->frame_display_order[ i ], next_timestamp );
-					auto& f              = video->frames_infos[ video->frame_display_order[ i ] ];
-					f.info.display_order = ( int )i;
-					next_timestamp_in_ticks += f.duration_in_ticks;
-				}
-			}
-#endif
+			input_file.seekg( 0, std::ios_base::beg ); // return file position to 0
+			uint64_t track_duration = track.timestamp[ track.sample_count - 1 ] + track.duration[ track.sample_count - 1 ];
 
 			video->max_memory_frame_size_bytes = video->padded_width * video->padded_height * sizeof( uint8_t ) * 3; // we're pessimistic: uncompressed size should never be more than rgb * width * height, right?
 			video->average_frames_per_second   = float( double( track.timescale ) / double( track_duration ) * track.sample_count );
