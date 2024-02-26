@@ -2463,7 +2463,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 
 	if constexpr ( false ) {
 		logger.info( "Update. current delta time : %f", std::chrono::duration<double>( self->ticks_at_playhead ).count() );
-		logger.info( "Update. current delta ticks: %d", ( self->ticks_at_playhead ).count() );
+		logger.info( "Update. current delta ticks: %u", delta_ticks );
 	}
 
 	// Find the first frame that is idle - change its state
@@ -2611,7 +2611,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 		//		logger.info( "rendering frame: % 2d", self->latest_memory_frame_available_for_rendering );
 
 		if constexpr ( false ) {
-			logger.info( "closest frame: %d, %10ul",
+			logger.info( "closest frame: %d, %10u",
 			             closest_decoded_frame_idx,
 			             self->memory_frames[ closest_decoded_frame_idx ].ticks_pts );
 		}
