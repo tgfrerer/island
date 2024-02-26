@@ -2897,8 +2897,8 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 	video->genre   = std::string( mp4->tag.genre == nullptr ? "" : ( char* )mp4->tag.genre );
 
 	// for ( int ntrack = 0; ntrack < mp4.track_count; ntrack++ )
-	int ntrack = 0; // NOTE: is it possible to have videos with more than one track? YES: but only one track will be video - other tracks may be audio etc.
 	{
+		int           ntrack       = 0; // NOTE: is it possible to have videos with more than one track? YES: but only one track will be video - other tracks may be audio etc.
 		MP4D_track_t& track        = mp4->track[ ntrack ];
 		unsigned      sum_duration = 0;
 		int           i            = 0;
@@ -3117,16 +3117,88 @@ bool le_video_decoder_get_pause_state( le_video_decoder_o* self ) {
 };
 
 // ----------------------------------------------------------------------
-// seek to position indicated with target_ticks - returns true if this position could be found.
+
+static bool get_i_frame_earlier_or_equal_to_given_frame( std::ifstream& mp4_filestream, MP4D_track_t* track, uint64_t* sample_index, uint64_t* maybe_timestamp_in_ticks ) {
+
+	for ( ; *sample_index > 0; ( *sample_index )-- ) {
+
+		uint64_t mp4_stream_offset = 0;
+		uint64_t frame_num_bytes   = 0;
+
+		// Calculate position into file (or stream) for current frame
+		//
+		unsigned found_frame_index;
+		int      nchunk = sample_to_chunk( track, *sample_index, &found_frame_index ); // imported via minimp4
+
+		if ( nchunk < 0 ) {
+			assert( false && "something went wrong" );
+		}
+
+		mp4_stream_offset = track->chunk_offset[ nchunk ];
+
+		for ( ; found_frame_index < *sample_index; found_frame_index++ ) {
+			mp4_stream_offset += track->entry_size[ found_frame_index ];
+		}
+
+		// invariant: *sample_index == found_frame_index
+
+		frame_num_bytes = track->entry_size[ found_frame_index ];
+		mp4_filestream.seekg( mp4_stream_offset, std::ios_base::beg );
+
+		while ( frame_num_bytes > 0 ) {
+
+			// NOTE: The initial 4 bytes containing the frame size info will not be copied over to the dst frame.
+			//
+			// NOTE: It's important to keep src_buffer as uint8_t, otherwise signed
+			// char will mess up the endianness transform (you might end up with
+			// negative values)
+			uint8_t src_buffer[ 4 ];
+			mp4_filestream.read( ( char* )src_buffer, sizeof( src_buffer ) );
+
+			uint32_t size = ( ( uint32_t )( src_buffer[ 0 ] ) << 24 ) |
+			                ( ( uint32_t )( src_buffer[ 1 ] ) << 16 ) |
+			                ( ( uint32_t )( src_buffer[ 2 ] ) << 8 ) |
+			                src_buffer[ 3 ];
+			size += 4;
+			assert( frame_num_bytes >= size );
+
+			// TODO: You might want to guard against EOF
+			uint8_t nal_header_byte = mp4_filestream.peek();
+
+			h264::Bitstream bs = {};
+			bs.init( &nal_header_byte, sizeof( nal_header_byte ) );
+			h264::NALHeader nal = {};
+			h264::read_nal_header( &nal, &bs );
+
+			// Skip over any frame data that is not idr slice or non-idr slice
+			if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_IDR ) {
+				*maybe_timestamp_in_ticks = video_time_to_ticks_count( track->timestamp[ found_frame_index ], track->timescale );
+				return true;
+			} else if ( nal.type == h264::NAL_UNIT_TYPE_CODED_SLICE_NON_IDR ) {
+				break;
+			} else {
+				// Continue search for frame beginning NAL unit:
+				frame_num_bytes -= size;
+				mp4_filestream.seekg( size - 4, std::ios_base::cur );
+				continue;
+			}
+		}
+	}
+	return false;
+}
+
+// ----------------------------------------------------------------------
+// Seek to position indicated with target_ticks.
+// Returns true if this position could be found.
 static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_ticks, bool should_resume_at_latest_i_frame ) {
 
 	auto previous_seek_offset    = self->ticks_seek_offset;
 	auto playhead_without_offset = self->ticks_at_playhead - self->ticks_seek_offset;
 	auto playhead_target         = le::Ticks( target_ticks );
 
-	// We need to seek forward until we find an i-frame that has a higher timecode than the one that we
-	// currently require. We might have to produce (and throw away) a few frames since the seek target
-	// might be a p-frame, and we must decode all intermediary frames until we meet the final seek
+	// We need to seek until we find an i-frame that has a lower (or equal!) timecode than the one that we
+	// currently require. If the seek target timestamp refers to a P-frame, we might have to produce (and
+	// throw away) a few frames, as we must decode all intermediary frames until we meet the final seek
 	// timecode.
 
 	// Q: Does it matter that frames are iterated in decode (stream) and not in playback order as frames will
@@ -3138,35 +3210,66 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 
 	self->pic_order_count_state = {}; // reset pic order count state.
 
-	uint64_t  previous_i_frame_idx   = 0;
-	le::Ticks last_i_frame_timestamp = {};
+	// RECIPE:
+	//
+	// 1. Find the index of the frame that has the closest timestamp to the target timestamp.
+	// 2. Find the i-frame that is, or precedes the frame at this index, since we cannot
+	//    directly jump to p-frames, and, anyway, p-frame timecodes may be incorrect because
+	//    of re-ordering. We know that i-frame timecodes are correct, and monotonically
+	//    increasing, though, which is why we must find an i-frame.
+	// 3. Start decoding at this i-frame to arrive at the target timestamp.
 
-	// for ( size_t i = 0; i != self->video_data->frames_infos.size(); i++ ) {
-	// 	auto const& f = self->video_data->frames_infos[ i ];
-	// 	if ( f.info.frame_type == FrameType::eFrameTypeIntra || f.info.nal_unit_type == 5 ) {
-	// 		if ( f.timestamp_in_ticks <= playhead_target ) {
-	// 			previous_i_frame_idx   = i;
-	// 			last_i_frame_timestamp = f.timestamp_in_ticks;
-	// 		} else {
-	// 			// we have overshot, the previous iframe index is the one that
-	// 			// we want.
-	// 			break;
-	// 		}
-	// 	}
-	// }
+	uint64_t closest_frame_idx = 0;
+	{
+		// Let's do a binary search to find the frame with the closest time stamp:
 
-	// logger.info( "*** closest i-frame: %d", previous_i_frame_idx );
+		auto const& track      = self->mp4_demux.track[ self->video_data->video_track_id ];
+		auto const& timestamps = track.timestamp;
+		size_t      n          = track.sample_count;
 
-	if ( should_resume_at_latest_i_frame ) {
-		playhead_target = last_i_frame_timestamp;
+		assert( n > 0 );
+
+		size_t l = 0;
+		size_t r = n - 1;
+
+		while ( l < r ) {
+			closest_frame_idx = ( l + r ) / 2;
+			size_t found_ts   = video_time_to_ticks_count( timestamps[ closest_frame_idx ], track.timescale );
+			if ( found_ts < target_ticks ) {
+				l = closest_frame_idx + 1;
+			} else if ( found_ts > target_ticks ) {
+				r = closest_frame_idx - 1;
+			} else {
+				break;
+			}
+		}
 	}
 
-	self->ticks_seek_offset = ( self->video_data->duration_in_ticks + playhead_target - playhead_without_offset ) %
-	                          self->video_data->duration_in_ticks;
+	// ----------| Invariant: closest_frame_idx is now the index of the
+	//                        frame closest to the search timestamp.
+
+	uint64_t previous_i_frame_timestamp_in_ticks = 0;
+
+	// what we need is to find the next i-frame that is <= the search frame index
+	get_i_frame_earlier_or_equal_to_given_frame(
+	    self->mp4_filestream,
+	    &self->mp4_demux.track[ self->video_data->video_track_id ],
+	    &closest_frame_idx,
+	    &previous_i_frame_timestamp_in_ticks );
+
+	// logger.info( "*** closest i-frame: %d", target_frame_idx );
+
+	if ( should_resume_at_latest_i_frame ) {
+		playhead_target = le::Ticks( previous_i_frame_timestamp_in_ticks );
+	}
+
+	self->ticks_seek_offset =
+	    ( self->video_data->duration_in_ticks + playhead_target - playhead_without_offset ) %
+	    self->video_data->duration_in_ticks;
 
 	// Set current_decoded frame to the previous i-frame so that this
 	// i-frame gets decoded next.
-	self->current_decoded_frame = previous_i_frame_idx;
+	self->current_decoded_frame = closest_frame_idx;
 
 	// Now we need to invalidate all frames which have been decoded until now.
 	// we only keep the frame which is the closest to the current playhead.
@@ -3217,7 +3320,6 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 			}
 		}
 	}
-
 	self->playback_state = le_video_decoder_o::eSeeking;
 
 	return playhead_target < self->video_data->duration_in_ticks;
