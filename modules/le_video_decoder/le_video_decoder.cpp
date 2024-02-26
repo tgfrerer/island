@@ -111,7 +111,7 @@ struct frame_info_t {
 	int       top_field_order_cnt    = 0;
 	int       gop                    = 0; // group of pictures
 	int       display_order          = 0;
-	uint32_t  max_frame_num          = 0;
+	uint32_t  max_frame_num          = 0; // Maximum number of pictures making up one GOP (group of pictures)
 
 	size_t   pts_in_timescale_units;      // presentation time stamp, in video timescale units
 	uint32_t duration_in_timescale_units; // in video timescale units
@@ -137,6 +137,7 @@ struct le_video_data_h264_t {
 	std::vector<uint8_t> pps_bytes;
 	uint32_t             sps_count = 0;
 	uint32_t             pps_count = 0;
+
 	enum class VideoProfile : uint32_t {
 		VideoProfileUnknown = 0,
 		VideoProfileAvc,  // h264
@@ -152,20 +153,11 @@ struct le_video_data_h264_t {
 
 	uint64_t timescale = 1; //< inverse scale factor for time. 1 second = (1 / one_over_timescale)
 
-	struct data_frame_info_t {
-		uint64_t  src_offset      = 0; // offset into original stream
-		uint64_t  src_frame_bytes = 0; // number of bytes used by this frame in original stream
-		uint64_t  size            = 0;
-		le::Ticks timestamp_in_ticks;
-		le::Ticks duration_in_ticks;
+	uint64_t max_memory_frame_size_bytes; // max required size to capture one frame of data - this needs to be aligned!
 
-		frame_info_t info; // frame info (contains slice header)
-	};
-	uint64_t            max_memory_frame_size_bytes; // max required size to capture one frame of data - this needs to be aligned!
-	std::vector<size_t> frame_display_order;
-	uint32_t            num_dpb_slots          = 0;
-	uint32_t            max_reference_pictures = 0;
-	uint32_t            poc_interval           = 0; // distance between two neighbouring POC elements (determined via heuristic in create_video, used for PTS calculation)
+	uint32_t num_dpb_slots          = 0;
+	uint32_t max_reference_pictures = 0; // maximum number of active reference pictures (note that a picture may be a field, in which case 2 pictures make a frame)
+	uint32_t poc_interval           = 0; // distance between two neighbouring POC elements (determined via heuristic in create_video, used for PTS calculation)
 };
 
 struct le_video_decoder_o {
@@ -2096,10 +2088,10 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
                                   h264::SPS const*         sps_array,
                                   h264::Bitstream*         bs,
                                   pic_order_count_state_t* prev,
-                                  frame_info_t&            info ) {
+                                  frame_info_t*            info ) {
 
 	// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
-	h264::SliceHeader* slice_header = &info.slice_header; // TODO: clean this up
+	h264::SliceHeader* slice_header = &info->slice_header; // TODO: clean this up
 	h264::read_slice_header( slice_header, nal, pps_array, sps_array, bs );
 
 	const h264::PPS& pps = pps_array[ slice_header->pic_parameter_set_id ];
@@ -2110,7 +2102,7 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 	int      pic_order_cnt_lsb     = slice_header->pic_order_cnt_lsb;
 	int      pic_order_cnt_msb     = 0;
 
-	info.max_frame_num = max_frame_num;
+	info->max_frame_num = max_frame_num;
 
 	// tig: see Rec. ITU-T H.264 (08/2021) p.66 (7-1)
 	bool idr_flag = ( nal->type == h264::NAL_UNIT_TYPE::NAL_UNIT_TYPE_CODED_SLICE_IDR ); // (7-1)
@@ -2140,15 +2132,15 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 
 		// Top and bottom field order count in case the picture is a field
 		if ( !slice_header->bottom_field_flag ) {
-			info.top_field_order_cnt = pic_order_cnt_msb + pic_order_cnt_lsb;
+			info->top_field_order_cnt = pic_order_cnt_msb + pic_order_cnt_lsb;
 		}
 		if ( !slice_header->field_pic_flag ) {
-			info.bottom_field_order_cnt = info.top_field_order_cnt + slice_header->delta_pic_order_cnt_bottom;
+			info->bottom_field_order_cnt = info->top_field_order_cnt + slice_header->delta_pic_order_cnt_bottom;
 		} else {
-			info.bottom_field_order_cnt = pic_order_cnt_msb + slice_header->pic_order_cnt_lsb;
+			info->bottom_field_order_cnt = pic_order_cnt_msb + slice_header->pic_order_cnt_lsb;
 		}
 
-		info.gop = prev->poc_cycle;
+		info->gop = prev->poc_cycle;
 
 		//  TODO: check for memory management operation command 5
 
@@ -2193,12 +2185,12 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 		//
 		//
 		if ( !slice_header->field_pic_flag ) {
-			info.top_field_order_cnt    = tmp_pic_order_count;
-			info.bottom_field_order_cnt = tmp_pic_order_count;
+			info->top_field_order_cnt    = tmp_pic_order_count;
+			info->bottom_field_order_cnt = tmp_pic_order_count;
 		} else if ( slice_header->bottom_field_flag ) {
-			info.bottom_field_order_cnt = tmp_pic_order_count;
+			info->bottom_field_order_cnt = tmp_pic_order_count;
 		} else {
-			info.top_field_order_cnt = tmp_pic_order_count;
+			info->top_field_order_cnt = tmp_pic_order_count;
 		}
 
 		// (tig) we don't care about bottom or top fields as we assume progressive
@@ -2208,20 +2200,20 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 		if ( tmp_pic_order_count == 0 ) {
 			prev->poc_cycle++;
 		}
-		info.gop = prev->poc_cycle;
+		info->gop = prev->poc_cycle;
 
 		break;
 	}
 
 	if ( !slice_header->field_pic_flag ) {
 		// not a field pic - that means we assume the picture is a frame (it does not consist of bottom and top field)
-		info.poc = std::min( info.top_field_order_cnt, info.bottom_field_order_cnt );
+		info->poc = std::min( info->top_field_order_cnt, info->bottom_field_order_cnt );
 	} else if ( !slice_header->bottom_field_flag ) {
-		info.poc = info.top_field_order_cnt;
+		info->poc = info->top_field_order_cnt;
 		// top field
 	} else {
 		// bottom field
-		info.poc = info.bottom_field_order_cnt;
+		info->poc = info->bottom_field_order_cnt;
 	}
 
 	// FIXME: some videos increment poc by 2 for every frame, some don't,
@@ -2231,12 +2223,12 @@ static void calculate_frame_info( h264::NALHeader const*   nal,
 
 	if constexpr ( false ) {
 		logger.info( "info.poc: % 10d, msb: % 4d, lsb: % 4d, gop: % 10d, prev msb: % 4d, prev lsb: % 4d",
-		             info.poc, pic_order_cnt_msb, pic_order_cnt_lsb, info.gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
+		             info->poc, pic_order_cnt_msb, pic_order_cnt_lsb, info->gop, prev->pic_order_cnt_msb, prev->pic_order_cnt_lsb );
 	}
 
 	// Accept frame beginning NAL unit:
-	info.nal_ref_idc   = nal->idc;
-	info.nal_unit_type = nal->type;
+	info->nal_ref_idc   = nal->idc;
+	info->nal_unit_type = nal->type;
 };
 
 // ----------------------------------------------------------------------
@@ -2335,7 +2327,7 @@ static void copy_video_frame_bitstream_to_gpu_buffer(
 			bs.init( dst_buffer + sizeof( h264::nal_start_code ), size - 4 );
 			h264::read_nal_header( &nal, &bs );
 			// Update slice header and poc, gop data from coded data
-			calculate_frame_info( &nal, pps_array, sps_array, &bs, pic_order_count_state, memory_frame->frame_info );
+			calculate_frame_info( &nal, pps_array, sps_array, &bs, pic_order_count_state, &memory_frame->frame_info );
 
 			bool idr_flag = ( nal.type == h264::NAL_UNIT_TYPE::NAL_UNIT_TYPE_CODED_SLICE_IDR ); // (7-1)
 
@@ -2756,7 +2748,7 @@ static le_img_resource_handle le_video_decoder_get_latest_available_frame( le_vi
 
 // ----------------------------------------------------------------------
 
-bool le_video_decoder_get_latest_available_frame_index( le_video_decoder_o* self, uint64_t* frame_index ) {
+static bool le_video_decoder_get_latest_available_frame_index( le_video_decoder_o* self, uint64_t* frame_index ) {
 	if ( self->latest_memory_frame_available_for_rendering < 0 ) {
 		logger.warn( "No frame available yet." );
 		return false;
@@ -3059,7 +3051,7 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 
 						// ----------| Invariant: Frame is either of type eFrameTypeIntra or eFrameTypePredictive
 
-						calculate_frame_info( &nal, pps_array, sps_array, &bs, &pic_order_count_state, info );
+						calculate_frame_info( &nal, pps_array, sps_array, &bs, &pic_order_count_state, &info );
 						gop_pocs.emplace_back( ( uint64_t( info.gop ) << 32 ) | uint64_t( info.poc ) );
 
 						break;
@@ -3099,9 +3091,9 @@ static int demux_h264_data( std::ifstream& input_file, size_t input_size, le_vid
 }
 
 // ----------------------------------------------------------------------
-void le_video_decoder_play( le_video_decoder_o* self );
+static void le_video_decoder_play( le_video_decoder_o* self );
 
-void le_video_decoder_set_pause_state( le_video_decoder_o* self, bool should_pause ) {
+static void le_video_decoder_set_pause_state( le_video_decoder_o* self, bool should_pause ) {
 	if ( true == should_pause && self->playback_state == le_video_decoder_o::ePlay ) {
 		self->playback_state = le_video_decoder_o::ePause;
 	} else if ( false == should_pause ) {
@@ -3109,7 +3101,7 @@ void le_video_decoder_set_pause_state( le_video_decoder_o* self, bool should_pau
 	}
 }
 // ----------------------------------------------------------------------
-bool le_video_decoder_get_pause_state( le_video_decoder_o* self ) {
+static bool le_video_decoder_get_pause_state( le_video_decoder_o* self ) {
 	if ( self->playback_state == le_video_decoder_o::ePause ) {
 		return true;
 	} else {
@@ -3328,7 +3320,7 @@ static bool le_video_decoder_seek( le_video_decoder_o* self, uint64_t target_tic
 
 // ----------------------------------------------------------------------
 
-void le_video_decoder_get_current_playhead_position( le_video_decoder_o* self, uint64_t* ticks, float* normalised ) {
+static void le_video_decoder_get_current_playhead_position( le_video_decoder_o* self, uint64_t* ticks, float* normalised ) {
 
 	if ( ticks ) {
 		*ticks = self->ticks_at_playhead.count();
@@ -3341,13 +3333,13 @@ void le_video_decoder_get_current_playhead_position( le_video_decoder_o* self, u
 };
 
 // ----------------------------------------------------------------------
-uint64_t le_video_decoder_get_total_duration_in_ticks( le_video_decoder_o* self ) {
+static uint64_t le_video_decoder_get_total_duration_in_ticks( le_video_decoder_o* self ) {
 	return self->video_data->duration_in_ticks.count();
 };
 
 // ----------------------------------------------------------------------
 
-void le_video_decoder_play( le_video_decoder_o* self ) {
+static void le_video_decoder_play( le_video_decoder_o* self ) {
 	if ( self->playback_state == le_video_decoder_o::ePause ||
 	     self->playback_state == le_video_decoder_o::eInitial ) {
 		self->playback_state = le_video_decoder_o::ePlay;
@@ -3374,7 +3366,7 @@ static void le_video_decoder_set_on_video_playback_complete_cb( le_video_decoder
 }
 // ----------------------------------------------------------------------
 
-bool le_video_decoder_get_frame_dimensions( le_video_decoder_o* self, uint32_t* w, uint32_t* h ) {
+static bool le_video_decoder_get_frame_dimensions( le_video_decoder_o* self, uint32_t* w, uint32_t* h ) {
 
 	if ( nullptr == self->video_data ) {
 		return false;
