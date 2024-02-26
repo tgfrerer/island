@@ -3100,7 +3100,9 @@ static void le_video_decoder_set_pause_state( le_video_decoder_o* self, bool sho
 		le_video_decoder_play( self );
 	}
 }
+
 // ----------------------------------------------------------------------
+
 static bool le_video_decoder_get_pause_state( le_video_decoder_o* self ) {
 	if ( self->playback_state == le_video_decoder_o::ePause ) {
 		return true;
@@ -3177,6 +3179,11 @@ static bool get_i_frame_earlier_or_equal_to_given_frame( std::ifstream& mp4_file
 			}
 		}
 	}
+
+	// -----------| Invariant: *sample_index == 0
+
+	*maybe_timestamp_in_ticks = 0;
+
 	return false;
 }
 
