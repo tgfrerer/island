@@ -1,4 +1,5 @@
 examples/video_player_example:Island-VideoPlayerExample
+examples/compute_example:Island-ComputeExample
 examples/test_log:Island-TestLog
 examples/hello_world:Island-HelloWorld
 examples/hello_triangle:Island-HelloTriangle
