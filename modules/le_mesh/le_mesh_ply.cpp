@@ -62,7 +62,7 @@ static std::vector<char> load_file( const std::filesystem::path& file_path, bool
 
 // ----------------------------------------------------------------------
 
-inline int does_start_with( char const* haystack, char const* needle, size_t& needle_len ) {
+static inline int does_start_with( char const* haystack, char const* needle, size_t& needle_len ) {
 	needle_len = strlen( needle );
 	return 0 == strncmp( haystack, needle, needle_len );
 };
@@ -467,19 +467,15 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 					case ( Property::AttributeType::eVX )   : pos_data->x  = strtof( s, &s ); break;
 					case ( Property::AttributeType::eVY )   : pos_data->y  = strtof( s, &s ); break;
 					case ( Property::AttributeType::eVZ )   : pos_data->z  = strtof( s, &s ); break;
-					case ( Property::AttributeType::eNX )   : if (normals_data) { normals_data->x  = strtof( s, &s ); } break;
-					case ( Property::AttributeType::eNY )   : if (normals_data) { normals_data->y  = strtof( s, &s ); } break;
-					case ( Property::AttributeType::eNZ )   : if (normals_data) { normals_data->z  = strtof( s, &s ); } break;
-					case ( Property::AttributeType::eTexU ) : if (uvs_data    ) { uvs_data->x = strtof( s, &s );      } break;
-					case ( Property::AttributeType::eTexV ) : if (uvs_data    ) { uvs_data->y = strtof( s, &s );      } break;
-					case ( Property::AttributeType::eColR ):
-						if ( colours_data ) { colours_data->x = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
-					case ( Property::AttributeType::eColG ):
-						if ( colours_data ) { colours_data->y = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
-					case ( Property::AttributeType::eColB ):
-						if ( colours_data ) { colours_data->z = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
-					case ( Property::AttributeType::eColA ):
-						if ( colours_data ) { colours_data->w = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
+					case ( Property::AttributeType::eNX )   : if ( normals_data ) { normals_data->x  = strtof( s, &s ); } break;
+					case ( Property::AttributeType::eNY )   : if ( normals_data ) { normals_data->y  = strtof( s, &s ); } break;
+					case ( Property::AttributeType::eNZ )   : if ( normals_data ) { normals_data->z  = strtof( s, &s ); } break;
+					case ( Property::AttributeType::eTexU ) : if ( uvs_data     ) { uvs_data->x      = strtof( s, &s );      } break;
+					case ( Property::AttributeType::eTexV ) : if ( uvs_data     ) { uvs_data->y      = strtof( s, &s );      } break;
+					case ( Property::AttributeType::eColR ) : if ( colours_data ) { colours_data->x  = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
+					case ( Property::AttributeType::eColG ) : if ( colours_data ) { colours_data->y  = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
+					case ( Property::AttributeType::eColB ) : if ( colours_data ) { colours_data->z  = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
+					case ( Property::AttributeType::eColA ) : if ( colours_data ) { colours_data->w  = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
 					case ( Property::AttributeType::eUnknown ):
 						// TODO: what do we do if there is an unknown attribute?
 						assert( false );
