@@ -35,9 +35,7 @@ can build a single, statically linked and optimised binary.
   point at shader file and line number, and include a brief listing
   with problematic lines highlighted in context.
 
-<img width="350"
-src="https://github.com/tgfrerer/island/assets/423509/b97ef461-42b1-4fbd-b3a0-c4051bb6e8d7"
-align="right" />
+<img width="350" src="https://github.com/tgfrerer/island/assets/423509/b97ef461-42b1-4fbd-b3a0-c4051bb6e8d7" align="right" />
 
 * **Image hot-reloading**: If importing images via
   `le_resource_manager` (it's simple, and recommended) - any image
@@ -379,8 +377,7 @@ a modern rendering API (Vulkan), to learn by trying out ideas around
 modern realtime-rendering, and to have a framework to create [visual
 experiments](http://instagram.com/tgfrerer) with.
 
-[our_machinery]: https://ourmachinery.com/ [our_mach_blog]:
-https://ourmachinery.com/post/little-machines-working-together-part-1/
+[our_machinery]: https://ourmachinery.com/ 
+[our_mach_blog]: https://ourmachinery.com/post/little-machines-working-together-part-1/
 [readme-win]: README_WINDOWS.md 
-
 [struct-generator]: scripts/codegen/gen_vk_structs.py
