@@ -96,6 +96,11 @@ static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* targe
 		*num_bytes_per_vertex = attr_desc.num_bytes; // write back number of bytes per vertex
 	}
 
+	if ( stride == 0 ) {
+		// If no stride has been specified, assume tightly packed
+		stride = attr_desc.num_bytes;
+	}
+
 	if ( stride < attr_desc.num_bytes ) {
 		logger.error( "stride may not be lower than attribute byte count: %d < %d", stride, attr_desc.num_bytes );
 	}
