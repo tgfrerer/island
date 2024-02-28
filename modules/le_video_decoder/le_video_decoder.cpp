@@ -1151,52 +1151,54 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 
 			if ( false == self->properties.do_dpb_and_out_images_coincide ) {
 
-				f.maybe_dst_image_info = new le_video_decoder_o::distinct_dst_image_info_t();
+				logger.error( "Video decoder implementation for when dpb and out images do *not* coincide is missing." );
 
-				// if images are distinct- then
-				// allocate dst images and store them with frame memory -
-				//	this are the images that are shared with other queues
-				// and used to display the frame on screen.
-				// allocate dst image
-				VkResult result =
-				    VkResult(
-				        private_backend_vk_i.allocate_image(
-				            self->backend,
-				            &image_create_info,
-				            &allocation_create_info,
-				            &f.maybe_dst_image_info->dst_image,
-				            &f.maybe_dst_image_info->dst_image_allocation,
-				            &f.maybe_dst_image_info->dst_image_allocation_info ) );
-				if ( VK_SUCCESS != result ) {
-					logger.error( "Could not allocate dst images" );
-				};
+				// f.maybe_dst_image_info = new le_video_decoder_o::distinct_dst_image_info_t();
 
-				VkSamplerYcbcrConversionInfo* p_sampler_conversion_info =
-				    le_backend_vk::private_backend_vk_i.get_sampler_ycbcr_conversion_info( self->backend );
+				// // if images are distinct- then
+				// // allocate dst images and store them with frame memory -
+				// //	this are the images that are shared with other queues
+				// // and used to display the frame on screen.
+				// // allocate dst image
+				// VkResult result =
+				//     VkResult(
+				//         private_backend_vk_i.allocate_image(
+				//             self->backend,
+				//             &image_create_info,
+				//             &allocation_create_info,
+				//             &f.maybe_dst_image_info->dst_image,
+				//             &f.maybe_dst_image_info->dst_image_allocation,
+				//             &f.maybe_dst_image_info->dst_image_allocation_info ) );
+				// if ( VK_SUCCESS != result ) {
+				// 	logger.error( "Could not allocate dst images" );
+				// };
 
-				// we create one image view for each image
-				VkImageViewCreateInfo image_view_create_info = {
-				    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,  // VkStructureType
-				    .pNext            = p_sampler_conversion_info,                 // samplerConversionInfo
-				    .flags            = 0,                                         // VkImageViewCreateFlags, optional
-				    .image            = f.maybe_dst_image_info->dst_image,         // VkImage
-				    .viewType         = VK_IMAGE_VIEW_TYPE_2D,                     // VkImageViewType
-				    .format           = self->properties.format_properties.format, // VkFormat
-				    .components       = {},                                        // {} means identity, VkComponentMapping
-				    .subresourceRange = {
-				        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT, // VkImageAspectFlags
-				        .baseMipLevel   = 0,                         // uint32_t
-				        .levelCount     = 1,                         // uint32_t
-				        .baseArrayLayer = 0,                         // uint32_t
-				        .layerCount     = 1,                         // uint32_t
-				    },                                               // VkImageSubresourceRange
-				};
+				// VkSamplerYcbcrConversionInfo* p_sampler_conversion_info =
+				//     le_backend_vk::private_backend_vk_i.get_sampler_ycbcr_conversion_info( self->backend );
 
-				result = vkCreateImageView( self->device, &image_view_create_info, nullptr, &f.maybe_dst_image_info->dst_image_view );
+				// // we create one image view for each image
+				// VkImageViewCreateInfo image_view_create_info = {
+				//     .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,  // VkStructureType
+				//     .pNext            = p_sampler_conversion_info,                 // samplerConversionInfo
+				//     .flags            = 0,                                         // VkImageViewCreateFlags, optional
+				//     .image            = f.maybe_dst_image_info->dst_image,         // VkImage
+				//     .viewType         = VK_IMAGE_VIEW_TYPE_2D,                     // VkImageViewType
+				//     .format           = self->properties.format_properties.format, // VkFormat
+				//     .components       = {},                                        // {} means identity, VkComponentMapping
+				//     .subresourceRange = {
+				//         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT, // VkImageAspectFlags
+				//         .baseMipLevel   = 0,                         // uint32_t
+				//         .levelCount     = 1,                         // uint32_t
+				//         .baseArrayLayer = 0,                         // uint32_t
+				//         .layerCount     = 1,                         // uint32_t
+				//     },                                               // VkImageSubresourceRange
+				// };
 
-				if ( VK_SUCCESS != result ) {
-					logger.error( "Could not create ImageView for decoded picture buffer" );
-				};
+				// result = vkCreateImageView( self->device, &image_view_create_info, nullptr, &f.maybe_dst_image_info->dst_image_view );
+
+				// if ( VK_SUCCESS != result ) {
+				// 	logger.error( "Could not create ImageView for decoded picture buffer" );
+				// };
 			}
 
 			// Assign one/nth of the bitstream buffer capacity to this frame
@@ -1555,27 +1557,28 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 
 		if ( false == decoder->properties.do_dpb_and_out_images_coincide ) {
 			// add a barrier for the dst image in case it is distinct
-			img_barriers.push_back(
-			    {
-			        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-			        .pNext               = nullptr,                                  // optional
-			        .srcStageMask        = VK_PIPELINE_STAGE_2_NONE,                 // wait for nothing
-			        .srcAccessMask       = 0,                                        // flush nothing
-			        .dstStageMask        = VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR, // block on any video decode stage
-			        .dstAccessMask       = VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR,   // make memory visible to decode stage (after layout transition)
-			        .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,                // transition from undefined - as in we don't care...
-			        .newLayout           = VK_IMAGE_LAYOUT_VIDEO_DECODE_DST_KHR,     // to video decode
-			        .srcQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index,
-			        .dstQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index,
-			        .image               = decoder_memory_frame->maybe_dst_image_info->dst_image,
-			        .subresourceRange    = {
-			               .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-			               .baseMipLevel   = 0,
-			               .levelCount     = 1,
-			               .baseArrayLayer = 0,
-			               .layerCount     = 1,
-                    },
-			    } );
+			logger.error( "Missing implementation for when dpb and out images do not coincide." );
+			// img_barriers.push_back(
+			//     {
+			//         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			//         .pNext               = nullptr,                                  // optional
+			//         .srcStageMask        = VK_PIPELINE_STAGE_2_NONE,                 // wait for nothing
+			//         .srcAccessMask       = 0,                                        // flush nothing
+			//         .dstStageMask        = VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR, // block on any video decode stage
+			//         .dstAccessMask       = VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR,   // make memory visible to decode stage (after layout transition)
+			//         .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,                // transition from undefined - as in we don't care...
+			//         .newLayout           = VK_IMAGE_LAYOUT_VIDEO_DECODE_DST_KHR,     // to video decode
+			//         .srcQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index,
+			//         .dstQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index,
+			//         .image               = decoder_memory_frame->maybe_dst_image_info->dst_image,
+			//         .subresourceRange    = {
+			//                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+			//                .baseMipLevel   = 0,
+			//                .levelCount     = 1,
+			//                .baseArrayLayer = 0,
+			//                .layerCount     = 1,
+			//                 },
+			//    } );
 		}
 
 		VkDependencyInfo info{
