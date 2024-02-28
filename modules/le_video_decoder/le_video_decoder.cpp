@@ -1987,13 +1987,13 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 			    {
 			        // dpb image: transfer_src -> decode_pdb
 			        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-			        .pNext               = nullptr,                                  // optional
-			        .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,      // wait for nothing
-			        .srcAccessMask       = VK_ACCESS_2_NONE,                         // flush nothing
-			        .dstStageMask        = VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR, // block on any decode
-			        .dstAccessMask       = VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR,   // make memory visible to decode write (after layout transition)
-			        .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,     // transition from transfer src
-			        .newLayout           = VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,     // to decode dpb
+			        .pNext               = nullptr,                                                                        // optional
+			        .srcStageMask        = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,                                            // wait for nothing
+			        .srcAccessMask       = VK_ACCESS_2_NONE,                                                               // flush nothing
+			        .dstStageMask        = VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR,                                       // block on any decode
+			        .dstAccessMask       = VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR | VK_ACCESS_2_VIDEO_DECODE_READ_BIT_KHR, // make memory visible to decode write, and read (after layout transition)
+			        .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,                                           // transition from transfer src
+			        .newLayout           = VK_IMAGE_LAYOUT_VIDEO_DECODE_DPB_KHR,                                           // to decode dpb
 			        .srcQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index,
 			        .dstQueueFamilyIndex = decoder->backend_video_decoder_queue_family_index,
 			        .image               = decoder->dpb_image_array[ dpb_target_slot_idx ].image,
