@@ -1852,16 +1852,16 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 	vkCmdEndVideoCodingKHR( cmd, &end_video_coding_info );
 
 	if ( decoder->properties.do_dpb_and_out_images_coincide ) {
-		// if output and dpb images coincide, we need to copy last decoded image into the image that we want to render...
+		//
+		// If output and dpb images coincide, we need to copy last decoded image into an image provided by the rendergraph,
+		// which can then be used for draw.
 
-		// maybe a better way to do this is to pull the image from the rendergraph, and then copy into it.
-		// on the other hand, we know so much about the image here, and we have the right resolve sampler etc.
-		// we should probably provide the image from the decoder and make introduce it to the rendergraph as a resource
-		// similar to the swapchain surface - which you can query via the swapchain, receiving a `le_image_resource` handle.
-
-		// we will still have to manage that the current image needs to transfer queue ownership (i think that should work)
-		// and that another queue can have it on the next frame. this means that we will need to pre-buffer some frames, and
-		// images that have been decoded will at the earliest show on the following frame.
+		// We copy the dpb image contents into an image that is provided by the rendergraph (`rendergraph_dst_image`).
+		// the rendergraph has transferred queue ownership to the decode queue at this point in time.
+		// The rendergraph will transfer queue ownership for this image back to a draw queue during the next
+		// update cycle if the image gets used for drawing.
+		// This means that we will need to pre-buffer some frames, and images that have been decoded will at the
+		// earliest show on the following frame.
 
 		// ----------------------------------------------------------------------
 
@@ -2026,7 +2026,7 @@ static void video_decode( le_video_decoder_o* decoder, VkCommandBuffer cmd, le_v
 
 		// in case the images do not coincide, we must first draw into the
 		// image that is held by the memory frame.
-		// then, instead of copying from the dbb image, we must copy from
+		// then, instead of copying from the dpb image, we must copy from
 		// the memory frame image.
 		logger.error( "Not implemented" );
 	}
