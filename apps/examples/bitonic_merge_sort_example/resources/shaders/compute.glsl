@@ -40,7 +40,7 @@ shared uint local_value[gl_WorkGroupSize.x * 2];
 
 // OK Lab color space via Björn Ottosson: 
 // https://bottosson.github.io/posts/oklab/
-vec3 linear_srgb_to_oklab(vec3 c) 
+vec3 linear_rgb_to_oklab(vec3 c) 
 {
     float l = 0.4122214708f * c.r + 0.5363325363f * c.g + 0.0514459929f * c.b;
 	float m = 0.2119034982f * c.r + 0.6806995451f * c.g + 0.1073969566f * c.b;
@@ -71,7 +71,7 @@ vec3 uint2rgb(in uint c){
 // Note that we do our luminance comparisons in OK Lab color space - this
 // is so that we may compare colors by *perceived* brightness.
 bool brighter_than(in const uint left, in const uint right){
-	return linear_srgb_to_oklab(uint2rgb(left)).x < linear_srgb_to_oklab(uint2rgb(right)).x;
+	return linear_rgb_to_oklab(uint2rgb(left)).x < linear_rgb_to_oklab(uint2rgb(right)).x;
 }
 
 // naive comparison
