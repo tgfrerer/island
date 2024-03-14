@@ -80,7 +80,8 @@ class RendererInfoBuilder {
 		T&                                       parent;
 		le_swapchain_settings_t::img_settings_t& settings;
 
-		static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -vcodec h264_nvenc  -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 10 -b:v 5000k -maxrate:v 50000k -pix_fmt yuv420p -r 60 -profile:v high isl%s.mp4";
+		static constexpr auto default_pipe_cmd                = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -vcodec h264_nvenc  -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 10 -b:v 5000k -maxrate:v 50000k -pix_fmt yuv420p -r 60 -profile:v high isl%s.mp4";
+		static constexpr auto default_image_filename_template = "isl_%08.raw";
 
 	  public:
 		ImgSwapchainInfoBuilder( T& parent_ )
@@ -91,6 +92,11 @@ class RendererInfoBuilder {
 
 		ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
 			settings.pipe_cmd = pipe_cmd;
+			return *this;
+		}
+
+		ImgSwapchainInfoBuilder& setImageNameTemplate( char const* image_filename_template = default_image_filename_template ) {
+			settings.image_filename_template = image_filename_template;
 			return *this;
 		}
 
@@ -242,7 +248,8 @@ class RendererInfoBuilder {
 	using SwapchainSettingsBuilder = le::RendererInfoBuilder::SwapchainSettingsBuilderT<void>; // shorthand for when used on its own.
 };
 
-using SwapchainSettingsBuilder = le::RendererInfoBuilder::SwapchainSettingsBuilder; // shorthand for when used on its own.
+using RendererSettingsBuilder  = le::RendererInfoBuilder;                               // better name - as the builder returns a le_renderer_settings_t
+using SwapchainSettingsBuilder = le::RendererSettingsBuilder::SwapchainSettingsBuilder; // shorthand for when used on its own.
 
 // ----------------------------------------------------------------------
 

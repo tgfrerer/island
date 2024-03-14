@@ -253,6 +253,7 @@ struct le_swapchain_settings_t {
 	struct img_settings_t {
 		struct le_image_encoder_interface_t* image_encoder_i;          // ffdecl. declared in shared/interfaces/le_image_encoder_interface.h
 		void*                                image_encoder_parameters; // non-owning
+		char const*                          image_filename_template;  // a format string, must contain %d for current image number.
 		char const*                          pipe_cmd;                 // command used to save images - will receive stream of images via stdin
 	};
 
@@ -286,6 +287,7 @@ struct le_swapchain_settings_t {
 		this->img_settings.pipe_cmd                 = "";
 		this->img_settings.image_encoder_i          = nullptr;
 		this->img_settings.image_encoder_parameters = nullptr;
+		this->img_settings.image_filename_template  = "isl_%08d.raw"; // image name template - a printf format string, must contain %d for image number.
 	}
 };
 

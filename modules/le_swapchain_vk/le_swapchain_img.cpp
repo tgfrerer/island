@@ -47,6 +47,7 @@ struct img_data_o {
 	VkCommandPool                 vkCommandPool;                      // Command pool from wich we allocate present and acquire command buffers
 	le_backend_o*                 backend = nullptr;                  // Not owned. Backend owns swapchain.
 	std::vector<TransferFrame>    transferFrames;                     //
+	std::string                   image_filename_template  = "";      // template for image file name
 	le_image_encoder_interface_t* image_encoder_i          = nullptr; // optional, non-owing: generic encoder api
 	void*                         image_encoder_parameters = nullptr; // optional, owning - cloned via `image_encoder_i.clone_image_encoder_parameters_object()`
 	FILE*                         pipe                     = nullptr; // Pipe to ffmpeg. Owned. must be closed if opened
@@ -357,6 +358,7 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 	self->windowSurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 	self->mImageIndex                    = uint32_t( ~0 );
 	self->pipe_cmd                       = settings->img_settings.pipe_cmd ? std::string( settings->img_settings.pipe_cmd ) : "";
+	self->image_filename_template        = settings->img_settings.image_filename_template ? std::string( settings->img_settings.image_filename_template ) : "img_%08d.raw";
 
 	{
 
@@ -565,7 +567,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	if ( self->totalImages >= self->mImagecount ) {
 		if ( self->image_encoder_i ) {
 			char filename[ 1024 ];
-			sprintf( filename, "isl_%08d.exr", self->totalImages - self->mImagecount );
+			sprintf( filename, self->image_filename_template.c_str(), self->totalImages - self->mImagecount );
 			logger.info( "Start  Encoding Image: %s", filename );
 
 			le_image_encoder_o* encoder = self->image_encoder_i->create_image_encoder( filename, self->mSwapchainExtent.width, self->mSwapchainExtent.height );
@@ -594,7 +596,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 
 		} else {
 			char file_name[ 1024 ];
-			sprintf( file_name, "isl_%08d.rgba", self->totalImages );
+			sprintf( file_name, self->image_filename_template.c_str(), self->totalImages );
 			std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
 			myfile.write( ( char* )frame.bufferAllocationInfo.pMappedData,
 			              self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
