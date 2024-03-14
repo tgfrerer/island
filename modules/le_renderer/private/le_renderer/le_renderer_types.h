@@ -541,9 +541,33 @@ static bool le_format_infer_channels_and_num_type( le::Format const& format, uin
 		*num_channels = 1;
 		*num_type     = le_num_type::eU8;
 		return true;
+	case le::Format::eR16Unorm:
+		*num_channels = 1;
+		*num_type     = le_num_type::eU16;
+		return true;
+	case le::Format::eR16Sfloat:
+		*num_channels = 1;
+		*num_type     = le_num_type::eF16;
+		return true;
 	case le::Format::eR32Sfloat:
 		*num_channels = 1;
 		*num_type     = le_num_type::eF32;
+		return true;
+	case le::Format::eR16G16Unorm:
+		*num_channels = 2;
+		*num_type     = le_num_type::eU16;
+		return true;
+	case le::Format::eR16G16Sfloat:
+		*num_channels = 2;
+		*num_type     = le_num_type::eF16;
+		return true;
+	case le::Format::eR32G32Sfloat:
+		*num_channels = 2;
+		*num_type     = le_num_type::eF32;
+		return true;
+	case le::Format::eR16G16B16Unorm:
+		*num_channels = 3;
+		*num_type     = le_num_type::eU16;
 		return true;
 	case le::Format::eR16G16B16Sfloat:
 		*num_channels = 3;
@@ -552,6 +576,10 @@ static bool le_format_infer_channels_and_num_type( le::Format const& format, uin
 	case le::Format::eR32G32B32Sfloat:
 		*num_channels = 3;
 		*num_type     = le_num_type::eF32;
+		return true;
+	case le::Format::eR16G16B16A16Unorm:
+		*num_channels = 4;
+		*num_type     = le_num_type::eU16;
 		return true;
 	case le::Format::eR16G16B16A16Sfloat:
 		*num_channels = 4;
