@@ -33,3 +33,6 @@
 [submodule "modules/le_exr"]
 	path = modules/le_exr
 	url = https://github.com/tgfrerer/le_exr.git
+[submodule "modules/le_png"]
+	path = modules/le_png
+	url = https://github.com/tgfrerer/le_png.git
