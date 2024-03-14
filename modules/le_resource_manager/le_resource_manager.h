@@ -29,6 +29,7 @@ ResourceManager  keeps track of uploaded images.
         char const * path = "testimage.png";
         auto image_info =
             le::ImageInfoBuilder()
+                .setFormat( le::Format::eR8G8B8A8Unorm ) // default setting - use different format to request conversion into this format if possible
                 .setImageType( le::ImageType::e2D )
                 .setExtent( 1024, 1024 )
                 .build();
@@ -44,6 +45,15 @@ Call update() with the rendergraph that you want to use the resources with.
 If you set the parameter `should_watch` to true when you add an item, then the
 source file path for this item will get watched and the resource will get hot-
 reloaded if any change in the source file is detected.
+
+* * *
+
+Format conversion:
+
+Note that most encoders will allow you to convert pixel data into target image formats.
+You can specify the target image format using the image_info in `.add_item` - note
+that if you don't specify target image format, the resource manager will assume a target
+image format of `le::Format::eR8G8B8A8Unorm`.
 
 * * *
 

@@ -195,48 +195,49 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 		return;
 	}
 
-	le_image_decoder_format_o format = { le::Format::eUndefined };
+	le_image_decoder_format_o detected_format  = { le::Format::eUndefined };
+	le_image_decoder_format_o requested_format = { layer_data.image_info->format };
 
 	uint32_t w, h;
 
-	layer_data.decoder_i->get_image_data_description( layer_data.image_decoder, &format, &w, &h );
+	layer_data.decoder_i->get_image_data_description( layer_data.image_decoder, &detected_format, &w, &h );
 
 	// If Format is not any of the formats that we know, we
 	// adjust the format so that it fits.
 	//
 
-	// conversion from -> to
-	const std::unordered_map<le::Format, le::Format> format_conversions = {
-	    { le::Format::eR8G8B8A8Unorm, le::Format::eR8G8B8A8Unorm },
-	    { le::Format::eR8G8B8Unorm, le::Format::eR8G8B8A8Unorm },
-	    { le::Format::eR8G8Unorm, le::Format::eR8G8B8A8Unorm },
-	    { le::Format::eR8Unorm, le::Format::eR8Unorm },
+	switch ( requested_format.format ) {
+	case ( le::Format::eR8G8B8A8Unorm ): // deliberate fall-through
+	case ( le::Format::eR8G8B8Unorm ):
+	case ( le::Format::eR8G8Unorm ):
+	case ( le::Format::eR8Unorm ):
+	case ( le::Format::eR32G32B32A32Sfloat ): // deliberate fall-through
+	case ( le::Format::eR32G32B32Sfloat ):
+	case ( le::Format::eR32G32Sfloat ):
+	case ( le::Format::eR32Sfloat ):
+	case ( le::Format::eR16G16B16A16Sfloat ): // deliberate fall-through
+	case ( le::Format::eR16G16B16Sfloat ):
+	case ( le::Format::eR16G16Sfloat ):
+	case ( le::Format::eR16Sfloat ):
+	case ( le::Format::eR16G16B16A16Unorm ): // deliberate fall-through
+	case ( le::Format::eR16G16B16Unorm ):
+	case ( le::Format::eR16G16Unorm ):
+	case ( le::Format::eR16Unorm ):
+		break;
 
-	    { le::Format::eR32G32B32A32Sfloat, le::Format::eR32G32B32A32Sfloat },
-	    { le::Format::eR32G32B32Sfloat, le::Format::eR32G32B32A32Sfloat },
-	    { le::Format::eR32G32Sfloat, le::Format::eR32G32B32A32Sfloat },
-	    { le::Format::eR32Sfloat, le::Format::eR32Sfloat },
-
-	    { le::Format::eR16G16B16A16Sfloat, le::Format::eR16G16B16A16Sfloat },
-	    { le::Format::eR16G16B16Sfloat, le::Format::eR16G16B16A16Sfloat },
-	    { le::Format::eR16G16Sfloat, le::Format::eR16G16B16A16Sfloat },
-	    { le::Format::eR16Sfloat, le::Format::eR16Sfloat },
-	};
-
-	auto found_format_it = format_conversions.find( format.format );
-
-	auto adjusted_format = le::Format::eR8G8B8A8Unorm;
-
-	if ( found_format_it != format_conversions.end() ) {
-		adjusted_format = found_format_it->second;
+	default:
+		requested_format.format = le::Format::eR8G8B8A8Unorm;
+		break;
 	}
 
-	if ( format.format != adjusted_format ) {
-		logger.info( "File '%s' -> adjusting imported image format from %s to: %s", layer_data.path.c_str(), le::to_str( format.format ), le::to_str( adjusted_format ) );
-		format.format = adjusted_format;
+	if ( detected_format.format != requested_format.format ) {
+		logger.info( "File '%s' -> adjusting imported image format from %s to: %s",
+		             layer_data.path.c_str(),
+		             le::to_str( detected_format.format ),
+		             le::to_str( requested_format.format ) );
 	}
 
-	layer_data.decoder_i->set_requested_format( layer_data.image_decoder, &format );
+	layer_data.decoder_i->set_requested_format( layer_data.image_decoder, &requested_format );
 
 	if ( layer_data.extents_inferred ) {
 		layer_data.image_info->extent.depth  = 1;
@@ -246,7 +247,7 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 
 	layer_data.width              = w;
 	layer_data.height             = h;
-	layer_data.image_info->format = format.format;
+	layer_data.image_info->format = requested_format.format;
 
 	layer_data.image_info->usage |= ( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage );
 
@@ -393,7 +394,7 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 			extents_inferred = true;
 		}
 
-		item.image_info.image.format = le::Format::eUndefined;
+		// item.image_info.image.format = le::Format::eUndefined;
 
 		{
 			for ( int i = 0; i != image_info->image.arrayLayers; i++ ) {
