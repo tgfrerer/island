@@ -50,9 +50,10 @@ reloaded if any change in the source file is detected.
 
 Format conversion:
 
-Note that most encoders will allow you to convert pixel data into target image formats.
-You can specify the target image format using the image_info in `.add_item` - note
-that if you don't specify target image format, the resource manager will assume a target
+Note that most decoders will allow you to convert pixel data into target image formats.
+
+You can specify the target image format using the `image_info` in `.add_item` -- note
+that if you don't specify a target image format, the resource manager will assume a target
 image format of `le::Format::eR8G8B8A8Unorm`.
 
 * * *
