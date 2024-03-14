@@ -515,7 +515,7 @@ static void le_resource_manager_set_decoder_interface_for_filetype( le_resource_
 	bool interface_did_already_exist = ( it != self->available_decoder_interfaces.end() );
 
 	// replace or update the interface
-	self->available_decoder_interfaces.emplace_hint( it, file_ext, decoder_interface );
+	self->available_decoder_interfaces[ file_ext ] = decoder_interface;
 
 	if ( interface_did_already_exist ) {
 		logger.info( "Updated    interface for file extension: '%s'", file_ext.c_str() );
