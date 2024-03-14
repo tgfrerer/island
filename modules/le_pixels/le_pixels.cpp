@@ -31,7 +31,7 @@ struct le_image_decoder_o {
 static auto logger = LeLog( "le_pixels" );
 
 // ----------------------------------------------------------------------
-
+// Todo: rewrite this using codegen and vk.xml which includes a formats table
 static void infer_data_info_from_le_format( le::Format const& format, int32_t* num_channels, le_num_type* num_type ) {
 	switch ( format ) {
 	case le::Format::eR8G8B8A8Uint: // deliberate fall-through
