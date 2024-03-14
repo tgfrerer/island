@@ -156,7 +156,7 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 					continue;
 				}
 
-				uint32_t bytes_per_pixel = num_channels * ( uint32_t( 1 ) << ( uint32_t( channel_data_type ) & 0x03 ) ); // See definition of le_pixels_info
+				uint32_t bytes_per_pixel = num_channels * size_of( channel_data_type ); // See definition of le_num_type
 				size_t   num_bytes       = bytes_per_pixel * w * h;
 
 				// We map memory via the encoder - if all goes well the encoder gives us a pointer

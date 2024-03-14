@@ -80,7 +80,7 @@ If you want to load a 3D image, say, for a LUT, you can do the following:
     auto lut_image = LE_IMG_RESOURCE( "lut_image" );
 
     char const* src_image_path =
-        "./local_resources/images/revolt-97ZPiaJbDuA-unsplash.jpg";
+        "./local_resources/images/hald_8_identity.png";
 
     // Provide additional information for 3D LUT Image:
     // ImageType, Dimensions need to be explicit.
@@ -92,7 +92,6 @@ If you want to load a 3D image, say, for a LUT, you can do the following:
 
     // Instruct resource manager to load data for images from given path
     app->resource_manager.add_item( lut_image, image_info_color_lut_texture, &src_image_path );
-
 
 */
 
