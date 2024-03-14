@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-../../../scripts/codegen/gen_le_enums.py <<- "EOF" | clang-format > le_vk_enums.inl
+../../../../scripts/codegen/gen_le_enums.py <<- "EOF" | clang-format > le_vk_enums.inl
 # Vulkan enum name,         generate to_string()
 VkAccessFlagBits2, yes
 VkAttachmentLoadOp, yes
