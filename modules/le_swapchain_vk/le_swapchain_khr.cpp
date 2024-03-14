@@ -100,6 +100,10 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 		surfaceProperties.windowSurfaceFormat.format = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format;
 	}
 
+	if ( preferredSurfaceFormat != surfaceProperties.windowSurfaceFormat.format ) {
+		logger.warn( "Swapchain surface format was adapted to: %s", to_str( le::Format( surfaceProperties.windowSurfaceFormat.format ) ) );
+	}
+
 	logger.info( "** Surface queried Extents: %d x %d",
 	             surfaceProperties.surfaceCapabilities.currentExtent.width,
 	             surfaceProperties.surfaceCapabilities.currentExtent.height );
