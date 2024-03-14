@@ -541,6 +541,10 @@ static bool le_format_infer_channels_and_num_type( le::Format const& format, uin
 		*num_channels = 1;
 		*num_type     = le_num_type::eU8;
 		return true;
+	case le::Format::eR8G8Unorm:
+		*num_channels = 2;
+		*num_type     = le_num_type::eU8;
+		return true;
 	case le::Format::eR16Unorm:
 		*num_channels = 1;
 		*num_type     = le_num_type::eU16;
