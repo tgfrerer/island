@@ -443,11 +443,14 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 	return base;
 }
 
+// ----------------------------------------------------------------------
+
 static le_swapchain_o* swapchain_img_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
 	// not implemented
 	assert( false && "Not implemented." );
 	return nullptr;
 }
+
 // ----------------------------------------------------------------------
 
 static void swapchain_img_destroy( le_swapchain_o* base ) {
@@ -553,10 +556,11 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	auto const& frame = self->transferFrames[ *imageIndex ];
 
 	// We only want to write out images which have been rendered into
-	// depending on how deep your image swapchain is, you will have
-	// to wait for n steps for a frame to have passed from record, to submit, to render
-	// for it to produce some pixels
-	// the first n images will be black...
+	// depending on how deep your image swapchain is, you will have to
+	// wait for n steps for a frame to have passed from record to
+	// submit to render, for it to produce some pixels.
+	//
+	// The first n images will be black...
 
 	if ( self->totalImages >= self->mImagecount ) {
 		if ( self->image_encoder_i ) {
