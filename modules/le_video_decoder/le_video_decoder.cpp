@@ -323,6 +323,34 @@ static uint64_t video_time_to_ticks_count( uint64_t video_time_units, uint64_t t
 
 // ----------------------------------------------------------------------
 
+struct GenericVkStruct {
+	VkStructureType sType;
+	void*           pNext;
+};
+
+// ----------------------------------------------------------------------
+
+static GenericVkStruct* find_in_features_chain( GenericVkStruct* vk_features_chain, VkStructureType const s_type, GenericVkStruct** p_previous = nullptr ) {
+
+	GenericVkStruct* p_current = vk_features_chain;
+
+	// Test whether a struct of the type that we require already exists.
+	while ( p_current != nullptr ) {
+
+		if ( p_current->sType == s_type ) {
+			return p_current;
+		}
+		if ( p_previous ) {
+			// store the last element of the
+			*p_previous = p_current;
+		}
+		p_current = reinterpret_cast<GenericVkStruct*>( p_current->pNext );
+	}
+	return p_current;
+};
+
+// ----------------------------------------------------------------------
+
 static void le_video_decoder_init() {
 
 	//	Adding this during initialisation means there is no way for the application
@@ -332,6 +360,8 @@ static void le_video_decoder_init() {
 
 	result &= le_backend_vk::settings_i.add_required_device_extension(
 	    VK_KHR_VIDEO_QUEUE_EXTENSION_NAME );
+	result &= le_backend_vk::settings_i.add_required_device_extension(
+	    VK_KHR_VIDEO_MAINTENANCE_1_EXTENSION_NAME ); // so that we don't have to pass viedo specfic info when allocating images used for video
 	result &= le_backend_vk::settings_i.add_required_device_extension(
 	    VK_KHR_VIDEO_DECODE_QUEUE_EXTENSION_NAME );
 	result &= le_backend_vk::settings_i.add_required_device_extension(
@@ -348,28 +378,74 @@ static void le_video_decoder_init() {
 		logger.error( "Could not request queue capabilities required for video decode." );
 	}
 
-	if ( false ) { // Request some vk11 features to be switched on.
+	{
+		// Activate Video Maintenance 1
+		//
+		// We do this so that we don't have to name video profile when we allocate
+		// images and buffers that we are going to use with video -- this gives us
+		// some extra flexibility.
+
 		auto vk_features_chain = le_backend_vk::settings_i.get_physical_device_features_chain();
 
-		struct GenericVkStruct {
-			VkStructureType sType;
-			void*           pNext;
-		};
+		GenericVkStruct* p_previous = nullptr;
+		GenericVkStruct* p_found    = find_in_features_chain(
+		       ( GenericVkStruct* )vk_features_chain,
+		       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR,
+		       &p_previous );
 
-		GenericVkStruct* features_struct = reinterpret_cast<GenericVkStruct*>( vk_features_chain );
+		VkPhysicalDeviceVideoMaintenance1FeaturesKHR* video_maintenance_1_features = nullptr;
 
-		while ( features_struct->pNext ) {
+		if ( p_found != nullptr ) {
+			// if the struct has been found as being part of the chain,
+			// then we want to just set the parameter.
+			video_maintenance_1_features = reinterpret_cast<VkPhysicalDeviceVideoMaintenance1FeaturesKHR*>( p_found );
+		} else if ( p_previous ) {
+			// p_current is nullptr,
 
-			if ( features_struct->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES ) {
-				// we found the struct that contains settings for Vulkan1.1
-				auto vk11_features = reinterpret_cast<VkPhysicalDeviceVulkan11Features*>( features_struct );
-				// we require samplerycbrconversion to be enabled
-				vk11_features->samplerYcbcrConversion = true;
-				break;
-			}
+			// Video Maintenance feature has not been found in our chain of feature settings -
+			// we must add the statically available element from here, and link it into the chain
+			// by linking to it from the last element of the chain.
 
-			features_struct = static_cast<GenericVkStruct*>( features_struct->pNext );
+			static VkPhysicalDeviceVideoMaintenance1FeaturesKHR cMaintenance1Features = {
+			    .sType             = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR, // VkStructureType
+			    .pNext             = nullptr,                                                            // void *, optional
+			    .videoMaintenance1 = 1,                                                                  // VkBool32
+			};
+
+			p_previous->pNext            = &cMaintenance1Features;
+			video_maintenance_1_features = &cMaintenance1Features;
+
+		} else {
+			// no previous element - this means that there was no first element in the
+			// features chain
+			logger.error( "Could not get a valid entry from the features chain: No first element." );
 		}
+
+		if ( video_maintenance_1_features ) {
+			video_maintenance_1_features->videoMaintenance1 = VK_TRUE;
+		}
+	}
+
+	{
+		// Request samplerYcbcrConversion from Vulkan 1.1 features to be switched on.
+
+		auto vk_features_chain = le_backend_vk::settings_i.get_physical_device_features_chain();
+
+		GenericVkStruct* p_previous = nullptr;
+		GenericVkStruct* p_found    = find_in_features_chain(
+		       ( GenericVkStruct* )vk_features_chain,
+		       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+		       &p_previous );
+
+		VkPhysicalDeviceVulkan11Features* vk_1_1_features = nullptr;
+
+		if ( p_found ) {
+			vk_1_1_features                         = reinterpret_cast<VkPhysicalDeviceVulkan11Features*>( p_found );
+			vk_1_1_features->samplerYcbcrConversion = VK_TRUE;
+		} else {
+			logger.error( "Could not find Vulkan 1.1 Physical Device Features." );
+		}
+		// we require samplerycbrconversion to be enabled
 	}
 }
 
@@ -572,8 +648,8 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 
 		VkBufferCreateInfo bufferCreateInfo{
 		    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		    .pNext                 = &self->settings.profile_list_info,
-		    .flags                 = 0, // optional
+			.pNext                 = nullptr,                                            // &self->settings.profile_list_info,
+			.flags                 = VK_BUFFER_CREATE_VIDEO_PROFILE_INDEPENDENT_BIT_KHR, // optional
 		    .size                  = buffer_sz,
 		    .usage                 = VK_BUFFER_USAGE_VIDEO_DECODE_SRC_BIT_KHR,
 		    .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
@@ -1033,11 +1109,11 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 		allocation_create_info.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 		VkImageCreateInfo image_create_info = {
-		    .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,       // VkStructureType
-		    .pNext                 = &self->settings.profile_list_info,         //
-		    .flags                 = 0,                                         // VkImageCreateFlags, optional
-		    .imageType             = VkImageType::VK_IMAGE_TYPE_2D,             // VkImageType
-		    .format                = self->properties.format_properties.format, // VkFormat
+		    .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,               // VkStructureType
+		    .pNext                 = nullptr,                                           //&self->settings.profile_list_info,         //
+		    .flags                 = VK_IMAGE_CREATE_VIDEO_PROFILE_INDEPENDENT_BIT_KHR, // VkImageCreateFlags, optional
+		    .imageType             = VkImageType::VK_IMAGE_TYPE_2D,                     // VkImageType
+		    .format                = self->properties.format_properties.format,         // VkFormat
 		    .extent                = { .width  = self->video_data->width,
 		                               .height = self->video_data->height,
 		                               .depth  = 1 },                               // VkExtent3D
@@ -1108,11 +1184,11 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 		allocation_create_info.usage          = VMA_MEMORY_USAGE_GPU_ONLY;
 		allocation_create_info.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		VkImageCreateInfo image_create_info   = {
-		      .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,       // VkStructureType
-		      .pNext                 = &self->settings.profile_list_info,         // , optional
-		      .flags                 = 0,                                         // VkImageCreateFlags, optional
-		      .imageType             = VkImageType::VK_IMAGE_TYPE_2D,             // VkImageType
-		      .format                = self->properties.format_properties.format, // VkFormat
+		      .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,               // VkStructureType
+		      .pNext                 = nullptr,                                           // &self->settings.profile_list_info,         // , optional
+		      .flags                 = VK_IMAGE_CREATE_VIDEO_PROFILE_INDEPENDENT_BIT_KHR, // VkImageCreateFlags, optional
+		      .imageType             = VkImageType::VK_IMAGE_TYPE_2D,                     // VkImageType
+		      .format                = self->properties.format_properties.format,         // VkFormat
 		      .extent                = { .width  = self->video_data->width,
 		                                 .height = self->video_data->height,
 		                                 .depth  = 1 },                               // VkExtent3D
