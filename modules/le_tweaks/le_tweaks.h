@@ -132,10 +132,10 @@ static const auto& le_tweaks_i = api->le_tweaks_i;
 
 // In Release, we don't want to be able to tweak - therefore all tweak macros evaluate to
 // the values themselves.
-#	define TWEAK( x ) x
+#	define LE_TWEAK( x ) x
 
 // There is nothing to update, therefore this macro is a no-op.
-#	define UPDATE_TWEAKS()
+#	define LE_UPDATE_TWEAKS()
 
 #endif // ifndef NDEBUG
 
