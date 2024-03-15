@@ -106,20 +106,6 @@ static bool le_backend_vk_settings_add_required_device_extension( le_backend_vk_
 			self->physical_device_features.features.features.shaderInt16  = VK_TRUE;
 		}
 
-		// GENERALLY, we deem it safe to enable any features that are part of
-		// the ROADMAP 2022 Profile.
-		// See <https://docs.vulkan.org/spec/latest/appendices/roadmap.html#roadmap-2022>
-
-		// enable ycbcr conversion as we need it for video textures, and it could
-		// be useful for other things.
-		self->physical_device_features.vk_11.samplerYcbcrConversion = VK_TRUE;
-
-		// VULKAN ROADMAP 2022: enable independent blend
-		self->physical_device_features.features.features.independentBlend = VK_TRUE;
-
-		// we need timeline semaphores for multi-queue ops
-		self->physical_device_features.vk_12.timelineSemaphore = VK_TRUE;
-
 		return true;
 	} else {
 		static auto logger = LeLog( "le_backend_vk_settings" );
@@ -140,7 +126,7 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	        .robustBufferAccess                      = 0,
 	        .fullDrawIndexUint32                     = 0,
 	        .imageCubeArray                          = 0,
-	        .independentBlend                        = 0,
+	        .independentBlend                        = VK_TRUE, // VULKAN ROADMAP 2022: enable independent blend
 	        .geometryShader                          = VK_TRUE, // we want geometry shaders
 	        .tessellationShader                      = 0,
 	        .sampleRateShading                       = VK_TRUE, // so that we can use sampleShadingEnable
@@ -249,6 +235,21 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	self->physical_device_features.vk_12.shaderInt8    = true;
 	self->physical_device_features.vk_12.shaderFloat16 = true;
 #endif
+
+	// ----------------------------------------------------------------------
+	// Enable some default features that we don't want to live without
+	// ----------------------------------------------------------------------
+
+	// GENERALLY, we deem it safe to enable any features that are part of
+	// the ROADMAP 2022 Profile.
+	// See <https://docs.vulkan.org/spec/latest/appendices/roadmap.html#roadmap-2022>
+
+	// Enable ycbcr conversion as we need it for video textures, and it could
+	// be useful for other things.
+	// self->physical_device_features.vk_11.samplerYcbcrConversion = VK_TRUE;
+
+	// we need timeline semaphores for multi-queue ops
+	self->physical_device_features.vk_12.timelineSemaphore = VK_TRUE;
 
 	return self;
 };
