@@ -240,7 +240,7 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 
 	// Enable ycbcr conversion as we need it for video textures, and it could
 	// be useful for other things.
-	// self->physical_device_features.vk_11.samplerYcbcrConversion = VK_TRUE;
+	self->physical_device_features.vk_11.samplerYcbcrConversion = VK_TRUE;
 
 	// we need timeline semaphores for multi-queue ops
 	self->physical_device_features.vk_12.timelineSemaphore = VK_TRUE;
