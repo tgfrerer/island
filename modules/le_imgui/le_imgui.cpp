@@ -411,7 +411,7 @@ void le_imgui_process_and_filter_events( le_imgui_o* self, LeUiEvent* events, ui
 		return;
 	}
 	// ---------| invariant: num_events > 0
-	le_imgui::le_imgui_i.process_events( self, events, *num_events );
+	le_imgui_process_events( self, events, *num_events );
 
 	auto const& io            = ImGui::GetIO();
 	uint32_t    ioFilterFlags = 0;
