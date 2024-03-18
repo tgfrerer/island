@@ -40,13 +40,4 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
    
 endif()
 
-# install(TARGETS ${TARGET}
-#         ARCHIVE
-#             DESTINATION modules/${TARGET}
-#         LIBRARY
-#             DESTINATION modules/${TARGET}
-# 	PUBLIC_HEADER
-# 	    DESTINATION include/${TARGET}
-# 	)
-
 source_group(${TARGET} FILES ${SOURCES})
