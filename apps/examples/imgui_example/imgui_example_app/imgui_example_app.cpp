@@ -251,8 +251,17 @@ static bool app_update( imgui_example_app_o* self ) {
 		ImGui::Begin( "Rendered Image" );
 		{
 			ImGui::Text( "This image has been rendered in a different renderpass:" );
-			render_target_image_1_requested_extents = ImGui::GetContentRegionAvail();
-			ImGui::Image( texture_handle_1, render_target_image_1_requested_extents ); // You must remember to make this texture available to the renderpass that draws the GUI!
+			auto region_avail = ImGui::GetContentRegionAvail();
+
+			// NOTE: we must protect against ImGui reporting negative extents.
+			// Otherwise the renderpass might get created with negative height or width.
+			render_target_image_1_requested_extents.x = std::max<float>( 0, region_avail.x );
+			render_target_image_1_requested_extents.y = std::max<float>( 0, region_avail.y );
+
+			// Draw Image - and draw it as large as we can fit it into the current ImGUI Window.
+			ImGui::Image( texture_handle_1, render_target_image_1_requested_extents );
+			// NOTE: So that this image can get displayed here, you must make texture_handle_1
+			// available to the renderpass that draws the GUI.
 		}
 		ImGui::End();
 
@@ -296,14 +305,16 @@ static bool app_update( imgui_example_app_o* self ) {
 	//
 	auto pass_to_screen =
 	    le::RenderPass( "to_screen", le::QueueFlagBits::eGraphics )
-	        .addColorAttachment( self->renderer.getSwapchainResource(),
-	                             le::ImageAttachmentInfoBuilder()
-	                                 .setColorClearValue( reinterpret_cast<le::ClearValue&>( self->backgroundColor ) )
-	                                 .build() )                       // swapchain color attachment is the color attachment that goes to the swapchain and therefore becomes visible.
+	        .addColorAttachment(
+	            self->renderer.getSwapchainResource(),
+	            le::ImageAttachmentInfoBuilder()
+	                .setColorClearValue( reinterpret_cast<le::ClearValue&>( self->backgroundColor ) )
+	                .build() )                                        // swapchain color attachment is the color attachment that goes to the swapchain and therefore becomes visible.
 	        .sampleTexture( texture_handle_1, render_target_image_1 ) // associate texture_handle_1 with render_target_image_1, and make it available for sampling inside the renderpass
 	    ;
 
-	//
+	// This adds the draw commands needed to draw the gui
+	// into the `pass_to_screen` renderpass.
 	le_imgui::le_imgui_i.draw( self->gui, pass_to_screen );
 
 	// Add renderpasses to rendergraph
