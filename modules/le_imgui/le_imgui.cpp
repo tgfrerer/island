@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <iterator>
 
-
 namespace {
 // We use an anonymous namespace here because we don't want to export our shader data to other compilation units
 // the code for these files is auto-generated via glslang, and you can recompile from source by issueing
@@ -283,8 +282,7 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 
 			ImVec4 currentClipRect{};
 
-			for ( ImDrawList** cmdList = drawData->CmdLists; cmdList != drawData->CmdLists + drawData->CmdListsCount; cmdList++ ) {
-				auto& im_cmd_list = *cmdList;
+			for ( auto const& im_cmd_list : drawData->CmdLists ) {
 
 				// upload index data
 				encoder.setIndexData( im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), le::IndexType::eUint16 );
