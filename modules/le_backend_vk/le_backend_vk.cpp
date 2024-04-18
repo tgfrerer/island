@@ -1362,7 +1362,7 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 
 	// Enable shader_device_address for scratch buffer, if raytracing feature is requested
 	auto settings = le_backend_vk::api->backend_settings_singleton;
-	if ( settings->physical_device_features.vk_12.bufferDeviceAddress ) {
+	if ( settings->physical_device_features.vk_1_2.bufferDeviceAddress ) {
 		createInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	}
 	createInfo.device = device;
