@@ -195,11 +195,10 @@ process_app(){
 
 		if test $build_result -eq 2 
 		then
-			printf "[  ==  ] %- 10s: %s\n" "Build" ${app_name}
-			return 0 
+			printf "[  ==  ] %- 10s: %s\n" "Build" "${app_name}"
 		elif test $build_result -ne 0 
 			then
-			printf "[ FAIL ] %- 10s: %s\n" "Build" ${app_name}
+			printf "[ FAIL ] %- 10s: %s\n" "Build" "${app_name}"
 			echo "--------------" >> build.err
 			echo "${app_name} BUILD FAILED: " >> build.err
 			echo "--------------" >> build.err
@@ -207,13 +206,15 @@ process_app(){
 			return 1
 		fi
 
-		printf "[  OK  ] %- 10s: %s\n" "Build" ${app_name}
+		printf "[  OK  ] %- 10s: %s\n" "Build" "${app_name}"
 
 		# we return early if screenshots have not been requested explicitly
 		if [[ $TAKE_SCREENSHOTS != 1 ]];
 		then
+            echo "Not taking screenshot."
 			return 0
 		fi
+            echo "Taking screenshot."
 		
 		run_app $build_dir $app_name &>run.log
 
