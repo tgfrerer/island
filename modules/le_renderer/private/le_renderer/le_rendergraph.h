@@ -4,25 +4,6 @@
 // ----------------------------------------------------------------------
 
 namespace le {
-using RWFlags = uint32_t;
-enum class ResourceAccessFlagBits : RWFlags {
-	eUndefined = 0x0,
-	eRead      = 0x1 << 0,
-	eWrite     = 0x1 << 1,
-	eReadWrite = eRead | eWrite,
-};
-
-constexpr RWFlags operator|( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const RWFlags>( static_cast<RWFlags>( lhs ) | static_cast<RWFlags>( rhs ) );
-};
-
-constexpr RWFlags operator|( RWFlags const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const RWFlags>( lhs | static_cast<RWFlags>( rhs ) );
-};
-
-constexpr RWFlags operator&( ResourceAccessFlagBits const& lhs, ResourceAccessFlagBits const& rhs ) noexcept {
-	return static_cast<const RWFlags>( static_cast<RWFlags>( lhs ) & static_cast<RWFlags>( rhs ) );
-};
 } // namespace le
 
 // ----------------------------------------------------------------------
@@ -115,9 +96,8 @@ struct le_renderpass_o {
 	                                          // this needs to be communicated to backend, so that you may create queue submissions
 	                                          // by filtering via root_passes_affinity_masks
 
-	std::vector<le_resource_handle> resources;                  // all resources used in this pass, contains info about resource type
-	std::vector<le::RWFlags>        resources_read_write_flags; // TODO: get rid of this: we can use resources_access_flags instead. read/write flags for all resources, in sync with resources
-	std::vector<le::AccessFlags2>   resources_access_flags;     // first read | last write access for each resource used in this pass
+	std::vector<le_resource_handle> resources; // all resources used in this pass, contains info about resource type
+	std::vector<le::AccessFlags2> resources_access_flags; // first read | last write access for each resource used in this pass
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_img_resource_handle>     attachmentResources; // kept in sync with imageAttachments, one resource per attachment

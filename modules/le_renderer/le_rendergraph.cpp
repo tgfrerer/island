@@ -151,7 +151,6 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		// Note that we don't immediately set the access flag,
 		// as the correct access flag is calculated based on resource_info
 		// after this block.
-		self->resources_read_write_flags.push_back( le::RWFlags( le::ResourceAccessFlagBits::eUndefined ) );
 		self->resources_access_flags.push_back( access_flags );
 
 	} else {
@@ -182,11 +181,6 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 	}
 
 	// update access flags
-	le::RWFlags& rw_flags = self->resources_read_write_flags[ resource_idx ];
-
-	if ( detectRead ) {
-		rw_flags = rw_flags | le::ResourceAccessFlagBits::eRead;
-	}
 
 	if ( detectWrite ) {
 
@@ -195,8 +189,6 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 			// A request to write to swapchain image automatically turns a pass into a root pass.
 			self->is_root = true;
 		}
-
-		rw_flags = rw_flags | le::ResourceAccessFlagBits::eWrite;
 	}
 }
 
@@ -703,8 +695,19 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		const size_t numResources = p->resources.size();
 
 		for ( size_t i = 0; i != numResources; i++ ) {
-			auto const&        resource_handle = p->resources[ i ];
-			le::RWFlags const& access_flags    = p->resources_read_write_flags[ i ];
+			auto const& resource_handle = p->resources[ i ];
+			auto        access_flags    = p->resources_access_flags[ i ];
+
+			bool detect_read  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
+			bool detect_write = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
+
+			// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
+			// this means that some reads to image resources are implicit read/writes.
+			// we can only get rid of this if we can prove that resources will not undergo a layout transform.
+			//
+			if ( resource_handle->data->type == LeResourceType::eImage ) {
+				detect_write |= ( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
+			}
 
 			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
 			for ( auto r = uniqueHandles.data(); res_idx != numUniqueResources; res_idx++, r++ ) {
@@ -723,8 +726,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 			// --------| invariant: uniqueHandles[res_idx] is valid
 
-			node.reads.set( res_idx, ( le::ResourceAccessFlagBits( access_flags ) & le::ResourceAccessFlagBits::eRead ) );
-			node.writes.set( res_idx, ( ( le::ResourceAccessFlagBits( access_flags ) & le::ResourceAccessFlagBits::eWrite ) >> 1 ) );
+			node.reads.set( res_idx, detect_read );
+			node.writes.set( res_idx, detect_write );
 		}
 
 		if ( p->is_root ) {
