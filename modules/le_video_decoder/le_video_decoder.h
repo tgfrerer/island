@@ -67,9 +67,15 @@ struct le_video_decoder_api {
 
 		// private:
 		void (* on_backend_frame_clear_cb ) ( void * user_data);
+
+		struct VkPhysicalDeviceVulkan11Features* maybe_requested_vk_1_1_features = nullptr; // owning
+		struct VkPhysicalDeviceVideoMaintenance1FeaturesKHR *maybe_requested_vulkan_video_maintenance_1_features = nullptr;  // owning
+
 	};
 
 	le_video_decoder_interface_t       le_video_decoder_i;
+
+
 };
 // clang-format on
 

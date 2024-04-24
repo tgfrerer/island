@@ -158,6 +158,7 @@ struct le_video_data_h264_t {
 };
 
 struct le_video_decoder_o {
+
 	std::atomic<size_t> reference_count; // intrusive pointer - once this is at zero, object will be destroyed.
 
 	enum PlaybackState : uint32_t {
@@ -328,26 +329,26 @@ struct GenericVkStruct {
 	void*           pNext;
 };
 
-// ----------------------------------------------------------------------
+// // ----------------------------------------------------------------------
 
-static GenericVkStruct* find_in_features_chain( GenericVkStruct* vk_features_chain, VkStructureType const s_type, GenericVkStruct** p_previous = nullptr ) {
+// static GenericVkStruct* find_in_features_chain( GenericVkStruct* vk_features_chain, VkStructureType const s_type, GenericVkStruct** p_previous = nullptr ) {
 
-	GenericVkStruct* p_current = vk_features_chain;
+// 	GenericVkStruct* p_current = vk_features_chain;
 
-	// Test whether a struct of the type that we require already exists.
-	while ( p_current != nullptr ) {
+// 	// Test whether a struct of the type that we require already exists.
+// 	while ( p_current != nullptr ) {
 
-		if ( p_current->sType == s_type ) {
-			return p_current;
-		}
-		if ( p_previous ) {
-			// store the last element of the
-			*p_previous = p_current;
-		}
-		p_current = reinterpret_cast<GenericVkStruct*>( p_current->pNext );
-	}
-	return p_current;
-};
+// 		if ( p_current->sType == s_type ) {
+// 			return p_current;
+// 		}
+// 		if ( p_previous ) {
+// 			// store the last element of the
+// 			*p_previous = p_current;
+// 		}
+// 		p_current = reinterpret_cast<GenericVkStruct*>( p_current->pNext );
+// 	}
+// 	return p_current;
+// };
 
 // ----------------------------------------------------------------------
 
@@ -385,65 +386,28 @@ static void le_video_decoder_init() {
 		// images and buffers that we are going to use with video -- this gives us
 		// some extra flexibility.
 
-		auto vk_features_chain = le_backend_vk::settings_i.get_physical_device_features_chain();
-
-		GenericVkStruct* p_previous = nullptr;
-		GenericVkStruct* p_found    = find_in_features_chain(
-		       ( GenericVkStruct* )vk_features_chain,
-		       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR,
-		       &p_previous );
-
-		VkPhysicalDeviceVideoMaintenance1FeaturesKHR* video_maintenance_1_features = nullptr;
-
-		if ( p_found != nullptr ) {
-			// if the struct has been found as being part of the chain,
-			// then we want to just set the parameter.
-			video_maintenance_1_features = reinterpret_cast<VkPhysicalDeviceVideoMaintenance1FeaturesKHR*>( p_found );
-		} else if ( p_previous ) {
-			// p_current is nullptr,
-
-			// Video Maintenance feature has not been found in our chain of feature settings -
-			// we must add the statically available element from here, and link it into the chain
-			// by linking to it from the last element of the chain.
-
-			static VkPhysicalDeviceVideoMaintenance1FeaturesKHR cMaintenance1Features = {
-			    .sType             = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR, // VkStructureType
-			    .pNext             = nullptr,                                                            // void *, optional
-			    .videoMaintenance1 = 1,                                                                  // VkBool32
-			};
-
-			p_previous->pNext            = &cMaintenance1Features;
-			video_maintenance_1_features = &cMaintenance1Features;
-
-		} else {
-			// no previous element - this means that there was no first element in the
-			// features chain
-			logger.error( "Could not get a valid entry from the features chain: No first element." );
-		}
+		auto video_maintenance_1_features = reinterpret_cast<VkPhysicalDeviceVideoMaintenance1FeaturesKHR*>(
+		    le_backend_vk::settings_i.get_or_append_features_chain_link(
+		        ( GenericVkStruct* )le_video_decoder_api_i->le_video_decoder_i.maybe_requested_vulkan_video_maintenance_1_features ) );
 
 		if ( video_maintenance_1_features ) {
 			video_maintenance_1_features->videoMaintenance1 = VK_TRUE;
+		} else {
+			logger.error( "Could not find nor add a physical device feature request for vulkan video maintenance 1 features" );
 		}
 	}
 
 	{
 		// Request samplerYcbcrConversion from Vulkan 1.1 features to be switched on.
 
-		auto vk_features_chain = le_backend_vk::settings_i.get_physical_device_features_chain();
+		auto vk_1_1_features = reinterpret_cast<VkPhysicalDeviceVulkan11Features*>(
+		    le_backend_vk::settings_i.get_or_append_features_chain_link(
+		        ( GenericVkStruct* )le_video_decoder_api_i->le_video_decoder_i.maybe_requested_vk_1_1_features ) );
 
-		GenericVkStruct* p_previous = nullptr;
-		GenericVkStruct* p_found    = find_in_features_chain(
-		       ( GenericVkStruct* )vk_features_chain,
-		       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-		       &p_previous );
-
-		VkPhysicalDeviceVulkan11Features* vk_1_1_features = nullptr;
-
-		if ( p_found ) {
-			vk_1_1_features                         = reinterpret_cast<VkPhysicalDeviceVulkan11Features*>( p_found );
+		if ( vk_1_1_features ) {
 			vk_1_1_features->samplerYcbcrConversion = VK_TRUE;
 		} else {
-			logger.error( "Could not find Vulkan 1.1 Physical Device Features." );
+			logger.error( "Could not find nor add a physical device feature request for vulkan 1.1 features." );
 		}
 		// we require samplerycbrconversion to be enabled
 	}
@@ -3498,6 +3462,40 @@ LE_MODULE_REGISTER_IMPL( le_video_decoder, api ) {
 	auto backend_o = *le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_o" ) );
 	post_reload_hook( static_cast<le_backend_o*>( backend_o ) );
 #endif
+
+	{
+		// We must allocate a new video maintenance structure - which is owned by
+		// the video decode api - this is so that we can link this into the
+		// features chain in case the features chain does not yet contain such an
+		// entry.
+		//
+		// As there is no way to de-register apis currently, this will get leaked
+		// once the api is unloaded for the last time when the application quits.
+		//
+		if ( nullptr == le_video_decoder_i.maybe_requested_vulkan_video_maintenance_1_features ) {
+			le_video_decoder_i.maybe_requested_vulkan_video_maintenance_1_features =
+			    new VkPhysicalDeviceVideoMaintenance1FeaturesKHR{
+			        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR,
+			        // ... to be set upon init()
+		        };
+		};
+
+		// We must allocate a new video maintenance structure - which is owned by
+		// the video decode api - this is so that we can link this into the
+		// features chain in case the features chain does not yet contain such an
+		// entry.
+		//
+		// As there is no way to de-register apis currently, this will get leaked
+		// once the api is unloaded for the last time when the application quits.
+		//
+		if ( nullptr == le_video_decoder_i.maybe_requested_vk_1_1_features ) {
+			le_video_decoder_i.maybe_requested_vk_1_1_features =
+			    new VkPhysicalDeviceVulkan11Features{
+			        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+			        //... to be set upon init()
+		        };
+		}
+	}
 
 	le_video_decoder_i.create                            = le_video_decoder_create;
 	le_video_decoder_i.destroy                           = le_video_decoder_destroy;
