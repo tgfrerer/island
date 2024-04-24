@@ -151,7 +151,7 @@ static GenericVkStruct* find_in_features_chain( GenericVkStruct* vk_features_cha
 //
 // Ownership is unchanged - the linked list does not own any of its elements.
 //
-static GenericVkStruct* fetch_or_insert_chain_link( GenericVkStruct* vk_struct_chain, GenericVkStruct* link ) {
+static GenericVkStruct* get_or_append_features_chain_link( GenericVkStruct* vk_struct_chain, GenericVkStruct* link ) {
 
 	if ( vk_struct_chain == nullptr ) {
 		return nullptr;
@@ -164,9 +164,9 @@ static GenericVkStruct* fetch_or_insert_chain_link( GenericVkStruct* vk_struct_c
 
 	while ( p_current ) {
 
-		// find matching element
 		if ( p_current->sType == link->sType ) {
-			return link;
+			// We found a matching element - return the existing element
+			return p_current;
 		}
 
 		p_previous = p_current;
@@ -182,10 +182,21 @@ static GenericVkStruct* fetch_or_insert_chain_link( GenericVkStruct* vk_struct_c
 	return ( GenericVkStruct* )p_previous->pNext;
 }
 
-// templated version - not for public use
+// ----------------------------------------------------------------------
+// templated version - for convenience in here, not for public use.
+//
 template <typename T>
-static T* fetch_or_insert_chain_link( GenericVkStruct* vk_struct_chain, T* link ) {
-	return ( T* )fetch_or_insert_chain_link( vk_struct_chain, ( GenericVkStruct* )link );
+static T* get_or_append_features_chain_link( GenericVkStruct* vk_struct_chain, T* link ) {
+	return ( T* )get_or_append_features_chain_link( vk_struct_chain, ( GenericVkStruct* )link );
+}
+
+// Public version which can only be called on the backend settings
+// singleton
+// ----------------------------------------------------------------------
+static GenericVkStruct* le_backend_vk_settings_get_or_append_features_chain_link( GenericVkStruct* link ) {
+	le_backend_vk_settings_o* self           = le_backend_vk::api->backend_settings_singleton;
+	GenericVkStruct*          features_chain = reinterpret_cast<GenericVkStruct*>( &self->physical_device_features.features );
+	return get_or_append_features_chain_link( features_chain, link );
 }
 
 // ----------------------------------------------------------------------
@@ -272,9 +283,9 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	GenericVkStruct* features_chain = reinterpret_cast<GenericVkStruct*>( &self->physical_device_features );
 
 	// Add links to the features chain
-	auto vk_11_features = fetch_or_insert_chain_link( features_chain, &self->physical_device_features.vk_1_1 );
-	auto vk_12_features = fetch_or_insert_chain_link( features_chain, &self->physical_device_features.vk_1_2 );
-	auto vk_13_features = fetch_or_insert_chain_link( features_chain, &self->physical_device_features.vk_1_3 );
+	auto vk_11_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.vk_1_1 );
+	auto vk_12_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.vk_1_2 );
+	auto vk_13_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.vk_1_3 );
 
 	// ----------------------------------------------------------------------
 	// Enable some default features that we don't want to live without
@@ -296,8 +307,8 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	self->physical_device_features.ray_tracing_pipeline.sType   = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
 	self->physical_device_features.acceleration_structure.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 
-	auto rtx_features                    = fetch_or_insert_chain_link( features_chain, &self->physical_device_features.ray_tracing_pipeline );
-	auto acceleration_structure_features = fetch_or_insert_chain_link( features_chain, &self->physical_device_features.acceleration_structure );
+	auto rtx_features                    = get_or_append_features_chain_link( features_chain, &self->physical_device_features.ray_tracing_pipeline );
+	auto acceleration_structure_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.acceleration_structure );
 
 	rtx_features->rayTracingPipeline                       = VK_TRUE;
 	acceleration_structure_features->accelerationStructure = VK_TRUE;
@@ -314,7 +325,7 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 
 	self->physical_device_features.mesh_shader.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV;
 
-	auto mesh_shader_features = fetch_or_insert_chain_link( features_chain, &self->physical_device_features.mesh_shader );
+	auto mesh_shader_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.mesh_shader );
 
 	mesh_shader_features->meshShader = VK_TRUE;
 	mesh_shader_features->taskShader = VK_TRUE;
@@ -369,7 +380,7 @@ static bool le_backend_vk_settings_set_data_frames_count( uint32_t data_frames_c
 
 // ----------------------------------------------------------------------
 
-static VkPhysicalDeviceFeatures2* le_backend_vk_get_physical_device_features_chain() {
+static VkPhysicalDeviceFeatures2 const* le_backend_vk_get_physical_device_features_chain() {
 	le_backend_vk_settings_o* self = le_backend_vk::api->backend_settings_singleton;
-	return reinterpret_cast<VkPhysicalDeviceFeatures2*>( &self->physical_device_features.features );
+	return reinterpret_cast<VkPhysicalDeviceFeatures2 const*>( &self->physical_device_features.features );
 }

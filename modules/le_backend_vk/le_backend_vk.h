@@ -79,6 +79,19 @@ struct VmaAllocationInfo;
 typedef uint32_t VkFlags;
 typedef VkFlags  VkQueueFlags;
 
+/* GenericVkStruct is a struct that you must define as follows:
+
+ struct GenericVkStruct {
+    VkStructureType sType;
+    void* pNext;
+ };
+
+ // Sadly, we cannot declare it here, because VkStructureType is an enum
+ // and as it's a C-style enum its size is compile-time defined...
+
+*/
+struct GenericVkStruct; // ffdecl.
+
 namespace le {
 enum class ShaderStageFlagBits : uint32_t;
 struct BuildAccelerationStructureFlagsKHR;
@@ -108,9 +121,10 @@ struct le_backend_vk_api {
 
 	struct backend_vk_settings_interface_t // global settings for backend - must be set before backend setup- after that, settings are read-only.
 	{
-		bool ( *add_required_device_extension )( char const* ext );           // returns true if successfully added - returns false if setting was already present
-		bool ( *add_required_instance_extension )( char const* ext );         // -"-
-		VkPhysicalDeviceFeatures2* ( *get_physical_device_features_chain )(); // read-write - only write before you initialise the backend.
+		bool ( *add_required_device_extension )( char const* ext );                                      // returns true if successfully added - returns false if setting was already present
+		bool ( *add_required_instance_extension )( char const* ext );                                    // -"-
+		VkPhysicalDeviceFeatures2 const* ( *get_physical_device_features_chain )();                      // read-only - use get_or_append_features_chain_link if you want to set elements of the features chain *before* the backend is setup.
+		GenericVkStruct* ( *get_or_append_features_chain_link )( GenericVkStruct* features_chain_link ); // returns link of same sType that was found, otherwise return appended link. Appends link to features chain only if no link with this sType was yet found.
 
 		void ( *set_concurrency_count )( uint32_t concurrency_count );
 		bool ( *set_data_frames_count )( uint32_t data_frames_count );
