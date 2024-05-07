@@ -3153,12 +3153,11 @@ static bool is_q_instruction( char const* c, int* offset, glm::vec2* c1, glm::ve
 	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_c1 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
-	       add_offsets( local_offset, offset ) &&
 	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) || // only set delta_p if not absolute
 	         set_coordinate_pair( &previous_p, *p1 ) ) &&             // set delta_p to previous p1
 	       set_coordinate_pair( p1, tmp_p1 + previous_p ) &&
-	       set_coordinate_pair( c1, tmp_c1 + previous_p ) //
-	    ;
+	       set_coordinate_pair( c1, tmp_c1 + previous_p ) &&
+	       add_offsets( local_offset, offset );
 }
 
 // Return true if string `c` can be evaluated as a 'a' instruction.
@@ -3190,10 +3189,10 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 	       is_boolean_zero_or_one( c + local_offset, &local_offset, sweep_flag ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
-	       add_offsets( local_offset, offset ) &&
 	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) || // only set delta_p if not absolute
 	         set_coordinate_pair( &previous_p, *p1 ) ) &&             // set delta_p to previous p1
-	       set_coordinate_pair( p1, tmp_p1 + previous_p );
+	       set_coordinate_pair( p1, tmp_p1 + previous_p ) &&
+	       add_offsets( local_offset, offset );
 }
 
 // ----------------------------------------------------------------------
