@@ -1090,6 +1090,14 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const& p0, // end po
 
 // ----------------------------------------------------------------------
 // translates arc into straight polylines - while respecting tolerance.
+//
+// FIXME: There is potentially still a bug in this - look how the following
+// SVG string evaluates:
+// "M 300 450 L 350 425 A 25 25 -30 0 1 400 400 L 450 375 A 25 50 -30 0 1 500 350 L 550 325 A 25 75 -30 0 1 600 300 L 650 275 A 25 100 -30 0 1 700 250 L 750 225"
+//
+// The string is taken from the svg spec:
+// https://svgwg.org/svg2-draft/paths.html#PathDataEllipticalArcCommands
+// The ellipses should face in the same direction:
 static void flatten_arc_to( Polyline&        polyline,
                             glm::vec2 const& p1, // end point
                             glm::vec2 const& radii,
