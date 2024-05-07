@@ -3216,6 +3216,9 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 // `Edit -> Preferences -> SVG Output ->
 // (tick) Force Repeat Commands, Path string format (select: Absolute)`
 //
+// The full grammar for SVG paths is defined here:
+// <https://svgwg.org/svg2-draft/paths.html#PathDataBNF>
+//
 static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) {
 
 	char const* c = svg;
