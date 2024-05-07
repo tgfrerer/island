@@ -135,6 +135,11 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
+	if ( nullptr == resource_id ) {
+		logger.error( "Invalid resource: resource id must not be nullptr." );
+		return;
+	}
+
 	size_t resource_idx    = 0; // index of matching resource
 	size_t resources_count = self->resources.size();
 	for ( le_resource_handle* res = self->resources.data(); resource_idx != resources_count; res++ ) {
@@ -157,14 +162,17 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 		// Resource was already used : this should be fine if declared with identical access_flags,
 		// otherwise it is an error.
+		auto current_flags = self->resources_access_flags[ resource_idx ];
+		auto new_flags     = access_flags;
 
-		logger.error( "Resource '%s' declared more than once for Renderpass '%s'.\n\n"
-		              "\tHINT: Check if you didn't accidentally sample from this resource (via a texture) "
-		              "while it is already bound as a ColorAttachment.",
-		              self->resources[ resource_idx ]->data->debug_name,
-		              self->debugName );
+		if ( current_flags != new_flags ) {
 
-		self->resources_access_flags[ resource_idx ] = self->resources_access_flags[ resource_idx ] | access_flags;
+			logger.error( "Resource '%s' declared more than once for Renderpass '%s'.\n\n"
+			              "\tHINT: Check if you didn't accidentally sample from this resource (via a texture) "
+			              "while it is already bound as a ColorAttachment.",
+			              self->resources[ resource_idx ]->data->debug_name,
+			              self->debugName );
+		}
 	}
 
 	//	le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debugName, resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
