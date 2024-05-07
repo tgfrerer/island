@@ -540,14 +540,14 @@ class RenderPass {
 	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
 	///          Use an le_image_attachment_info_t struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
 	RenderPass& addColorAttachment( const le_img_resource_handle&     resource_id,
-	                                const le_image_attachment_info_t& attachmentInfo = le_image_attachment_info_t() ) {
-		le_renderer::renderpass_i.add_color_attachment( self, resource_id, &attachmentInfo );
+	                                const le_image_attachment_info_t& imageAttachmentInfo = le_image_attachment_info_t() ) {
+		le_renderer::renderpass_i.add_color_attachment( self, resource_id, &imageAttachmentInfo );
 		return *this;
 	}
 
 	RenderPass& addDepthStencilAttachment( const le_img_resource_handle&     resource_id,
-	                                       const le_image_attachment_info_t& attachmentInfo = LeDepthAttachmentInfo() ) {
-		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, &attachmentInfo );
+	                                       const le_image_attachment_info_t& depthAttachmentInfo = LeDepthAttachmentInfo() ) {
+		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, &depthAttachmentInfo );
 		return *this;
 	}
 
