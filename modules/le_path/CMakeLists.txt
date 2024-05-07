@@ -1,5 +1,7 @@
 set (TARGET le_path)
 
+depends_on_island_module(le_log)
+
 set (SOURCES "le_path.cpp")
 set (SOURCES ${SOURCES} "le_path.h")
 

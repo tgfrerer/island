@@ -1,4 +1,7 @@
 #include "le_path.h"
+
+#include "le_log.h"
+
 #include <vector>
 #include <algorithm>
 
@@ -12,6 +15,8 @@
 #include "glm/gtx/rotate_vector.hpp"
 
 using stroke_attribute_t = le_path_api::stroke_attribute_t;
+
+static auto logger = le::Log( "le_path" );
 
 struct PathCommand {
 
@@ -2833,21 +2838,29 @@ static bool le_path_get_tangents_for_polyline( le_path_o* self, size_t const& po
 
 // Accumulates `*offset_local` into `*offset_total`.
 // Always returns true.
-static bool add_offsets( int* offset_local, int* offset_total ) {
-	( *offset_total ) += ( *offset_local );
+static inline bool add_offsets( int offset_local, int* offset_total ) {
+	( *offset_total ) += offset_local;
 	return true;
 }
 
 // Accumulates coordinates
 // always returns true
-static bool add_coordinate( glm::vec2* p, glm::vec2 const offset ) {
+static inline bool set_coordinate_pair( glm::vec2* p, glm::vec2 const value ) {
+	( *p ) = value;
+	return true;
+}
+
+// Accumulates coordinates
+// always returns true
+static inline bool update_coordinate( glm::vec2* p, glm::vec2 const offset ) {
 	( *p ) += offset;
+	// logger.info( "p: %4.2f,%4.2f", p->x, p->y );
 	return true;
 }
 
 // Accumulates float values
 // always returns true
-static bool add_float( float* p, float const offset ) {
+static bool accum_float( float* p, float const offset ) {
 	( *p ) += offset;
 	return true;
 }
@@ -2864,10 +2877,14 @@ static bool is_float_number( char const* c, int* offset, float* f ) {
 
 	char* num_end;
 
-	*f = strtof( c, &num_end ); // num_end will point to one after last number character
-	*offset += ( num_end - c ); // add number of number characters to offset
+	float tmp_float = strtof( c, &num_end ); // num_end will point to one after last number character
+	*offset += ( num_end - c );              // add number of number characters to offset
 
-	return num_end != c; // if at least one number character was extracted, we were successful
+	if ( num_end != c ) {
+		*f = tmp_float;
+		return true;
+	} // if at least one number character was extracted, we were successful
+	return false;
 }
 
 // Returns true if needle matches c.
@@ -2880,6 +2897,7 @@ static bool is_character_match( char const needle, char const* c, int* offset ) 
 
 	if ( *c == needle ) {
 		++( *offset );
+		// logger.info( "Match character '%c'", *c );
 		return true;
 	} else {
 		return false;
@@ -2932,6 +2950,30 @@ static bool is_whitespace( char const* c, int* offset ) {
 	return found_whitespace;
 }
 
+constexpr uint32_t PATH_PARSER_STATE_FLAG_IS_REPEATED = 0x1 << 0;
+constexpr uint32_t PATH_PARSER_STATE_FLAG_IS_ABSOLUTE = 0x1 << 1;
+
+static bool is_repeat_or_command_char( char const needle, char const* c, int* local_offset, uint32_t* state_flags ) {
+	bool is_absolute = false;
+	bool is_repeated = *state_flags & PATH_PARSER_STATE_FLAG_IS_REPEATED;
+
+	// Set flag for is_repeated no matter what so that subsequent queries get it
+	*state_flags |= PATH_PARSER_STATE_FLAG_IS_REPEATED;
+
+	if ( is_repeated ) {
+		return true;
+	} else {
+		// Find if this is an absolute instruction
+		is_absolute = is_character_match( toupper( needle ), c, local_offset );
+		if ( is_absolute ) {
+			*state_flags |= PATH_PARSER_STATE_FLAG_IS_ABSOLUTE;
+			return true;
+		}
+	}
+
+	return is_character_match( needle, c, local_offset );
+}
+
 // Returns true if c points to a coordinate pair.
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
@@ -2942,14 +2984,15 @@ static bool is_coordinate_pair( char const* c, int* offset, glm::vec2* v ) {
 	}
 	// ---------| invarant: c is not end of string
 
-	// we want the pattern:
+	int       local_offset = 0;
+	glm::vec2 tmp_p        = {};
 
-	int local_offset = 0;
-
-	return is_float_number( c, &local_offset, &v->x ) &&                 // note how offset is re-used
-	       is_character_match( ',', c + local_offset, &local_offset ) && // in subsequent tests, so that
-	       is_float_number( c + local_offset, &local_offset, &v->y ) &&  // each test begins at the previous offset
-	       add_offsets( &local_offset, offset );
+	return is_float_number( c, &local_offset, &tmp_p.x ) && // note how offset is re-used
+	       ( is_character_match( ',', c + local_offset, &local_offset ) ||
+	         is_whitespace( c + local_offset, &local_offset ) ) &&         // in subsequent tests, so that
+	       is_float_number( c + local_offset, &local_offset, &tmp_p.y ) && // each test begins at the previous offset
+	       set_coordinate_pair( v, tmp_p ) &&                              // only apply coordinate update if parsing was successful
+	       add_offsets( local_offset, offset );
 }
 
 // Return true if string `c` can be evaluated as an 'm' instruction.
@@ -2958,7 +3001,7 @@ static bool is_coordinate_pair( char const* c, int* offset, glm::vec2* v ) {
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
 // + `*p0` will hold the value of the target point
-static bool is_m_instruction( char const* c, int* offset, glm::vec2* p0 ) {
+static bool is_m_instruction( char const* c, int* offset, glm::vec2* p0, uint32_t* state_flags ) {
 	if ( *c == 0 ) {
 		return false;
 	}
@@ -2966,13 +3009,13 @@ static bool is_m_instruction( char const* c, int* offset, glm::vec2* p0 ) {
 
 	int       local_offset = 0;
 	glm::vec2 previous_p   = *p0;
-	bool      is_absolute  = is_character_match( 'M', c, &local_offset );
 
-	return ( is_absolute || is_character_match( 'm', c, &local_offset ) ) &&
+	return ( is_repeat_or_command_char( 'm', c, &local_offset, state_flags ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
-	       add_offsets( &local_offset, offset ) &&
-	       ( is_absolute || add_coordinate( p0, previous_p ) );
+	       add_offsets( local_offset, offset ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) ||
+	         update_coordinate( p0, previous_p ) );
 }
 
 // Return true if string `c` can be evaluated as an 'L' instruction.
@@ -2980,19 +3023,19 @@ static bool is_m_instruction( char const* c, int* offset, glm::vec2* p0 ) {
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
 // + `*p0` will hold the value of the target point
-static bool is_l_instruction( char const* c, int* offset, glm::vec2* p0 ) {
+static bool is_l_instruction( char const* c, int* offset, glm::vec2* p0, uint32_t* state_flags ) {
 	if ( *c == 0 )
 		return false;
 
 	int       local_offset = 0;
 	glm::vec2 previous_p   = *p0;
-	bool      is_absolute  = is_character_match( 'L', c, &local_offset );
 
-	return ( is_absolute || is_character_match( 'l', c, &local_offset ) ) &&
+	return ( is_repeat_or_command_char( 'l', c, &local_offset, state_flags ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
-	       add_offsets( &local_offset, offset ) &&
-	       ( is_absolute || add_coordinate( p0, previous_p ) );
+	       add_offsets( local_offset, offset ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) ||
+	         update_coordinate( p0, previous_p ) );
 }
 
 // Return true if string `c` can be evaluated as an 'h' instruction.
@@ -3000,19 +3043,19 @@ static bool is_l_instruction( char const* c, int* offset, glm::vec2* p0 ) {
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
 // + `*px` will hold the value of the target point's x coordinate
-static bool is_h_instruction( char const* c, int* offset, float* px ) {
+static bool is_h_instruction( char const* c, int* offset, float* px, uint32_t* state_flags ) {
 	if ( *c == 0 )
 		return false;
 
 	int   local_offset = 0;
-	bool  is_absolute  = is_character_match( 'H', c, &local_offset );
 	float previous_p   = *px;
 
-	return ( is_absolute || is_character_match( 'h', c, &local_offset ) ) &&
+	return ( is_repeat_or_command_char( 'h', c, &local_offset, state_flags ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_float_number( c + local_offset, &local_offset, px ) &&
-	       add_offsets( &local_offset, offset ) &&
-	       ( is_absolute || add_float( px, previous_p ) );
+	       add_offsets( local_offset, offset ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) ||
+	         accum_float( px, previous_p ) );
 }
 
 // Return true if string `c` can be evaluated as an 'l' instruction.
@@ -3020,19 +3063,19 @@ static bool is_h_instruction( char const* c, int* offset, float* px ) {
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
 // + `*px` will hold the value of the target point's x coordinate
-static bool is_v_instruction( char const* c, int* offset, float* py ) {
+static bool is_v_instruction( char const* c, int* offset, float* py, uint32_t* state_flags ) {
 	if ( *c == 0 )
 		return false;
 
 	int   local_offset = 0;
-	bool  is_absolute  = is_character_match( 'V', c, &local_offset );
 	float previous_p   = *py;
 
-	return ( is_absolute || is_character_match( 'v', c, &local_offset ) ) &&
+	return ( is_repeat_or_command_char( 'v', c, &local_offset, state_flags ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_float_number( c + local_offset, &local_offset, py ) &&
-	       add_offsets( &local_offset, offset ) &&
-	       ( is_absolute || add_float( py, previous_p ) );
+	       add_offsets( local_offset, offset ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) ||
+	         accum_float( py, previous_p ) );
 }
 
 // Return true if string `c` can be evaluated as a 'c' instruction.
@@ -3042,26 +3085,30 @@ static bool is_v_instruction( char const* c, int* offset, float* py ) {
 // + `*c1` will hold the value of control point 0
 // + `*c2` will hold the value of control point 1
 // + `*p1` will hold the value of the target point
-static bool is_c_instruction( char const* c, int* offset, glm::vec2* c1, glm::vec2* c2, glm::vec2* p1 ) {
+static bool is_c_instruction( char const* c, int* offset, glm::vec2* c1, glm::vec2* c2, glm::vec2* p1, uint32_t* state_flags ) {
 	if ( *c == 0 )
 		return false;
 
 	int       local_offset = 0;
-	bool      is_absolute  = is_character_match( 'C', c, &local_offset );
-	glm::vec2 previous_p   = *c1;
+	glm::vec2 previous_p   = {};
 
-	return ( is_absolute || is_character_match( 'c', c, &local_offset ) ) &&
+	glm::vec2 tmp_c1 = {};
+	glm::vec2 tmp_c2 = {};
+	glm::vec2 tmp_p1 = {};
+
+	return ( is_repeat_or_command_char( 'c', c, &local_offset, state_flags ) ) && // note this may update state_flags
 	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, c1 ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_c1 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, c2 ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_c2 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
-	       add_offsets( &local_offset, offset ) &&
-	       ( is_absolute ||
-	         ( add_coordinate( p1, previous_p ) &&
-	           add_coordinate( c1, previous_p ) &&
-	           add_coordinate( c2, previous_p ) ) );
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) || // only set delta_p if not absolute
+	         set_coordinate_pair( &previous_p, *p1 ) ) &&             // set delta_p to previous p1
+	       set_coordinate_pair( p1, tmp_p1 + previous_p ) &&
+	       set_coordinate_pair( c1, tmp_c1 + previous_p ) &&
+	       set_coordinate_pair( c2, tmp_c2 + previous_p ) &&
+	       add_offsets( local_offset, offset );
 }
 
 // Return true if string `c` can be evaluated as a 'q' instruction.
@@ -3070,23 +3117,26 @@ static bool is_c_instruction( char const* c, int* offset, glm::vec2* c1, glm::ve
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
 // + `*c1` will hold the value of the control point
 // + `*p1` will hold the value of the target point
-static bool is_q_instruction( char const* c, int* offset, glm::vec2* c1, glm::vec2* p1 ) {
+static bool is_q_instruction( char const* c, int* offset, glm::vec2* c1, glm::vec2* p1, uint32_t* state_flags ) {
 	if ( *c == 0 )
 		return false;
 
 	int       local_offset = 0;
-	bool      is_absolute  = is_character_match( 'Q', c, &local_offset );
-	glm::vec2 previous_p   = *c1;
+	glm::vec2 previous_p   = {};
+	glm::vec2 tmp_c1       = {};
+	glm::vec2 tmp_p1       = {};
 
-	return ( is_absolute || is_character_match( 'q', c, &local_offset ) ) &&
+	return ( is_repeat_or_command_char( 'q', c, &local_offset, state_flags ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, c1 ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_c1 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
-	       add_offsets( &local_offset, offset ) &&
-	       ( is_absolute ||
-	         ( add_coordinate( p1, previous_p ) &&
-	           add_coordinate( c1, previous_p ) ) );
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
+	       add_offsets( local_offset, offset ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) || // only set delta_p if not absolute
+	         set_coordinate_pair( &previous_p, *p1 ) ) &&             // set delta_p to previous p1
+	       set_coordinate_pair( p1, tmp_p1 + previous_p ) &&
+	       set_coordinate_pair( c1, tmp_c1 + previous_p ) //
+	    ;
 }
 
 // Return true if string `c` can be evaluated as a 'a' instruction.
@@ -3098,15 +3148,16 @@ static bool is_q_instruction( char const* c, int* offset, glm::vec2* c1, glm::ve
 // + `*large_arc_flag` will hold a flag indicating whether to trace the large arc(true), or the short arc(false)
 // + `*sweep_flag` will hold a flag indicating whether to trace the arc in negative direction (true), or in positive direction (false)
 // + `*p1` will hold the value of the target point
-static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, float* x_axis_rotation, bool* large_arc_flag, bool* sweep_flag, glm::vec2* p1 ) {
+static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, float* x_axis_rotation, bool* large_arc_flag, bool* sweep_flag, glm::vec2* p1, uint32_t* state_flags ) {
 	if ( *c == 0 )
 		return false;
 
 	int       local_offset = 0;
-	bool      is_absolute  = is_character_match( 'A', c, &local_offset );
-	glm::vec2 previous_p   = *p1;
+	glm::vec2 previous_p   = {};
 
-	return ( is_absolute || is_character_match( 'a', c, &local_offset ) ) &&
+	glm::vec2 tmp_p1 = {};
+
+	return ( is_repeat_or_command_char( 'a', c, &local_offset, state_flags ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, radii ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
@@ -3116,9 +3167,11 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_boolean_zero_or_one( c + local_offset, &local_offset, sweep_flag ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
-	       add_offsets( &local_offset, offset ) &&
-	       ( is_absolute || add_coordinate( p1, previous_p ) );
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
+	       add_offsets( local_offset, offset ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) || // only set delta_p if not absolute
+	         set_coordinate_pair( &previous_p, *p1 ) ) &&             // set delta_p to previous p1
+	       set_coordinate_pair( p1, tmp_p1 + previous_p );
 }
 
 // ----------------------------------------------------------------------
@@ -3153,60 +3206,81 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 	bool      arc_large{};
 	bool      arc_sweep{};
 
+	int offset = 0;
+
 	for ( ; *c != 0; ) // We test for the \0 character, end of c-string
 	{
 
-		int offset = 0;
+		uint32_t state_flags;
+		c += offset;
+		offset = 0;
 
-		if ( is_m_instruction( c, &offset, &p ) ) {
-			// relative moveto event
+		state_flags = 0;
+		while ( is_m_instruction( c + offset, &offset, &p, &state_flags ) ) {
 			le_path_move_to( self, &p );
-			c += offset;
+		}
+		if ( offset ) {
 			continue;
 		}
-		if ( is_l_instruction( c, &offset, &p ) ) {
-			// lineto event
-			le_path_line_to( self, &p );
-			c += offset;
-			continue;
-		}
-		if ( is_h_instruction( c, &offset, &p.x ) ) {
-			// lineto event
-			le_path_line_horiz_to( self, p.x );
-			c += offset;
-			continue;
-		}
-		if ( is_v_instruction( c, &offset, &p.y ) ) {
-			// lineto event
-			le_path_line_vert_to( self, p.y );
-			c += offset;
-			continue;
-		}
-		if ( is_c_instruction( c, &offset, &p, &c1, &c2 ) ) {
-			// cubic bezier event
-			le_path_cubic_bezier_to( self, &c2, &p, &c1 ); // Note that end vertex is p2 from SVG,
-			                                               // as SVG has target vertex as last vertex
-			c += offset;
-			continue;
-		}
-		if ( is_q_instruction( c, &offset, &p, &c1 ) ) {
-			// quadratic bezier event
-			le_path_quad_bezier_to( self, &c1, &p ); // Note that target vertex is p1 from SVG,
-			                                         // as SVG has target vertex as last vertex
-			c += offset;
-			continue;
-		}
-		if ( is_a_instruction( c, &offset, &radii, &arc_axis_rotation, &arc_large, &arc_sweep, &c1 ) ) {
-			// arc event
-			le_path_arc_to( self, &c1, &radii, arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
 
-			c += offset;
+		state_flags = 0;
+		while ( is_l_instruction( c + offset, &offset, &p, &state_flags ) ) {
+			le_path_line_to( self, &p );
+		}
+		if ( offset ) {
 			continue;
 		}
-		if ( is_character_match( 'Z', c, &offset ) ) {
+
+		state_flags = 0;
+		while ( is_h_instruction( c + offset, &offset, &p.x, &state_flags ) ) {
+			le_path_line_horiz_to( self, p.x );
+		}
+		if ( offset ) {
+			continue;
+		}
+
+		state_flags = 0;
+		if ( is_v_instruction( c + offset, &offset, &p.y, &state_flags ) ) {
+			le_path_line_vert_to( self, p.y );
+		}
+		if ( offset ) {
+			continue;
+		}
+
+		state_flags = 0;
+		if ( is_c_instruction( c + offset, &offset, &c2, &c1, &p, &state_flags ) ) {
+			le_path_cubic_bezier_to( self, &p, &c2, &c1 ); // Note that end vertex is p2 from SVG,
+			                                               // as SVG has target vertex as last vertex
+		}
+		if ( offset ) {
+			continue;
+		}
+
+		state_flags = 0;
+		while ( is_q_instruction( c + offset, &offset, &c1, &p, &state_flags ) ) {
+			le_path_quad_bezier_to( self, &p, &c1 ); // Note that target vertex is p1 from SVG,
+			                                         // as SVG has target vertex as last vertex
+		}
+		if ( offset ) {
+			continue;
+		}
+
+		state_flags = 0;
+		while ( is_a_instruction( c + offset, &offset, &radii, &arc_axis_rotation, &arc_large, &arc_sweep, &p, &state_flags ) ) {
+			le_path_arc_to( self, &p, &radii, arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
+		}
+		if ( offset ) {
+			continue;
+		}
+
+		state_flags = 0;
+		while ( is_character_match( 'Z', c + offset, &offset ) ||
+		        is_character_match( 'z', c + offset, &offset ) ) {
 			// close path event.
 			le_path_close_path( self );
-			c += offset;
+		}
+
+		if ( offset ) {
 			continue;
 		}
 
