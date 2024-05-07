@@ -2838,6 +2838,20 @@ static bool add_offsets( int* offset_local, int* offset_total ) {
 	return true;
 }
 
+// Accumulates coordinates
+// always returns true
+static bool add_coordinate( glm::vec2* p, glm::vec2 const offset ) {
+	( *p ) += offset;
+	return true;
+}
+
+// Accumulates float values
+// always returns true
+static bool add_float( float* p, float const offset ) {
+	( *p ) += offset;
+	return true;
+}
+
 // Returns true if string c may be interpreted as
 // a number,
 // If true,
@@ -2939,7 +2953,8 @@ static bool is_coordinate_pair( char const* c, int* offset, glm::vec2* v ) {
 }
 
 // Return true if string `c` can be evaluated as an 'm' instruction.
-// An 'm' instruction is a move_to instruction
+// note
+// An 'm' instruction is a RELATIVE move_to instruction
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
 // + `*p0` will hold the value of the target point
@@ -2949,16 +2964,19 @@ static bool is_m_instruction( char const* c, int* offset, glm::vec2* p0 ) {
 	}
 	// ---------| invarant: c is not end of string
 
-	int local_offset = 0;
+	int       local_offset = 0;
+	glm::vec2 previous_p   = *p0;
+	bool      is_absolute  = is_character_match( 'M', c, &local_offset );
 
-	return is_character_match( 'M', c, &local_offset ) &&
+	return ( is_absolute || is_character_match( 'm', c, &local_offset ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
-	       add_offsets( &local_offset, offset );
+	       add_offsets( &local_offset, offset ) &&
+	       ( is_absolute || add_coordinate( p0, previous_p ) );
 }
 
-// Return true if string `c` can be evaluated as an 'l' instruction.
-// An 'l' instruction is a line_to instruction
+// Return true if string `c` can be evaluated as an 'L' instruction.
+// An 'l' instruction is an ABSOLUTE line_to instruction
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
 // + `*p0` will hold the value of the target point
@@ -2966,12 +2984,15 @@ static bool is_l_instruction( char const* c, int* offset, glm::vec2* p0 ) {
 	if ( *c == 0 )
 		return false;
 
-	int local_offset = 0;
+	int       local_offset = 0;
+	glm::vec2 previous_p   = *p0;
+	bool      is_absolute  = is_character_match( 'L', c, &local_offset );
 
-	return is_character_match( 'L', c, &local_offset ) &&
+	return ( is_absolute || is_character_match( 'l', c, &local_offset ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
-	       add_offsets( &local_offset, offset );
+	       add_offsets( &local_offset, offset ) &&
+	       ( is_absolute || add_coordinate( p0, previous_p ) );
 }
 
 // Return true if string `c` can be evaluated as an 'h' instruction.
@@ -2983,12 +3004,15 @@ static bool is_h_instruction( char const* c, int* offset, float* px ) {
 	if ( *c == 0 )
 		return false;
 
-	int local_offset = 0;
+	int   local_offset = 0;
+	bool  is_absolute  = is_character_match( 'H', c, &local_offset );
+	float previous_p   = *px;
 
-	return is_character_match( 'H', c, &local_offset ) &&
+	return ( is_absolute || is_character_match( 'h', c, &local_offset ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_float_number( c + local_offset, &local_offset, px ) &&
-	       add_offsets( &local_offset, offset );
+	       add_offsets( &local_offset, offset ) &&
+	       ( is_absolute || add_float( px, previous_p ) );
 }
 
 // Return true if string `c` can be evaluated as an 'l' instruction.
@@ -3000,12 +3024,15 @@ static bool is_v_instruction( char const* c, int* offset, float* py ) {
 	if ( *c == 0 )
 		return false;
 
-	int local_offset = 0;
+	int   local_offset = 0;
+	bool  is_absolute  = is_character_match( 'V', c, &local_offset );
+	float previous_p   = *py;
 
-	return is_character_match( 'V', c, &local_offset ) &&
+	return ( is_absolute || is_character_match( 'v', c, &local_offset ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_float_number( c + local_offset, &local_offset, py ) &&
-	       add_offsets( &local_offset, offset );
+	       add_offsets( &local_offset, offset ) &&
+	       ( is_absolute || add_float( py, previous_p ) );
 }
 
 // Return true if string `c` can be evaluated as a 'c' instruction.
@@ -3019,16 +3046,22 @@ static bool is_c_instruction( char const* c, int* offset, glm::vec2* c1, glm::ve
 	if ( *c == 0 )
 		return false;
 
-	int local_offset = 0;
+	int       local_offset = 0;
+	bool      is_absolute  = is_character_match( 'C', c, &local_offset );
+	glm::vec2 previous_p   = *c1;
 
-	return is_character_match( 'C', c, &local_offset ) &&
+	return ( is_absolute || is_character_match( 'c', c, &local_offset ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, c1 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, c2 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
-	       add_offsets( &local_offset, offset );
+	       add_offsets( &local_offset, offset ) &&
+	       ( is_absolute ||
+	         ( add_coordinate( p1, previous_p ) &&
+	           add_coordinate( c1, previous_p ) &&
+	           add_coordinate( c2, previous_p ) ) );
 }
 
 // Return true if string `c` can be evaluated as a 'q' instruction.
@@ -3041,14 +3074,19 @@ static bool is_q_instruction( char const* c, int* offset, glm::vec2* c1, glm::ve
 	if ( *c == 0 )
 		return false;
 
-	int local_offset = 0;
+	int       local_offset = 0;
+	bool      is_absolute  = is_character_match( 'Q', c, &local_offset );
+	glm::vec2 previous_p   = *c1;
 
-	return is_character_match( 'Q', c, &local_offset ) &&
+	return ( is_absolute || is_character_match( 'q', c, &local_offset ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, c1 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
-	       add_offsets( &local_offset, offset );
+	       add_offsets( &local_offset, offset ) &&
+	       ( is_absolute ||
+	         ( add_coordinate( p1, previous_p ) &&
+	           add_coordinate( c1, previous_p ) ) );
 }
 
 // Return true if string `c` can be evaluated as a 'a' instruction.
@@ -3064,9 +3102,11 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 	if ( *c == 0 )
 		return false;
 
-	int local_offset = 0;
+	int       local_offset = 0;
+	bool      is_absolute  = is_character_match( 'A', c, &local_offset );
+	glm::vec2 previous_p   = *p1;
 
-	return is_character_match( 'A', c, &local_offset ) &&
+	return ( is_absolute || is_character_match( 'a', c, &local_offset ) ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, radii ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
@@ -3077,7 +3117,8 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 	       is_boolean_zero_or_one( c + local_offset, &local_offset, sweep_flag ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
-	       add_offsets( &local_offset, offset );
+	       add_offsets( &local_offset, offset ) &&
+	       ( is_absolute || add_coordinate( p1, previous_p ) );
 }
 
 // ----------------------------------------------------------------------
@@ -3104,7 +3145,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 	char const* c = svg;
 
-	glm::vec2 p                 = {};
+	glm::vec2 p                 = ( !self->contours.empty() && !self->contours.back().commands.empty() ) ? *le_path_get_previous_p( self ) : glm::vec2{};
 	glm::vec2 c1                = {};
 	glm::vec2 c2                = {};
 	glm::vec2 radii             = {};
@@ -3118,7 +3159,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		int offset = 0;
 
 		if ( is_m_instruction( c, &offset, &p ) ) {
-			// moveto event
+			// relative moveto event
 			le_path_move_to( self, &p );
 			c += offset;
 			continue;
