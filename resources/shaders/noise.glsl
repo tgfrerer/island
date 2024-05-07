@@ -116,4 +116,33 @@ vec2 Noise2( in vec2 x )
 
 // -------
 
-#define TO_RGB 0.00392156862
+// #define TO_RGB 0.00392156862
+
+// Fractional Brownian Motion: self-similar noise
+// 
+// H is the Hurst exponent, controls fractional part of fbm fractional brownian motion
+// H typically goes from 0..1, with 1 creating Brownian Noise, 0 Pink (sharper) Noise.
+float noise_fbm(in vec2 st, in float H){
+
+    // for background on this see: https://iquilezles.org/articles/fbm/
+
+#ifndef NOISE_NUM_OCTAVES
+#define NOISE_NUM_OCTAVES 10
+#endif
+
+	float n=0;
+	float f=1;
+
+	float G = exp2(-H); // 1/(2^H), // G stands for "Gain factor"
+	float a = 1.0;
+	float n_max = 1.0;
+
+	for(int i=0; i!=NOISE_NUM_OCTAVES; i++){
+		n += a * snoise(st * f);
+		f *= 2.0;
+		n_max += a;
+		a *= G;
+	}
+
+	return n/(n_max*2)+0.5; // map froma -n_max..n_max to 0..1
+}
