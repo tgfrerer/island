@@ -2950,6 +2950,21 @@ static bool is_whitespace( char const* c, int* offset ) {
 	return found_whitespace;
 }
 
+// returns true if there is a character coming,
+// increases offset if the character is whitespace
+static bool is_optional_whitespace( char const* c, int* offset ) {
+	if ( *c == 0 ) {
+		return false;
+	}
+	is_whitespace( c, offset );
+	return true;
+}
+
+static bool is_comma_or_whitespace( char const* c, int* local_offset ) {
+	return is_character_match( ',', c, local_offset ) ||
+	       is_whitespace( c, local_offset );
+}
+
 constexpr uint32_t PATH_PARSER_STATE_FLAG_IS_REPEATED = 0x1 << 0;
 constexpr uint32_t PATH_PARSER_STATE_FLAG_IS_ABSOLUTE = 0x1 << 1;
 
@@ -2987,9 +3002,8 @@ static bool is_coordinate_pair( char const* c, int* offset, glm::vec2* v ) {
 	int       local_offset = 0;
 	glm::vec2 tmp_p        = {};
 
-	return is_float_number( c, &local_offset, &tmp_p.x ) && // note how offset is re-used
-	       ( is_character_match( ',', c + local_offset, &local_offset ) ||
-	         is_whitespace( c + local_offset, &local_offset ) ) &&         // in subsequent tests, so that
+	return is_float_number( c, &local_offset, &tmp_p.x ) &&                // note how offset is re-used
+	       is_comma_or_whitespace( c + local_offset, &local_offset ) &&    // in subsequent tests, so that
 	       is_float_number( c + local_offset, &local_offset, &tmp_p.y ) && // each test begins at the previous offset
 	       set_coordinate_pair( v, tmp_p ) &&                              // only apply coordinate update if parsing was successful
 	       add_offsets( local_offset, offset );
@@ -3011,7 +3025,7 @@ static bool is_m_instruction( char const* c, int* offset, glm::vec2* p0, uint32_
 	glm::vec2 previous_p   = *p0;
 
 	return ( is_repeat_or_command_char( 'm', c, &local_offset, state_flags ) ) &&
-	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
 	       add_offsets( local_offset, offset ) &&
 	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) ||
@@ -3031,7 +3045,7 @@ static bool is_l_instruction( char const* c, int* offset, glm::vec2* p0, uint32_
 	glm::vec2 previous_p   = *p0;
 
 	return ( is_repeat_or_command_char( 'l', c, &local_offset, state_flags ) ) &&
-	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
 	       add_offsets( local_offset, offset ) &&
 	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) ||
@@ -3051,7 +3065,7 @@ static bool is_h_instruction( char const* c, int* offset, float* px, uint32_t* s
 	float previous_p   = *px;
 
 	return ( is_repeat_or_command_char( 'h', c, &local_offset, state_flags ) ) &&
-	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
 	       is_float_number( c + local_offset, &local_offset, px ) &&
 	       add_offsets( local_offset, offset ) &&
 	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) ||
@@ -3071,7 +3085,7 @@ static bool is_v_instruction( char const* c, int* offset, float* py, uint32_t* s
 	float previous_p   = *py;
 
 	return ( is_repeat_or_command_char( 'v', c, &local_offset, state_flags ) ) &&
-	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
 	       is_float_number( c + local_offset, &local_offset, py ) &&
 	       add_offsets( local_offset, offset ) &&
 	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) ||
@@ -3097,7 +3111,7 @@ static bool is_c_instruction( char const* c, int* offset, glm::vec2* c1, glm::ve
 	glm::vec2 tmp_p1 = {};
 
 	return ( is_repeat_or_command_char( 'c', c, &local_offset, state_flags ) ) && // note this may update state_flags
-	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_c1 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_c2 ) &&
@@ -3127,7 +3141,7 @@ static bool is_q_instruction( char const* c, int* offset, glm::vec2* c1, glm::ve
 	glm::vec2 tmp_p1       = {};
 
 	return ( is_repeat_or_command_char( 'q', c, &local_offset, state_flags ) ) &&
-	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_c1 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
@@ -3158,13 +3172,13 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 	glm::vec2 tmp_p1 = {};
 
 	return ( is_repeat_or_command_char( 'a', c, &local_offset, state_flags ) ) &&
-	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, radii ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_float_number( c + local_offset, &local_offset, x_axis_rotation ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_boolean_zero_or_one( c + local_offset, &local_offset, large_arc_flag ) &&
-	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_comma_or_whitespace( c + local_offset, &local_offset ) &&
 	       is_boolean_zero_or_one( c + local_offset, &local_offset, sweep_flag ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
