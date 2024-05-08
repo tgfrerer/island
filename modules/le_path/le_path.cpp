@@ -2389,6 +2389,9 @@ static glm::vec2 const* le_path_get_previous_p( le_path_o* self ) {
 	case PathCommand::eArcTo:         // fall-through
 		p = &c.p;
 		break;
+	case PathCommand::eClosePath:
+		p = &c.p;
+		break;
 	default:
 		// Error. Previous command must be one of above
 		logger.error( "Warning: Relative path instruction requires absolute position to be known. In %s:%i\n", __FILE__, __LINE__ );
@@ -2452,7 +2455,13 @@ static void le_path_arc_to( le_path_o* self, glm::vec2 const* p, glm::vec2 const
 // ----------------------------------------------------------------------
 
 static void le_path_close_path( le_path_o* self ) {
-	self->contours.back().commands.emplace_back( PathCommand::eClosePath, glm::vec2{} );
+	glm::vec2 first_point = {};
+	if ( !self->contours.back().commands.empty() ) {
+		if ( self->contours.back().commands.front().type == PathCommand::eMoveTo ) {
+			first_point = self->contours.back().commands.front().p;
+		}
+	}
+	self->contours.back().commands.emplace_back( PathCommand::eClosePath, first_point );
 }
 
 // ----------------------------------------------------------------------
