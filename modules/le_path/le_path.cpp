@@ -1089,53 +1089,39 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const& p0, // end po
 }
 
 // ----------------------------------------------------------------------
-// translates arc into straight polylines - while respecting tolerance.
+// Implements a endpoint-to-centre-form conversion for a given arc
+// following the implementation notes given in the SVG Standard.
 //
-// FIXME: There is potentially still a bug in this - look how the following
-// SVG string evaluates:
-// "M 300 450 L 350 425 A 25 25 -30 0 1 400 400 L 450 375 A 25 50 -30 0 1 500 350 L 550 325 A 25 75 -30 0 1 600 300 L 650 275 A 25 100 -30 0 1 700 250 L 750 225"
-//
-// The string is taken from the svg spec:
-// https://svgwg.org/svg2-draft/paths.html#PathDataEllipticalArcCommands
-// The ellipses should face in the same direction:
-static void flatten_arc_to( Polyline&        polyline,
-                            glm::vec2 const& p1, // end point
-                            glm::vec2 const& radii,
-                            float            phi,
-                            bool             large_arc,
-                            bool             sweep,
-                            float            tolerance ) {
-
-	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
-
-	// If any or both of radii.x or radii.y is 0, then we must treat the
-	// arc as a straight line:
-	//
-	if ( fabsf( radii.x * radii.y ) <= std::numeric_limits<float>::epsilon() ) {
-		trace_line_to( polyline, p1 );
-		return;
-	}
-
-	// ---------| Invariant: radii.x and radii.y are not 0.
-
-	glm::vec2 const p0 = polyline.vertices.back(); // copy start point
+static bool calculate_arc_details(
+    glm::vec2 const& p0, // start point
+    glm::vec2 const& p1, // end point
+    glm::vec2 const& radii_,
+    const float      phi,
+    const bool       large_arc,
+    const bool       sweep,
+    glm::mat2*       inv_basis_out,
+    glm::vec2*       c_out,
+    glm::vec2*       r_out,
+    float*           theta_out,
+    float*           theta_end_out ) {
+    // ---------| Invariant: radii.x and radii.y are not 0.
 
 	// First, we perform an endpoint to centre form conversion, following the
 	// implementation notes of the w3/svg standards group.
 	//
 	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
 	//
-	glm::vec2 x_axis{ cosf( phi ), sinf( phi ) };
+	glm::vec2 x_axis{ cosf( glm::radians( phi ) ), sinf( glm::radians( phi ) ) };
 	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
-	glm::mat2 basis{ x_axis, y_axis };
-	glm::mat2 inv_basis = glm::transpose( basis );
+	*inv_basis_out  = { x_axis, y_axis }; // column major: each axis represents a column
+	glm::mat2 basis = glm::transpose( *inv_basis_out );
 
 	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
 
 	float x_sq = x_.x * x_.x;
 	float y_sq = x_.y * x_.y;
 
-	glm::vec2 r    = glm::vec2{ fabsf( radii.x ), fabsf( radii.y ) }; // TODO: make sure radius is large enough.
+	glm::vec2 r    = glm::vec2{ fabsf( radii_.x ), fabsf( radii_.y ) }; // TODO: make sure radius is large enough.
 	float     rxsq = r.x * r.x;
 	float     rysq = r.y * r.y;
 
@@ -1168,8 +1154,6 @@ static void flatten_arc_to( Polyline&        polyline,
 		c_ = glm::vec2{ 0 };
 	}
 
-	glm::vec2 c = inv_basis * c_ + ( ( p0 + p1 ) / 2.f );
-
 	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
 	glm::vec2 v = glm::normalize( ( -x_ - c_ ) / r );
 
@@ -1189,49 +1173,97 @@ static void flatten_arc_to( Polyline&        polyline,
 	}
 
 	if ( fabsf( theta_delta ) <= std::numeric_limits<float>::epsilon() ) {
-		return;
+		return false;
 	}
 
 	// --------- | Invariant: delta_theta is not zero.
 
-	float theta     = theta_1;
-	float theta_end = theta_1 + theta_delta;
+	*r_out         = r;
+	*c_out         = ( *inv_basis_out ) * c_ + ( ( p0 + p1 ) / 2.f );
+	*theta_out     = theta_1;
+	*theta_end_out = theta_1 + theta_delta;
 
-	glm::vec2 prev_pt = polyline.vertices.back();
-	glm::vec2 n       = glm::vec2{ cosf( theta ), sinf( theta ) };
+	return true;
+}
 
-	// We are much more likely to break ealier - but we add a counter as an upper bound
-	// to this loop to minimise getting trapped in an endless loop in case of some NaN
-	// mishap.
+// ----------------------------------------------------------------------
+// translates arc into straight polylines - while respecting tolerance.
+//
+// FIXME: There is potentially still a bug in this - look how the following
+// SVG string evaluates:
+// "M 300 450 L 350 425 A 25 25 -30 0 1 400 400 L 450 375 A 25 50 -30 0 1 500 350 L 550 325 A 25 75 -30 0 1 600 300 L 650 275 A 25 100 -30 0 1 700 250 L 750 225"
+//
+// The string is taken from the svg spec:
+// <https://svgwg.org/svg2-draft/paths.html#PathDataEllipticalArcCommands>
+// The ellipses should face in the same direction:
+//
+// This could have something to do with x-axis rotation
+static void flatten_arc_to( Polyline&        polyline,
+                            glm::vec2 const& p1, // end point
+                            glm::vec2 const& radii,
+                            float            phi,
+                            bool             large_arc,
+                            bool             sweep,
+                            float            tolerance ) {
+
+	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
+
+	// If any or both of radii.x or radii.y is 0, then we must treat the
+	// arc as a straight line:
 	//
-	for ( size_t i = 0; i <= 1000; i++ ) {
+	if ( fabsf( radii.x * radii.y ) <= std::numeric_limits<float>::epsilon() ) {
+		trace_line_to( polyline, p1 );
+		return;
+	}
 
-		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, glm::abs( inv_basis * radii ) );
+	// ---------| Invariant: radii.x and radii.y are not 0.
 
-		float angle_offset = acosf( 1 - ( tolerance / r_length ) );
+	glm::vec2 const p0 = polyline.vertices.back(); // copy start point
 
-		if ( !sweep ) {
-			theta = std::max( theta - angle_offset, theta_end );
-		} else {
-			theta = std::min( theta + angle_offset, theta_end );
-		}
+	glm::mat2 inv_basis;
+	glm::vec2 r;
+	glm::vec2 c;
+	float     theta;
+	float     theta_end;
 
-		n = { cosf( theta ), sinf( theta ) };
+	if ( calculate_arc_details( p0, p1, radii, phi, large_arc, sweep, &inv_basis, &c, &r, &theta, &theta_end ) ) {
 
-		glm::vec2 arc_pt = r * n;
-		arc_pt           = inv_basis * arc_pt + c;
+		glm::vec2 prev_pt = polyline.vertices.back();
+		glm::vec2 n       = glm::vec2{ cosf( theta ), sinf( theta ) };
 
-		polyline.vertices.push_back( arc_pt );
-		polyline.total_distance += glm::distance( arc_pt, prev_pt );
-		polyline.distances.push_back( polyline.total_distance );
-		polyline.tangents.push_back( inv_basis * ( r * glm::vec2{ -sinf( theta ), cosf( theta ) } ) );
-		prev_pt = arc_pt;
+		// We are much more likely to break ealier - but we add a counter as an upper bound
+		// to this loop to minimise getting trapped in an endless loop in case of some NaN
+		// mishap.
+		//
+		for ( size_t i = 0; i <= 1000; i++ ) {
 
-		if ( !sweep && theta <= theta_end ) {
-			break;
-		}
-		if ( sweep && theta >= theta_end ) {
-			break;
+			float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, glm::abs( inv_basis * radii ) );
+
+			float angle_offset = acosf( 1 - ( tolerance / r_length ) );
+
+			if ( !sweep ) {
+				theta = std::max( theta - angle_offset, theta_end );
+			} else {
+				theta = std::min( theta + angle_offset, theta_end );
+			}
+
+			n = { cosf( theta ), sinf( theta ) };
+
+			glm::vec2 arc_pt = r * n;
+			arc_pt           = inv_basis * arc_pt + c;
+
+			polyline.vertices.push_back( arc_pt );
+			polyline.total_distance += glm::distance( arc_pt, prev_pt );
+			polyline.distances.push_back( polyline.total_distance );
+			polyline.tangents.push_back( inv_basis * ( r * glm::vec2{ -sinf( theta ), cosf( theta ) } ) );
+			prev_pt = arc_pt;
+
+			if ( !sweep && theta <= theta_end ) {
+				break;
+			}
+			if ( sweep && theta >= theta_end ) {
+				break;
+			}
 		}
 	}
 }
@@ -1501,151 +1533,81 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2>& outline_l,
 		return;
 	}
 
-	// ---------| Invariant: radii.x and radii.y are not 0.
+	glm::mat2 inv_basis;
+	glm::vec2 r;
+	glm::vec2 c;
+	float     theta;
+	float     theta_end;
 
-	// First, we perform an endpoint to centre form conversion, following the
-	// implementation notes of the w3/svg standards group.
-	//
-	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
-	//
-	glm::vec2 x_axis{ cosf( phi ), sinf( phi ) };
-	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
-	glm::mat2 basis{ x_axis, y_axis };
-	glm::mat2 inv_basis = glm::transpose( basis );
+	if ( calculate_arc_details( p0, p1, radii_, phi, large_arc, sweep, &inv_basis, &c, &r, &theta, &theta_end ) ) {
 
-	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
+		glm::vec2 n = glm::vec2{ cosf( theta ), sinf( theta ) };
 
-	float x_sq = x_.x * x_.x;
-	float y_sq = x_.y * x_.y;
+		float const offset  = line_weight * 0.5f;
+		glm::vec2   p1_perp = glm::normalize( glm::vec2{ r.y, r.x } * n );
 
-	glm::vec2 r    = glm::vec2{ fabsf( radii_.x ), fabsf( radii_.y ) }; // TODO: make sure radius is large enough.
-	float     rxsq = r.x * r.x;
-	float     rysq = r.y * r.y;
-
-	// Ensure radius is large enough
-	//
-	float lambda = x_sq / rxsq + y_sq / rysq;
-	if ( lambda > 1 ) {
-		float sqrt_lambda = sqrtf( lambda );
-		r *= sqrt_lambda;
-		rxsq = r.x * r.x;
-		rysq = r.y * r.y;
-	}
-	// ----------| Invariant: radius is large enough
-
-	float sqrt_sign = ( large_arc == sweep ) ? -1.f : 1.f;
-	float sqrt_term = ( rxsq * rysq -
-	                    rxsq * y_sq -
-	                    rysq * x_sq ) /
-	                  ( rxsq * y_sq +
-	                    rysq * x_sq );
-
-	glm::vec2 c_{};
-	if ( ( rxsq * y_sq + rysq * x_sq ) > std::numeric_limits<float>::epsilon() ) {
-		// Woah! that fabsf is not in the w3c implementation notes...
-		// We need it for the special case where the sqrt_term
-		// would get negative.
-		c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
-		     glm::vec2( ( r.x * x_.y ) / r.y, ( -r.y * x_.x ) / r.x );
-	} else {
-		c_ = glm::vec2{ 0 };
-	}
-
-	glm::vec2 c = inv_basis * c_ + ( ( p0 + p1 ) / 2.f );
-
-	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
-	glm::vec2 v = glm::normalize( ( -x_ - c_ ) / r );
-
-	// Note that it's important to take the oriented, and not just the absolute angle here.
-	//
-	float theta_1     = glm::orientedAngle( glm::vec2{ 1, 0 }, u );
-	float theta_delta = fmodf( glm::orientedAngle( u, v ), glm::two_pi<float>() );
-
-	// No Sweep: Angles must be decreasing
-	if ( sweep == false && theta_delta > 0 ) {
-		theta_delta = theta_delta - glm::two_pi<float>();
-	}
-
-	// Sweep: Angles must be increasing
-	if ( sweep == true && theta_delta < 0 ) {
-		theta_delta = theta_delta + glm::two_pi<float>();
-	}
-
-	if ( fabsf( theta_delta ) <= std::numeric_limits<float>::epsilon() ) {
-		return;
-	}
-
-	// --------- | Invariant: delta_theta is not zero.
-
-	float theta     = theta_1;
-	float theta_end = theta_1 + theta_delta;
-
-	glm::vec2 n = glm::vec2{ cosf( theta ), sinf( theta ) };
-
-	float const offset  = line_weight * 0.5f;
-	glm::vec2   p1_perp = glm::normalize( glm::vec2{ r.y, r.x } * n );
-
-	glm::vec2 p_far  = c + inv_basis * ( n * r - p1_perp * offset );
-	glm::vec2 p_near = c + inv_basis * ( n * r + p1_perp * offset );
-
-	outline_l.push_back( p_near );
-	outline_r.push_back( p_far );
-
-	// We are much more likely to break ealier - but we add a counter as an upper bound
-	// to this loop to minimise getting trapped in an endless loop in case of some NaN
-	// mishap.
-	//
-	for ( size_t i = 0; i <= 1000; i++ ) {
-
-		// Note: The calculation for `r_length`, and `angle_offset` is based on flatness
-		// calculation formula for a circle, and some mathematical intuition.
-		// It is, in short, not proven to be correct.
-		//
-		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, glm::abs( r ) + glm::abs( p1_perp * offset ) );
-
-		float angle_offset = acosf( 1 - ( tolerance / r_length ) );
-
-		if ( !sweep ) {
-			theta = std::max( theta - angle_offset, theta_end );
-		} else {
-			theta = std::min( theta + angle_offset, theta_end );
-		}
-
-		n = { cosf( theta ), sinf( theta ) };
-
-		glm::vec2 arc_pt = r * n;
-		arc_pt           = inv_basis * arc_pt + c;
-
-		// p1_perp is a normalized vector which is perpendicular to the tangent
-		// of the ellipse at point p1.
-		//
-		// The tangent is the first derivative of the ellipse in parametric notation:
-		//
-		// e(t) : {r.x * cos(t), r.y * sin(t)}
-		// e(t'): {r.x * -sin(t), r.y * cos(t)} // tangent is first derivative
-		//
-		// now rotate this 90 deg ccw:
-		//
-		// {-r.y*cos(t), r.x*-sin(t)} // we can invert sign to remove negative if we want
-		//
-		// `offset` is how far we want to move outwards/inwards at the ellipse point p1,
-		// in direction p1_perp. So that p1_perp has unit length, we must normalize it.
-		//
-		p1_perp = glm::normalize( glm::vec2{ r.y, r.x } * n );
-
-		p_far  = c + inv_basis * ( n * r - p1_perp * offset );
-		p_near = c + inv_basis * ( n * r + p1_perp * offset );
+		glm::vec2 p_far  = c + inv_basis * ( n * r - p1_perp * offset );
+		glm::vec2 p_near = c + inv_basis * ( n * r + p1_perp * offset );
 
 		outline_l.push_back( p_near );
 		outline_r.push_back( p_far );
 
-		if ( !sweep && theta <= theta_end ) {
-			break;
+		// We are much more likely to break ealier - but we add a counter as an upper bound
+		// to this loop to minimise getting trapped in an endless loop in case of some NaN
+		// mishap.
+		//
+		for ( size_t i = 0; i <= 1000; i++ ) {
+
+			// Note: The calculation for `r_length`, and `angle_offset` is based on flatness
+			// calculation formula for a circle, and some mathematical intuition.
+			// It is, in short, not proven to be correct.
+			//
+			float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, glm::abs( r ) + glm::abs( p1_perp * offset ) );
+
+			float angle_offset = acosf( 1 - ( tolerance / r_length ) );
+
+			if ( !sweep ) {
+				theta = std::max( theta - angle_offset, theta_end );
+			} else {
+				theta = std::min( theta + angle_offset, theta_end );
+			}
+
+			n = { cosf( theta ), sinf( theta ) };
+
+			glm::vec2 arc_pt = r * n;
+			arc_pt           = inv_basis * arc_pt + c;
+
+			// p1_perp is a normalized vector which is perpendicular to the tangent
+			// of the ellipse at point p1.
+			//
+			// The tangent is the first derivative of the ellipse in parametric notation:
+			//
+			// e(t) : {r.x * cos(t), r.y * sin(t)}
+			// e(t'): {r.x * -sin(t), r.y * cos(t)} // tangent is first derivative
+			//
+			// now rotate this 90 deg ccw:
+			//
+			// {-r.y*cos(t), r.x*-sin(t)} // we can invert sign to remove negative if we want
+			//
+			// `offset` is how far we want to move outwards/inwards at the ellipse point p1,
+			// in direction p1_perp. So that p1_perp has unit length, we must normalize it.
+			//
+			p1_perp = glm::normalize( glm::vec2{ r.y, r.x } * n );
+
+			p_far  = c + inv_basis * ( n * r - p1_perp * offset );
+			p_near = c + inv_basis * ( n * r + p1_perp * offset );
+
+			outline_l.push_back( p_near );
+			outline_r.push_back( p_far );
+
+			if ( !sweep && theta <= theta_end ) {
+				break;
+			}
+			if ( sweep && theta >= theta_end ) {
+				break;
+			}
 		}
-		if ( sweep && theta >= theta_end ) {
-			break;
-		}
-	}
+	} // if calculate arc details
 }
 
 // ----------------------------------------------------------------------
