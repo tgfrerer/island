@@ -953,7 +953,7 @@ static le_2d_primitive_o* le_2d_primitive_create_path( le_2d_o* context ) {
 	auto& obj = p->data.as_path;
 
 	obj.path      = le_path::le_path_i.create();
-	obj.tolerance = 0.5f;
+	obj.tolerance = 0.1f;
 
 	p->material.stroke_weight = 1.f;
 	return p;
