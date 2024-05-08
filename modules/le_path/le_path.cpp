@@ -3136,7 +3136,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 	int offset = 0;
 
-	for ( ; *c != 0; ) // We test for the \0 character, end of c-string
+	for ( ; c[ offset ] != 0; ) // We test for the \0 character, end of c-string
 	{
 
 		uint32_t state_flags;
