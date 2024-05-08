@@ -428,28 +428,22 @@ static void trace_cubic_bezier_to( Polyline&        polyline,
 }
 
 // ----------------------------------------------------------------------
-// translates arc into straight polylines - while respecting tolerance.
-static void trace_arc_to( Polyline&        polyline,
-                          glm::vec2 const& p1, // end point
-                          glm::vec2 const& radii,
-                          float            phi,
-                          bool             large_arc,
-                          bool             sweep,
-                          size_t           iterations ) {
-
-	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
-
-	// If any or both of radii.x or radii.y is 0, then we must treat the
-	// arc as a straight line:
-	//
-	if ( fabsf( radii.x * radii.y ) <= std::numeric_limits<float>::epsilon() ) {
-		trace_line_to( polyline, p1 );
-		return;
-	}
-
-	// ---------| Invariant: radii.x and radii.y are not 0.
-
-	glm::vec2 const p0 = polyline.vertices.back(); // copy start point
+// Implements a endpoint-to-centre-form conversion for a given arc
+// following the implementation notes given in the SVG Standard.
+//
+static bool calculate_arc_details(
+    glm::vec2 const& p0, // start point
+    glm::vec2 const& p1, // end point
+    glm::vec2 const& radii_,
+    const float      phi,
+    const bool       large_arc,
+    const bool       sweep,
+    glm::mat2*       inv_basis_out,
+    glm::vec2*       c_out,
+    glm::vec2*       r_out,
+    float*           theta_out,
+    float*           theta_end_out ) {
+    // ---------| Invariant: radii.x and radii.y are not 0.
 
 	// First, we perform an endpoint to centre form conversion, following the
 	// implementation notes of the w3/svg standards group.
@@ -458,15 +452,15 @@ static void trace_arc_to( Polyline&        polyline,
 	//
 	glm::vec2 x_axis{ cosf( glm::radians( phi ) ), sinf( glm::radians( phi ) ) };
 	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
-	glm::mat2 basis{ x_axis, y_axis };
-	glm::mat2 inv_basis = glm::transpose( basis );
+	*inv_basis_out  = { x_axis, y_axis }; // column major: each axis represents a column
+	glm::mat2 basis = glm::transpose( *inv_basis_out );
 
 	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
 
 	float x_sq = x_.x * x_.x;
 	float y_sq = x_.y * x_.y;
 
-	glm::vec2 r    = glm::vec2{ fabsf( radii.x ), fabsf( radii.y ) }; // TODO: make sure radius is large enough.
+	glm::vec2 r    = glm::vec2{ fabsf( radii_.x ), fabsf( radii_.y ) }; // TODO: make sure radius is large enough.
 	float     rxsq = r.x * r.x;
 	float     rysq = r.y * r.y;
 
@@ -499,8 +493,6 @@ static void trace_arc_to( Polyline&        polyline,
 		c_ = glm::vec2{ 0 };
 	}
 
-	glm::vec2 c = inv_basis * c_ + ( ( p0 + p1 ) / 2.f );
-
 	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
 	glm::vec2 v = glm::normalize( ( -x_ - c_ ) / r );
 
@@ -520,39 +512,76 @@ static void trace_arc_to( Polyline&        polyline,
 	}
 
 	if ( fabsf( theta_delta ) <= std::numeric_limits<float>::epsilon() ) {
-		return;
+		return false;
 	}
 
 	// --------- | Invariant: delta_theta is not zero.
 
-	float theta     = theta_1;
-	float theta_end = theta_1 + theta_delta;
+	*r_out         = r;
+	*c_out         = ( *inv_basis_out ) * c_ + ( ( p0 + p1 ) / 2.f );
+	*theta_out     = theta_1;
+	*theta_end_out = theta_1 + theta_delta;
 
-	glm::vec2 prev_pt = polyline.vertices.back();
-	glm::vec2 n       = glm::vec2{ cosf( theta ), sinf( theta ) };
+	return true;
+}
+// ----------------------------------------------------------------------
+// translates arc into straight polylines - while respecting tolerance.
+static void trace_arc_to( Polyline&        polyline,
+                          glm::vec2 const& p1, // end point
+                          glm::vec2 const& radii,
+                          float            phi,
+                          bool             large_arc,
+                          bool             sweep,
+                          size_t           iterations ) {
 
-	float angle_offset = theta_delta / float( iterations );
+	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
 
-	for ( size_t i = 0; i <= iterations; i++ ) {
+	// If any or both of radii.x or radii.y is 0, then we must treat the
+	// arc as a straight line:
+	//
+	if ( fabsf( radii.x * radii.y ) <= std::numeric_limits<float>::epsilon() ) {
+		trace_line_to( polyline, p1 );
+		return;
+	}
 
-		theta += angle_offset;
+	// ---------| Invariant: radii.x and radii.y are not 0.
 
-		n = { cosf( theta ), sinf( theta ) };
+	glm::vec2 const p0 = polyline.vertices.back(); // copy start point
+	glm::mat2       inv_basis;
+	glm::vec2       r;
+	glm::vec2       c;
+	float           theta;
+	float           theta_end;
 
-		glm::vec2 arc_pt = r * n;
-		arc_pt           = inv_basis * arc_pt + c;
+	if ( calculate_arc_details( p0, p1, radii, phi, large_arc, sweep, &inv_basis, &c, &r, &theta, &theta_end ) ) {
 
-		polyline.vertices.push_back( arc_pt );
-		polyline.total_distance += glm::distance( arc_pt, prev_pt );
-		polyline.distances.push_back( polyline.total_distance );
-		polyline.tangents.push_back( inv_basis * ( r * glm::vec2{ -sinf( theta ), cosf( theta ) } ) );
-		prev_pt = arc_pt;
+		float     theta_delta = theta_end - theta;
+		glm::vec2 prev_pt     = polyline.vertices.back();
+		glm::vec2 n           = glm::vec2{ cosf( theta ), sinf( theta ) };
 
-		if ( !sweep && theta <= theta_end ) {
-			break;
-		}
-		if ( sweep && theta >= theta_end ) {
-			break;
+		float angle_offset = theta_delta / float( iterations );
+
+		for ( size_t i = 0; i <= iterations; i++ ) {
+
+			theta += angle_offset;
+
+			n = { cosf( theta ), sinf( theta ) };
+
+			glm::vec2 arc_pt = r * n;
+			arc_pt           = inv_basis * arc_pt + c;
+
+			polyline.vertices.push_back( arc_pt );
+			polyline.total_distance += glm::distance( arc_pt, prev_pt );
+			polyline.distances.push_back( polyline.total_distance );
+			polyline.tangents.push_back( inv_basis * ( r * glm::vec2{ -sinf( theta ), cosf( theta ) } ) );
+			prev_pt = arc_pt;
+
+			if ( !sweep && theta <= theta_end ) {
+				break;
+			}
+			if ( sweep && theta >= theta_end ) {
+				break;
+			}
 		}
 	}
 }
@@ -1088,103 +1117,7 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const& p0, // end po
 	}
 }
 
-// ----------------------------------------------------------------------
-// Implements a endpoint-to-centre-form conversion for a given arc
-// following the implementation notes given in the SVG Standard.
 //
-static bool calculate_arc_details(
-    glm::vec2 const& p0, // start point
-    glm::vec2 const& p1, // end point
-    glm::vec2 const& radii_,
-    const float      phi,
-    const bool       large_arc,
-    const bool       sweep,
-    glm::mat2*       inv_basis_out,
-    glm::vec2*       c_out,
-    glm::vec2*       r_out,
-    float*           theta_out,
-    float*           theta_end_out ) {
-    // ---------| Invariant: radii.x and radii.y are not 0.
-
-	// First, we perform an endpoint to centre form conversion, following the
-	// implementation notes of the w3/svg standards group.
-	//
-	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
-	//
-	glm::vec2 x_axis{ cosf( glm::radians( phi ) ), sinf( glm::radians( phi ) ) };
-	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
-	*inv_basis_out  = { x_axis, y_axis }; // column major: each axis represents a column
-	glm::mat2 basis = glm::transpose( *inv_basis_out );
-
-	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
-
-	float x_sq = x_.x * x_.x;
-	float y_sq = x_.y * x_.y;
-
-	glm::vec2 r    = glm::vec2{ fabsf( radii_.x ), fabsf( radii_.y ) }; // TODO: make sure radius is large enough.
-	float     rxsq = r.x * r.x;
-	float     rysq = r.y * r.y;
-
-	// Ensure radius is large enough
-	//
-	float lambda = x_sq / rxsq + y_sq / rysq;
-	if ( lambda > 1 ) {
-		float sqrt_lambda = sqrtf( lambda );
-		r *= sqrt_lambda;
-		rxsq = r.x * r.x;
-		rysq = r.y * r.y;
-	}
-	// ----------| Invariant: radius is large enough
-
-	float sqrt_sign = ( large_arc == sweep ) ? -1.f : 1.f;
-	float sqrt_term = ( rxsq * rysq -
-	                    rxsq * y_sq -
-	                    rysq * x_sq ) /
-	                  ( rxsq * y_sq +
-	                    rysq * x_sq );
-
-	glm::vec2 c_{};
-	if ( ( rxsq * y_sq + rysq * x_sq ) > std::numeric_limits<float>::epsilon() ) {
-		// Woah! that fabsf is not in the w3c implementation notes...
-		// We need it for the special case where the sqrt_term
-		// would get negative.
-		c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
-		     glm::vec2( ( r.x * x_.y ) / r.y, ( -r.y * x_.x ) / r.x );
-	} else {
-		c_ = glm::vec2{ 0 };
-	}
-
-	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
-	glm::vec2 v = glm::normalize( ( -x_ - c_ ) / r );
-
-	// Note that it's important to take the oriented, and not just the absolute angle here.
-	//
-	float theta_1     = glm::orientedAngle( glm::vec2{ 1, 0 }, u );
-	float theta_delta = fmodf( glm::orientedAngle( u, v ), glm::two_pi<float>() );
-
-	// No Sweep: Angles must be decreasing
-	if ( sweep == false && theta_delta > 0 ) {
-		theta_delta = theta_delta - glm::two_pi<float>();
-	}
-
-	// Sweep: Angles must be increasing
-	if ( sweep == true && theta_delta < 0 ) {
-		theta_delta = theta_delta + glm::two_pi<float>();
-	}
-
-	if ( fabsf( theta_delta ) <= std::numeric_limits<float>::epsilon() ) {
-		return false;
-	}
-
-	// --------- | Invariant: delta_theta is not zero.
-
-	*r_out         = r;
-	*c_out         = ( *inv_basis_out ) * c_ + ( ( p0 + p1 ) / 2.f );
-	*theta_out     = theta_1;
-	*theta_end_out = theta_1 + theta_delta;
-
-	return true;
-}
 
 // ----------------------------------------------------------------------
 // translates arc into straight polylines - while respecting tolerance.
