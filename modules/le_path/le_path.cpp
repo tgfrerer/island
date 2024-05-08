@@ -3168,7 +3168,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		}
 
 		state_flags = 0;
-		if ( is_v_instruction( c + offset, &offset, &p.y, &state_flags ) ) {
+		while ( is_v_instruction( c + offset, &offset, &p.y, &state_flags ) ) {
 			le_path_line_vert_to( self, p.y );
 		}
 		if ( offset ) {
@@ -3176,7 +3176,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		}
 
 		state_flags = 0;
-		if ( is_c_instruction( c + offset, &offset, &c2, &c1, &p, &state_flags ) ) {
+		while ( is_c_instruction( c + offset, &offset, &c2, &c1, &p, &state_flags ) ) {
 			le_path_cubic_bezier_to( self, &p, &c2, &c1 ); // Note that end vertex is p2 from SVG,
 			                                               // as SVG has target vertex as last vertex
 		}
