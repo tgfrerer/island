@@ -3037,6 +3037,58 @@ static bool is_c_instruction( char const* c, int* offset, glm::vec2* c1, glm::ve
 	       add_offsets( local_offset, offset );
 }
 
+// Return true if string `s` can be evaluated as a 's' instruction.
+// A 's' instruction is a smooth cubic bezier instruction.
+// the first control point is assumed to be the reflection of the second
+// control point on the previous command relative to the current point.
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `s` spent on the instruction.
+// + `*c2` will hold the value of control point 1
+// + `*p1` will hold the value of the target point
+static bool is_s_instruction( char const* c, int* offset, glm::vec2* c2, glm::vec2* p1, uint32_t* state_flags ) {
+	if ( *c == 0 )
+		return false;
+
+	int       local_offset = 0;
+	glm::vec2 previous_p   = {};
+
+	glm::vec2 tmp_c2 = {};
+	glm::vec2 tmp_p1 = {};
+
+	return ( is_repeat_or_command_char( 's', c, &local_offset, state_flags ) ) && // note this may update state_flags
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_c2 ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) || // only set delta_p if not absolute
+	         set_coordinate_pair( &previous_p, *p1 ) ) &&             // set delta_p to previous p1
+	       set_coordinate_pair( p1, tmp_p1 + previous_p ) &&
+	       set_coordinate_pair( c2, tmp_c2 + previous_p ) &&
+	       add_offsets( local_offset, offset );
+}
+
+// Return true if string `t` can be evaluated as a 't' instruction.
+// A 'q' instruction is a quadratic bezier instruction.
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `t` spent on the instruction.
+// + `*p1` will hold the value of the target point
+static bool is_t_instruction( char const* c, int* offset, glm::vec2* p1, uint32_t* state_flags ) {
+	if ( *c == 0 )
+		return false;
+
+	int       local_offset = 0;
+	glm::vec2 previous_p   = {};
+	glm::vec2 tmp_p1       = {};
+
+	return ( is_repeat_or_command_char( 't', c, &local_offset, state_flags ) ) &&
+	       is_optional_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, &tmp_p1 ) &&
+	       ( ( *state_flags & PATH_PARSER_STATE_FLAG_IS_ABSOLUTE ) || // only set delta_p if not absolute
+	         set_coordinate_pair( &previous_p, *p1 ) ) &&             // set delta_p to previous p1
+	       set_coordinate_pair( p1, tmp_p1 + previous_p ) &&
+	       add_offsets( local_offset, offset );
+}
+
 // Return true if string `c` can be evaluated as a 'q' instruction.
 // A 'q' instruction is a quadratic bezier instruction.
 // In case this method returns true,
@@ -3143,6 +3195,10 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		c += offset;
 		offset = 0;
 
+		glm::vec2 curr_p  = p;
+		glm::vec2 prev_c1 = c1;
+		glm::vec2 prev_c2 = c2;
+
 		state_flags = 0;
 		while ( is_m_instruction( c + offset, &offset, &p, &state_flags ) ) {
 			le_path_move_to( self, &p );
@@ -3176,8 +3232,8 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		}
 
 		state_flags = 0;
-		while ( is_c_instruction( c + offset, &offset, &c2, &c1, &p, &state_flags ) ) {
-			le_path_cubic_bezier_to( self, &p, &c2, &c1 ); // Note that end vertex is p2 from SVG,
+		while ( is_c_instruction( c + offset, &offset, &c1, &c2, &p, &state_flags ) ) {
+			le_path_cubic_bezier_to( self, &p, &c1, &c2 ); // Note that end vertex is p2 from SVG,
 			                                               // as SVG has target vertex as last vertex
 		}
 		if ( offset ) {
@@ -3185,9 +3241,32 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		}
 
 		state_flags = 0;
+		while ( is_s_instruction( c + offset, &offset, &c2, &p, &state_flags ) ) {
+			// shorthand for smooth curveto
+			c1 = curr_p * 2.f - prev_c2; // calculate c2 as the reflection of previous c2 relative to the current point
+			le_path_cubic_bezier_to( self, &p, &c1, &c2 );
+			prev_c2 = c2;
+			curr_p  = p;
+		}
+		if ( offset ) {
+			continue;
+		}
+
+		state_flags = 0;
 		while ( is_q_instruction( c + offset, &offset, &c1, &p, &state_flags ) ) {
-			le_path_quad_bezier_to( self, &p, &c1 ); // Note that target vertex is p1 from SVG,
-			                                         // as SVG has target vertex as last vertex
+			le_path_quad_bezier_to( self, &p, &c1 );
+		}
+		if ( offset ) {
+			continue;
+		}
+
+		state_flags = 0;
+		while ( is_t_instruction( c + offset, &offset, &p, &state_flags ) ) {
+			// shorthand for smooth quadratic bezier curveto
+			c1 = curr_p * 2.f - prev_c1; // calculate c1 as a reflection of the previous control point on the previous command relative to the current point
+			le_path_quad_bezier_to( self, &p, &c1 );
+			prev_c1 = c1;
+			curr_p  = p;
 		}
 		if ( offset ) {
 			continue;
