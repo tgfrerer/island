@@ -43,7 +43,7 @@ struct PathCommand {
 		} as_quad_bezier;
 		struct AsArc {
 			glm::vec2 radii; // control point 1
-			float     phi;   // control point 2
+			float     phi;   // x-coordinate angle (given in degrees)
 			bool      large_arc;
 			bool      sweep;
 		} as_arc;
@@ -456,7 +456,7 @@ static void trace_arc_to( Polyline&        polyline,
 	//
 	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
 	//
-	glm::vec2 x_axis{ cosf( phi ), sinf( phi ) };
+	glm::vec2 x_axis{ cosf( glm::radians( phi ) ), sinf( glm::radians( phi ) ) };
 	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
 	glm::mat2 basis{ x_axis, y_axis };
 	glm::mat2 inv_basis = glm::transpose( basis );
@@ -1015,7 +1015,7 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const& p0, // end po
 	//
 	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
 	//
-	glm::vec2 x_axis{ cosf( phi ), sinf( phi ) };
+	glm::vec2 x_axis{ cosf( glm::radians( phi ) ), sinf( glm::radians( phi ) ) };
 	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
 	glm::mat2 basis{ x_axis, y_axis };
 	glm::mat2 inv_basis = glm::transpose( basis );
