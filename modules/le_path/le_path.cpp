@@ -2391,7 +2391,7 @@ static glm::vec2 const* le_path_get_previous_p( le_path_o* self ) {
 		break;
 	default:
 		// Error. Previous command must be one of above
-		fprintf( stderr, "Warning: Relative path instruction requires absolute position to be known. In %s:%i\n", __FILE__, __LINE__ );
+		logger.error( "Warning: Relative path instruction requires absolute position to be known. In %s:%i\n", __FILE__, __LINE__ );
 		break;
 	}
 
