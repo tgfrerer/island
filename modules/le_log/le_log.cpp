@@ -13,7 +13,7 @@
 #ifdef _MSC_VER
 #	include <intrin.h> // for debugbreak()
 #else
-#	include <csignal>  // for std::raise
+#	include <csignal> // for std::raise
 #endif
 
 struct le_log_channel_o {
@@ -193,6 +193,38 @@ static void api_remove_subscriber( uint64_t handle ) {
 // ----------------------------------------------------------------------
 
 static void default_subscriber_cout( char const* chars, uint32_t num_chars, void* ) {
+
+	{
+		// Do not repeat message if it just has been printed.
+
+		static uint64_t last_hash = 0;
+
+		// This is optimised for the most common case:
+		// Messages are not repeating.
+
+		// First, we check whether the number of chars is equivalent to
+		// the number of chars that we hashed the last time.
+
+		static uint32_t last_num_chars = 0;
+
+		if ( last_num_chars == num_chars ) {
+
+			// Only if the number of chars matches, do calculate the hash
+			// for the current message and compare it to the hash of the last
+			// message.
+
+			uint64_t current_hash = hash_64_fnv1a( chars );
+			if ( current_hash == last_hash ) {
+				return;
+			}
+			last_hash = current_hash;
+		} else {
+			last_hash = 0;
+		}
+
+		last_num_chars = num_chars;
+	}
+
 	fprintf( stdout, "%*s\n", num_chars, chars );
 	fflush( stdout );
 };
