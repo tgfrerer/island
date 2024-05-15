@@ -2962,6 +2962,18 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 
 	} else if ( resourceInfo.isImage() ) {
 
+		if ( 0 ==
+		     resourceInfo.imageInfo.extent.depth *
+		         resourceInfo.imageInfo.extent.width *
+		         resourceInfo.imageInfo.extent.height ) {
+
+			logger.error( "Image cannot be allocated with invalid extents: %dx%dx%d",
+			              resourceInfo.imageInfo.extent.depth,
+			              resourceInfo.imageInfo.extent.width,
+			              resourceInfo.imageInfo.extent.height );
+			return res;
+		}
+
 		result = vmaCreateImage(
 		    alloc,
 		    &resourceInfo.imageInfo,
