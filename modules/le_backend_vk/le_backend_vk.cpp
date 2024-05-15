@@ -6219,12 +6219,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							logger.warn( "Warning: Invalid image argument name id: %x", argument_name_id );
 							break;
 						}
+						auto arrayIndex = uint32_t( le_cmd->info.array_index );
 
 						// ---------| invariant: we found an argument name that matches
 
 						auto bindingData =
 						    find_descriptor_with_binding_number_and_array_idx(
-						        argumentState.setData[ b->setIndex ], b->binding );
+						        argumentState.setData[ b->setIndex ], b->binding, arrayIndex );
 
 						// fetch image view information based on image_id from command
 						if ( bindingData ) {
