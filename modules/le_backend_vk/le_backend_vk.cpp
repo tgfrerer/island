@@ -3199,7 +3199,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		res.info.tlasInfo.buffer_size         = build_sizes.accelerationStructureSize;
 
 	} else {
-		assert( false && "Cannot allocate unknown resource type." );
+		logger.error( "Cannot allocate unknown resource type." );
 	}
 	assert( result == VK_SUCCESS );
 	return res;
