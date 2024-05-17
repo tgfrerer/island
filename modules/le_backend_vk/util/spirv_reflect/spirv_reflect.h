@@ -31,12 +31,16 @@ VERSION HISTORY
 #ifndef SPIRV_REFLECT_H
 #define SPIRV_REFLECT_H
 
-#if defined(SPIRV_REFLECT_USE_SYSTEM_SPIRV_H)
-#include <spirv/unified1/spirv.h>
-#else
-#include "./include/spirv/unified1/spirv.h"
-#endif
 
+#ifdef _MSC_VER
+    #include <spirv-headers/spirv.h>
+#else
+#   if defined(SPIRV_REFLECT_USE_SYSTEM_SPIRV_H)
+#include <spirv/unified1/spirv.h>
+#   else 
+#include "./include/spirv/unified1/spirv.h"
+#   endif
+#endif
 
 #include <stdint.h>
 #include <string.h>
