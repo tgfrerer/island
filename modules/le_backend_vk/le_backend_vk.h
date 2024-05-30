@@ -345,7 +345,46 @@ static const auto& le_shader_module_i     = api->le_shader_module_i;
 
 namespace le {
 
-class Backend : NoCopy, NoMove {
+class BackendSettings : NoCopy, NoMove {
+  public:
+    static void setConcurrencyCount( uint32_t concurrency ) {
+        le_backend_vk::settings_i.set_concurrency_count( concurrency );
+    }
+
+	static bool setDataFramesCount( uint32_t dataframes_count ) {
+		return le_backend_vk::settings_i.set_data_frames_count( dataframes_count );
+	}
+
+	static void getRequestedQueueCapabilities( VkQueueFlags* queues, uint32_t* num_queues ) {
+		le_backend_vk::settings_i.get_requested_queue_capabilities( queues, num_queues );
+	}
+
+	/// prefer addRequestedQueueCapabilities over setRequestedQueueCapabilities
+	static bool setRequestedQueueCapabilities( VkQueueFlags* queues, uint32_t num_queues ) {
+		return le_backend_vk::settings_i.set_requested_queue_capabilities( queues, num_queues );
+	}
+
+	static bool addRequestedQueueCapabilities( VkQueueFlags* queues, uint32_t num_queues ) {
+		return le_backend_vk::settings_i.add_requested_queue_capabilities( queues, num_queues );
+	}
+
+	static bool addRequiredInstanceExtension( char const* ext ) {
+		return le_backend_vk::settings_i.add_required_instance_extension( ext );
+	}
+
+	static bool addRequiredDeviceExtension( char const* ext ) {
+		return le_backend_vk::settings_i.add_required_device_extension( ext );
+	}
+
+	/// returns link of same sType that was found, otherwise return appended link. Appends link to features chain only if no link with this sType was yet found.
+	template <typename T>
+	static T* getOrAppendFeaturesChainLink( T& features_chain_link ) {
+		return reinterpret_cast<T*>( le_backend_vk::settings_i.get_or_append_features_chain_link( reinterpret_cast<GenericVkStruct*>( &features_chain_link ) ) );
+	};
+};
+
+class Backend : NoCopy,
+                NoMove {
 	le_backend_o* self         = nullptr;
 	bool          is_reference = false;
 
