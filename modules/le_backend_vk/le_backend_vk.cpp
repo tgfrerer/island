@@ -4810,6 +4810,7 @@ static void debug_print_command( void*& cmd ) {
                 case (le::CommandType::eBuildRtxTlas): os << "eBuildRtxTlas"; break;
                 case (le::CommandType::eBuildRtxBlas): os << "eBuildRtxBlas"; break;
                 case (le::CommandType::eWriteToImage): os << "eWriteToImage"; break;
+                case (le::CommandType::eDrawMeshTasksNV): os << "eDrawMeshTasksNV"; break;
                 case (le::CommandType::eDrawMeshTasks): os << "eDrawMeshTasks"; break;
                 case (le::CommandType::eTraceRays): os << "eTraceRays"; break;
                 case (le::CommandType::eSetArgumentTlas): os << "eSetArgumentTlas"; break;
@@ -6004,9 +6005,35 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    le_cmd->info.vertexOffset,
 						    le_cmd->info.firstInstance );
 					} break;
-
 					case le::CommandType::eDrawMeshTasks: {
 						auto* le_cmd = static_cast<le::CommandDrawMeshTasks*>( dataIt );
+
+						// -- update descriptorsets via template if tainted
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+
+						if ( false == argumentsOk ) {
+							break;
+						}
+
+						// --------| invariant: arguments were updated successfully
+
+						if ( argumentState.setCount > 0 ) {
+
+							vkCmdBindDescriptorSets( cmd,
+							                         VK_PIPELINE_BIND_POINT_GRAPHICS,
+							                         currentPipelineLayout,
+							                         0,
+							                         argumentState.setCount,
+							                         descriptorSets,
+							                         argumentState.dynamicOffsetCount,
+							                         argumentState.dynamicOffsets.data() );
+						}
+
+						vkCmdDrawMeshTasksEXT( cmd, le_cmd->info.x_count, le_cmd->info.y_count, le_cmd->info.z_count );
+					} break;
+
+					case le::CommandType::eDrawMeshTasksNV: {
+						auto* le_cmd = static_cast<le::CommandDrawMeshTasksNV*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
 						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );

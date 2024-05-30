@@ -199,13 +199,26 @@ static void cbe_draw_indexed( le_command_buffer_encoder_o* self,
 }
 
 // ----------------------------------------------------------------------
+
 static void cbe_draw_mesh_tasks( le_command_buffer_encoder_o* self,
-                                 uint32_t                     taskCount,
-                                 uint32_t                     firstTask ) {
+                                 uint32_t                     x_count,
+                                 uint32_t                     y_count,
+                                 uint32_t                     z_count ) {
 
 	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandDrawMeshTasks>(); // placement new!
+	cmd->info = { x_count, y_count, z_count };
+}
+
+// ----------------------------------------------------------------------
+
+static void cbe_draw_mesh_tasks_nv( le_command_buffer_encoder_o* self,
+                                    uint32_t                     taskCount,
+                                    uint32_t                     firstTask ) {
+
+	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandDrawMeshTasksNV>(); // placement new!
 	cmd->info = { taskCount, firstTask };
 }
+
 // ----------------------------------------------------------------------
 
 static void cbe_set_viewport( le_command_buffer_encoder_o* self,
@@ -1039,6 +1052,7 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	    .draw                   = cbe_draw,
 	    .draw_indexed           = cbe_draw_indexed,
 	    .draw_mesh_tasks        = cbe_draw_mesh_tasks,
+	    .draw_mesh_tasks_nv     = cbe_draw_mesh_tasks_nv,
 	    .bind_graphics_pipeline = cbe_bind_graphics_pipeline,
 	    .set_line_width         = cbe_set_line_width,
 	    .set_viewport           = cbe_set_viewport,

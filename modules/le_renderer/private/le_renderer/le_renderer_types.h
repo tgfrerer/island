@@ -650,6 +650,7 @@ enum class CommandType : uint32_t {
 	eDrawIndexed,
 	eDraw,
 	eDrawMeshTasks,
+	eDrawMeshTasksNV,
 	eDispatch,
 	eBufferMemoryBarrier,
 	eTraceRays,
@@ -707,6 +708,15 @@ struct CommandDraw {
 
 struct CommandDrawMeshTasks {
 	CommandHeader header = { { { CommandType::eDrawMeshTasks, sizeof( CommandDrawMeshTasks ) } } };
+	struct {
+		uint32_t x_count;
+		uint32_t y_count;
+		uint32_t z_count;
+	} info;
+};
+
+struct CommandDrawMeshTasksNV {
+	CommandHeader header = { { { CommandType::eDrawMeshTasksNV, sizeof( CommandDrawMeshTasksNV ) } } };
 	struct {
 		uint32_t taskCount;
 		uint32_t firstTask;

@@ -159,7 +159,10 @@ struct le_renderer_api {
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
 		void                         ( *draw_indexed           )( le_command_buffer_encoder_o *self, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
-		void                         ( *draw_mesh_tasks        )( le_command_buffer_encoder_o *self, uint32_t taskCount, uint32_t fistTask);
+
+		void                         ( *draw_mesh_tasks     )( le_command_buffer_encoder_o *self, uint32_t x_count, uint32_t y_count, uint32_t z_count);
+
+		void                         ( *draw_mesh_tasks_nv     )( le_command_buffer_encoder_o *self, uint32_t taskCount, uint32_t fistTask);
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_gpso_handle pipelineHandle);
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );

@@ -806,8 +806,13 @@ class GraphicsEncoder {
 		return *this;
 	}
 
-	GraphicsEncoder& drawMeshTasks( const uint32_t& taskCount, const uint32_t& firstTask = 0 ) {
-		le_renderer::encoder_graphics_i.draw_mesh_tasks( self, taskCount, firstTask );
+	GraphicsEncoder& drawMeshTasks( const uint32_t& x_count = 1, const uint32_t& y_count = 1, const uint32_t z_count = 1 ) {
+		le_renderer::encoder_graphics_i.draw_mesh_tasks( self, x_count, y_count, z_count );
+		return *this;
+	}
+
+	GraphicsEncoder& drawMeshTasksNV( const uint32_t& taskCount, const uint32_t& firstTask = 0 ) {
+		le_renderer::encoder_graphics_i.draw_mesh_tasks_nv( self, taskCount, firstTask );
 		return *this;
 	}
 

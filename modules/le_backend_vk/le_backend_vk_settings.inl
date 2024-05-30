@@ -321,7 +321,7 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	le_backend_vk_settings_add_required_device_extension( self, "VK_KHR_pipeline_library" );
 #endif
 
-#ifdef LE_FEATURE_MESH_SHADER_NV
+#ifdef LE_FEATURE_MESH_SHADER_NV_DEPRECATED
 
 	self->physical_device_features.mesh_shader.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV;
 
