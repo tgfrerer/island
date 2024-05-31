@@ -39,32 +39,25 @@ static const auto& api                 = le_mesh_generator_api_i;
 static const auto& le_mesh_generator_i = api->le_mesh_generator_i;
 } // namespace le_mesh_generator
 
-class LeMeshGenerator : NoCopy, NoMove {
-#	ifndef this_i
-#		define this_i le_mesh_generator::le_mesh_generator_i
+namespace le {
+
+class MeshGenerator : NoCopy, NoMove {
 
 	static constexpr float PI = 3.14159265358979323846f;
 
   public:
-	static void generateSphere( le_mesh_o* mesh,
-	                            float      radius              = 1.f,
-	                            uint32_t   widthSegments       = 3,
-	                            uint32_t   heightSegments      = 2,
-	                            float      phiStart            = 0.f,
-	                            float      phiLength           = 2 * PI,
-	                            float      thetaStart          = 0.f,
-	                            float      thetaLength         = PI,
-	                            uint32_t*  num_bytes_per_index = nullptr ) {
-
-		this_i.generate_sphere( mesh, radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength, num_bytes_per_index );
+    static void generateSphere( le_mesh_o* mesh, float radius = 1.f, uint32_t widthSegments = 3, uint32_t heightSegments = 2, float phiStart = 0.f, float phiLength = 2 * PI, float thetaStart = 0.f, float thetaLength = PI, uint32_t* num_bytes_per_index = nullptr ) {
+        le_mesh_generator::le_mesh_generator_i.generate_sphere( mesh, radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength, num_bytes_per_index );
 	}
 
 	static void generatePlane( le_mesh_o* mesh, float width, float height, uint32_t widthSegments = 2, uint32_t heightSegments = 2, uint32_t* num_bytes_per_index = nullptr ) {
-		this_i.generate_plane( mesh, width, height, widthSegments, heightSegments, num_bytes_per_index = nullptr );
+		le_mesh_generator::le_mesh_generator_i.generate_plane( mesh, width, height, widthSegments, heightSegments, num_bytes_per_index = nullptr );
 	}
-#		undef this_i
-#	endif
 };
+
+} // namespace le
+
+using LeMeshGenerator = le::MeshGenerator;
 
 #endif // __cplusplus
 
