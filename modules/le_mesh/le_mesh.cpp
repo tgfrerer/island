@@ -317,9 +317,9 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	le_mesh_i.set_vertex_count = le_mesh_set_vertex_count;
 	le_mesh_i.get_vertex_count = le_mesh_get_vertex_count;
 
-	le_mesh_i.get_index_count          = le_mesh_get_index_count;
+	le_mesh_i.get_index_count           = le_mesh_get_index_count;
 	le_mesh_i.read_attribute_infos_into = le_mesh_read_attribute_infos_into;
-	le_mesh_i.read_index_data_into     = le_mesh_read_index_data_into;
+	le_mesh_i.read_index_data_into      = le_mesh_read_index_data_into;
 
 	le_mesh_i.clear   = le_mesh_clear;
 	le_mesh_i.create  = le_mesh_create;
