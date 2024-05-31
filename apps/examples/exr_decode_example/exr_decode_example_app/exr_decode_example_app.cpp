@@ -100,7 +100,7 @@ static exr_decode_example_app_o* exr_decode_example_app_create() {
 		le_mesh_api::attribute_info_t attribute_info[ 4 ] = {};
 		size_t                        num_attributes      = sizeof( attribute_info ) / sizeof( attribute_info[ 0 ] );
 
-		le_mesh::le_mesh_i.read_attribute_info_into( app->mesh, attribute_info, &num_attributes );
+		le_mesh::le_mesh_i.read_attribute_infos_into( app->mesh, attribute_info, &num_attributes );
 
 		auto get_num_bytes = [ & ]( le_mesh_api::attribute_name_t name ) -> size_t {
 			for ( auto& e : attribute_info ) {

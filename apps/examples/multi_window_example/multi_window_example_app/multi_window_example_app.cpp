@@ -140,7 +140,7 @@ static multi_window_example_app_o* app_create() {
 		std::vector<le_mesh_api::attribute_info_t> attribute_infos( 5 );
 
 		size_t num_attribute_infos = attribute_infos.size();
-		meshImporter.readAttributeInfoInto( attribute_infos.data(), &num_attribute_infos );
+		meshImporter.readAttributeInfosInto( attribute_infos.data(), &num_attribute_infos );
 		attribute_infos.resize( num_attribute_infos );
 
 		size_t num_vertices = meshImporter.getVertexCount();

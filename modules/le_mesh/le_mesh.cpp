@@ -266,7 +266,7 @@ static size_t le_mesh_get_index_count( le_mesh_o* self, uint32_t* num_bytes_per_
 
 // ----------------------------------------------------------------------
 // read attribute info into a given array of data
-static void le_mesh_read_attribute_info_into( le_mesh_o* self, le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
+static void le_mesh_read_attribute_infos_into( le_mesh_o* self, le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
 
 	if ( nullptr == num_attributes_in_target ) {
 		return;
@@ -317,7 +317,7 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	le_mesh_i.get_vertex_count = le_mesh_get_vertex_count;
 
 	le_mesh_i.get_index_count          = le_mesh_get_index_count;
-	le_mesh_i.read_attribute_info_into = le_mesh_read_attribute_info_into;
+	le_mesh_i.read_attribute_infos_into = le_mesh_read_attribute_infos_into;
 	le_mesh_i.read_index_data_into     = le_mesh_read_index_data_into;
 
 	le_mesh_i.clear   = le_mesh_clear;

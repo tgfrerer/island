@@ -93,7 +93,7 @@ struct le_mesh_api {
 		///
 		/// @param `target`                    : (optional) pointer (or c-array) where to write data to.
 		/// @param `num_attributes_in_target`  : (required) memory available in target, given as a multiple of `sizeof(attribute_info_t)`, returns total number of attributes available in mesh.
-		void (*read_attribute_info_into)(le_mesh_o*self, attribute_info_t* target, size_t *num_attributes_in_target);
+		void (*read_attribute_infos_into)(le_mesh_o*self, attribute_info_t* target, size_t *num_attributes_in_target);
 
 		// PLY import
 
@@ -141,8 +141,8 @@ class LeMesh : NoCopy, NoMove {
 		return this_i.get_vertex_count( self );
 	}
 
-	void readAttributeInfoInto( le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
-		this_i.read_attribute_info_into( self, target, num_attributes_in_target );
+	void readAttributeInfosInto( le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
+		this_i.read_attribute_infos_into( self, target, num_attributes_in_target );
 	}
 
 	void readAttributeDataInto( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_name_t attribute_name, uint32_t* num_bytes_per_vertex = nullptr, size_t* num_vertices = nullptr, size_t first_vertex = 0, uint32_t stride = 0 ) const {
