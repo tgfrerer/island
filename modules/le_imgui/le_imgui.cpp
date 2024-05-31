@@ -25,7 +25,7 @@ namespace {
 #include "shaders/imgui_vert.h"
 } // namespace
 
-static le_img_resource_handle IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
+static le_image_resource_handle IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 
 namespace {
 // anonymous namespace so that we can forward-declare

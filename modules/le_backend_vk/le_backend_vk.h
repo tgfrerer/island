@@ -35,8 +35,8 @@ LE_OPAQUE_HANDLE( le_rtxpso_handle );
 LE_OPAQUE_HANDLE( le_shader_module_handle );
 
 LE_OPAQUE_HANDLE( le_resource_handle );
-LE_OPAQUE_HANDLE( le_img_resource_handle );
-LE_OPAQUE_HANDLE( le_buf_resource_handle );
+LE_OPAQUE_HANDLE( le_image_resource_handle );
+LE_OPAQUE_HANDLE( le_buffer_resource_handle );
 LE_OPAQUE_HANDLE( le_tlas_resource_handle );
 LE_OPAQUE_HANDLE( le_blas_resource_handle );
 
@@ -161,12 +161,12 @@ struct le_backend_vk_api {
 
 
 		// --- modern swapchain interface
-		le_swapchain_handle    ( * add_swapchain 		    ) ( le_backend_o* self, le_swapchain_settings_t const * settings);
-		bool 				   ( * remove_swapchain 	 	) ( le_backend_o* self, le_swapchain_handle swapchain);
-		le_img_resource_handle ( * get_swapchain_resource   ) ( le_backend_o* self, le_swapchain_handle swapchain );
-		le_img_resource_handle ( * get_swapchain_resource_default ) ( le_backend_o* self);
-		bool                   ( * get_swapchain_extent     ) ( le_backend_o* self, le_swapchain_handle swapchain, uint32_t * p_width, uint32_t * p_height );
-		bool                   ( * get_swapchains           ) ( le_backend_o* self, size_t *num_swapchains , le_swapchain_handle* p_swapchain_handles);
+		le_swapchain_handle      ( * add_swapchain 		      ) ( le_backend_o* self, le_swapchain_settings_t const * settings);
+		bool 				     ( * remove_swapchain 	 	  ) ( le_backend_o* self, le_swapchain_handle swapchain);
+		le_image_resource_handle ( * get_swapchain_resource   ) ( le_backend_o* self, le_swapchain_handle swapchain );
+		le_image_resource_handle ( * get_swapchain_resource_default ) ( le_backend_o* self);
+		bool                     ( * get_swapchain_extent     ) ( le_backend_o* self, le_swapchain_handle swapchain, uint32_t * p_width, uint32_t * p_height );
+		bool                     ( * get_swapchains           ) ( le_backend_o* self, size_t *num_swapchains , le_swapchain_handle* p_swapchain_handles);
 		
 		// declares all resources belonging to a swapchain and makes them available to the current frame.
 		void 					( *acquire_swapchain_resources)(le_backend_o* self, size_t frameIndex);
@@ -176,7 +176,7 @@ struct le_backend_vk_api {
 		size_t                 ( *get_data_frames_count   ) ( le_backend_o *self );
 
 		// this is called from the rendergraph to patch renderpass sizes - it must only be called on the recording thread
-		bool                   ( *get_swapchains_infos        ) ( le_backend_o* self, uint32_t frame_index, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_img_resource_handle * p_handlle );
+		bool                   ( *get_swapchains_infos        ) ( le_backend_o* self, uint32_t frame_index, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_image_resource_handle * p_handlle );
 
 
 		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count,le::BuildAccelerationStructureFlagsKHR const * flags);
@@ -226,7 +226,7 @@ struct le_backend_vk_api {
 		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
 		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
 	
-		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_img_resource_handle_t* img );
+		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_image_resource_handle img );
 
 		VkSamplerYcbcrConversionInfo* (*get_sampler_ycbcr_conversion_info)(le_backend_o* self);
 	};
@@ -288,7 +288,7 @@ struct le_backend_vk_api {
 	struct allocator_linear_interface_t {
 		le_allocator_o *        ( *create               ) ( VmaAllocationInfo const *info, uint16_t alignment);
 		void                    ( *destroy              ) ( le_allocator_o* self );
-		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset, le_buf_resource_handle *p_buffer);
+		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset, le_buffer_resource_handle *p_buffer);
 		void                    ( *reset                ) ( le_allocator_o* self );
 	};
 
@@ -296,7 +296,7 @@ struct le_backend_vk_api {
 		le_staging_allocator_o* ( *create  )( VmaAllocator_T* const vmaAlloc, VkDevice_T* const device );
 		void                    ( *destroy )( le_staging_allocator_o* self ) ;
 		void                    ( *reset   )( le_staging_allocator_o* self );
-		bool                    ( *map     )( le_staging_allocator_o* self, uint64_t numBytes, void **pData, le_buf_resource_handle *resource_handle );
+		bool                    ( *map     )( le_staging_allocator_o* self, uint64_t numBytes, void **pData, le_buffer_resource_handle *resource_handle );
 	};
 
 	struct shader_module_interface_t {

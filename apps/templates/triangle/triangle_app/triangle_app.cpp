@@ -88,7 +88,7 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto app = static_cast<app_o*>( user_data );
 
 	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
-	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = app->renderer.getSwapchainResource();
+	static le_image_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = app->renderer.getSwapchainResource();
 
 	rp
 	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().build() ) // color attachment

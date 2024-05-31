@@ -23,7 +23,7 @@ static void le_mesh_generator_generate_plane( le_mesh_o* mesh,
                                               float      width,
                                               float      height,
                                               uint32_t   numWidthSegments,
-                                              uint32_t   numHeightSegments ) {
+                                              uint32_t numHeightSegments, uint32_t* p_num_bytes_per_index ) {
 
 	le_mesh::le_mesh_i.clear( mesh );
 
@@ -50,10 +50,14 @@ static void le_mesh_generator_generate_plane( le_mesh_o* mesh,
 		}
 	}
 
-	uint32_t num_bytes_per_index = 0;
-	size_t   num_indices         = ( iz - 1 ) * ( ix - 1 ) * 6;
+	size_t num_indices = ( iz - 1 ) * ( ix - 1 ) * 6;
 
-	void* index_data = le_mesh::le_mesh_i.allocate_index_data( mesh, num_indices, &num_bytes_per_index );
+	uint32_t num_bytes_per_index = ( p_num_bytes_per_index ) ? *p_num_bytes_per_index : 0;
+	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, num_indices, &num_bytes_per_index );
+
+	if ( p_num_bytes_per_index ) {
+		*p_num_bytes_per_index = num_bytes_per_index;
+	}
 
 	if ( num_bytes_per_index == 2 ) {
 		uint16_t* i = ( uint16_t* )( index_data );
@@ -98,7 +102,8 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
                                                float      phiStart,
                                                float      phiLength,
                                                float      thetaStart,
-                                               float      thetaLength ) {
+                                               float      thetaLength,
+                                               uint32_t*  p_num_bytes_per_index ) {
 
 	float thetaEnd = thetaStart + thetaLength;
 
@@ -176,8 +181,12 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
 		}
 	}
 
-	uint32_t num_bytes_per_index = 0;
+	uint32_t num_bytes_per_index = ( p_num_bytes_per_index ) ? *p_num_bytes_per_index : 0;
 	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, num_indices, &num_bytes_per_index );
+
+	if ( p_num_bytes_per_index ) {
+		*p_num_bytes_per_index = num_bytes_per_index;
+	}
 
 	if ( num_bytes_per_index == 2 ) {
 		auto i = reinterpret_cast<uint16_t*>( index_data );

@@ -239,7 +239,7 @@ struct le_video_decoder_o {
 		uint32_t            id;      // memory frame index, query index
 		le_video_decoder_o* decoder; // weak reference
 
-		le_img_resource_handle rendergraph_image_resource; // The image resource belonging to the rendergraph into which we copy the decoded frame
+		le_image_resource_handle rendergraph_image_resource; // The image resource belonging to the rendergraph into which we copy the decoded frame
 		uint32_t               flags          = 0;
 		le::Ticks              ticks_pts      = {}; ///< presentation time stamp, relative to video start time
 		le::Ticks              ticks_duration = {};
@@ -2703,7 +2703,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 
 		auto rp = le::RenderPass( "video decode", le::QueueFlagBits::eVideoDecodeBitKhr );
 
-		le_img_resource_handle current_output_image =
+		le_image_resource_handle current_output_image =
 		    recording_memory_frame.rendergraph_image_resource;
 
 		rp.useImageResource(
@@ -2770,7 +2770,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 }
 
 // ----------------------------------------------------------------------
-static le_img_resource_handle le_video_decoder_get_latest_available_frame( le_video_decoder_o* self ) {
+static le_image_resource_handle le_video_decoder_get_latest_available_frame( le_video_decoder_o* self ) {
 	if ( self->latest_memory_frame_available_for_rendering < 0 ) {
 		logger.warn( "No frame available yet." );
 		return nullptr;

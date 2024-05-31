@@ -10,7 +10,7 @@ struct le_rendergraph_o;
 struct le_renderpass_o;
 struct le_command_buffer_encoder_o;
 
-LE_OPAQUE_HANDLE( le_img_resource_handle );
+LE_OPAQUE_HANDLE( le_image_resource_handle );
 LE_OPAQUE_HANDLE( le_texture_handle );
 
 // clang-format off
@@ -41,7 +41,7 @@ struct le_font_renderer_api {
 		bool (*draw_string)( le_font_renderer_o* self, le_font_o* font, le_command_buffer_encoder_o* encoder, draw_string_info_t  & info );
 
 		le_texture_handle      (* get_font_image_sampler )( le_font_renderer_o* self, le_font_o* font );
-		le_img_resource_handle (* get_font_image         )( le_font_renderer_o* self, le_font_o* font );
+		le_image_resource_handle (* get_font_image         )( le_font_renderer_o* self, le_font_o* font );
 
 	};
 

@@ -295,7 +295,7 @@ class ImageSamplerInfoBuilder {
 		    : parent( parent_ ) {
 		}
 
-		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_img_resource_handle, imageId, = {} )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_image_resource_handle, imageId, = {} )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImageViewType, le::ImageViewType, image_view_type, = le::ImageViewType::e2D )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setFormat, le::Format, format, = le::Format::eUndefined )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setBaseArrayLayer, uint32_t, base_array_layer, = 0 )
@@ -317,7 +317,7 @@ class ImageSamplerInfoBuilder {
 	    : info( info_ ) {
 	}
 
-	ImageSamplerInfoBuilder( le_img_resource_handle const& image_resource ) {
+	ImageSamplerInfoBuilder( le_image_resource_handle const& image_resource ) {
 		info.imageView.imageId = image_resource;
 	}
 
@@ -420,12 +420,12 @@ class Renderer {
 	}
 
 	/// Returns the image resource for the given swapchain, if this swapchain is available in the backend.
-	le_img_resource_handle getSwapchainResource( le_swapchain_handle swapchain ) const {
+	le_image_resource_handle getSwapchainResource( le_swapchain_handle swapchain ) const {
 		return le_renderer::renderer_i.get_swapchain_resource( self, swapchain );
 	}
 
 	/// Returns the default swapchain image resource, if there is a swapchain available in the backend
-	le_img_resource_handle getSwapchainResource() const {
+	le_image_resource_handle getSwapchainResource() const {
 		return le_renderer::renderer_i.get_swapchain_resource_default( self );
 	}
 
@@ -447,11 +447,11 @@ class Renderer {
 		return le_renderer::renderer_i.produce_texture_handle( maybe_name );
 	}
 
-	static le_img_resource_handle produceImageHandle( char const* maybe_name ) {
+	static le_image_resource_handle produceImageHandle( char const* maybe_name ) {
 		return le_renderer::renderer_i.produce_img_resource_handle( maybe_name, 0, nullptr, 0 );
 	}
 
-	static le_buf_resource_handle produceBufferHandle( char const* maybe_name ) {
+	static le_buffer_resource_handle produceBufferHandle( char const* maybe_name ) {
 		return le_renderer::renderer_i.produce_buf_resource_handle( maybe_name, 0, 0 );
 	}
 
@@ -539,24 +539,24 @@ class RenderPass {
 	/// \brief Adds a resource as an image attachment to the renderpass.
 	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
 	///          Use an le_image_attachment_info_t struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
-	RenderPass& addColorAttachment( const le_img_resource_handle&     resource_id,
+	RenderPass& addColorAttachment( const le_image_resource_handle&   resource_id,
 	                                const le_image_attachment_info_t& imageAttachmentInfo = le_image_attachment_info_t() ) {
 		le_renderer::renderpass_i.add_color_attachment( self, resource_id, &imageAttachmentInfo );
 		return *this;
 	}
 
-	RenderPass& addDepthStencilAttachment( const le_img_resource_handle&     resource_id,
+	RenderPass& addDepthStencilAttachment( const le_image_resource_handle&   resource_id,
 	                                       const le_image_attachment_info_t& depthAttachmentInfo = LeDepthAttachmentInfo() ) {
 		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, &depthAttachmentInfo );
 		return *this;
 	}
 
-	RenderPass& useImageResource( le_img_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
+	RenderPass& useImageResource( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
 		return *this;
 	}
 
-	RenderPass& useBufferResource( le_buf_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
+	RenderPass& useBufferResource( le_buffer_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
 		return *this;
 	}
@@ -581,7 +581,7 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass& sampleTexture( le_texture_handle textureName, le_img_resource_handle img_handle ) {
+	RenderPass& sampleTexture( le_texture_handle textureName, le_image_resource_handle img_handle ) {
 		return sampleTexture( textureName, le::ImageSamplerInfoBuilder( img_handle ).build() );
 	}
 
@@ -765,7 +765,7 @@ class GraphicsEncoder {
 		return *this;
 	}
 
-	GraphicsEncoder& bindArgumentBuffer( uint64_t const& argumentName, le_buf_resource_handle const& bufferId, uint64_t const& offset = 0, uint64_t const& range = ( ~0ULL ) ) {
+	GraphicsEncoder& bindArgumentBuffer( uint64_t const& argumentName, le_buffer_resource_handle const& bufferId, uint64_t const& offset = 0, uint64_t const& range = ( ~0ULL ) ) {
 		le_renderer::encoder_graphics_i.bind_argument_buffer( self, bufferId, argumentName, offset, range );
 		return *this;
 	}
@@ -774,7 +774,7 @@ class GraphicsEncoder {
 	    le::PipelineStageFlags2 const& srcStageMask,
 	    le::PipelineStageFlags2 const& dstStageMask,
 	    le::AccessFlags2 const&        dstAccessMask,
-	    le_buf_resource_handle const&  buffer,
+	    le_buffer_resource_handle const&  buffer,
 	    uint64_t const&                offset = 0,
 	    uint64_t const&                range  = ~( 0ull ) ) {
 		le_renderer::encoder_graphics_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
@@ -791,7 +791,7 @@ class GraphicsEncoder {
 		return *this;
 	}
 
-	GraphicsEncoder& setArgumentImage( uint64_t const& argumentName, le_img_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
+	GraphicsEncoder& setArgumentImage( uint64_t const& argumentName, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
 		le_renderer::encoder_graphics_i.set_argument_image( self, imageId, argumentName, arrayIndex );
 		return *this;
 	}
@@ -836,14 +836,14 @@ class GraphicsEncoder {
 		return *this;
 	}
 
-	GraphicsEncoder& bindIndexBuffer( le_buf_resource_handle const& bufferId, uint64_t const& offset, IndexType const& indexType = IndexType::eUint16 ) {
+	GraphicsEncoder& bindIndexBuffer( le_buffer_resource_handle const& bufferId, uint64_t const& offset, IndexType const& indexType = IndexType::eUint16 ) {
 		le_renderer::encoder_graphics_i.bind_index_buffer( self, bufferId, offset, indexType );
 		return *this;
 	}
 
 	/// \param firstBinding: first binding index
 	/// \param pOffsets: byte offset per-binding. consider initialising this with a stack-allocated array as in `uint64_t offsets[] = {0};`
-	GraphicsEncoder& bindVertexBuffers( uint32_t const& firstBinding, uint32_t const& bindingCount, le_buf_resource_handle const* pBufferId, uint64_t const* pOffsets ) {
+	GraphicsEncoder& bindVertexBuffers( uint32_t const& firstBinding, uint32_t const& bindingCount, le_buffer_resource_handle const* pBufferId, uint64_t const* pOffsets ) {
 		le_renderer::encoder_graphics_i.bind_vertex_buffers( self, firstBinding, bindingCount, pBufferId, pOffsets );
 		return *this;
 	}
@@ -907,7 +907,7 @@ class ComputeEncoder {
 		return *this;
 	}
 
-	ComputeEncoder& bindArgumentBuffer( uint64_t const& argumentName, le_buf_resource_handle const& bufferId, uint64_t const& offset = 0, uint64_t const& range = ( ~0ULL ) ) {
+	ComputeEncoder& bindArgumentBuffer( uint64_t const& argumentName, le_buffer_resource_handle const& bufferId, uint64_t const& offset = 0, uint64_t const& range = ( ~0ULL ) ) {
 		le_renderer::encoder_compute_i.bind_argument_buffer( self, bufferId, argumentName, offset, range );
 		return *this;
 	}
@@ -922,7 +922,7 @@ class ComputeEncoder {
 		return *this;
 	}
 
-	ComputeEncoder& setArgumentImage( uint64_t const& argumentName, le_img_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
+	ComputeEncoder& setArgumentImage( uint64_t const& argumentName, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
 		le_renderer::encoder_compute_i.set_argument_image( self, imageId, argumentName, arrayIndex );
 		return *this;
 	}
@@ -936,7 +936,7 @@ class ComputeEncoder {
 	    le::PipelineStageFlags2 const& srcStageMask,
 	    le::PipelineStageFlags2 const& dstStageMask,
 	    le::AccessFlags2 const&        dstAccessMask,
-	    le_buf_resource_handle const&  buffer,
+	    le_buffer_resource_handle const&  buffer,
 	    uint64_t const&                offset = 0,
 	    uint64_t const&                range  = ~( 0ull ) ) {
 		le_renderer::encoder_compute_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
@@ -959,22 +959,22 @@ class TransferEncoder {
 		return self;
 	}
 
-	TransferEncoder& writeToBuffer( le_buf_resource_handle const& dstBuffer, size_t const& byteOffsetDst, void const* data, size_t const& numBytes ) {
+	TransferEncoder& writeToBuffer( le_buffer_resource_handle const& dstBuffer, size_t const& byteOffsetDst, void const* data, size_t const& numBytes ) {
 		le_renderer::encoder_transfer_i.write_to_buffer( self, dstBuffer, byteOffsetDst, data, numBytes );
 		return *this;
 	}
 
-	TransferEncoder& writeToImage( le_img_resource_handle const& dstImg, le_write_to_image_settings_t const& writeInfo, void const* data, size_t const& numBytes ) {
+	TransferEncoder& writeToImage( le_image_resource_handle const& dstImg, le_write_to_image_settings_t const& writeInfo, void const* data, size_t const& numBytes ) {
 		le_renderer::encoder_transfer_i.write_to_image( self, dstImg, writeInfo, data, numBytes );
 		return *this;
 	}
 
-	TransferEncoder& mapBufferMemory( le_buf_resource_handle const& dstBuffer, size_t const& byteOffsetDst, size_t const& numBytes, void** p_mem_addr ) {
+	TransferEncoder& mapBufferMemory( le_buffer_resource_handle const& dstBuffer, size_t const& byteOffsetDst, size_t const& numBytes, void** p_mem_addr ) {
 		le_renderer::encoder_transfer_i.map_buffer_memory( self, dstBuffer, byteOffsetDst, numBytes, p_mem_addr );
 		return *this;
 	}
 
-	TransferEncoder& mapImageMemory( le_img_resource_handle const& dstImg, le_write_to_image_settings_t const& writeInfo, size_t const& numBytes, void** p_mem_addr ) {
+	TransferEncoder& mapImageMemory( le_image_resource_handle const& dstImg, le_write_to_image_settings_t const& writeInfo, size_t const& numBytes, void** p_mem_addr ) {
 		le_renderer::encoder_transfer_i.map_image_memory( self, dstImg, writeInfo, numBytes, p_mem_addr );
 		return *this;
 	}
@@ -983,7 +983,7 @@ class TransferEncoder {
 	    le::PipelineStageFlags2 const& srcStageMask,
 	    le::PipelineStageFlags2 const& dstStageMask,
 	    le::AccessFlags2 const&        dstAccessMask,
-	    le_buf_resource_handle const&  buffer,
+	    le_buffer_resource_handle const&  buffer,
 	    uint64_t const&                offset = 0,
 	    uint64_t const&                range  = ~( 0ull ) ) {
 		le_renderer::encoder_transfer_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );

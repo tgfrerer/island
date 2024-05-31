@@ -28,7 +28,7 @@ struct le_image_decoder_format_o {
 };
 
 struct pixels_data_t {
-	le_buf_resource_handle handle;
+	le_buffer_resource_handle handle;
 	uint32_t               w;                 // let's make sure that w is a power of 2
 	uint32_t               h;                 // make sure that h is a power of 2
 	uint32_t               num_channels;      // channels per pixel - by default let's have rgba, that's 4.
@@ -528,7 +528,7 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 	// Process user interface events such as mouse, keyboard
 	app_process_ui_events( self );
 
-	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
+	static le_image_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
 
 	le::RenderGraph renderGraph{};
 	{

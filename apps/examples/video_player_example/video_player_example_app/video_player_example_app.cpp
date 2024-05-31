@@ -255,7 +255,7 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	// which is using the video image.
 	for ( auto& v : app->video_players ) {
 
-		le_img_resource_handle video_image = v.video_player->get_latest_available_frame();
+		le_image_resource_handle video_image = v.video_player->get_latest_available_frame();
 
 		if ( video_image ) {
 			renderpass.sampleTexture( v.video_texture_handle, video_image ); // associate video texture handle with video image for this renderpass
@@ -344,7 +344,7 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 
 	for ( auto& v : app->video_players ) {
 
-		le_img_resource_handle video_frame = v.video_player->get_latest_available_frame();
+		le_image_resource_handle video_frame = v.video_player->get_latest_available_frame();
 
 		if ( video_frame ) {
 			uint32_t w;

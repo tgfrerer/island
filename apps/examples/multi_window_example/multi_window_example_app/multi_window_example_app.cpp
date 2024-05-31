@@ -478,7 +478,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 	// We keep it this way to demonstate what happens if you add an image resource that is NULL as a
 	// Color Attachment, namely: nothing.
 	//
-	le_img_resource_handle IMG_SWAP[ 2 ] = {
+	le_image_resource_handle IMG_SWAP[ 2 ] = {
 	    nullptr,
 	    nullptr,
 	};

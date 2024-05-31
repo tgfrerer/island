@@ -37,8 +37,8 @@ enum class LeResourceType : uint32_t {
 };
 
 LE_OPAQUE_HANDLE( le_resource_handle );
-LE_OPAQUE_HANDLE( le_img_resource_handle );
-LE_OPAQUE_HANDLE( le_buf_resource_handle );
+LE_OPAQUE_HANDLE( le_image_resource_handle );
+LE_OPAQUE_HANDLE( le_buffer_resource_handle );
 LE_OPAQUE_HANDLE( le_blas_resource_handle );
 LE_OPAQUE_HANDLE( le_tlas_resource_handle );
 
@@ -46,9 +46,9 @@ struct le_resource_handle_t {
 	struct le_resource_handle_data_t* data;
 };
 
-struct le_img_resource_handle_t : le_resource_handle_t {
+struct le_image_resource_handle_t : le_resource_handle_t {
 };
-struct le_buf_resource_handle_t : le_resource_handle_t {
+struct le_buffer_resource_handle_t : le_resource_handle_t {
 };
 struct le_blas_resource_handle_t : le_resource_handle_t {
 };
@@ -215,11 +215,11 @@ struct le_sampler_info_t {
 
 struct le_image_sampler_info_t {
 	struct le_image_view_info_t {
-		le_img_resource_handle imageId{}; // le image resource id
-		le::Format             format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
-		le::ImageViewType      image_view_type{ le::ImageViewType::e2D };
-		uint32_t               base_array_layer{ 0 };
-		uint32_t               layer_count{ 1 };
+		le_image_resource_handle imageId{}; // le image resource id
+		le::Format               format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
+		le::ImageViewType        image_view_type{ le::ImageViewType::e2D };
+		uint32_t                 base_array_layer{ 0 };
+		uint32_t                 layer_count{ 1 };
 	};
 	le_sampler_info_t    sampler{};
 	le_image_view_info_t imageView{};
@@ -338,16 +338,16 @@ struct le_rtx_shader_group_info {
 };
 
 struct le_rtx_geometry_t {
-	le_buf_resource_handle vertex_buffer;
-	uint32_t               vertex_offset; // offset into vertex buffer
-	uint32_t               vertex_count;  // number of vertices
-	uint32_t               vertex_stride; // should default to size_for(vertex_format)
-	le::Format             vertex_format; //
+	le_buffer_resource_handle vertex_buffer;
+	uint32_t                  vertex_offset; // offset into vertex buffer
+	uint32_t                  vertex_count;  // number of vertices
+	uint32_t                  vertex_stride; // should default to size_for(vertex_format)
+	le::Format                vertex_format; //
 
-	le_buf_resource_handle index_buffer;
-	uint32_t               index_offset;
-	uint32_t               index_count;
-	le::IndexType          index_type;
+	le_buffer_resource_handle index_buffer;
+	uint32_t                  index_offset;
+	uint32_t                  index_count;
+	le::IndexType             index_type;
 };
 
 // Ray tracing geometry instance
@@ -736,12 +736,12 @@ struct CommandDispatch {
 struct CommandBufferMemoryBarrier {
 	CommandHeader header = { { { CommandType::eBufferMemoryBarrier, sizeof( CommandBufferMemoryBarrier ) } } };
 	struct {
-		le::PipelineStageFlags2 srcStageMask;
-		le::PipelineStageFlags2 dstStageMask;
-		le::AccessFlags2        dstAccessMask;
-		le_buf_resource_handle  buffer;
-		uint64_t                offset;
-		uint64_t                range;
+		le::PipelineStageFlags2   srcStageMask;
+		le::PipelineStageFlags2   dstStageMask;
+		le::AccessFlags2          dstAccessMask;
+		le_buffer_resource_handle buffer;
+		uint64_t                  offset;
+		uint64_t                  range;
 
 	} info;
 };
@@ -774,11 +774,11 @@ struct CommandSetPushConstantData {
 struct CommandBuildRtxTlas {
 	CommandHeader header = { { { CommandType::eBuildRtxTlas, sizeof( CommandBuildRtxTlas ) } } };
 	struct {
-		le_tlas_resource_handle tlas_handle;
-		uint32_t                geometry_instances_count;     // number of geometry instances for this tlas
-		uint32_t                staging_buffer_offset;        // offset into staging buffer for geometry instance data
-		le_buf_resource_handle  staging_buffer_id;            // staging buffer which stores geometry instance data
-		void*                   staging_buffer_mapped_memory; // address of mapped area on staging buffer.
+		le_tlas_resource_handle   tlas_handle;
+		uint32_t                  geometry_instances_count;     // number of geometry instances for this tlas
+		uint32_t                  staging_buffer_offset;        // offset into staging buffer for geometry instance data
+		le_buffer_resource_handle staging_buffer_id;            // staging buffer which stores geometry instance data
+		void*                     staging_buffer_mapped_memory; // address of mapped area on staging buffer.
 	} info;
 };
 
@@ -810,9 +810,9 @@ struct CommandSetArgumentTexture {
 struct CommandSetArgumentImage {
 	CommandHeader header = { { { CommandType::eSetArgumentImage, sizeof( CommandSetArgumentImage ) } } };
 	struct {
-		uint64_t               argument_name_id; // const_char_hash id of argument name
-		le_img_resource_handle image_id;         // image resource id,
-		uint64_t               array_index;      // argument array index (default is 0)
+		uint64_t                 argument_name_id; // const_char_hash id of argument name
+		le_image_resource_handle image_id;         // image resource id,
+		uint64_t                 array_index;      // argument array index (default is 0)
 	} info;
 };
 
@@ -829,10 +829,10 @@ struct CommandSetArgumentTlas {
 struct CommandBindArgumentBuffer {
 	CommandHeader header = { { { CommandType::eBindArgumentBuffer, sizeof( CommandBindArgumentBuffer ) } } };
 	struct {
-		uint64_t               argument_name_id; // const_char_hash id of argument name
-		le_buf_resource_handle buffer_id;        // id of buffer that holds data
-		uint64_t               offset;           // offset into buffer
-		uint64_t               range;            // size of argument data in bytes
+		uint64_t                  argument_name_id; // const_char_hash id of argument name
+		le_buffer_resource_handle buffer_id;        // id of buffer that holds data
+		uint64_t                  offset;           // offset into buffer
+		uint64_t                  range;            // size of argument data in bytes
 	} info;
 };
 
@@ -855,10 +855,10 @@ struct CommandBindVertexBuffers {
 struct CommandBindIndexBuffer {
 	CommandHeader header = { { { CommandType::eBindIndexBuffer, sizeof( CommandBindIndexBuffer ) } } };
 	struct {
-		le_buf_resource_handle buffer; // buffer id
-		uint64_t               offset;
-		le::IndexType          indexType;
-		uint32_t               padding;
+		le_buffer_resource_handle buffer; // buffer id
+		uint64_t                  offset;
+		le::IndexType             indexType;
+		uint32_t                  padding;
 	} info;
 };
 
@@ -885,29 +885,29 @@ struct CommandBindRtxPipeline {
 		uint64_t descriptor_set_layout_keys[ 8 ];
 		uint64_t descriptor_set_layout_count;
 
-		le_buf_resource_handle sbt_buffer;
-		uint64_t               ray_gen_sbt_offset;
-		uint64_t               ray_gen_sbt_size;
-		uint64_t               miss_sbt_offset;
-		uint64_t               miss_sbt_stride;
-		uint64_t               miss_sbt_size;
-		uint64_t               hit_sbt_offset;
-		uint64_t               hit_sbt_stride;
-		uint64_t               hit_sbt_size;
-		uint64_t               callable_sbt_offset;
-		uint64_t               callable_sbt_stride;
-		uint64_t               callable_sbt_size;
+		le_buffer_resource_handle sbt_buffer;
+		uint64_t                  ray_gen_sbt_offset;
+		uint64_t                  ray_gen_sbt_size;
+		uint64_t                  miss_sbt_offset;
+		uint64_t                  miss_sbt_stride;
+		uint64_t                  miss_sbt_size;
+		uint64_t                  hit_sbt_offset;
+		uint64_t                  hit_sbt_stride;
+		uint64_t                  hit_sbt_size;
+		uint64_t                  callable_sbt_offset;
+		uint64_t                  callable_sbt_stride;
+		uint64_t                  callable_sbt_size;
 	} info;
 };
 
 struct CommandWriteToBuffer {
 	CommandHeader header = { { { CommandType::eWriteToBuffer, sizeof( CommandWriteToBuffer ) } } };
 	struct {
-		le_buf_resource_handle src_buffer_id; // le buffer id of scratch buffer
-		le_buf_resource_handle dst_buffer_id; // which resource to write to
-		uint64_t               src_offset;    // offset in scratch buffer where to find source data
-		uint64_t               dst_offset;    // offset where to write to in target resource
-		uint64_t               numBytes;      // number of bytes
+		le_buffer_resource_handle src_buffer_id; // le buffer id of scratch buffer
+		le_buffer_resource_handle dst_buffer_id; // which resource to write to
+		uint64_t                  src_offset;    // offset in scratch buffer where to find source data
+		uint64_t                  dst_offset;    // offset where to write to in target resource
+		uint64_t                  numBytes;      // number of bytes
 
 	} info;
 };
@@ -916,19 +916,19 @@ struct CommandWriteToImage {
 	CommandHeader header = { { { CommandType::eWriteToImage, sizeof( CommandWriteToImage ) } } };
 
 	struct {
-		le_buf_resource_handle src_buffer_id;   // le buffer id of scratch buffer
-		le_img_resource_handle dst_image_id;    // which resource to write to
-		uint64_t               numBytes;        // number of bytes
-		uint32_t               image_w;         // target region width in texels
-		uint32_t               image_h;         // target region height in texels
-		uint32_t               image_d;         // target region depth in texels - (default 1), must not be 0
-		int32_t                offset_x;        // target offset x
-		int32_t                offset_y;        // target offset y
-		int32_t                offset_z;        // target offset z
-		uint32_t               dst_array_layer; // array layer to write into (default 0)
-		uint32_t               dst_miplevel;    // mip level to write into
-		uint32_t               num_miplevels;   // number of miplevels to generate (default 1 - more than one means to auto-generate miplevels)
-		uint32_t               padding;         // unused
+		le_buffer_resource_handle src_buffer_id;   // le buffer id of scratch buffer
+		le_image_resource_handle  dst_image_id;    // which resource to write to
+		uint64_t                  numBytes;        // number of bytes
+		uint32_t                  image_w;         // target region width in texels
+		uint32_t                  image_h;         // target region height in texels
+		uint32_t                  image_d;         // target region depth in texels - (default 1), must not be 0
+		int32_t                   offset_x;        // target offset x
+		int32_t                   offset_y;        // target offset y
+		int32_t                   offset_z;        // target offset z
+		uint32_t                  dst_array_layer; // array layer to write into (default 0)
+		uint32_t                  dst_miplevel;    // mip level to write into
+		uint32_t                  num_miplevels;   // number of miplevels to generate (default 1 - more than one means to auto-generate miplevels)
+		uint32_t                  padding;         // unused
 	} info;
 };
 

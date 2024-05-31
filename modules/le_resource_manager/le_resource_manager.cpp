@@ -46,7 +46,7 @@ struct le_resource_manager_o {
 	};
 
 	struct resource_item_t {
-		le_img_resource_handle          image_handle;
+		le_image_resource_handle        image_handle;
 		le_resource_info_t              image_info;
 		std::vector<image_data_layer_t> image_layers; // must have at least one element
 	};
@@ -372,11 +372,11 @@ le_image_decoder_interface_t* le_resource_manager_get_decoder_interface_for_file
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
 // Most meta-data about the image file is loaded via image_info
-static void le_resource_manager_add_item( le_resource_manager_o*        self,
-                                          le_img_resource_handle const* image_handle,
-                                          le_resource_info_t const*     image_info,
-                                          char const**                  image_paths,
-                                          bool                          should_watch ) {
+static void le_resource_manager_add_item( le_resource_manager_o*          self,
+                                          le_image_resource_handle const* image_handle,
+                                          le_resource_info_t const*       image_info,
+                                          char const**                    image_paths,
+                                          bool                            should_watch ) {
 
     auto [ it, was_emplaced ] = self->resources.emplace( *image_handle, le_resource_manager_o::resource_item_t{} );
 
@@ -452,7 +452,7 @@ static void le_resource_manager_add_item( le_resource_manager_o*        self,
 
 // ----------------------------------------------------------------------
 
-static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_img_resource_handle const* resource_handle ) {
+static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_image_resource_handle const* resource_handle ) {
 
 	// TODO
 	// SAFETY: As soon as the le_command_buffer recording phase has completed,

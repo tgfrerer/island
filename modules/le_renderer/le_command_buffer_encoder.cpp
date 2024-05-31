@@ -145,7 +145,7 @@ static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*  self,
                                        le::PipelineStageFlags2 const srcStageMask,
                                        le::PipelineStageFlags2 const dstStageMask,
                                        le::AccessFlags2 const        dstAccessMask,
-                                       le_buf_resource_handle const  buffer,
+                                       le_buffer_resource_handle const  buffer,
                                        uint64_t const                offset,
                                        uint64_t const                range ) {
 
@@ -291,20 +291,20 @@ static void cbe_set_scissor( le_command_buffer_encoder_o* self,
 static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*  self,
                                      uint32_t                      firstBinding,
                                      uint32_t                      bindingCount,
-                                     le_buf_resource_handle const* pBuffers,
+                                     le_buffer_resource_handle const* pBuffers,
                                      uint64_t const*               pOffsets ) {
 
 	// NOTE: pBuffers might hold ids for virtual buffers, we must match these
 	// in the backend to actual vulkan buffer ids.
 	// Buffer must will be annotated whether it is transient or not
 
-	size_t data_buffers_size = ( sizeof( le_buf_resource_handle ) ) * bindingCount;
+	size_t data_buffers_size = ( sizeof( le_buffer_resource_handle ) ) * bindingCount;
 	size_t data_offsets_size = ( sizeof( uint64_t ) ) * bindingCount;
 
 	size_t data_size = data_buffers_size + data_offsets_size;
 	auto   cmd       = self->mCommandStream->emplace_cmd<le::CommandBindVertexBuffers>( data_size ); // placement new!
 
-	le_buf_resource_handle* dataBuffers = ( le_buf_resource_handle* )( cmd + 1 );
+	le_buffer_resource_handle* dataBuffers = ( le_buffer_resource_handle* )( cmd + 1 );
 	uint64_t*               dataOffsets = ( uint64_t* )( dataBuffers + bindingCount ); // start address for offset data
 
 	cmd->info = { firstBinding, bindingCount };
@@ -316,7 +316,7 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*  self,
 
 // ----------------------------------------------------------------------
 static void cbe_bind_index_buffer( le_command_buffer_encoder_o* self,
-                                   le_buf_resource_handle const buffer,
+                                   le_buffer_resource_handle const buffer,
                                    uint64_t                     offset,
                                    le::IndexType const&         indexType ) {
 
@@ -350,7 +350,7 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o*                   
 
 	le_allocator_o* allocator = fetch_allocator( self->ppAllocator );
 
-	le_buf_resource_handle allocatorBufferId;
+	le_buffer_resource_handle allocatorBufferId;
 	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset, &allocatorBufferId ) ) {
 
 		memcpy( memAddr, data, numBytes );
@@ -387,7 +387,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o*                    
 	uint64_t bufferOffset = 0;
 
 	le_allocator_o*        allocator = fetch_allocator( self->ppAllocator );
-	le_buf_resource_handle allocatorBufferId;
+	le_buffer_resource_handle allocatorBufferId;
 	// -- Allocate data on scratch buffer
 	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset, &allocatorBufferId ) ) {
 
@@ -410,7 +410,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o*                    
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_argument_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
+static void cbe_bind_argument_buffer( le_command_buffer_encoder_o* self, le_buffer_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
 
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandBindArgumentBuffer>();
 
@@ -437,7 +437,7 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o* self,
 	uint64_t bufferOffset = 0;
 
 	le_allocator_o*        allocator = fetch_allocator( self->ppAllocator );
-	le_buf_resource_handle allocatorBuffer;
+	le_buffer_resource_handle allocatorBuffer;
 	// -- Allocate memory on scratch buffer for ubo
 	//
 	// Note that we might want to have specialised ubo memory eventually if that
@@ -469,7 +469,7 @@ static void cbe_set_argument_texture( le_command_buffer_encoder_o* self, le_text
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_image( le_command_buffer_encoder_o* self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_image( le_command_buffer_encoder_o* self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandSetArgumentImage>();
 
@@ -649,7 +649,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_
 		return true;
 	};
 
-	le_buf_resource_handle allocatorBuffer;
+	le_buffer_resource_handle allocatorBuffer;
 	if ( le_allocator_linear_i.allocate( allocator, required_byte_count, &memAddr, &bufferBaseOffset, &allocatorBuffer ) ) {
 
 		char* base_addr = static_cast<char*>( memAddr );
@@ -706,13 +706,13 @@ static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o* self, le_cps
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buffer_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes ) {
 
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToBuffer>();
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 	void*                  memAddr;
-	le_buf_resource_handle srcResourceId;
+	le_buffer_resource_handle srcResourceId;
 
 	// -- Allocate memory using staging allocator
 	//
@@ -739,12 +739,12 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buf_resou
 
 // ----------------------------------------------------------------------
 
-static void cbe_map_buffer( le_command_buffer_encoder_o* self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, size_t numBytes, void** p_mem_addr ) {
+static void cbe_map_buffer( le_command_buffer_encoder_o* self, le_buffer_resource_handle const& dst_buffer, size_t dst_offset, size_t numBytes, void** p_mem_addr ) {
 
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToBuffer>();
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
-	le_buf_resource_handle srcResourceId;
+	le_buffer_resource_handle srcResourceId;
 
 	// -- Allocate memory using staging allocator
 	//
@@ -772,7 +772,7 @@ static void cbe_map_buffer( le_command_buffer_encoder_o* self, le_buf_resource_h
 // ----------------------------------------------------------------------
 
 static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
-                                le_img_resource_handle const&       dst_img,
+                                le_image_resource_handle const&       dst_img,
                                 le_write_to_image_settings_t const& writeInfo,
                                 void const*                         data,
                                 size_t                              numBytes ) {
@@ -783,7 +783,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 	void*                  memAddr;
-	le_buf_resource_handle stagingBufferId;
+	le_buffer_resource_handle stagingBufferId;
 
 	// -- Allocate memory using staging allocator
 	//
@@ -821,7 +821,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o*        self,
 // ----------------------------------------------------------------------
 
 static void cbe_map_image( le_command_buffer_encoder_o*        self,
-                           le_img_resource_handle const&       dst_img,
+                           le_image_resource_handle const&       dst_img,
                            le_write_to_image_settings_t const& writeInfo,
                            size_t                              numBytes,
                            void**                              p_mem_addr ) {
@@ -832,7 +832,7 @@ static void cbe_map_image( le_command_buffer_encoder_o*        self,
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 	void*                  memAddr;
-	le_buf_resource_handle stagingBufferId;
+	le_buffer_resource_handle stagingBufferId;
 
 	// -- Allocate memory using staging allocator
 	//

@@ -17,7 +17,7 @@
 struct le_video_decoder_o;
 struct le_renderer_o;
 struct le_rendergraph_o;
-struct le_img_resource_handle_t;
+struct le_image_resource_handle_t;
 
 // clang-format off
 struct le_video_decoder_api {
@@ -55,7 +55,7 @@ struct le_video_decoder_api {
 		/// you must not keep a reference to it that lasts for longer than the
 		/// current frame.
 		///
-		le_img_resource_handle_t* (* get_latest_available_frame )(le_video_decoder_o* self);
+		le_image_resource_handle_t* (* get_latest_available_frame )(le_video_decoder_o* self);
 
 		// returns frame's picture order count (poc) - this may not be what you're expecting
 		bool (* get_latest_available_frame_index )(le_video_decoder_o* self, uint64_t *frame_index);
@@ -150,7 +150,7 @@ class LeVideoDecoder : NoCopy, NoMove {
 		return le_video_decoder::le_video_decoder_i.get_frame_dimensions( self, w, h );
 	}
 
-	le_img_resource_handle_t* get_latest_available_frame() {
+	le_image_resource_handle_t* get_latest_available_frame() {
 		return le_video_decoder::le_video_decoder_i.get_latest_available_frame( self );
 	}
 

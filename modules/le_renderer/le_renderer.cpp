@@ -263,17 +263,17 @@ le_resource_handle renderer_produce_resource_handle(
 
 // ----------------------------------------------------------------------
 
-static le_img_resource_handle renderer_produce_img_resource_handle( char const* maybe_name, uint8_t num_samples,
-                                                                    le_img_resource_handle reference_handle, uint8_t flags ) {
-	return static_cast<le_img_resource_handle>(
+static le_image_resource_handle renderer_produce_img_resource_handle( char const* maybe_name, uint8_t num_samples,
+                                                                    le_image_resource_handle reference_handle, uint8_t flags ) {
+	return static_cast<le_image_resource_handle>(
 	    renderer_produce_resource_handle( maybe_name, LeResourceType::eImage, num_samples, flags, 0,
 	                                      static_cast<le_resource_handle>( reference_handle ) ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_buf_resource_handle renderer_produce_buf_resource_handle( char const* maybe_name, uint8_t flags, uint16_t index ) {
-	return static_cast<le_buf_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
+static le_buffer_resource_handle renderer_produce_buf_resource_handle( char const* maybe_name, uint8_t flags, uint16_t index ) {
+	return static_cast<le_buffer_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
 }
 
 // ----------------------------------------------------------------------
@@ -637,13 +637,13 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 
 
 
-static le_img_resource_handle renderer_get_swapchain_resource( le_renderer_o* self, le_swapchain_handle swapchain ) {
+static le_image_resource_handle renderer_get_swapchain_resource( le_renderer_o* self, le_swapchain_handle swapchain ) {
 	ZoneScoped;
 	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_resource( self->backend, swapchain );
 }
 
-static le_img_resource_handle renderer_get_swapchain_resource_default( le_renderer_o* self ) {
+static le_image_resource_handle renderer_get_swapchain_resource_default( le_renderer_o* self ) {
 	ZoneScoped;
 	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_resource_default( self->backend );

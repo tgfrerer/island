@@ -25,7 +25,7 @@ struct le_shader_binding_info {
 	uint64_t stage_bits;         // Corresponds to bitfield of le::ShaderStage
 	                             //
 	VkSampler immutable_sampler; // optional: immutable sampler
-	uint64_t name_hash;          // fnv64_hash of parameter name as given in shader.
+	uint64_t  name_hash;         // fnv64_hash of parameter name as given in shader.
 	                             //
 	                             // NOTE: The above field `name_hash` doubles as a marker,
 	                             // as anything *before* and not including name_hash will be
@@ -135,15 +135,15 @@ struct AttachmentInfo {
 		eDepthStencilAttachment,
 		eResolveAttachment,
 	};
-	le_img_resource_handle  resource;           ///< which resource to look up for resource state
-	le::Format              format;             ///
-	le::AttachmentLoadOp    loadOp;             ///
-	le::AttachmentStoreOp   storeOp;            ///
-	le::ClearValue          clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
-	le::SampleCountFlagBits numSamples;         /// < number of samples, default 1
-	uint32_t                initialStateOffset; ///< sync state of resource before entering the renderpass (offset is into resource specific sync chain )
-	uint32_t                finalStateOffset;   ///< sync state of resource after exiting the renderpass (offset is into resource specific sync chain )
-	Type                    type;
+	le_image_resource_handle resource;           ///< which resource to look up for resource state
+	le::Format               format;             ///
+	le::AttachmentLoadOp     loadOp;             ///
+	le::AttachmentStoreOp    storeOp;            ///
+	le::ClearValue           clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
+	le::SampleCountFlagBits  numSamples;         /// < number of samples, default 1
+	uint32_t                 initialStateOffset; ///< sync state of resource before entering the renderpass (offset is into resource specific sync chain )
+	uint32_t                 finalStateOffset;   ///< sync state of resource after exiting the renderpass (offset is into resource specific sync chain )
+	Type                     type;
 };
 
 struct ExplicitSyncOp {

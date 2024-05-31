@@ -23,9 +23,9 @@
 #include <cassert>
 
 struct GpuMeshData {
-	le_buf_resource_handle pos_handle;
-	le_buf_resource_handle uv_handle;
-	le_buf_resource_handle index_handle;
+	le_buffer_resource_handle pos_handle;
+	le_buffer_resource_handle uv_handle;
+	le_buffer_resource_handle index_handle;
 	size_t                 pos_count;
 	size_t                 uv_count;
 	size_t                 indices_count;
@@ -46,7 +46,7 @@ struct exr_decode_example_app_o {
 	LeCamera               camera;
 	LeCameraController     cameraController;
 	LeResourceManager      resource_manager;
-	le_img_resource_handle img_heightmap = LE_IMG_RESOURCE( "heightmap_image" );
+	le_image_resource_handle img_heightmap = LE_IMG_RESOURCE( "heightmap_image" );
 	le_texture_handle      tex_unit_0    = LE_TEXTURE( "tex_unit_0" );
 	LeMesh                 mesh;
 	bool                   was_mesh_uploaded = false;
@@ -271,7 +271,7 @@ static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 	    0,
 	};
 
-	le_buf_resource_handle buffers[] = {
+	le_buffer_resource_handle buffers[] = {
 	    app->gpu_mesh->pos_handle,
 	    app->gpu_mesh->uv_handle,
 	};
@@ -387,8 +387,8 @@ static bool exr_decode_example_app_update( exr_decode_example_app_o* self ) {
 		        .end()
 		        .build();
 
-		static le_img_resource_handle depth_buffer_image = LE_IMG_RESOURCE( "depth_buffer" );
-		static le_img_resource_handle swapchain_image    = self->renderer.getSwapchainResource();
+		static le_image_resource_handle depth_buffer_image = LE_IMG_RESOURCE( "depth_buffer" );
+		static le_image_resource_handle swapchain_image    = self->renderer.getSwapchainResource();
 
 		auto passDraw =
 		    le::RenderPass( "draw", le::QueueFlagBits::eGraphics )

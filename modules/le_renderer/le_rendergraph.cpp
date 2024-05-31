@@ -122,7 +122,7 @@ static inline bool vector_contains( const std::vector<T>& haystack, const T& nee
 	return haystack.end() != std::find( haystack.begin(), haystack.end(), needle );
 }
 
-static inline bool resource_is_a_swapchain_handle( const le_img_resource_handle& handle ) {
+static inline bool resource_is_a_swapchain_handle( const le_image_resource_handle& handle ) {
 	return handle->data->flags == le_img_resource_usage_flags_t::eIsRoot;
 }
 
@@ -193,7 +193,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 	if ( detectWrite ) {
 
 		if ( resource_id->data->type == LeResourceType::eImage &&
-		     resource_is_a_swapchain_handle( static_cast<le_img_resource_handle>( resource_id ) ) ) {
+		     resource_is_a_swapchain_handle( static_cast<le_image_resource_handle>( resource_id ) ) ) {
 			// A request to write to swapchain image automatically turns a pass into a root pass.
 			self->is_root = true;
 		}
@@ -224,7 +224,7 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
+static void renderpass_add_color_attachment( le_renderpass_o* self, le_image_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
 	ZoneScoped;
 
 	if ( image_id == nullptr ) {
@@ -248,7 +248,7 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_img_resou
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_img_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
+static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_image_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
 	ZoneScoped;
 
 	if ( image_id == nullptr ) {
@@ -338,7 +338,7 @@ static uint64_t renderpass_get_id( le_renderpass_o const* self ) {
 }
 
 static void renderpass_get_image_attachments( const le_renderpass_o* self, le_image_attachment_info_t const** pAttachments,
-                                              le_img_resource_handle const** pResources, size_t* numAttachments ) {
+                                              le_image_resource_handle const** pResources, size_t* numAttachments ) {
 	*pAttachments   = self->imageAttachments.data();
 	*pResources     = self->attachmentResources.data();
 	*numAttachments = self->imageAttachments.size();
@@ -985,7 +985,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 			logger.info( "Renderpass: '%s'", pass->debugName );
 			le_image_attachment_info_t const* pImageAttachments   = nullptr;
-			le_img_resource_handle const*     pResources          = nullptr;
+			le_image_resource_handle const*     pResources          = nullptr;
 			size_t                            numImageAttachments = 0;
 			renderpass_get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 
@@ -1018,7 +1018,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 	uint32_t num_swapchain_images = 1; // gets updated as a side-effect of backend_i.get_swapchain_info()
 
-	std::vector<le_img_resource_handle> swapchain_images;
+	std::vector<le_image_resource_handle> swapchain_images;
 	std::vector<uint32_t>               swapchain_image_width;
 	std::vector<uint32_t>               swapchain_image_height;
 
@@ -1039,8 +1039,8 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 	//                      - swapchain image info is available in swapchain_image[s|_width|_height]
 
 	auto find_matching_resource =
-	    []( std::vector<le_img_resource_handle> const& attachments,
-	        std::vector<le_img_resource_handle> const& resources,
+	    []( std::vector<le_image_resource_handle> const& attachments,
+	        std::vector<le_image_resource_handle> const& resources,
 	        const uint32_t&                            num_resources ) -> uint32_t {
 		for ( auto const& attachment : attachments ) {
 			for ( uint32_t j = 0; j != num_resources; j++ ) {

@@ -113,7 +113,7 @@ struct le_rendergraph_o;             // ffdecl. (from le_renderer)
 struct le_resource_info_t;           // ffdecl. (from le_renderer)
 struct le_image_decoder_interface_t; // ffdecl (from le_core/shared/interfaces/le_image_decoder_interface.h)
 
-LE_OPAQUE_HANDLE( le_img_resource_handle ); // declared in le_renderer.h
+LE_OPAQUE_HANDLE( le_image_resource_handle ); // declared in le_renderer.h
 
 // clang-format off
 struct le_resource_manager_api {
@@ -123,8 +123,8 @@ struct le_resource_manager_api {
 		le_resource_manager_o *  ( * create    ) ( );
 		void                     ( * destroy   ) ( le_resource_manager_o* self );
 		void                     ( * update    ) ( le_resource_manager_o* self, le_rendergraph_o* rendergraph);
-		void                     ( * add_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle, le_resource_info_t const * image_info, char const ** arr_image_paths, bool should_watch);
-		bool 					 ( * remove_item  ) ( le_resource_manager_o* self, le_img_resource_handle const * image_handle);
+		void                     ( * add_item  ) ( le_resource_manager_o* self, le_image_resource_handle const * image_handle, le_resource_info_t const * image_info, char const ** arr_image_paths, bool should_watch);
+		bool 					 ( * remove_item  ) ( le_resource_manager_o* self, le_image_resource_handle const * image_handle);
 
 		void (*set_decoder_interface_for_filetype)(le_resource_manager_o* self, const char* file_extension, le_image_decoder_interface_t* decoder_interface);
 	};
@@ -165,11 +165,11 @@ class LeResourceManager : NoCopy, NoMove {
 		le_resource_manager::le_resource_manager_i.update( self, rendergraph );
 	}
 
-	void add_item( le_img_resource_handle const& image_handle, le_resource_info_t const& image_info, char const** arr_image_paths, bool should_watch = false ) {
+	void add_item( le_image_resource_handle const& image_handle, le_resource_info_t const& image_info, char const** arr_image_paths, bool should_watch = false ) {
 		le_resource_manager::le_resource_manager_i.add_item( self, &image_handle, &image_info, arr_image_paths, should_watch );
 	}
 
-	bool remove_item( le_img_resource_handle const& image_handle ) {
+	bool remove_item( le_image_resource_handle const& image_handle ) {
 		return le_resource_manager::le_resource_manager_i.remove_item( self, &image_handle );
 	}
 	void set_decoder_interface_for_filetype( const char* file_extension, le_image_decoder_interface_t* decoder_interface ) {

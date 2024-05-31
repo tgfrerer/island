@@ -49,8 +49,8 @@ struct le_renderer_api {
 	
 		// note: this method must be called before setup()
 
-		le_img_resource_handle         ( * get_swapchain_resource)( le_renderer_o* self, le_swapchain_handle swapchain);
-		le_img_resource_handle         ( * get_swapchain_resource_default)( le_renderer_o* self);
+		le_image_resource_handle         ( * get_swapchain_resource)( le_renderer_o* self, le_swapchain_handle swapchain);
+		le_image_resource_handle         ( * get_swapchain_resource_default)( le_renderer_o* self);
 		bool                           ( * get_swapchain_extent  )( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height );
 		bool                           ( * get_swapchains        )(le_renderer_o* self, size_t *num_swapchains , le_swapchain_handle* p_swapchain_handles);
 		le_swapchain_handle 		   ( * add_swapchain 		 )(le_renderer_o* self, le_swapchain_settings_t const * settings);
@@ -61,8 +61,8 @@ struct le_renderer_api {
         le_texture_handle              ( *produce_texture_handle  )(char const * maybe_name );
         char const *                   ( *texture_handle_get_name )(le_texture_handle handle);
 
-        le_buf_resource_handle (*produce_buf_resource_handle)(char const * maybe_name, uint8_t flags, uint16_t index);
-        le_img_resource_handle (*produce_img_resource_handle)(char const * maybe_name, uint8_t num_samples, le_img_resource_handle reference_handle, uint8_t flags);
+        le_buffer_resource_handle (*produce_buf_resource_handle)(char const * maybe_name, uint8_t flags, uint16_t index);
+        le_image_resource_handle (*produce_img_resource_handle)(char const * maybe_name, uint8_t num_samples, le_image_resource_handle reference_handle, uint8_t flags);
 
         le_tlas_resource_handle (*produce_tlas_resource_handle)(char const * maybe_name);
         le_blas_resource_handle (*produce_blas_resource_handle)(char const * maybe_name);
@@ -86,8 +86,8 @@ struct le_renderer_api {
 		le_renderpass_o *               ( *clone                )( const le_renderpass_o *obj );
         void                            ( *set_setup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_setup_t setup_fun );
 		bool                            ( *has_setup_callback   )( const le_renderpass_o* obj);
-		void                            ( *add_color_attachment )( le_renderpass_o *obj, le_img_resource_handle resource_id, le_image_attachment_info_t const *info );
-		void                            ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_img_resource_handle resource_id, le_image_attachment_info_t const *info );
+		void                            ( *add_color_attachment )( le_renderpass_o *obj, le_image_resource_handle resource_id, le_image_attachment_info_t const *info );
+		void                            ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_image_resource_handle resource_id, le_image_attachment_info_t const *info );
 		void                            ( *set_width            )( le_renderpass_o* obj, uint32_t width);
 		void                            ( *set_height           )( le_renderpass_o* obj, uint32_t height);
 		void                            ( *set_sample_count     ) (le_renderpass_o* obj, le::SampleCountFlagBits const & sampleCount);
@@ -102,7 +102,7 @@ struct le_renderer_api {
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
 		void                            ( *get_queue_sumbission_info)( const le_renderpass_o* obj, le::QueueFlagBits* pass_type, le::RootPassesField * queue_submission_id);
 		le_command_buffer_encoder_o*    ( *steal_encoder        )( le_renderpass_o* obj );
-		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_img_resource_handle ** pResourceIds, size_t* numAttachments);
+		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_image_resource_handle ** pResourceIds, size_t* numAttachments);
 
 		// Reference counting
 		void (*ref_inc)(le_renderpass_o* self);
@@ -150,12 +150,12 @@ struct le_renderer_api {
 	struct command_buffer_graphics_encoder_interface_t{
 		le_pipeline_manager_o*		 ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self);
         void                         ( *set_push_constant_data )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes);
-		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_buf_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
-		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buf_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
+		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
+		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buffer_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
 
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);
-		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex);
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
 		void                         ( *draw_indexed           )( le_command_buffer_encoder_o *self, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
@@ -168,8 +168,8 @@ struct le_renderer_api {
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
 		void                         ( *set_scissor            )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
 
-		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_buf_resource_handle const bufferId, uint64_t offset, le::IndexType const & indexType);
-		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_buf_resource_handle const * pBufferId, uint64_t const * pOffsets );
+		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const bufferId, uint64_t offset, le::IndexType const & indexType);
+		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_buffer_resource_handle const * pBufferId, uint64_t const * pOffsets );
 
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, le::IndexType const & indexType, command_buffer_encoder_interface_t::buffer_binding_info_o* optional_binding_info_readback );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex, command_buffer_encoder_interface_t::buffer_binding_info_o* optional_transient_binding_info_readback );
@@ -180,21 +180,21 @@ struct le_renderer_api {
 		le_pipeline_manager_o*		 ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self);
 		void                         ( *bind_compute_pipeline  )( le_command_buffer_encoder_o *self, le_cpso_handle pipelineHandle);
         void                         ( *set_push_constant_data )( le_command_buffer_encoder_o* self, void const *data, uint64_t numBytes);
-		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_buf_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
+		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);
-		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
-		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buf_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
+		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buffer_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
 	 };
 
 	struct command_buffer_transfer_encoder_interface_t{
-		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes);
-		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_img_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
-		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buf_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
+		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes);
+		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_image_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
+		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buffer_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
 
-        void                         ( *map_image_memory       )( le_command_buffer_encoder_o *self, le_img_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo,  size_t numBytes, void** p_memory_addr );
-        void                         ( *map_buffer_memory      )( le_command_buffer_encoder_o *self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, size_t numBytes, void ** p_memory_addr);
+        void                         ( *map_image_memory       )( le_command_buffer_encoder_o *self, le_image_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo,  size_t numBytes, void** p_memory_addr );
+        void                         ( *map_buffer_memory      )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const& dst_buffer, size_t dst_offset, size_t numBytes, void ** p_memory_addr);
     };
 
 	struct command_buffer_video_decoder_encoder_interface_t{
