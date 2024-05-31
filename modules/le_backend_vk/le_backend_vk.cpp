@@ -1542,7 +1542,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 	auto numSamplesLog2 = get_sample_count_log_2( uint32_t( sampleCount ) );
 
 	le_image_attachment_info_t const* pImageAttachments   = nullptr;
-	le_image_resource_handle const*     pResources          = nullptr;
+	le_image_resource_handle const*   pResources          = nullptr;
 	size_t                            numImageAttachments = 0;
 
 	renderpass_i.get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
@@ -1693,7 +1693,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		auto const& image_attachment_info = pImageAttachments[ i ];
 
 		le_image_resource_handle img_resource = pResources[ i ];
-		auto&                  syncChain    = frame.syncChainTable[ img_resource ];
+		auto&                    syncChain    = frame.syncChainTable[ img_resource ];
 
 		auto const& attachmentFormat = le::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
 
@@ -6344,7 +6344,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// - uint64_t[bindingCount]
 
 						le_buffer_resource_handle* p_buffers = ( le_buffer_resource_handle* )( le_cmd + 1 );
-						uint64_t*               p_offsets = ( uint64_t* )( p_buffers + le_cmd->info.bindingCount );
+						uint64_t*                  p_offsets = ( uint64_t* )( p_buffers + le_cmd->info.bindingCount );
 
 						le_buffer_resource_handle le_buffer = *p_buffers;
 
