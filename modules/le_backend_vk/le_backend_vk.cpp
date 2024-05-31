@@ -3240,6 +3240,8 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 	VkBuffer          buffer;     // handle to buffer (returned from vmaMemAlloc)
 	VmaAllocationInfo allocationInfo;
 
+	assert( numBytes != 0 && "Cannot allocate a buffer of size 0." );
+
 	VkBufferCreateInfo bufferCreateInfo{
 	    .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 	    .pNext                 = nullptr, // optional
