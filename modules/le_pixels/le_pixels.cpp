@@ -181,7 +181,7 @@ static bool le_image_decoder_read_pixels( le_image_decoder_o* self, uint8_t* pix
 	void* pixel_data = nullptr;
 	if ( pixel_data_type == le_num_type::eU8 || pixel_data_type == le_num_type::eI8 ) {
 		pixel_data = stbi_load( self->image_path.c_str(), &self->image_width, &self->image_height, &num_channels, num_channels );
-	} else if ( pixel_data_type == le_num_type::eU16 || pixel_data_type == le_num_type::eI16 ) {
+	} else if ( pixel_data_type == le_num_type::eU16 || pixel_data_type == le_num_type::eI16 || pixel_data_type == le_num_type::eF16 ) {
 		pixel_data = stbi_load_16( self->image_path.c_str(), &self->image_width, &self->image_height, &num_channels, num_channels );
 	} else if ( pixel_data_type == le_num_type::eF32 ) {
 		pixel_data = stbi_loadf( self->image_path.c_str(), &self->image_width, &self->image_height, &num_channels, num_channels );
