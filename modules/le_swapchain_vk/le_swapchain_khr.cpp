@@ -33,6 +33,7 @@ struct khr_data_o {
 	uint32_t                vk_graphics_queue_family_index = 0;
 	SurfaceProperties       mSurfaceProperties             = {};
 	std::vector<VkImage>    mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
+	VkInstance              instance                       = nullptr;
 	VkDevice                device                         = nullptr;
 	VkPhysicalDevice        physicalDevice                 = nullptr;
 	VkResult                lastError                      = VK_SUCCESS; // keep track of last error
@@ -171,6 +172,18 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN );
 
+	// If there is not yet a surface associated with this swapchain, we must create one
+	// by using the window API.
+	if ( nullptr == self->mSettings.khr_settings.vk_surface ) {
+
+		if ( nullptr == self->mSettings.khr_settings.window ) {
+			logger.error( "No window associated with LE_KHR_SWAPCHAIN %p.", base );
+			return;
+		}
+
+		self->mSettings.khr_settings.vk_surface = le_window::window_i.create_surface( self->mSettings.khr_settings.window, self->instance );
+	}
+
 	// The surface in SwapchainSettings::windowSurface has been assigned by glfwwindow, through glfw,
 	// just before this setup() method was called.
 	swapchain_query_surface_capabilities( base );
@@ -279,6 +292,7 @@ static le_swapchain_o* swapchain_khr_create( le_backend_o* backend, const le_swa
 	{
 		using namespace le_backend_vk;
 		self->device                         = private_backend_vk_i.get_vk_device( backend );
+		self->instance                       = vk_instance_i.get_vk_instance( private_backend_vk_i.get_instance( backend ) );
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
 		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->queue_family_index;
 	}
@@ -328,11 +342,20 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
 	VkDevice device = self->device;
 
-	logger.info( "Destroyed Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
-
 	if ( self->swapchainKHR ) {
 		vkDestroySwapchainKHR( device, self->swapchainKHR, nullptr );
+		logger.info( "Destroyed Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
 		self->swapchainKHR = nullptr;
+	}
+
+	if ( !self->is_retired && self->mSettings.khr_settings.vk_surface ) {
+		// In case a swapchain was retired, ownership of the surface has
+		// moved to the currently non-retired instance of the swapchain.
+		//
+		// We only want to destroy a surface if it belonged to a non-retired swapchain.
+		vkDestroySurfaceKHR( self->instance, self->mSettings.khr_settings.vk_surface, nullptr );
+		logger.info( "Destroyed VkSurface: %p", self->mSettings.khr_settings.vk_surface );
+		self->mSettings.khr_settings.vk_surface = nullptr;
 	}
 
 	delete self; // delete object's data

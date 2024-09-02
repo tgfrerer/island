@@ -453,8 +453,7 @@ class swapchain_data_t {
 	le_swapchain_o* swapchain = nullptr; // owned, reference counted. swapchain is destroyed when last reference is deleted.
 
   public:
-	VkSurfaceFormatKHR              swapchain_surface_format; // contains VkFormat and (optional) color space
-	std::shared_ptr<VkSurfaceKHR_T> swapchain_surface;        // owned, optional VkDestroySurface called when last reference is deleted.
+    VkSurfaceFormatKHR swapchain_surface_format; // contains VkFormat and (optional) color space
 
 	uint32_t height;      ///< height of swapchain image
 	uint32_t width;       ///< width of swapchain image
@@ -487,7 +486,6 @@ class swapchain_data_t {
 		swapchain = rhs.swapchain;
 
 		swapchain_surface_format = rhs.swapchain_surface_format;
-		swapchain_surface        = rhs.swapchain_surface; // this should also increase the use count...
 		height                   = rhs.height;
 		width                    = rhs.width;
 		swapchain_image          = rhs.swapchain_image;
@@ -954,8 +952,6 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	static auto     logger    = LeLog( LOGGER_LABEL );
 	using namespace le_swapchain_vk;
 
-	std::shared_ptr<VkSurfaceKHR_T> maybe_swapchain_surface( nullptr );
-
 	// make a local copy of settings in case we must update settings.
 	le_swapchain_settings_t         swapchain_settings = *settings_;
 	le_backend_vk_settings_o const* backend_settings   = le_backend_vk::api->backend_settings_singleton;
@@ -974,39 +970,10 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 		              backend_settings->data_frames_count );
 	}
 
-	switch ( swapchain_settings.type ) {
-	case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
-		// Create a windowless swapchain
-		swapchain = swapchain_i.create( self, &swapchain_settings );
-		break;
-	}
-	case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
-		if ( swapchain_settings.khr_settings.window != nullptr ) {
-			VkInstance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
-
-			maybe_swapchain_surface = std::shared_ptr<VkSurfaceKHR_T>(
-			    le_window::window_i.create_surface( swapchain_settings.khr_settings.window, instance ),
-			    [ instance ]( VkSurfaceKHR_T* ptr ) {
-				    logger.info( "Surface %p destroyed.", ptr );
-				    vkDestroySurfaceKHR( instance, ptr, nullptr );
-			    } );
-
-			swapchain_settings.khr_settings.vk_surface = maybe_swapchain_surface.get();
-			swapchain                                  = swapchain_i.create( self, &swapchain_settings );
-		} else {
-			logger.error( "No window specified for LE_KHR_SWAPCHAIN" );
-			return nullptr;
-		}
-		break;
-	}
-	case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
-		// Create an image swapchain
-		swapchain = swapchain_i.create( self, &swapchain_settings );
-		break;
-	}
-	default:
-		assert( false );
-	} // end switch
+	// Abstract interface call to swapchain to initialize itself.
+	// window swapchains will know how to create a surface at this point
+	//
+	swapchain = swapchain_i.create( self, &swapchain_settings );
 
 	assert( swapchain );
 
@@ -1018,7 +985,6 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	swapchain_data_t swapchain_data( swapchain );
 	swapchain_data.swapchain_surface_format = *swapchain_i.get_surface_format( swapchain );
-	swapchain_data.swapchain_surface        = maybe_swapchain_surface;
 	swapchain_data.height                   = swapchain_i.get_image_height( swapchain );
 	swapchain_data.width                    = swapchain_i.get_image_width( swapchain );
 	swapchain_data.image_count              = uint32_t( swapchain_i.get_image_count( swapchain ) );
@@ -1027,8 +993,9 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	if ( swapchain_data.image_count != backend_settings->data_frames_count ) {
 		// If this is called between when the backend_initialize and setup, this
-		// will help us catching a case where the backend can only provide two
-		// this will have no effect once backend has been setup()
+		// will help us catching a case where the backend can only provide two images.
+		//
+		// This will have no effect once backend has been setup()
 		auto original_backend_frame_count = backend_settings->data_frames_count;
 		if ( le_backend_vk::settings_i.set_data_frames_count(
 		         std::min<uint32_t>(
