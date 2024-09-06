@@ -23,10 +23,9 @@ struct le_swapchain_direct_settings_t {
 	uint32_t width_hint  = 640;
 	uint32_t height_hint = 480;
 
-	le::Format             format_hint      = le::Format::eB8G8R8A8Unorm; // preferred surface format
-	Presentmode            presentmode_hint = Presentmode::eDefault;
-	struct VkSurfaceKHR_T* vk_surface       = nullptr; // Will be set by backend : TODO: make this private
-	char const*            display_name     = nullptr; // Will be matched against display name
+	le::Format  format_hint      = le::Format::eB8G8R8A8Unorm; // preferred surface format
+	Presentmode presentmode_hint = Presentmode::eDefault;
+	char const* display_name     = nullptr; // Will be matched against display name
 
 	operator le_swapchain_settings_t*() {
 		return &base;

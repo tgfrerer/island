@@ -24,6 +24,7 @@ struct SurfaceProperties {
 
 struct khr_data_o {
 	le_swapchain_windowed_settings_t mSettings                      = {};
+	struct VkSurfaceKHR_T*           vk_surface                     = nullptr; // this will be set internally -- TODO: find a way to make this private
 	le_window_o*                     window                         = nullptr;
 	le_backend_o*                    backend                        = nullptr;
 	uint32_t                         mImagecount                    = 0;
@@ -55,24 +56,24 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 	const auto& settings          = self->mSettings;
 	auto&       surfaceProperties = self->mSurfaceProperties;
 
-	vkGetPhysicalDeviceSurfaceSupportKHR( self->physicalDevice, self->vk_graphics_queue_family_index, settings.vk_surface, &surfaceProperties.presentSupported );
+	vkGetPhysicalDeviceSurfaceSupportKHR( self->physicalDevice, self->vk_graphics_queue_family_index, self->vk_surface, &surfaceProperties.presentSupported );
 	// Get list of supported surface formats
 	{
 		uint32_t count = 0;
 
-		auto result = vkGetPhysicalDeviceSurfaceFormatsKHR( self->physicalDevice, settings.vk_surface, &count, nullptr );
+		auto result = vkGetPhysicalDeviceSurfaceFormatsKHR( self->physicalDevice, self->vk_surface, &count, nullptr );
 		assert( result == VK_SUCCESS );
 		surfaceProperties.availableSurfaceFormats.resize( count );
-		result = vkGetPhysicalDeviceSurfaceFormatsKHR( self->physicalDevice, settings.vk_surface, &count, surfaceProperties.availableSurfaceFormats.data() );
+		result = vkGetPhysicalDeviceSurfaceFormatsKHR( self->physicalDevice, self->vk_surface, &count, surfaceProperties.availableSurfaceFormats.data() );
 		assert( result == VK_SUCCESS );
 
-		result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( self->physicalDevice, settings.vk_surface, &surfaceProperties.surfaceCapabilities );
+		result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( self->physicalDevice, self->vk_surface, &surfaceProperties.surfaceCapabilities );
 		assert( result == VK_SUCCESS );
 
-		result = vkGetPhysicalDeviceSurfacePresentModesKHR( self->physicalDevice, settings.vk_surface, &count, nullptr );
+		result = vkGetPhysicalDeviceSurfacePresentModesKHR( self->physicalDevice, self->vk_surface, &count, nullptr );
 		assert( result == VK_SUCCESS );
 		surfaceProperties.presentmodes.resize( count );
-		result = vkGetPhysicalDeviceSurfacePresentModesKHR( self->physicalDevice, settings.vk_surface, &count, surfaceProperties.presentmodes.data() );
+		result = vkGetPhysicalDeviceSurfacePresentModesKHR( self->physicalDevice, self->vk_surface, &count, surfaceProperties.presentmodes.data() );
 		assert( result == VK_SUCCESS );
 	}
 
@@ -173,14 +174,14 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 
 	// If there is not yet a surface associated with this swapchain, we must create one
 	// by using the window API.
-	if ( nullptr == self->mSettings.vk_surface ) {
+	if ( nullptr == self->vk_surface ) {
 
 		if ( nullptr == self->mSettings.window ) {
 			logger.error( "No window associated with LE_KHR_SWAPCHAIN %p.", base );
 			return;
 		}
 
-		self->mSettings.vk_surface = le_window::window_i.create_surface( self->mSettings.window, self->instance );
+		self->vk_surface = le_window::window_i.create_surface( self->mSettings.window, self->instance );
 	}
 
 	// The surface in SwapchainSettings::windowSurface has been assigned by glfwwindow, through glfw,
@@ -244,7 +245,7 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 	    .sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 	    .pNext                 = nullptr, // optional
 	    .flags                 = 0,       // optional
-		.surface               = self->mSettings.vk_surface,
+		.surface               = self->vk_surface,
 	    .minImageCount         = self->mImagecount,
 	    .imageFormat           = self->mSurfaceProperties.windowSurfaceFormat.format,
 	    .imageColorSpace       = self->mSurfaceProperties.windowSurfaceFormat.colorSpace,
@@ -349,14 +350,14 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 		self->swapchainKHR = nullptr;
 	}
 
-	if ( !self->is_retired && self->mSettings.vk_surface ) {
+	if ( !self->is_retired && self->vk_surface ) {
 		// In case a swapchain was retired, ownership of the surface has
 		// moved to the currently non-retired instance of the swapchain.
 		//
 		// We only want to destroy a surface if it belonged to a non-retired swapchain.
-		vkDestroySurfaceKHR( self->instance, self->mSettings.vk_surface, nullptr );
-		logger.info( "Destroyed VkSurface: %p", self->mSettings.vk_surface );
-		self->mSettings.vk_surface = nullptr;
+		vkDestroySurfaceKHR( self->instance, self->vk_surface, nullptr );
+		logger.info( "Destroyed VkSurface: %p", self->vk_surface );
+		self->vk_surface = nullptr;
 	}
 
 	delete self; // delete object's data
