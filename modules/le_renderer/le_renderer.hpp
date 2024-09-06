@@ -174,6 +174,10 @@ class Renderer {
 		le_renderer::renderer_i.update( self, rendergraph );
 	}
 
+	le_renderer_settings_t const& getSettings() const noexcept {
+		return *le_renderer::renderer_i.get_settings( self );
+	}
+
 	/// Note: you can only add Swapchains to the renderer after the renderer has been setup()
 	le_swapchain_handle addSwapchain( le_swapchain_settings_t const* swapchain_settings ) noexcept {
 		return le_renderer::renderer_i.add_swapchain( self, swapchain_settings );
@@ -183,8 +187,8 @@ class Renderer {
 		return le_renderer::renderer_i.remove_swapchain( self, swapchain );
 	}
 
-	le_renderer_settings_t const& getSettings() const noexcept {
-		return *le_renderer::renderer_i.get_settings( self );
+	bool getSwapchains( size_t* num_swapchains, le_swapchain_handle* p_swapchain_handles ) {
+		return le_renderer::renderer_i.get_swapchains( self, num_swapchains, p_swapchain_handles );
 	}
 
 	/// Returns the image resource for the given swapchain, if this swapchain is available in the backend.
