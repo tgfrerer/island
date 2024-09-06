@@ -1111,7 +1111,18 @@ bool backend_get_swapchains( le_backend_o* self, size_t* count, le_swapchain_han
 
 	// ---------| invariant: count is equal or larger than number of swapchain resources
 
+	std::set<uint64_t> keys;
+
+	// self->swapchains is an unordered map - but we want to return the handles
+	// in the order in which they were added.
+	//
+	// For this, first we fetch all keys into a set of keys
 	for ( auto& [ key, swp ] : self->swapchains ) {
+		keys.insert( key );
+	}
+
+	// And then we iterate over the set, which we know to be in-order.
+	for ( auto& key : keys ) {
 		*( p_swapchain_handles++ ) = reinterpret_cast<le_swapchain_handle>( key );
 	}
 
