@@ -14,6 +14,7 @@ struct le_backend_o;
 struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
 struct le_pipeline_manager_o;
 struct le_command_stream_t; // ffdecl
+struct le_window_o;
 
 struct le_allocator_o;         // from backend
 struct le_staging_allocator_o; // from backend
@@ -39,6 +40,7 @@ struct le_renderer_api {
 		le_renderer_o *                ( *create                  )( );
 		void                           ( *destroy                 )( le_renderer_o *obj );
 		void                           ( *setup                   )( le_renderer_o *obj, le_renderer_settings_t const * settings );
+		void                           ( *setup_with_window       )( le_renderer_o *obj, le_window_o* window);
 
 		void                           ( *update                  )( le_renderer_o *obj, le_rendergraph_o *rendergraph);
 

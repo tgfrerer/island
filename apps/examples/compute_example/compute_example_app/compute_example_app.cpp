@@ -26,8 +26,8 @@ constexpr size_t cNumDataElements = 64;
 struct GpuMeshData {
 	le_buffer_resource_handle vertex_handle;
 	le_buffer_resource_handle index_handle;
-	uint32_t               vertex_num_bytes;
-	uint32_t               index_num_bytes;
+	uint32_t                  vertex_num_bytes;
+	uint32_t                  index_num_bytes;
 };
 
 struct compute_example_app_o {
@@ -74,9 +74,7 @@ static compute_example_app_o* compute_example_app_create() {
 	app->window.setup( settings );
 
 	// Set up the renderer
-	app->renderer.setup(
-	    le::RendererInfoBuilder( app->window )
-	        .build() );
+	app->renderer.setup( app->window );
 
 	// Set up the camera
 	reset_camera( app );

@@ -60,7 +60,7 @@ static imgui_example_app_o* app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
+	app->renderer.setup( app->window );
 
 	// Set up the camera
 	app_reset_camera( app );

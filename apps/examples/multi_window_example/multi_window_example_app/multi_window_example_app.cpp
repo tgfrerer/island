@@ -8,6 +8,8 @@
 #include "le_ui_event.h"
 
 #include "le_mesh.h"
+#include "le_swapchain_vk.h"
+#include "le_swapchain_khr.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -50,6 +52,16 @@ struct multi_window_example_app_o {
 // ----------------------------------------------------------------------
 
 static void app_initialize() {
+
+	//
+	// Because we set up the renderer without naming swapchain settings in renderer settings
+	// we must explicitly trigger a request for backend capabilities to support this particular
+	// type of swapchains.
+	//
+	bool has_capabilities = le_swapchain_vk_api_i->swapchain_i.request_backend_capabilities( le_swapchain_windowed_settings_t{} );
+
+	assert( has_capabilities );
+
 	le::Window::init();
 };
 
@@ -85,46 +97,23 @@ static multi_window_example_app_o* app_create() {
 	app->windows[ 0 ].window.setup( settings_0 );
 	app->windows[ 1 ].window.setup( settings_1 );
 
-	// Prototype settings for any swapchain that we might add to the current renderer.
-	// IMPORTANT: Note that .defer_create is set to true - this tells the renderer *not*
-	// to automatically create a swapchain on renderer.setup().
-	//
-	le_swapchain_settings_t swapchain_settings{
-	    .type            = le_swapchain_settings_t::LE_KHR_SWAPCHAIN,
-	    .width_hint      = 0,
-	    .height_hint     = 0,
-	    .imagecount_hint = 3,
-	    .format_hint     = le::Format::eB8G8R8A8Unorm, // preferred surface format
-	    .defer_create    = true,                       ///< IMPORTANT: do not implicitly create a swapchain on renderer.setup()
-	    .khr_settings    = {
-	           .presentmode_hint = le::Presentmode::eFifo,
-	           .vk_surface       = nullptr, // will be set by backend internally
-	           .window           = nullptr, // will set this later
-        },
-	};
-
-	le_renderer_settings_t renderer_settings{};
-	renderer_settings.num_swapchain_settings  = 1;
-	renderer_settings.swapchain_settings[ 0 ] = swapchain_settings;
-
 	// Note that we setup the renderer without implicitly creating swapchains
-	app->renderer.setup( renderer_settings );
+	app->renderer.setup();
 
 	{
-		swapchain_settings.width_hint          = 1920 / 2;
-		swapchain_settings.height_hint         = 1080 / 2;
-		swapchain_settings.khr_settings.window = app->windows[ 0 ].window;
+		le_swapchain_windowed_settings_t swap_settings = {};
+		swap_settings.window                           = app->windows[ 0 ].window;
 
-		// Create swapchains
-		app->windows[ 0 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
+		// Create swapchain 0
+		app->windows[ 0 ].swapchain = app->renderer.addSwapchain( swap_settings );
 	}
 
 	{
-		swapchain_settings.width_hint          = 200;
-		swapchain_settings.height_hint         = 400;
-		swapchain_settings.khr_settings.window = app->windows[ 1 ].window;
+		le_swapchain_windowed_settings_t swap_settings = {};
+		swap_settings.window                           = app->windows[ 1 ].window;
 
-		app->windows[ 1 ].swapchain = app->renderer.addSwapchain( &swapchain_settings );
+		// Create swapchain 1
+		app->windows[ 1 ].swapchain = app->renderer.addSwapchain( swap_settings );
 	}
 
 	{
@@ -440,8 +429,8 @@ static bool app_update( multi_window_example_app_o* self ) {
 		if ( it->second.window.shouldClose() ) {
 			self->renderer.removeSwapchain( it->second.swapchain );
 			//
-			// Note that we don't increment iterator it at the end of this branch of the loop, but
-			// that we assign to iterator it from the result of the erasure operation.
+			// Note that we don't increment the iterator `it` at the end of this branch of the loop, but
+			// that we assign to iterator `it` from the result of the erasure operation.
 			//
 			// We do this so that we don't have to worry about deleting
 			// an object from a collection whilst iterating over the collection.

@@ -35,16 +35,16 @@
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct WorldGeometry {
-	le_buffer_resource_handle  vertex_buffer_handle = LE_BUF_RESOURCE( "WORLD_VERTICES" );
-	le_resource_info_t      vertex_buffer_info   = {};
-	std::array<uint64_t, 4> buffer_offsets       = {};
-	size_t                  vertexBytesCount     = {}; // total byte count of vertex data
-	size_t                  vertexCount          = 0;  // number of Vertices
-	le_buffer_resource_handle  index_buffer_handle  = LE_BUF_RESOURCE( "WORLD_INDICES" );
-	le_resource_info_t      index_buffer_info    = {};
-	size_t                  indexDataByteCount   = {};
-	size_t                  indexCount           = {}; // number of indices
-	bool                    wasLoaded            = false;
+	le_buffer_resource_handle vertex_buffer_handle = LE_BUF_RESOURCE( "WORLD_VERTICES" );
+	le_resource_info_t        vertex_buffer_info   = {};
+	std::array<uint64_t, 4>   buffer_offsets       = {};
+	size_t                    vertexBytesCount     = {}; // total byte count of vertex data
+	size_t                    vertexCount          = 0;  // number of Vertices
+	le_buffer_resource_handle index_buffer_handle  = LE_BUF_RESOURCE( "WORLD_INDICES" );
+	le_resource_info_t        index_buffer_info    = {};
+	size_t                    indexDataByteCount   = {};
+	size_t                    indexCount           = {}; // number of indices
+	bool                      wasLoaded            = false;
 };
 
 static le_image_resource_handle imgEarthAlbedo  = LE_IMG_RESOURCE( "imgEarthAlbedo" );
@@ -109,27 +109,14 @@ static hello_world_app_o* hello_world_app_create() {
 
 	le::Window::Settings settings;
 	settings
-	    .setWidth( 1920 / 2 )
-	    .setHeight( 1080 / 2 )
+	    .setWidth( 1920 )
+	    .setHeight( 1080 )
 	    .setTitle( "Island // Hello world" );
 
 	// create a new window
 	app->window.setup( settings );
 
-	auto rendererInfo = le::RendererInfoBuilder()
-	                        .addSwapchain()
-	                        .setFormatHint( le::Format::eB8G8R8A8Unorm )
-	                        .setWidthHint( 1920 )
-	                        .setHeightHint( 1080 )
-	                        .setImagecountHint( 3 )
-	                        .asWindowSwapchain()
-	                        .setWindow( app->window )
-	                        .setPresentmode( le::Presentmode::eFifo )
-	                        .end()
-	                        .end()
-	                        .build();
-
-	app->renderer.setup( rendererInfo );
+	app->renderer.setup( app->window );
 
 	// -- Declare graphics pipeline state objects
 

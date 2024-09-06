@@ -54,7 +54,7 @@ static quad_template_app_o* quad_template_app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
+	app->renderer.setup( app->window );
 
 	return app;
 }

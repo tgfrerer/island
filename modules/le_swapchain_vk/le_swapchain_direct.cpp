@@ -10,6 +10,8 @@
 #include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
 
 #include "private/le_renderer/le_renderer_types.h"
+#include "le_swapchain_direct.h"
+
 #include "le_log.h"
 
 #include <iostream>
@@ -35,20 +37,20 @@ struct SurfaceProperties {
 	static auto procName = reinterpret_cast<PFN_##procName>( vkGetDeviceProcAddr( instance, #procName ) )
 
 struct swp_direct_data_o {
-	std::string             display_name;
-	le_swapchain_settings_t mSettings                      = {};
-	le_backend_o*           backend                        = nullptr;
-	uint32_t                mImagecount                    = 0;
-	uint32_t                mImageIndex                    = uint32_t( ~0 ); // current image index
-	VkSwapchainKHR          swapchainKHR                   = nullptr;
-	VkExtent2D              mSwapchainExtent               = {};
-	VkPresentModeKHR        mPresentMode                   = VK_PRESENT_MODE_FIFO_KHR;
-	uint32_t                vk_graphics_queue_family_index = 0;
-	SurfaceProperties       mSurfaceProperties             = {};
-	std::vector<VkImage>    mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
-	VkInstance              instance                       = nullptr;
-	VkDevice                device                         = nullptr;
-	VkPhysicalDevice        physicalDevice                 = nullptr;
+	std::string                    display_name;
+	le_swapchain_direct_settings_t mSettings                      = {};
+	le_backend_o*                  backend                        = nullptr;
+	uint32_t                       mImagecount                    = 0;
+	uint32_t                       mImageIndex                    = uint32_t( ~0 ); // current image index
+	VkSwapchainKHR                 swapchainKHR                   = nullptr;
+	VkExtent2D                     mSwapchainExtent               = {};
+	VkPresentModeKHR               mPresentMode                   = VK_PRESENT_MODE_FIFO_KHR;
+	uint32_t                       vk_graphics_queue_family_index = 0;
+	SurfaceProperties              mSurfaceProperties             = {};
+	std::vector<VkImage>           mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
+	VkInstance                     instance                       = nullptr;
+	VkDevice                       device                         = nullptr;
+	VkPhysicalDevice               physicalDevice                 = nullptr;
 
 #ifdef _MSC_VER
 
@@ -145,8 +147,8 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static VkPresentModeKHR get_direct_presentmode( const le_swapchain_settings_t::khr_settings_t::Presentmode& presentmode_hint_ ) {
-	using PresentMode = le_swapchain_settings_t::khr_settings_t::Presentmode;
+static VkPresentModeKHR get_direct_presentmode( const le_swapchain_direct_settings_t::Presentmode& presentmode_hint_ ) {
+	using PresentMode = le_swapchain_direct_settings_t::Presentmode;
 	switch ( presentmode_hint_ ) {
 	case ( PresentMode::eImmediate ):
 		return VK_PRESENT_MODE_IMMEDIATE_KHR;
@@ -180,7 +182,7 @@ static void swapchain_attach_images( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_settings_t* settings_ ) {
+static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_direct_settings_t* settings_ ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto self = static_cast<swp_direct_data_o* const>( base->data );
@@ -188,14 +190,13 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 	if ( settings_ ) {
 		self->mSettings = *settings_;
 		// create local copy of display name to protect us from the caller invalidating this pointer.
-		self->display_name                                    = settings_->khr_direct_mode_settings.display_name ? std::string( settings_->khr_direct_mode_settings.display_name ) : "";
-		self->mSettings.khr_direct_mode_settings.display_name = self->display_name.c_str();
+		self->display_name           = settings_->display_name ? std::string( settings_->display_name ) : "";
+		self->mSettings.display_name = self->display_name.c_str();
 	}
 
 	// `settings_` may have been a nullptr in which case this operation is only valid
 	// if self->mSettings has been fully set before.
-
-	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN );
+	assert( settings_->base.type == le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN );
 
 	//	VkResult err = ::VkResult::eSuccess;
 
@@ -218,7 +219,7 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 		self->mSwapchainExtent = surfaceCapabilities.currentExtent;
 	}
 
-	auto presentModeHint = get_direct_presentmode( self->mSettings.khr_settings.presentmode_hint );
+	auto presentModeHint = get_direct_presentmode( self->mSettings.presentmode_hint );
 
 	for ( auto& p : presentModes ) {
 		if ( p == presentModeHint ) {
@@ -237,11 +238,11 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 	// We require a minimum of minImageCount+1, so that in case minImageCount
 	// is 3 we can still acquire 2 images without blocking.
 	//
-	self->mImagecount = clamp( self->mSettings.imagecount_hint,
+	self->mImagecount = clamp( self->mSettings.base.imagecount_hint,
 	                           surfaceCapabilities.minImageCount + 1,
 	                           surfaceCapabilities.maxImageCount );
 
-	if ( self->mImagecount != self->mSettings.imagecount_hint ) {
+	if ( self->mImagecount != self->mSettings.base.imagecount_hint ) {
 		logger.warn( "Number of swapchain images was adjusted to: %d. minImageCount: %d, maxImageCount: %d",
 		             self->mImagecount,
 		             surfaceCapabilities.minImageCount,
@@ -295,13 +296,17 @@ static void swapchain_direct_reset( le_swapchain_o* base, const le_swapchain_set
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
+static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_swapchain_settings_t* settings_ ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto base  = new le_swapchain_o( le_swapchain_vk::api->swapchain_direct_i );
 	base->data = new swp_direct_data_o{};
 	auto self  = static_cast<swp_direct_data_o*>( base->data );
+
+	assert( settings_->type == le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN );
+
+	le_swapchain_direct_settings_t const* settings = reinterpret_cast<le_swapchain_direct_settings_t const*>( settings_ );
 
 	self->backend = backend;
 
@@ -311,7 +316,7 @@ static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_
 		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
 		self->vk_graphics_queue_family_index = private_backend_vk_i.get_default_graphics_queue_info( backend )->queue_family_index;
 		self->instance                       = vk_instance_i.get_vk_instance( private_backend_vk_i.get_instance( backend ) );
-		self->display_name                   = settings->khr_direct_mode_settings.display_name ? std::string( settings->khr_direct_mode_settings.display_name ) : "";
+		self->display_name                   = settings->display_name ? std::string( settings->display_name ) : "";
 	}
 
 #ifdef _MSC_VER
@@ -528,41 +533,66 @@ static size_t swapchain_direct_get_swapchain_images_count( le_swapchain_o* base 
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* ) {
+static bool swapchain_request_backend_capabilities( const le_swapchain_settings_t* ) {
 	using namespace le_backend_vk;
-	return api->le_backend_settings_i.add_required_instance_extension( VK_KHR_DISPLAY_EXTENSION_NAME ) &&
-	       api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_direct_mode_display" ) &&
-	       api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_xlib_surface" ) &&
-	       api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_surface" ) &&
-	       api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_acquire_xlib_display" ) &&
-	       api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_display_surface_counter" );
+	return // required device extensions:
+	    api->le_backend_settings_i.add_required_device_extension( "VK_EXT_display_control" ) &&
+	    api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" ) &&
+	    // required instance extensions:
+	    api->le_backend_settings_i.add_required_instance_extension( VK_KHR_DISPLAY_EXTENSION_NAME ) &&
+	    api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_direct_mode_display" ) &&
+	    api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_xlib_surface" ) &&
+	    api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_surface" ) &&
+	    api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_acquire_xlib_display" ) &&
+	    api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_display_surface_counter" );
+	;
 }
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* ) {
-	using namespace le_backend_vk;
-	return api->le_backend_settings_i.add_required_device_extension( "VK_EXT_display_control" ) &&
-	       api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" );
+static le_swapchain_settings_t* swapchain_settings_create( le_swapchain_settings_t::Type type ) {
+	assert( type == le_swapchain_settings_t::LE_DIRECT_SWAPCHAIN );
+	auto ret = new le_swapchain_direct_settings_t{};
+	return reinterpret_cast<le_swapchain_settings_t*>( ret );
 }
 
+// ----------------------------------------------------------------------
+
+static void swapchain_settings_destroy( le_swapchain_settings_t* settings ) {
+	assert( settings->type == le_swapchain_settings_t::LE_DIRECT_SWAPCHAIN );
+	auto obj = reinterpret_cast<le_swapchain_direct_settings_t*>( settings );
+	delete ( obj );
+}
+
+// ----------------------------------------------------------------------
+
+static le_swapchain_settings_t* swapchain_settings_clone( le_swapchain_settings_t const* settings ) {
+	assert( settings->type == le_swapchain_settings_t::LE_DIRECT_SWAPCHAIN );
+	auto obj = reinterpret_cast<le_swapchain_direct_settings_t const*>( settings );
+	auto ret = new le_swapchain_direct_settings_t{ *obj };
+
+	return reinterpret_cast<le_swapchain_settings_t*>( ret );
+}
 // ----------------------------------------------------------------------
 
 void register_le_swapchain_direct_api( void* api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api*>( api_ );
 	auto& swapchain_i = api->swapchain_direct_i;
 
-	swapchain_i.create                              = swapchain_direct_create;
-	swapchain_i.create_from_old_swapchain           = swapchain_direct_create_from_old_swapchain;
-	swapchain_i.destroy                             = swapchain_direct_destroy;
+	swapchain_i.create                    = swapchain_direct_create;
+	swapchain_i.create_from_old_swapchain = swapchain_direct_create_from_old_swapchain;
+	swapchain_i.destroy                   = swapchain_direct_destroy;
 
-	swapchain_i.acquire_next_image                  = swapchain_direct_acquire_next_image;
-	swapchain_i.get_image                           = swapchain_direct_get_image;
-	swapchain_i.get_image_width                     = swapchain_direct_get_image_width;
-	swapchain_i.get_image_height                    = swapchain_direct_get_image_height;
-	swapchain_i.get_surface_format                  = swapchain_direct_get_surface_format;
-	swapchain_i.get_image_count                    = swapchain_direct_get_swapchain_images_count;
-	swapchain_i.present                             = swapchain_direct_present;
-	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
-	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
+	swapchain_i.acquire_next_image           = swapchain_direct_acquire_next_image;
+	swapchain_i.get_image                    = swapchain_direct_get_image;
+	swapchain_i.get_image_width              = swapchain_direct_get_image_width;
+	swapchain_i.get_image_height             = swapchain_direct_get_image_height;
+	swapchain_i.get_surface_format           = swapchain_direct_get_surface_format;
+	swapchain_i.get_image_count              = swapchain_direct_get_swapchain_images_count;
+	swapchain_i.present                      = swapchain_direct_present;
+	swapchain_i.request_backend_capabilities = swapchain_request_backend_capabilities;
+
+	swapchain_i.settings_create  = swapchain_settings_create;
+	swapchain_i.settings_clone   = swapchain_settings_clone;
+	swapchain_i.settings_destroy = swapchain_settings_destroy;
 }

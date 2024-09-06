@@ -87,7 +87,7 @@ static bitonic_merge_sort_example_app_o* bitonic_merge_sort_example_app_create()
 	// Create a new window
 	app->window.setup( settings );
 
-	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
+	app->renderer.setup( app->window );
 
 	app->pixels_data                    = new pixels_data_t{};
 	app->pixels_data->handle            = LE_BUF_RESOURCE( "sort_data" );

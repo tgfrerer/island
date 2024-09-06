@@ -952,9 +952,10 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	static auto     logger    = LeLog( LOGGER_LABEL );
 	using namespace le_swapchain_vk;
 
-	// make a local copy of settings in case we must update settings.
-	le_swapchain_settings_t         swapchain_settings = *settings_;
-	le_backend_vk_settings_o const* backend_settings   = le_backend_vk::api->backend_settings_singleton;
+	// make a local copy of settings in case we must update settings
+	// NOTE: you must manually delete this local copy once you are done with it.
+	le_swapchain_settings_t*        local_swapchain_settings = le_swapchain_vk_api_i->swapchain_i.settings_clone( settings_ );
+	le_backend_vk_settings_o const* backend_settings         = le_backend_vk::api->backend_settings_singleton;
 
 	assert( backend_settings );
 	if ( backend_settings == nullptr ) {
@@ -965,15 +966,18 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	if ( !self->swapchains.empty() ) {
 		// If we already have a swapchain, we cannot have another swapchain which provides fewer images than
 		// this swapchain. more images is okay, fewer images is not okay.
-		swapchain_settings.imagecount_hint =
-		    std::min( swapchain_settings.imagecount_hint,
+		local_swapchain_settings->imagecount_hint =
+		    std::min( local_swapchain_settings->imagecount_hint,
 		              backend_settings->data_frames_count );
 	}
 
 	// Abstract interface call to swapchain to initialize itself.
 	// window swapchains will know how to create a surface at this point
 	//
-	swapchain = swapchain_i.create( self, &swapchain_settings );
+	swapchain = swapchain_i.create( self, local_swapchain_settings );
+
+	// deleting local copy of local_swapchain_settings
+	le_swapchain_vk_api_i->swapchain_i.settings_destroy( local_swapchain_settings );
 
 	assert( swapchain );
 

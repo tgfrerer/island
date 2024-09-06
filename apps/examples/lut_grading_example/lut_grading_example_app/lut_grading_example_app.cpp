@@ -49,7 +49,7 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
+	app->renderer.setup( app->window );
 
 	char const* hald_lut =
 	    "./local_resources/images/night_from_day.png";

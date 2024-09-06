@@ -5,7 +5,6 @@
 #	include "le_renderer.h"
 
 namespace le {
-using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 
 #	define BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
 		constexpr builder& method_name( param_type param default_value ) {              \
@@ -18,238 +17,6 @@ using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 			self->param = param;                                                          \
 			return *this;                                                                 \
 		}
-
-class RendererInfoBuilder {
-
-	template <typename T>
-	class KhrSwapchainInfoBuilder {
-		T&                                       parent;
-		le_swapchain_settings_t::khr_settings_t& settings;
-
-	  public:
-		KhrSwapchainInfoBuilder( T& parent_ )
-		    : parent( parent_ )
-		    , settings( parent.self.khr_settings ) {
-			parent.self.init_khr_settings();
-		}
-
-		KhrSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
-			settings.presentmode_hint = presentmode_hint;
-			return *this;
-		}
-
-		KhrSwapchainInfoBuilder& setWindow( le_window_o* window = nullptr ) {
-			settings.window = window;
-			return *this;
-		}
-
-		auto& end() {
-			return parent;
-		}
-	};
-
-	template <typename T>
-	class DirectSwapchainInfoBuilder {
-		T&                                                   parent;
-		le_swapchain_settings_t::khr_direct_mode_settings_t& settings;
-
-	  public:
-		DirectSwapchainInfoBuilder( T& parent_ )
-		    : parent( parent_ )
-		    , settings( parent.self.khr_direct_mode_settings ) {
-			parent.self.init_khr_direct_mode_settings();
-		}
-
-		DirectSwapchainInfoBuilder& setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
-			settings.presentmode_hint = presentmode_hint;
-			return *this;
-		}
-
-		DirectSwapchainInfoBuilder& setDisplayName( char const* display_name = "" ) {
-			settings.display_name = display_name;
-			return *this;
-		}
-
-		auto& end() {
-			return parent;
-		}
-	};
-
-	template <typename T>
-	class ImgSwapchainInfoBuilder {
-		T&                                       parent;
-		le_swapchain_settings_t::img_settings_t& settings;
-
-		static constexpr auto default_pipe_cmd                = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i - -threads 0 -vcodec h264_nvenc  -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 10 -b:v 5000k -maxrate:v 50000k -pix_fmt yuv420p -r 60 -profile:v high isl%s.mp4";
-		static constexpr auto default_image_filename_template = "isl_%08.raw";
-
-	  public:
-		ImgSwapchainInfoBuilder( T& parent_ )
-		    : parent( parent_ )
-		    , settings( parent_.self.img_settings ) {
-			parent.self.init_img_settings();
-		}
-
-		ImgSwapchainInfoBuilder& setPipeCmd( char const* pipe_cmd = default_pipe_cmd ) {
-			settings.pipe_cmd = pipe_cmd;
-			return *this;
-		}
-
-		ImgSwapchainInfoBuilder& setImageNameTemplate( char const* image_filename_template = default_image_filename_template ) {
-			settings.image_filename_template = image_filename_template;
-			return *this;
-		}
-
-		ImgSwapchainInfoBuilder& setImageEncoderInterface( le_image_encoder_interface_t* interface = nullptr ) {
-			settings.image_encoder_i = interface;
-			return *this;
-		}
-
-		ImgSwapchainInfoBuilder& setImageEncoderParameters( void* parameters = nullptr ) {
-			settings.image_encoder_parameters = parameters;
-			return *this;
-		}
-
-		auto& end() {
-			return parent;
-		}
-	};
-
-	template <typename T>
-	class SwapchainSettingsBuilderT {
-
-		le_swapchain_settings_t  default_data = {};
-		le_swapchain_settings_t& self         = default_data;
-		T*                       parent       = nullptr;
-
-		void initialize( le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ) {
-			self = le_swapchain_settings_t();
-
-			switch ( type ) {
-			case le_swapchain_settings_t::LE_KHR_SWAPCHAIN:
-				self.init_khr_settings();
-				break;
-			case le_swapchain_settings_t::LE_DIRECT_SWAPCHAIN:
-				self.init_khr_direct_mode_settings();
-				break;
-			case le_swapchain_settings_t::LE_IMG_SWAPCHAIN:
-				self.init_img_settings();
-				break;
-			}
-		}
-
-		friend class ImgSwapchainInfoBuilder<SwapchainSettingsBuilderT>;
-		friend class KhrSwapchainInfoBuilder<SwapchainSettingsBuilderT>;
-		friend class DirectSwapchainInfoBuilder<SwapchainSettingsBuilderT>;
-
-	  public:
-		// Factory function, returns settings builder that applies to external settings object
-
-		SwapchainSettingsBuilderT( T* parent_ = nullptr, le_swapchain_settings_t* external_settings = nullptr, le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN )
-		    : parent( parent_ )
-		    , self( external_settings ? *external_settings : default_data ) {
-			initialize( type );
-		}
-
-		BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setWidthHint, uint32_t, width_hint, = 640 )
-		BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setHeightHint, uint32_t, height_hint, = 480 )
-		BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setImagecountHint, uint32_t, imagecount_hint, = 3 )
-		BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
-		BUILDER_IMPLEMENT( SwapchainSettingsBuilderT, setDeferCreate, bool, defer_create, = false )
-
-		ImgSwapchainInfoBuilder<SwapchainSettingsBuilderT> asImgSwapchain() {
-			return *this;
-		};
-
-		KhrSwapchainInfoBuilder<SwapchainSettingsBuilderT> asWindowSwapchain() {
-			return *this;
-		}
-
-		DirectSwapchainInfoBuilder<SwapchainSettingsBuilderT> asDirectSwapchain() {
-			return *this;
-		}
-
-		auto& end() {
-			return *parent;
-		}
-
-		le_swapchain_settings_t const& build() {
-			return self;
-		};
-
-		operator le_swapchain_settings_t const&() {
-			return self;
-		};
-	};
-
-	le_renderer_settings_t   renderer_settings  = {};
-	le_renderer_settings_t&  self               = renderer_settings;
-	le_swapchain_settings_t* swapchain_settings = nullptr;
-	le_window_o*             initial_window     = nullptr;
-	friend class SwapchainSettingsBuilderT<RendererInfoBuilder>;
-
-  public:
-	RendererInfoBuilder( le_window_o* window = nullptr )
-	    : swapchain_settings( renderer_settings.swapchain_settings )
-	    , initial_window( window ) {
-		if ( window ) {
-			// if a window was given, this means that we should generate a default window swapchain
-			auto builder = SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
-			builder.asWindowSwapchain()
-			    .setWindow( window )
-			    .end();
-		}
-	}
-
-	SwapchainSettingsBuilderT<RendererInfoBuilder> addSwapchain() {
-
-		if ( initial_window ) {
-			// if a window was given when initialising the renderer info builder, we must initialize the swapchain with
-			//
-			auto builder = SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings );
-			builder.asWindowSwapchain()
-			    .setWindow( initial_window )
-			    .end();
-			initial_window = nullptr;
-			return builder;
-		} else {
-			return SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
-		}
-	}
-
-	/// If you want to add a swapchain later, you must have declared one of its type
-	/// to the renderer. This will not automatically create the swapchain on renderer setup,
-	/// but it will create the renderer and the backend with the necessary extensions
-	/// for this swapchain to work.
-	SwapchainSettingsBuilderT<RendererInfoBuilder> declareSwapchain() {
-		if ( initial_window ) {
-			auto builder = SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings );
-			builder.asWindowSwapchain()
-			    .setWindow( initial_window )
-			    .end();
-			initial_window = nullptr;
-			builder.setDeferCreate( true );
-			return builder;
-		} else {
-			auto builder = SwapchainSettingsBuilderT<RendererInfoBuilder>( this, swapchain_settings + this->renderer_settings.num_swapchain_settings++ );
-			builder.setDeferCreate( true );
-			return builder;
-		}
-	}
-
-	operator le_renderer_settings_t const&() {
-		return self;
-	}
-
-	le_renderer_settings_t const& build() {
-		return self;
-	};
-
-	using SwapchainSettingsBuilder = le::RendererInfoBuilder::SwapchainSettingsBuilderT<void>; // shorthand for when used on its own.
-};
-
-using RendererSettingsBuilder  = le::RendererInfoBuilder;                               // better name - as the builder returns a le_renderer_settings_t
-using SwapchainSettingsBuilder = le::RendererSettingsBuilder::SwapchainSettingsBuilder; // shorthand for when used on its own.
 
 // ----------------------------------------------------------------------
 
@@ -396,9 +163,9 @@ class Renderer {
 
 	void setup( le_window_o* window = nullptr ) {
 		if ( window ) {
-			le_renderer::renderer_i.setup( self, &le::RendererInfoBuilder( window ).build() );
+			le_renderer::renderer_i.setup_with_window( self, window );
 		} else {
-			le_renderer::renderer_i.setup( self, &le::RendererInfoBuilder().build() );
+			le_renderer::renderer_i.setup( self, {} );
 		}
 	}
 
@@ -407,6 +174,7 @@ class Renderer {
 		le_renderer::renderer_i.update( self, rendergraph );
 	}
 
+	/// Note: you can only add Swapchains to the renderer after the renderer has been setup()
 	le_swapchain_handle addSwapchain( le_swapchain_settings_t const* swapchain_settings ) noexcept {
 		return le_renderer::renderer_i.add_swapchain( self, swapchain_settings );
 	}
@@ -771,12 +539,12 @@ class GraphicsEncoder {
 	}
 
 	GraphicsEncoder& bufferMemoryBarrier(
-	    le::PipelineStageFlags2 const& srcStageMask,
-	    le::PipelineStageFlags2 const& dstStageMask,
-	    le::AccessFlags2 const&        dstAccessMask,
-	    le_buffer_resource_handle const&  buffer,
-	    uint64_t const&                offset = 0,
-	    uint64_t const&                range  = ~( 0ull ) ) {
+	    le::PipelineStageFlags2 const&   srcStageMask,
+	    le::PipelineStageFlags2 const&   dstStageMask,
+	    le::AccessFlags2 const&          dstAccessMask,
+	    le_buffer_resource_handle const& buffer,
+	    uint64_t const&                  offset = 0,
+	    uint64_t const&                  range  = ~( 0ull ) ) {
 		le_renderer::encoder_graphics_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
 		return *this;
 	}
@@ -933,12 +701,12 @@ class ComputeEncoder {
 	}
 
 	ComputeEncoder& bufferMemoryBarrier(
-	    le::PipelineStageFlags2 const& srcStageMask,
-	    le::PipelineStageFlags2 const& dstStageMask,
-	    le::AccessFlags2 const&        dstAccessMask,
-	    le_buffer_resource_handle const&  buffer,
-	    uint64_t const&                offset = 0,
-	    uint64_t const&                range  = ~( 0ull ) ) {
+	    le::PipelineStageFlags2 const&   srcStageMask,
+	    le::PipelineStageFlags2 const&   dstStageMask,
+	    le::AccessFlags2 const&          dstAccessMask,
+	    le_buffer_resource_handle const& buffer,
+	    uint64_t const&                  offset = 0,
+	    uint64_t const&                  range  = ~( 0ull ) ) {
 		le_renderer::encoder_compute_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
 		return *this;
 	}
@@ -980,12 +748,12 @@ class TransferEncoder {
 	}
 
 	TransferEncoder& bufferMemoryBarrier(
-	    le::PipelineStageFlags2 const& srcStageMask,
-	    le::PipelineStageFlags2 const& dstStageMask,
-	    le::AccessFlags2 const&        dstAccessMask,
-	    le_buffer_resource_handle const&  buffer,
-	    uint64_t const&                offset = 0,
-	    uint64_t const&                range  = ~( 0ull ) ) {
+	    le::PipelineStageFlags2 const&   srcStageMask,
+	    le::PipelineStageFlags2 const&   dstStageMask,
+	    le::AccessFlags2 const&          dstAccessMask,
+	    le_buffer_resource_handle const& buffer,
+	    uint64_t const&                  offset = 0,
+	    uint64_t const&                  range  = ~( 0ull ) ) {
 		le_renderer::encoder_transfer_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
 		return *this;
 	}

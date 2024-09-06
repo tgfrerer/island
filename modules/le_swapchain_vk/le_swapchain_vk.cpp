@@ -145,16 +145,30 @@ static inline le_swapchain_vk_api::swapchain_interface_t const* fetch_interface(
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* settings ) {
-	auto interface = fetch_interface( settings->type );
-	return interface->get_required_vk_instance_extensions( settings );
+static le_swapchain_settings_t* swapchain_settings_clone( le_swapchain_settings_t const* obj ) {
+	auto interface = fetch_interface( obj->type );
+	return interface->settings_clone( obj );
 }
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* settings ) {
+static le_swapchain_settings_t* swapchain_settings_create( le_swapchain_settings_t::Type type ) {
+	auto interface = fetch_interface( type );
+	return interface->settings_create( type );
+}
+
+// ----------------------------------------------------------------------
+
+static void swapchain_settings_destroy( le_swapchain_settings_t* obj ) {
+	auto interface = fetch_interface( obj->type );
+	interface->settings_destroy( obj );
+}
+
+// ----------------------------------------------------------------------
+
+static bool swapchain_request_backend_capabilities( const le_swapchain_settings_t* settings ) {
 	auto interface = fetch_interface( settings->type );
-	return interface->get_required_vk_device_extensions( settings );
+	return interface->request_backend_capabilities( settings );
 }
 
 // ----------------------------------------------------------------------
@@ -174,18 +188,21 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api*>( api_ );
 	auto& swapchain_i = api->swapchain_i;
 
-	swapchain_i.create                              = swapchain_create;
-	swapchain_i.create_from_old_swapchain           = swapchain_create_from_old_swapchain;
-	swapchain_i.destroy                             = swapchain_destroy;
-	swapchain_i.acquire_next_image                  = swapchain_acquire_next_image;
-	swapchain_i.get_image                           = swapchain_get_image;
-	swapchain_i.get_image_width                     = swapchain_get_image_width;
-	swapchain_i.get_image_height                    = swapchain_get_image_height;
-	swapchain_i.get_surface_format                  = swapchain_get_surface_format;
-	swapchain_i.get_image_count                     = swapchain_get_swapchain_images_count;
-	swapchain_i.present                             = swapchain_present;
-	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
-	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
+	swapchain_i.create                       = swapchain_create;
+	swapchain_i.create_from_old_swapchain    = swapchain_create_from_old_swapchain;
+	swapchain_i.destroy                      = swapchain_destroy;
+	swapchain_i.acquire_next_image           = swapchain_acquire_next_image;
+	swapchain_i.get_image                    = swapchain_get_image;
+	swapchain_i.get_image_width              = swapchain_get_image_width;
+	swapchain_i.get_image_height             = swapchain_get_image_height;
+	swapchain_i.get_surface_format           = swapchain_get_surface_format;
+	swapchain_i.get_image_count              = swapchain_get_swapchain_images_count;
+	swapchain_i.present                      = swapchain_present;
+	swapchain_i.request_backend_capabilities = swapchain_request_backend_capabilities;
+
+	swapchain_i.settings_create  = swapchain_settings_create;
+	swapchain_i.settings_clone   = swapchain_settings_clone;
+	swapchain_i.settings_destroy = swapchain_settings_destroy;
 
 	auto& swapchain_ref_i   = api->swapchain_ref_i;
 	swapchain_ref_i.dec_ref = swapchain_dec_ref;

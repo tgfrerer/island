@@ -10,6 +10,7 @@
 #include "le_window.h"
 #include "le_log.h"
 #include <iostream>
+#include "le_swapchain_khr.h"
 
 static constexpr auto LOGGER_LABEL = "le_swapchain_khr";
 
@@ -22,22 +23,22 @@ struct SurfaceProperties {
 };
 
 struct khr_data_o {
-	le_swapchain_settings_t mSettings                      = {};
-	le_window_o*            window                         = nullptr;
-	le_backend_o*           backend                        = nullptr;
-	uint32_t                mImagecount                    = 0;
-	uint32_t                mImageIndex                    = uint32_t( ~0 ); // current image index
-	VkSwapchainKHR          swapchainKHR                   = nullptr;
-	VkExtent2D              mSwapchainExtent               = {};
-	VkPresentModeKHR        mPresentMode                   = VK_PRESENT_MODE_FIFO_KHR;
-	uint32_t                vk_graphics_queue_family_index = 0;
-	SurfaceProperties       mSurfaceProperties             = {};
-	std::vector<VkImage>    mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
-	VkInstance              instance                       = nullptr;
-	VkDevice                device                         = nullptr;
-	VkPhysicalDevice        physicalDevice                 = nullptr;
-	VkResult                lastError                      = VK_SUCCESS; // keep track of last error
-	bool                    is_retired                     = false;      // whether this swapchain has been retired
+	le_swapchain_windowed_settings_t mSettings                      = {};
+	le_window_o*                     window                         = nullptr;
+	le_backend_o*                    backend                        = nullptr;
+	uint32_t                         mImagecount                    = 0;
+	uint32_t                         mImageIndex                    = uint32_t( ~0 ); // current image index
+	VkSwapchainKHR                   swapchainKHR                   = nullptr;
+	VkExtent2D                       mSwapchainExtent               = {};
+	VkPresentModeKHR                 mPresentMode                   = VK_PRESENT_MODE_FIFO_KHR;
+	uint32_t                         vk_graphics_queue_family_index = 0;
+	SurfaceProperties                mSurfaceProperties             = {};
+	std::vector<VkImage>             mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
+	VkInstance                       instance                       = nullptr;
+	VkDevice                         device                         = nullptr;
+	VkPhysicalDevice                 physicalDevice                 = nullptr;
+	VkResult                         lastError                      = VK_SUCCESS; // keep track of last error
+	bool                             is_retired                     = false;      // whether this swapchain has been retired
 };
 
 // ----------------------------------------------------------------------
@@ -51,7 +52,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 
 	using namespace le_backend_vk;
 
-	const auto& settings          = self->mSettings.khr_settings;
+	const auto& settings          = self->mSettings;
 	auto&       surfaceProperties = self->mSurfaceProperties;
 
 	vkGetPhysicalDeviceSurfaceSupportKHR( self->physicalDevice, self->vk_graphics_queue_family_index, settings.vk_surface, &surfaceProperties.presentSupported );
@@ -151,7 +152,7 @@ static inline auto clamp( const T& val_, const T& min_, const T& max_ ) {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settings_t* settings_ ) {
+static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_windowed_settings_t* settings_ ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        self   = static_cast<khr_data_o*>( base->data );
@@ -163,25 +164,23 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	{
 		using namespace le_window;
 
-		self->mSettings.width_hint  = window_i.get_surface_width( self->mSettings.khr_settings.window );
-		self->mSettings.height_hint = window_i.get_surface_height( self->mSettings.khr_settings.window );
+		self->mSettings.width_hint  = window_i.get_surface_width( self->mSettings.window );
+		self->mSettings.height_hint = window_i.get_surface_height( self->mSettings.window );
 	}
 
 	// `settings_` may have been a nullptr in which case this operation is only valid
 	// if self->mSettings has been fully set before.
 
-	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN );
-
 	// If there is not yet a surface associated with this swapchain, we must create one
 	// by using the window API.
-	if ( nullptr == self->mSettings.khr_settings.vk_surface ) {
+	if ( nullptr == self->mSettings.vk_surface ) {
 
-		if ( nullptr == self->mSettings.khr_settings.window ) {
+		if ( nullptr == self->mSettings.window ) {
 			logger.error( "No window associated with LE_KHR_SWAPCHAIN %p.", base );
 			return;
 		}
 
-		self->mSettings.khr_settings.vk_surface = le_window::window_i.create_surface( self->mSettings.khr_settings.window, self->instance );
+		self->mSettings.vk_surface = le_window::window_i.create_surface( self->mSettings.window, self->instance );
 	}
 
 	// The surface in SwapchainSettings::windowSurface has been assigned by glfwwindow, through glfw,
@@ -204,7 +203,7 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 		self->mSwapchainExtent = surfaceCapabilities.currentExtent;
 	}
 
-	auto presentModeHint = VkPresentModeKHR( self->mSettings.khr_settings.presentmode_hint );
+	auto presentModeHint = VkPresentModeKHR( self->mSettings.presentmode_hint );
 
 	for ( auto& p : presentModes ) {
 		if ( p == presentModeHint ) {
@@ -222,11 +221,11 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	// We require a minimum of minImageCount+1, so that in case minImageCount
 	// is 3 we can still acquire 2 images without blocking.
 	//
-	self->mImagecount = clamp( self->mSettings.imagecount_hint,
+	self->mImagecount = clamp( self->mSettings.base.imagecount_hint,
 	                           surfaceCapabilities.minImageCount + 1,
 	                           surfaceCapabilities.maxImageCount );
 
-	if ( self->mImagecount != self->mSettings.imagecount_hint ) {
+	if ( self->mImagecount != self->mSettings.base.imagecount_hint ) {
 		logger.warn( "Number of swapchain images was adjusted to: %d. minImageCount: %d, maxImageCount: %d",
 		             self->mImagecount,
 		             surfaceCapabilities.minImageCount,
@@ -245,7 +244,7 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_settin
 	    .sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 	    .pNext                 = nullptr, // optional
 	    .flags                 = 0,       // optional
-	    .surface               = self->mSettings.khr_settings.vk_surface,
+		.surface               = self->mSettings.vk_surface,
 	    .minImageCount         = self->mImagecount,
 	    .imageFormat           = self->mSurfaceProperties.windowSurfaceFormat.format,
 	    .imageColorSpace       = self->mSurfaceProperties.windowSurfaceFormat.colorSpace,
@@ -299,7 +298,9 @@ static le_swapchain_o* swapchain_khr_create( le_backend_o* backend, const le_swa
 
 	self->swapchainKHR = nullptr;
 
-	swapchain_khr_reset( base, settings );
+	assert( settings->type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN );
+
+	swapchain_khr_reset( base, reinterpret_cast<le_swapchain_windowed_settings_t const*>( settings ) );
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	logger.info( "Created Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
@@ -348,14 +349,14 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 		self->swapchainKHR = nullptr;
 	}
 
-	if ( !self->is_retired && self->mSettings.khr_settings.vk_surface ) {
+	if ( !self->is_retired && self->mSettings.vk_surface ) {
 		// In case a swapchain was retired, ownership of the surface has
 		// moved to the currently non-retired instance of the swapchain.
 		//
 		// We only want to destroy a surface if it belonged to a non-retired swapchain.
-		vkDestroySurfaceKHR( self->instance, self->mSettings.khr_settings.vk_surface, nullptr );
-		logger.info( "Destroyed VkSurface: %p", self->mSettings.khr_settings.vk_surface );
-		self->mSettings.khr_settings.vk_surface = nullptr;
+		vkDestroySurfaceKHR( self->instance, self->mSettings.vk_surface, nullptr );
+		logger.info( "Destroyed VkSurface: %p", self->mSettings.vk_surface );
+		self->mSettings.vk_surface = nullptr;
 	}
 
 	delete self; // delete object's data
@@ -507,16 +508,38 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	return true;
 };
 
-static bool swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* ) {
+// ----------------------------------------------------------------------
+
+static bool swapchain_request_backend_capabilities( const le_swapchain_settings_t* ) {
 	using namespace le_backend_vk;
-	return api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
+	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" ) &&
+	       api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
 }
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* ) {
-	using namespace le_backend_vk;
-	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" );
+static le_swapchain_settings_t* swapchain_settings_create( le_swapchain_settings_t::Type type ) {
+	assert( type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN );
+	auto ret = new le_swapchain_windowed_settings_t{};
+	return reinterpret_cast<le_swapchain_settings_t*>( ret );
+}
+
+// ----------------------------------------------------------------------
+
+static void swapchain_settings_destroy( le_swapchain_settings_t* settings ) {
+	assert( settings->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN );
+	auto obj = reinterpret_cast<le_swapchain_windowed_settings_t*>( settings );
+	delete ( obj );
+}
+
+// ----------------------------------------------------------------------
+
+static le_swapchain_settings_t* swapchain_settings_clone( le_swapchain_settings_t const* settings ) {
+	assert( settings->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN );
+	auto obj = reinterpret_cast<le_swapchain_windowed_settings_t const*>( settings );
+	auto ret = new le_swapchain_windowed_settings_t{ *obj };
+
+	return reinterpret_cast<le_swapchain_settings_t*>( ret );
 }
 
 // ----------------------------------------------------------------------
@@ -529,13 +552,16 @@ void register_le_swapchain_khr_api( void* api_ ) {
 	swapchain_i.create_from_old_swapchain = swapchain_create_from_old_swapchain;
 	swapchain_i.destroy                   = swapchain_khr_destroy;
 
-	swapchain_i.acquire_next_image                  = swapchain_khr_acquire_next_image;
-	swapchain_i.get_image                           = swapchain_khr_get_image;
-	swapchain_i.get_image_width                     = swapchain_khr_get_image_width;
-	swapchain_i.get_image_height                    = swapchain_khr_get_image_height;
-	swapchain_i.get_surface_format                  = swapchain_khr_get_surface_format;
-	swapchain_i.get_image_count                     = swapchain_khr_get_swapchain_images_count;
-	swapchain_i.present                             = swapchain_khr_present;
-	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
-	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
+	swapchain_i.acquire_next_image           = swapchain_khr_acquire_next_image;
+	swapchain_i.get_image                    = swapchain_khr_get_image;
+	swapchain_i.get_image_width              = swapchain_khr_get_image_width;
+	swapchain_i.get_image_height             = swapchain_khr_get_image_height;
+	swapchain_i.get_surface_format           = swapchain_khr_get_surface_format;
+	swapchain_i.get_image_count              = swapchain_khr_get_swapchain_images_count;
+	swapchain_i.present                      = swapchain_khr_present;
+	swapchain_i.request_backend_capabilities = swapchain_request_backend_capabilities;
+
+	swapchain_i.settings_create  = swapchain_settings_create;
+	swapchain_i.settings_clone   = swapchain_settings_clone;
+	swapchain_i.settings_destroy = swapchain_settings_destroy;
 }

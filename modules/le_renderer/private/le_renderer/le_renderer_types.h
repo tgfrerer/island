@@ -225,76 +225,12 @@ struct le_image_sampler_info_t {
 	le_image_view_info_t imageView{};
 };
 
-struct le_swapchain_settings_t {
-	enum Type {
-		LE_KHR_SWAPCHAIN = 0,
-		LE_DIRECT_SWAPCHAIN,
-		LE_IMG_SWAPCHAIN,
-	};
-	struct khr_settings_t {
-		enum class Presentmode : uint32_t {
-			eImmediate = 0,
-			eMailbox,
-			eFifo,
-			eDefault = eFifo,
-			eFifoRelaxed,
-			eSharedDemandRefresh,
-			eSharedContinuousRefresh,
-		};
-		Presentmode            presentmode_hint;
-		struct VkSurfaceKHR_T* vk_surface; // Will be set by backend.
-		struct le_window_o*    window;
-	};
-	struct khr_direct_mode_settings_t {
-		khr_settings_t::Presentmode presentmode_hint;
-		struct VkSurfaceKHR_T*      vk_surface;   // Will be set by backend.
-		char const*                 display_name; // Will be matched against display name
-	};
-	struct img_settings_t {
-		struct le_image_encoder_interface_t* image_encoder_i;          // ffdecl. declared in shared/interfaces/le_image_encoder_interface.h
-		void*                                image_encoder_parameters; // non-owning
-		char const*                          image_filename_template;  // a format string, must contain %d for current image number.
-		char const*                          pipe_cmd;                 // command used to save images - will receive stream of images via stdin
-	};
 
-	Type       type            = LE_KHR_SWAPCHAIN;
-	uint32_t   width_hint      = 640;
-	uint32_t   height_hint     = 480;
-	uint32_t   imagecount_hint = 3;
-	le::Format format_hint     = le::Format::eB8G8R8A8Unorm; // preferred surface format
-	uint32_t   defer_create    = 0;                          // if set to non-null, then do not automatically create a swapchain if passed as parameter to renderer.setup()
 
-	union {
-		khr_settings_t             khr_settings;
-		khr_direct_mode_settings_t khr_direct_mode_settings;
-		img_settings_t             img_settings;
-	};
 
-	void init_khr_settings() {
-		this->type                          = LE_KHR_SWAPCHAIN;
-		this->khr_settings.presentmode_hint = khr_settings_t::Presentmode::eDefault;
-		this->khr_settings.vk_surface       = nullptr;
-		this->khr_settings.window           = nullptr;
-	}
-	void init_khr_direct_mode_settings() {
-		this->type                                      = LE_DIRECT_SWAPCHAIN;
-		this->khr_direct_mode_settings.presentmode_hint = khr_settings_t::Presentmode::eDefault;
-		this->khr_direct_mode_settings.display_name     = "";
-		this->khr_direct_mode_settings.vk_surface       = nullptr;
-	}
-	void init_img_settings() {
-		this->type                                  = LE_IMG_SWAPCHAIN;
-		this->img_settings.pipe_cmd                 = "";
-		this->img_settings.image_encoder_i          = nullptr;
-		this->img_settings.image_encoder_parameters = nullptr;
-		this->img_settings.image_filename_template  = "isl_%08d.raw"; // image name template - a printf format string, must contain %d for image number.
-	}
-};
 
 struct le_renderer_settings_t {
-	le_swapchain_settings_t swapchain_settings[ 16 ] = {}; // todo: rename this to initial_swapchain_settings; make sure that this is only accessed during renderer::setup, and not any later. convert this into a linked list!
-	size_t                  num_swapchain_settings   = 0;
-	// TODO: add a hint for number of swapchain frames
+	struct le_swapchain_settings_t* swapchain_settings = nullptr;
 };
 
 // specifies parameters for an image write operation.

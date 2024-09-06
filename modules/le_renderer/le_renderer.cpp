@@ -5,6 +5,7 @@
 
 #include "le_backend_vk.h"
 #include "le_swapchain_vk.h"
+#include "le_swapchain_khr.h"
 #include "le_log.h"
 
 #include <iostream>
@@ -138,12 +139,13 @@ static le_resource_handle_store_t* get_resource_handle_library( bool erase = fal
 
 struct le_renderer_o {
 	// uint64_t      swapchainDirty = false;
-	le_backend_o* backend        = nullptr; // Owned, created in setup
+	le_backend_o* backend = nullptr; // Owned, created in setup
 
-	std::vector<FrameData> frames;
-	size_t                 backendDataFramesCount = 0;
-	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
-	le_renderer_settings_t settings;
+	std::vector<FrameData>           frames;
+	size_t                           backendDataFramesCount = 0;
+	size_t                           currentFrameNumber     = size_t( ~0 ); // ever increasing number of current frame
+	le_renderer_settings_t           settings               = {};           // initial settings for the renderer - these will be used on setup()
+	le_swapchain_windowed_settings_t default_windowed_swapchain_setting;
 };
 
 static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ); // ffdecl
@@ -264,7 +266,7 @@ le_resource_handle renderer_produce_resource_handle(
 // ----------------------------------------------------------------------
 
 static le_image_resource_handle renderer_produce_img_resource_handle( char const* maybe_name, uint8_t num_samples,
-                                                                    le_image_resource_handle reference_handle, uint8_t flags ) {
+                                                                      le_image_resource_handle reference_handle, uint8_t flags ) {
 	return static_cast<le_image_resource_handle>(
 	    renderer_produce_resource_handle( maybe_name, LeResourceType::eImage, num_samples, flags, 0,
 	                                      static_cast<le_resource_handle>( reference_handle ) ) );
@@ -327,6 +329,18 @@ static void renderer_destroy( le_renderer_o* self ) {
 		self->backend = nullptr;
 	}
 
+	// Destroy any swapchain settings objects that were created by cloning
+	// settings in setup()
+	//
+	// Note that we don't increment s in the for loop main clause, but in
+	// the body of the loop, because we must fetch the next pointer before
+	// we destroy the current link in the linked list.
+	for ( auto s = self->settings.swapchain_settings; s != nullptr; ) {
+		le_swapchain_settings_t* next_setting = s->p_next;
+		le_swapchain_vk_api_i->swapchain_i.settings_destroy( s );
+		s = next_setting;
+	}
+
 #if ( LE_MT > 0 )
 	le_jobs::terminate();
 #endif
@@ -363,34 +377,72 @@ static le_pipeline_manager_o* renderer_get_pipeline_manager( le_renderer_o* self
 
 // ----------------------------------------------------------------------
 
-static bool renderer_request_swapchain_capabilities( le_renderer_o* self, le_swapchain_settings_t const* settings, uint32_t settings_count ) {
+// Only returns true if capablilites for **all** swapchains given in settings
+// were successfully requested.
+static bool renderer_request_swapchain_capabilities( le_renderer_o* self, le_swapchain_settings_t const* settings ) {
 
 	// Request extensions from the backend - this must only be called
 	// before or while renderer-setup() is called for the first time.
 
 	using namespace le_swapchain_vk;
+	bool result = true;
 
-	for ( uint32_t i = 0; i != settings_count && settings != nullptr; i++, settings++ ) {
+	for ( auto s = settings; s != nullptr; s = s->p_next ) {
 		// swapchain_i.get_min_max_image_count( settings );
-		swapchain_i.get_required_vk_instance_extensions( settings );
-		swapchain_i.get_required_vk_device_extensions( settings );
+		result &= swapchain_i.request_backend_capabilities( s );
 	}
-	return true;
+
+	return result;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* settings ) {
+static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* settings_ ) {
+	static auto logger = LeLog( "le_renderer" );
 
 	// We store swapchain settings with the renderer so that we can pass
 	// backend a permanent pointer to it.
 
-	self->settings = *settings;
+	if ( settings_ ) {
+		self->settings = *settings_;
+
+		// Make a local copy of swapchain_settings linked list by cloning
+		// settings objects (we clone because swapchain_settings may be
+		// derived, and clone() will copy the correct content depending
+		// on swapchain_setting type.)
+		//
+		// Note that this means that we must destroy all settings that we
+		// have created when we tear down the renderer.
+		{
+			// make a copy of settings linked list
+			le_swapchain_settings_t* list_start = nullptr;
+			le_swapchain_settings_t* list_end   = nullptr;
+			for ( auto s = settings_->swapchain_settings; s != nullptr; s = s->p_next ) {
+				if ( list_start == nullptr ) {
+					list_start = le_swapchain_vk_api_i->swapchain_i.settings_clone( s );
+					list_end   = list_start;
+				} else {
+					list_end->p_next = le_swapchain_vk_api_i->swapchain_i.settings_clone( s );
+					list_end         = list_end->p_next;
+				}
+			}
+			self->settings.swapchain_settings = list_start;
+		}
+	} else {
+		self->settings = {};
+	}
+
 	{
 		// Before we can initialise the backend, we must query for any required
 		// capabilities and extensions that come implied via swapchains:
 
-		renderer_request_swapchain_capabilities( self, self->settings.swapchain_settings, self->settings.num_swapchain_settings );
+		// TODO: we must make sure that swapchains have requested capabilities
+		// at this point in time.
+		bool has_correct_backend_capablities = renderer_request_swapchain_capabilities( self, self->settings.swapchain_settings );
+
+		if ( !has_correct_backend_capablities ) {
+			logger.error( "Could not get all requested backend capabilies." );
+		}
 
 #if ( LE_MT > 0 )
 		le_backend_vk::settings_i.set_concurrency_count( LE_MT );
@@ -415,12 +467,9 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 		// so that the number of data frames is less or equal to the number of
 		// available images in the swapchain.
 		//
-		for ( size_t i = 0; i < self->settings.num_swapchain_settings; i++ ) {
-			auto p_swapchain_settings = &self->settings.swapchain_settings[ i ];
-			if ( p_swapchain_settings && !p_swapchain_settings->defer_create ) {
-				// only create swapchains which do not have the defer_create flag set
-				renderer_add_swapchain( self, p_swapchain_settings );
-			}
+		// swapchain settings are a linked list - which means that you must have set these up before,
+		for ( le_swapchain_settings_t* s = self->settings.swapchain_settings; s != nullptr; s = s->p_next ) {
+			renderer_add_swapchain( self, s );
 		}
 	}
 
@@ -436,9 +485,55 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 	}
 
 	self->currentFrameNumber = 0;
-
-
 }
+
+// ----------------------------------------------------------------------
+// Applies window to first found window swapchain in renderer->settings
+// if no window swapchain is found, a new one is added.
+static void renderer_setup_with_window( le_renderer_o* self, le_window_o* window ) {
+	static auto logger = LeLog( "le_renderer" );
+
+	le_swapchain_settings_t* last_settings            = nullptr;
+	bool                     found_matching_swapchain = false;
+	if ( self->settings.swapchain_settings ) {
+
+		// If swapchain settings exist, we set the window to the first window
+		// swapchain that has not yet a setting for window.
+
+		for ( auto s = self->settings.swapchain_settings; s != nullptr; s = s->p_next ) {
+			last_settings = s;
+			if ( s->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN ) {
+
+				auto sw = reinterpret_cast<le_swapchain_windowed_settings_t*>( s );
+				if ( nullptr == sw->window ) {
+					logger.info( "Applied window pointer to first window swapchain found in"
+					             "renderer settings." );
+
+					sw->window               = window;
+					found_matching_swapchain = true;
+				}
+				break;
+			}
+		}
+
+		// if no window swapchain was found, add one.
+
+		if ( false == found_matching_swapchain ) {
+			self->default_windowed_swapchain_setting.window = window;
+			last_settings->p_next                           = &self->default_windowed_swapchain_setting.base;
+			logger.info( "Inserted window swapchain into renderer settings." );
+		}
+
+	} else {
+		// swapchain settings do not exist, we add a default window swapchain object
+
+		self->default_windowed_swapchain_setting.window = window;
+		self->settings.swapchain_settings               = &self->default_windowed_swapchain_setting.base;
+	}
+
+	renderer_setup( self, &self->settings );
+}
+
 // ----------------------------------------------------------------------
 
 static le_renderer_settings_t const* renderer_get_settings( le_renderer_o* self ) {
@@ -552,7 +647,6 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 
 	auto& frame = self->frames[ frameIndex ];
 
-
 	if ( frame.state != FrameData::State::eRecorded ) {
 		return frame.state;
 	}
@@ -566,14 +660,14 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	le_resource_info_t const* declared_resources_infos = frame.rendergraph->declared_resources_info.data();
 	size_t                    declared_resources_count = frame.rendergraph->declared_resources_id.size();
 
-	    vk_backend_i.acquire_physical_resources(
-	        self->backend,
-	        frameIndex,
-	        passes,
-	        numRenderPasses,
-	        declared_resources,
-	        declared_resources_infos,
-	        declared_resources_count );
+	vk_backend_i.acquire_physical_resources(
+	    self->backend,
+	    frameIndex,
+	    passes,
+	    numRenderPasses,
+	    declared_resources,
+	    declared_resources_infos,
+	    declared_resources_count );
 
 	{
 		// apply root node affinity masks to backend render frame
@@ -586,7 +680,6 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 		    reinterpret_cast<void const*>( p_affinity_masks ), num_affinity_masks,
 		    frame.rendergraph->root_debug_names.data(), frame.rendergraph->root_debug_names.size() );
 	}
-
 
 	frame.state = FrameData::State::eAcquired;
 
@@ -634,8 +727,6 @@ static void renderer_dispatch_frame( le_renderer_o* self, size_t frameIndex ) {
 }
 
 // ----------------------------------------------------------------------
-
-
 
 static le_image_resource_handle renderer_get_swapchain_resource( le_renderer_o* self, le_swapchain_handle swapchain ) {
 	ZoneScoped;
@@ -863,6 +954,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.create                         = renderer_create;
 	le_renderer_i.destroy                        = renderer_destroy;
 	le_renderer_i.setup                          = renderer_setup;
+	le_renderer_i.setup_with_window              = renderer_setup_with_window;
 	le_renderer_i.update                         = renderer_update;
 	le_renderer_i.get_settings                   = renderer_get_settings;
 	le_renderer_i.get_swapchain_extent           = renderer_get_swapchain_extent;

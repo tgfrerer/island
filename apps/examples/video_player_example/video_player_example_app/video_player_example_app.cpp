@@ -136,7 +136,7 @@ static video_player_example_app_o* app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
+	app->renderer.setup( app->window );
 
 	for ( size_t i = 0; i != 1; i++ ) {
 		app_add_video_player( app );

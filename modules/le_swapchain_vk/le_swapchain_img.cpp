@@ -19,6 +19,8 @@
 #include <sstream>
 #include <ctime>
 
+#include "le_swapchain_img.h"
+
 static constexpr auto LOGGER_LABEL = "le_swapchain_img";
 
 struct TransferFrame {
@@ -34,7 +36,7 @@ struct TransferFrame {
 };
 
 struct img_data_o {
-	le_swapchain_settings_t       mSettings;
+	le_swapchain_img_settings_t   mSettings;
 	uint32_t                      mImagecount;                        // Number of images in swapchain
 	uint32_t                      totalImages;                        // total number of produced images
 	uint32_t                      mImageIndex;                        // current image index
@@ -57,7 +59,7 @@ struct img_data_o {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settings_t* settings_ ) {
+static void swapchain_img_reset( le_swapchain_o* base, le_swapchain_img_settings_t const* settings_ ) {
 
 	auto self = static_cast<img_data_o* const>( base->data );
 
@@ -68,7 +70,7 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 		    .height = self->mSettings.height_hint,
 		    .depth  = 1,
 		};
-		self->mImagecount = self->mSettings.imagecount_hint;
+		self->mImagecount = self->mSettings.base.imagecount_hint;
 
 		// If there exists an image encoder parameter object that we own,
 		// and that we created with an earlier version of the image encoder interface
@@ -79,17 +81,17 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 		}
 
 		// Update the image encoder interface
-		self->image_encoder_i = self->mSettings.img_settings.image_encoder_i;
+		self->image_encoder_i = self->mSettings.image_encoder_i;
 
 		// Clone image encoder parameters using the given interface
-		if ( self->image_encoder_i && self->mSettings.img_settings.image_encoder_parameters ) {
+		if ( self->image_encoder_i && self->mSettings.image_encoder_parameters ) {
 			self->image_encoder_parameters =
 			    self->image_encoder_i->clone_image_encoder_parameters_object(
-			        self->mSettings.img_settings.image_encoder_parameters );
+			        self->mSettings.image_encoder_parameters );
 		}
 	}
 
-	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN );
+	assert( self->mSettings.base.type == le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN );
 
 	VkResult imgAllocationResult = VK_ERROR_UNKNOWN;
 	VkResult bufAllocationResult = VK_ERROR_UNKNOWN;
@@ -346,19 +348,23 @@ static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settin
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
+static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swapchain_settings_t* settings_ ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        base   = new le_swapchain_o( le_swapchain_vk::api->swapchain_img_i );
 	base->data         = new img_data_o{};
 	auto self          = static_cast<img_data_o*>( base->data );
+
+	assert( settings_->type == le_swapchain_settings_t::LE_IMG_SWAPCHAIN );
+
+	le_swapchain_img_settings_t const* settings = reinterpret_cast<le_swapchain_img_settings_t const*>( settings_ );
 
 	self->mSettings                      = *settings;
 	self->backend                        = backend;
 	self->windowSurfaceFormat.format     = VkFormat( settings->format_hint );
 	self->windowSurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 	self->mImageIndex                    = uint32_t( ~0 );
-	self->pipe_cmd                       = settings->img_settings.pipe_cmd ? std::string( settings->img_settings.pipe_cmd ) : "";
-	self->image_filename_template        = settings->img_settings.image_filename_template ? std::string( settings->img_settings.image_filename_template ) : "img_%08d.raw";
+	self->pipe_cmd                       = settings->pipe_cmd ? std::string( settings->pipe_cmd ) : "";
+	self->image_filename_template        = settings->image_filename_template ? std::string( settings->image_filename_template ) : "img_%08d.raw";
 
 	{
 
@@ -707,19 +713,40 @@ static size_t swapchain_img_get_swapchain_images_count( le_swapchain_o* base ) {
 	return self->mImagecount;
 }
 
-static bool swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t* ) {
+// ----------------------------------------------------------------------
 
-	return true;
+static bool swapchain_request_backend_capabilities( const le_swapchain_settings_t* ) {
+	using namespace le_backend_vk;
+	// We must activate the swapchain extension otherwise we don't get to transition
+	// the image format from VK_IMAGE_LAYOUT_PRESENT_SRC_KHR --- this is not ideal.
+	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" ) &&
+	       true // NOTE: there are not instance extensions that we require for this particular type of swapchain
+	    ;
+}
+// ----------------------------------------------------------------------
+
+static le_swapchain_settings_t* swapchain_settings_create( le_swapchain_settings_t::Type type ) {
+	assert( type == le_swapchain_settings_t::LE_IMG_SWAPCHAIN );
+	auto ret = new le_swapchain_img_settings_t{};
+	return reinterpret_cast<le_swapchain_settings_t*>( ret );
 }
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t* ) {
-	using namespace le_backend_vk;
-	// We must activate the swapchain extension otherwise we don't get to transition
-	// the image format from VK_IMAGE_LAYOUT_PRESENT_SRC_KHR --- this is not ideal.
-	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" );
-	return true;
+static void swapchain_settings_destroy( le_swapchain_settings_t* settings ) {
+	assert( settings->type == le_swapchain_settings_t::LE_IMG_SWAPCHAIN );
+	auto obj = reinterpret_cast<le_swapchain_img_settings_t*>( settings );
+	delete ( obj );
+}
+
+// ----------------------------------------------------------------------
+
+static le_swapchain_settings_t* swapchain_settings_clone( le_swapchain_settings_t const* settings ) {
+	assert( settings->type == le_swapchain_settings_t::LE_IMG_SWAPCHAIN );
+	auto obj = reinterpret_cast<le_swapchain_img_settings_t const*>( settings );
+	auto ret = new le_swapchain_img_settings_t{ *obj };
+
+	return reinterpret_cast<le_swapchain_settings_t*>( ret );
 }
 // ----------------------------------------------------------------------
 
@@ -731,13 +758,16 @@ void register_le_swapchain_img_api( void* api_ ) {
 	swapchain_i.destroy                   = swapchain_img_destroy;
 	swapchain_i.create_from_old_swapchain = swapchain_img_create_from_old_swapchain;
 
-	swapchain_i.acquire_next_image                  = swapchain_img_acquire_next_image;
-	swapchain_i.get_image                           = swapchain_img_get_image;
-	swapchain_i.get_image_width                     = swapchain_img_get_image_width;
-	swapchain_i.get_image_height                    = swapchain_img_get_image_height;
-	swapchain_i.get_surface_format                  = swapchain_img_get_surface_format;
-	swapchain_i.get_image_count                     = swapchain_img_get_swapchain_images_count;
-	swapchain_i.present                             = swapchain_img_present;
-	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
-	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
+	swapchain_i.acquire_next_image           = swapchain_img_acquire_next_image;
+	swapchain_i.get_image                    = swapchain_img_get_image;
+	swapchain_i.get_image_width              = swapchain_img_get_image_width;
+	swapchain_i.get_image_height             = swapchain_img_get_image_height;
+	swapchain_i.get_surface_format           = swapchain_img_get_surface_format;
+	swapchain_i.get_image_count              = swapchain_img_get_swapchain_images_count;
+	swapchain_i.present                      = swapchain_img_present;
+	swapchain_i.request_backend_capabilities = swapchain_request_backend_capabilities;
+
+	swapchain_i.settings_create  = swapchain_settings_create;
+	swapchain_i.settings_clone   = swapchain_settings_clone;
+	swapchain_i.settings_destroy = swapchain_settings_destroy;
 }
