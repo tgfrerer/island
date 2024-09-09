@@ -459,6 +459,8 @@ static le_swapchain_o* swapchain_img_create_from_old_swapchain( le_swapchain_o* 
 	return nullptr;
 }
 
+static void write_image( img_data_o* self, const TransferFrame& frame ); // ffdecl
+
 // ----------------------------------------------------------------------
 
 static void swapchain_img_destroy( le_swapchain_o* base ) {
@@ -489,7 +491,11 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 
 		auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence, VK_TRUE, 100'000'000 );
 
-		if ( fenceWaitResult != VK_SUCCESS ) {
+		if ( fenceWaitResult == VK_SUCCESS ) {
+			// write the last image (if available)
+			++self->totalImages;
+			write_image( self, self->transferFrames[ imageIndex ] );
+		} else {
 			// assert( false ); // waiting for fence took too long.
 		}
 	}
@@ -549,39 +555,14 @@ struct le_image_encoder_format_o {
 	le::Format format;
 };
 
-static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete, uint32_t* imageIndex ) {
+// ----------------------------------------------------------------------
+
+static void write_image( img_data_o* self, const TransferFrame& frame ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-
-	auto self = static_cast<img_data_o* const>( base->data );
-	// This method will return the next avaliable vk image index for this swapchain, possibly
-	// before this image is available for writing. Image will be ready for writing when
-	// semaphorePresentComplete is signalled.
-
-	// acquire next image, signal semaphore
-	*imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
-
-	auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence, VK_TRUE, 100'000'000 );
-
-	if ( fenceWaitResult != VK_SUCCESS ) {
-		assert( false ); // waiting for fence took too long.
-	}
-
-	vkResetFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence );
-
-	self->mImageIndex = *imageIndex;
-	auto const& frame = self->transferFrames[ *imageIndex ];
-
-	// We only want to write out images which have been rendered into
-	// depending on how deep your image swapchain is, you will have to
-	// wait for n steps for a frame to have passed from record to
-	// submit to render, for it to produce some pixels.
-	//
-	// The first n images will be black...
-
-	if ( true || self->totalImages >= self->mImagecount ) {
+	if ( ( self->totalImages + 1 ) >= self->mImagecount ) {
 		if ( self->image_encoder_i ) {
 			char filename[ 1024 ];
-			sprintf( filename, self->image_filename_template.c_str(), self->totalImages - self->mImagecount );
+			sprintf( filename, self->image_filename_template.c_str(), self->totalImages + 1 - self->mImagecount );
 			logger.info( "Start  Encoding Image: %s", filename );
 
 			le_image_encoder_o* encoder = self->image_encoder_i->create_image_encoder( filename, self->mSwapchainExtent.width, self->mSwapchainExtent.height );
@@ -618,8 +599,41 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 			logger.info( "Wrote Image: %s", file_name );
 		}
 	}
+}
 
+// ----------------------------------------------------------------------
+
+static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete, uint32_t* imageIndex ) {
+	static auto logger = LeLog( LOGGER_LABEL );
+
+	auto self = static_cast<img_data_o* const>( base->data );
+	// This method will return the next avaliable vk image index for this swapchain, possibly
+	// before this image is available for writing. Image will be ready for writing when
+	// semaphorePresentComplete is signalled.
+
+	// acquire next image, signal semaphore
+	*imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
+
+	auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence, VK_TRUE, 100'000'000 );
+
+	if ( fenceWaitResult != VK_SUCCESS ) {
+		assert( false ); // waiting for fence took too long.
+	}
+
+	vkResetFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence );
+
+	self->mImageIndex = *imageIndex;
+	auto const& frame = self->transferFrames[ *imageIndex ];
+
+	// We only want to write out images which have been rendered into
+	// depending on how deep your image swapchain is, you will have to
+	// wait for n steps for a frame to have passed from record to
+	// submit to render, for it to produce some pixels.
+	//
+	// The first n images will be black...
 	++self->totalImages;
+
+	write_image( self, frame );
 
 	// The number of array elements must correspond to the number of wait semaphores, as each
 	// mask specifies what the semaphore is waiting for.
