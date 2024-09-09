@@ -420,11 +420,16 @@ static void swapchain_direct_destroy( le_swapchain_o* base ) {
 
 	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
-	vkDestroySwapchainKHR( self->device, self->swapchainKHR, nullptr );
-	self->swapchainKHR = nullptr;
+	if ( self->swapchainKHR ) {
 
-	vkDestroySurfaceKHR( self->instance, self->surface, nullptr );
-	self->surface = nullptr;
+		vkDestroySwapchainKHR( self->device, self->swapchainKHR, nullptr );
+		self->swapchainKHR = nullptr;
+	}
+
+	if ( self->surface ) {
+		vkDestroySurfaceKHR( self->instance, self->surface, nullptr );
+		self->surface = nullptr;
+	}
 
 	getInstanceProc( self->instance, vkReleaseDisplayEXT );
 	vkReleaseDisplayEXT( self->physicalDevice, self->display );
@@ -437,6 +442,10 @@ static void swapchain_direct_destroy( le_swapchain_o* base ) {
 	delete base; // delete object
 }
 
+// ----------------------------------------------------------------------
+// noop for now. but we should proably release some objects
+static void swapchain_direct_release( le_swapchain_o* base ) {
+}
 // ----------------------------------------------------------------------
 
 static bool swapchain_direct_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete_, uint32_t* imageIndex_ ) {
@@ -581,6 +590,7 @@ void register_le_swapchain_direct_api( void* api_ ) {
 
 	swapchain_i.create                    = swapchain_direct_create;
 	swapchain_i.create_from_old_swapchain = swapchain_direct_create_from_old_swapchain;
+	swapchain_i.release                   = swapchain_direct_release;
 	swapchain_i.destroy                   = swapchain_direct_destroy;
 
 	swapchain_i.acquire_next_image           = swapchain_direct_acquire_next_image;

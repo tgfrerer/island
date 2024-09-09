@@ -36,6 +36,18 @@ struct le_swapchain_vk_api {
 		le_swapchain_o *          ( *create                   ) ( le_backend_o* backend, const le_swapchain_settings_t* settings );
 		le_swapchain_o *          ( *create_from_old_swapchain) ( le_swapchain_o* old_swapchain);
 
+		// Why is there a `releare`? We use this to immediately release the resources that can
+		// be released upon removing a swapchain. In particular, this allows us to immediately
+		// cut the connection between swapchain and window, without destroying the surface (into
+		// which a frame in the back might still be drawing)...
+		//
+		// Not all resources can be released immediately since swapchains must live with the backend
+		// frame. Once the BackendFrame gets recycled, the rest of the resources get destroyed when
+		// the refcount goes to 0 and destroy() gets called.
+		//
+		// Calling `release` is optional.
+		//
+		void                      ( *release                  ) ( le_swapchain_o* self );
 		void                      ( *destroy                  ) ( le_swapchain_o* self );
 
 		bool                      ( *present                  ) ( le_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
@@ -47,15 +59,6 @@ struct le_swapchain_vk_api {
 		uint32_t                  ( *get_image_height         ) ( le_swapchain_o* self );
 		size_t                    ( *get_image_count          ) ( le_swapchain_o* self );
 		
-
-		//
-		// todo: we should rename this to request_backend_settings
-		//
-		//
-		// we then request both the instance extensions and the device extensions
-		// but we also set the data frame count based on what the settings say ...
-		// we will have to test how to make sure that we don't request too many data frames.
-
 		bool                      ( *request_backend_capabilities )(const le_swapchain_settings_t* settings);
 
 		le_swapchain_settings_t* ( *settings_create   ) ( le_swapchain_settings_t::Type type );

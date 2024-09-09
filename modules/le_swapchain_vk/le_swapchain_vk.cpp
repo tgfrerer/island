@@ -116,6 +116,10 @@ static void swapchain_destroy( le_swapchain_o* self ) {
 }
 
 // ----------------------------------------------------------------------
+static void swapchain_release( le_swapchain_o* self ) {
+	self->vtable.release( self );
+}
+// ----------------------------------------------------------------------
 
 static bool swapchain_present( le_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex ) {
 	ZoneScoped;
@@ -191,6 +195,7 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	swapchain_i.create                       = swapchain_create;
 	swapchain_i.create_from_old_swapchain    = swapchain_create_from_old_swapchain;
 	swapchain_i.destroy                      = swapchain_destroy;
+	swapchain_i.release                      = swapchain_release;
 	swapchain_i.acquire_next_image           = swapchain_acquire_next_image;
 	swapchain_i.get_image                    = swapchain_get_image;
 	swapchain_i.get_image_width              = swapchain_get_image_width;

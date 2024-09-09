@@ -334,6 +334,7 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 
 	return new_swapchain;
 }
+
 // ----------------------------------------------------------------------
 
 static void swapchain_khr_destroy( le_swapchain_o* base ) {
@@ -361,6 +362,26 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
 	delete self; // delete object's data
 	delete base; // delete object
+}
+
+// ----------------------------------------------------------------------
+static void swapchain_khr_release( le_swapchain_o* base ) {
+
+	// we use deactivate so that we can sever the connection between
+	// window and surface when we remove a swapchain from the renderer
+	// this is so that we can immediately re-use the window to associate
+	// a new swapchain with it.
+
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto        self   = static_cast<khr_data_o* const>( base->data );
+
+	VkDevice device = self->device;
+
+	if ( self->swapchainKHR ) {
+		vkDestroySwapchainKHR( device, self->swapchainKHR, nullptr );
+		logger.info( "Destroyed Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
+		self->swapchainKHR = nullptr;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -551,6 +572,7 @@ void register_le_swapchain_khr_api( void* api_ ) {
 	swapchain_i.create                    = swapchain_khr_create;
 	swapchain_i.create_from_old_swapchain = swapchain_create_from_old_swapchain;
 	swapchain_i.destroy                   = swapchain_khr_destroy;
+	swapchain_i.release                   = swapchain_khr_release;
 
 	swapchain_i.acquire_next_image           = swapchain_khr_acquire_next_image;
 	swapchain_i.get_image                    = swapchain_khr_get_image;

@@ -537,6 +537,14 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 }
 
 // ----------------------------------------------------------------------
+
+// no-op for now
+static void swapchain_img_release( le_swapchain_o* base ) {
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto        self   = static_cast<img_data_o* const>( base->data );
+}
+
+// ----------------------------------------------------------------------
 struct le_image_encoder_format_o {
 	le::Format format;
 };
@@ -570,7 +578,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	//
 	// The first n images will be black...
 
-	if ( self->totalImages >= self->mImagecount ) {
+	if ( true || self->totalImages >= self->mImagecount ) {
 		if ( self->image_encoder_i ) {
 			char filename[ 1024 ];
 			sprintf( filename, self->image_filename_template.c_str(), self->totalImages - self->mImagecount );
@@ -756,6 +764,7 @@ void register_le_swapchain_img_api( void* api_ ) {
 
 	swapchain_i.create                    = swapchain_img_create;
 	swapchain_i.destroy                   = swapchain_img_destroy;
+	swapchain_i.release                   = swapchain_img_release;
 	swapchain_i.create_from_old_swapchain = swapchain_img_create_from_old_swapchain;
 
 	swapchain_i.acquire_next_image           = swapchain_img_acquire_next_image;

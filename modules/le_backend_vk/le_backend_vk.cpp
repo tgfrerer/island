@@ -1032,12 +1032,21 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 }
 
 // ----------------------------------------------------------------------
-
+// This must only be called on the front thread (RECORD)
 static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle swapchain_handle ) {
+
+	// note that when you remove a window swapchain, you should immediately
+	// cut the connection between the window and the surface, so that the window
+	// can be used again.
 
 	auto it = self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) );
 
 	if ( it != self->swapchains.end() ) {
+
+		// Release resources held by the swapchain that can be released early
+		// so that for examples windows can immediately be recycled.
+		le_swapchain_vk::swapchain_i.release( it->second.get_swapchain() );
+
 		self->swapchains.erase( it );
 		return true;
 	} else {
