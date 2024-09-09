@@ -25,7 +25,6 @@ struct SurfaceProperties {
 struct khr_data_o {
 	le_swapchain_windowed_settings_t mSettings                      = {};
 	struct VkSurfaceKHR_T*           vk_surface                     = nullptr; // this will be set internally -- TODO: find a way to make this private
-	le_window_o*                     window                         = nullptr;
 	le_backend_o*                    backend                        = nullptr;
 	uint32_t                         mImagecount                    = 0;
 	uint32_t                         mImageIndex                    = uint32_t( ~0 ); // current image index
