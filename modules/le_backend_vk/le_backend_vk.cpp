@@ -453,7 +453,7 @@ class swapchain_data_t {
 	le_swapchain_o* swapchain = nullptr; // owned, reference counted. swapchain is destroyed when last reference is deleted.
 
   public:
-    VkSurfaceFormatKHR swapchain_surface_format; // contains VkFormat and (optional) color space
+	VkSurfaceFormatKHR swapchain_surface_format; // contains VkFormat and (optional) color space
 
 	uint32_t height;      ///< height of swapchain image
 	uint32_t width;       ///< width of swapchain image
@@ -562,6 +562,9 @@ struct BackendFrameData {
 	// up the sync state for a resource at different stages of renderpass construction.
 	using sync_chain_table_t = std::unordered_map<le_resource_handle, std::vector<ResourceState>>;
 	sync_chain_table_t syncChainTable;
+
+	// last implicitly synchronised synch chain index for resources that need to be explicitly synched
+	std::unordered_map<le_resource_handle, uint32_t> explicit_sync_requests;
 
 	static_assert( sizeof( VkBuffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
 
@@ -1868,7 +1871,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 			// Resources other than Images are ignored
 
 			// TODO: whe should probably process buffers here, as skipping the loop here
-			// means that Buffers don't ever get added to explicit_sync_ops.
+			// means that Buffers don't ever get added to pre_pass_sync_ops.
 
 			continue;
 		}
@@ -1880,7 +1883,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 		// -- we must add an explicit sync op so that the change happens before the pass - this applies to
 		// passes which don't do implicit syncing, such as compute or transfer passes.
-		currentPass.explicit_sync_ops.emplace_back( syncOp );
+		currentPass.sync_ops_before_pass.emplace_back( syncOp );
 	}
 }
 
@@ -1993,9 +1996,8 @@ static void frame_track_resource_state(
 
 	// Note that only resources of type image may be implicitly synced.
 
-	typedef std::unordered_map<le_resource_handle, uint32_t> SyncChainMap;
-
-	SyncChainMap max_sync_index;
+	std::unordered_map<le_resource_handle, uint32_t>           max_sync_index;
+	std::unordered_map<le_resource_handle, BackendRenderPass*> resource_last_used_in_pass;
 
 	auto insert_if_greater = [ &max_sync_index ]( le_resource_handle const& key, uint32_t value ) {
 		// Updates map entry to highest value
@@ -2011,7 +2013,7 @@ static void frame_track_resource_state(
 		// barrier must be removed, as subpass dependency already takes care
 		// of synchronisation implicitly.
 
-		for ( auto& op : p.explicit_sync_ops ) {
+		for ( auto& op : p.sync_ops_before_pass ) {
 
 			if ( op.resource->data->type != LeResourceType::eImage ) {
 				continue;
@@ -2035,6 +2037,11 @@ static void frame_track_resource_state(
 				// store the current max index, then.
 				max_sync_index[ op.resource ] = op.sync_chain_offset_final;
 			}
+
+			// Track that this image was last seen in this pass
+			// so that we may add one last sync op at the last pass if needed.
+
+			resource_last_used_in_pass[ op.resource ] = &p;
 		}
 
 		// Update max_sync_index, so that it contains the maximum sync chain index for each
@@ -2046,6 +2053,43 @@ static void frame_track_resource_state(
 		for ( size_t a = 0; a != numAttachments; a++ ) {
 			auto const& attachmentInfo = p.attachments[ a ];
 			insert_if_greater( attachmentInfo.resource, attachmentInfo.finalStateOffset );
+		}
+	}
+
+	// Note this applies only to images as max_sync_index does only get filled with resources
+	// that test positively for being images.
+	//
+	// find out whether the max sync index is correct for all elements in sync chain map
+
+	// We insert explicit sync for any resource that does not get synced
+	// via renderpass transitions before we hand over to the swapchain.
+	// This affects the swapchain surface for example, if it gets drawn into
+	// and then sampled from before being handed over to present.
+	// Implicit (renderpass-based sync) would not affect the image as it is
+	// first explicitly transferred to be sampled from. Since there is no more
+	// renderpass that makes use of this image as an attachment, there would
+	// be no more sync happening to this image.
+	// That's what we therefore need to catch, any images with dangling sync ops
+	// that are not implicitly done via renderpasses; these sync ops need to happen
+	// after the last pass that used the image is done with the image. We attach this
+	// to the last pass because we know that the pass can access the image (correct
+	// queue family).
+	//
+	//
+	for ( auto [ handle, max_idx ] : max_sync_index ) {
+		uint32_t sync_indices_count = syncChainTable[ handle ].size();
+		if ( sync_indices_count > max_idx + 1 ) {
+			frame.explicit_sync_requests[ handle ] = max_idx;
+
+			// Store an explicit post-pass sync request with the last pass that touched a
+			// resource. We store with the last pass because this makes it this pass'es
+			// responsibility to return the resource to the last stage in the sync chain.
+
+			resource_last_used_in_pass[ handle ]->sync_ops_after_pass.push_back( { handle, max_idx, sync_indices_count - 1, true } );
+
+			// logger.warn( "Image %s :: sync chain length %d > %d, last used in pass: %s",
+			//              handle->data->debug_name, syncChainTable[ handle ].size(), max_idx,
+			//              resource_last_used_in_pass[ handle ]->debugName );
 		}
 	}
 }
@@ -2200,6 +2244,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	frame.physicalResources.clear();
 	frame.syncChainTable.clear();
+	frame.explicit_sync_requests.clear();
 
 	for ( auto& f : frame.passes ) {
 		if ( f.encoder ) {
@@ -4363,7 +4408,9 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		// Initialise, then build sync chain table - each resource receives initial state
 		// from current entry in frame.availableResources resource map -
 
-		frame.syncChainTable.clear();
+		assert( frame.explicit_sync_requests.empty() );
+		assert( frame.syncChainTable.empty() );
+
 		for ( auto const& res : frame.availableResources ) {
 			frame.syncChainTable.insert( { res.first, { res.second.state } } );
 		}
@@ -4990,17 +5037,17 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			};
 
 			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-			    logger.info( "destroying present complete semaphore %x", p->semaphore );
-			    vkDestroySemaphore( device, p->semaphore, nullptr );
-			    delete ( p );
-		    } );
+				logger.info( "destroying present complete semaphore %x", p->semaphore );
+				vkDestroySemaphore( device, p->semaphore, nullptr );
+				delete ( p );
+			} );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
 
 			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-			    logger.info( "destroying render complete semaphore %x", p->semaphore );
-			    vkDestroySemaphore( device, p->semaphore, nullptr );
-			    delete ( p );
-		    } );
+				logger.info( "destroying render complete semaphore %x", p->semaphore );
+				vkDestroySemaphore( device, p->semaphore, nullptr );
+				delete ( p );
+			} );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.renderComplete->semaphore );
 
 			if ( swapchain_i.acquire_next_image( new_swapchain,
@@ -5111,6 +5158,86 @@ inline DescriptorData* find_descriptor_with_binding_number_and_array_idx(
 }
 
 // ----------------------------------------------------------------------
+static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, BackendFrameData::PerQueueSubmissionData const& submission, std::vector<ExplicitSyncOp> const& explicit_sync_ops, VkCommandBuffer& cmd ) {
+	ZoneScoped;
+	static auto logger = LeLog( LOGGER_LABEL );
+
+	// -- Issue sync barriers for all resources which require explicit sync.
+	//
+	// The spec requires barriers to happen outside of a Renderpass context.
+	//
+	for ( auto const& op : explicit_sync_ops ) {
+		// fill in sync op
+
+		if ( op.active == false ) {
+			continue;
+		}
+
+		// ---------| invariant: barrier is active.
+
+		auto const& syncChain = frame.syncChainTable.at( op.resource );
+
+		auto const& stateInitial = syncChain[ op.sync_chain_offset_initial ];
+		auto const& stateFinal   = syncChain[ op.sync_chain_offset_final ];
+
+		if ( stateInitial != stateFinal ) {
+			// we must issue an image barrier
+
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
+
+				// --------| invariant: barrier is active.
+
+				// print out sync chain for sampled image
+				logger.info( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
+				logger.info( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
+
+				auto const& syncChain = frame.syncChainTable.at( op.resource );
+
+				for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
+					auto const& s = syncChain[ i ];
+					logger.info( "\t % 3d : % 30s : % 30s : % 10s", i,
+					             to_string_vk_access_flags2( s.visible_access ).c_str(),
+					             to_string_vk_pipeline_stage_flags2( s.stage ).c_str(),
+					             to_str_vk_image_layout( s.layout ) );
+				}
+			}
+
+			auto dstImage = frame_data_get_image_from_le_resource_id( &frame, static_cast<le_image_resource_handle>( op.resource ) );
+
+			VkImageMemoryBarrier2 imageLayoutTransfer{
+			    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			    .pNext               = nullptr,
+			    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
+			    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
+			    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
+			    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
+			    .oldLayout           = stateInitial.layout,
+			    .newLayout           = stateFinal.layout,
+			    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			    .image               = dstImage,
+			    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
+			};
+
+			VkDependencyInfo dependencyInfo = {
+			    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+			    .pNext                    = nullptr, // optional
+			    .dependencyFlags          = 0,       // optional
+			    .memoryBarrierCount       = 0,       // optional
+			    .pMemoryBarriers          = 0,
+			    .bufferMemoryBarrierCount = 0, // optional
+			    .pBufferMemoryBarriers    = 0,
+			    .imageMemoryBarrierCount  = 1, // optional
+			    .pImageMemoryBarriers     = &imageLayoutTransfer,
+			};
+
+			vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+		}
+	} // end for all explicit sync ops.
+}
+
+// ----------------------------------------------------------------------
+
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
@@ -5356,86 +5483,10 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				vkCmdBeginDebugUtilsLabelEXT( cmd, &labelInfo );
 			}
 
-			{
-
-				if ( LE_PRINT_DEBUG_MESSAGES ) {
-					logger.info( "*** Frame %d *** Queue %d *** Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
-				}
-
-				// -- Issue sync barriers for all resources which require explicit sync.
-				//
-				// We must to this here, as the spec requires barriers to happen
-				// before renderpass begin.
-				//
-				for ( auto const& op : pass.explicit_sync_ops ) {
-					// fill in sync op
-
-					if ( op.active == false ) {
-						continue;
-					}
-
-					// ---------| invariant: barrier is active.
-
-					auto const& syncChain = frame.syncChainTable[ op.resource ];
-
-					auto const& stateInitial = syncChain[ op.sync_chain_offset_initial ];
-					auto const& stateFinal   = syncChain[ op.sync_chain_offset_final ];
-
-					if ( stateInitial != stateFinal ) {
-						// we must issue an image barrier
-
-						if ( LE_PRINT_DEBUG_MESSAGES ) {
-
-							// --------| invariant: barrier is active.
-
-							// print out sync chain for sampled image
-							logger.info( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
-							logger.info( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
-
-							auto const& syncChain = frame.syncChainTable.at( op.resource );
-
-							for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
-								auto const& s = syncChain[ i ];
-								logger.info( "\t % 3d : % 30s : % 30s : % 10s", i,
-								             to_string_vk_access_flags2( s.visible_access ).c_str(),
-								             to_string_vk_pipeline_stage_flags2( s.stage ).c_str(),
-								             to_str_vk_image_layout( s.layout ) );
-							}
-						}
-
-						auto dstImage = frame_data_get_image_from_le_resource_id( &frame, static_cast<le_image_resource_handle>( op.resource ) );
-
-						VkImageMemoryBarrier2 imageLayoutTransfer{
-						    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-						    .pNext               = nullptr,
-						    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
-						    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
-						    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
-						    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
-						    .oldLayout           = stateInitial.layout,
-						    .newLayout           = stateFinal.layout,
-						    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-						    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-						    .image               = dstImage,
-						    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
-						};
-
-						VkDependencyInfo dependencyInfo = {
-						    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-						    .pNext                    = nullptr, // optional
-						    .dependencyFlags          = 0,       // optional
-						    .memoryBarrierCount       = 0,       // optional
-						    .pMemoryBarriers          = 0,
-						    .bufferMemoryBarrierCount = 0, // optional
-						    .pBufferMemoryBarriers    = 0,
-						    .imageMemoryBarrierCount  = 1, // optional
-						    .pImageMemoryBarriers     = &imageLayoutTransfer,
-						};
-
-						vkCmdPipelineBarrier2( cmd, &dependencyInfo );
-					}
-				} // end for all explicit sync ops.
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
+				logger.info( "*** Frame %d *** Queue %d *** Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 			}
+			pass_insert_explicit_sync_ops( frame, submission, pass.sync_ops_before_pass, cmd );
 
 			// Draw passes must begin by opening a Renderpass context.
 			if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
@@ -6390,9 +6441,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// Image layouts in bulk, covering the full mip chain.
 						VkImageSubresourceRange rangeAllRemainingMiplevels{
 						    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-							.baseMipLevel   = std::min( le_cmd->info.num_miplevels, le_cmd->info.dst_miplevel + 1 ), // TODO: we must make sure that baseMipLevel never is greater than the total number of mip levels available for this image.
-							.levelCount     = VK_REMAINING_MIP_LEVELS,                                               // we want all miplevels to be in transferDstOptimal.
-							.baseArrayLayer = le_cmd->info.dst_array_layer,
+						    .baseMipLevel   = std::min( le_cmd->info.num_miplevels, le_cmd->info.dst_miplevel + 1 ), // TODO: we must make sure that baseMipLevel never is greater than the total number of mip levels available for this image.
+						    .levelCount     = VK_REMAINING_MIP_LEVELS,                                               // we want all miplevels to be in transferDstOptimal.
+						    .baseArrayLayer = le_cmd->info.dst_array_layer,
 						    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // we want the range to encompass all layers
 						};
 
@@ -6424,8 +6475,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							    .pMemoryBarriers          = 0,
 							    .bufferMemoryBarrierCount = 1,
 							    .pBufferMemoryBarriers    = &bufferTransferBarrier,
-								.imageMemoryBarrierCount  = 0,
-								.pImageMemoryBarriers     = nullptr,
+							    .imageMemoryBarrierCount  = 0,
+							    .pImageMemoryBarriers     = nullptr,
 							};
 
 							vkCmdPipelineBarrier2( cmd, &dependency_info );
@@ -6593,48 +6644,48 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							const uint32_t base_miplevel = le_cmd->info.dst_miplevel;
 							{
 								VkImageMemoryBarrier2 revert_prepare_blit{
-									.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-									.pNext               = nullptr,                              //
-									.srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
-									.srcAccessMask       = VK_ACCESS_2_NONE,                     // make transfer write memory available (flush) to layout transition
-									.dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
-									.dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // make cache (after layout transition) visible to transferRead op
-									.oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // layout transition from transfer dst optimal,
-									.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
-									.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-									.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-									.image               = dstImage,
-									.subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
+								    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+								    .pNext               = nullptr,                              //
+								    .srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
+								    .srcAccessMask       = VK_ACCESS_2_NONE,                     // make transfer write memory available (flush) to layout transition
+								    .dstStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,     //
+								    .dstAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,       // make cache (after layout transition) visible to transferRead op
+								    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // layout transition from transfer dst optimal,
+								    .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to shader readonly optimal - note: implicitly makes memory available
+								    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+								    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+								    .image               = dstImage,
+								    .subresourceRange    = { VK_IMAGE_ASPECT_COLOR_BIT, base_miplevel, 1, 0, 1 },
 								};
 
 								VkDependencyInfo dependency_info{
-									.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-									.pNext                    = nullptr,
-									.dependencyFlags          = 0,
-									.memoryBarrierCount       = 0,
-									.pMemoryBarriers          = 0,
-									.bufferMemoryBarrierCount = 0,
-									.pBufferMemoryBarriers    = 0,
-									.imageMemoryBarrierCount  = 1,
-									.pImageMemoryBarriers     = &revert_prepare_blit,
+								    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+								    .pNext                    = nullptr,
+								    .dependencyFlags          = 0,
+								    .memoryBarrierCount       = 0,
+								    .pMemoryBarriers          = 0,
+								    .bufferMemoryBarrierCount = 0,
+								    .pBufferMemoryBarriers    = 0,
+								    .imageMemoryBarrierCount  = 1,
+								    .pImageMemoryBarriers     = &revert_prepare_blit,
 								};
 
 								vkCmdPipelineBarrier2( cmd, &dependency_info );
 							}
 							{
 								VkImageMemoryBarrier2 imageLayoutToShaderReadOptimal{
-									.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-									.pNext               = nullptr,
-									.srcStageMask        = 0,
-									.srcAccessMask       = 0,
-									.dstStageMask        = 0,
-									.dstAccessMask       = 0,
-									.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-									.newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-									.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-									.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-									.image               = dstImage,
-									.subresourceRange    = rangeAllRemainingMiplevels,
+								    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+								    .pNext               = nullptr,
+								    .srcStageMask        = 0,
+								    .srcAccessMask       = 0,
+								    .dstStageMask        = 0,
+								    .dstAccessMask       = 0,
+								    .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+								    .newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+								    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+								    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+								    .image               = dstImage,
+								    .subresourceRange    = rangeAllRemainingMiplevels,
 								};
 
 								// If there were additional miplevels, the miplevel generation logic ensures that all subresources
@@ -6648,15 +6699,15 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 								imageLayoutToShaderReadOptimal.newLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; // ...to shader readonly optimal -and make transitioned image available;
 
 								VkDependencyInfo dependency_info{
-									.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-									.pNext                    = nullptr,
-									.dependencyFlags          = 0,
-									.memoryBarrierCount       = 0,
-									.pMemoryBarriers          = 0,
-									.bufferMemoryBarrierCount = 0,
-									.pBufferMemoryBarriers    = 0,
-									.imageMemoryBarrierCount  = 1,
-									.pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
+								    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+								    .pNext                    = nullptr,
+								    .dependencyFlags          = 0,
+								    .memoryBarrierCount       = 0,
+								    .pMemoryBarriers          = 0,
+								    .bufferMemoryBarrierCount = 0,
+								    .pBufferMemoryBarriers    = 0,
+								    .imageMemoryBarrierCount  = 1,
+								    .pImageMemoryBarriers     = &imageLayoutToShaderReadOptimal,
 								};
 
 								vkCmdPipelineBarrier2( cmd, &dependency_info ); // images: prepare for shader read
@@ -6977,11 +7028,31 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				vkCmdEndRenderPass( cmd );
 			}
 
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
+				logger.info( "*** Frame %d *** Queue %d *** EndRenderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
+			}
+			pass_insert_explicit_sync_ops( frame, submission, pass.sync_ops_after_pass, cmd );
+
 			if ( SHOULD_INSERT_DEBUG_LABELS ) {
 				vkCmdEndDebugUtilsLabelEXT( cmd );
 			}
 
 			vkEndCommandBuffer( cmd );
+		}
+		{
+			// TODO: we need to add an explicit layout transition here post renderpasses -
+			// into another renderpass, and which are now
+			// in the wrong layout -- this needs to happen after the last
+			// renderpass is done with this resource. maybe we need to do
+			// this in its own renderpass...
+
+			// if the last transition for an image was not the end of its synch chain?
+			// we would know this when / where we add the renderpasses.
+
+			// ideally, this happens earlier, and the last renderpass
+			// that uses a resource issues translates it back
+			// -- for this we would need to find out which renderpass
+			// did last use a resource...
 		}
 	}
 }

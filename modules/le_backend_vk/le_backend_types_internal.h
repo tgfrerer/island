@@ -186,5 +186,6 @@ struct BackendRenderPass {
 	struct le_command_buffer_encoder_o* encoder; // owning
 
 	char                        debugName[ 256 ] = ""; // Debug name for renderpass
-	std::vector<ExplicitSyncOp> explicit_sync_ops;     // explicit sync operations for renderpass, these execute before renderpass begins.
+	std::vector<ExplicitSyncOp> sync_ops_before_pass;  // explicit sync operations for renderpass, these execute before renderpass begins.
+	std::vector<ExplicitSyncOp> sync_ops_after_pass;   // explicit sync operations after this renderpass (image layout transfers for example)
 };
