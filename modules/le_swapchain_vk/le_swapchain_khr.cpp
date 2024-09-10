@@ -250,7 +250,7 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 	    .imageColorSpace       = self->mSurfaceProperties.windowSurfaceFormat.colorSpace,
 	    .imageExtent           = self->mSwapchainExtent,
 	    .imageArrayLayers      = 1,
-	    .imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 	    .imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
 	    .queueFamilyIndexCount = 0, // optional
 		.pQueueFamilyIndices   = nullptr,
