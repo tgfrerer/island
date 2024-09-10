@@ -1277,9 +1277,9 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv
     void*                           specialization_map_data,
     uint32_t                        specialization_map_data_num_bytes ) {
 
-    static auto logger = LeLog( LOGGER_LABEL );
+	static auto logger = LeLog( LOGGER_LABEL );
 
-    // We use the canonical path to store a fingerprint of the file
+	// We use the canonical path to store a fingerprint of the file
 
 	// We include specialization data into hash calculation for this module, because specialization data
 	// is stored with the module, and therefore it contributes to the module's phenotype.
@@ -2711,16 +2711,16 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spi
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
     uint32_t                        specialization_map_data_num_bytes ) {
-    return le_shader_manager_create_shader_module_from_spirv(
-        self->shaderManager,
-        spirv_code,
-        spirv_code_length,
-        moduleType,
-        handle,
-        specialization_map_entries,
-        specialization_map_entries_count,
-        specialization_map_data,
-        specialization_map_data_num_bytes );
+	return le_shader_manager_create_shader_module_from_spirv(
+	    self->shaderManager,
+	    spirv_code,
+	    spirv_code_length,
+	    moduleType,
+	    handle,
+	    specialization_map_entries,
+	    specialization_map_entries_count,
+	    specialization_map_data,
+	    specialization_map_data_num_bytes );
 }
 
 // ----------------------------------------------------------------------

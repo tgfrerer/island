@@ -52,9 +52,8 @@ static const std::vector<VkValidationFeatureEnableEXT> enabledValidationFeatures
  */
 
 static const std::vector<VkValidationFeatureDisableEXT> disabledValidationFeatures = {
-// VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT, // this can cause crashes when resizing the swapchain window
- };
-
+    // VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT, // this can cause crashes when resizing the swapchain window
+};
 
 // ----------------------------------------------------------------------
 
@@ -256,9 +255,9 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 	VkValidationFeaturesEXT validationFeatures{
 	    .sType                          = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
 	    .pNext                          = nullptr, // optional
-	    .enabledValidationFeatureCount = uint32_t(enabledValidationFeatures.size()) , 
+	    .enabledValidationFeatureCount  = uint32_t( enabledValidationFeatures.size() ),
 	    .pEnabledValidationFeatures     = enabledValidationFeatures.data(),
-	    .disabledValidationFeatureCount = uint32_t(disabledValidationFeatures.size()),
+	    .disabledValidationFeatureCount = uint32_t( disabledValidationFeatures.size() ),
 	    .pDisabledValidationFeatures    = disabledValidationFeatures.data(),
 	};
 

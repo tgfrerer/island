@@ -106,10 +106,10 @@ void register_le_allocator_linear_api( void* api_ ) {
 	auto  le_backend_vk_api_i   = static_cast<le_backend_vk_api*>( api_ );
 	auto& le_allocator_linear_i = le_backend_vk_api_i->le_allocator_linear_i;
 
-	le_allocator_linear_i.create             = allocator_create;
-	le_allocator_linear_i.destroy            = allocator_destroy;
-	le_allocator_linear_i.allocate           = allocator_allocate;
-	le_allocator_linear_i.reset              = allocator_reset;
+	le_allocator_linear_i.create   = allocator_create;
+	le_allocator_linear_i.destroy  = allocator_destroy;
+	le_allocator_linear_i.allocate = allocator_allocate;
+	le_allocator_linear_i.reset    = allocator_reset;
 }
 
 // ----------------------------------------------------------------------
