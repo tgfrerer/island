@@ -211,9 +211,9 @@ static bool swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 
 	// Either set or get the swapchain surface extents
 
-	if ( surfaceCapabilities.currentExtent.width == 0 ) {
-		self->mSwapchainExtent.width  = self->mSettings.width_hint;
-		self->mSwapchainExtent.height = self->mSettings.height_hint;
+	if ( surfaceCapabilities.currentExtent.width == 0 || surfaceCapabilities.currentExtent.width == ( uint32_t( -1 ) ) ) {
+		self->mSwapchainExtent.width  = le_window_api_i->window_i.get_surface_width( self->mSettings.window );
+		self->mSwapchainExtent.height = le_window_api_i->window_i.get_surface_height( self->mSettings.window );
 	} else {
 		// set dimensions from surface extents if surface extents are available
 		self->mSwapchainExtent = surfaceCapabilities.currentExtent;
