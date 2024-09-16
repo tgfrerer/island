@@ -1,8 +1,8 @@
 #ifndef GUARD_PAL_WINDOW_H
 #define GUARD_PAL_WINDOW_H
 
-#include <stdint.h>
 #include "le_core.h"
+#include <stdint.h>
 
 struct VkInstance_T;
 struct le_window_o;
@@ -99,12 +99,12 @@ namespace le {
 
 class Window {
   public:
-	class Settings : NoCopy, NoMove {
-		le_window_settings_o* self = nullptr;
+    class Settings : NoCopy, NoMove {
+        le_window_settings_o* self = nullptr;
 
 	  public:
 		Settings()
-		    : self( le_window::settings_i.create() ) {
+			: self( le_window::settings_i.create() ) {
 		}
 
 		~Settings() {
@@ -134,15 +134,15 @@ class Window {
 	};
 
   public:
-	le_window_o* self = nullptr;
+    le_window_o* self = nullptr;
 
 	Window()
-	    : self( le_window::window_i.create() ) {
+		: self( le_window::window_i.create() ) {
 		le_window::window_i.increase_reference_count( self );
 	}
 
 	Window( le_window_o* ref )
-	    : self( ref ) {
+		: self( ref ) {
 		le_window::window_i.increase_reference_count( self );
 	}
 

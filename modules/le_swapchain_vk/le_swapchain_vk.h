@@ -36,7 +36,7 @@ struct le_swapchain_vk_api {
 		le_swapchain_o *          ( *create                   ) ( le_backend_o* backend, const le_swapchain_settings_t* settings );
 		le_swapchain_o *          ( *create_from_old_swapchain) ( le_swapchain_o* old_swapchain);
 
-		// Why is there a `releare`? We use this to immediately release the resources that can
+		// Why is there a `release`? We use this to immediately release the resources that can
 		// be released upon removing a swapchain. In particular, this allows us to immediately
 		// cut the connection between swapchain and window, without destroying the surface (into
 		// which a frame in the back might still be drawing)...

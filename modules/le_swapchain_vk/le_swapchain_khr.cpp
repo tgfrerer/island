@@ -80,7 +80,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 	auto   preferredSurfaceFormat     = VkFormat( self->mSettings.format_hint );
 
 	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) &&
-	     ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == VK_FORMAT_UNDEFINED ) ) {
+		 ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == VK_FORMAT_UNDEFINED ) ) {
 
 		// If the surface format list only includes one entry with VK_FORMAT_UNDEFINED,
 		// there is no preferred format, and we must assume VkFormat::eB8G8R8A8Unorm.
@@ -107,8 +107,8 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 	}
 
 	logger.info( "** Surface queried Extents: %d x %d",
-	             surfaceProperties.surfaceCapabilities.currentExtent.width,
-	             surfaceProperties.surfaceCapabilities.currentExtent.height );
+				 surfaceProperties.surfaceCapabilities.currentExtent.width,
+				 surfaceProperties.surfaceCapabilities.currentExtent.height );
 
 	// always select the corresponding color space
 	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].colorSpace;
@@ -230,22 +230,22 @@ static bool swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 
 	if ( self->mPresentMode != presentModeHint ) {
 		logger.warn( "Could not switch to selected Swapchain Present Mode (%s), falling back to: %s",
-		             to_str( presentModeHint ),
-		             to_str( self->mPresentMode ) );
+					 to_str( presentModeHint ),
+					 to_str( self->mPresentMode ) );
 	}
 
 	// We require a minimum of minImageCount+1, so that in case minImageCount
 	// is 3 we can still acquire 2 images without blocking.
 	//
 	self->mImagecount = clamp( self->mSettings.base.imagecount_hint,
-	                           surfaceCapabilities.minImageCount + 1,
-	                           surfaceCapabilities.maxImageCount );
+							   surfaceCapabilities.minImageCount + 1,
+							   surfaceCapabilities.maxImageCount );
 
 	if ( self->mImagecount != self->mSettings.base.imagecount_hint ) {
 		logger.warn( "Number of swapchain images was adjusted to: %d. minImageCount: %d, maxImageCount: %d",
-		             self->mImagecount,
-		             surfaceCapabilities.minImageCount,
-		             surfaceCapabilities.maxImageCount );
+					 self->mImagecount,
+					 surfaceCapabilities.minImageCount,
+					 surfaceCapabilities.maxImageCount );
 	}
 
 	VkSurfaceTransformFlagBitsKHR preTransform{};
@@ -257,34 +257,34 @@ static bool swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 	}
 
 	VkSwapchainCreateInfoKHR swapChainCreateInfo{
-	    .sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-	    .pNext                 = nullptr, // optional
-	    .flags                 = 0,       // optional
+		.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.pNext                 = nullptr, // optional
+		.flags                 = 0,       // optional
 		.surface               = self->vk_surface,
-	    .minImageCount         = self->mImagecount,
-	    .imageFormat           = self->mSurfaceProperties.windowSurfaceFormat.format,
-	    .imageColorSpace       = self->mSurfaceProperties.windowSurfaceFormat.colorSpace,
-	    .imageExtent           = self->mSwapchainExtent,
-	    .imageArrayLayers      = 1,
+		.minImageCount         = self->mImagecount,
+		.imageFormat           = self->mSurfaceProperties.windowSurfaceFormat.format,
+		.imageColorSpace       = self->mSurfaceProperties.windowSurfaceFormat.colorSpace,
+		.imageExtent           = self->mSwapchainExtent,
+		.imageArrayLayers      = 1,
 		.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-	    .imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
-	    .queueFamilyIndexCount = 0, // optional
+		.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0, // optional
 		.pQueueFamilyIndices   = nullptr,
-	    .preTransform          = preTransform,
-	    .compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-	    .presentMode           = self->mPresentMode,
-	    .clipped               = VK_TRUE,
-	    .oldSwapchain          = oldSwapchain,
+		.preTransform          = preTransform,
+		.compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode           = self->mPresentMode,
+		.clipped               = VK_TRUE,
+		.oldSwapchain          = oldSwapchain,
 	};
 
 	if ( vkCreateSwapchainKHR == nullptr ) {
 		logger.error( "Could not find function pointer to create swapchain. \n"
-		              "\t )\n"
-		              "\t ) Most likely you forgot to request the required Vulkan extensions before setting up the renderer. \n"
-		              "\t )\n"
-		              "\t ) Fix this by calling renderer.request_backend_capabilities() with any settings for swapchains you will want to use.\n"
-		              "\t ) This is done implicitly when creating swapchains by passing renderer settings (which contain swapchain settings) to le_renderer.setup().\n"
-		              "\t ) If you, however, decide to explicitly create a swapchain, you must query instance and device extensions **before** you setup the renderer." );
+					  "\t )\n"
+					  "\t ) Most likely you forgot to request the required Vulkan extensions before setting up the renderer. \n"
+					  "\t )\n"
+					  "\t ) Fix this by calling renderer.request_backend_capabilities() with any settings for swapchains you will want to use.\n"
+					  "\t ) This is done implicitly when creating swapchains by passing renderer settings (which contain swapchain settings) to le_renderer.setup().\n"
+					  "\t ) If you, however, decide to explicitly create a swapchain, you must query instance and device extensions **before** you setup the renderer." );
 		assert( false );
 	}
 
@@ -421,7 +421,7 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	}
 
 	if ( self->lastError != VK_SUCCESS &&
-	     self->lastError != VK_SUBOPTIMAL_KHR ) {
+		 self->lastError != VK_SUBOPTIMAL_KHR ) {
 		logger.warn( "KHR Swapchain %p cannot acquire image because of previous error: %s", base, to_str( self->lastError ) );
 		return false;
 	}
@@ -517,14 +517,14 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 		// assert( false );
 	}
 	VkPresentInfoKHR presentInfo{
-	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-	    .pNext              = nullptr, // optional
-	    .waitSemaphoreCount = 1,       // optional
-	    .pWaitSemaphores    = &renderCompleteSemaphore,
-	    .swapchainCount     = 1,
-	    .pSwapchains        = &self->swapchainKHR,
-	    .pImageIndices      = pImageIndex,
-	    .pResults           = nullptr, // optional
+		.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.pNext              = nullptr, // optional
+		.waitSemaphoreCount = 1,       // optional
+		.pWaitSemaphores    = &renderCompleteSemaphore,
+		.swapchainCount     = 1,
+		.pSwapchains        = &self->swapchainKHR,
+		.pImageIndices      = pImageIndex,
+		.pResults           = nullptr, // optional
 	};
 
 	self->lastError = vkQueuePresentKHR( queue_, &presentInfo );
@@ -556,7 +556,7 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 static bool swapchain_request_backend_capabilities( const le_swapchain_settings_t* ) {
 	using namespace le_backend_vk;
 	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" ) &&
-	       api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
+		   api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
 }
 
 // ----------------------------------------------------------------------

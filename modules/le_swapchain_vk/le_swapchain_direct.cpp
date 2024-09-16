@@ -321,7 +321,7 @@ static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_
 
 #ifdef _MSC_VER
 #else
-	self->x11_display    = XOpenDisplay( nullptr );
+	self->x11_display = XOpenDisplay( nullptr );
 #endif
 	auto phyDevice = VkPhysicalDevice( self->physicalDevice );
 
@@ -421,7 +421,6 @@ static void swapchain_direct_destroy( le_swapchain_o* base ) {
 	auto self = static_cast<swp_direct_data_o* const>( base->data );
 
 	if ( self->swapchainKHR ) {
-
 		vkDestroySwapchainKHR( self->device, self->swapchainKHR, nullptr );
 		self->swapchainKHR = nullptr;
 	}
@@ -443,8 +442,9 @@ static void swapchain_direct_destroy( le_swapchain_o* base ) {
 }
 
 // ----------------------------------------------------------------------
-// noop for now. but we should proably release some objects
+// Noop for now. But we should proably release some objects
 static void swapchain_direct_release( le_swapchain_o* base ) {
+	auto self = static_cast<swp_direct_data_o* const>( base->data );
 }
 // ----------------------------------------------------------------------
 
