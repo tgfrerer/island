@@ -39,7 +39,12 @@ struct le_window_api {
 
 		GLFWwindow*     ( *get_glfw_window    ) ( le_window_o* self );
 
-		VkSurfaceKHR_T* ( *create_surface     ) ( le_window_o *, VkInstance_T * );
+		// Note that the caller takes ownership of the VkSurface, and must destroy it after use.
+		// The caller must notify the window that the surface has been destroyed in case they want to
+		// re-use this window by associating a new surface to it later.
+		// Note: `notify_destroy_surface`
+		VkSurfaceKHR_T* ( *create_surface         ) ( le_window_o *, VkInstance_T * );
+		bool            ( *notify_destroy_surface ) ( le_window_o * );
 
 		void            ( *toggle_fullscreen  ) ( le_window_o* self );
 		void			( *set_window_size    ) ( le_window_o* self, uint32_t width, uint32_t height);

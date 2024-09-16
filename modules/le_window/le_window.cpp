@@ -46,12 +46,13 @@ struct WindowGeometry {
 
 struct le_window_o {
 
-	GLFWwindow*          window   = nullptr;
-	VkSurfaceKHR         mSurface = nullptr;
-	VkExtent2D           mSurfaceExtent{};
-	le_window_settings_o mSettings{};
-	size_t               referenceCount = 0;
-	void*                user_data      = nullptr;
+	GLFWwindow*           window = nullptr;
+	std::atomic<uint32_t> surface_counter{}; // number of surfaces that have been allocated (must be 0, or 1)
+	VkSurfaceKHR          mSurface = nullptr;
+	VkExtent2D            mSurfaceExtent{};
+	le_window_settings_o  mSettings{};
+	size_t                referenceCount = 0;
+	void*                 user_data      = nullptr;
 
 	std::atomic<uint32_t>                                  eventQueueBack = 0;        // Event queue currently used to record events
 	std::array<std::atomic<uint32_t>, 2>                   numEventsForQueue{ 0, 0 }; // Counter for events per queue (works as arena allocator marker for events queue)
@@ -380,9 +381,9 @@ static void window_decrease_reference_count( le_window_o* self ) {
 
 static bool pt2_inside_rect( int x, int y, int left, int top, int width, int height ) {
 	return ( x > left &&
-	         x < ( left + width ) &&
-	         y > top &&
-	         y < ( top + height ) );
+			 x < ( left + width ) &&
+			 y > top &&
+			 y < ( top + height ) );
 }
 
 // ----------------------------------------------------------------------
@@ -444,6 +445,8 @@ static void window_toggle_fullscreen( le_window_o* self ) {
 	}
 }
 
+// ----------------------------------------------------------------------
+
 static void window_set_window_size( le_window_o* self, uint32_t width, uint32_t height ) {
 
 	glfwSetWindowSize( self->window, width, height );
@@ -489,10 +492,19 @@ static void window_settings_destroy( le_window_settings_o* self_ ) {
 // ----------------------------------------------------------------------
 // Creates a khr surface using glfw - note that ownership is handed over to
 // the caller which must outlive this le_window_o, and take responsibility
-// of deleting  the surface.
+// of deleting the surface via window_destroy_surface.
 static VkSurfaceKHR_T* window_create_surface( le_window_o* self, VkInstance vkInstance ) {
-	auto        result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
 	static auto logger = LeLog( "le_window" );
+
+	uint32_t prev_num_surfaces = self->surface_counter++;
+
+	if ( prev_num_surfaces != 0 ) {
+		logger.debug( "Error creating surface: surface already existed for window %p", self );
+		self->surface_counter--;
+		return nullptr;
+	}
+
+	auto result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
 	if ( result == VK_SUCCESS ) {
 		int tmp_w = 0;
 		int tmp_h = 0;
@@ -501,10 +513,19 @@ static VkSurfaceKHR_T* window_create_surface( le_window_o* self, VkInstance vkIn
 		self->mSurfaceExtent.width  = uint32_t( tmp_w );
 		logger.debug( "Created surface" );
 	} else {
-		logger.debug( "Error creating surface" );
+		logger.error( "Error creating surface" );
 		return nullptr;
 	}
+
 	return self->mSurface;
+}
+
+// ----------------------------------------------------------------------
+
+// we have been notified that the surface has been destroyed. This means that
+// the window can creat a new surface if it wishes to.
+static bool window_notify_destroy_surface( le_window_o* self ) {
+	return ( 0 == self->surface_counter-- );
 }
 
 // ----------------------------------------------------------------------
@@ -921,14 +942,16 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_api_i->get_clipboard_string = get_clipboard_string;
 	window_api_i->set_clipboard_string = set_clipboard_string;
 
-	auto& window_i                       = window_api_i->window_i;
-	window_i.create                      = window_create;
-	window_i.destroy                     = window_destroy;
+	auto& window_i   = window_api_i->window_i;
+	window_i.create  = window_create;
+	window_i.destroy = window_destroy;
+
 	window_i.setup                       = window_setup;
 	window_i.should_close                = window_should_close;
 	window_i.get_surface_width           = window_get_surface_width;
 	window_i.get_surface_height          = window_get_surface_height;
 	window_i.create_surface              = window_create_surface;
+	window_i.notify_destroy_surface      = window_notify_destroy_surface;
 	window_i.increase_reference_count    = window_increase_reference_count;
 	window_i.decrease_reference_count    = window_decrease_reference_count;
 	window_i.get_reference_count         = window_get_reference_count;
