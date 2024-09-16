@@ -506,6 +506,8 @@ class swapchain_data_t {
 	}
 };
 
+// note that these semaphores may only be deleted once the present
+// fence has been passed - this is not the same fence as the acquire fence...
 struct swapchain_state_t {
 	uint32_t                            image_idx = uint32_t( ~0 );
 	std::shared_ptr<SemaphoreContainer> presentComplete;
@@ -5003,14 +5005,15 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			};
 
 			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-				logger.info( "destroying present complete semaphore %x", p->semaphore );
+                logger.info( "Destroying present complete semaphore %x", p->semaphore );
+
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
 
 			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-				logger.info( "destroying render complete semaphore %x", p->semaphore );
+                logger.info( "Destroying render complete semaphore %x", p->semaphore );
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
@@ -5044,14 +5047,14 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			};
 
 			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-				logger.info( "destroying present complete semaphore %x", p->semaphore );
+                logger.info( "Destroying present complete semaphore %x", p->semaphore );
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
 
 			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-				logger.info( "destroying render complete semaphore %x", p->semaphore );
+                logger.info( "Destroying render complete semaphore %x", p->semaphore );
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
