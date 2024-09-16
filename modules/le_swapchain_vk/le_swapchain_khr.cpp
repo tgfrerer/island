@@ -296,6 +296,7 @@ static bool swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 }
 
 // ----------------------------------------------------------------------
+static void swapchain_khr_destroy( le_swapchain_o* base );
 
 static le_swapchain_o* swapchain_khr_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -333,6 +334,8 @@ static le_swapchain_o* swapchain_khr_create( le_backend_o* backend, const le_swa
 // ----------------------------------------------------------------------
 
 // NOTE: This needs to be an atomic operation
+// retire the old swapchain, and create a new swapchain
+// using the old swapchain's settings and surface.
 static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
 
 	auto new_swapchain  = new le_swapchain_o( old_swapchain->vtable );
@@ -356,10 +359,16 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 
 	return new_swapchain;
 }
-
 // ----------------------------------------------------------------------
+static void swapchain_khr_release( le_swapchain_o* base ) {
 
-static void swapchain_khr_destroy( le_swapchain_o* base ) {
+	// You can call release explicitly to sever the connection between
+	// window and surface when removing a swapchain from the renderer.
+	//
+	// This is so that we can immediately re-use the window to associate
+	// a new swapchain with it.
+	//
+	// `release` is implicitly called by `destroy`
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        self   = static_cast<khr_data_o* const>( base->data );
@@ -379,31 +388,29 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 		// We only want to destroy a surface if it belonged to a non-retired swapchain.
 		vkDestroySurfaceKHR( self->instance, self->vk_surface, nullptr );
 		logger.info( "Destroyed VkSurface: %p", self->vk_surface );
+
+		le_window_api_i->window_i.notify_destroy_surface( self->mSettings.window );
+
+		// Since we increased the reference count on the window when we created a
+		// surface, we can nor decrease the reference count again, as we release
+		// our part-ownership on the window as soon as the surface is destroyed.
+		le_window_api_i->window_i.decrease_reference_count( self->mSettings.window );
+
 		self->vk_surface = nullptr;
 	}
-
-	delete self; // delete object's data
-	delete base; // delete object
 }
 
 // ----------------------------------------------------------------------
-static void swapchain_khr_release( le_swapchain_o* base ) {
 
-	// we use deactivate so that we can sever the connection between
-	// window and surface when we remove a swapchain from the renderer
-	// this is so that we can immediately re-use the window to associate
-	// a new swapchain with it.
+static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        self   = static_cast<khr_data_o* const>( base->data );
 
-	VkDevice device = self->device;
+	swapchain_khr_release( base );
 
-	if ( self->swapchainKHR ) {
-		vkDestroySwapchainKHR( device, self->swapchainKHR, nullptr );
-		logger.info( "Destroyed Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
-		self->swapchainKHR = nullptr;
-	}
+	delete self; // delete object's data
+	delete base; // delete object
 }
 
 // ----------------------------------------------------------------------
