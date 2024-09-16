@@ -335,6 +335,23 @@ static void glfw_framebuffer_resize_callback( GLFWwindow* glfwWindow, int width_
 
 	window->mSurfaceExtent.width  = uint32_t( w );
 	window->mSurfaceExtent.height = uint32_t( h );
+
+	if ( window->mSettings.useEventsQueue ) {
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto& event   = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event   = LeUiEvent::Type::eWindowResize;
+			auto& resize  = event.windowSize;
+			resize.width  = w;
+			resize.height = h;
+
+		} else {
+			logger.warn( "surpassed high watermark" );
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
+	}
 };
 
 // ----------------------------------------------------------------------
