@@ -23,7 +23,8 @@ struct SurfaceProperties {
 };
 
 struct khr_data_o {
-	le_swapchain_windowed_settings_t mSettings                      = {};
+	le_swapchain_windowed_settings_t mSettings = {};
+	std::vector<VkFence>             vk_present_fences;                        // one fence for each presentable image - we use these to protect ourselves by delaying destroying the present semaphores until any in-flight present has completed.
 	struct VkSurfaceKHR_T*           vk_surface                     = nullptr; // this will be set internally -- TODO: find a way to make this private
 	le_backend_o*                    backend                        = nullptr;
 	uint32_t                         mImagecount                    = 0;
@@ -126,6 +127,15 @@ static void swapchain_attach_images( le_swapchain_o* base ) {
 
 	if ( self->mImagecount ) {
 		self->mImageRefs.resize( self->mImagecount );
+		VkFenceCreateInfo fence_create_info = {
+			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, // VkStructureType
+			.pNext = nullptr,                             // void *, optional
+			.flags = VK_FENCE_CREATE_SIGNALED_BIT,        // VkFenceCreateFlags, optional
+		};
+		self->vk_present_fences.resize( self->mImagecount, {} );
+		for ( int i = 0; i != self->mImagecount; i++ ) {
+			vkCreateFence( self->device, &fence_create_info, nullptr, &self->vk_present_fences[ i ] );
+		}
 		result = vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
 		assert( result == VK_SUCCESS );
 
@@ -375,7 +385,11 @@ static void swapchain_khr_release( le_swapchain_o* base ) {
 
 	VkDevice device = self->device;
 
+	// we must wait for the images that are in-flight for present to be complete.
+	vkWaitForFences( self->device, self->vk_present_fences.size(), self->vk_present_fences.data(), true, 1'000'000'000 );
+
 	if ( self->swapchainKHR ) {
+
 		vkDestroySwapchainKHR( device, self->swapchainKHR, nullptr );
 		logger.info( "Destroyed Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
 		self->swapchainKHR = nullptr;
@@ -408,6 +422,11 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 	auto        self   = static_cast<khr_data_o* const>( base->data );
 
 	swapchain_khr_release( base );
+
+	for ( auto& f : self->vk_present_fences ) {
+		vkDestroyFence( self->device, f, nullptr );
+	}
+	self->vk_present_fences.clear();
 
 	delete self; // delete object's data
 	delete base; // delete object
@@ -523,10 +542,23 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 		// return false;
 		// assert( false );
 	}
+
+	uint32_t image_index = *pImageIndex;
+
+	VkSwapchainPresentFenceInfoEXT present_fence_info = {
+		.sType          = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT, // VkStructureType
+		.pNext          = nullptr,                                            // void *, optional
+		.swapchainCount = 1,                                                  // uint32_t
+		.pFences        = &self->vk_present_fences[ *pImageIndex ],           // VkFence const *
+	};
+
+	vkWaitForFences( self->device, 1, present_fence_info.pFences, true, 1'000'000'000 );
+	vkResetFences( self->device, 1, present_fence_info.pFences );
+
 	VkPresentInfoKHR presentInfo{
 		.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-		.pNext              = nullptr, // optional
-		.waitSemaphoreCount = 1,       // optional
+		.pNext              = &present_fence_info, // optional
+		.waitSemaphoreCount = 1,                   // optional
 		.pWaitSemaphores    = &renderCompleteSemaphore,
 		.swapchainCount     = 1,
 		.pSwapchains        = &self->swapchainKHR,
@@ -562,8 +594,25 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 
 static bool swapchain_request_backend_capabilities( const le_swapchain_settings_t* ) {
 	using namespace le_backend_vk;
+
+	static VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT swapchain_maintenance_features = {
+		.sType                 = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT, // VkStructureType
+		.pNext                 = nullptr,                                                                // void *, optional
+		.swapchainMaintenance1 = 1,                                                                      // VkBool32
+	};
+
+	auto p_maintenance_features =
+		( VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT* )
+			api->le_backend_settings_i.get_or_append_features_chain_link(
+				( GenericVkStruct* )( &swapchain_maintenance_features ) );
+
+	p_maintenance_features->swapchainMaintenance1 = true;
+
 	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" ) &&
+		   api->le_backend_settings_i.add_required_device_extension( "VK_EXT_swapchain_maintenance1" ) &&
+		   api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_surface_maintenance1" ) &&
 		   api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
+	;
 }
 
 // ----------------------------------------------------------------------
