@@ -4334,7 +4334,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				assert( false && "texture must have been defined multiple times using identical id within the same renderpass." );
 			}
 		} // end for all textureIds
-	}     // end for all passes
+	} // end for all passes
 }
 
 // ----------------------------------------------------------------------
@@ -4879,7 +4879,7 @@ constexpr static std::array<float, 4> hex_rgba_to_float_colour( uint32_t const& 
 	    ( hex >> 24 ) / 255.f,
 	    ( ( hex >> 16 ) & 0xff ) / 255.f,
 	    ( ( hex >> 8 ) & 0xff ) / 255.f,
-	    ( ( hex )&0xff ) / 255.f,
+        ( ( hex ) & 0xff ) / 255.f,
 	};
 	return result;
 }
