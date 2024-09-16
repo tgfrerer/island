@@ -3,8 +3,11 @@
 #include "private/le_renderer/le_renderer_types.h" // for swapchain_settings
 #include "le_backend_vk.h"
 #include "assert.h"
+#include "le_log.h"
 
 #include "le_tracy.h"
+
+static constexpr auto LOGGER_LABEL = "le_swapchain_vk";
 
 // ----------------------------------------------------------------------
 #ifdef PLUGINS_DYNAMIC
@@ -32,6 +35,7 @@ static void swapchain_inc_ref( le_swapchain_o* base ); // ffdecl.
 
 static le_swapchain_o* swapchain_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
 	post_reload_hook( backend );
 
 #ifdef PLUGINS_DYNAMIC
@@ -51,6 +55,12 @@ static le_swapchain_o* swapchain_create( le_backend_o* backend, const le_swapcha
 	case ( le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ):
 		obj = le_swapchain_vk::api->swapchain_khr_i.create( backend, settings );
 		break;
+	case ( le_swapchain_settings_t::Type::LE_SWAPCHAIN_UNDEFINED ):
+	default: // deliberate fall-through
+		logger.error( "Unrecognised swapchain type." );
+		break;
+	}
+
 	if ( obj ) {
 		swapchain_inc_ref( obj );
 	}
@@ -131,6 +141,7 @@ static bool swapchain_present( le_swapchain_o* self, VkQueue_T* queue, VkSemapho
 
 static inline le_swapchain_vk_api::swapchain_interface_t const* fetch_interface( le_swapchain_settings_t::Type const& type ) {
 	le_swapchain_vk_api::swapchain_interface_t const* interface = nullptr;
+	static auto                                       logger    = LeLog( LOGGER_LABEL );
 
 	switch ( type ) {
 	case le_swapchain_settings_t::LE_KHR_SWAPCHAIN:
@@ -142,6 +153,10 @@ static inline le_swapchain_vk_api::swapchain_interface_t const* fetch_interface(
 	case le_swapchain_settings_t::LE_IMG_SWAPCHAIN:
 		interface = &le_swapchain_vk::api->swapchain_img_i;
 		return interface;
+	case ( le_swapchain_settings_t::Type::LE_SWAPCHAIN_UNDEFINED ):
+	default: // deliberate fall-through
+		logger.error( "Unrecognised swapchain type." );
+		break;
 	}
 
 	assert( false ); // unreachable
