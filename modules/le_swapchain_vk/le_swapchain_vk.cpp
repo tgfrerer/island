@@ -51,9 +51,10 @@ static le_swapchain_o* swapchain_create( le_backend_o* backend, const le_swapcha
 	case ( le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ):
 		obj = le_swapchain_vk::api->swapchain_khr_i.create( backend, settings );
 		break;
+	if ( obj ) {
+		swapchain_inc_ref( obj );
 	}
 
-	swapchain_inc_ref( obj );
 	return obj;
 }
 

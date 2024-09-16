@@ -152,7 +152,7 @@ static inline auto clamp( const T& val_, const T& min_, const T& max_ ) {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_windowed_settings_t* settings_ ) {
+static bool swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_windowed_settings_t* settings_ ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        self   = static_cast<khr_data_o*>( base->data );
@@ -177,10 +177,26 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 
 		if ( nullptr == self->mSettings.window ) {
 			logger.error( "No window associated with LE_KHR_SWAPCHAIN %p.", base );
-			return;
+			return false;
 		}
 
+		// ---------| invariant: self->mSettings.window is not nullptr
+
+		// we must additionally make sure that the window has not got any other swapchains
+		// currently associated with it.
+
+		// we take a shared pointer on the window, so that we can enforce that the window
+		// is alive for as long as this swapchain holds a reference to its surface.
+		le_window::window_i.increase_reference_count( self->mSettings.window );
+
 		self->vk_surface = le_window::window_i.create_surface( self->mSettings.window, self->instance );
+
+		if ( nullptr == self->vk_surface ) {
+			// acquiring the surface didn't work, we don't want to keep holding part-ownership of the
+			// window, as we only need that for the sake of the surface.
+			le_window::window_i.decrease_reference_count( self->mSettings.window );
+			return false;
+		}
 	}
 
 	// The surface in SwapchainSettings::windowSurface has been assigned by glfwwindow, through glfw,
@@ -276,11 +292,13 @@ static void swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 	assert( self->lastError == VK_SUCCESS );
 
 	swapchain_attach_images( base );
+	return true;
 }
 
 // ----------------------------------------------------------------------
 
 static le_swapchain_o* swapchain_khr_create( le_backend_o* backend, const le_swapchain_settings_t* settings ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto base  = new le_swapchain_o( le_swapchain_vk::api->swapchain_khr_i );
 	base->data = new khr_data_o{};
@@ -300,15 +318,19 @@ static le_swapchain_o* swapchain_khr_create( le_backend_o* backend, const le_swa
 
 	assert( settings->type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN );
 
-	swapchain_khr_reset( base, reinterpret_cast<le_swapchain_windowed_settings_t const*>( settings ) );
+	if ( swapchain_khr_reset( base, reinterpret_cast<le_swapchain_windowed_settings_t const*>( settings ) ) ) {
+		logger.info( "Created Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
+		return base;
+	}
 
-	static auto logger = LeLog( LOGGER_LABEL );
-	logger.info( "Created Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
+	// -----------| invariant: Something went wrong - we must clean up
 
-	return base;
+	logger.warn( "Could not create swapchain" );
+	swapchain_khr_destroy( base );
+	return nullptr;
 }
 
-static void swapchain_khr_destroy( le_swapchain_o* base );
+// ----------------------------------------------------------------------
 
 // NOTE: This needs to be an atomic operation
 static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {

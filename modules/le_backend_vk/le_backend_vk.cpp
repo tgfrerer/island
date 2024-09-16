@@ -476,7 +476,7 @@ class swapchain_data_t {
 
   public:
 	swapchain_data_t( le_swapchain_o* swapchain_ = nullptr ) // takes ownership of swapchain.
-	    : swapchain( swapchain_ ){};
+        : swapchain( swapchain_ ) {};
 
 	swapchain_data_t& operator=( swapchain_data_t const& rhs ) {
 		le_swapchain_vk::swapchain_ref_i.inc_ref( rhs.swapchain );
@@ -541,7 +541,7 @@ struct BackendFrameData {
 		std::vector<uint32_t> pass_indices;            // which passes from the current frame to add to this submission, count tells us about number of command buffers that need to be alloated
 		CommandPool*          command_pool;            // non-owning. which command pool from the list of available command pools
 		std::string           debug_root_passes_names; // name of root passes
-	};                                                 //
+	}; //
 	std::vector<PerQueueSubmissionData> queue_submission_data;
 	std::vector<CommandPool*>           available_command_pools; // Owning. reset on frame recycle, delete all objects on BackendFrameData::destroy
 
@@ -981,6 +981,13 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 
 	// deleting local copy of local_swapchain_settings
 	le_swapchain_vk_api_i->swapchain_i.settings_destroy( local_swapchain_settings );
+
+    if ( nullptr == swapchain ) {
+        // return signal for invalid swapchain
+        return nullptr;
+    }
+
+    // ----------| invariant: swapchain is not 0
 
 	assert( swapchain );
 
