@@ -46,7 +46,7 @@ jobs:
       if: startsWith(matrix.name, 'ubuntu')
       shell: bash
       run: 
-        sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev;
+        sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev libwayland-dev libxkbcommon-dev xorg-dev;
 
     - name: (Linux) Setup Environment Variables
       if: startsWith(matrix.name, 'ubuntu')
