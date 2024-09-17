@@ -225,12 +225,8 @@ struct le_image_sampler_info_t {
 	le_image_view_info_t imageView{};
 };
 
-
-
-
-
 struct le_renderer_settings_t {
-	struct le_swapchain_settings_t* swapchain_settings = nullptr;
+	struct le_swapchain_settings_t* swapchain_settings = nullptr; // linked list of swapchain settings
 };
 
 // specifies parameters for an image write operation.
