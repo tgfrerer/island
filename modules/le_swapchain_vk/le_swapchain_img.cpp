@@ -33,13 +33,14 @@ struct TransferFrame {
 	VkFence           frameFence           = nullptr;
 	VkCommandBuffer   cmdPresent           = nullptr; // copies from image to buffer
 	VkCommandBuffer   cmdAcquire           = nullptr; // transfers image back to correct layout
+	bool              in_flight            = false;   // whether this frame is currently rendering on the queue
 };
 
 struct img_data_o {
 	le_swapchain_img_settings_t   mSettings;
-	uint32_t                      mImagecount;                        // Number of images in swapchain
-	uint32_t                      totalImages;                        // total number of produced images
-	uint32_t                      mImageIndex;                        // current image index
+	uint32_t                      swapchain_images_count;             // Number of images in swapchain
+	uint32_t                      current_image_idx;                  // current image index
+	uint32_t                      produced_images_count;              // total number of produced images
 	uint32_t                      vk_queue_family_index;              // queue family index for the queue which this swapchain will use
 	VkExtent3D                    mSwapchainExtent;                   //
 	VkSurfaceFormatKHR            surface_format;                     //
@@ -70,7 +71,7 @@ static void swapchain_img_reset( le_swapchain_o* base, le_swapchain_img_settings
 		    .height = self->mSettings.height_hint,
 		    .depth  = 1,
 		};
-		self->mImagecount = self->mSettings.base.imagecount_hint;
+		self->swapchain_images_count = self->mSettings.base.imagecount_hint;
 
 		// If there exists an image encoder parameter object that we own,
 		// and that we created with an earlier version of the image encoder interface
@@ -96,7 +97,7 @@ static void swapchain_img_reset( le_swapchain_o* base, le_swapchain_img_settings
 	VkResult imgAllocationResult = VK_ERROR_UNKNOWN;
 	VkResult bufAllocationResult = VK_ERROR_UNKNOWN;
 
-	uint32_t const numFrames = self->mImagecount;
+	uint32_t const numFrames = self->swapchain_images_count;
 
 	self->transferFrames.resize( numFrames, {} );
 
@@ -362,7 +363,7 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 	self->backend                   = backend;
 	self->surface_format.format     = VkFormat( settings->format_hint );
 	self->surface_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	self->mImageIndex               = uint32_t( ~0 );
+	self->current_image_idx         = uint32_t( ~0 );
 	self->pipe_cmd                  = settings->pipe_cmd ? std::string( settings->pipe_cmd ) : "";
 	self->image_filename_template   = settings->image_filename_template ? std::string( settings->image_filename_template ) : "img_%08d.raw";
 
@@ -459,7 +460,7 @@ static le_swapchain_o* swapchain_img_create_from_old_swapchain( le_swapchain_o* 
 	return nullptr;
 }
 
-static void write_image( img_data_o* self, const TransferFrame& frame ); // ffdecl
+static void write_image( img_data_o* self, const TransferFrame& frame, uint32_t frame_index ); // ffdecl
 
 // ----------------------------------------------------------------------
 
@@ -480,23 +481,35 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 
 	using namespace le_backend_vk;
 
-	{
-		// -- Wait for current in-flight frame to be completed on device.
+	{ // We flush any images that are still in-flight
+		//
+		if ( self->produced_images_count < self->transferFrames.size() ) {
+			self->produced_images_count = self->transferFrames.size();
+		}
 
-		// We must do this since we're not allowed to delete any vulkan resources
-		// which are currently used by the device. Awaiting the fence guarantees
-		// that no resources are in-flight at this point.
+		for ( uint32_t offset_idx = 0; offset_idx != self->transferFrames.size(); offset_idx++ ) {
 
-		auto imageIndex = ( self->mImageIndex ) % self->mImagecount;
+			uint32_t imageIndex = ( self->current_image_idx + offset_idx + 1 ) % self->swapchain_images_count;
 
-		auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence, VK_TRUE, 100'000'000 );
+			if ( self->transferFrames[ imageIndex ].in_flight == false ) {
+				continue;
+			}
 
-		if ( fenceWaitResult == VK_SUCCESS ) {
-			// write the last image (if available)
-			++self->totalImages;
-			write_image( self, self->transferFrames[ imageIndex ] );
-		} else {
-			// assert( false ); // waiting for fence took too long.
+			// -- Wait for current in-flight frame to be completed on device.
+			//
+			// We must do this since we're not allowed to delete any vulkan resources
+			// which are currently used by the device. Awaiting the fence guarantees
+			// that no resources are in-flight at this point.
+			auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ imageIndex ].frameFence, VK_TRUE, 100'000'000 );
+
+			self->transferFrames[ imageIndex ].in_flight = false;
+
+			if ( fenceWaitResult == VK_SUCCESS ) {
+				write_image( self, self->transferFrames[ imageIndex ], self->produced_images_count - self->transferFrames.size() );
+				++self->produced_images_count;
+			} else {
+				logger.warn( "Could not flush in-flight image swapchain frame: wait for fence took too long." );
+			}
 		}
 	}
 
@@ -557,47 +570,45 @@ struct le_image_encoder_format_o {
 
 // ----------------------------------------------------------------------
 
-static void write_image( img_data_o* self, const TransferFrame& frame ) {
+static void write_image( img_data_o* self, const TransferFrame& frame, uint32_t frame_index ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	if ( ( self->totalImages + 1 ) >= self->mImagecount ) {
-		if ( self->image_encoder_i ) {
-			char filename[ 1024 ];
-			sprintf( filename, self->image_filename_template.c_str(), self->totalImages + 1 - self->mImagecount );
-			logger.info( "Start  Encoding Image: %s", filename );
+	if ( self->image_encoder_i ) {
+		char filename[ 1024 ];
+		sprintf( filename, self->image_filename_template.c_str(), frame_index );
+		logger.info( "Start  Encoding Image: %s", filename );
 
-			le_image_encoder_o* encoder = self->image_encoder_i->create_image_encoder( filename, self->mSwapchainExtent.width, self->mSwapchainExtent.height );
+		le_image_encoder_o* encoder = self->image_encoder_i->create_image_encoder( filename, self->mSwapchainExtent.width, self->mSwapchainExtent.height );
 
-			if ( self->image_encoder_parameters ) {
-				self->image_encoder_i->set_encode_parameters( encoder, self->image_encoder_parameters );
-			}
-
-			le_image_encoder_format_o format_wrapper{ le::Format( self->surface_format.format ) };
-
-			self->image_encoder_i->write_pixels(
-			    encoder, ( uint8_t* )frame.bufferAllocationInfo.pMappedData,
-				frame.bufferAllocationInfo.size,
-			    &format_wrapper );
-
-			self->image_encoder_i->destroy_image_encoder( encoder );
-			logger.info( "Finish Encoding Image: %s", filename );
-
-		} else if ( self->pipe ) {
-			// TODO: we should be able to do the write on the back thread.
-			// the back thread must signal that it is complete with writing
-			// before the next present command is executed.
-
-			// Write out frame contents to ffmpeg via pipe.
-			fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->pipe );
-
-		} else {
-			char file_name[ 1024 ];
-			sprintf( file_name, self->image_filename_template.c_str(), self->totalImages );
-			std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
-			myfile.write( ( char* )frame.bufferAllocationInfo.pMappedData,
-			              self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
-			myfile.close();
-			logger.info( "Wrote Image: %s", file_name );
+		if ( self->image_encoder_parameters ) {
+			self->image_encoder_i->set_encode_parameters( encoder, self->image_encoder_parameters );
 		}
+
+		le_image_encoder_format_o format_wrapper{ le::Format( self->surface_format.format ) };
+
+		self->image_encoder_i->write_pixels(
+			encoder, ( uint8_t* )frame.bufferAllocationInfo.pMappedData,
+			frame.bufferAllocationInfo.size,
+			&format_wrapper );
+
+		self->image_encoder_i->destroy_image_encoder( encoder );
+		logger.info( "Finish Encoding Image: %s", filename );
+
+	} else if ( self->pipe ) {
+		// TODO: we should be able to do the write on the back thread.
+		// the back thread must signal that it is complete with writing
+		// before the next present command is executed.
+
+		// Write out frame contents to ffmpeg via pipe.
+		fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->pipe );
+
+	} else {
+		char file_name[ 1024 ];
+		sprintf( file_name, self->image_filename_template.c_str(), frame_index );
+		std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
+		myfile.write( ( char* )frame.bufferAllocationInfo.pMappedData,
+					  self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
+		myfile.close();
+		logger.info( "Wrote Image: %s", file_name );
 	}
 }
 
@@ -612,7 +623,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// semaphorePresentComplete is signalled.
 
 	// acquire next image, signal semaphore
-	*imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
+	*imageIndex = ( self->current_image_idx + 1 ) % self->swapchain_images_count;
 
 	auto fenceWaitResult = vkWaitForFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence, VK_TRUE, 100'000'000 );
 
@@ -620,9 +631,11 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 		assert( false ); // waiting for fence took too long.
 	}
 
+	self->transferFrames[ *imageIndex ].in_flight = false;
 	vkResetFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence );
 
-	self->mImageIndex = *imageIndex;
+	self->current_image_idx = *imageIndex;
+
 	auto const& frame = self->transferFrames[ *imageIndex ];
 
 	// We only want to write out images which have been rendered into
@@ -630,10 +643,20 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// wait for n steps for a frame to have passed from record to
 	// submit to render, for it to produce some pixels.
 	//
-	// The first n images will be black...
-	++self->totalImages;
+	// The images will originally be black, until they have completed
+	// the round-trip to the renderer. We know they have completed the
+	// round-trip as soon as self->produced_images_count == self->transferFrames.size().
+	//
+	if ( self->produced_images_count >= self->transferFrames.size() ) {
+		write_image( self, frame, self->produced_images_count - self->transferFrames.size() );
+	}
+	++self->produced_images_count;
 
-	write_image( self, frame );
+	// ----------| invariant: CPU read-access to memory held by this frame is now complete.
+	//  			          since write_image is a synchronous operation
+
+	// this frame is now ready to be re-used
+	self->transferFrames[ *imageIndex ].in_flight = true;
 
 	// The number of array elements must correspond to the number of wait semaphores, as each
 	// mask specifies what the semaphore is waiting for.
@@ -732,7 +755,7 @@ static uint32_t swapchain_img_get_image_height( le_swapchain_o* base ) {
 
 static size_t swapchain_img_get_swapchain_images_count( le_swapchain_o* base ) {
 	auto self = static_cast<img_data_o* const>( base->data );
-	return self->mImagecount;
+	return self->swapchain_images_count;
 }
 
 // ----------------------------------------------------------------------
