@@ -21,6 +21,8 @@ struct triangle_app_o {
 
 	LeCamera           camera;
 	LeCameraController cameraController;
+
+	le_image_resource_handle swapchain_image = nullptr; // This image will be shown on-screen.
 };
 
 typedef triangle_app_o app_o;
@@ -51,7 +53,7 @@ static app_o* app_create() {
 
 	le::Window::Settings settings;
 	settings
-	    .setWidth( 1024 )
+		.setWidth( 1024 )
 	    .setHeight( 1024 )
 	    .setTitle( "Island // TriangleApp" );
 
@@ -59,6 +61,11 @@ static app_o* app_create() {
 	app->window.setup( settings );
 
 	app->renderer.setup( app->window );
+
+	// Fetch the swapchain image handle so that we know which image to
+	// render into. Only renderpasses that contribute to this image will
+	// be executed in the rendergraph.
+	app->swapchain_image = app->renderer.getSwapchainResource();
 
 	// Set up the camera
 	app_reset_camera( app );
@@ -88,10 +95,9 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto app = static_cast<app_o*>( user_data );
 
 	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
-	static le_image_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = app->renderer.getSwapchainResource();
 
 	rp
-	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().build() ) // color attachment
+		.addColorAttachment( app->swapchain_image, le::ImageAttachmentInfoBuilder().build() ) // color attachment
 	    ;
 
 	return true;
@@ -103,7 +109,7 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 
 	// Draw main scene
 
-	auto        app = static_cast<app_o*>( user_data );
+	auto                app = static_cast<app_o*>( user_data );
 	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
@@ -177,7 +183,7 @@ static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
 	LeUiEvent const* pEvents;
-	window_i.get_ui_event_queue( self->window, &pEvents,&numEvents );
+	window_i.get_ui_event_queue( self->window, &pEvents, &numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
