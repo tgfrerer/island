@@ -95,5 +95,16 @@ static const auto& swapchain_ref_i = api->swapchain_ref_i;
 
 } // namespace le_swapchain_vk
 
+namespace le {
+
+class SwapchainVk {
+  public:
+    static bool init( le_swapchain_settings_t const* settings ) {
+        return le_swapchain_vk::swapchain_i.request_backend_capabilities( settings );
+    }
+};
+
+} // namespace le
+
 #endif // __cplusplus
 #endif // GUARD_PAL_BACKEND_VK_H
