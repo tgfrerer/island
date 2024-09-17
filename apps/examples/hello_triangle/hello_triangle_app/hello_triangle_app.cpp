@@ -6,6 +6,8 @@
 #include "le_camera.h"
 #include "le_ui_event.h"
 #include "le_tracy.h"
+#include "le_swapchain_vk.h"
+#include "le_swapchain_khr.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -17,13 +19,21 @@
 #include <sstream>
 #include <vector>
 
+struct PerWindowData {
+	le::Window                       window;
+	le_swapchain_windowed_settings_t windowed_swapchain_settings{};
+	le_swapchain_handle              swapchain;
+	le_image_resource_handle         swapchain_image;
+};
+
 struct hello_triangle_app_o {
-	le::Window   window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
 	LeCamera           camera;
 	LeCameraController cameraController;
+
+	PerWindowData window; // only one Window for now...
 };
 
 // We use this local typedef so spare us lots of typing
@@ -33,6 +43,8 @@ typedef hello_triangle_app_o app_o;
 
 static void app_initialize() {
 	LE_TRACY_ENABLE_LOG( -1 );
+
+	le::SwapchainVk::init( le_swapchain_windowed_settings_t{} );
 	le::Window::init();
 };
 
@@ -60,10 +72,16 @@ static app_o* app_create() {
 	    .setTitle( "Island // HelloTriangleApp" );
 
 	// create a new window
-	app->window.setup( settings );
+	app->window.window.setup( settings );
 
 	// create a new renderer
-	app->renderer.setup( app->window );
+	app->renderer.setup();
+
+	app->window.windowed_swapchain_settings.window           = app->window.window;
+	app->window.windowed_swapchain_settings.presentmode_hint = le_swapchain_windowed_settings_t::Presentmode::eFifo;
+
+	app->window.swapchain       = app->renderer.addSwapchain( app->window.windowed_swapchain_settings );
+	app->window.swapchain_image = app->renderer.getSwapchainResource();
 
 	// Set up the camera
 	app_reset_camera( app );
@@ -87,14 +105,21 @@ static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
 	LeUiEvent const* pEvents;
-	window_i.get_ui_event_queue( self->window, &pEvents,&numEvents );
+	window_i.get_ui_event_queue( self->window.window, &pEvents, &numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
+
+	LeUiEvent last_resize{};
+	bool      was_resized = false;
 
 	bool wantsToggle = false;
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			last_resize = event;
+			was_resized = true;
+		} break;
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
@@ -130,7 +155,28 @@ static void app_process_ui_events( app_o* self ) {
 	self->cameraController.processEvents( self->camera, events.data(), events.size() );
 
 	if ( wantsToggle ) {
-		self->window.toggleFullscreen();
+		self->window.window.toggleFullscreen();
+	}
+
+	if ( was_resized ) {
+
+		// If the window was resized, we want to create a new swapchain -- we must do
+		// this as wayland does not allow us to re-use the old surface.
+		//
+		self->renderer.removeSwapchain( self->window.swapchain );
+
+		// Create a new swapchain
+		self->window.windowed_swapchain_settings.width_hint  = last_resize.windowSize.width;
+		self->window.windowed_swapchain_settings.height_hint = last_resize.windowSize.height;
+		self->window.windowed_swapchain_settings.window      = self->window.window;
+		self->window.swapchain                               = self->renderer.addSwapchain( self->window.windowed_swapchain_settings );
+
+		// We must update the swapchain image as we want the one from the newly created swapchain.
+		self->window.swapchain_image = self->renderer.getSwapchainResource( self->window.swapchain );
+
+		if ( self->window.swapchain ) {
+			app_reset_camera( self );
+		}
 	}
 }
 
@@ -184,6 +230,7 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 	MvpUbo mvp;
 	mvp.model = glm::mat4( 1.f ); // identity matrix
 	mvp.model = glm::scale( mvp.model, glm::vec3( 4.5 ) );
+	mvp.model = glm::rotate( mvp.model, ( glm::two_pi<float>() * ( app->frame_counter % 360 ) / 360.f ), glm::vec3( 0, 0, 1 ) );
 	app->camera.getViewMatrix( ( float* )( &mvp.view ) );
 	app->camera.getProjectionMatrix( ( float* )( &mvp.projection ) );
 
@@ -195,7 +242,7 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 
 	glm::vec4 vertexColors[] = {
 	    { 1, 0, 0, 1.f },
-	    { 0, 1, 0, 1.f },
+	    { 1, 1, 0, 1.f },
 	    { 0, 0, 1, 1.f },
 	};
 
@@ -219,46 +266,45 @@ static bool app_update( app_o* self ) {
 	// Polls events for all windows
 	le::Window::pollEvents();
 
-	if ( self->window.shouldClose() ) {
+	if ( self->window.window.shouldClose() ) {
 		return false;
 	}
 
 	// Update interactive camera using mouse inputs
 	app_process_ui_events( self );
 
-	// We use a RenderModule to give the renderer a top-level overview
+	// We use a RenderGraph to give the renderer a top-level overview
 	// of how we wish to do rendering.
 	//
 	// Our key tool for structure is a RenderPass, which represents
 	// a collection of resource inputs (images, buffers) and resource
 	// outputs (color attachments, depth attachments).
 	// By connecting their outputs to one or more subsequent RenderPass
-	// inputs, RenderPasseses can form a graph, which the renderer must
+	// inputs, RenderPasses can form a graph, which the renderer must
 	// respect.
 	//
 	// A key image resource is `LE_SWAPCHAIN_IMAGE_HANDLE` - whatever
 	// you draw into this resource will end up on screen. Only
 	// renderpasses which contribute to this resource will get
 	// executed.
-	static le_image_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
 
-	le::RenderGraph renderGraph{};
-	{
+	le::RenderGraph rg{};
+	if ( self->window.swapchain ) {
 
 		auto renderPassFinal =
 		    le::RenderPass( "root", le::QueueFlagBits::eGraphics )
-		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE ) // Color attachment
-		        .setExecuteCallback( self, pass_main_exec )      // This is where we record our draw commands
+				.addColorAttachment( self->window.swapchain_image ) // Color attachment
+				.setExecuteCallback( self, pass_main_exec )          // This is where we record our draw commands
 		    ;
 
-		renderGraph.addRenderPass( renderPassFinal );
+		rg.addRenderPass( renderPassFinal );
 	}
 
 	// This evaluate the rendergraph by first calling `setup()` on all
 	// renderpasses, then checking which passes contribute to
-	// `LE_SWAPCHAIN_IMAGE_HANDLE`, and then executing contributing
+	// `app->swapchain_image`, and then executing contributing
 	// passes in order.
-	self->renderer.update( renderGraph );
+	self->renderer.update( rg );
 
 	self->frame_counter++;
 
