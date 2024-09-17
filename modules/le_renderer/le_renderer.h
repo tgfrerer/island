@@ -49,14 +49,12 @@ struct le_renderer_api {
 		le_backend_o*                  ( *get_backend             )( le_renderer_o* self );
 
 	
-		// note: this method must be called before setup()
-
 		le_image_resource_handle       ( * get_swapchain_resource)( le_renderer_o* self, le_swapchain_handle swapchain);
 		le_image_resource_handle       ( * get_swapchain_resource_default)( le_renderer_o* self);
 		bool                           ( * get_swapchain_extent  )( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t* p_width, uint32_t* p_height );
 		bool                           ( * get_swapchains        )(le_renderer_o* self, size_t *num_swapchains , le_swapchain_handle* p_swapchain_handles);
 
-		// Note that you must test for result not being 0 (which signals swapchain creation failed)
+		// Note that you must test the result of `add_swapchain` for 0 (which signals that swapchain creation failed)
 		le_swapchain_handle 		   ( * add_swapchain 		 )(le_renderer_o* self, le_swapchain_settings_t const * settings);
 		bool 						   ( * remove_swapchain 	 )(le_renderer_o* self, le_swapchain_handle swapchain);
 
