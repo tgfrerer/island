@@ -521,9 +521,8 @@ static VkSurfaceKHR_T* window_create_surface( le_window_o* self, VkInstance vkIn
 }
 
 // ----------------------------------------------------------------------
-
-// we have been notified that the surface has been destroyed. This means that
-// the window can creat a new surface if it wishes to.
+// We are being notified that the surface has been destroyed.
+// This means that the window can create a new surface if it wishes to.
 static bool window_notify_destroy_surface( le_window_o* self ) {
 	return ( 0 == self->surface_counter-- );
 }
@@ -758,6 +757,8 @@ static GLFWwindow* window_get_glfw_window( le_window_o* self ) {
 // + or Android ANativeWindow*.
 static void* window_get_os_native_window_handle( le_window_o* self ) {
 
+	// TODO: we must check whether we use Wayland or X11 -
+	//       use the correct function.
 #if defined( __linux__ )
 	//	void *window = ( void * )glfwGetWaylandWindow( self->window );
 	void* window = ( void* )glfwGetX11Window( self->window );
