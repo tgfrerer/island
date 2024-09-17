@@ -42,7 +42,7 @@ struct img_data_o {
 	uint32_t                      mImageIndex;                        // current image index
 	uint32_t                      vk_queue_family_index;              // queue family index for the queue which this swapchain will use
 	VkExtent3D                    mSwapchainExtent;                   //
-	VkSurfaceFormatKHR            windowSurfaceFormat;                //
+	VkSurfaceFormatKHR            surface_format;                     //
 	uint32_t                      reserved__;                         // RESERVED for packing this struct
 	VkDevice                      device;                             // Owned by backend
 	VkPhysicalDevice              physicalDevice;                     // Owned by backend
@@ -111,7 +111,7 @@ static void swapchain_img_reset( le_swapchain_o* base, le_swapchain_img_settings
 			    .pNext                 = nullptr, // optional
 			    .flags                 = 0,       // optional
 			    .imageType             = VK_IMAGE_TYPE_2D,
-			    .format                = self->windowSurfaceFormat.format,
+				.format                = self->surface_format.format,
 			    .extent                = self->mSwapchainExtent,
 			    .mipLevels             = 1,
 			    .arrayLayers           = 1,
@@ -358,13 +358,13 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 
 	le_swapchain_img_settings_t const* settings = reinterpret_cast<le_swapchain_img_settings_t const*>( settings_ );
 
-	self->mSettings                      = *settings;
-	self->backend                        = backend;
-	self->windowSurfaceFormat.format     = VkFormat( settings->format_hint );
-	self->windowSurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	self->mImageIndex                    = uint32_t( ~0 );
-	self->pipe_cmd                       = settings->pipe_cmd ? std::string( settings->pipe_cmd ) : "";
-	self->image_filename_template        = settings->image_filename_template ? std::string( settings->image_filename_template ) : "img_%08d.raw";
+	self->mSettings                 = *settings;
+	self->backend                   = backend;
+	self->surface_format.format     = VkFormat( settings->format_hint );
+	self->surface_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+	self->mImageIndex               = uint32_t( ~0 );
+	self->pipe_cmd                  = settings->pipe_cmd ? std::string( settings->pipe_cmd ) : "";
+	self->image_filename_template   = settings->image_filename_template ? std::string( settings->image_filename_template ) : "img_%08d.raw";
 
 	{
 
@@ -401,7 +401,7 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 
 		std::string pix_fmt = "rgba";
 
-		switch ( self->windowSurfaceFormat.format ) {
+		switch ( self->surface_format.format ) {
 		case ( VK_FORMAT_R8G8B8A8_UNORM ): // fall-through
 		case ( VK_FORMAT_R8G8B8A8_SRGB ):
 			pix_fmt = "rgba";
@@ -571,11 +571,11 @@ static void write_image( img_data_o* self, const TransferFrame& frame ) {
 				self->image_encoder_i->set_encode_parameters( encoder, self->image_encoder_parameters );
 			}
 
-			le_image_encoder_format_o format_wrapper{ le::Format( self->windowSurfaceFormat.format ) };
+			le_image_encoder_format_o format_wrapper{ le::Format( self->surface_format.format ) };
 
 			self->image_encoder_i->write_pixels(
 			    encoder, ( uint8_t* )frame.bufferAllocationInfo.pMappedData,
-			    frame.bufferAllocationInfo.size,
+				frame.bufferAllocationInfo.size,
 			    &format_wrapper );
 
 			self->image_encoder_i->destroy_image_encoder( encoder );
@@ -710,7 +710,7 @@ static VkImage swapchain_img_get_image( le_swapchain_o* base, uint32_t index ) {
 
 static VkSurfaceFormatKHR* swapchain_img_get_surface_format( le_swapchain_o* base ) {
 	auto self = static_cast<img_data_o* const>( base->data );
-	return &reinterpret_cast<VkSurfaceFormatKHR&>( self->windowSurfaceFormat );
+	return &reinterpret_cast<VkSurfaceFormatKHR&>( self->surface_format );
 }
 
 // ----------------------------------------------------------------------
