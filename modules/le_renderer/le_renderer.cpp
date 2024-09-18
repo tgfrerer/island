@@ -143,8 +143,8 @@ struct le_renderer_o {
 
 	std::vector<FrameData>           frames;
 	size_t                           backendDataFramesCount = 0;
-	size_t                           currentFrameNumber     = size_t( ~0 ); // ever increasing number of current frame
-	le_renderer_settings_t           settings               = {};           // initial settings for the renderer - these will be used on setup()
+	size_t                           currentFrameNumber     = 0;  // ever increasing number of current frame
+	le_renderer_settings_t           settings               = {}; // initial settings for the renderer - these will be used on setup()
 	le_swapchain_windowed_settings_t default_windowed_swapchain_setting;
 };
 
@@ -538,6 +538,12 @@ static void renderer_setup_with_window( le_renderer_o* self, le_window_o* window
 
 static le_renderer_settings_t const* renderer_get_settings( le_renderer_o* self ) {
 	return &self->settings;
+}
+
+// ----------------------------------------------------------------------
+
+static size_t renderer_get_current_frame_number( le_renderer_o* self ) {
+	return self->currentFrameNumber;
 }
 
 // ----------------------------------------------------------------------
@@ -957,6 +963,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.setup_with_window              = renderer_setup_with_window;
 	le_renderer_i.update                         = renderer_update;
 	le_renderer_i.get_settings                   = renderer_get_settings;
+	le_renderer_i.get_current_frame_number       = renderer_get_current_frame_number;
 	le_renderer_i.get_swapchain_extent           = renderer_get_swapchain_extent;
 	le_renderer_i.get_pipeline_manager           = renderer_get_pipeline_manager;
 	le_renderer_i.get_backend                    = renderer_get_backend;

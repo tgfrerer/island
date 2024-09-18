@@ -44,6 +44,7 @@ struct le_renderer_api {
 
 		void                           ( *update                  )( le_renderer_o *obj, le_rendergraph_o *rendergraph);
 
+        size_t 						   ( *get_current_frame_number)( le_renderer_o* obj);
         le_renderer_settings_t const * ( *get_settings            )( le_renderer_o* self );
 
 		le_backend_o*                  ( *get_backend             )( le_renderer_o* self );

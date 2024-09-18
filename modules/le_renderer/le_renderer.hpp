@@ -178,6 +178,10 @@ class Renderer {
 		return *le_renderer::renderer_i.get_settings( self );
 	}
 
+	size_t getCurrentFrameNumber() const noexcept {
+		return le_renderer::renderer_i.get_current_frame_number( self );
+	}
+
 	/// Note: you can only add Swapchains to the renderer after the renderer has been setup()
 	le_swapchain_handle addSwapchain( le_swapchain_settings_t const* swapchain_settings ) noexcept {
 		return le_renderer::renderer_i.add_swapchain( self, swapchain_settings );
