@@ -51,6 +51,7 @@ struct img_data_o {
 	le_backend_o*                 backend = nullptr;                  // Not owned. Backend owns swapchain.
 	std::vector<TransferFrame>    transferFrames;                     //
 	std::string                   image_filename_template  = "";      // template for image file name
+	size_t                        frame_number_offset      = 0;       // optional -- added to running frame number - useful to match renderer frame numbers to image names
 	le_image_encoder_interface_t* image_encoder_i          = nullptr; // optional, non-owing: generic encoder api
 	void*                         image_encoder_parameters = nullptr; // optional, owning - cloned via `image_encoder_i.clone_image_encoder_parameters_object()`
 	FILE*                         pipe                     = nullptr; // Pipe to ffmpeg. Owned. must be closed if opened
@@ -366,6 +367,7 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 	self->current_image_idx         = uint32_t( ~0 );
 	self->pipe_cmd                  = settings->pipe_cmd ? std::string( settings->pipe_cmd ) : "";
 	self->image_filename_template   = settings->image_filename_template ? std::string( settings->image_filename_template ) : "img_%08d.raw";
+	self->frame_number_offset       = settings->frame_number_offset;
 
 	{
 
@@ -574,7 +576,7 @@ static void write_image( img_data_o* self, const TransferFrame& frame, uint32_t 
 	static auto logger = LeLog( LOGGER_LABEL );
 	if ( self->image_encoder_i ) {
 		char filename[ 1024 ];
-		sprintf( filename, self->image_filename_template.c_str(), frame_index );
+		sprintf( filename, self->image_filename_template.c_str(), frame_index + self->frame_number_offset );
 		logger.info( "Start  Encoding Image: %s", filename );
 
 		le_image_encoder_o* encoder = self->image_encoder_i->create_image_encoder( filename, self->mSwapchainExtent.width, self->mSwapchainExtent.height );
@@ -603,7 +605,7 @@ static void write_image( img_data_o* self, const TransferFrame& frame, uint32_t 
 
 	} else {
 		char file_name[ 1024 ];
-		sprintf( file_name, self->image_filename_template.c_str(), frame_index );
+		sprintf( file_name, self->image_filename_template.c_str(), frame_index + self->frame_number_offset );
 		std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
 		myfile.write( ( char* )frame.bufferAllocationInfo.pMappedData,
 					  self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
