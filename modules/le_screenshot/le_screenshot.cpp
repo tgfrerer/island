@@ -7,6 +7,7 @@
 #include "le_swapchain_img.h"
 #include "le_png.h"
 #include "le_log.h"
+#include <filesystem>
 
 static constexpr auto LOGGER_LABEL = "le_screenshot";
 
@@ -214,6 +215,37 @@ static bool le_screenshot_record( le_screenshot_o* self, le_rendergraph_o* rg, l
 		if ( self->swapchain_settings.height_hint == 0 ) {
 			self->swapchain_settings.height_hint = fallback_height;
 		};
+
+		{
+
+			// We scan the target directory for existing screenshots - if screenshots exist,
+			// then we will try to find the one with the highest number matching our labelling scheme
+			// and start our new screenshots at this offset.
+
+			auto        target_path    = std::filesystem::path( self->swapchain_settings.image_filename_template ).remove_filename();
+			std::string ext            = std::filesystem::path( self->swapchain_settings.image_filename_template ).extension();
+			uint32_t    largest_number = 0;
+
+			// iterate over all files in the target path -- this can get slow if there are lots of files in there.
+			for ( auto const& f : std::filesystem::directory_iterator{ target_path } ) {
+				if ( std::filesystem::is_regular_file( f ) && f.path().extension() == ext ) {
+
+					logger.debug( "Found existing screenshot: %s", f.path().c_str() );
+
+					uint32_t frame_number = 0;
+					if ( 1 == sscanf( f.path().c_str(), self->swapchain_settings.image_filename_template, &frame_number ) ) {
+
+						if ( frame_number >= largest_number ) {
+							largest_number = frame_number + 1;
+						}
+					}
+				}
+			}
+
+			self->swapchain_settings.frame_number_offset = largest_number;
+
+			logger.info( "Starting Screenshot numbering at: %08d", self->swapchain_settings.frame_number_offset );
+		}
 
 		self->swapchain = le_renderer_api_i->le_renderer_i.add_swapchain( self->renderer, self->swapchain_settings );
 	}
