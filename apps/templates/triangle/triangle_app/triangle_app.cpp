@@ -22,6 +22,7 @@ struct triangle_app_o {
 	LeCamera           camera;
 	LeCameraController cameraController;
 
+	le::Extent2D             swapchain_extent = {};
 	le_image_resource_handle swapchain_image = nullptr; // This image will be shown on-screen.
 };
 
@@ -66,6 +67,7 @@ static app_o* app_create() {
 	// render into. Only renderpasses that contribute to this image will
 	// be executed in the rendergraph.
 	app->swapchain_image = app->renderer.getSwapchainResource();
+	app->swapchain_extent = app->renderer.getSwapchainExtent();
 
 	// Set up the camera
 	app_reset_camera( app );
@@ -76,9 +78,7 @@ static app_o* app_create() {
 // ----------------------------------------------------------------------
 
 static void app_reset_camera( app_o* self ) {
-	le::Extent2D extents{};
-	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
-	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
+	self->camera.setViewport( { 0, 0, float( self->swapchain_extent.width ), float( self->swapchain_extent.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 view_matrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
 	self->camera.setViewMatrix( ( float* )( &view_matrix ) );
@@ -95,7 +95,6 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto app = static_cast<app_o*>( user_data );
 
 	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
-
 	rp
 		.addColorAttachment( app->swapchain_image, le::ImageAttachmentInfoBuilder().build() ) // color attachment
 	    ;
@@ -187,15 +186,26 @@ static void app_process_ui_events( app_o* self ) {
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
+
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
 					glm::mat4 view_matrix;
 					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
@@ -220,12 +230,15 @@ static void app_process_ui_events( app_o* self ) {
 		}
 	}
 
-	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+		self->swapchain_extent = window_extents;
+	}
 
-	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+	self->cameraController.setControlRect( 0, 0, float( self->swapchain_extent.width ), float( self->swapchain_extent.height ) );
 	self->cameraController.processEvents( self->camera, events.data(), events.size() );
 
-	if ( wantsToggle ) {
+	if ( wants_toggle ) {
 		self->window.toggleFullscreen();
 	}
 }
