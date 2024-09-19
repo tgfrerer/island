@@ -19,7 +19,7 @@
 #include <sstream>
 #include <vector>
 
-struct PerWindowData {
+struct WindowData {
 	le::Window                       window;
 	le_swapchain_windowed_settings_t windowed_swapchain_settings{};
 	le_swapchain_handle              swapchain;
@@ -33,7 +33,7 @@ struct hello_triangle_app_o {
 	LeCamera           camera;
 	LeCameraController cameraController;
 
-	PerWindowData window; // only one Window for now...
+	WindowData window_data; // only one Window for now...
 };
 
 // We use this local typedef so spare us lots of typing
@@ -72,16 +72,16 @@ static app_o* app_create() {
 	    .setTitle( "Island // HelloTriangleApp" );
 
 	// create a new window
-	app->window.window.setup( settings );
+	app->window_data.window.setup( settings );
 
 	// create a new renderer
 	app->renderer.setup();
 
-	app->window.windowed_swapchain_settings.window           = app->window.window;
-	app->window.windowed_swapchain_settings.presentmode_hint = le_swapchain_windowed_settings_t::Presentmode::eFifo;
+	app->window_data.windowed_swapchain_settings.window           = app->window_data.window;
+	app->window_data.windowed_swapchain_settings.presentmode_hint = le_swapchain_windowed_settings_t::Presentmode::eFifo;
 
-	app->window.swapchain       = app->renderer.addSwapchain( app->window.windowed_swapchain_settings );
-	app->window.swapchain_image = app->renderer.getSwapchainResource();
+	app->window_data.swapchain       = app->renderer.addSwapchain( app->window_data.windowed_swapchain_settings );
+	app->window_data.swapchain_image = app->renderer.getSwapchainResource();
 
 	// Set up the camera
 	app_reset_camera( app );
@@ -105,11 +105,11 @@ static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
 	LeUiEvent const* pEvents;
-	window_i.get_ui_event_queue( self->window.window, &pEvents, &numEvents );
+	window_i.get_ui_event_queue( self->window_data.window, &pEvents, &numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
-	LeUiEvent last_resize{};
+	le::Extent2D window_size{};
 	bool      was_resized = false;
 
 	bool wantsToggle = false;
@@ -117,7 +117,10 @@ static void app_process_ui_events( app_o* self ) {
 	for ( auto& event : events ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eWindowResize ): {
-			last_resize = event;
+			window_size = {
+			    .width  = event.windowSize.width,
+			    .height = event.windowSize.height,
+			};
 			was_resized = true;
 		} break;
 		case ( LeUiEvent::Type::eKey ): {
@@ -155,26 +158,44 @@ static void app_process_ui_events( app_o* self ) {
 	self->cameraController.processEvents( self->camera, events.data(), events.size() );
 
 	if ( wantsToggle ) {
-		self->window.window.toggleFullscreen();
+		self->window_data.window.toggleFullscreen();
 	}
 
 	if ( was_resized ) {
 
-		// If the window was resized, we want to create a new swapchain -- we must do
-		// this as wayland does not allow us to re-use the old surface.
-		//
-		self->renderer.removeSwapchain( self->window.swapchain );
+		// If the window was resized, we must resize the swapchain.
+		// There are two methods for doing this :
 
-		// Create a new swapchain
-		self->window.windowed_swapchain_settings.width_hint  = last_resize.windowSize.width;
-		self->window.windowed_swapchain_settings.height_hint = last_resize.windowSize.height;
-		self->window.windowed_swapchain_settings.window      = self->window.window;
-		self->window.swapchain                               = self->renderer.addSwapchain( self->window.windowed_swapchain_settings );
+		static bool CREATE_NEW_SWAPCHAIN = false;
 
-		// We must update the swapchain image as we want the one from the newly created swapchain.
-		self->window.swapchain_image = self->renderer.getSwapchainResource( self->window.swapchain );
+		if ( CREATE_NEW_SWAPCHAIN ) {
 
-		if ( self->window.swapchain ) {
+			// We can either remove the current and create a new swapchain
+			// but this will result in a swapchain with a different handle
+
+			self->renderer.removeSwapchain( self->window_data.swapchain );
+
+			// Create a new swapchain
+			self->window_data.windowed_swapchain_settings.width_hint  = window_size.width;
+			self->window_data.windowed_swapchain_settings.height_hint = window_size.height;
+			self->window_data.windowed_swapchain_settings.window      = self->window_data.window;
+			self->window_data.swapchain                               = self->renderer.addSwapchain( self->window_data.windowed_swapchain_settings );
+
+			// We must update the swapchain image as we want the one from the newly created swapchain.
+			self->window_data.swapchain_image = self->renderer.getSwapchainResource( self->window_data.swapchain );
+
+		} else {
+
+			// OR we can ask the renderer to resize the swapchain for us --
+			// which, if successful, will preserve the swapchain handle
+			// and the swapchain image handle.
+			//
+			// ********** This method is preferred **********
+
+			self->renderer.resizeSwapchain( window_size.width, window_size.height, self->window_data.swapchain );
+		}
+
+		if ( self->window_data.swapchain ) {
 			app_reset_camera( self );
 		}
 	}
@@ -266,7 +287,7 @@ static bool app_update( app_o* self ) {
 	// Polls events for all windows
 	le::Window::pollEvents();
 
-	if ( self->window.window.shouldClose() ) {
+	if ( self->window_data.window.shouldClose() ) {
 		return false;
 	}
 
@@ -289,12 +310,12 @@ static bool app_update( app_o* self ) {
 	// executed.
 
 	le::RenderGraph rg{};
-	if ( self->window.swapchain ) {
+	if ( self->window_data.swapchain ) {
 
 		auto renderPassFinal =
 		    le::RenderPass( "root", le::QueueFlagBits::eGraphics )
-				.addColorAttachment( self->window.swapchain_image ) // Color attachment
-				.setExecuteCallback( self, pass_main_exec )          // This is where we record our draw commands
+		        .addColorAttachment( self->window_data.swapchain_image ) // Color attachment
+		        .setExecuteCallback( self, pass_main_exec )              // This is where we record our draw commands
 		    ;
 
 		rg.addRenderPass( renderPassFinal );

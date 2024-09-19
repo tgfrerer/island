@@ -815,10 +815,21 @@ static void app_process_ui_events( app_o* self ) {
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
+
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
@@ -843,7 +854,7 @@ static void app_process_ui_events( app_o* self ) {
 				} else if ( e.key == LeUiEvent::NamedKey::eSpace ) {
 					self->input.shoot_count++;
 				} else if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
 					glm::mat4 view_matrix;
 					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
@@ -919,15 +930,17 @@ static void app_process_ui_events( app_o* self ) {
 		self->input.up_down_count--;
 	}
 
-	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+		self->cameraController.setControlRect( 0, 0, float( window_extents.width ), float( window_extents.height ) );
+	}
 
 	// activate this to enable interactive camera control
 	if ( false ) {
-		self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
 		self->cameraController.processEvents( self->camera, events.data(), events.size() );
 	}
 
-	if ( wantsToggle ) {
+	if ( wants_toggle ) {
 		self->window.toggleFullscreen();
 	}
 }

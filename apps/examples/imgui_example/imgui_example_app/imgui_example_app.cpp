@@ -28,6 +28,7 @@ struct imgui_example_app_o {
 	le_imgui_o*        gui;
 	LeCamera           camera;
 	LeCameraController cameraController;
+	le::Extent2D       swapchain_extent;
 };
 
 typedef imgui_example_app_o app_o;
@@ -61,6 +62,8 @@ static imgui_example_app_o* app_create() {
 	app->window.setup( settings );
 
 	app->renderer.setup( app->window );
+	app->swapchain_extent = app->renderer.getSwapchainExtent();
+	app->cameraController.setControlRect( 0, 0, float( app->swapchain_extent.width ), float( app->swapchain_extent.height ) );
 
 	// Set up the camera
 	app_reset_camera( app );
@@ -73,9 +76,7 @@ static imgui_example_app_o* app_create() {
 // ----------------------------------------------------------------------
 
 static void app_reset_camera( imgui_example_app_o* self ) {
-	le::Extent2D extents{};
-	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
-	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
+	self->camera.setViewport( { 0, 0, float( self->swapchain_extent.width ), float( self->swapchain_extent.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 view_matrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
 	self->camera.setViewMatrix( ( float* )( &view_matrix ) );
@@ -85,15 +86,26 @@ static void app_reset_camera( imgui_example_app_o* self ) {
 static void app_process_ui_events( app_o* self, std::vector<LeUiEvent> const& events ) {
 	using namespace le_window;
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
+
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
 					glm::mat4 view_matrix;
 					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
@@ -118,12 +130,15 @@ static void app_process_ui_events( app_o* self, std::vector<LeUiEvent> const& ev
 		}
 	}
 
-	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+		self->swapchain_extent = window_extents;
+		self->cameraController.setControlRect( 0, 0, float( self->swapchain_extent.width ), float( self->swapchain_extent.height ) );
+	}
 
-	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
 	self->cameraController.processEvents( self->camera, events.data(), events.size() );
 
-	if ( wantsToggle ) {
+	if ( wants_toggle ) {
 		self->window.toggleFullscreen();
 	}
 }
@@ -249,6 +264,7 @@ static bool app_update( imgui_example_app_o* self ) {
 		ImGui::ShowDemoWindow();
 
 		ImGui::Begin( "Rendered Image" );
+		ImGui::SetWindowSize( { 500, 500 } );
 		{
 			ImGui::Text( "This image has been rendered in a different renderpass:" );
 			auto region_avail = ImGui::GetContentRegionAvail();

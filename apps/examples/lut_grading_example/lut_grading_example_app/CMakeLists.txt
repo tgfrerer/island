@@ -14,6 +14,8 @@ depends_on_island_module(le_resource_manager)
 set (SOURCES "lut_grading_example_app.cpp")
 set (SOURCES ${SOURCES} "lut_grading_example_app.h")
 
+source_group(${TARGET} FILES ${SOURCES})
+
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})

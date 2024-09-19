@@ -18,6 +18,8 @@ depends_on_island_module(le_pixels)
 set (SOURCES "hello_world_app.cpp")
 set (SOURCES ${SOURCES} "hello_world_app.h")
 
+source_group(${TARGET} FILES ${SOURCES})
+
 if (${PLUGINS_DYNAMIC})
     add_library(${TARGET} SHARED ${SOURCES})
     add_dynamic_linker_flags()

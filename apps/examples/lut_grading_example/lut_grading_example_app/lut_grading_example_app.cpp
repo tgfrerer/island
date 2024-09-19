@@ -21,6 +21,7 @@ struct lut_grading_example_app_o {
 	LeResourceManager      resource_manager;
 	le_image_resource_handle SRC_IMG_HANDLE       = LE_IMG_RESOURCE( "source_image" );
 	le_image_resource_handle COLOR_LUT_IMG_HANDLE = LE_IMG_RESOURCE( "lut_image" );
+	le::Extent2D             window_extents;
 };
 
 // ----------------------------------------------------------------------
@@ -50,6 +51,7 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 	app->window.setup( settings );
 
 	app->renderer.setup( app->window );
+	app->window_extents = app->renderer.getSwapchainExtent();
 
 	char const* hald_lut =
 	    "./local_resources/images/night_from_day.png";
@@ -78,21 +80,29 @@ static void app_process_ui_events( lut_grading_example_app_o* self ) {
 	le::UiEvent const* events;
 	uint32_t           num_events;
 
-	uint32_t swapchain_width;
-	uint32_t swapchain_height;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	self->window.getUIEventQueue( &events, &num_events );
-	self->renderer.getSwapchainExtent( &swapchain_width, &swapchain_height );
 
 	auto events_begin = events;
 	auto events_end   = events + num_events;
 
 	for ( auto e = events_begin; e != events_end; e++ ) {
+		if ( e->event == LeUiEvent::Type::eWindowResize ) {
+			auto& ev       = e->windowSize;
+			window_extents = {
+			    .width  = ev.width,
+			    .height = ev.height,
+			};
+			was_resized = true;
+		}
 
 		if ( e->event == LeUiEvent::Type::eCursorPosition ) {
 			if ( self->mouse_button_state & 0x1 ) {
 				// if first mouse button is pressed
-				self->mouse_x_normalised = e->cursorPosition.x / float( swapchain_width );
+				self->mouse_x_normalised = e->cursorPosition.x / float( self->window_extents.width );
 			}
 		}
 
@@ -104,6 +114,11 @@ static void app_process_ui_events( lut_grading_example_app_o* self ) {
 				self->mouse_button_state |= ( 1 << e->mouseButton.button );
 			}
 		}
+	}
+
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+		self->window_extents = window_extents;
 	}
 }
 

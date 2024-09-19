@@ -56,6 +56,7 @@ struct hello_world_app_o {
 	le::Window   window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
+	le::Extent2D swapchain_extent;
 
 	LeCameraController cameraController;
 	LeCamera           camera;
@@ -119,6 +120,7 @@ static hello_world_app_o* hello_world_app_create() {
 	app->renderer.setup( app->window );
 
 	// -- Declare graphics pipeline state objects
+	app->swapchain_extent = app->renderer.getSwapchainExtent();
 
 	// Set up the camera
 	reset_camera( app );
@@ -178,9 +180,7 @@ static hello_world_app_o* hello_world_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( hello_world_app_o* self ) {
-	le::Extent2D swapchainExtent{};
-	self->renderer.getSwapchainExtent( &swapchainExtent.width, &swapchainExtent.height );
-	self->camera.setViewport( { 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ), 0.f, 1.f } );
+	self->camera.setViewport( { 0, 0, float( self->swapchain_extent.width ), float( self->swapchain_extent.height ), 0.f, 1.f } );
 	self->camera.setClipDistances( 100.f, 150000.f );
 	self->camera.setFovRadians( glm::radians( 25.f ) ); // glm::radians converts degrees to radians
 
@@ -634,10 +634,7 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 		return false;
 	}
 
-	le::Extent2D swapchainExtent{};
-	self->renderer.getSwapchainExtent( &swapchainExtent.width, &swapchainExtent.height );
-
-	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+	self->cameraController.setControlRect( 0, 0, float( self->swapchain_extent.width ), float( self->swapchain_extent.height ) );
 
 	hello_world_app_process_ui_events( self );
 
@@ -705,15 +702,25 @@ static void hello_world_app_process_ui_events( hello_world_app_o* self ) {
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
 					reset_camera( self );
 					glm::mat4x4 view_matrix;
@@ -745,9 +752,14 @@ static void hello_world_app_process_ui_events( hello_world_app_o* self ) {
 		}
 	}
 
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+		self->swapchain_extent = window_extents;
+	}
+
 	self->cameraController.processEvents( self->camera, events.data(), events.size() );
 
-	if ( wantsToggle ) {
+	if ( wants_toggle ) {
 		self->window.toggleFullscreen();
 	}
 }

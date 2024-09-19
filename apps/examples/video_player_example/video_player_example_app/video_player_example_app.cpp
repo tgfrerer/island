@@ -34,6 +34,8 @@ struct video_and_texture_t {
 struct video_player_example_app_o {
 	le::Window   window;
 	le::Renderer renderer;
+
+	le::Extent2D window_extents;
 	uint64_t     frame_counter = 0;
 	glm::vec2    mouse_pos;
 
@@ -137,6 +139,7 @@ static video_player_example_app_o* app_create() {
 	app->window.setup( settings );
 
 	app->renderer.setup( app->window );
+	app->window_extents = app->renderer.getSwapchainExtent();
 
 	for ( size_t i = 0; i != 1; i++ ) {
 		app_add_video_player( app );
@@ -148,6 +151,7 @@ static video_player_example_app_o* app_create() {
 
 	app->gui = le_imgui::le_imgui_i.create();
 
+	app->cameraController.setControlRect( 0, 0, float( app->window_extents.width ), float( app->window_extents.height ) );
 	app_reset_camera( app );
 
 	return app;
@@ -184,15 +188,25 @@ static void app_process_ui_events( app_o* self ) {
 	// Remove events that have been consumed by imgui
 	events.resize( numEvents );
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
 					glm::mat4 view_matrix;
 					self->camera.getViewMatrix( ( float* )( &view_matrix ) );
@@ -225,12 +239,15 @@ static void app_process_ui_events( app_o* self ) {
 		}
 	}
 
-	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+		self->cameraController.setControlRect( 0, 0, float( self->window_extents.width ), float( self->window_extents.height ) );
+		self->window_extents = window_extents;
+	}
 
-	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
 	self->cameraController.processEvents( self->camera, events.data(), events.size() );
 
-	if ( wantsToggle ) {
+	if ( wants_toggle ) {
 		self->window.toggleFullscreen();
 	}
 }
@@ -500,12 +517,11 @@ static bool app_update( app_o* self ) {
 	// Process user interface events such as mouse, keyboard
 	app_process_ui_events( self );
 
-	le::Extent2D swapchain_extent = self->renderer.getSwapchainExtent();
 
 	{
 		le::RenderGraph rg{};
 
-		le_imgui::le_imgui_i.setup_resources( self->gui, rg, swapchain_extent.width, swapchain_extent.height );
+		le_imgui::le_imgui_i.setup_resources( self->gui, rg, self->window_extents.width, self->window_extents.height );
 
 		app_update_gui( self, current_ticks );
 

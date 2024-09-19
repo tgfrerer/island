@@ -132,15 +132,26 @@ static void app_process_ui_events( app_o* self ) {
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
+
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				}
 			}
 		} break;
@@ -155,7 +166,11 @@ static void app_process_ui_events( app_o* self ) {
 		}
 	}
 
-	if ( wantsToggle ) {
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+	}
+
+	if ( wants_toggle ) {
 		self->window.toggleFullscreen();
 	}
 }

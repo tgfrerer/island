@@ -126,6 +126,8 @@ static exr_decode_example_app_o* exr_decode_example_app_create() {
 	    };
 	}
 
+	auto window_extents = app->renderer.getSwapchainExtent();
+	app->cameraController.setControlRect( 0, 0, float( window_extents.width ), float( window_extents.height ) );
 	// Set up the camera
 	reset_camera( app );
 
@@ -296,7 +298,9 @@ static void exr_decode_example_app_process_ui_events( exr_decode_example_app_o* 
 	window_i.get_ui_event_queue( self->window, &pEvents, &numEvents );
 	auto const events_end = pEvents + numEvents;
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	// Key Mapping:
 	// ------------
@@ -309,11 +313,20 @@ static void exr_decode_example_app_process_ui_events( exr_decode_example_app_o* 
 	for ( auto pEv = pEvents; pEv != events_end; pEv++ ) {
 		auto& event = *pEv;
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
+
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
 					reset_camera( self );
 				} else if ( e.key == LeUiEvent::NamedKey::eO ) {
@@ -345,11 +358,14 @@ static void exr_decode_example_app_process_ui_events( exr_decode_example_app_o* 
 		}
 	}
 
-	auto swapchainExtent = self->renderer.getSwapchainExtent();
-	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+		self->cameraController.setControlRect( 0, 0, float( window_extents.width ), float( window_extents.height ) );
+	}
+
 	self->cameraController.processEvents( self->camera, pEvents, numEvents );
 
-	if ( wantsToggle ) {
+	if ( wants_toggle ) {
 		self->window.toggleFullscreen();
 	}
 }

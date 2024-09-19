@@ -30,6 +30,7 @@ struct le_mouse_event_data_o {
 struct window_and_swapchain_t {
 	le::Window          window;
 	le_swapchain_handle swapchain;
+	le::Extent2D        extent;
 };
 
 struct cached_mesh_data_t {
@@ -106,6 +107,7 @@ static multi_window_example_app_o* app_create() {
 
 		// Create swapchain 0
 		app->windows[ 0 ].swapchain = app->renderer.addSwapchain( swap_settings );
+		app->windows[ 0 ].extent    = app->renderer.getSwapchainExtent( app->windows[ 0 ].swapchain );
 	}
 
 	{
@@ -114,6 +116,7 @@ static multi_window_example_app_o* app_create() {
 
 		// Create swapchain 1
 		app->windows[ 1 ].swapchain = app->renderer.addSwapchain( swap_settings );
+		app->windows[ 1 ].extent    = app->renderer.getSwapchainExtent( app->windows[ 1 ].swapchain );
 	}
 
 	{
@@ -157,12 +160,7 @@ static multi_window_example_app_o* app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( multi_window_example_app_o* self, window_and_swapchain_t& window ) {
-	uint32_t screenWidth{};
-	uint32_t screenHeight{};
-
-	self->renderer.getSwapchainExtent( &screenWidth, &screenHeight, window.swapchain );
-
-	self->camera.setViewport( { 0, float( screenHeight ), float( screenWidth ), -float( screenHeight ), 0.f, 1.f } );
+	self->camera.setViewport( { 0, float( window.extent.height ), float( window.extent.width ), -float( window.extent.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
 	self->camera.setViewMatrix( reinterpret_cast<float const*>( &camMatrix ) );
@@ -368,15 +366,25 @@ static void app_process_ui_events( app_o* app, window_and_swapchain_t& window ) 
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
 					glm::mat4 view_matrix;
 					app->camera.getViewMatrix( ( float* )( &view_matrix ) );
@@ -406,13 +414,15 @@ static void app_process_ui_events( app_o* app, window_and_swapchain_t& window ) 
 	}
 
 	// Process camera events
+	if ( was_resized ) {
+		app->renderer.resizeSwapchain( window_extents.width, window_extents.height, window.swapchain );
+		window.extent = window_extents;
+	}
 
-	auto swapchainExtent = app->renderer.getSwapchainExtent( window.swapchain );
-
-	app->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+	app->cameraController.setControlRect( 0, 0, float( window.extent.width ), float( window.extent.height ) );
 	app->cameraController.processEvents( app->camera, pEvents, numEvents );
 
-	if ( wantsToggle ) {
+	if ( wants_toggle ) {
 		window.window.toggleFullscreen();
 	}
 }

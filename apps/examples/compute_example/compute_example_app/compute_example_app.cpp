@@ -284,16 +284,27 @@ static void compute_example_app_process_ui_events( compute_example_app_o* self )
 
 	auto const events_end = pEvents + numEvents;
 
-	bool wantsToggle = false;
+	bool         wants_toggle = false;
+	bool         was_resized  = false;
+	le::Extent2D window_extents;
 
 	for ( auto pEv = pEvents; pEv != events_end; pEv++ ) {
 		auto& event = *pEv;
 		switch ( event.event ) {
+		case ( LeUiEvent::Type::eWindowResize ): {
+			auto& e        = event.windowSize;
+			window_extents = {
+			    .width  = e.width,
+			    .height = e.height,
+			};
+			was_resized = true;
+		} break;
+
 		case ( LeUiEvent::Type::eKey ): {
 			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
-					wantsToggle ^= true;
+					wants_toggle ^= true;
 				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
 					reset_camera( self );
 					glm::mat4x4 view_matrix;
@@ -336,12 +347,14 @@ static void compute_example_app_process_ui_events( compute_example_app_o* self )
 		}
 	}
 
-	auto swapchainExtent = self->renderer.getSwapchainExtent();
-	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+	if ( was_resized ) {
+		self->renderer.resizeSwapchain( window_extents.width, window_extents.height );
+		self->cameraController.setControlRect( 0, 0, float( window_extents.width ), float( window_extents.height ) );
+	}
 
 	self->cameraController.processEvents( self->camera, pEvents, numEvents );
 
-	if ( wantsToggle ) {
+	if ( wants_toggle ) {
 		self->window.toggleFullscreen();
 	}
 }
