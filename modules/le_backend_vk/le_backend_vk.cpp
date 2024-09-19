@@ -957,7 +957,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	static auto     logger    = LeLog( LOGGER_LABEL );
 	using namespace le_swapchain_vk;
 
-	// make a local copy of settings in case we must update settings
+	// Make a local copy of settings in case we must update settings
 	// NOTE: you must manually delete this local copy once you are done with it.
 	le_swapchain_settings_t*        local_swapchain_settings = le_swapchain_vk_api_i->swapchain_i.settings_clone( settings_ );
 	le_backend_vk_settings_o const* backend_settings         = le_backend_vk::api->backend_settings_singleton;
@@ -3076,7 +3076,6 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		primitive_counts.reserve( geometries.size() );
 
 		for ( auto const& g : blas->geometries ) {
-
 			VkAccelerationStructureGeometryKHR geom = {
 			    .sType        = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
 			    .pNext        = nullptr, // optional
