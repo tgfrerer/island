@@ -82,7 +82,7 @@ struct le_screenshot_api {
 
 	struct le_screenshot_interface_t {
 		bool              ( * init    ) ( );
-		le_screenshot_o * ( * create  ) ( le_renderer_o* renderer);
+		le_screenshot_o * ( * create  ) ( le_renderer_o* renderer );
 		void              ( * destroy ) ( le_screenshot_o* self );
 		bool              ( * record  ) ( le_screenshot_o* self, le_rendergraph_o* rg, le_image_resource_handle src_image, uint32_t* num_images, le_swapchain_img_settings_t const * p_settings );
 	};
