@@ -50,6 +50,8 @@ struct le_window_o {
 	std::atomic<uint32_t> surface_counter{}; // number of surfaces that have been allocated (must be 0, or 1)
 	VkSurfaceKHR          mSurface = nullptr;
 	VkExtent2D            mSurfaceExtent{};
+	float                 content_scale_x = 1; // used for HIDPI, where content scale may be 2.0, or, say, 1.5f (if using fractional scaling)
+	float                 content_scale_y = 1;
 	le_window_settings_o  mSettings{};
 	size_t                referenceCount = 0;
 	void*                 user_data      = nullptr;
@@ -197,8 +199,8 @@ static void glfw_window_cursor_position_callback( GLFWwindow* glfwWindow, double
 			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eCursorPosition;
 			auto& e     = event.cursorPosition;
-			e.x         = xpos;
-			e.y         = ypos;
+			e.x         = xpos * window->content_scale_x;
+			e.y         = ypos * window->content_scale_y;
 		} else {
 			// we're over the high - watermark for events, we should probably print a warning.
 		}
@@ -336,6 +338,8 @@ static void glfw_framebuffer_resize_callback( GLFWwindow* glfwWindow, int width_
 
 	window->mSurfaceExtent.width  = uint32_t( w );
 	window->mSurfaceExtent.height = uint32_t( h );
+
+	glfwGetWindowContentScale( glfwWindow, &window->content_scale_x, &window->content_scale_y );
 
 	if ( window->mSettings.useEventsQueue ) {
 		uint32_t queueIdx = window->eventQueueBack;
@@ -718,6 +722,9 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 	if ( self->mSettings.active_gamepads != 0 ) {
 		window_subscribe_to_gamepad_events( self );
 	}
+
+	// Store initial content scale
+	glfwGetWindowContentScale( self->window, &self->content_scale_x, &self->content_scale_y );
 }
 
 // ----------------------------------------------------------------------

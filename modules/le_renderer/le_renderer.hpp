@@ -187,6 +187,10 @@ class Renderer {
 		return le_renderer::renderer_i.add_swapchain( self, swapchain_settings );
 	}
 
+	bool resizeSwapchain( uint32_t width, uint32_t height, le_swapchain_handle swapchain = nullptr ) noexcept {
+		return le_renderer::renderer_i.resize_swapchain( self, swapchain, width, height );
+	}
+
 	bool removeSwapchain( le_swapchain_handle swapchain ) noexcept {
 		return le_renderer::renderer_i.remove_swapchain( self, swapchain );
 	}
