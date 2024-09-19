@@ -70,8 +70,8 @@ static le_swapchain_o* swapchain_create( le_backend_o* backend, const le_swapcha
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
-	auto new_swapchain = old_swapchain->vtable.create_from_old_swapchain( old_swapchain );
+static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain, uint32_t width, uint32_t height ) {
+	auto new_swapchain = old_swapchain->vtable.create_from_old_swapchain( old_swapchain, width, height );
 	if ( new_swapchain ) {
 		swapchain_inc_ref( new_swapchain );
 	}

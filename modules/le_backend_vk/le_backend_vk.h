@@ -162,6 +162,7 @@ struct le_backend_vk_api {
 
 		// --- modern swapchain interface
 		le_swapchain_handle      ( * add_swapchain 		      ) ( le_backend_o* self, le_swapchain_settings_t const * settings);
+		bool                     ( * recreate_swapchain       ) ( le_backend_o* self, le_swapchain_handle swapchain, uint32_t width, uint32_t height);
 		bool 				     ( * remove_swapchain 	 	  ) ( le_backend_o* self, le_swapchain_handle swapchain);
 		le_image_resource_handle ( * get_swapchain_resource   ) ( le_backend_o* self, le_swapchain_handle swapchain );
 		le_image_resource_handle ( * get_swapchain_resource_default ) ( le_backend_o* self);

@@ -409,7 +409,7 @@ static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_
 	return base;
 }
 
-static le_swapchain_o* swapchain_direct_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
+static le_swapchain_o* swapchain_direct_create_from_old_swapchain( le_swapchain_o* old_swapchain, uint32_t width, uint32_t height ) {
 	assert( false && "not implemented" );
 	return nullptr;
 }

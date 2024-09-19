@@ -777,6 +777,14 @@ static bool renderer_get_swapchains( le_renderer_o* self, size_t* num_swapchains
 	assert( self->backend && "Backend must exist" );
 	return vk_backend_i.get_swapchains( self->backend, num_swapchains, p_swapchain_handles );
 }
+
+// ----------------------------------------------------------------------
+static bool renderer_resize_swapchain( le_renderer_o* self, le_swapchain_handle swapchain, uint32_t width, uint32_t height ) {
+	ZoneScoped;
+	using namespace le_backend_vk;
+	return vk_backend_i.recreate_swapchain( self->backend, swapchain, width, height );
+};
+
 // ----------------------------------------------------------------------
 
 static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
@@ -971,6 +979,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.get_swapchain_resource_default = renderer_get_swapchain_resource_default;
 	le_renderer_i.add_swapchain                  = renderer_add_swapchain;
 	le_renderer_i.remove_swapchain               = renderer_remove_swapchain;
+	le_renderer_i.resize_swapchain               = renderer_resize_swapchain;
 	le_renderer_i.get_swapchains                 = renderer_get_swapchains;
 	le_renderer_i.produce_texture_handle         = renderer_produce_texture_handle;
 	le_renderer_i.texture_handle_get_name        = texture_handle_get_name;

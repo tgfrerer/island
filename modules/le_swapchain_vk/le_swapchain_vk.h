@@ -34,7 +34,7 @@ struct le_swapchain_vk_api {
 
 	struct swapchain_interface_t {
 		le_swapchain_o *          ( *create                   ) ( le_backend_o* backend, const le_swapchain_settings_t* settings );
-		le_swapchain_o *          ( *create_from_old_swapchain) ( le_swapchain_o* old_swapchain);
+		le_swapchain_o *          ( *create_from_old_swapchain) ( le_swapchain_o* old_swapchain, uint32_t width, uint32_t height);
 
 		// Why is there a `release`? We use this to immediately release the resources that can
 		// be released upon removing a swapchain. In particular, this allows us to immediately

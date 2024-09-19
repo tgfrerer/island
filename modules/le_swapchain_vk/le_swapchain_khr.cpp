@@ -346,7 +346,7 @@ static le_swapchain_o* swapchain_khr_create( le_backend_o* backend, const le_swa
 // NOTE: This needs to be an atomic operation
 // retire the old swapchain, and create a new swapchain
 // using the old swapchain's settings and surface.
-static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
+static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_swapchain, uint32_t width, uint32_t height ) {
 
 	auto new_swapchain  = new le_swapchain_o( old_swapchain->vtable );
 	new_swapchain->data = new khr_data_o{};
@@ -361,6 +361,9 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 	// creating a new KHR Swapchain in swapchain_khr_reset.
 
 	old_data->is_retired = true;
+
+	new_data->mSettings.width_hint  = width;
+	new_data->mSettings.height_hint = height;
 
 	swapchain_khr_reset( new_swapchain, &new_data->mSettings );
 
@@ -391,7 +394,7 @@ static void swapchain_khr_release( le_swapchain_o* base ) {
 	if ( self->swapchainKHR ) {
 
 		vkDestroySwapchainKHR( device, self->swapchainKHR, nullptr );
-		logger.info( "Destroyed Swapchain: %p, VkSwapchain: %p", base, self->swapchainKHR );
+		logger.info( "Destroyed VkSwapchain: %p", base, self->swapchainKHR );
 		self->swapchainKHR = nullptr;
 	}
 
@@ -427,6 +430,8 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 		vkDestroyFence( self->device, f, nullptr );
 	}
 	self->vk_present_fences.clear();
+
+	logger.info( "Destroyed Swapchain %p", self );
 
 	delete self; // delete object's data
 	delete base; // delete object

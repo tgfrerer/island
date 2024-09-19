@@ -476,7 +476,7 @@ class swapchain_data_t {
 
   public:
 	swapchain_data_t( le_swapchain_o* swapchain_ = nullptr ) // takes ownership of swapchain.
-        : swapchain( swapchain_ ) {};
+	    : swapchain( swapchain_ ) {};
 
 	swapchain_data_t& operator=( swapchain_data_t const& rhs ) {
 		le_swapchain_vk::swapchain_ref_i.inc_ref( rhs.swapchain );
@@ -984,12 +984,12 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	// deleting local copy of local_swapchain_settings
 	le_swapchain_vk_api_i->swapchain_i.settings_destroy( local_swapchain_settings );
 
-    if ( nullptr == swapchain ) {
-        // return signal for invalid swapchain
-        return nullptr;
-    }
+	if ( nullptr == swapchain ) {
+		// return signal for invalid swapchain
+		return nullptr;
+	}
 
-    // ----------| invariant: swapchain is not 0
+	// ----------| invariant: swapchain is not 0
 
 	assert( swapchain );
 
@@ -1064,6 +1064,40 @@ static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle sw
 	} else {
 		return false;
 	}
+}
+
+// ----------------------------------------------------------------------
+// This must only be called on the front thread (RECORD)
+//
+static bool backend_recreate_swapchain( le_backend_o* self, le_swapchain_handle swapchain_handle, uint32_t width, uint32_t height ) {
+
+	auto it = swapchain_handle
+	              ? self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) )
+	              : self->swapchains.begin();
+
+	if ( it == self->swapchains.end() ) {
+		return false;
+	}
+
+	// ----------| invariant: `it` is valid
+
+	// Release resources held by the swapchain that can be released early
+	// so that for examples windows can immediately be recycled.
+	using namespace le_swapchain_vk;
+
+	auto old_swapchain = it->second.get_swapchain();
+
+	swapchain_i.release( old_swapchain );
+
+	it->second.replace_swapchain( swapchain_i.create_from_old_swapchain( old_swapchain, width, height ) );
+
+	// swapchain_data.swapchain_image          = it->second.swapchain_image;
+	// swapchain_data.swapchain_surface_format = it->second.swapchain_surface_format;
+	it->second.height = height;
+	it->second.width  = width;
+	// swapchain_data.image_count              = it->second.image_count;
+
+	return true;
 }
 
 // ----------------------------------------------------------------------
@@ -4881,7 +4915,7 @@ constexpr static std::array<float, 4> hex_rgba_to_float_colour( uint32_t const& 
 	    ( hex >> 24 ) / 255.f,
 	    ( ( hex >> 16 ) & 0xff ) / 255.f,
 	    ( ( hex >> 8 ) & 0xff ) / 255.f,
-        ( ( hex ) & 0xff ) / 255.f,
+	    ( ( hex ) & 0xff ) / 255.f,
 	};
 	return result;
 }
@@ -5005,7 +5039,7 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			};
 
 			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-                logger.info( "Destroying present complete semaphore %x", p->semaphore );
+				logger.info( "Destroying present complete semaphore %x", p->semaphore );
 
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
@@ -5013,7 +5047,7 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
 
 			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-                logger.info( "Destroying render complete semaphore %x", p->semaphore );
+				logger.info( "Destroying render complete semaphore %x", p->semaphore );
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
@@ -5037,7 +5071,11 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 
 			// try to acquire again by creating a new swapchain from the old one
 
-			le_swapchain_o* new_swapchain = swapchain_i.create_from_old_swapchain( local_swapchain_state.swapchain_data.get_swapchain() );
+			le_swapchain_o* new_swapchain = swapchain_i.create_from_old_swapchain(
+			    local_swapchain_state.swapchain_data.get_swapchain(),
+			    local_swapchain_state.swapchain_data.width, // TODO: this should be the new width
+			    local_swapchain_state.swapchain_data.height // TODO: this should be the new height
+			);
 			local_swapchain_state.swapchain_data.replace_swapchain( new_swapchain );
 
 			VkSemaphoreCreateInfo const create_info = {
@@ -5047,14 +5085,14 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			};
 
 			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-                logger.info( "Destroying present complete semaphore %x", p->semaphore );
+				logger.info( "Destroying present complete semaphore %x", p->semaphore );
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
 
 			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-                logger.info( "Destroying render complete semaphore %x", p->semaphore );
+				logger.info( "Destroying render complete semaphore %x", p->semaphore );
 				vkDestroySemaphore( device, p->semaphore, nullptr );
 				delete ( p );
 			} );
@@ -8234,6 +8272,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
 	vk_backend_i.add_swapchain                  = backend_add_swapchain;
+	vk_backend_i.recreate_swapchain             = backend_recreate_swapchain;
 	vk_backend_i.remove_swapchain               = backend_remove_swapchain;
 	vk_backend_i.get_swapchain_extent           = backend_get_swapchain_extent;
 	vk_backend_i.get_swapchain_resource         = backend_get_swapchain_resource;

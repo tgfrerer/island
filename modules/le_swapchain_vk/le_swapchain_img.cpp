@@ -456,7 +456,7 @@ static le_swapchain_o* swapchain_img_create( le_backend_o* backend, const le_swa
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o* swapchain_img_create_from_old_swapchain( le_swapchain_o* old_swapchain ) {
+static le_swapchain_o* swapchain_img_create_from_old_swapchain( le_swapchain_o* old_swapchain, uint32_t width, uint32_t height ) {
 	// not implemented
 	assert( false && "Not implemented." );
 	return nullptr;
@@ -792,7 +792,6 @@ static le_swapchain_settings_t* swapchain_settings_clone( le_swapchain_settings_
 	assert( settings->type == le_swapchain_settings_t::LE_IMG_SWAPCHAIN );
 	auto obj = reinterpret_cast<le_swapchain_img_settings_t const*>( settings );
 	auto ret = new le_swapchain_img_settings_t{ *obj };
-
 	return reinterpret_cast<le_swapchain_settings_t*>( ret );
 }
 // ----------------------------------------------------------------------
