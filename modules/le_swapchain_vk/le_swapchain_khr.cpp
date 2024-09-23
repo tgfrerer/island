@@ -15,17 +15,17 @@
 static constexpr auto LOGGER_LABEL = "le_swapchain_khr";
 
 struct SurfaceProperties {
-	VkSurfaceFormatKHR              windowSurfaceFormat;
-	VkSurfaceCapabilitiesKHR        surfaceCapabilities;
-	VkBool32                        presentSupported = VK_FALSE;
-	std::vector<VkPresentModeKHR>   presentmodes;
-	std::vector<VkSurfaceFormatKHR> availableSurfaceFormats;
+	VkSurfaceFormat2KHR              windowSurfaceFormat;
+	VkSurfaceCapabilities2KHR        surfaceCapabilities;
+	VkBool32                         presentSupported = VK_FALSE;
+	std::vector<VkPresentModeKHR>    presentmodes;
+	std::vector<VkSurfaceFormat2KHR> availableSurfaceFormats;
 };
 
 struct khr_data_o {
-	le_swapchain_windowed_settings_t mSettings = {};
-	std::vector<VkFence>             vk_present_fences;                        // one fence for each presentable image - we use these to protect ourselves by delaying destroying the present semaphores until any in-flight present has completed.
-	struct VkSurfaceKHR_T*           vk_surface                     = nullptr; // this will be set internally -- TODO: find a way to make this private
+	le_swapchain_windowed_settings_t mSettings                      = {};
+	std::vector<VkFence>             vk_present_fences              = {}; // one fence for each presentable image - we use these to protect ourselves by delaying destroying the present semaphores until any in-flight present has completed.
+	VkSurfaceKHR                     vk_surface                     = nullptr;
 	le_backend_o*                    backend                        = nullptr;
 	uint32_t                         mImagecount                    = 0;
 	uint32_t                         mImageIndex                    = uint32_t( ~0 ); // current image index
@@ -61,13 +61,19 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 	{
 		uint32_t count = 0;
 
-		auto result = vkGetPhysicalDeviceSurfaceFormatsKHR( self->physicalDevice, self->vk_surface, &count, nullptr );
+		VkPhysicalDeviceSurfaceInfo2KHR surface_info = {
+		    .sType   = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR, // VkStructureType
+		    .pNext   = nullptr,                                              // void *, optional
+		    .surface = self->vk_surface,                                     // VkSurfaceKHR, optional
+		};
+
+		auto result = vkGetPhysicalDeviceSurfaceFormats2KHR( self->physicalDevice, &surface_info, &count, nullptr );
 		assert( result == VK_SUCCESS );
 		surfaceProperties.availableSurfaceFormats.resize( count );
-		result = vkGetPhysicalDeviceSurfaceFormatsKHR( self->physicalDevice, self->vk_surface, &count, surfaceProperties.availableSurfaceFormats.data() );
+		result = vkGetPhysicalDeviceSurfaceFormats2KHR( self->physicalDevice, &surface_info, &count, surfaceProperties.availableSurfaceFormats.data() );
 		assert( result == VK_SUCCESS );
 
-		result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( self->physicalDevice, self->vk_surface, &surfaceProperties.surfaceCapabilities );
+		result = vkGetPhysicalDeviceSurfaceCapabilities2KHR( self->physicalDevice, &surface_info, &surfaceProperties.surfaceCapabilities );
 		assert( result == VK_SUCCESS );
 
 		result = vkGetPhysicalDeviceSurfacePresentModesKHR( self->physicalDevice, self->vk_surface, &count, nullptr );
@@ -81,11 +87,11 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 	auto   preferredSurfaceFormat     = VkFormat( self->mSettings.format_hint );
 
 	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) &&
-		 ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == VK_FORMAT_UNDEFINED ) ) {
+	     ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].surfaceFormat.format == VK_FORMAT_UNDEFINED ) ) {
 
 		// If the surface format list only includes one entry with VK_FORMAT_UNDEFINED,
 		// there is no preferred format, and we must assume VkFormat::eB8G8R8A8Unorm.
-		surfaceProperties.windowSurfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+		surfaceProperties.windowSurfaceFormat.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
 
 	} else {
 
@@ -95,24 +101,26 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 		// Select the first available color format if the preferredSurfaceFormat cannot be found.
 
 		for ( size_t i = 0; i != surfaceProperties.availableSurfaceFormats.size(); ++i ) {
-			if ( surfaceProperties.availableSurfaceFormats[ i ].format == preferredSurfaceFormat ) {
+			if ( surfaceProperties.availableSurfaceFormats[ i ].surfaceFormat.format == preferredSurfaceFormat ) {
 				selectedSurfaceFormatIndex = i;
 				break;
 			}
 		}
-		surfaceProperties.windowSurfaceFormat.format = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format;
+		surfaceProperties.windowSurfaceFormat.surfaceFormat.format =
+		    surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].surfaceFormat.format;
 	}
 
-	if ( preferredSurfaceFormat != surfaceProperties.windowSurfaceFormat.format ) {
-		logger.warn( "Swapchain surface format was adapted to: %s", to_str( le::Format( surfaceProperties.windowSurfaceFormat.format ) ) );
+	if ( preferredSurfaceFormat != surfaceProperties.windowSurfaceFormat.surfaceFormat.format ) {
+		logger.warn( "Swapchain surface format was adapted to: %s", to_str( le::Format( surfaceProperties.windowSurfaceFormat.surfaceFormat.format ) ) );
 	}
 
 	logger.info( "** Surface queried Extents: %d x %d",
-				 surfaceProperties.surfaceCapabilities.currentExtent.width,
-				 surfaceProperties.surfaceCapabilities.currentExtent.height );
+	             surfaceProperties.surfaceCapabilities.surfaceCapabilities.currentExtent.width,
+	             surfaceProperties.surfaceCapabilities.surfaceCapabilities.currentExtent.height );
 
 	// always select the corresponding color space
-	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].colorSpace;
+	surfaceProperties.windowSurfaceFormat.surfaceFormat.colorSpace =
+	    surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].surfaceFormat.colorSpace;
 }
 
 // ----------------------------------------------------------------------
@@ -216,7 +224,7 @@ static bool swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 	VkSwapchainKHR oldSwapchain = nullptr;
 	std::swap( self->swapchainKHR, oldSwapchain );
 
-	const VkSurfaceCapabilitiesKHR&      surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities;
+	const VkSurfaceCapabilitiesKHR&      surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities.surfaceCapabilities;
 	const std::vector<VkPresentModeKHR>& presentModes        = self->mSurfaceProperties.presentmodes;
 
 	// Either set or get the swapchain surface extents
@@ -267,24 +275,24 @@ static bool swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 	}
 
 	VkSwapchainCreateInfoKHR swapChainCreateInfo{
-		.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.pNext                 = nullptr, // optional
-		.flags                 = 0,       // optional
-		.surface               = self->vk_surface,
-		.minImageCount         = self->mImagecount,
-		.imageFormat           = self->mSurfaceProperties.windowSurfaceFormat.format,
-		.imageColorSpace       = self->mSurfaceProperties.windowSurfaceFormat.colorSpace,
-		.imageExtent           = self->mSwapchainExtent,
-		.imageArrayLayers      = 1,
-		.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
-		.queueFamilyIndexCount = 0, // optional
-		.pQueueFamilyIndices   = nullptr,
-		.preTransform          = preTransform,
-		.compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-		.presentMode           = self->mPresentMode,
-		.clipped               = VK_TRUE,
-		.oldSwapchain          = oldSwapchain,
+	    .sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+	    .pNext                 = nullptr, // optional
+	    .flags                 = 0,       // optional
+	    .surface               = self->vk_surface,
+	    .minImageCount         = self->mImagecount,
+	    .imageFormat           = self->mSurfaceProperties.windowSurfaceFormat.surfaceFormat.format,
+	    .imageColorSpace       = self->mSurfaceProperties.windowSurfaceFormat.surfaceFormat.colorSpace,
+	    .imageExtent           = self->mSwapchainExtent,
+	    .imageArrayLayers      = 1,
+	    .imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	    .imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
+	    .queueFamilyIndexCount = 0, // optional
+	    .pQueueFamilyIndices   = nullptr,
+	    .preTransform          = preTransform,
+	    .compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+	    .presentMode           = self->mPresentMode,
+	    .clipped               = VK_TRUE,
+	    .oldSwapchain          = oldSwapchain,
 	};
 
 	if ( vkCreateSwapchainKHR == nullptr ) {
