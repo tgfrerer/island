@@ -15,11 +15,11 @@
 static constexpr auto LOGGER_LABEL = "le_swapchain_khr";
 
 struct SurfaceProperties {
-	VkSurfaceFormat2KHR              windowSurfaceFormat;
-	VkSurfaceCapabilities2KHR        surfaceCapabilities;
+	VkSurfaceFormat2KHR              windowSurfaceFormat = { .sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR };
+	VkSurfaceCapabilities2KHR        surfaceCapabilities = { .sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR };
 	VkBool32                         presentSupported = VK_FALSE;
 	std::vector<VkPresentModeKHR>    presentmodes;
-	std::vector<VkSurfaceFormat2KHR> availableSurfaceFormats;
+	std::vector<VkSurfaceFormat2KHR> availableSurfaceFormats; // note these need their sTypes initialized!
 };
 
 struct khr_data_o {
@@ -70,6 +70,9 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 		auto result = vkGetPhysicalDeviceSurfaceFormats2KHR( self->physicalDevice, &surface_info, &count, nullptr );
 		assert( result == VK_SUCCESS );
 		surfaceProperties.availableSurfaceFormats.resize( count );
+		for ( auto& s : surfaceProperties.availableSurfaceFormats ) {
+			s.sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR;
+		}
 		result = vkGetPhysicalDeviceSurfaceFormats2KHR( self->physicalDevice, &surface_info, &count, surfaceProperties.availableSurfaceFormats.data() );
 		assert( result == VK_SUCCESS );
 
@@ -506,7 +509,7 @@ static VkImage swapchain_khr_get_image( le_swapchain_o* base, uint32_t index ) {
 
 static VkSurfaceFormatKHR* swapchain_khr_get_surface_format( le_swapchain_o* base ) {
 	auto self = static_cast<khr_data_o* const>( base->data );
-	return &reinterpret_cast<VkSurfaceFormatKHR&>( self->mSurfaceProperties.windowSurfaceFormat );
+	return &reinterpret_cast<VkSurfaceFormatKHR&>( self->mSurfaceProperties.windowSurfaceFormat.surfaceFormat );
 	if ( self->is_retired ) {
 		assert( false );
 	}
@@ -621,11 +624,11 @@ static bool swapchain_request_backend_capabilities( const le_swapchain_settings_
 
 	p_maintenance_features->swapchainMaintenance1 = true;
 
-	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" ) &&
-		   api->le_backend_settings_i.add_required_device_extension( "VK_EXT_swapchain_maintenance1" ) &&
-		   api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_surface_maintenance1" ) &&
-		   api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
-	;
+	return api->le_backend_settings_i.add_required_device_extension( VK_KHR_SWAPCHAIN_EXTENSION_NAME ) &&
+	       api->le_backend_settings_i.add_required_device_extension( VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME ) &&
+	       api->le_backend_settings_i.add_required_instance_extension( VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME ) &&
+	       api->le_backend_settings_i.add_required_instance_extension( VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME ) &&
+	       api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
 }
 
 // ----------------------------------------------------------------------
