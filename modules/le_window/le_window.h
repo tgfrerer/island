@@ -47,7 +47,9 @@ struct le_window_api {
 		bool            ( *notify_destroy_surface ) ( le_window_o * );
 
 		void            ( *toggle_fullscreen  ) ( le_window_o* self );
-		void			( *set_window_size    ) ( le_window_o* self, uint32_t width, uint32_t height);
+		void            ( *set_window_size    ) ( le_window_o* self, uint32_t width, uint32_t height);
+		void            ( *get_window_size    ) ( le_window_o* self, uint32_t *width, uint32_t* height);
+
 
 		// Returns a sorted array of events pending since the last call to this method.
 		// Note that calling this method invalidates any values returned from the previous call to this method.
@@ -189,6 +191,10 @@ class Window {
 
 	void setWindowSize( int32_t width, int32_t height ) {
 		le_window::window_i.set_window_size( self, width, height );
+	}
+
+	void getWindowSize( uint32_t* width, uint32_t* height ) {
+		le_window::window_i.get_window_size( self, width, height );
 	}
 
 	void getUIEventQueue( LeUiEvent const** events, uint32_t* numEvents ) {

@@ -456,6 +456,20 @@ static void window_set_window_size( le_window_o* self, uint32_t width, uint32_t 
 	glfwSetWindowSize( self->window, width, height );
 	glfwGetWindowSize( self->window, &self->windowGeometry.width, &self->windowGeometry.height );
 }
+
+// ----------------------------------------------------------------------
+
+static void window_get_window_size( le_window_o* self, uint32_t* width, uint32_t* height ) {
+	glfwGetWindowSize( self->window, &self->windowGeometry.width, &self->windowGeometry.height );
+
+	if ( width ) {
+		*width = self->windowGeometry.width;
+	}
+	if ( height ) {
+		*height = self->windowGeometry.height;
+	}
+}
+
 // ----------------------------------------------------------------------
 
 static le_window_settings_o* window_settings_create() {
@@ -968,6 +982,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 
 	window_i.toggle_fullscreen  = window_toggle_fullscreen;
 	window_i.set_window_size    = window_set_window_size;
+	window_i.get_window_size    = window_get_window_size;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
 
 	auto& window_settings_i               = window_api_i->window_settings_i;
