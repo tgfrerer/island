@@ -49,8 +49,14 @@ which point recording stops.
 Note: Do not point to a stack-value for `num_screenshots`, as this will mean
 that recording never end. Make it static, or something heap-allocated.
 
+The last parameter, a `le_swapchain_img_settings_t`, allows you to further
+specify how you want screenshots to be saved. You could, for example, specify
+a different encoder for images, and save screenshot images as 16 bit float .exr...
+
 If you don't provide settings, default settings will be used - width and heigth
-extents will be set to the extents of the oldest swapchain.
+extents will be set to the extents of the oldest swapchain, and the png adapter
+will be used to save images as a series of png images. You can see the default
+settings in the `le_screenshot.cpp` file.
 
 If you don't provide a `src_image`, the image of the first swapchain that is found with
 the renderer will get used.

@@ -226,6 +226,14 @@ static bool le_screenshot_record( le_screenshot_o* self, le_rendergraph_o* rg, l
 			std::string ext            = std::filesystem::path( self->swapchain_settings.image_filename_template ).extension();
 			uint32_t    largest_number = 0;
 
+			if ( !std::filesystem::exists( target_path ) ) {
+				if ( std::filesystem::create_directories( target_path ) ) {
+					logger.info( "Created screenshot output directory: '%s'", target_path.c_str() );
+				} else {
+					logger.error( "Could not create screenshot output directory: '%s'", target_path.c_str() );
+				}
+			}
+
 			// iterate over all files in the target path -- this can get slow if there are lots of files in there.
 			for ( auto const& f : std::filesystem::directory_iterator{ target_path } ) {
 				if ( std::filesystem::is_regular_file( f ) && f.path().extension() == ext ) {
