@@ -189,7 +189,7 @@ class Window {
 		le_window::window_i.toggle_fullscreen( self );
 	}
 
-	void setWindowSize( int32_t width, int32_t height ) {
+	void setWindowSize( uint32_t width, uint32_t height ) {
 		le_window::window_i.set_window_size( self, width, height );
 	}
 
