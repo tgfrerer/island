@@ -240,7 +240,9 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	post_reload_hook( static_cast<le_backend_o*>( backend_o ) );
 #endif
 
+#ifdef LE_SWAPCHAIN_BUILD_X11
 	le_core_load_library_persistently( "libX11.so" );
+#endif
 
 	LE_LOAD_TRACING_LIBRARY;
 }

@@ -1,6 +1,8 @@
 #include "le_swapchain_vk.h"
 #ifndef _MSC_VER
-#	define VK_USE_PLATFORM_XLIB_XRANDR_EXT
+#	ifdef LE_SWAPCHAIN_BUILD_X11
+#		define VK_USE_PLATFORM_XLIB_XRANDR_EXT
+#	endif
 #endif
 
 #include "le_backend_vk.h"
@@ -55,7 +57,10 @@ struct swp_direct_data_o {
 #ifdef _MSC_VER
 
 #else
+
+#	ifdef LE_SWAPCHAIN_BUILD_X11
 	Display* x11_display = nullptr;
+#	endif
 #endif
 
 	VkDisplayKHR                            display                 = nullptr;
@@ -321,7 +326,9 @@ static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_
 
 #ifdef _MSC_VER
 #else
+#	ifdef LE_SWAPCHAIN_BUILD_X11
 	self->x11_display = XOpenDisplay( nullptr );
+#	endif
 #endif
 	auto phyDevice = VkPhysicalDevice( self->physicalDevice );
 
@@ -360,6 +367,7 @@ static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_
 #ifdef _MSC_VER
 #else
 
+#	ifdef LE_SWAPCHAIN_BUILD_X11
 	getInstanceProc( self->instance, vkAcquireXlibDisplayEXT );
 	vk_result = vkAcquireXlibDisplayEXT( phyDevice, self->x11_display, self->display );
 
@@ -368,6 +376,7 @@ static le_swapchain_o* swapchain_direct_create( le_backend_o* backend, const le_
 		exit( 1 );
 	}
 
+#	endif
 	assert( vk_result == VK_SUCCESS );
 #endif
 
@@ -435,7 +444,10 @@ static void swapchain_direct_destroy( le_swapchain_o* base ) {
 
 #ifdef _MSC_VER
 #else
+
+#	ifdef LE_SWAPCHAIN_BUILD_X11
 	XCloseDisplay( self->x11_display );
+#	endif
 #endif
 	delete self; // delete object's data
 	delete base; // delete object
@@ -550,9 +562,11 @@ static bool swapchain_request_backend_capabilities( const le_swapchain_settings_
 	    // required instance extensions:
 	    api->le_backend_settings_i.add_required_instance_extension( VK_KHR_DISPLAY_EXTENSION_NAME ) &&
 	    api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_direct_mode_display" ) &&
+#if LE_SWAPCHAIN_BUILD_X11
 	    api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_xlib_surface" ) &&
-	    api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_surface" ) &&
 	    api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_acquire_xlib_display" ) &&
+#endif
+	    api->le_backend_settings_i.add_required_instance_extension( "VK_KHR_surface" ) &&
 	    api->le_backend_settings_i.add_required_instance_extension( "VK_EXT_display_surface_counter" );
 	;
 }
