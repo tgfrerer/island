@@ -586,6 +586,7 @@ static void window_remove_callbacks( le_window_o* self ) {
 	glfwSetMouseButtonCallback( self->window, nullptr );
 	glfwSetScrollCallback( self->window, nullptr );
 	glfwSetFramebufferSizeCallback( self->window, nullptr );
+	glfwSetDropCallback( self->window, nullptr );
 }
 
 // ----------------------------------------------------------------------
