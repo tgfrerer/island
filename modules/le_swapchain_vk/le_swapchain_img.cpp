@@ -766,9 +766,8 @@ static bool swapchain_request_backend_capabilities( const le_swapchain_settings_
 	using namespace le_backend_vk;
 	// We must activate the swapchain extension otherwise we don't get to transition
 	// the image format from VK_IMAGE_LAYOUT_PRESENT_SRC_KHR --- this is not ideal.
-	return api->le_backend_settings_i.add_required_device_extension( "VK_KHR_swapchain" ) &&
-	       true // NOTE: there are not instance extensions that we require for this particular type of swapchain
-	    ;
+	return api->le_backend_settings_i.add_required_device_extension( VK_KHR_SWAPCHAIN_EXTENSION_NAME ) &&
+	       api->le_backend_settings_i.add_required_instance_extension( VK_KHR_SURFACE_EXTENSION_NAME );
 }
 // ----------------------------------------------------------------------
 
