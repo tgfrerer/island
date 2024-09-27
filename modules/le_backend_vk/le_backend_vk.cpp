@@ -40,6 +40,8 @@
 
 static constexpr auto LEGACY_SWAPCHAIN = false;
 static constexpr auto LOGGER_LABEL     = "le_backend_vk";
+static auto           logger           = LeLog( LOGGER_LABEL );
+
 #ifdef _MSC_VER
 #	define NOMINMAX     // we do this so that Windows.h does not define min and max macros
 #	include <Windows.h> // for getModule
@@ -448,6 +450,16 @@ struct SemaphoreContainer {
 	VkSemaphore semaphore;
 };
 
+struct SemaphoreContainerDeleter {
+	char const* name;
+	VkDevice    device;
+	void        operator()( SemaphoreContainer* s ) {
+        logger.info( "Destroying %s semaphore %p", name, s->semaphore );
+        vkDestroySemaphore( device, s->semaphore, nullptr );
+        delete s;
+	};
+};
+
 class swapchain_data_t {
 
 	le_swapchain_o* swapchain = nullptr; // owned, reference counted. swapchain is destroyed when last reference is deleted.
@@ -505,6 +517,7 @@ class swapchain_data_t {
 		}
 	}
 };
+
 
 // note that these semaphores may only be deleted once the present
 // fence has been passed - this is not the same fence as the acquire fence...
@@ -777,7 +790,6 @@ static le_backend_o* backend_create() {
 // ----------------------------------------------------------------------
 
 static void backend_destroy( le_backend_o* self ) {
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( self->pipelineCache ) {
 		using namespace le_backend_vk;
@@ -954,7 +966,6 @@ static void backend_destroy( le_backend_o* self ) {
 // --- swapchain interface
 static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapchain_settings_t const* settings_ ) {
 	le_swapchain_o* swapchain = nullptr;
-	static auto     logger    = LeLog( LOGGER_LABEL );
 	using namespace le_swapchain_vk;
 
 	// Make a local copy of settings in case we must update settings
@@ -1110,7 +1121,6 @@ static size_t backend_get_data_frames_count( le_backend_o* self ) {
 // Returns the current swapchain width and height.
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
 static bool backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handle swapchain_handle, uint32_t* p_width, uint32_t* p_height ) {
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( swapchain_handle ) {
 		auto& swp = self->swapchains.at( reinterpret_cast<uint64_t>( swapchain_handle ) );
@@ -1423,7 +1433,6 @@ static void backend_setup( le_backend_o* self ) {
 
 	using namespace le_backend_vk;
 
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto settings = api->backend_settings_singleton;
 
@@ -1957,7 +1966,6 @@ static void frame_track_resource_state(
 	// + Layout transform (if final layout differs)
 	//
 	//- NOTE texture image resources *must* be explicitly synchronised:
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto& syncChainTable = frame.syncChainTable;
 
@@ -2140,7 +2148,6 @@ static void frame_track_resource_state(
 // ----------------------------------------------------------------------
 static void backend_debug_print_framedata( BackendFrameData const& frame ) {
 	ZoneScoped;
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	for ( auto const& [ handle, resource ] : frame.availableResources ) {
 		logger.info( "[% 2d] : "
@@ -2163,7 +2170,6 @@ static void backend_debug_print_framedata( BackendFrameData const& frame ) {
 /// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
 static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 	ZoneScoped;
-	static auto logger = LeLog( LOGGER_LABEL );
 	auto&       frame  = self->mFrames[ frameIndex ];
 	VkDevice    device = self->device->getVkDevice();
 
@@ -2191,7 +2197,6 @@ static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	ZoneScoped;
 
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	using namespace le_backend_vk;
 
@@ -2331,7 +2336,6 @@ static constexpr auto ANY_WRITE_VK_ACCESS_2_FLAGS =
 //
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 	ZoneScoped;
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	const auto& syncChainTable = frame.syncChainTable;
 
@@ -3018,7 +3022,6 @@ static void backend_destroy_buffer( le_backend_o* self, VkBuffer buffer, VmaAllo
 // Returns an AllocatedResourceVk, currently does not do any error checking.
 static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& alloc, const ResourceCreateInfo& resourceInfo, VkDevice device = nullptr ) {
 	ZoneScoped;
-	static auto         logger = LeLog( LOGGER_LABEL );
 	AllocatedResourceVk res{};
 	res.info = resourceInfo;
 	VmaAllocationCreateInfo allocationCreateInfo{};
@@ -3718,7 +3721,6 @@ static void insert_msaa_versions(
 
 static void printResourceInfo( le_resource_handle const& handle, ResourceCreateInfo const& info, const char* prefix = "" ) {
 	ZoneScoped;
-	static auto logger = LeLog( LOGGER_LABEL );
 	if ( info.isBuffer() ) {
 		logger.info( "%-15s : %-32s : %11d : %30s : %-30s", prefix, handle->data->debug_name, info.bufferInfo.size, "-",
 		             to_string_vk_buffer_usage_flags( info.bufferInfo.usage ).c_str() );
@@ -3789,7 +3791,6 @@ static void patch_renderpass_extents(
 
 static bool inferImageFormat( le_backend_o* self, le_image_resource_handle const& resource, le::ImageUsageFlags const& usageFlags, ResourceCreateInfo* createInfo ) {
 	ZoneScoped;
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	// If image format was not specified, we must try to
 	// infer the image format from usage flags.
@@ -3821,7 +3822,6 @@ static void patchImageUsageForMipLevels( ResourceCreateInfo* createInfo ) {
 
 static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance, VkDevice device_, BackendFrameData::ResourceMap_T& resources ) {
 	ZoneScoped;
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	// We capture the check for extension as a static, as this is not expected to
 	// change for the lifetime of the application, and checking for the extension
@@ -3906,7 +3906,6 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	- "Acquire" therefore means we create local copies of backend-wide resource handles.
 	*/
 
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
@@ -4159,7 +4158,6 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses, VkSamplerYcbcrConversionInfo* ycbcr_conversion_info = nullptr ) {
 	ZoneScoped;
 	using namespace le_renderer;
-	static auto       logger = LeLog( LOGGER_LABEL );
 	le::QueueFlagBits pass_type{};
 
 	// Only for compute passes: Create imageviews for all available
@@ -4611,7 +4609,6 @@ static le_staging_allocator_o* backend_get_staging_allocator( le_backend_o* self
 }
 
 void debug_print_le_pipeline_layout_info( le_pipeline_layout_info* info ) {
-	static auto logger = LeLog( LOGGER_LABEL );
 	logger.info( "pipeline layout: %x", info->pipeline_layout_key );
 	for ( size_t i = 0; i != info->set_layout_count; i++ ) {
 		logger.info( "set layout key : %x", info->set_layout_keys[ i ] );
@@ -4631,7 +4628,6 @@ static bool updateArguments( const VkDevice&                    device,
                              std::array<DescriptorSetState, 8>& previousSetData,
                              VkDescriptorSet*                   descriptorSets ) {
 
-	static auto logger = LeLog( LOGGER_LABEL );
 	// -- allocate descriptors from descriptorpool based on set layout info
 
 	if ( argumentState.setCount == 0 ) {
@@ -4864,7 +4860,6 @@ static bool updateArguments( const VkDevice&                    device,
 // ----------------------------------------------------------------------
 
 static void debug_print_command( void*& cmd ) {
-	static auto        logger = LeLog( LOGGER_LABEL );
 	std::ostringstream os;
 	os << "cmd: ";
 
@@ -5009,7 +5004,6 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 
 	static VkDevice device = self->device->getVkDevice();
 	using namespace le_swapchain_vk;
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	decltype( frame.frame_owned_swapchain_state ) previous_swapchain_state;
 
@@ -5037,19 +5031,10 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			    .flags = 0,       // optional
 			};
 
-			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-				logger.info( "Destroying present complete semaphore %x", p->semaphore );
-
-				vkDestroySemaphore( device, p->semaphore, nullptr );
-				delete ( p );
-			} );
+			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, SemaphoreContainerDeleter{ "present_complete", device } );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
 
-			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-				logger.info( "Destroying render complete semaphore %x", p->semaphore );
-				vkDestroySemaphore( device, p->semaphore, nullptr );
-				delete ( p );
-			} );
+			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, SemaphoreContainerDeleter{ "render_complete", device } );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.renderComplete->semaphore );
 		}
 
@@ -5083,18 +5068,10 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			    .flags = 0,       // optional
 			};
 
-			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-				logger.info( "Destroying present complete semaphore %x", p->semaphore );
-				vkDestroySemaphore( device, p->semaphore, nullptr );
-				delete ( p );
-			} );
+			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, SemaphoreContainerDeleter{ "present_complete_2", device } );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
 
-			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, []( SemaphoreContainer* p ) {
-				logger.info( "Destroying render complete semaphore %x", p->semaphore );
-				vkDestroySemaphore( device, p->semaphore, nullptr );
-				delete ( p );
-			} );
+			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, SemaphoreContainerDeleter{ "render_complete_2", device } );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.renderComplete->semaphore );
 
 			if ( swapchain_i.acquire_next_image( new_swapchain,
@@ -5207,7 +5184,6 @@ inline DescriptorData* find_descriptor_with_binding_number_and_array_idx(
 // ----------------------------------------------------------------------
 static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, BackendFrameData::PerQueueSubmissionData const& submission, std::vector<ExplicitSyncOp> const& explicit_sync_ops, VkCommandBuffer& cmd ) {
 	ZoneScoped;
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	// -- Issue sync barriers for all resources which require explicit sync.
 	//
@@ -5290,7 +5266,6 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 	ZoneScoped;
-	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( LE_PRINT_DEBUG_MESSAGES ) {
 		logger.debug( "** Process Frame #%8d **", frameIndex );
@@ -7474,7 +7449,6 @@ static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_c
 // ----------------------------------------------------------------------
 static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameIndex, bool should_generate_queue_sync_dot_files ) {
 
-	static auto logger = LeLog( LOGGER_LABEL );
 	auto&       frame  = self->mFrames[ frameIndex ];
 
 	struct ownership_transfer_t {
@@ -7982,7 +7956,6 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 
 	ZoneScoped;
 
-	static auto logger         = LeLog( LOGGER_LABEL );
 	auto&       frame          = self->mFrames[ frameIndex ];
 	static auto graphics_queue = self->queues[ self->queue_default_graphics_idx ]->queue; // will not change for the duration of the program.
 
