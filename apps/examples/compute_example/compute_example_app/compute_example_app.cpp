@@ -94,6 +94,7 @@ static compute_example_app_o* compute_example_app_create() {
 static void reset_camera( compute_example_app_o* self ) {
 	le::Extent2D extents{};
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
+	self->cameraController.setControlRect( 0, 0, float( extents.width ), float( extents.height ) );
 	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix =
