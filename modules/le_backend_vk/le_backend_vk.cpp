@@ -446,20 +446,6 @@ struct le_staging_allocator_o {
 
 // ------------------------------------------------------------
 
-struct SemaphoreContainer {
-	VkSemaphore semaphore;
-};
-
-struct SemaphoreContainerDeleter {
-	char const* name;
-	VkDevice    device;
-	void        operator()( SemaphoreContainer* s ) {
-        logger.info( "Destroying %s semaphore %p", name, s->semaphore );
-        vkDestroySemaphore( device, s->semaphore, nullptr );
-        delete s;
-	};
-};
-
 class swapchain_data_t {
 
 	le_swapchain_o* swapchain = nullptr; // owned, reference counted. swapchain is destroyed when last reference is deleted.
@@ -523,10 +509,10 @@ class swapchain_data_t {
 // fence has been passed - this is not the same fence as the acquire fence...
 struct swapchain_state_t {
 	uint32_t                            image_idx = uint32_t( ~0 );
-	std::shared_ptr<SemaphoreContainer> presentComplete;
-	std::shared_ptr<SemaphoreContainer> renderComplete;
-	bool                                present_successful = false;
-	bool                                acquire_successful = false;
+	VkSemaphore                         present_complete       = nullptr; //  owning
+	VkSemaphore                         render_complete        = nullptr; // owning
+	bool                                was_present_successful = false;
+	bool                                was_acquire_successful = false;
 	swapchain_data_t                    swapchain_data;
 };
 
@@ -832,6 +818,21 @@ static void backend_destroy( le_backend_o* self ) {
 
 		vkDestroyFence( device, frameData.frameFence, nullptr );
 
+		// We must destroy any present_complete and render complete semaphores held by the
+		// frame via swapchain state.
+		//
+		for ( auto& f : frameData.frame_owned_swapchain_state ) {
+			if ( f.second.present_complete ) {
+				vkDestroySemaphore( device, f.second.present_complete, nullptr );
+				logger.info( "Destroyed Present Complete Semaphore %p", f.second.present_complete );
+				f.second.present_complete = nullptr;
+			}
+			if ( f.second.render_complete ) {
+				vkDestroySemaphore( device, f.second.render_complete, nullptr );
+				logger.info( "Destroyed Render Complete Semaphore %p", f.second.render_complete );
+				f.second.render_complete = nullptr;
+			}
+		}
 		frameData.frame_owned_swapchain_state.clear();
 
 		{
@@ -5012,18 +5013,26 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 	for ( auto& [ key, backend_swapchain_data ] : self->swapchains ) {
 
 		auto previous_it = previous_swapchain_state.find( key );
-		// Item existed before:
-		// we can recycle the semaphores.
-
-		auto const& [ swapchain_state, was_inserted ] =
-		    ( previous_it != previous_swapchain_state.end() )                                          // if item existed in a previous version of this frame
-		        ? frame.frame_owned_swapchain_state.emplace( previous_it->first, previous_it->second ) // then copy previous swapchain info into the current frame
-		        : frame.frame_owned_swapchain_state.emplace( key, swapchain_state_t{} );               // otherwise generate new swapchain info
-
-		swapchain_state_t& local_swapchain_state = swapchain_state->second;
 
 		if ( previous_it == previous_swapchain_state.end() ) {
 			// item did not exist before - we must create semaphores.
+			frame.frame_owned_swapchain_state[ key ] = {};
+		} else {
+			// Item existed before:
+			// we can recycle the semaphores
+			frame.frame_owned_swapchain_state[ key ] = previous_it->second;
+			// pevious state did exist -- we must delete it as it has now moved
+			// we do this so that at the end the leftover previous_swapchain states are swapchains that have been
+			// abandoned in this stage.
+			previous_swapchain_state.erase( previous_it );
+		}
+
+		swapchain_state_t& local_swapchain_state = frame.frame_owned_swapchain_state.at( key );
+
+		if ( local_swapchain_state.present_complete == nullptr ||
+		     local_swapchain_state.render_complete == nullptr ) {
+
+			// If item has been created freshly, we must create semaphores for it
 
 			VkSemaphoreCreateInfo const create_info = {
 			    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -5031,11 +5040,14 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			    .flags = 0,       // optional
 			};
 
-			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, SemaphoreContainerDeleter{ "present_complete", device } );
-			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
+			// There is something wrong if only one of the two semaphores is null.
+			// It's either both semaphores (the swapchain_state has been created freshly)
+			// or none (the swapchain state has been recycled).
+			assert( local_swapchain_state.present_complete == nullptr );
+			assert( local_swapchain_state.render_complete == nullptr );
 
-			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, SemaphoreContainerDeleter{ "render_complete", device } );
-			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.renderComplete->semaphore );
+			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.present_complete );
+			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.render_complete );
 		}
 
 		local_swapchain_state.swapchain_data = backend_swapchain_data; // this is where we copy the swapchain into the frame.
@@ -5050,7 +5062,7 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 		bool acquire_success = true;
 
 		if ( !swapchain_i.acquire_next_image( local_swapchain_state.swapchain_data.get_swapchain(),
-		                                      local_swapchain_state.presentComplete->semaphore,
+		                                      local_swapchain_state.present_complete,
 		                                      &local_swapchain_state.image_idx ) ) {
 
 			// try to acquire again by creating a new swapchain from the old one
@@ -5068,14 +5080,8 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			    .flags = 0,       // optional
 			};
 
-			local_swapchain_state.presentComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, SemaphoreContainerDeleter{ "present_complete_2", device } );
-			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.presentComplete->semaphore );
-
-			local_swapchain_state.renderComplete = std::shared_ptr<SemaphoreContainer>( new SemaphoreContainer, SemaphoreContainerDeleter{ "render_complete_2", device } );
-			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.renderComplete->semaphore );
-
 			if ( swapchain_i.acquire_next_image( new_swapchain,
-			                                     local_swapchain_state.presentComplete->semaphore,
+			                                     local_swapchain_state.present_complete,
 			                                     &local_swapchain_state.image_idx ) ) {
 
 				// if an image was acquired with a newly created swapchain, then
@@ -5087,18 +5093,18 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 
 				backend_swapchain_data = local_swapchain_state.swapchain_data; // copy frame swapchain data to backend
 
-				local_swapchain_state.acquire_successful = true;
+				local_swapchain_state.was_acquire_successful = true;
 				acquire_success                          = true;
 			} else {
 				// TODO: What do we want to do if acquiring with a new swapchain fails?
 				// We should destroy both swapchains for sure.
 				acquire_success                          = false;
-				local_swapchain_state.acquire_successful = false;
+				local_swapchain_state.was_acquire_successful = false;
 				logger.error( "Could not acquire swapchain" );
 				assert( false );
 			}
 		} else {
-			local_swapchain_state.acquire_successful = true;
+			local_swapchain_state.was_acquire_successful = true;
 		}
 
 		if ( !acquire_success ) {
@@ -5162,6 +5168,22 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 				// If image declaration did already exist, we must consolidate the corresponing image info
 				consolidate_resource_info_into( it->second, img_info );
 			}
+		}
+	} // end for each swapchain
+
+	// We must destroy any leftover swapchain states that are in previous_swapchain_state
+	// as these relate to abandoned swapchains (swapchains that have been destroyed in this
+	// frame...
+	for ( auto p : previous_swapchain_state ) {
+		if ( p.second.present_complete ) {
+			vkDestroySemaphore( device, p.second.present_complete, nullptr );
+			logger.info( "Destroyed Present Complete Semaphore %p", p.second.present_complete );
+			p.second.present_complete = nullptr;
+		}
+		if ( p.second.render_complete ) {
+			vkDestroySemaphore( device, p.second.render_complete, nullptr );
+			logger.info( "Destroyed Render Complete Semaphore %p", p.second.render_complete );
+			p.second.render_complete = nullptr;
 		}
 	}
 }
@@ -7179,7 +7201,7 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 	for ( auto const& f : backend->mFrames ) {
 		for ( auto const& [ swapchain_handle, swapchain_state ] : f.frame_owned_swapchain_state ) {
 			{
-				auto const& [ it, was_inserted ] = semaphore_indices->emplace( swapchain_state.presentComplete->semaphore, uint32_t( semaphore_indices->size() ) );
+				auto const& [ it, was_inserted ] = semaphore_indices->emplace( swapchain_state.present_complete, uint32_t( semaphore_indices->size() ) );
 				if ( was_inserted ) {
 					// if an element was inserted
 					snprintf( img_name_c_str, sizeof( img_name_c_str ), "PRESENT_COMPLETE: %s", swapchain_state.swapchain_data.swapchain_image->data->debug_name );
@@ -7193,7 +7215,7 @@ std::vector<std::string>* backend_initialise_semaphore_names( le_backend_o const
 				}
 			}
 			{
-				auto const& [ it, was_inserted ] = semaphore_indices->emplace( swapchain_state.renderComplete->semaphore, uint32_t( semaphore_indices->size() ) );
+				auto const& [ it, was_inserted ] = semaphore_indices->emplace( swapchain_state.render_complete, uint32_t( semaphore_indices->size() ) );
 				if ( was_inserted ) {
 					// if an element was inserted
 					snprintf( img_name_c_str, sizeof( img_name_c_str ), "PRESENT_COMPLETE: %s", swapchain_state.swapchain_data.swapchain_image->data->debug_name );
@@ -7979,7 +8001,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			    {
 			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 			        .pNext       = nullptr,
-			        .semaphore   = swp.presentComplete->semaphore,
+			        .semaphore   = swp.present_complete,
 			        .value       = 0,                                               // ignored, as this semaphore is not a timeline semaphore
 			        .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, // signal semaphore once ColorAttachmentOutput has completed
 			        .deviceIndex = 0,                                               // replaces vkDeviceGroupSubmitInfo
@@ -7988,7 +8010,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			    {
 			        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 			        .pNext       = nullptr,
-			        .semaphore   = swp.renderComplete->semaphore,
+			        .semaphore   = swp.render_complete,
 			        .value       = 0,                                  // ignored, as this semaphore is not a timeline semaphore
 			        .stageMask   = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // signal semaphore once all commands have been processed
 			        .deviceIndex = 0,                                  // replaces vkDeviceGroupSubmitInfo
@@ -8119,7 +8141,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			    swapchain_i.present(
 			        swp_state.swapchain_data.get_swapchain(),
 			        graphics_queue, // we must present on a queue which has present enabled, graphics queue should fit the bill.
-			        swp_state.renderComplete->semaphore,
+			        swp_state.render_complete,
 			        &swp_state.image_idx );
 
 			if ( !result ) {
@@ -8137,7 +8159,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 				vkQueueWaitIdle( graphics_queue );
 			}
 
-			swp_state.present_successful = result;
+			swp_state.was_present_successful = result;
 
 			overall_result &= result;
 		}
