@@ -504,16 +504,15 @@ class swapchain_data_t {
 	}
 };
 
-
 // note that these semaphores may only be deleted once the present
 // fence has been passed - this is not the same fence as the acquire fence...
 struct swapchain_state_t {
-	uint32_t                            image_idx = uint32_t( ~0 );
-	VkSemaphore                         present_complete       = nullptr; //  owning
-	VkSemaphore                         render_complete        = nullptr; // owning
-	bool                                was_present_successful = false;
-	bool                                was_acquire_successful = false;
-	swapchain_data_t                    swapchain_data;
+	uint32_t         image_idx              = uint32_t( ~0 );
+	VkSemaphore      present_complete       = nullptr; //  owning
+	VkSemaphore      render_complete        = nullptr; // owning
+	bool             was_present_successful = false;
+	bool             was_acquire_successful = false;
+	swapchain_data_t swapchain_data;
 };
 
 // Herein goes all data which is associated with the current frame.
@@ -636,7 +635,7 @@ struct le_backend_o {
 	bool                                   must_track_resources_queue_family_ownership = false; // Whether we must keep track of queue family indices per resource - this applies only if not all queues have the same queue family index
 
 	std::atomic<uint64_t>                          swapchains_next_handle; // monotonically increasing handle to index swapchains
-	std::unordered_map<uint64_t, swapchain_data_t> swapchains;             // Container of owned swapchains. Access only on the main thread.
+	std::unordered_map<uint64_t, swapchain_data_t> swapchains;             // Container of owned swapchains. Access only on the main thread. this is a map, because order matters (the lowest-order swapchain is considered the default swapchain)
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
@@ -1460,7 +1459,6 @@ static void backend_setup( le_backend_o* self ) {
 
 	using namespace le_backend_vk;
 
-
 	auto settings = api->backend_settings_singleton;
 
 	assert( settings );
@@ -2197,8 +2195,8 @@ static void backend_debug_print_framedata( BackendFrameData const& frame ) {
 /// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
 static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 	ZoneScoped;
-	auto&       frame  = self->mFrames[ frameIndex ];
-	VkDevice    device = self->device->getVkDevice();
+	auto&    frame  = self->mFrames[ frameIndex ];
+	VkDevice device = self->device->getVkDevice();
 
 	// Non-blocking, polling
 	// auto result = device.getFenceStatus( {frame.frameFence} );
@@ -2223,7 +2221,6 @@ static bool backend_poll_frame_fence( le_backend_o* self, size_t frameIndex ) {
 /// \preliminary: frame fence must have been crossed.
 static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	ZoneScoped;
-
 
 	using namespace le_backend_vk;
 
@@ -3933,7 +3930,6 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	- "Acquire" therefore means we create local copies of backend-wide resource handles.
 	*/
 
-
 	static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
 	// -- first it is our holy duty to drop any binned resources which
@@ -5120,11 +5116,11 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 				backend_swapchain_data = local_swapchain_state.swapchain_data; // copy frame swapchain data to backend
 
 				local_swapchain_state.was_acquire_successful = true;
-				acquire_success                          = true;
+				acquire_success                              = true;
 			} else {
 				// TODO: What do we want to do if acquiring with a new swapchain fails?
 				// We should destroy both swapchains for sure.
-				acquire_success                          = false;
+				acquire_success                              = false;
 				local_swapchain_state.was_acquire_successful = false;
 				logger.error( "Could not acquire swapchain" );
 				assert( false );
@@ -7497,7 +7493,7 @@ static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_c
 // ----------------------------------------------------------------------
 static void backend_submit_queue_transfer_ops( le_backend_o* self, size_t frameIndex, bool should_generate_queue_sync_dot_files ) {
 
-	auto&       frame  = self->mFrames[ frameIndex ];
+	auto& frame = self->mFrames[ frameIndex ];
 
 	struct ownership_transfer_t {
 		le_resource_handle    resource;
