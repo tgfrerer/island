@@ -1077,6 +1077,34 @@ static bool backend_remove_swapchain( le_backend_o* self, le_swapchain_handle sw
 		return false;
 	}
 }
+// ----------------------------------------------------------------------
+
+// Return an iterator to the default swapchain (which is the oldest swapchain currently in the map of swapchains)
+// return swapchains::end() if there are no swapchains in there.
+static inline auto get_default_swapchain_it( std::unordered_map<uint64_t, swapchain_data_t>& swapchains ) {
+
+	// get the default swapchain
+	std::unordered_map<uint64_t, swapchain_data_t>::iterator result = swapchains.begin();
+
+	if ( swapchains.empty() || swapchains.size() == 1 ) {
+		return result;
+	}
+
+	// -----------| Invariant: There is more than one swapchain
+	// 				We must find the one that has the lowest key.
+
+	auto     it         = result;
+	uint64_t lowest_key = it->first;
+
+	for ( ++it; it != swapchains.end(); it++ ) {
+		if ( it->first < lowest_key ) {
+			result     = it;
+			lowest_key = it->first;
+		}
+	}
+
+	return result;
+}
 
 // ----------------------------------------------------------------------
 // This must only be called on the front thread (RECORD)
@@ -1085,7 +1113,7 @@ static bool backend_recreate_swapchain( le_backend_o* self, le_swapchain_handle 
 
 	auto it = swapchain_handle
 	              ? self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) )
-	              : self->swapchains.begin();
+	              : get_default_swapchain_it( self->swapchains );
 
 	if ( it == self->swapchains.end() ) {
 		return false;
@@ -1123,18 +1151,13 @@ static size_t backend_get_data_frames_count( le_backend_o* self ) {
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
 static bool backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handle swapchain_handle, uint32_t* p_width, uint32_t* p_height ) {
 
-	if ( swapchain_handle ) {
-		auto& swp = self->swapchains.at( reinterpret_cast<uint64_t>( swapchain_handle ) );
-		*p_width  = swp.width;
-		*p_height = swp.height;
-		return true;
+	auto swp = swapchain_handle
+	               ? self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) )
+	               : get_default_swapchain_it( self->swapchains );
 
-	} else if ( !self->swapchains.empty() ) {
-
-		auto& swp = self->swapchains.begin()->second;
-		*p_width  = swp.width;
-		*p_height = swp.height;
-
+	if ( swp != self->swapchains.end() ) {
+		*p_width  = swp->second.width;
+		*p_height = swp->second.height;
 		return true;
 	} else {
 		return false;
@@ -1212,9 +1235,12 @@ static le_image_resource_handle backend_get_swapchain_resource( le_backend_o* se
 /// Returns the first available swapchain, if there is a swapchain available.
 static le_image_resource_handle backend_get_swapchain_resource_default( le_backend_o* self ) {
 
-	if ( !self->swapchains.empty() ) {
-		return self->swapchains.begin()->second.swapchain_image;
+	auto it = get_default_swapchain_it( self->swapchains );
+
+	if ( it != self->swapchains.end() ) {
+		return it->second.swapchain_image;
 	} else {
+		// no valid swapchain
 		return nullptr;
 	}
 }
