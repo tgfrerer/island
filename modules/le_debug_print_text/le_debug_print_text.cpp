@@ -69,9 +69,7 @@ struct word_data {
 	float_colour_t col_bg;
 };
 
-static auto logger = []() -> auto {
-	return le::Log( "le_debug_print_text" );
-}();
+static auto logger = le::Log( "le_debug_print_text" );
 
 // ----------------------------------------------------------------------
 
