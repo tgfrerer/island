@@ -47,7 +47,7 @@ struct le_debug_print_text_api {
 		float y;
 	};
 
-	struct float_color_t{
+	struct float_colour_t{
 		union{ float r; float x; };
 		union{ float g; float y; };
 		union{ float b; float z; };
@@ -95,6 +95,9 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 	le_debug_print_text_o* self;
 
   public:
+	using float2         = le_debug_print_text_api::float2;
+	using float_colour_t = le_debug_print_text_api::float_colour_t;
+
 	LeDebugTextPrinter()
 	    : self( le_debug_print_text::le_debug_print_text_i.create() ) {
 	}
@@ -149,6 +152,8 @@ using DebugTextPrinter = LeDebugTextPrinter;
 namespace le {
 
 namespace DebugPrint {
+
+using float_colour_t = le_debug_print_text_api::float_colour_t;
 
 // returns whether there are any messages to display
 inline static bool hasMessages() {

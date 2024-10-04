@@ -11,13 +11,13 @@
 #include <cstdarg>  // for arg
 #include <limits>   // for std::numeric_limits
 
-using float2        = le_debug_print_text_api::float2;
-using float_color_t = le_debug_print_text_api::float_color_t;
+using float2         = le_debug_print_text_api::float2;
+using float_colour_t = le_debug_print_text_api::float_colour_t;
 
 struct state_t {
-	float_color_t col_fg     = { 1, 1, 1, 1 }; // rgba
-	float_color_t col_bg     = { 0, 0, 0, 0 }; // rgba
-	float         char_scale = 1;
+	float_colour_t col_fg     = { 1, 1, 1, 1 }; // rgba
+	float_colour_t col_bg     = { 0, 0, 0, 0 }; // rgba
+	float          char_scale = 1;
 };
 
 struct print_instruction {
