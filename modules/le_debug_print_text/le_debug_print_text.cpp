@@ -120,7 +120,6 @@ static inline void le_debug_print_text_create_pipeline_objects( this_o* self, le
 
 	// TODO: remove this once you don't want to rebuild the pipeline
 	// every time we're reloading
-	static bool was_reloaded = true;
 
 	if ( self->shader_frag && self->shader_vert && self->pipeline ) {
 		return;
@@ -146,6 +145,7 @@ static inline void le_debug_print_text_create_pipeline_objects( this_o* self, le
 		        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
 		        .build();
 	}
+	static bool was_reloaded = true;
 
 	if ( was_reloaded || !self->pipeline ) {
 		// clang-format off
@@ -218,12 +218,6 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 	    0, 2, 3, //
 	};
 
-	// the font has a size of 8 pixels in x ... this means that we want to find out how much one character
-	// takes in terms of screen percentage
-
-
-	float one_pixel_w = 2.f / extents.width;
-
 	std::vector<word_data> words;
 
 	for ( auto& p : self->print_instructions ) {
@@ -240,19 +234,14 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 			            8 * 4 * i * char_scale + p.cursor_start.x,
 			            0 * char_scale + p.cursor_start.y,
 			            char_scale,
-			        }, // position given in pixels, scale (scale gets applied first)
-
-			        // we don't automatically apply the char scale becuase we want to maintain that xy is absolute pixels.
+			            // position given in pixels, scale (scale gets applied first)
+			            // we don't automatically apply the char scale becuase we want to maintain that xy is absolute pixels.
+			        },
 			        .col_fg = current_style.col_fg,
 			        .col_bg = current_style.col_bg,
 			    } );
 		}
 	}
-
-	// TODO:
-	// build a buffer with word, position, scale for each word
-	// and then render enough instances of words so that all the words
-	// get drawn
 
 	float u_resolution[ 2 ] = {
 	    float( extents.width ),
@@ -299,7 +288,7 @@ static float le_debug_print_text_get_scale( this_o* self ) {
 	return self->styles[ self->last_used_style ].char_scale;
 }
 
-//
+// ----------------------------------------------------------------------
 
 static inline void le_debug_print_text_copy_on_write_style( this_o* self, style_t const& new_style ) {
 
