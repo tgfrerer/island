@@ -47,15 +47,17 @@ struct vec2_t; // alias this to glm::vec2 if available
 
 	struct le_debug_print_text_interface_t {
 
-		le_debug_print_text_o * ( * create     ) ( );
-		void                    ( * destroy    ) ( le_debug_print_text_o* self );
-		void 					( * print      ) ( le_debug_print_text_o*self, char const * text, glm::vec2* optional_cursor);
-		void                    ( * printf     ) ( le_debug_print_text_o*self, glm::vec2* optional_cursor, const char *msg, ... );
-		void                    ( * draw       ) ( le_debug_print_text_o* self, le_renderpass_o* rp );
-		void 					( * get_cursor ) ( le_debug_print_text_o*self, glm::vec2* cursor);
-		bool 					( * has_messages ) (le_debug_print_text_o* self);
+		le_debug_print_text_o * ( * create       ) ( );
+		void                    ( * destroy      ) ( le_debug_print_text_o* self );
 
-		void (*set_scale)(le_debug_print_text_o* self, float scale);
+		void 					( * print        ) ( le_debug_print_text_o* self, char const * text, glm::vec2* optional_cursor );
+		void                    ( * printf       ) ( le_debug_print_text_o* self, glm::vec2* optional_cursor, const char *msg, ... );
+
+		bool 					( * has_messages ) ( le_debug_print_text_o* self );
+		void 					( * get_cursor   ) ( le_debug_print_text_o* self, glm::vec2* cursor );
+		void                    ( * set_scale    ) ( le_debug_print_text_o* self, float scale );
+
+		void                    ( * draw         ) ( le_debug_print_text_o* self, le_renderpass_o* rp );
 	};
 
 	le_debug_print_text_o * singleton_obj = nullptr;
