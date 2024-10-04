@@ -87,7 +87,7 @@ static const auto& api              = le_log_api_i;
 static const auto& le_log_channel_i = api->le_log_channel_i;
 } // namespace le_log
 
-class LeLog {
+class LeLog : NoCopy, NoMove {
 	le_log_channel_o* channel;
 
   public:
