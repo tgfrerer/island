@@ -5102,6 +5102,15 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			    .flags = 0,       // optional
 			};
 
+			// We must re-create semaphores as they might be in signalled state.
+			// for binary semaphores, there is unfortunately no other way to reset
+			// them.
+			vkDestroySemaphore( device, local_swapchain_state.present_complete, nullptr );
+			vkDestroySemaphore( device, local_swapchain_state.render_complete, nullptr );
+
+			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.present_complete );
+			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.render_complete );
+
 			if ( swapchain_i.acquire_next_image( new_swapchain,
 			                                     local_swapchain_state.present_complete,
 			                                     &local_swapchain_state.image_idx ) ) {
