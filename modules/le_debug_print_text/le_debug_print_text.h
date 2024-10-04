@@ -74,6 +74,9 @@ struct le_debug_print_text_api {
 		float                   ( * get_scale    ) ( le_debug_print_text_o* self );
 		void                    ( * set_scale    ) ( le_debug_print_text_o* self, float scale );
 
+		void                    ( * push_style   ) ( le_debug_print_text_o* self );
+		void                    ( * pop_style    ) ( le_debug_print_text_o* self );
+
 		void                    ( * draw         ) ( le_debug_print_text_o* self, le_renderpass_o* rp );
 	};
 
@@ -147,6 +150,14 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 		return le_debug_print_text::le_debug_print_text_i.get_scale( self );
 	}
 
+	void pushStyle() {
+		le_debug_print_text::le_debug_print_text_i.push_style( self );
+	}
+
+	void popStyle() {
+		le_debug_print_text::le_debug_print_text_i.pop_style( self );
+	}
+
 	// print given text at the position given at optional_scale
 	void print( char const* text ) {
 		le_debug_print_text::le_debug_print_text_i.print( self, text );
@@ -218,6 +229,16 @@ inline static float2 getCursor() {
 inline static void setCursor( float2& cursor ) {
 	le_debug_print_text::le_debug_print_text_i.set_cursor(
 	    le_debug_print_text_api_i->singleton_obj, &cursor );
+}
+
+inline static void push_style() {
+	le_debug_print_text::le_debug_print_text_i.push_style(
+	    le_debug_print_text_api_i->singleton_obj );
+}
+
+inline static void pop_style() {
+	le_debug_print_text::le_debug_print_text_i.pop_style(
+	    le_debug_print_text_api_i->singleton_obj );
 }
 
 inline static void print( char const* text ) {

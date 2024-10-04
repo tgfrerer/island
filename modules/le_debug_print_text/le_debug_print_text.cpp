@@ -53,8 +53,10 @@ struct le_debug_print_text_o {
 
 	float2 cursor_pos = { 0, 0 }; // current cursor position, top right of the screen
 
-	size_t                         last_used_style = -1;
-	std::vector<style_t>           styles; // unused for now
+	size_t               last_used_style = -1;
+	std::vector<style_t> styles;
+	std::vector<style_t> style_stack; // used for push/pop style
+
 	std::vector<print_instruction> print_instructions;
 };
 
@@ -74,7 +76,10 @@ static auto logger = []() -> auto {
 // ----------------------------------------------------------------------
 
 static void le_debug_print_text_draw_reset( this_o* self ) {
+
 	self->styles.clear();
+	self->style_stack.clear();
+
 	self->cursor_pos = {};
 	self->print_instructions.clear();
 
@@ -84,6 +89,8 @@ static void le_debug_print_text_draw_reset( this_o* self ) {
 	    .col_bg     = { 0, 0, 0, 0 },
 	    .char_scale = 1.f,
 	} );
+
+	self->last_used_style = -1;
 }
 
 // ----------------------------------------------------------------------
@@ -316,6 +323,28 @@ static inline void le_debug_print_text_copy_on_write_style( this_o* self, style_
 }
 
 // ----------------------------------------------------------------------
+static void le_debug_print_text_push_style( this_o* self ) {
+	self->style_stack.push_back( self->styles.back() );
+}
+
+// ----------------------------------------------------------------------
+static void le_debug_print_text_pop_style( this_o* self ) {
+
+	if ( self->style_stack.empty() ) {
+		return;
+	}
+
+	// ---------- | invariant: style stack is not empty
+
+	auto style = std::move( self->style_stack.back() );
+	self->style_stack.pop_back();
+
+	// Apply the style that we just popped from the stack
+
+	le_debug_print_text_copy_on_write_style( self, style );
+}
+
+// ----------------------------------------------------------------------
 
 static void le_debug_print_text_set_colour( this_o* self, float_colour_t const* colour ) {
 	// find  last element in style.
@@ -519,6 +548,9 @@ LE_MODULE_REGISTER_IMPL( le_debug_print_text, api ) {
 
 	le_debug_print_text_i.set_cursor = le_debug_print_text_set_cursor;
 	le_debug_print_text_i.get_cursor = le_debug_print_text_get_cursor;
+
+	le_debug_print_text_i.push_style = le_debug_print_text_push_style;
+	le_debug_print_text_i.pop_style  = le_debug_print_text_pop_style;
 
 	if ( p_le_debug_print_text_api->singleton_obj == nullptr ) {
 		// If we're registering this for the first time, we must create the singleton object.
