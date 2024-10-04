@@ -65,6 +65,8 @@ struct le_debug_print_text_api {
 
 		bool 					( * has_messages ) ( le_debug_print_text_o* self );
 
+		void                    ( * set_colour   ) ( le_debug_print_text_o* self, const float_colour_t* colour);
+
 		float2                  ( * get_cursor    ) ( le_debug_print_text_o* self );
 		void                    ( * set_cursor    ) ( le_debug_print_text_o* self, const float2* cursor );
 
@@ -127,6 +129,10 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 		return le_debug_print_text::le_debug_print_text_i.get_cursor( self );
 	}
 
+	void setColour( float_colour_t colour ) {
+		le_debug_print_text::le_debug_print_text_i.set_colour( self, &colour );
+	}
+
 	void setScale( float scale ) {
 		le_debug_print_text::le_debug_print_text_i.set_scale( self, scale );
 	}
@@ -179,14 +185,19 @@ inline static void drawAllMessages( le_renderpass_o* rp ) {
 	    le_debug_print_text_api_i->singleton_obj, rp );
 }
 
-inline static float getScale() {
-	return le_debug_print_text::le_debug_print_text_i.get_scale(
-	    le_debug_print_text_api_i->singleton_obj );
+inline static void setColour( float_colour_t colour ) {
+	le_debug_print_text::le_debug_print_text_i.set_colour(
+	    le_debug_print_text_api_i->singleton_obj, &colour );
 }
 
 inline static void setScale( float scale ) {
 	le_debug_print_text::le_debug_print_text_i.set_scale(
 	    le_debug_print_text_api_i->singleton_obj, scale );
+}
+
+inline static float getScale() {
+	return le_debug_print_text::le_debug_print_text_i.get_scale(
+	    le_debug_print_text_api_i->singleton_obj );
 }
 
 inline static float2 getCursor() {

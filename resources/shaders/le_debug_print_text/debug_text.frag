@@ -104,10 +104,15 @@ const uint font_data[1536/4] = {
     0x00000000, 0x0000183C, 0x3C180000, 0x00000000, 
 };
 
+struct per_word_data {
+    uint msg;
+    vec4 fg_colour;
+    vec4 bg_colour;
+};
 
 // inputs 
 layout (location = 0) in vec2 inTexCoord;
-layout (location = 1) flat in uint inMsg; 
+layout (location = 1) flat in per_word_data inMsg; 
 
 // outputs
 layout (location = 0) out vec4 outFragColor;
@@ -133,7 +138,7 @@ void main(){
 	// our message is encoded as uint little endian
 	// this should pass as a vertex attribute - if we 
 	// can encode a uint32 as an attribute.
-	uint msg = inMsg;
+	uint msg = inMsg.msg;
 
 	// now we must pick up the correct uint from the array 
 	uint char_code = msg >> 8 * (char_coord.x/8) & 0xff;
@@ -155,11 +160,17 @@ void main(){
 	uint current_line  = (four_lines >> (8*(3-(char_coord.y)%4))) & 0xff;
 	uint current_pixel = (current_line >> (7-char_coord.x)) & 0x01;
 
-	vec3 color = vec3(current_pixel);
+    // if the pixel is 0, choose background colour, if it is 1 choose 
+    // foreground colour
+    vec4 colour = mix(inMsg.bg_colour, inMsg.fg_colour, current_pixel);
+
+    // colour = inMsg.fg_colour;
+	// vec3 color = vec3(current_pixel);
     // color.xy = char_coord / vec2(8,16);
 	// color.xy = char_coord / vec2(8,16);
-    color += vec3(0.4);
+    // color += vec3(0.4);
 
 
-	outFragColor = vec4( color, 1 );
+    // outFragColor = vec4( color, 1 );
+    outFragColor = colour;
 }

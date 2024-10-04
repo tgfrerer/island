@@ -14,10 +14,27 @@
 using float2         = le_debug_print_text_api::float2;
 using float_colour_t = le_debug_print_text_api::float_colour_t;
 
-struct state_t {
+struct style_t {
 	float_colour_t col_fg     = { 1, 1, 1, 1 }; // rgba
 	float_colour_t col_bg     = { 0, 0, 0, 0 }; // rgba
 	float          char_scale = 1;
+
+	bool operator==( style_t const& rhs ) {
+		constexpr auto e = std::numeric_limits<float>::epsilon();
+		return
+		    // compare char_scale
+		    std::abs( char_scale - rhs.char_scale ) <= e &&
+		    // compare background colour
+		    std::abs( col_bg.x - rhs.col_bg.x ) <= e &&
+		    std::abs( col_bg.y - rhs.col_bg.y ) <= e &&
+		    std::abs( col_bg.z - rhs.col_bg.z ) <= e &&
+		    std::abs( col_bg.w - rhs.col_bg.w ) <= e &&
+		    // compare foreground colour
+		    std::abs( col_fg.x - rhs.col_fg.x ) <= e &&
+		    std::abs( col_fg.y - rhs.col_fg.y ) <= e &&
+		    std::abs( col_fg.z - rhs.col_fg.z ) <= e &&
+		    std::abs( col_fg.w - rhs.col_fg.w ) <= e;
+	};
 };
 
 struct print_instruction {
@@ -37,7 +54,7 @@ struct le_debug_print_text_o {
 	float2 cursor_pos = { 0, 0 }; // current cursor position, top right of the screen
 
 	size_t                         last_used_style = -1;
-	std::vector<state_t>           styles; // unused for now
+	std::vector<style_t>           styles; // unused for now
 	std::vector<print_instruction> print_instructions;
 };
 
@@ -45,7 +62,9 @@ using this_o = le_debug_print_text_o;
 
 struct word_data {
 	uint32_t  word;     // four characters
-	float     pos_size[ 3 ]; // xy position + scale
+	float          pos_and_scale[ 3 ]; // xy position + scale
+	float_colour_t col_fg;
+	float_colour_t col_bg;
 };
 
 static auto logger = []() -> auto {
@@ -96,6 +115,11 @@ static bool le_debug_print_text_has_messages( this_o* self ) {
 // ----------------------------------------------------------------------
 
 static void le_debug_print_text_create_pipeline_objects( this_o* self, le_pipeline_manager_o* pipeline_manager ) {
+
+	// TODO: remove this once you don't want to rebuild the pipeline
+	// every time we're reloading
+	static bool was_reloaded = true;
+
 	if ( !self->shader_frag ) {
 		self->shader_frag =
 		    LeShaderModuleBuilder( pipeline_manager )
@@ -114,7 +138,7 @@ static void le_debug_print_text_create_pipeline_objects( this_o* self, le_pipeli
 		        .build();
 	}
 
-	if ( !self->pipeline ) {
+	if ( was_reloaded || !self->pipeline ) {
 		// clang-format off
 		self->pipeline =
 		    LeGraphicsPipelineBuilder( pipeline_manager )
@@ -136,15 +160,27 @@ static void le_debug_print_text_create_pipeline_objects( this_o* self, le_pipeli
 		        			.setVecSize( 1 )
 		        		.end()
 		        		.addAttribute()
-		        			.setOffset( sizeof( uint32_t ) )
+		        			.setOffset(offsetof(word_data,pos_and_scale  ) )
 		        			.setType( le_num_type::eF32 )
 		        			.setVecSize( 3 )
+		        		.end()
+		        		.addAttribute()
+		        			.setOffset( offsetof(word_data, col_fg)  )
+		        			.setType( le_num_type::eF32 )
+		        			.setVecSize( 4 )
+		        		.end()
+		        		.addAttribute()
+		        			.setOffset( offsetof(word_data, col_bg)  )
+		        			.setType( le_num_type::eF32 )
+		        			.setVecSize( 4 )
 		        		.end()
 		        	.end()
 		        .end()
 		        .build();
 		// clang-format on
 	}
+
+	was_reloaded = false;
 }
 
 // ----------------------------------------------------------------------
@@ -182,17 +218,24 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 	std::vector<word_data> words;
 
 	for ( auto& p : self->print_instructions ) {
-		float  char_scale = self->styles[ p.style_id ].char_scale;
-		float  char_width = ( ( 8.f * char_scale ) / ( extents.width ) );
+		auto const& current_style = self->styles[ p.style_id ];
+		float       char_scale    = current_style.char_scale;
+		float       char_width    = ( ( 8.f * char_scale ) / ( extents.width ) );
 		size_t num_words  = p.text.size() / 4;
 		for ( int i = 0; i != num_words; i++ ) {
 			uint32_t* p_words = ( uint32_t* )p.text.data();
 			words.push_back(
 			    {
-			        p_words[ i ],
-			        { 8 * 4 * i * char_scale + p.cursor_start.x,
-			          0 * char_scale + p.cursor_start.y, char_scale } // position given in pixels, scale (scale gets applied first)
+			        .word          = p_words[ i ],
+			        .pos_and_scale = {
+			            8 * 4 * i * char_scale + p.cursor_start.x,
+			            0 * char_scale + p.cursor_start.y,
+			            char_scale,
+			        }, // position given in pixels, scale (scale gets applied first)
+
 			        // we don't automatically apply the char scale becuase we want to maintain that xy is absolute pixels.
+			        .col_fg = current_style.col_fg,
+			        .col_bg = current_style.col_bg,
 			    } );
 		}
 	}
@@ -247,20 +290,15 @@ static float le_debug_print_text_get_scale( this_o* self ) {
 	return self->styles[ self->last_used_style ].char_scale;
 }
 
-// ----------------------------------------------------------------------
+//
 
-static void le_debug_print_text_set_scale( this_o* self, float scale ) {
-	// find  last element in style.
-	// this happens in a copy-on-write fashion,
-	// but we do re-use last element if it has not been used.
-
-	assert( !self->styles.empty() );
+static inline void le_debug_print_text_copy_on_write_style( this_o* self, style_t const& new_style ) {
 
 	// ---------- | invariant: there is at least one style available
 
 	// only store the style if it changes from the current style.
 
-	if ( std::abs( self->styles.back().char_scale - scale ) <= std::numeric_limits<float>::epsilon() ) {
+	if ( self->styles.back() == new_style ) {
 		return;
 	}
 
@@ -274,7 +312,42 @@ static void le_debug_print_text_set_scale( this_o* self, float scale ) {
 		self->styles.push_back( self->styles.back() );
 	};
 
-	self->styles.back().char_scale = scale;
+	self->styles.back() = std::move( new_style );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_debug_print_text_set_colour( this_o* self, float_colour_t const* colour ) {
+	// find  last element in style.
+	// this happens in a copy-on-write fashion,
+
+	// but we do re-use last element if it has not been used.
+
+	if ( !colour ) {
+		return;
+	}
+
+	assert( !self->styles.empty() );
+
+	style_t new_style{ self->styles.back() };
+	new_style.col_fg = *colour;
+	le_debug_print_text_copy_on_write_style( self, new_style );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_debug_print_text_set_scale( this_o* self, float scale ) {
+	// find  last element in style.
+	// this happens in a copy-on-write fashion,
+	// but we do re-use last element if it has not been used.
+
+	assert( !self->styles.empty() );
+
+	style_t new_style{ self->styles.back() };
+
+	new_style.char_scale = scale;
+
+	le_debug_print_text_copy_on_write_style( self, new_style );
 }
 
 // ----------------------------------------------------------------------
@@ -361,9 +434,12 @@ static void le_debug_print_text_print( this_o* self, char const* text ) {
 
 	std::string text_line = text;
 
-	// we need to do some processing on the text here
-	// so that we can filter our unprintable characters for example
-	// and so that we can break lines that need breaking.
+	// We need to do some processing on the text here --
+	//
+	// So that we can filter out unprintable characters, for example;
+	// and so that we can break lines that need breaking if we detect
+	// a \n control character. We should ignore any other control
+	// characters.
 
 	le_debug_print_text_generate_instructions( self, text_line, self->cursor_pos );
 }
@@ -415,8 +491,11 @@ LE_MODULE_REGISTER_IMPL( le_debug_print_text, api ) {
 	le_debug_print_text_i.print           = le_debug_print_text_print;
 	le_debug_print_text_i.printf          = le_debug_print_text_printf;
 	le_debug_print_text_i.has_messages    = le_debug_print_text_has_messages;
-	le_debug_print_text_i.set_scale       = le_debug_print_text_set_scale;
-	le_debug_print_text_i.get_scale       = le_debug_print_text_get_scale;
+
+	le_debug_print_text_i.set_colour = le_debug_print_text_set_colour;
+
+	le_debug_print_text_i.set_scale = le_debug_print_text_set_scale;
+	le_debug_print_text_i.get_scale = le_debug_print_text_get_scale;
 
 	le_debug_print_text_i.set_cursor = le_debug_print_text_set_cursor;
 	le_debug_print_text_i.get_cursor = le_debug_print_text_get_cursor;
