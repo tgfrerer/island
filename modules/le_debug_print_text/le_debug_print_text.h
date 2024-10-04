@@ -3,8 +3,6 @@
 
 #include "le_core.h"
 
-#include "3rdparty/src/glm/glm/fwd.hpp"
-
 struct le_debug_print_text_o;
 struct le_renderpass_o;
 
@@ -23,7 +21,7 @@ struct le_renderpass_o;
 // printer.
 //
 //
-// You can place the cursor
+// You can place the state
 // Cursor moves with text that has been printed.
 //
 // You can set color -- style information is on a stack
@@ -41,20 +39,33 @@ struct le_renderpass_o;
 // TODO: add a flag that tells us whether the screen should auto-clear
 
 // clang-format off
+
 struct le_debug_print_text_api {
 
-struct vec2_t; // alias this to glm::vec2 if available
+	struct float2{
+		float x;
+		float y;
+	};
+
+	struct float_color_t{
+		union{ float r; float x; };
+		union{ float g; float y; };
+		union{ float b; float z; };
+		union{ float a; float w; };
+	};
+
 
 	struct le_debug_print_text_interface_t {
 
 		le_debug_print_text_o * ( * create       ) ( );
 		void                    ( * destroy      ) ( le_debug_print_text_o* self );
 
-		void 					( * print        ) ( le_debug_print_text_o* self, char const * text, glm::vec2* optional_cursor );
-		void                    ( * printf       ) ( le_debug_print_text_o* self, glm::vec2* optional_cursor, const char *msg, ... );
+		void 					( * print        ) ( le_debug_print_text_o* self, char const * text);
+		void                    ( * printf       ) ( le_debug_print_text_o* self, const char *msg, ... );
 
 		bool 					( * has_messages ) ( le_debug_print_text_o* self );
-		void 					( * get_cursor   ) ( le_debug_print_text_o* self, glm::vec2* cursor );
+
+		float                   ( * get_scale    ) ( le_debug_print_text_o* self );
 		void                    ( * set_scale    ) ( le_debug_print_text_o* self, float scale );
 
 		void                    ( * draw         ) ( le_debug_print_text_o* self, le_renderpass_o* rp );
@@ -105,19 +116,19 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 		le_debug_print_text::le_debug_print_text_i.set_scale( self, scale );
 	}
 
-	// get current state of the cursor position
-	void getCursor( glm::vec2* cursor ) {
-		le_debug_print_text::le_debug_print_text_i.get_cursor( self, cursor );
+	// get current state of the state position
+	float getScale() {
+		return le_debug_print_text::le_debug_print_text_i.get_scale( self );
 	}
 
-	// print given text at the position given at optional_cursor
-	void print( char const* text, glm::vec2* optional_cursor = nullptr ) {
-		le_debug_print_text::le_debug_print_text_i.print( self, text, optional_cursor );
+	// print given text at the position given at optional_scale
+	void print( char const* text ) {
+		le_debug_print_text::le_debug_print_text_i.print( self, text );
 	}
 
 	template <class... Args>
-	void printf( glm::vec2* cursor = nullptr, const char* msg = nullptr, Args&&... args ) {
-		le_debug_print_text::le_debug_print_text_i.printf( self, cursor, msg, static_cast<Args&&>( args )... );
+	void printf( const char* msg = nullptr, Args&&... args ) {
+		le_debug_print_text::le_debug_print_text_i.printf( self, msg, static_cast<Args&&>( args )... );
 	}
 
 	operator auto () {
@@ -150,9 +161,9 @@ inline static void drawAllMessages( le_renderpass_o* rp ) {
 	    le_debug_print_text_api_i->singleton_obj, rp );
 }
 
-inline static void getCursor( glm::vec2* cursor ) {
-	le_debug_print_text::le_debug_print_text_i.get_cursor(
-	    le_debug_print_text_api_i->singleton_obj, cursor );
+inline static float getScale() {
+	return le_debug_print_text::le_debug_print_text_i.get_scale(
+	    le_debug_print_text_api_i->singleton_obj );
 }
 
 inline static void setScale( float scale ) {
@@ -160,15 +171,15 @@ inline static void setScale( float scale ) {
 	    le_debug_print_text_api_i->singleton_obj, scale );
 }
 
-inline static void print( char const* text, glm::vec2* optional_cursor = nullptr ) {
+inline static void print( char const* text ) {
 	le_debug_print_text::le_debug_print_text_i.print(
-	    le_debug_print_text_api_i->singleton_obj, text, optional_cursor );
+	    le_debug_print_text_api_i->singleton_obj, text );
 }
 
 template <class... Args>
-inline static void printf( glm::vec2* cursor = nullptr, const char* msg = nullptr, Args&&... args ) {
+inline static void printf( const char* msg = nullptr, Args&&... args ) {
 	le_debug_print_text::le_debug_print_text_i.printf(
-	    le_debug_print_text_api_i->singleton_obj, cursor, msg, static_cast<Args&&>( args )... );
+	    le_debug_print_text_api_i->singleton_obj, msg, static_cast<Args&&>( args )... );
 }
 
 } // namespace DebugPrint

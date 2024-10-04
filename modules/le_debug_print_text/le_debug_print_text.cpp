@@ -9,21 +9,23 @@
 #include "assert.h"
 #include "string.h" // for strlen
 #include <cstdarg>  // for arg
+#include <limits>   // for std::numeric_limits
 
-#include "glm/glm.hpp"
+using float2        = le_debug_print_text_api::float2;
+using float_color_t = le_debug_print_text_api::float_color_t;
+
+struct state_t {
+	float_color_t col_fg     = { 1, 1, 1, 1 }; // rgba
+	float_color_t col_bg     = { 0, 0, 0, 0 }; // rgba
+	float         char_scale = 1;
+};
 
 struct print_instruction {
-	glm::vec2 cursor_start;
-	glm::vec2 cursor_end; // we keep the end cursor so that we can check whether two succeeding runs can be combined
+	float2    cursor_start;
+	float2    cursor_end; // we keep the end cursor so that we can check whether two succeeding runs can be combined
 	size_t    style_id;   // which style
 
 	std::string text;
-};
-
-struct print_style {
-	glm::vec4 col_fg;
-	glm::vec4 col_bg;
-	float     char_scale = 1;
 };
 
 struct le_debug_print_text_o {
@@ -32,22 +34,18 @@ struct le_debug_print_text_o {
 	le_shader_module_handle shader_frag = nullptr;
 	le_gpso_handle          pipeline    = nullptr;
 
-	glm::vec2 cursor_pos = { 0, 0 }; // current cursor position, top right of the screen
+	float2 cursor_pos = { 0, 0 }; // current cursor position, top right of the screen
 
 	size_t                         last_used_style = -1;
-	std::vector<print_style>       styles; // unused for now
+	std::vector<state_t>           styles; // unused for now
 	std::vector<print_instruction> print_instructions;
 };
 
 using this_o = le_debug_print_text_o;
 
-using vec2_t = struct {
-	glm::vec2 v;
-};
-
 struct word_data {
 	uint32_t  word;     // four characters
-	glm::vec3 pos_size; // xy position + scale
+	float     pos_size[ 3 ]; // xy position + scale
 };
 
 static auto logger = []() -> auto {
@@ -63,9 +61,9 @@ static void le_debug_print_text_draw_reset( this_o* self ) {
 
 	// Add default style
 	self->styles.push_back( {
-	    .col_fg     = glm::vec4{ 1, 1, 1, 1 },
-	    .col_bg     = glm::vec4{ 0, 0, 0, 0 },
-	    .char_scale = 1,
+	    .col_fg     = { 1, 1, 1, 1 },
+	    .col_bg     = { 0, 0, 0, 0 },
+	    .char_scale = 1.f,
 	} );
 }
 
@@ -94,10 +92,8 @@ static bool le_debug_print_text_has_messages( this_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_debug_print_text_get_cursor( this_o* self, glm::vec2* cursor ) {
-	if ( cursor ) {
-		*cursor = self->cursor_pos;
-	}
+static float le_debug_print_text_get_scale( this_o* self ) {
+	return self->styles[ self->last_used_style ].char_scale;
 }
 
 // ----------------------------------------------------------------------
@@ -129,7 +125,7 @@ static void le_debug_print_text_create_pipeline_objects( this_o* self, le_pipeli
 		        .addShaderStage( self->shader_frag )
 		        .withAttributeBindingState()
 		        	.addBinding()
-		        		.setStride( sizeof( glm::vec3 ) )
+		        		.setStride(3* sizeof( float ) )
 		        		.addAttribute()
 		        			.setType( le_num_type::eF32 )
 		        			.setVecSize( 3 )
@@ -167,7 +163,7 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 
 	le_debug_print_text_create_pipeline_objects( self, encoder.getPipelineManager() );
 
-	glm::vec3 vertexPositions[] = {
+	float vertexPositions[][ 3 ] = {
 	    // all dimensions given in font map pixels
 	    { 0, 16, 0 },
 	    { 0, 0, 0 },
@@ -209,7 +205,10 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 	// and then render enough instances of words so that all the words
 	// get drawn
 
-	glm::vec2 u_resolution = glm::vec2( extents.width, extents.height );
+	float u_resolution[ 2 ] = {
+	    float( extents.width ),
+	    float( extents.height ),
+	};
 
 	encoder
 	    .bindGraphicsPipeline( self->pipeline )
@@ -263,7 +262,7 @@ static void le_debug_print_text_set_scale( this_o* self, float scale ) {
 
 // ----------------------------------------------------------------------
 
-static void le_debug_print_text_generate_instructions( this_o* self, std::string& text_str, glm::vec2* cursor_ ) {
+static void le_debug_print_text_generate_instructions( this_o* self, std::string& text_str, float2& cursor ) {
 
 	// Todo: Maybe add a high watermark -- so that we don't just accumulate without printing to screen
 
@@ -271,8 +270,7 @@ static void le_debug_print_text_generate_instructions( this_o* self, std::string
 
 	// ----------| Invariant: there must at least be one style available
 
-	glm::vec2 cursor_start = cursor_ ? *cursor_ : self->cursor_pos;
-	glm::vec2 cursor_end   = cursor_ ? cursor_start : glm::vec2{};
+	float2 cursor_end = cursor;
 
 	size_t style_id                   = self->styles.size() - 1;
 	self->last_used_style             = style_id;
@@ -284,10 +282,15 @@ static void le_debug_print_text_generate_instructions( this_o* self, std::string
 
 		auto& last_instruction = self->print_instructions.back();
 
-		if ( std::numeric_limits<float>::epsilon() >=
-		         glm::dot( last_instruction.cursor_end - cursor_start,
-		                   last_instruction.cursor_end - cursor_start ) &&
-		     last_instruction.style_id == style_id ) {
+		float2 difference_vec = {
+		    last_instruction.cursor_end.x - cursor.x,
+		    last_instruction.cursor_end.y - cursor.y,
+
+		};
+
+		float difference_dotted = difference_vec.x * difference_vec.x + difference_vec.y * difference_vec.y;
+
+		if ( std::numeric_limits<float>::epsilon() >= difference_dotted && last_instruction.style_id == style_id ) {
 
 			// this is a continuation - we can just concatenate the
 			// current string with the next string
@@ -313,10 +316,7 @@ static void le_debug_print_text_generate_instructions( this_o* self, std::string
 
 			last_instruction.cursor_end = cursor_end;
 
-			if ( cursor_ ) {
-				*cursor_ = cursor_end;
-			}
-			self->cursor_pos = cursor_end;
+			cursor = cursor_end;
 			return;
 		}
 	}
@@ -325,25 +325,22 @@ static void le_debug_print_text_generate_instructions( this_o* self, std::string
 
 	text_str.append( ( 4 - text_str.size() % 4 ) % 4, '\0' );
 
-	cursor_end.x = cursor_start.x +
+	cursor_end.x = cursor.x +
 	               strlen( text_str.c_str() ) * 8 * self->styles[ style_id ].char_scale;
 
 	self->print_instructions.push_back( {
-	    .cursor_start = cursor_start,
+	    .cursor_start = cursor,
 	    .cursor_end   = cursor_end, // we keep the end cursor so that we can check whether two succeeding runs can be combined
 	    .style_id     = style_id,   // which style
 	    .text         = text_str,
 	} );
 
-	if ( cursor_ ) {
-		*cursor_         = cursor_end;
-		self->cursor_pos = cursor_end;
-	}
+	cursor = cursor_end;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_debug_print_text_print( this_o* self, char const* text, glm::vec2* cursor_ ) {
+static void le_debug_print_text_print( this_o* self, char const* text ) {
 
 	std::string text_line = text;
 
@@ -351,18 +348,12 @@ static void le_debug_print_text_print( this_o* self, char const* text, glm::vec2
 	// so that we can filter our unprintable characters for example
 	// and so that we can break lines that need breaking.
 
-	glm::vec2 cursor = cursor_ ? *cursor_ : self->cursor_pos;
-
-	le_debug_print_text_generate_instructions( self, text_line, &cursor );
-
-	if ( cursor_ ) {
-		*cursor_ = cursor;
-	}
+	le_debug_print_text_generate_instructions( self, text_line, self->cursor_pos );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_debug_print_text_printf( this_o* self, glm::vec2* cursor_, const char* msg, ... ) {
+static void le_debug_print_text_printf( this_o* self, const char* msg, ... ) {
 
 	static size_t      num_bytes_buffer_2 = 0;
 	static std::string buffer{};
@@ -387,7 +378,7 @@ static void le_debug_print_text_printf( this_o* self, glm::vec2* cursor_, const 
 	}
 	va_end( arglist );
 
-	le_debug_print_text_print( self, buffer.c_str(), cursor_ );
+	le_debug_print_text_print( self, buffer.c_str() );
 }
 
 // ----------------------------------------------------------------------
@@ -402,7 +393,7 @@ LE_MODULE_REGISTER_IMPL( le_debug_print_text, api ) {
 	le_debug_print_text_i.set_scale       = le_debug_print_text_set_scale;
 	le_debug_print_text_i.printf          = le_debug_print_text_printf;
 	le_debug_print_text_i.has_messages    = le_debug_print_text_has_messages;
-	le_debug_print_text_i.get_cursor      = le_debug_print_text_get_cursor;
+	le_debug_print_text_i.get_scale       = le_debug_print_text_get_scale;
 
 	if ( p_le_debug_print_text_api->singleton_obj == nullptr ) {
 		// If we're registering this for the first time, we must create the singleton object.
