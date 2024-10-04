@@ -92,9 +92,6 @@ static bool le_debug_print_text_has_messages( this_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static float le_debug_print_text_get_scale( this_o* self ) {
-	return self->styles[ self->last_used_style ].char_scale;
-}
 
 // ----------------------------------------------------------------------
 
@@ -232,6 +229,26 @@ static void le_debug_print_text_draw( this_o* self, le_renderpass_o* rp_ ) {
 
 // ----------------------------------------------------------------------
 
+static float2 le_debug_print_text_get_cursor( this_o* self ) {
+	return self->cursor_pos;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_debug_print_text_set_cursor( this_o* self, float2 const* cursor ) {
+	if ( cursor ) {
+		self->cursor_pos = *cursor;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static float le_debug_print_text_get_scale( this_o* self ) {
+	return self->styles[ self->last_used_style ].char_scale;
+}
+
+// ----------------------------------------------------------------------
+
 static void le_debug_print_text_set_scale( this_o* self, float scale ) {
 	// find  last element in style.
 	// this happens in a copy-on-write fashion,
@@ -358,6 +375,12 @@ static void le_debug_print_text_printf( this_o* self, const char* msg, ... ) {
 	static size_t      num_bytes_buffer_2 = 0;
 	static std::string buffer{};
 
+	if ( msg == nullptr ) {
+		return;
+	}
+
+	//---------- : invariant: msg is not empty
+
 	va_list arglist;
 
 	va_start( arglist, msg );
@@ -390,10 +413,13 @@ LE_MODULE_REGISTER_IMPL( le_debug_print_text, api ) {
 	le_debug_print_text_i.destroy         = le_debug_print_text_destroy;
 	le_debug_print_text_i.draw            = le_debug_print_text_draw;
 	le_debug_print_text_i.print           = le_debug_print_text_print;
-	le_debug_print_text_i.set_scale       = le_debug_print_text_set_scale;
 	le_debug_print_text_i.printf          = le_debug_print_text_printf;
 	le_debug_print_text_i.has_messages    = le_debug_print_text_has_messages;
+	le_debug_print_text_i.set_scale       = le_debug_print_text_set_scale;
 	le_debug_print_text_i.get_scale       = le_debug_print_text_get_scale;
+
+	le_debug_print_text_i.set_cursor = le_debug_print_text_set_cursor;
+	le_debug_print_text_i.get_cursor = le_debug_print_text_get_cursor;
 
 	if ( p_le_debug_print_text_api->singleton_obj == nullptr ) {
 		// If we're registering this for the first time, we must create the singleton object.

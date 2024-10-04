@@ -65,6 +65,9 @@ struct le_debug_print_text_api {
 
 		bool 					( * has_messages ) ( le_debug_print_text_o* self );
 
+		float2                  ( * get_cursor    ) ( le_debug_print_text_o* self );
+		void                    ( * set_cursor    ) ( le_debug_print_text_o* self, const float2* cursor );
+
 		float                   ( * get_scale    ) ( le_debug_print_text_o* self );
 		void                    ( * set_scale    ) ( le_debug_print_text_o* self, float scale );
 
@@ -115,6 +118,15 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 		le_debug_print_text::le_debug_print_text_i.draw( self, rp );
 	}
 
+	void setCursor( float2& cursor ) {
+		le_debug_print_text::le_debug_print_text_i.set_cursor( self, &cursor );
+	}
+
+	// get current state of the state position
+	float2 getCursor() {
+		return le_debug_print_text::le_debug_print_text_i.get_cursor( self );
+	}
+
 	void setScale( float scale ) {
 		le_debug_print_text::le_debug_print_text_i.set_scale( self, scale );
 	}
@@ -153,6 +165,7 @@ namespace le {
 
 namespace DebugPrint {
 
+using float2         = le_debug_print_text_api::float2;
 using float_colour_t = le_debug_print_text_api::float_colour_t;
 
 // returns whether there are any messages to display
@@ -174,6 +187,16 @@ inline static float getScale() {
 inline static void setScale( float scale ) {
 	le_debug_print_text::le_debug_print_text_i.set_scale(
 	    le_debug_print_text_api_i->singleton_obj, scale );
+}
+
+inline static float2 getCursor() {
+	return le_debug_print_text::le_debug_print_text_i.get_cursor(
+	    le_debug_print_text_api_i->singleton_obj );
+}
+
+inline static void setCursor( float2& cursor ) {
+	le_debug_print_text::le_debug_print_text_i.set_cursor(
+	    le_debug_print_text_api_i->singleton_obj, &cursor );
 }
 
 inline static void print( char const* text ) {
