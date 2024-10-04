@@ -472,6 +472,19 @@ static void window_get_window_size( le_window_o* self, uint32_t* width, uint32_t
 
 // ----------------------------------------------------------------------
 
+static void window_get_content_scale( le_window_o* self, float* scale_x, float* scale_y ) {
+	glfwGetWindowContentScale( self->window, &self->content_scale_x, &self->content_scale_y );
+
+	if ( scale_x ) {
+		*scale_x = self->content_scale_x;
+	}
+	if ( scale_y ) {
+		*scale_y = self->content_scale_y;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static le_window_settings_o* window_settings_create() {
 	le_window_settings_o* obj = new ( le_window_settings_o );
 	return obj;
@@ -984,6 +997,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_i.toggle_fullscreen  = window_toggle_fullscreen;
 	window_i.set_window_size    = window_set_window_size;
 	window_i.get_window_size    = window_get_window_size;
+	window_i.get_content_scale  = window_get_content_scale;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
 
 	auto& window_settings_i               = window_api_i->window_settings_i;

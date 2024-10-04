@@ -50,6 +50,7 @@ struct le_window_api {
 		void            ( *set_window_size    ) ( le_window_o* self, uint32_t width, uint32_t height);
 		void            ( *get_window_size    ) ( le_window_o* self, uint32_t *width, uint32_t* height);
 
+		void            ( *get_content_scale  ) ( le_window_o* self, float* content_scale_x, float* content_scale_y );
 
 		// Returns a sorted array of events pending since the last call to this method.
 		// Note that calling this method invalidates any values returned from the previous call to this method.
@@ -195,6 +196,10 @@ class Window {
 
 	void getWindowSize( uint32_t* width, uint32_t* height ) {
 		le_window::window_i.get_window_size( self, width, height );
+	}
+
+	void getContentScale( float* scale_x, float* scale_y = nullptr ) {
+		le_window::window_i.get_content_scale( self, scale_x, scale_y );
 	}
 
 	void getUIEventQueue( LeUiEvent const** events, uint32_t* numEvents ) {
