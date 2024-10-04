@@ -24,7 +24,6 @@ struct print_style {
 	glm::vec4 col_fg;
 	glm::vec4 col_bg;
 	float     char_scale = 1;
-	bool      was_used   = false; // we use this so that we may only keep stlyes that have actually been used
 };
 
 struct le_debug_print_text_o {
@@ -35,6 +34,7 @@ struct le_debug_print_text_o {
 
 	glm::vec2 cursor_pos = { 0, 0 }; // current cursor position, top right of the screen
 
+	size_t                         last_used_style = -1;
 	std::vector<print_style>       styles; // unused for now
 	std::vector<print_instruction> print_instructions;
 };
@@ -254,10 +254,8 @@ static void le_debug_print_text_set_scale( this_o* self, float scale ) {
 
 	// if the last style was used, then we must copy the last style
 
-	if ( self->styles.back().was_used ) {
+	if ( self->last_used_style == last_style_id ) {
 		self->styles.push_back( self->styles.back() );
-		// reset the was_used flag on the last element
-		self->styles.back().was_used = false;
 	};
 
 	self->styles.back().char_scale = scale;
@@ -277,7 +275,7 @@ static void le_debug_print_text_generate_instructions( this_o* self, std::string
 	glm::vec2 cursor_end   = cursor_ ? cursor_start : glm::vec2{};
 
 	size_t style_id                   = self->styles.size() - 1;
-	self->styles[ style_id ].was_used = true;
+	self->last_used_style             = style_id;
 
 	// Find out if this is a continuation - if it is, then we can just paste the text
 	// to the end of the last text.
