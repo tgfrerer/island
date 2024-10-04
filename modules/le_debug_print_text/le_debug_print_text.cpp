@@ -118,14 +118,18 @@ static bool le_debug_print_text_has_messages( this_o* self ) {
 
 // ----------------------------------------------------------------------
 
-
-// ----------------------------------------------------------------------
-
-static void le_debug_print_text_create_pipeline_objects( this_o* self, le_pipeline_manager_o* pipeline_manager ) {
+static inline void le_debug_print_text_create_pipeline_objects( this_o* self, le_command_buffer_encoder_o* encoder_ ) {
 
 	// TODO: remove this once you don't want to rebuild the pipeline
 	// every time we're reloading
 	static bool was_reloaded = true;
+
+	if ( self->shader_frag && self->shader_vert && self->pipeline ) {
+		return;
+	}
+
+	le::GraphicsEncoder    encoder{ encoder_ };
+	le_pipeline_manager_o* pipeline_manager = encoder.getPipelineManager();
 
 	if ( !self->shader_frag ) {
 		self->shader_frag =
@@ -201,7 +205,7 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 
 	auto extents = encoder.getRenderpassExtent();
 
-	le_debug_print_text_create_pipeline_objects( self, encoder.getPipelineManager() );
+	le_debug_print_text_create_pipeline_objects( self, encoder_ );
 
 	float vertexPositions[][ 3 ] = {
 	    // all dimensions given in font map pixels
