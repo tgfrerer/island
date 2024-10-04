@@ -336,6 +336,25 @@ static void le_debug_print_text_set_colour( this_o* self, float_colour_t const* 
 
 // ----------------------------------------------------------------------
 
+static void le_debug_print_text_set_bg_colour( this_o* self, float_colour_t const* colour ) {
+	// find  last element in style.
+	// this happens in a copy-on-write fashion,
+
+	// but we do re-use last element if it has not been used.
+
+	if ( !colour ) {
+		return;
+	}
+
+	assert( !self->styles.empty() );
+
+	style_t new_style{ self->styles.back() };
+	new_style.col_bg = *colour;
+	le_debug_print_text_copy_on_write_style( self, new_style );
+}
+
+// ----------------------------------------------------------------------
+
 static void le_debug_print_text_set_scale( this_o* self, float scale ) {
 	// find  last element in style.
 	// this happens in a copy-on-write fashion,
@@ -492,7 +511,8 @@ LE_MODULE_REGISTER_IMPL( le_debug_print_text, api ) {
 	le_debug_print_text_i.printf          = le_debug_print_text_printf;
 	le_debug_print_text_i.has_messages    = le_debug_print_text_has_messages;
 
-	le_debug_print_text_i.set_colour = le_debug_print_text_set_colour;
+	le_debug_print_text_i.set_colour    = le_debug_print_text_set_colour;
+	le_debug_print_text_i.set_bg_colour = le_debug_print_text_set_bg_colour;
 
 	le_debug_print_text_i.set_scale = le_debug_print_text_set_scale;
 	le_debug_print_text_i.get_scale = le_debug_print_text_get_scale;

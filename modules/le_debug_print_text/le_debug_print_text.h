@@ -66,6 +66,7 @@ struct le_debug_print_text_api {
 		bool 					( * has_messages ) ( le_debug_print_text_o* self );
 
 		void                    ( * set_colour   ) ( le_debug_print_text_o* self, const float_colour_t* colour);
+		void                    ( * set_bg_colour   ) ( le_debug_print_text_o* self, const float_colour_t* colour);
 
 		float2                  ( * get_cursor    ) ( le_debug_print_text_o* self );
 		void                    ( * set_cursor    ) ( le_debug_print_text_o* self, const float2* cursor );
@@ -133,6 +134,10 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 		le_debug_print_text::le_debug_print_text_i.set_colour( self, &colour );
 	}
 
+	void setBgColour( float_colour_t colour ) {
+		le_debug_print_text::le_debug_print_text_i.set_bg_colour( self, &colour );
+	}
+
 	void setScale( float scale ) {
 		le_debug_print_text::le_debug_print_text_i.set_scale( self, scale );
 	}
@@ -187,6 +192,11 @@ inline static void drawAllMessages( le_renderpass_o* rp ) {
 
 inline static void setColour( float_colour_t colour ) {
 	le_debug_print_text::le_debug_print_text_i.set_colour(
+	    le_debug_print_text_api_i->singleton_obj, &colour );
+}
+
+inline static void setBgColour( float_colour_t colour ) {
+	le_debug_print_text::le_debug_print_text_i.set_bg_colour(
 	    le_debug_print_text_api_i->singleton_obj, &colour );
 }
 
