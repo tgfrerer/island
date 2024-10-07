@@ -58,6 +58,8 @@ struct le_debug_print_text_o {
 	std::vector<style_t> style_stack; // used for push/pop style
 
 	std::vector<print_instruction> print_instructions;
+
+	bool needs_draw = false;
 };
 
 using this_o = le_debug_print_text_o;
@@ -89,6 +91,7 @@ static void le_debug_print_text_draw_reset( this_o* self ) {
 	} );
 
 	self->last_used_style = -1;
+	self->needs_draw      = false;
 }
 
 // ----------------------------------------------------------------------
@@ -112,6 +115,12 @@ static void le_debug_print_text_destroy( this_o* self ) {
 
 static bool le_debug_print_text_has_messages( this_o* self ) {
 	return !self->print_instructions.empty();
+}
+
+// ----------------------------------------------------------------------
+
+static bool le_debug_print_text_needs_draw( this_o* self ) {
+	return self->needs_draw;
 }
 
 // ----------------------------------------------------------------------
@@ -194,7 +203,7 @@ static inline void le_debug_print_text_create_pipeline_objects( this_o* self, le
 
 // ----------------------------------------------------------------------
 
-static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+static void pass_main_draw_text( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 
 	// Draw main scene
 
@@ -254,9 +263,9 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 	    .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
 	    .setVertexData( words.data(), words.size() * sizeof( word_data ), 1 )
 	    .setIndexData( indices, sizeof( indices ) )
-	    .drawIndexed( 6, words.size(), 0, 0, 0 );
+	    .drawIndexed( 6, words.size() );
 
-	// note that this should clear the state ... we only want to do this once.
+	// Note that this should clear the state ... we only want to do this once.
 
 	le_debug_print_text_draw_reset( self );
 }
@@ -264,9 +273,16 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 // ----------------------------------------------------------------------
 
 static void le_debug_print_text_draw( this_o* self, le_renderpass_o* rp_ ) {
+
+	// We only want to enqueue the print text callback once per frame -
+	//
+	self->needs_draw = false;
+
+	// We set the needs_draw flag so that we can signal that
+	// all the print commands until here are already being drawn
 	if ( rp_ ) {
 		auto rp = le::RenderPass( rp_ );
-		rp.setExecuteCallback( self, pass_main_print_text );
+		rp.setExecuteCallback( self, pass_main_draw_text );
 	} else {
 		// Discard messages as there is no renderpass to print them to.
 		le_debug_print_text_draw_reset( self );
@@ -478,6 +494,9 @@ static void le_debug_print_text_print( this_o* self, char const* text ) {
 
 	std::string text_line = text;
 
+	if ( !text_line.empty() ) {
+		self->needs_draw = true;
+	}
 	// We need to do some processing on the text here --
 	//
 	// So that we can filter out unprintable characters, for example;
@@ -535,6 +554,7 @@ LE_MODULE_REGISTER_IMPL( le_debug_print_text, api ) {
 	le_debug_print_text_i.print           = le_debug_print_text_print;
 	le_debug_print_text_i.printf          = le_debug_print_text_printf;
 	le_debug_print_text_i.has_messages    = le_debug_print_text_has_messages;
+	le_debug_print_text_i.needs_draw      = le_debug_print_text_needs_draw;
 
 	le_debug_print_text_i.set_colour    = le_debug_print_text_set_colour;
 	le_debug_print_text_i.set_bg_colour = le_debug_print_text_set_bg_colour;

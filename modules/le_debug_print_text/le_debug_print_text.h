@@ -6,37 +6,55 @@
 struct le_debug_print_text_o;
 struct le_renderpass_o;
 
-// A stateful printer for debug messages
-//
-// The simplest way to print to screen is to use
-// the Global Printer Singleton - it is available to any file that includes this header.
-//
-// You can print like this: le::DrawDebugPrint::printf("I'm printing %04d", 1);
-//
-// To see the messages rendered on top of a renderpass, you must do this:
-//
-// le::DrawDebugPint::drawAllMessages(main_renderpass);
-//
-// drawing the messages into a renderpass clears the message state and resets the debug message
-// printer.
-//
-//
-// You can place the state
-// Cursor moves with text that has been printed.
-//
-// You can set color -- style information is on a stack
-// you can push / pop from that stack
-//
-// on draw, all the text that has accumulated through
-// the frame gets printed in one go.
-// and the accumulated print instructions reset.
+/*
 
-//
-// this should be as simple as possible to use.
-// we might want to use a similar syntax at some point as for
-// log -- so that we can use printf to generate messages ... but that's for later
+----------------------------------------------------------------------
+             A stateful debug printer for debug messages
+----------------------------------------------------------------------
 
-// TODO: add a flag that tells us whether the screen should auto-clear
+The simplest way to print to screen is to use the Global Printer
+Singleton -- it is available to any file that includes this header.
+
+You can print like this:
+
+    le::DrawDebugPrint::printf("I'm printing %04d", 1);
+
+To see the messages rendered on top of a renderpass, you must do this:
+
+    le::DrawDebugPint::drawAllMessages(main_renderpass);
+
+Drawing the messages into a renderpass clears the message state and
+resets the debug message printer.
+
+Note that there is no implicity synchronisation - this printer is
+unaware that other threads might be using it.
+
+Cursor moves with text that has been printed.
+
+You can set color -- style information is on a stack you can push /
+pop from that stack. Yes, this is stateful. It is also very concise
+and simple (assuming a single-threaded environment) we might want to
+reconsider this architecture if we get into trouble with threading.
+
+On draw, all the text that has accumulated through the frame gets
+printed in one go. and the accumulated print instructions reset.
+
+----------------------------------------------------------------------
+
+Things to consider:
+
+- if you manually draw all via the global object to a renderpass when declaring the rendergraph
+ and then you issue extra print commands (for example by printing inside a renderpass callback),
+this means that the total sum of all print instructions will get drawn into the final renderpass.
+
+-- or maybe not?
+
+----------------------------------------------------------------------
+
+
+This should be as simple as possible to use.
+
+*/
 
 // clang-format off
 
@@ -54,7 +72,6 @@ struct le_debug_print_text_api {
 		union{ float a; float w; };
 	};
 
-
 	struct le_debug_print_text_interface_t {
 
 		le_debug_print_text_o * ( * create       ) ( );
@@ -64,6 +81,7 @@ struct le_debug_print_text_api {
 		void                    ( * printf       ) ( le_debug_print_text_o* self, const char *msg, ... );
 
 		bool 					( * has_messages ) ( le_debug_print_text_o* self );
+		bool 					( * needs_draw   ) ( le_debug_print_text_o* self );
 
 		void                    ( * set_colour   ) ( le_debug_print_text_o* self, const float_colour_t* colour);
 		void                    ( * set_bg_colour   ) ( le_debug_print_text_o* self, const float_colour_t* colour);
@@ -115,11 +133,18 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 		le_debug_print_text::le_debug_print_text_i.destroy( self );
 	}
 
-	// Returns whether there are any messages to display
+	/// returns whether there are any messages to display
+	bool needsDraw() {
+		return le_debug_print_text::le_debug_print_text_i.needs_draw( self );
+	}
+
+	/// returns whether there are any messages to display
 	bool hasMessages() {
 		return le_debug_print_text::le_debug_print_text_i.has_messages( self );
 	}
 
+	/// draw the content of the current printer frame into the given renderpass
+	/// we assume that the renderpass is a graphics pass.
 	void draw( le_renderpass_o* rp ) {
 		le_debug_print_text::le_debug_print_text_i.draw( self, rp );
 	}
@@ -128,41 +153,55 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 		le_debug_print_text::le_debug_print_text_i.set_cursor( self, &cursor );
 	}
 
-	// get current state of the state position
+	/// returns current cursor position
 	float2 getCursor() {
 		return le_debug_print_text::le_debug_print_text_i.get_cursor( self );
 	}
 
+	/// set foreground colour
 	void setColour( float_colour_t colour ) {
 		le_debug_print_text::le_debug_print_text_i.set_colour( self, &colour );
 	}
 
+	/// set background colour
 	void setBgColour( float_colour_t colour ) {
 		le_debug_print_text::le_debug_print_text_i.set_bg_colour( self, &colour );
 	}
 
+	/// set text scale. 1.0 is default 1:1 pixel scale
 	void setScale( float scale ) {
 		le_debug_print_text::le_debug_print_text_i.set_scale( self, scale );
 	}
 
-	// get current state of the state position
+	/// get current text scale. 1.0 is default pixel scale.
 	float getScale() {
 		return le_debug_print_text::le_debug_print_text_i.get_scale( self );
 	}
 
+	/// push all style state onto the printer's stack
 	void pushStyle() {
 		le_debug_print_text::le_debug_print_text_i.push_style( self );
 	}
 
+	/// pop style state and restore state to previously pushed style (if any)
 	void popStyle() {
 		le_debug_print_text::le_debug_print_text_i.pop_style( self );
 	}
 
-	// print given text at the position given at optional_scale
+	/// print text without using any printf-style formatting.
+	///
+	/// note that this doesn't immediately print the text to screen, but that this
+	/// enqueues a text drawing operation in the printer object. To draw all
+	/// accumulated text, use the `draw` method.
 	void print( char const* text ) {
 		le_debug_print_text::le_debug_print_text_i.print( self, text );
 	}
 
+	/// print text with printf-style formatting.
+	///
+	/// note that this doesn't immediately print the text to screen, but that this
+	/// enqueues a text drawing operation in the printer object. To draw all
+	/// accumulated text, use the `draw` method.
 	template <class... Args>
 	void printf( const char* msg = nullptr, Args&&... args ) {
 		le_debug_print_text::le_debug_print_text_i.printf( self, msg, static_cast<Args&&>( args )... );
@@ -190,7 +229,13 @@ namespace DebugPrint {
 using float2         = le_debug_print_text_api::float2;
 using float_colour_t = le_debug_print_text_api::float_colour_t;
 
-// returns whether there are any messages to display
+/// returns whether there is any text to display since last draw
+inline static bool needsDraw() {
+	return le_debug_print_text::le_debug_print_text_i.needs_draw(
+	    le_debug_print_text_api_i->singleton_obj );
+}
+
+/// returns whether there are any messages to display
 inline static bool hasMessages() {
 	return le_debug_print_text::le_debug_print_text_i.has_messages(
 	    le_debug_print_text_api_i->singleton_obj );
@@ -206,7 +251,7 @@ inline static void setColour( float_colour_t colour ) {
 	    le_debug_print_text_api_i->singleton_obj, &colour );
 }
 
-inline static void setBgColour( float_colour_t colour ) {
+inline static void setBgColour( float_colour_t const& colour ) {
 	le_debug_print_text::le_debug_print_text_i.set_bg_colour(
 	    le_debug_print_text_api_i->singleton_obj, &colour );
 }
@@ -226,7 +271,7 @@ inline static float2 getCursor() {
 	    le_debug_print_text_api_i->singleton_obj );
 }
 
-inline static void setCursor( float2& cursor ) {
+inline static void setCursor( float2 const& cursor ) {
 	le_debug_print_text::le_debug_print_text_i.set_cursor(
 	    le_debug_print_text_api_i->singleton_obj, &cursor );
 }
