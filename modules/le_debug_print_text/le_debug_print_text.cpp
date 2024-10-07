@@ -59,7 +59,7 @@ struct le_debug_print_text_o {
 
 	std::vector<print_instruction> print_instructions;
 
-	bool needs_draw = false;
+	bool needs_draw = true; // set needs_draw to true so that there is at least one attempt to draw per frame
 };
 
 using this_o = le_debug_print_text_o;
@@ -91,7 +91,7 @@ static void le_debug_print_text_draw_reset( this_o* self ) {
 	} );
 
 	self->last_used_style = -1;
-	self->needs_draw      = false;
+	self->needs_draw      = true;
 }
 
 // ----------------------------------------------------------------------
