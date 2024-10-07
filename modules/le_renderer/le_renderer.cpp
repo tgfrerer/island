@@ -623,7 +623,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
-	if ( le::DebugPrint::hasMessages() ) {
+	if ( le::DebugPrint::needsDraw() ) {
 
 		// If there are debug messages to print to screen, we must draw them onto the last
 		// renderpass.
