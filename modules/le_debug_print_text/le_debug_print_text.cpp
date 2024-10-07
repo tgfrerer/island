@@ -264,8 +264,13 @@ static void pass_main_print_text( le_command_buffer_encoder_o* encoder_, void* u
 // ----------------------------------------------------------------------
 
 static void le_debug_print_text_draw( this_o* self, le_renderpass_o* rp_ ) {
-	auto rp = le::RenderPass( rp_ );
-	rp.setExecuteCallback( self, pass_main_print_text );
+	if ( rp_ ) {
+		auto rp = le::RenderPass( rp_ );
+		rp.setExecuteCallback( self, pass_main_print_text );
+	} else {
+		// Discard messages as there is no renderpass to print them to.
+		le_debug_print_text_draw_reset( self );
+	}
 }
 
 // ----------------------------------------------------------------------
