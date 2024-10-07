@@ -257,7 +257,19 @@ static void pass_main_draw_text( le_command_buffer_encoder_o* encoder_, void* us
 	    float( extents.height ),
 	};
 
+	// Set default scissor and viewport to full extent.
+
+	le::Rect2D default_scissor[ 1 ] = {
+	    { 0, 0, extents.width, extents.height },
+	};
+
+	le::Viewport default_viewport[ 1 ] = {
+	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
+	};
+
 	encoder
+	    .setScissors(0,1,default_scissor)
+	    .setViewports(0,1,default_viewport)
 	    .bindGraphicsPipeline( self->pipeline )
 	    .setPushConstantData( &u_resolution, sizeof( u_resolution ) )
 	    .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
