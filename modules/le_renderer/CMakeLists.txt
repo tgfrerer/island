@@ -6,6 +6,7 @@ depends_on_island_module(le_swapchain_vk)
 depends_on_island_module(le_jobs)
 depends_on_island_module(le_log)
 depends_on_island_module(le_tracy)
+depends_on_island_module(le_debug_print_text)
 
 
 set (SOURCES "le_renderer.cpp")

@@ -7,6 +7,7 @@
 #include "le_swapchain_vk.h"
 #include "le_swapchain_khr.h"
 #include "le_log.h"
+#include "le_debug_print_text.h"
 
 #include <iostream>
 #include <iomanip>
@@ -592,6 +593,7 @@ static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ) {
 // ----------------------------------------------------------------------
 
 static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_rendergraph_o* graph_, size_t frameNumber ) {
+	static auto logger = LeLog( "le_renderer" );
 
 	ZoneScoped;
 
@@ -620,6 +622,22 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	// Find out which renderpasses contribute, only add contributing render passes to
 	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
+
+	if ( le::DebugPrint::hasMessages() ) {
+
+		// If there are debug messages to print to screen, we must draw them onto the last
+		// renderpass.
+		//
+		// This assumes that the last renderpass is the renderpass that goes to the screen.
+		// If there is no last renderpass, then we must warn about this.
+		//
+		if ( !frame.rendergraph->passes.empty() ) {
+			le::DebugPrint::drawAllMessages( frame.rendergraph->passes.back() );
+		} else {
+			logger.warn( "le::DebugPrint has messages, but no way to print them. Discarding messages." );
+			le::DebugPrint::drawAllMessages( nullptr );
+		}
+	}
 
 	// Register any clear callbacks for the current frame so that any object with frame lifetime
 	// can be cleaned up on frame clear:
