@@ -207,7 +207,14 @@ static void pass_main_draw_text( le_command_buffer_encoder_o* encoder_, void* us
 
 	// Draw main scene
 
-	auto                self = static_cast<this_o*>( user_data );
+	auto self = static_cast<this_o*>( user_data );
+
+	if ( self->print_instructions.empty() ) {
+		// we can return early if there are no print instructions
+		le_debug_print_text_draw_reset( self );
+		return;
+	}
+
 	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
