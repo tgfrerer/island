@@ -772,8 +772,13 @@ inline static uint64_t le_shader_bindings_calculate_hash( le_shader_binding_info
 	le_shader_binding_info const* info_begin = info_vec;
 	auto const                    info_end   = info_vec + info_count;
 
+	static_assert(
+	    std::is_standard_layout<le_shader_binding_info>() &&
+	        std::is_trivial<le_shader_binding_info>(),
+	    "le_shader_binding_info must be POD so that we can hash it in one go." );
+
 	for ( le_shader_binding_info const* info = info_begin; info != info_end; info++ ) {
-		hash = SpookyHash::Hash64( info, offsetof( le_shader_binding_info, name_hash ), hash );
+		hash = SpookyHash::Hash64( info, sizeof( le_shader_binding_info ), hash );
 	}
 
 	return hash;
@@ -1920,6 +1925,18 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 	// -- Calculate hash based on le_shader_binding_infos for this set
 	uint64_t set_layout_hash = le_shader_bindings_calculate_hash( bindings.data(), bindings.size() );
+
+	// Q: Should we cache vulkan objects at a finer granularity?
+	//
+	// So that we can use the same Vulkan objects for pipelines that share the
+	// same structure but differ only in the names for the individual bindings?
+	//
+	// Currently we still need a different set of vulkan objects if bindings
+	// differ just in name only, so that we can correctly populate
+	// ArgumentBindingState...
+	//
+	// For now, we decide against it -- it doesn't seem that these objects are
+	// very costly if it comes to memory.
 
 	auto foundLayout = descriptorSetLayouts.try_find( set_layout_hash );
 

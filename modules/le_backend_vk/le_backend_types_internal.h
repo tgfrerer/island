@@ -26,15 +26,10 @@ struct le_shader_binding_info {
 	                             //
 	VkSampler immutable_sampler; // optional: immutable sampler
 	uint64_t  name_hash;         // fnv64_hash of parameter name as given in shader.
-	                             //
-	                             // NOTE: The above field `name_hash` doubles as a marker,
-	                             // as anything *before* and not including name_hash will be
-	                             // used to calculate hash of a `le_shader_binding_struct`.
 
 	static_assert( sizeof( type ) == sizeof( uint32_t ), "type: vk::DescriptorType must be 32bit of size." );
 
-	bool
-	operator<( le_shader_binding_info const& lhs ) const noexcept {
+	bool operator<( le_shader_binding_info const& lhs ) const noexcept {
 		return setIndex == lhs.setIndex
 		           ? binding < lhs.binding
 		           : setIndex < lhs.setIndex;
