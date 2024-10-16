@@ -1688,10 +1688,10 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	        .attachmentCount = pass.numColorAttachments,
 	        .pAttachments    = pso->data.blendAttachmentStates,
 	        .blendConstants  = {
-	             pso->data.blend_factor_constants[ 0 ],
-	             pso->data.blend_factor_constants[ 1 ],
-	             pso->data.blend_factor_constants[ 2 ],
-	             pso->data.blend_factor_constants[ 3 ],
+                pso->data.blend_factor_constants[ 0 ],
+                pso->data.blend_factor_constants[ 1 ],
+                pso->data.blend_factor_constants[ 2 ],
+                pso->data.blend_factor_constants[ 3 ],
             },
 	    };
 	;
