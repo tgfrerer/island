@@ -5673,6 +5673,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 									// look up set layout info via set layout key
 									auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
+                                    // If we store binding information with the set layout, then we
+                                    // get a different set layout info if a set has its members
+                                    // named differently, even if that does not have any influence
+                                    // on which vulkan objects are referenced. this it because we
+                                    // build the argument state object from the binding information
+                                    // associated with a pipeline.
+
 									auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
 									auto& setData = argumentState.setData[ setId ];
