@@ -6308,7 +6308,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						}
 
 						if ( b == argumentState.binding_infos.end() ) {
-							logger.warn( "Invalid texture argument name id: %x", argument_name_id );
+							logger.warn( "Invalid texture argument name id: %x, '%s'", argument_name_id, le_get_argument_name_from_hash( argument_name_id ) );
+
+							for ( auto const& b : argumentState.binding_infos ) {
+								logger.warn( "\tAvailable argument: %s", le_get_argument_name_from_hash( b.name_hash ) );
+							}
+
 							break;
 						}
 
