@@ -22,7 +22,7 @@ Note how grid lines are drawn entirely in the shader.
 * image loading using `le_resource_manager`
 * shader-based reprojection
 * fine lines drawn using a fragment shader (see also
-  [`exr_decode_example`](../examples/exr_decode_example/))
+  [`exr_decode_example`](../exr_decode_example/))
 * `le_debug_print_text` to print on-screen help message
 
 ## Build instructions
