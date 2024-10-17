@@ -151,6 +151,7 @@ template_source_dir = os.path.normpath(
 
 print('App name: %s' % project_name)
 print('App module directory: %s' % app_module_dir)
+print('Template name: %s' % template_name)
 print('Template source directory: %s' % template_source_dir)
 
 
