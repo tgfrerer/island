@@ -15,6 +15,9 @@ else()
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # manually set that we want to use libc pthread - there seems to be an
+    # issue with detecting Thread support, otherwise.
+    set (CMAKE_HAVE_LIBC_PTHREAD TRUE)
     # use lld linker for clang-compiled binary - it's faster than gnu ld,
     # and you don't have to worry about the linking order for libraries.
     set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-fuse-ld=lld -Wno-unused-command-line-argument")
