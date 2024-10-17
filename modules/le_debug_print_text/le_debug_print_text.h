@@ -17,11 +17,11 @@ Singleton -- it is available to any file that includes this header.
 
 You can print like this:
 
-    le::DrawDebugPrint::printf("I'm printing %04d", 1);
+    le::DebugPrint::printf("I'm printing %04d", 1);
 
 To see the messages rendered on top of a renderpass, you must do this:
 
-    le::DrawDebugPint::drawAllMessages(main_renderpass);
+    le::DebugPint::drawAllMessages(main_renderpass);
 
 Drawing the messages into a renderpass clears the message state and
 resets the debug message printer.
@@ -31,28 +31,16 @@ unaware that other threads might be using it.
 
 Cursor moves with text that has been printed.
 
-You can set color -- style information is on a stack you can push /
-pop from that stack. Yes, this is stateful. It is also very concise
-and simple (assuming a single-threaded environment) we might want to
-reconsider this architecture if we get into trouble with threading.
+You can set color style information; style info is on a stack to which
+you can push / pop. Yes, this is stateful. It is also concise and
+relatively simple (assuming a single-threaded environment) we might
+want to reconsider this architecture if we get into trouble with
+threading.
 
 On draw, all the text that has accumulated through the frame gets
 printed in one go. and the accumulated print instructions reset.
 
 ----------------------------------------------------------------------
-
-Things to consider:
-
-- if you manually draw all via the global object to a renderpass when declaring the rendergraph
- and then you issue extra print commands (for example by printing inside a renderpass callback),
-this means that the total sum of all print instructions will get drawn into the final renderpass.
-
--- or maybe not?
-
-----------------------------------------------------------------------
-
-
-This should be as simple as possible to use.
 
 */
 
