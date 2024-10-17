@@ -47,7 +47,7 @@ struct screenshot_example_app_o {
 	le_texture_handle        map_texture;
 	bool                     hide_help_text = false;
 	bool                     hide_grid      = false;
-	LeResourceManager        resource_manager;
+	le::ResourceManager      resource_manager;
 
 	le_screenshot_o* screen_grabber; // Object to easily save screenshots
 };

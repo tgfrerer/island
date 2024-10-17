@@ -181,6 +181,10 @@ class LeResourceManager : NoCopy, NoMove {
 	}
 };
 
+namespace le {
+using ResourceManager = LeResourceManager;
+}
+
 #endif // __cplusplus
 
 #endif
