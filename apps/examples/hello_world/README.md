@@ -27,7 +27,12 @@ Note how the cloud layer parallax effect works: the cloud texture uv coordinates
 
 ## Build instructions
 
-Download image assets via the bash script in the project root folder. (To keep the Island code repository slim, these image assets are hosted outside of the main repo.)
+> [!IMPORTANT]
+> 
+> This example depends on external image assets. To keep the Island code
+> repository slim, these assets are hosted outside of the repo.
+
+Download image assets via the bash script in the project root folder:
 
     ./download_assets.sh
 
