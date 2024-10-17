@@ -120,11 +120,11 @@ can build a single, statically linked and optimised binary.
 * **Helpers**: minimal effort to enable multisampling, import images,
   import, display and use fonts
 
-* Support for importing **OpenEXR** images, in 16bit float, 32bit
-  float variants via the core `le_exr` module
+* Load and Save **OpenEXR** images, in 16bit float, 32bit float
+  variants via the core `le_exr` module
 
 * **2D drawing context**: Draw thick lines and curves using
-  `le_paths`, which specialises in 2D meshes. This module implements
+  `le_path`, which specialises in 2D meshes. This module implements
   a useful subset of the SVG command palette, and includes some extras
   like for example a command to smoothen open or closed Bézier curves
   by applying the [Hobby algorithm][hobby]. Thick Bézier curves are
@@ -140,6 +140,8 @@ can build a single, statically linked and optimised binary.
   binding tables is automated and simplified as much as possible. Ray
   tracing shaders can be hot-reloaded.
 
+* **Debug print to screen** print-to-screen that is fast, textureless
+  and simple to use with `le_debug_print_text`
 
 [hain]: https://doi.org/10.1016/j.cag.2005.08.002
 [hobby]: http://weitz.de/hobby/
@@ -158,9 +160,11 @@ would be complete without a
 | --- | --- | 
 |<img width="350" src="apps/examples/hello_triangle/screenshot.png" />|<img width="350" align="right" src="apps/examples/hello_world/screenshot.jpg" />|
 
-A full list of examples can be found [here](apps/examples/). Examples
-can be used as starting point for new projects by using the project
-generator.
+> [!TIP]
+> 
+> A full list of examples can be found [here](apps/examples/). Examples
+> can be used as starting point for new projects by using the project
+> generator.
 
 ## Tools
 
@@ -237,9 +241,10 @@ listed here:
 | --- | :---: | --- | 
 | `le_camera` | - | interactive, mouse controlled camera |
 | `le_path` | - | draw svg-style paths, parse simplified SVG-style path command lists | 
-| `le_tessellator` | [earcut][link-earcut], [libtess][link-libtess] | tessellation; dynamic choice of tessellation backend |
 | `le_imgui` | [imgui][link-imgui] | graphical user interface |
 | `le_pixels` | [stb image][link-stb_image] | load image files |
+| `le_png` | [lodepng][link-lodepeng] | image codec: load and store png files, supports fpnge on linux |
+| `le_exr` | [openEXR][link-openexr] | image codec: load and store exr files, support for f16 f32 images |
 | `le_font` | [stb truetype][link-stb_truetype] | truetype glyph sdf, geometry and texture atlas based typesetting |
 | `le_pipeline_builder` | - | build graphics, and compute pipelines | 
 | `le_rtx_pipeline_builder` | - | build Khronos RTX raytracing pipelines | 
@@ -247,21 +252,25 @@ listed here:
 | `le_timebase` | - | timekeeping, canonical clock for animations | 
 | `le_jobs` | - | fiber-based job system | 
 | `le_ecs` | - | entity-component-system | 
-| `le_shader_compiler` | [shaderc][link-shaderc] | compile glsl shaders to SPIR-V | 
+| `le_shader_compiler` | [shaderc][link-shaderc] | compile GLSL, and HLSL shader source to SPIR-V | 
 | `le_window` | [glfw][glfw] | window i/o system | 
 | `le_swapchain` | - | windowed, direct, or straight-to-video output | 
 | `le_renderer` | - | record command buffers, evaluate rendergraphs |
 | `le_video_decoder` | - | hardware accelerated video decoding using Vulkan Video API |
 | `le_backend` | - | interact with GPU via Vulkan, manage GPU resources |
+| `le_screenshot` | - | save renderpass images to disk, supports image sequences, and any file format for which there is an image encoder, notably exr, png |
 
-To use a module, name it as a dependency in your applidation module's
-`CMakeLists.txt` file; modules may depend on other modules, and the build
-system will automatically include these dependencies. You can write your own
-modules - and there is a [module template generator][module-generator] which
-provides you with a scaffold to start from.
+> [!TIP]
+>
+> To use a module, name it as a dependency in your applidation module's
+> `CMakeLists.txt` file; modules may depend on other modules, and the build
+> system will automatically include these dependencies. You can write your own
+> modules - and there is a [module template generator][module-generator] which
+> provides you with a scaffold to start from.
 
 [link-imgui]: https://github.com/ocornut/imgui
 [link-earcut]: https://github.com/mapbox/earcut.hpp
+[link-lodepeng]: https://github.com/lvandeve/lodepng
 [link-libtess]: https://github.com/memononen/libtess2
 [link-stb_image]: https://github.com/nothings/stb/blob/master/stb_image.h
 [link-stb_truetype]: https://github.com/nothings/stb/blob/master/stb_truetype.h
@@ -270,6 +279,7 @@ provides you with a scaffold to start from.
 [project-generator]: scripts/create_project.py
 [link-shaderc]: https://github.com/google/shaderc/
 [glfw]: https://github.com/glfw/glfw
+[link-openexr]: https://github.com/AcademySoftwareFoundation/openexr
 
 # Setup instructions
 
@@ -298,8 +308,10 @@ pacman: `shaderc vulkan-devel ninja cmake`.
 
 ## Building an Island project
 
-🚨 If you freshly cloned the Island repository, remember to update
-submodules before proceeding.🚨
+> [!IMPORTANT]
+>
+> If you freshly cloned the Island repository, remember to update
+> submodules before proceeding.
 
     git submodule init
     git submodule update --depth=1
@@ -320,11 +332,13 @@ Run your new Island Application:
 
     ./Island-HelloTriangle
 
-**Note**: The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose
-whether to compile Island as a static binary, or as a thin module with
-dynamic plugins. Unless you change this parameter, Debug builds will
-be built thin/dynamic with hot-reloading enabled, and Release builds
-will produce a single static binary with hot-reloading disabled. 
+> [!NOTE] 
+>
+> The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose
+> whether to compile Island as a static binary, or as a thin module with
+> dynamic plugins. Unless you change this parameter, Debug builds will
+> be built thin/dynamic with hot-reloading enabled, and Release builds
+> will produce a single static binary with hot-reloading disabled. 
 
 ## IDE support
 
@@ -359,7 +373,7 @@ setup is pretty nice:
 last line of the above script causes `ninja` to run as soon as any of
 the files checked into the github repo at `hello_triangle` change.
 
-## Windows 10 support
+## Windows 11 support
 
 Island can compile and run natively on Microsoft Windows - with some
 caveats. Progress of the Windows port and Windows-specific build
@@ -367,17 +381,17 @@ instructions etc. are tracked in a [separate readme][readme-win].
 
 ## Caveats
 
-**Note** Island's API is under active development, expect lots of
-change. As such, there are no promises that it might be ready or fit
-for any purpose, and the code here is released in the hope that you
-might find it interesting. 
+> [!CAUTION]
+> 
+> Island's API is under active development, expect lots of
+> change. As such, there are no promises that it might be ready or fit
+> for any purpose, and the code here is released in the hope that you
+> might find it interesting. 
 
 The initial motivation for writing Island was to experiment with
 a modern rendering API (Vulkan), to learn by trying out ideas around
 modern realtime-rendering, and to have a framework to create [visual
 experiments](http://instagram.com/tgfrerer) with.
 
-[our_machinery]: https://ourmachinery.com/ 
-[our_mach_blog]: https://ourmachinery.com/post/little-machines-working-together-part-1/
 [readme-win]: README_WINDOWS.md 
 [struct-generator]: scripts/codegen/gen_vk_structs.py
