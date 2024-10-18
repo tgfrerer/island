@@ -511,11 +511,16 @@ static void le_debug_print_text_generate_instructions( this_o* self, std::string
 
 static void le_debug_print_text_print( this_o* self, char const* text ) {
 
-	std::string text_line = text;
+	std::string text_line;
 
-	if ( !text_line.empty() ) {
-		self->needs_draw = true;
+	if ( text == nullptr || *text == 0 ) {
+		return;
 	}
+
+	// -----------| invariant: text it not nullptr and has at least one valid char
+
+	self->needs_draw = true;
+
 	// We need to do some processing on the text here --
 	//
 	// So that we can filter out unprintable characters, for example;
@@ -523,7 +528,33 @@ static void le_debug_print_text_print( this_o* self, char const* text ) {
 	// a \n control character. We should ignore any other control
 	// characters.
 
-	le_debug_print_text_generate_instructions( self, text_line, self->cursor_pos );
+	// find any characters that are not in the printable range
+
+	char const* text_start = text;
+	char const* text_end   = text;
+	char const* c          = text;
+
+	float cursor_x = self->cursor_pos.x;
+
+	for ( ; *c != 0; text_end = ++c ) {
+		// we split text at '\n' -- and move cursor down
+		if ( *c == '\n' ) {
+			text_line = std::string( text_start, text_end - text_start );
+			if ( !text_line.empty() ) {
+				le_debug_print_text_generate_instructions( self, text_line, self->cursor_pos );
+				// note that this just fetches the latest style...
+			}
+			self->cursor_pos.y += self->styles.back().char_scale * 16;
+			self->cursor_pos.x = cursor_x;
+			text_start         = c + 1;
+		}
+	}
+
+	text_line = std::string( text_start, text_end - text_start );
+
+	if ( !text_line.empty() ) {
+		le_debug_print_text_generate_instructions( self, text_line, self->cursor_pos );
+	}
 }
 
 // ----------------------------------------------------------------------
