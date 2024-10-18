@@ -65,10 +65,10 @@ struct le_debug_print_text_o {
 using this_o = le_debug_print_text_o;
 
 struct word_data {
-	uint32_t  word;     // four characters
+	uint32_t       word;               // four characters
 	float          pos_and_scale[ 3 ]; // xy position + scale
-	float_colour_t col_fg;
-	float_colour_t col_bg;
+	float_colour_t col_fg;             // foreground colour
+	float_colour_t col_bg;             // background colour
 };
 
 static auto logger = le::Log( "le_debug_print_text" );
@@ -221,7 +221,7 @@ static void pass_main_draw_text( le_command_buffer_encoder_o* encoder_, void* us
 
 	le_debug_print_text_create_pipeline_objects( self, encoder_ );
 
-	float vertexPositions[][ 3 ] = {
+	float vertexPositions[ 4 ][ 3 ] = {
 	    // all dimensions given in font map pixels
 	    { 0, 16, 0 },
 	    { 0, 0, 0 },

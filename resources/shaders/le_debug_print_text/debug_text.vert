@@ -4,11 +4,11 @@
 #extension GL_ARB_shading_language_420pack : enable
 
 
-layout (location = 0) in vec3 pos;
-layout (location = 1) in uint word; // four chars
+layout (location = 0) in vec3 pos;      //  
+layout (location = 1) in uint word;     // four chars
 layout (location = 2) in vec3 word_pos; // where to place the word in screen space
-layout (location = 3) in vec4 col_fg; // foreground colour
-layout (location = 4) in vec4 col_bg; // background colour
+layout (location = 3) in vec4 col_fg;   // foreground colour
+layout (location = 4) in vec4 col_bg;   // background colour
 
 struct per_word_data {
 	uint msg;

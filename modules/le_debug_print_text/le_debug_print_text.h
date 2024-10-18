@@ -21,12 +21,12 @@ You can print like this:
 
 To see the messages rendered on top of a renderpass, you must do this:
 
-    le::DebugPint::drawAllMessages(main_renderpass);
+    le::DebugPrint::drawAllMessages(main_renderpass);
 
 Drawing the messages into a renderpass clears the message state and
 resets the debug message printer.
 
-Note that there is no implicity synchronisation - this printer is
+Note that there is no implicit synchronisation - this printer is
 unaware that other threads might be using it.
 
 Cursor moves with text that has been printed.
