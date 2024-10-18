@@ -344,15 +344,12 @@ static bool screenshot_example_app_update( screenshot_example_app_o* self ) {
 		float y_offset = self->window_height - 16 * content_scale_x * ( 6.f + 1.5f );
 		le::DebugPrint::setScale( content_scale_x );
 		le::DebugPrint::setCursor( { 10.f * content_scale_x, y_offset + 10.f * content_scale_x } );
-		le::DebugPrint::printf( " Click anywhere to place North Pole on map " );
-		le::DebugPrint::setCursor( { 10.f * content_scale_x, y_offset + ( 10.f + 16.f * 2 ) * content_scale_x } );
-		le::DebugPrint::printf( " Key <S> to save screen to .png " );
-		le::DebugPrint::setCursor( { 10.f * content_scale_x, y_offset + ( 10.f + 16.f * 3 ) * content_scale_x } );
-		le::DebugPrint::printf( " Key <G> to toggle grid " );
-		le::DebugPrint::setCursor( { 10.f * content_scale_x, y_offset + ( 10.f + 16.f * 4 ) * content_scale_x } );
-		le::DebugPrint::printf( " Key <R> to reset projection " );
-		le::DebugPrint::setCursor( { 10.f * content_scale_x, y_offset + ( 10.f + 16.f * 5 ) * content_scale_x } );
-		le::DebugPrint::printf( " Key <H> to hide/show this text " );
+		le::DebugPrint::printf( " Click anywhere to place North Pole on map \n" );
+		le::DebugPrint::printf( "\n" );
+		le::DebugPrint::printf( " Key <S> to save screen to .png \n" );
+		le::DebugPrint::printf( " Key <G> to toggle grid \n" );
+		le::DebugPrint::printf( " Key <R> to reset projection \n" );
+		le::DebugPrint::printf( " Key <H> to hide/show this text \n" );
 	}
 
 	self->renderer.update( rg );
