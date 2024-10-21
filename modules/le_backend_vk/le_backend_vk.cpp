@@ -546,6 +546,7 @@ struct BackendFrameData {
 	std::vector<CommandPool*>           available_command_pools; // Owning. reset on frame recycle, delete all objects on BackendFrameData::destroy
 
 	std::unordered_map<uint64_t, swapchain_state_t> frame_owned_swapchain_state; // per-swapchain state for this frame
+	std::vector<VkSemaphore>                        retired_semaphores;          // semaphores that were retired by this frame - these should be clearable upon the frame fence being cleared.
 
 	struct Texture {
 		VkSampler   sampler;
@@ -823,12 +824,12 @@ static void backend_destroy( le_backend_o* self ) {
 		for ( auto& f : frameData.frame_owned_swapchain_state ) {
 			if ( f.second.present_complete ) {
 				vkDestroySemaphore( device, f.second.present_complete, nullptr );
-				logger.info( "Destroyed Present Complete Semaphore %p", f.second.present_complete );
+				logger.debug( "Destroyed Present Complete Semaphore %p", f.second.present_complete );
 				f.second.present_complete = nullptr;
 			}
 			if ( f.second.render_complete ) {
 				vkDestroySemaphore( device, f.second.render_complete, nullptr );
-				logger.info( "Destroyed Render Complete Semaphore %p", f.second.render_complete );
+				logger.debug( "Destroyed Render Complete Semaphore %p", f.second.render_complete );
 				f.second.render_complete = nullptr;
 			}
 		}
@@ -2246,6 +2247,12 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	//          can now be claimed back.
 
 	vkResetFences( device, 1, &frame.frameFence );
+
+	for ( auto& s : frame.retired_semaphores ) {
+		logger.debug( "Destroyed Semaphore %p", s );
+		vkDestroySemaphore( device, s, nullptr );
+	}
+	frame.retired_semaphores.clear();
 
 	// -- reset all frame-local sub-allocators
 	for ( auto& alloc : frame.allocators ) {
@@ -4390,7 +4397,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				assert( false && "texture must have been defined multiple times using identical id within the same renderpass." );
 			}
 		} // end for all textureIds
-	} // end for all passes
+	}     // end for all passes
 }
 
 // ----------------------------------------------------------------------
@@ -5103,10 +5110,13 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			};
 
 			// We must re-create semaphores as they might be in signalled state.
-			// for binary semaphores, there is unfortunately no other way to reset
-			// them.
-			vkDestroySemaphore( device, local_swapchain_state.present_complete, nullptr );
-			vkDestroySemaphore( device, local_swapchain_state.render_complete, nullptr );
+			// for binary semaphores, there is unfortunately way to reset them.
+			//
+			// Unfortunately, we cannot directly destroy the old semaphores.
+			// But we can retire them, which means they will get destroyed
+			// when the frame gets cleared.
+			frame.retired_semaphores.push_back( local_swapchain_state.present_complete );
+			frame.retired_semaphores.push_back( local_swapchain_state.render_complete );
 
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.present_complete );
 			vkCreateSemaphore( device, &create_info, nullptr, &local_swapchain_state.render_complete );
@@ -5207,13 +5217,13 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 	// frame...
 	for ( auto p : previous_swapchain_state ) {
 		if ( p.second.present_complete ) {
-			vkDestroySemaphore( device, p.second.present_complete, nullptr );
-			logger.info( "Destroyed Present Complete Semaphore %p", p.second.present_complete );
+			frame.retired_semaphores.push_back( p.second.present_complete );
+			logger.debug( "Retired Present Complete Semaphore %p", p.second.present_complete );
 			p.second.present_complete = nullptr;
 		}
 		if ( p.second.render_complete ) {
-			vkDestroySemaphore( device, p.second.render_complete, nullptr );
-			logger.info( "Destroyed Render Complete Semaphore %p", p.second.render_complete );
+			frame.retired_semaphores.push_back( p.second.render_complete );
+			logger.debug( "Retired Render Complete Semaphore %p", p.second.render_complete );
 			p.second.render_complete = nullptr;
 		}
 	}
