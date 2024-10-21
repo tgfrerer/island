@@ -474,7 +474,7 @@ class swapchain_data_t {
 
   public:
 	swapchain_data_t( le_swapchain_o* swapchain_ = nullptr ) // takes ownership of swapchain.
-	    : swapchain( swapchain_ ) {};
+	    : swapchain( swapchain_ ){};
 
 	swapchain_data_t& operator=( swapchain_data_t const& rhs ) {
 		le_swapchain_vk::swapchain_ref_i.inc_ref( rhs.swapchain );
@@ -541,7 +541,7 @@ struct BackendFrameData {
 		std::vector<uint32_t> pass_indices;            // which passes from the current frame to add to this submission, count tells us about number of command buffers that need to be alloated
 		CommandPool*          command_pool;            // non-owning. which command pool from the list of available command pools
 		std::string           debug_root_passes_names; // name of root passes
-	}; //
+	};                                                 //
 	std::vector<PerQueueSubmissionData> queue_submission_data;
 	std::vector<CommandPool*>           available_command_pools; // Owning. reset on frame recycle, delete all objects on BackendFrameData::destroy
 
@@ -4932,7 +4932,7 @@ constexpr static std::array<float, 4> hex_rgba_to_float_colour( uint32_t const& 
 	    ( hex >> 24 ) / 255.f,
 	    ( ( hex >> 16 ) & 0xff ) / 255.f,
 	    ( ( hex >> 8 ) & 0xff ) / 255.f,
-	    ( ( hex ) & 0xff ) / 255.f,
+		( ( hex )&0xff ) / 255.f,
 	};
 	return result;
 }
@@ -5673,12 +5673,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 									// look up set layout info via set layout key
 									auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
-                                    // If we store binding information with the set layout, then we
-                                    // get a different set layout info if a set has its members
-                                    // named differently, even if that does not have any influence
-                                    // on which vulkan objects are referenced. this it because we
-                                    // build the argument state object from the binding information
-                                    // associated with a pipeline.
+									// If we store binding information with the set layout, then we
+									// get a different set layout info if a set has its members
+									// named differently, even if that does not have any influence
+									// on which vulkan objects are referenced. this it because we
+									// build the argument state object from the binding information
+									// associated with a pipeline.
 
 									auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
