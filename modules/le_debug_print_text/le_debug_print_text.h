@@ -195,7 +195,7 @@ class LeDebugTextPrinter : NoCopy, NoMove {
 		le_debug_print_text::le_debug_print_text_i.printf( self, msg, static_cast<Args&&>( args )... );
 	}
 
-	operator auto () {
+	operator auto() {
 		return self;
 	}
 };
@@ -212,80 +212,90 @@ using DebugTextPrinter = LeDebugTextPrinter;
 
 namespace le {
 
-namespace DebugPrint {
+class DebugPrint {
 
-using float2         = le_debug_print_text_api::float2;
-using float_colour_t = le_debug_print_text_api::float_colour_t;
+  public:
+	using float2         = le_debug_print_text_api::float2;
+	using float_colour_t = le_debug_print_text_api::float_colour_t;
 
-/// returns whether there is any text to display since last draw
-inline static bool needsDraw() {
-	return le_debug_print_text::le_debug_print_text_i.needs_draw(
-	    le_debug_print_text_api_i->singleton_obj );
-}
+	/// returns whether there is any text to display since last draw
+	inline static bool needsDraw() {
+		return le_debug_print_text::le_debug_print_text_i.needs_draw(
+			le_debug_print_text_api_i->singleton_obj );
+	}
 
-/// returns whether there are any messages to display
-inline static bool hasMessages() {
-	return le_debug_print_text::le_debug_print_text_i.has_messages(
-	    le_debug_print_text_api_i->singleton_obj );
-}
+	/// returns whether there are any messages to display
+	inline static bool hasMessages() {
+		return le_debug_print_text::le_debug_print_text_i.has_messages(
+			le_debug_print_text_api_i->singleton_obj );
+	}
 
-inline static void drawAllMessages( le_renderpass_o* rp ) {
-	le_debug_print_text::le_debug_print_text_i.draw(
-	    le_debug_print_text_api_i->singleton_obj, rp );
-}
+	inline static void drawAllMessages( le_renderpass_o* rp ) {
+		le_debug_print_text::le_debug_print_text_i.draw(
+			le_debug_print_text_api_i->singleton_obj, rp );
+	}
 
-inline static void setColour( float_colour_t colour ) {
-	le_debug_print_text::le_debug_print_text_i.set_colour(
-	    le_debug_print_text_api_i->singleton_obj, &colour );
-}
+	inline static void setColour( float_colour_t colour ) {
+		le_debug_print_text::le_debug_print_text_i.set_colour(
+			le_debug_print_text_api_i->singleton_obj, &colour );
+	}
 
-inline static void setBgColour( float_colour_t const& colour ) {
-	le_debug_print_text::le_debug_print_text_i.set_bg_colour(
-	    le_debug_print_text_api_i->singleton_obj, &colour );
-}
+	inline static void setBgColour( float_colour_t const& colour ) {
+		le_debug_print_text::le_debug_print_text_i.set_bg_colour(
+			le_debug_print_text_api_i->singleton_obj, &colour );
+	}
 
-inline static void setScale( float scale ) {
-	le_debug_print_text::le_debug_print_text_i.set_scale(
-	    le_debug_print_text_api_i->singleton_obj, scale );
-}
+	inline static void setScale( float scale ) {
+		le_debug_print_text::le_debug_print_text_i.set_scale(
+			le_debug_print_text_api_i->singleton_obj, scale );
+	}
 
-inline static float getScale() {
-	return le_debug_print_text::le_debug_print_text_i.get_scale(
-	    le_debug_print_text_api_i->singleton_obj );
-}
+	inline static float getScale() {
+		return le_debug_print_text::le_debug_print_text_i.get_scale(
+			le_debug_print_text_api_i->singleton_obj );
+	}
 
-inline static float2 getCursor() {
-	return le_debug_print_text::le_debug_print_text_i.get_cursor(
-	    le_debug_print_text_api_i->singleton_obj );
-}
+	inline static float2 getCursor() {
+		return le_debug_print_text::le_debug_print_text_i.get_cursor(
+			le_debug_print_text_api_i->singleton_obj );
+	}
 
-inline static void setCursor( float2 const& cursor ) {
-	le_debug_print_text::le_debug_print_text_i.set_cursor(
-	    le_debug_print_text_api_i->singleton_obj, &cursor );
-}
+	inline static void setCursor( float2 const& cursor ) {
+		le_debug_print_text::le_debug_print_text_i.set_cursor(
+			le_debug_print_text_api_i->singleton_obj, &cursor );
+	}
 
-inline static void push_style() {
-	le_debug_print_text::le_debug_print_text_i.push_style(
-	    le_debug_print_text_api_i->singleton_obj );
-}
+	inline static void push_style() {
+		le_debug_print_text::le_debug_print_text_i.push_style(
+			le_debug_print_text_api_i->singleton_obj );
+	}
 
-inline static void pop_style() {
-	le_debug_print_text::le_debug_print_text_i.pop_style(
-	    le_debug_print_text_api_i->singleton_obj );
-}
+	inline static void pop_style() {
+		le_debug_print_text::le_debug_print_text_i.pop_style(
+			le_debug_print_text_api_i->singleton_obj );
+	}
 
-inline static void print( char const* text ) {
-	le_debug_print_text::le_debug_print_text_i.print(
-	    le_debug_print_text_api_i->singleton_obj, text );
-}
+	inline static void print( char const* text ) {
+		le_debug_print_text::le_debug_print_text_i.print(
+			le_debug_print_text_api_i->singleton_obj, text );
+	}
 
-template <class... Args>
-inline static void printf( const char* msg = nullptr, Args&&... args ) {
-	le_debug_print_text::le_debug_print_text_i.printf(
-	    le_debug_print_text_api_i->singleton_obj, msg, static_cast<Args&&>( args )... );
-}
+	template <class... Args>
+	inline static void printf( const char* msg = nullptr, Args&&... args ) {
+		le_debug_print_text::le_debug_print_text_i.printf(
+			le_debug_print_text_api_i->singleton_obj, msg, static_cast<Args&&>( args )... );
+	}
 
-} // namespace DebugPrint
+	inline DebugPrint( char const* text ) {
+		print( text );
+	}
+
+	template <class... Args>
+	inline DebugPrint( const char* msg = nullptr, Args&&... args ) {
+		printf( msg, args... );
+	}
+
+}; // class DebugPrint
 } // namespace le
 
 #endif // __cplusplus
