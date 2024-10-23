@@ -6,8 +6,8 @@
 struct le_debug_print_text_o;
 struct le_renderpass_o;
 
+// Note the content of the next section is lifted from README.md
 /*
-
 # Debug Print Text
 
 ## A stateful debug printer for debug messages
@@ -31,8 +31,8 @@ le::DebugPrint::drawAllMessages(main_renderpass);
 ```
 
 Otherwise, all messages are rendered into the last renderpass that is
-part of [the](the.md) rendergraph, assuming that this renderpass is
-going to the screen.
+part of the rendergraph, assuming that this renderpass is going to the
+screen.
 
 `drawAllMessages()` clears the message state and resets the debug 
 message printer.

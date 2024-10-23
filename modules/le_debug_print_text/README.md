@@ -21,8 +21,8 @@ le::DebugPrint::drawAllMessages(main_renderpass);
 ```
 
 Otherwise, all messages are rendered into the last renderpass that is
-part of [the](the.md) rendergraph, assuming that this renderpass is
-going to the screen.
+part of the rendergraph, assuming that this renderpass is going to the
+screen.
 
 `drawAllMessages()` clears the message state and resets the debug 
 message printer.
