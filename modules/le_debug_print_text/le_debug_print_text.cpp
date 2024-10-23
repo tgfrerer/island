@@ -11,6 +11,9 @@
 #include <cstdarg>  // for arg
 #include <limits>   // for std::numeric_limits
 
+#include "shaders/debug_text_frag.h"
+#include "shaders/debug_text_vert.h"
+
 using float2         = le_debug_print_text_api::float2;
 using float_colour_t = le_debug_print_text_api::float_colour_t;
 
@@ -141,7 +144,7 @@ static inline void le_debug_print_text_create_pipeline_objects( this_o* self, le
 		self->shader_frag =
 		    LeShaderModuleBuilder( pipeline_manager )
 		        .setShaderStage( le::ShaderStage::eFragment )
-		        .setSourceFilePath( "./resources/shaders/le_debug_print_text/debug_text.frag" )
+		        .setSpirvCode( SPIRV_SOURCE_DEBUG_TEXT_FRAG, sizeof( SPIRV_SOURCE_DEBUG_TEXT_FRAG ) / sizeof( uint32_t ) )
 		        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
 		        .build();
 	}
@@ -150,7 +153,7 @@ static inline void le_debug_print_text_create_pipeline_objects( this_o* self, le
 		self->shader_vert =
 		    LeShaderModuleBuilder( pipeline_manager )
 		        .setShaderStage( le::ShaderStage::eVertex )
-		        .setSourceFilePath( "./resources/shaders/le_debug_print_text/debug_text.vert" )
+		        .setSpirvCode( SPIRV_SOURCE_DEBUG_TEXT_VERT, sizeof( SPIRV_SOURCE_DEBUG_TEXT_VERT ) / sizeof( uint32_t ) )
 		        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
 		        .build();
 	}
