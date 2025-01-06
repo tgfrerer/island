@@ -216,7 +216,7 @@ ISL_API_ATTR DLL_CORE_API char const* le_get_argument_name_from_hash( uint64_t v
 // Read more about callback forwarding here:
 // <https://poniesandlight.co.uk/reflect/callbacks_and_hot_reloading/>
 //
-#if !defined( NDEBUG ) && defined( __unix__ ) || defined(_WIN64)
+#if !defined( NDEBUG ) && ( defined( __unix__ ) || defined( _WIN64 ) )
 /// return: immovable function pointer which can be used as callback, even with hot-reloading.
 ///         calls via this pointer will be forwarded to the current address of the callback
 ///         funtion, without the caller noticing anything about it.
