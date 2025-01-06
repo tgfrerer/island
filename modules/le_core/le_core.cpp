@@ -505,20 +505,20 @@ ISL_API_ATTR char const* le_get_argument_name_from_hash( uint64_t value ) {
 /// but is set to have no write permissions once the two pages have
 /// been initialised.
 ///
-/// Since we make sure that each entry in the plt table is 16 bytes
+/// Since we make sure that each entry in the plt table is THUNK_SIZE bytes
 /// in size, and each entry has the exact same offset (of exactly one page)
-/// we can place entries in the .got at 16 byte intervals.
+/// we can place entries in the .got at THUNK_SIZE byte intervals.
 ///
 ///
-///     | plt entry   (16 Bytes)      xx xx xx xx xx xx xx | --.        --- top (plt) page
-///     | plt entry   (16 Bytes)      xx xx xx xx xx xx xx |   | --.
-///     | plt entry   (16 Bytes)      xx xx xx xx xx xx xx |   |   |
-///     | plt entry   (16 Bytes)      xx xx xx xx xx xx xx |   |   |
+///     | plt entry   (THUNK_SIZE Bytes)      xx xx xx xx xx xx xx | --.        --- top (plt) page
+///     | plt entry   (THUNK_SIZE Bytes)      xx xx xx xx xx xx xx |   | --.
+///     | plt entry   (THUNK_SIZE Bytes)      xx xx xx xx xx xx xx |   |   |
+///     | plt entry   (THUNK_SIZE Bytes)      xx xx xx xx xx xx xx |   |   |
 ///     | ..                                               |   |   |
-///     | got entry 0 (16 Bytes)   xx xx xx xx xx xx xx xx | <-"   |    --- bottom (got) page
-///     | got entry 1 (16 Bytes)   xx xx xx xx xx xx xx xx |     <-"
-///     | got entry 2 (16 Bytes)   xx xx xx xx xx xx xx xx |
-///     | got entry 3 (16 Bytes)   xx xx xx xx xx xx xx xx |
+///     | got entry 0 (THUNK_SIZE Bytes)   xx xx xx xx xx xx xx xx | <-"   |    --- bottom (got) page
+///     | got entry 1 (THUNK_SIZE Bytes)   xx xx xx xx xx xx xx xx |     <-"
+///     | got entry 2 (THUNK_SIZE Bytes)   xx xx xx xx xx xx xx xx |
+///     | got entry 3 (THUNK_SIZE Bytes)   xx xx xx xx xx xx xx xx |
 ///
 /// The plt page contains identical code for each plt entry.
 ///
@@ -535,6 +535,29 @@ ISL_API_ATTR char const* le_get_argument_name_from_hash( uint64_t value ) {
 /// api interface struct which is automatically updated when the module
 /// to which it points reloads.
 ///
+/// For AARM64, the situation is slightly different, if only that this architecture
+/// uses different assembly instructions. A nice property of AARM64 asm instructions
+/// is that each instruction is encoded with a fixed size of 32 bits, i.e. 4 bytes.
+/// This means that we can place entries at tighter, 8 byte intervals.
+///
+/// We need the following instructions:
+///
+/// 	ldr x16, offset // load address at offset into register x16; offset = $ip + pagesize - 4 (unless this must be a multiple of 8)
+/// 	br  x16 		// unconditional branch (jump) to address in register x16 (intra-procedure-call scratch register), see <https://student.cs.uwaterloo.ca/~cs452/docs/rpi4b/aapcs64.pdf> p.18
+///
+///
+#	if defined( __x86_64__ ) || defined( _M_X64 )
+// X86_64
+constexpr size_t THUNK_SIZE = 16; // 16 bytes per thunk
+
+#	elif defined( __aarch64__ ) || defined( _M_ARM64 )
+// AARCH64
+constexpr size_t THUNK_SIZE = 16; // 16 bytes per thunk
+
+#	else
+// NOT IMPLEMENTED
+static_assert( false, "Callback forwarding is not implemented for this architecture" );
+#	endif
 
 static size_t get_page_size() {
 #	ifdef __unix__
@@ -560,18 +583,18 @@ class PltGot {
 
 	void* plt_at( size_t index ) {
 		assert( index < MAX_CALLBACK_FORWARDERS_PER_PAGE && "callback plt index out of bounds" );
-		return plt_page + ( index * 16 );
+		return plt_page + ( index * THUNK_SIZE );
 	}
 
 	void* got_at( size_t index ) {
 		assert( index < MAX_CALLBACK_FORWARDERS_PER_PAGE && "callback got index out of bounds" );
-		return got_page + ( index * 16 );
+		return got_page + ( index * THUNK_SIZE );
 	}
 
   public:
 	PltGot()
 	    : PAGE_SIZE( get_page_size() )
-	    , MAX_CALLBACK_FORWARDERS_PER_PAGE( PAGE_SIZE / ( 16 ) )
+	    , MAX_CALLBACK_FORWARDERS_PER_PAGE( PAGE_SIZE / ( THUNK_SIZE ) )
 	    , usage_markers( ( MAX_CALLBACK_FORWARDERS_PER_PAGE + 7 ) / 8, 0 ) // allocate greedily to make sure we have enough bits to cover all
 	{
 
@@ -591,7 +614,9 @@ class PltGot {
 		// We fill the first page with trampoline thunks - this is program code.
 		// It only works for amd64 systems.
 
-		uint8_t thunk[ 16 ] = {
+#	if defined( __x86_64__ ) || defined( _M_X64 )
+
+		uint8_t thunk[ THUNK_SIZE ] = {
 		    // mov rax      , [rip + offset]
 		    0x48, 0x8b, 0x05, 0x00, 0x00, 0x00, 0x00,
 		    // jmp [rax]
@@ -604,8 +629,39 @@ class PltGot {
 		*offset = PAGE_SIZE; // set offset to one page.
 		*offset -= 7;        // as the current instruction has 7 bytes, we must subtract 7 from the offset value.
 
+#	elif defined( __aarch64__ ) || defined( _M_ARM64 )
+		// AARCH64
+
+		// On AARCH64, we use the BR instruction and the LDR instruction.
+		//
+		// The LDR (literal) instruction is described here:
+		// <https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/LDR--literal---Load-register--literal--?lang=en>
+
+		uint8_t thunk[ THUNK_SIZE ] = {
+		    0x10, 0x00, 0x00, 0x58, // ldr x16, #offset  // load address (literal) at offset into 64 bit register x16
+		    0x10, 0x02, 0x40, 0xf9, // ldr x16 [x16] 	 // dereference x16 to get address of actual function pointer
+		    0x00, 0x02, 0x1f, 0xd6, // br  x16           // uncondidional jump to address at x16
+		    0x00, 0x00, 0x00, 0x00, // filler bytes to complete 16 byte
+		};
+
+		uint32_t* ldr_instruction = ( uint32_t* )( thunk ); // get address of instruction inside thunk
+
+		uint32_t offset = ( PAGE_SIZE / 4 );   // offset is encoded as a multiple of 4
+		offset &= ( uint32_t( 1 << 20 ) - 1 ); // mask value to 19 bit for good measure
+		offset <<= 5;                          // shift 5 bit to left, so that the number can be or'ed onto the instruction at the correct position
+
+		// Note that as in x86_64, we have a little endian system.
+		//
+		// This does not matter anymore as soon as we have the 32bit integer in memory - which is why we
+		// first load the thing into memory, and then add the offset.
+
+		*ldr_instruction |= offset; // patch instruction with correct offset (PAGE_SIZE / 4)
+
+#	else
+#	endif
+
 		for ( size_t i = 0; i != MAX_CALLBACK_FORWARDERS_PER_PAGE; i++ ) {
-			memcpy( plt_page + 16 * i, thunk, 16 );
+			memcpy( plt_page + THUNK_SIZE * i, thunk, THUNK_SIZE );
 		}
 
 		// Now we set permissions for this page to be exec + read only.
@@ -663,14 +719,14 @@ class PltGot {
 	}
 
 	bool free_entry( void* plt ) {
-		if ( plt < plt_page || plt >= plt_page + 16 * MAX_CALLBACK_FORWARDERS_PER_PAGE ) {
+		if ( plt < plt_page || plt >= plt_page + THUNK_SIZE * MAX_CALLBACK_FORWARDERS_PER_PAGE ) {
 			// plt cannot be in this table as it is outside our address range
 			return false;
 		}
 
 		// Todo: implement.
 		// first find entry, then set it to unused, zero out the appropriate marker
-		uint32_t entry = ( ( char* )plt - ( char* )plt_page ) / 16;
+		uint32_t entry = ( ( char* )plt - ( char* )plt_page ) / THUNK_SIZE;
 
 		usage_markers[ entry / 8 ] &= ~( uint8_t( 1 ) << ( entry % 8 ) );
 
