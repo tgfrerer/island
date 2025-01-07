@@ -249,6 +249,19 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 		layer_data.image_info->extent.height = h;
 	}
 
+	// we must make sure that extents match
+
+	bool width_mismatch  = layer_data.image_info->extent.width != w;
+	bool height_mismatch = layer_data.image_info->extent.height != h;
+
+	if ( width_mismatch || height_mismatch ) {
+		logger().error( "Image dimension mismatch. Explicitly given: %dx%d, but image decoder reports: %dx%d",
+		                layer_data.image_info->extent.width,
+		                layer_data.image_info->extent.height,
+		                w,
+		                h );
+	}
+
 	layer_data.width              = w;
 	layer_data.height             = h;
 	layer_data.image_info->format = requested_format.format;
