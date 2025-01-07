@@ -119,7 +119,7 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 		for ( auto& layer : r.image_layers ) {
 
 			// We can fill in the correct handling for mutiple mip levels later.
-			// for now, assert that there is exatcly one mip level.
+			// for now, assert that there is exactly one mip level.
 
 			if ( layer.was_uploaded ) {
 				layer_index++;
@@ -376,18 +376,18 @@ le_image_decoder_interface_t* le_resource_manager_get_decoder_interface_for_file
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
 // Most meta-data about the image file is loaded via image_info
-static void le_resource_manager_add_item( le_resource_manager_o*          self,
-                                          le_image_resource_handle const* image_handle,
-                                          le_resource_info_t const*       image_info,
-                                          char const**                    image_paths,
-                                          bool                            should_watch ) {
+static void le_resource_manager_add_item( le_resource_manager_o*         self,
+                                          le_image_resource_handle const image_handle,
+                                          le_resource_info_t const*      image_info,
+                                          char const**                   image_paths,
+                                          bool                           should_watch ) {
 
-    auto [ it, was_emplaced ] = self->resources.emplace( *image_handle, le_resource_manager_o::resource_item_t{} );
+	auto [ it, was_emplaced ] = self->resources.emplace( image_handle, le_resource_manager_o::resource_item_t{} );
 
 	if ( was_emplaced ) {
 		auto& item = it->second;
 
-		item.image_handle = *image_handle;
+		item.image_handle = image_handle;
 		item.image_info   = *image_info;
 		item.image_layers.reserve( image_info->image.arrayLayers );
 
@@ -450,13 +450,13 @@ static void le_resource_manager_add_item( le_resource_manager_o*          self,
 		        item.image_info.image.extent.depth != 0 &&
 		        "Image extents for resource are not valid." );
 	} else {
-		logger().error( "Resource '%s' was added more than once.", ( *image_handle )->data->debug_name );
+		logger().error( "Resource '%s' was added more than once.", image_handle->data->debug_name );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_image_resource_handle const* resource_handle ) {
+static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_image_resource_handle const resource_handle ) {
 
 	// TODO
 	// SAFETY: As soon as the le_command_buffer recording phase has completed,
@@ -468,10 +468,10 @@ static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_ima
 	//
 	// Until this is implemented, we should not consider this method safe.
 
-	auto it = self->resources.find( *resource_handle );
+	auto it = self->resources.find( resource_handle );
 
 	if ( it == self->resources.end() ) {
-		logger().warn( "Could not remove resource. Resource '%s' not found.", ( *resource_handle )->data->debug_name );
+		logger().warn( "Could not remove resource. Resource '%s' not found.", resource_handle->data->debug_name );
 		return false;
 	}
 
