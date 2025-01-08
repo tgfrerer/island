@@ -128,9 +128,9 @@ Once the Vulkan SDK is installed, it might be a good idea to restart the Raspber
 As for compiling Island, and its example applications, follow the [Setup Instructions in the main Readme](README.md#setup-instructions)
 
 > [!NOTE]
-> Most examples should work, with a few having quirks. 
+> All examples should compile. Most examples should work without change, with a few having quirks. 
 
-* The [Hello World Example](./apps/examples/hello_world/) will not work out of the box, since the Raspberry Pi 5 does not support texture images at 8K resolution. Rescale the images first. 
+* The [Hello World Example](./apps/examples/hello_world/) will not work out of the box, since the Raspberry Pi 5 does not support texture images at 8K resolution. Rescale the images first to about 1/4 resolution. 
 * Similarly the Screenshot Example will not work out of the box. Rescale the image to `2040x1024` and all will be fine...
 
 * The [Bitonic Merge Sort Example](./apps/examples/bitonic_merge_sort_example/) will not work out of the box, since the Raspberry Pi 5 does not support workgroup sizes of `1024`. Set this to `256` and it will work.
