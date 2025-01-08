@@ -502,7 +502,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 		    le::RenderPass( "to_window_0", le::QueueFlagBits::eGraphics )
 		        .addColorAttachment( IMG_SWAP[ 0 ], attachmentInfo[ 0 ] ) // IMG_SWAP_0 == swapchain 0 attachment
 		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ) )
-		        .setSampleCount( le::SampleCountFlagBits::e8 ) //
+		        .setSampleCount( le::SampleCountFlagBits::e4 ) //
 		        .setExecuteCallback( self, pass_to_window_0 )  //
 		    ;
 
@@ -517,7 +517,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 		    le::RenderPass( "to_window_1" )
 		        .addColorAttachment( IMG_SWAP[ 1 ], attachmentInfo[ 1 ] ) // IMG_SWAP_1 == swapchain 1 attachment
 		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ) )
-		        .setSampleCount( le::SampleCountFlagBits::e8 ) //
+		        .setSampleCount( le::SampleCountFlagBits::e4 ) //
 		        .setExecuteCallback( self, pass_to_window_1 )  //
 		    ;
 

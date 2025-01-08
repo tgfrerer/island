@@ -670,7 +670,7 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 		le::RenderPass renderPassFinal( "mainPass", le::QueueFlagBits::eGraphics );
 		renderPassFinal
 		    .setSetupCallback( self, pass_main_setup )
-		    .setSampleCount( le::SampleCountFlagBits::e8 )
+		    .setSampleCount( le::SampleCountFlagBits::e4 )
 		    .setExecuteCallback( self, pass_main_exec ) //
 		    ;
 
