@@ -1,5 +1,6 @@
 
 # Island on Raspberry Pi 5
+<img width="424" src="https://github.com/user-attachments/assets/bffbc376-eed4-4f5b-b994-ff7899048c86" align="right" />
 
 Island runs natively on Raspberry Pi 5. 
 
@@ -22,8 +23,8 @@ Getting RPi 5 ready for Island means following these steps:
 
 Before doing anything, it might be a good idea to refresh the system, to make sure we're at the latest verison of Raspbian.
 ```bash
-apt-get upgrade
 apt-get update
+apt-get upgrade
 ```
 ## 1.) Compile & Install latest Mesa Graphics Driver
 
