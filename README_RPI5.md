@@ -5,7 +5,7 @@ Island is currently able to compile and run natively on Raspberry Pi 5.
 
 Hot-reloading of shaders, of assets, and of application code works, too. It is enabled by default for Debug targets.
 
-> [!NOTE]
+> [!IMPORTANT]
 > Island depends on Vulkan 1.3 (for better synchronisation primitives). As the default Raspbian OS on Raspberry Pi 5 (bookworm, as of 2024-11-19) comes only with support for Vulkan 1.2 pre-installed, we must manually compile the latest version of the Mesa Graphics driver. Fret not, the Raspberry Pi 5 is a fairly burly machine, and this will only take about the time needed to brew a decent pot of coffee, and then consume it. You'll be more awake at the end of this process.
 
 ## Installation instructions
@@ -91,7 +91,7 @@ sudo ninja -C build install
 
 Then, execute `build.sh` -- with a little bit of luck, this should compile the mesa drivers and install them onto your Raspberry Pi 5.
 
-> ![WARNING]
+> [!IMPORTANT]
 > You want to reboot at this point
 
 Once rebooted, you should see the following when calling `vulkaninfo`
@@ -115,4 +115,6 @@ VkPhysicalDeviceProperties:
 
 ## Download & Compile Island
 
-As for Downloading and compliling Island, follow the main [Readme](README.md)
+As for compiling Island, and its example applications, follow the [Setup Instructions in the main Readme](README.md#setup-instructions)
+
+
