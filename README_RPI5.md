@@ -6,9 +6,11 @@ Island is currently able to compile and run natively on Raspberry Pi 5.
 Hot-reloading of shaders, of assets, and of application code works, too. It is enabled by default for Debug targets.
 
 > [!IMPORTANT]
-> Island depends on Vulkan 1.3 (for better synchronisation primitives). As the default Raspbian OS on Raspberry Pi 5 (bookworm, as of 2024-11-19) comes only with support for Vulkan 1.2 pre-installed, we must manually compile the latest version of the Mesa Graphics driver. Fret not, the Raspberry Pi 5 is a fairly burly machine, and this will only take about the time needed to brew a decent pot of coffee, and then consume it. You'll be more awake at the end of this process.
+> Island depends on Vulkan 1.3 (for better synchronisation primitives). 
 
-## Installation instructions
+As the default Raspbian OS on Raspberry Pi 5 (bookworm, as of 2024-11-19) comes only with support for Vulkan 1.2 pre-installed, we must manually compile the latest version of the Mesa Graphics driver. Fret not, the Raspberry Pi 5 is a fairly burly machine, and this will only take about the time needed to brew a decent pot of coffee, and then consume it. You'll be more awake at the end of this process.
+
+## Installation breadcrumbs
 
 Getting RPi 5 ready for Island means following these steps:
 
@@ -16,14 +18,14 @@ Getting RPi 5 ready for Island means following these steps:
 1. Compile & install the latest Mesa Graphics driver
 2. Compile & install the latest Vulkan SDK
 
-## Prepare the OS
+## 0.) Prepare the OS
 
 Before doing anything, it might be a good idea to refresh the system, to make sure we're at the latest verison of Raspbian.
 ```bash
 apt-get upgrade
 apt-get update
 ```
-## Compile & Install latest Mesa Graphics Driver
+## 1.) Compile & Install latest Mesa Graphics Driver
 
 Now we should be ready to compile & install a fresh version of the Mesa Graphics Driver.
 
@@ -85,7 +87,7 @@ VkPhysicalDeviceProperties:
 (...)
 ```
 
-## Compile & Install Vulkan SDK
+## 2.) Compile & Install Vulkan SDK
 
 Follow the steps outlined here to setup the Vulkan SDK. If in doubt, you can also consult the [instructions provided by lunarg](https://vulkan.lunarg.com/doc/view/latest/linux/getting_started.html) for compiling the SDK.
 
@@ -121,14 +123,14 @@ echo "$VULKAN_SDK_DIR/current/setup-env.sh" >> "$HOME/.profile"
 Once the Vulkan SDK is installed, it might be a good idea to restart the Raspberry Pi. Once rebooted, verify that the install was successful by calling: `echo $VULKAN_SDK`. If successful, this should print out the correct path to the local Vulkan SDK installation directory.
 
 
-## Download & Compile Island
+## 3.) Download & Compile Island
 
 As for compiling Island, and its example applications, follow the [Setup Instructions in the main Readme](README.md#setup-instructions)
 
 > [!NOTE]
 > Most examples should work, with a few having quirks. 
 
-* The Hello World Example will not work out of the box, since the Raspberry Pi 5 does not support texture images at 8K resolution. Rescale the images first. 
+* The [Hello World Example](./apps/examples/hello_world/) will not work out of the box, since the Raspberry Pi 5 does not support texture images at 8K resolution. Rescale the images first. 
 * Similarly the Screenshot Example will not work out of the box. Rescale the image to `2040x1024` and all will be fine...
 
-* The Bitonic Merge Sort Example will not work out of the box, since the Raspberry Pi 5 does not support workgroup sizes of `1024`. Set this to `256` and it will work.
+* The [Bitonic Merge Sort Example](./apps/examples/bitonic_merge_sort_example/) will not work out of the box, since the Raspberry Pi 5 does not support workgroup sizes of `1024`. Set this to `256` and it will work.
