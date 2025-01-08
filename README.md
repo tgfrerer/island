@@ -2,18 +2,16 @@
 
 # Project Island 🌋🐎 
 
-Project Island is an experimental **Vulkan** Renderer for Linux and
-Windows, written in C/C++. 
+Project Island is an experimental **Vulkan** Renderer for Linux (Desktop, [Raspberry Pi 5](README_RPI5.md)) and Windows, written in C/C++. 
 
 Island is written for **rapid protoyping and tweaking**. That's why it
 allows **hot-reloading** wherever possible: for **C/C++** application
-code, **GLSL** or **HLSL** shader code, even the renderer's own core
-modules. 
+code, **GLSL** or **HLSL** shader code, **image assets**, and even the renderer's own core modules. 
 
 Island is **fast to compile**. A full rebuild should take < 5s on
 a moderate multicore machine, and incremental builds often take < 1s. 
 
-To achieve this aim, Island is structured into strictly separated modules,
+To achieve this, Island is structured into strictly separated modules,
 which can be dropped in or out during Debug, while for Release, you
 can build a single, statically linked and optimised binary.
 
@@ -45,7 +43,7 @@ can build a single, statically linked and optimised binary.
   a recompilation & reload cycle typically takes less than 1 second,
   while the application keeps running. Compiling the whole codebase
   from scratch should take less than 5 seconds when using LLVM on an
-  average multi-core machine.
+  average multi-core machine. And on Raspberry Pi 5, a typical project takes about 27s of wall-clock-time to compile from scratch.
 
 * **Code tweaks**: Near-instant in-code parameter tweaks for Debug
   builds (no need to recompile) by using a special `LE_TWEAK()` macro.
@@ -60,8 +58,8 @@ can build a single, statically linked and optimised binary.
   and recompiled on demand. When compiled in Debug mode, Vulkan
   validation layers are loaded by default.
 
-* **Rendergraph- based architecture**: Rendering is structured using
-  renderpasses. Renderpasses are executed on-demand and synchronised
+* **Rendergraph based architecture**: Rendering is structured using
+  passes. Passes are executed on-demand and synchronised
   automatically by evaluating a rendergraph. If a renderpass is
   detected to have no effect on the final image, it is automatically
   pruned. When requested, the rendergraph generates `.dot` files,
