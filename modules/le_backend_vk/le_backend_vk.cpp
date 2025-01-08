@@ -83,7 +83,7 @@ LE_WRAP_ENUM_IN_STRUCT( VkFormat, VkFormatEnum ); // define wrapper struct `VkFo
 
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 1;
-constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
+constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 20; // 1 MB
 
 static constexpr VkImageSubresourceRange LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS{
     .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
