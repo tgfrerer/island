@@ -1,9 +1,9 @@
 
 # Island on Raspberry Pi 5
 
-Island is currently able to compile and run natively on Raspberry Pi 5. 
+Island runs natively on Raspberry Pi 5. 
 
-Hot-reloading of shaders, of assets, and of application code works, too. It is enabled by default for Debug targets.
+Hot-reloading of shaders, of assets, and of application code works, too.
 
 > [!IMPORTANT]
 > Island depends on Vulkan 1.3 (for better synchronisation primitives). 
@@ -131,6 +131,7 @@ As for compiling Island, and its example applications, follow the [Setup Instruc
 > All examples should compile. Most examples should work without change, with a few having quirks. 
 
 * The [Hello World Example](./apps/examples/hello_world/) will not work out of the box, since the Raspberry Pi 5 does not support texture images at 8K resolution. Rescale the images first to about 1/4 resolution. 
-* Similarly the Screenshot Example will not work out of the box. Rescale the image to `2040x1024` and all will be fine...
+ 
+* Similarly, the [Screenshot Example](./apps/examples/screenshot_example/) will not work out of the box. Rescale the image to `2040x1024` and all will be fine...
 
 * The [Bitonic Merge Sort Example](./apps/examples/bitonic_merge_sort_example/) will not work out of the box, since the Raspberry Pi 5 does not support workgroup sizes of `1024`. Set this to `256` and it will work.
