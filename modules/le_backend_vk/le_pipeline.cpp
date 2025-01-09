@@ -1402,7 +1402,12 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
     uint32_t                          specialization_map_data_num_bytes ) {
 
 	// We use the canonical path to store a fingerprint of the file
-	auto canonical_path_as_string = std::filesystem::canonical( path ).string();
+	if ( !std::filesystem::exists( path ) ) {
+		logger().error( "File not found : '%s'", path );
+		return nullptr;
+	}
+
+	std::string canonical_path_as_string = std::filesystem::canonical( path ).string();
 
 	std::string macro_defines = macro_defines_ ? std::string( macro_defines_ ) : "";
 
