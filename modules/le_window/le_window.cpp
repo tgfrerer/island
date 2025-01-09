@@ -712,6 +712,7 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 	glfwWindowHint( GLFW_FLOATING, GLFW_TRUE ); // < window is created so that it is always on top.
 	glfwWindowHint( GLFW_VISIBLE, GLFW_FALSE ); // < window is initially not visible
 	glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
+	glfwWindowHint( GLFW_AUTO_ICONIFY, GLFW_FALSE );
 
 	self->window = glfwCreateWindow( self->mSettings.width, self->mSettings.height, self->mSettings.title.c_str(), self->mSettings.monitor, nullptr );
 
