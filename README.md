@@ -304,6 +304,14 @@ Follow the installation instructions via:
 On Arch Linux, I recommend installing the following packages via
 pacman: `shaderc vulkan-devel ninja cmake`.
 
+### Fedora Linux 
+
+On Fedora, I recommend installing these packages:
+
+```bash
+dnf install -y wayland-scanner libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel ninja-build cmake
+```
+
 ## Building an Island project
 
 > [!IMPORTANT]
