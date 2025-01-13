@@ -309,7 +309,7 @@ pacman: `shaderc vulkan-devel ninja cmake`.
 On Fedora, I recommend installing these packages:
 
 ```bash
-dnf install -y wayland-scanner libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel ninja-build cmake
+dnf install -y wayland-scanner libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel libdrm-devel ninja-build cmake 
 ```
 
 ## Building an Island project
