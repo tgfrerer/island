@@ -2,6 +2,7 @@
 #include "le_api_loader.h"
 #include "le_file_watcher.h"
 #include "le_hash_util.h"
+#include <filesystem>
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -15,6 +16,8 @@
 #include <string.h> // for memcpy
 #include <memory>
 #include <mutex>
+#include <set>
+#include "le_log.h"
 
 #ifndef _WIN64
 #	include <sys/mman.h>
@@ -25,7 +28,8 @@
 #	include "windows.h"
 #endif
 
-#include "3rdparty/src/spooky/SpookyV2.h"
+#include <fstream>                        // for setting updates
+#include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
 struct ApiStore {
 	std::vector<std::string> names{};      // Api names (used for debugging)
@@ -82,34 +86,38 @@ static le_settings_map_t& get_global_settings_store() {
 };
 
 // Setting names must be unique - and their types must match.
-ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const* type_name ) {
+ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const* type_name, char const* src_file, uint32_t const src_file_line, void const* p_initial_value_tmp, size_t initial_value_sz ) {
 	const uint64_t type_name_hash = type_name ? hash_64_fnv1a( type_name ) : 0;
 	const uint64_t key            = hash_64_fnv1a( name );
 
 	// Fetch (or create and fetch) an entry from the store.
-	auto result = [ & ]() -> auto{
+	auto [ entry, was_inserted ] = [ & ]() -> auto {
 		std::scoped_lock          lock( get_settings_store_mutex() );
 		static le_settings_map_t& store = get_global_settings_store();
 		return store.map.emplace( key, LeSettingEntry() );
-	}
-	(); // Note: this immediately evaluates the lambda.
-	    // We do this to that we can have the shortest possible lock on le_settings_store_mutex
+	}(); // Note: this immediately evaluates the lambda.
+	     // We do this to that we can have the shortest possible lock on le_settings_store_mutex
 
 	// Test if anything was actually inserted to the map:
-	if ( result.second == true ) {
+	if ( was_inserted == true ) {
 		// Element was newly inserted.
-		result.first->second.type_hash = type_name_hash;
-		result.first->second.name      = name;
+		entry->second.type_hash               = type_name_hash;
+		entry->second.name                    = name;
+		entry->second.src_path                = std::filesystem::canonical( src_file );
+		entry->second.src_line_no             = src_file_line;
+		entry->second.initial_value_hash      = SpookyHash::Hash64( p_initial_value_tmp, initial_value_sz, 0 );
+		entry->second.initial_value_num_chars = initial_value_sz;
+
 	} else {
 		// There was already an entry - This is a lookup
 		if ( type_name != nullptr ) {
 			// In case an alternative typename was given, we must perform a test
 			// to see whether the correct type was chosen for this setting.
-			assert( result.first->second.type_hash == type_name_hash && "Settings with identical name must match type" );
+			assert( entry->second.type_hash == type_name_hash && "Settings with identical name must match type" );
 		}
 	}
 
-	return ( &result.first->second.p_opj );
+	return ( &entry->second.p_opj );
 }
 
 // ----------------------------------------------------------------------
@@ -126,9 +134,9 @@ ISL_API_ATTR void le_core_copy_settings_entries( le_settings_map_t* settings_map
 	}
 	if ( hash_p ) {
 		uint64_t hash = 0;
-		for ( auto& e : get_global_settings_store().map ) {
-			hash = SpookyHash::Hash64( &e.first, sizeof( e.first ), hash );
-			hash = SpookyHash::Hash64( &e.second.type_hash, sizeof( e.second.type_hash ), hash );
+		for ( auto& [ key, value ] : get_global_settings_store().map ) {
+			hash = SpookyHash::Hash64( &key, sizeof( key ), hash );
+			hash = SpookyHash::Hash64( &value.type_hash, sizeof( value.type_hash ), hash );
 		}
 		*hash_p = hash;
 	}
@@ -145,6 +153,201 @@ ISL_API_ATTR LeSettingEntry* le_core_get_setting_entry( char const* setting_name
 		return &result->second;
 	} else {
 		return nullptr;
+	}
+};
+
+// ----------------------------------------------------------------------
+
+static bool le_core_setting_has_changed( LeSettingEntry const& setting ) {
+
+	uint64_t current_value_hash = 0;
+	switch ( setting.type_hash ) {
+	case ( eInt ):
+		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( int ), 0 );
+		break;
+	case ( eUint32_t ):
+		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( uint32_t ), 0 );
+		break;
+	case ( eInt32_t ):
+		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( int32_t ), 0 );
+		break;
+	case ( eStdString ):
+		// Note that we add 1 to the string size -- this is so that we also take into account the zero-byte at the end of
+		// the string, which gets is part of the hash initially, too.
+		current_value_hash = SpookyHash::Hash64( ( ( std::string* )( setting.p_opj ) )->data(), ( ( std::string* )setting.p_opj )->size() + 1, 0 );
+		break;
+	case ( eBool ):
+		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( bool ), 0 );
+		break;
+	case ( eConstBool ):
+		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( const bool ), 0 );
+		break;
+	default:
+		return false;
+	}
+
+	if ( current_value_hash == setting.initial_value_hash ) {
+		// Setting has not changed.
+		return false;
+	}
+
+	return true;
+};
+
+// ----------------------------------------------------------------------
+
+ISL_API_ATTR void le_core_settings_update_source_files( char const** search_file_paths_, size_t settings_file_paths_count ) {
+
+	static auto logger = le::Log( "le_core" );
+
+	// first filter all given paths, then all settings.
+
+	std::set<std::string> search_file_paths;
+
+	for ( int i = 0; i != settings_file_paths_count; i++ ) {
+
+		auto test_path = search_file_paths_[ i ];
+
+		if ( std::filesystem::exists( test_path ) ) {
+			search_file_paths.insert( std::filesystem::canonical( test_path ) );
+		}
+	}
+
+	// -----------| invariant: any file path that is in search_file_paths actually exists on this system.
+
+	// search_file_paths now contains an ordered set of
+	// canonical file paths that we must update.
+
+	// - Filter all settings and group them by file
+
+	le_settings_map_t settings_map;
+
+	le_core_copy_settings_entries( &settings_map, nullptr );
+
+	// - Remove any Setting entries that are not contained in any of the
+	//   files named explicitly that should be updated.
+	// - Also remove any Setting entries that have not been changed.
+	//
+	for ( auto it = settings_map.map.begin(); it != settings_map.map.end(); ) {
+
+		auto& [ key, entry ] = *it;
+		if ( !search_file_paths.contains( entry.src_path ) || // setting is not set in one of the given files
+		     !le_core_setting_has_changed( entry )            // setting has not been changed
+		) {
+			it = settings_map.map.erase( it );
+		} else {
+			it++;
+		}
+	}
+
+	std::unordered_map<std::string, std::vector<LeSettingEntry*>> per_file_settings;
+
+	// - Now, group settings by file path; we process one file at a time.
+	for ( auto& [ key, entry ] : settings_map.map ) {
+		per_file_settings[ entry.src_path ].push_back( &entry );
+	}
+
+	// - Now, sort entries per file by line number
+
+	for ( auto& [ file_path, settings ] : per_file_settings ) {
+		std::sort( settings.begin(), settings.end(), []( LeSettingEntry const* lhs, LeSettingEntry const* rhs ) -> bool {
+			return lhs->src_line_no < rhs->src_line_no;
+		} );
+	}
+
+	// Now, we can process file-by-file...
+
+	for ( auto& [ file_path, settings ] : per_file_settings ) {
+
+		std::vector<std::string> lines; // note that this vector is zero-indexed, while line numbers are 1-indexed.
+
+		{
+			std::ifstream src_file( file_path );
+			if ( !src_file.is_open() ) {
+				logger.warn( "Error opening file: %s", file_path.c_str() );
+				continue;
+			}
+			std::string line;
+			while ( std::getline( src_file, line ) ) {
+				lines.push_back( line );
+			};
+			src_file.close();
+		}
+
+		// we now have the file in memory. We can write the file out to storage again, but this time we update the
+		//
+
+		for ( auto s : settings ) {
+			std::string& src_line = lines[ s->src_line_no - 1 ];
+
+			// The value for the SETTING is between the first comma after the setting's name, and the last ')' before the last ';'
+			std::ostringstream os;
+
+			bool setting_line_found = false;
+
+			std::string::size_type setting_name_pos = src_line.find( s->name, 0 );
+			if ( setting_name_pos != std::string::npos ) {
+				setting_line_found = true;
+				os << std::string( src_line.begin(), src_line.begin() + setting_name_pos );
+			}
+
+			os << s->name << ", ";
+
+			// Add string representation of updated value -- this depends on the setting type
+
+			switch ( s->type_hash ) {
+			case ( eInt ):
+				os << ( *( int* )s->p_opj );
+				break;
+			case ( eUint32_t ):
+				os << ( *( uint32_t* )s->p_opj );
+				break;
+			case ( eInt32_t ):
+				os << ( *( int32_t* )s->p_opj );
+				break;
+			case ( eStdString ):
+				os << "\"" << ( *( std::string* )s->p_opj ) << "\"";
+				break;
+			case ( eBool ):
+				os << ( *( bool* )s->p_opj ? "true" : "false" );
+				break;
+			case ( eConstBool ):
+				os << "const " << ( *( bool* )s->p_opj ? "true" : "false" );
+				break;
+			default:
+				continue;
+			}
+
+			os << " );";
+
+			// we could also make an attempt at preserving comments in this line --
+
+			// we know that a comment may be at the end of the line -- therefore we want to find the
+			// last double-slash that is not contained with quotes;
+
+			// if we detect a '//' after the last ';', we assume that there is a comment here.
+
+			if ( setting_line_found ) {
+				src_line = os.str();
+			} else {
+				logger.warn( "Setting could not be set: '( %s' in file: %s:%d", os.str().c_str(), file_path.c_str(), s->src_line_no );
+			}
+		}
+
+		std::ofstream out_file( file_path + ".gen" );
+		for ( auto const& l : lines ) {
+			out_file << l << std::endl;
+			// out_file.write( l.c_str(), l.size() );
+		}
+		out_file.close();
+
+		std::filesystem::copy_file( file_path, file_path + ".old", std::filesystem::copy_options::overwrite_existing );
+
+		// atomically update original file
+		std::error_code ec = {};
+		std::filesystem::rename( file_path + ".gen", file_path, ec );
+
+		logger.info( "Updated file '%s'\n", file_path.c_str() );
 	}
 };
 

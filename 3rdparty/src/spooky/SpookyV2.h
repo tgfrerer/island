@@ -1,3 +1,4 @@
+#pragma once
 //
 // SpookyHash: a 128-bit noncryptographic hash function
 // By Bob Jenkins, public domain

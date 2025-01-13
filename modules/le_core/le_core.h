@@ -55,7 +55,7 @@ ISL_API_ATTR DLL_CORE_API void** le_core_produce_dictionary_entry( uint64_t key 
 // Globally available, persistent name->SETTING store -
 // Use this for any LE_SETTING that all modules need
 // to have access to.
-ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name, char const* type_name );
+ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name, char const* type_name, char const* src_file, uint32_t const src_file_line, void const* p_initial_value_tmp, size_t initial_value_sz );
 
 // Globally available, app-lifetime-persistent store for char literals
 ISL_API_ATTR DLL_CORE_API char const* le_core_produce_string_literal( char const* string_literal );
@@ -119,20 +119,29 @@ return cached_str; }()
 //----------------------------------------------------------------------
 
 // this is not yet production-ready, as it does not protect against race-conditions etc.
-#define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                \
-	static SETTING_TYPE* SETTING_NAME = []() -> SETTING_TYPE* {                        \
-		void** p_addr = le_core_produce_setting_entry( #SETTING_NAME, #SETTING_TYPE ); \
-		if ( nullptr == *p_addr ) {                                                    \
-			*p_addr = new le::rm_const<SETTING_TYPE>::type( SETTING_DEFAULT_VALUE );   \
-		}                                                                              \
-		return ( ( SETTING_TYPE* )( *p_addr ) );                                       \
+#define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                                                                             \
+	static SETTING_TYPE* SETTING_NAME = []() -> SETTING_TYPE* {                                                                                     \
+		const auto& tmp_value = SETTING_DEFAULT_VALUE;                                                                                              \
+		void**      p_addr    = le_core_produce_setting_entry( #SETTING_NAME, #SETTING_TYPE, __FILE__, __LINE__, &tmp_value, sizeof( tmp_value ) ); \
+		if ( nullptr == *p_addr ) {                                                                                                                 \
+			*p_addr = new le::rm_const<SETTING_TYPE>::type( SETTING_DEFAULT_VALUE );                                                                \
+		}                                                                                                                                           \
+		return ( ( SETTING_TYPE* )( *p_addr ) );                                                                                                    \
 	}()
+
+// FIXME: even though the above is clever this will not fly because the string will not be present at the
+// given address once the module that defines is has been hot-reloaded. things will just blow apart when
+// you want to access this value later. You must commit the value when you create it - by setting
+// the default value using a templated function i guess.
+// you could just commit the default value string, and store the string, but as a std::string on the heap.
 
 // settings_map_ptr (optional) target to place a copy of the settings_map into. set to nullptr to omit copy.
 // hash_p (optional) pointer to address at which to store hash of current settings map
 ISL_API_ATTR DLL_CORE_API void le_core_copy_settings_entries( struct le_settings_map_t* settings_map_ptr, uint64_t* hash_p );
 // lookup settings entry, and if found, return pointer to existing entry, nullptr otherwise.
 ISL_API_ATTR DLL_CORE_API struct LeSettingEntry* le_core_get_setting_entry( char const* setting_name );
+// update given source file paths in case they contain settings
+ISL_API_ATTR DLL_CORE_API void le_core_settings_update_source_files( char const** settings_filename, size_t settings_filename_count );
 
 // For debug purposes - shader arguments
 ISL_API_ATTR DLL_CORE_API void        le_update_argument_name_table( const char* source, uint64_t value );
