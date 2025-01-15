@@ -13,7 +13,7 @@ enum SettingType : uint64_t {
 struct LeSettingEntry {
 	std::string name;
 	uint64_t    type_hash; // unique hash based on textual representation of type name. This is not perfect (no type aliasing possible, and hash collisions may happen), but should work with basic types
-	void*       p_opj;     // pointer that may be set by the setter of this setting - it is their responsibility to delete this object
+	void*       p_obj;     // pointer that may be set by the setter of this setting - it is their responsibility to delete this object
 	uint64_t    initial_value_hash;
 
 	std::string src_path;    // first source file where we encounter this entry

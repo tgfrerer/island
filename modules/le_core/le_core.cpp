@@ -133,7 +133,7 @@ ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const*
 		}
 	}
 
-	return ( &entry->second.p_opj );
+	return ( &entry->second.p_obj );
 }
 
 // ----------------------------------------------------------------------
@@ -179,27 +179,27 @@ static bool le_core_setting_has_changed( LeSettingEntry const& setting ) {
 	uint64_t current_value_hash = 0;
 	switch ( setting.type_hash ) {
 	case ( eInt ):
-		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( int ), 0 );
+		current_value_hash = SpookyHash::Hash64( setting.p_obj, sizeof( int ), 0 );
 		break;
 	case ( eUint32_t ):
-		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( uint32_t ), 0 );
+		current_value_hash = SpookyHash::Hash64( setting.p_obj, sizeof( uint32_t ), 0 );
 		break;
 	case ( eInt32_t ):
-		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( int32_t ), 0 );
+		current_value_hash = SpookyHash::Hash64( setting.p_obj, sizeof( int32_t ), 0 );
 		break;
 	case ( eFloat ):
-		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( float ), 0 );
+		current_value_hash = SpookyHash::Hash64( setting.p_obj, sizeof( float ), 0 );
 		break;
 	case ( eStdString ):
 		// Note that we add 1 to the string size -- this is so that we also take into account the zero-byte at the end of
 		// the string, which gets is part of the hash initially, too.
-		current_value_hash = SpookyHash::Hash64( ( ( std::string* )( setting.p_opj ) )->data(), ( ( std::string* )setting.p_opj )->size() + 1, 0 );
+		current_value_hash = SpookyHash::Hash64( ( ( std::string* )( setting.p_obj ) )->data(), ( ( std::string* )setting.p_obj )->size() + 1, 0 );
 		break;
 	case ( eBool ):
-		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( bool ), 0 );
+		current_value_hash = SpookyHash::Hash64( setting.p_obj, sizeof( bool ), 0 );
 		break;
 	case ( eConstBool ):
-		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( const bool ), 0 );
+		current_value_hash = SpookyHash::Hash64( setting.p_obj, sizeof( const bool ), 0 );
 		break;
 	default:
 		return false;
@@ -337,7 +337,7 @@ ISL_API_ATTR void le_core_settings_load_from_source_files( char const** search_f
 					LeSettingEntry& setting_entry =
 					    le_core_produce_setting_entry_by_name( matches[ 3 ].str().c_str(), did_already_exist );
 
-					void*       setting       = setting_entry.p_opj;
+					void**      setting       = &setting_entry.p_obj;
 					std::string setting_value = matches[ 4 ].str();
 
 					size_t setting_hash = 0;
@@ -453,23 +453,23 @@ ISL_API_ATTR void le_core_settings_update_source_files( char const** search_file
 		auto insert_value = []( std::ostringstream& os, LeSettingEntry const* s ) {
 			switch ( s->type_hash ) {
 			case ( eInt ):
-				os << ( *( int* )s->p_opj );
+				os << ( *( int* )s->p_obj );
 				break;
 			case ( eUint32_t ):
-				os << ( *( uint32_t* )s->p_opj );
+				os << ( *( uint32_t* )s->p_obj );
 				break;
 			case ( eInt32_t ):
-				os << ( *( int32_t* )s->p_opj );
+				os << ( *( int32_t* )s->p_obj );
 				break;
 			case ( eFloat ):
-				os << std::showpoint << ( *( float* )s->p_opj ) << "f";
+				os << std::showpoint << ( *( float* )s->p_obj ) << "f";
 				break;
 			case ( eStdString ):
-				os << "\"" << ( *( std::string* )s->p_opj ) << "\"";
+				os << "\"" << ( *( std::string* )s->p_obj ) << "\"";
 				break;
 			case ( eBool ): // deliberate fall-through
 			case ( eConstBool ):
-				os << ( *( bool* )s->p_opj ? "true" : "false" );
+				os << ( *( bool* )s->p_obj ? "true" : "false" );
 				break;
 			default:
 				// todo: we should perhaps add a warning here

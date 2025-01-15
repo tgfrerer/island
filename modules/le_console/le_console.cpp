@@ -1085,28 +1085,28 @@ static void write_setting_to( std::ostringstream& msg, LeSettingEntry* found_set
 	msg << "LE_SETTING( ";
 	switch ( found_setting->type_hash ) {
 	case ( SettingType::eConstBool ):
-		msg << std::setw( 12 ) << "const bool, " << found_setting->name << ( ( *( const bool* )found_setting->p_opj ) ? "true" : "false" );
+		msg << std::setw( 12 ) << "const bool, " << found_setting->name << ", " << ( ( *( const bool* )found_setting->p_obj ) ? "true" : "false" );
 		break;
 	case ( SettingType::eBool ):
-		msg << std::setw( 12 ) << "bool, " << found_setting->name << ", " << ( ( *( bool* )found_setting->p_opj ) ? "true" : "false" );
+		msg << std::setw( 12 ) << "bool, " << found_setting->name << ", " << ( ( *( bool* )found_setting->p_obj ) ? "true" : "false" );
 		break;
 	case ( SettingType::eInt32_t ):
-		msg << std::setw( 12 ) << "int32_t, " << found_setting->name << ", " << ( *( int32_t* )found_setting->p_opj );
+		msg << std::setw( 12 ) << "int32_t, " << found_setting->name << ", " << ( *( int32_t* )found_setting->p_obj );
 		break;
 	case ( SettingType::eUint32_t ):
-		msg << std::setw( 12 ) << "uint32_t, " << found_setting->name << ", " << ( *( uint32_t* )found_setting->p_opj );
+		msg << std::setw( 12 ) << "uint32_t, " << found_setting->name << ", " << ( *( uint32_t* )found_setting->p_obj );
 		break;
 	case ( SettingType::eFloat ):
-		msg << std::setw( 12 ) << "float, " << found_setting->name << ", " << ( *( float* )found_setting->p_opj );
+		msg << std::setw( 12 ) << "float, " << found_setting->name << ", " << ( *( float* )found_setting->p_obj );
 		break;
 	case ( SettingType::eInt ):
-		msg << std::setw( 12 ) << "int, " << found_setting->name << ", " << ( *( int* )found_setting->p_opj );
+		msg << std::setw( 12 ) << "int, " << found_setting->name << ", " << ( *( int* )found_setting->p_obj );
 		break;
 	case ( SettingType::eStdString ):
-		msg << std::setw( 12 ) << "std::sting, " << found_setting->name << ", " << ( *( std::string* )found_setting->p_opj );
+		msg << std::setw( 12 ) << "std::sting, " << found_setting->name << ", " << ( *( std::string* )found_setting->p_obj );
 		break;
 	default:
-		msg << std::setw( 12 ) << "unknown, " << found_setting->name << ", " << std::hex << found_setting->p_opj;
+		msg << std::setw( 12 ) << "unknown, " << found_setting->name << ", " << std::hex << found_setting->p_obj;
 		break;
 	}
 	msg << ");\n\r";
@@ -1135,7 +1135,7 @@ static void cb_set_setting_command( Command const* cmd, std::string const& str, 
 
 		if ( found_setting != nullptr ) {
 			std::ostringstream msg;
-			void*              setting = found_setting->p_opj;
+			void*              setting = found_setting->p_obj;
 			switch ( found_setting->type_hash ) {
 			case SettingType::eConstBool:
 				logger.warn( "Cannot set value for setting: '%s'. Settings with type `const bool` "
