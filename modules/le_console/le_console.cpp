@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <iomanip>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -1080,6 +1081,37 @@ static void cb_autocomplete_command( Command const* cmd, std::string const& str,
 	}
 }
 
+static void write_setting_to( std::ostringstream& msg, LeSettingEntry* found_setting ) {
+	msg << "LE_SETTING( ";
+	switch ( found_setting->type_hash ) {
+	case ( SettingType::eConstBool ):
+		msg << std::setw( 12 ) << "const bool, " << found_setting->name << ( ( *( const bool* )found_setting->p_opj ) ? "true" : "false" );
+		break;
+	case ( SettingType::eBool ):
+		msg << std::setw( 12 ) << "bool, " << found_setting->name << ", " << ( ( *( bool* )found_setting->p_opj ) ? "true" : "false" );
+		break;
+	case ( SettingType::eInt32_t ):
+		msg << std::setw( 12 ) << "int32_t, " << found_setting->name << ", " << ( *( int32_t* )found_setting->p_opj );
+		break;
+	case ( SettingType::eUint32_t ):
+		msg << std::setw( 12 ) << "uint32_t, " << found_setting->name << ", " << ( *( uint32_t* )found_setting->p_opj );
+		break;
+	case ( SettingType::eFloat ):
+		msg << std::setw( 12 ) << "float, " << found_setting->name << ", " << ( *( float* )found_setting->p_opj );
+		break;
+	case ( SettingType::eInt ):
+		msg << std::setw( 12 ) << "int, " << found_setting->name << ", " << ( *( int* )found_setting->p_opj );
+		break;
+	case ( SettingType::eStdString ):
+		msg << std::setw( 12 ) << "std::sting, " << found_setting->name << ", " << ( *( std::string* )found_setting->p_opj );
+		break;
+	default:
+		msg << std::setw( 12 ) << "unknown, " << found_setting->name << ", " << std::hex << found_setting->p_opj;
+		break;
+	}
+	msg << ");\n\r";
+};
+
 static void cb_get_setting_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
 	if ( tokens.size() == 2 ) {
 		std::ostringstream msg;
@@ -1088,30 +1120,7 @@ static void cb_get_setting_command( Command const* cmd, std::string const& str, 
 		auto               found_setting = le_core_get_setting_entry( setting_name );
 
 		if ( found_setting != nullptr ) {
-			void* setting = found_setting->p_opj;
-			switch ( found_setting->type_hash ) {
-			case ( SettingType::eConstBool ):
-				msg << found_setting->name << " [ const bool ] == '" << ( ( *( const bool* )found_setting->p_opj ) ? "true" : "false" ) << "'\n\r";
-				break;
-			case ( SettingType::eBool ):
-				msg << found_setting->name << " [ bool ] == '" << ( ( *( bool* )found_setting->p_opj ) ? "true" : "false" ) << "'\n\r";
-				break;
-			case ( SettingType::eInt32_t ):
-				msg << found_setting->name << " [ int32_t ] == '" << ( *( int32_t* )found_setting->p_opj ) << "'\n\r";
-				break;
-			case ( SettingType::eUint32_t ):
-				msg << found_setting->name << " [ uint32_t ] == '" << ( *( uint32_t* )found_setting->p_opj ) << "'\n\r";
-				break;
-			case ( SettingType::eInt ):
-				msg << found_setting->name << " [ int ] == '" << ( *( int* )found_setting->p_opj ) << "'\n\r";
-				break;
-			case ( SettingType::eStdString ):
-				msg << found_setting->name << " [ std::string ] == '" << ( *( std::string* )found_setting->p_opj ) << "'\n\r";
-				break;
-			default:
-				msg << found_setting->name << " [ unknown ] == '" << std::hex << found_setting->p_opj << "'\n\r";
-				break;
-			}
+			write_setting_to( msg, found_setting );
 		}
 		connection->channel_out.post( msg.str() );
 	}
@@ -1145,6 +1154,9 @@ static void cb_set_setting_command( Command const* cmd, std::string const& str, 
 			case SettingType::eInt32_t:
 				*( int32_t* )( setting ) = int32_t( strtoul( setting_value, nullptr, 10 ) );
 				break;
+			case SettingType::eFloat:
+				*( float* )( setting ) = float( strtof( setting_value, nullptr ) );
+				break;
 			case SettingType::eInt:
 				*( int* )( setting ) = int( strtoul( setting_value, nullptr, 10 ) );
 				break;
@@ -1173,28 +1185,8 @@ static void cb_list_settings_command( Command const* cmd, std::string const& str
 
 	le_settings_map_t current_settings;
 	le_core_copy_settings_entries( &current_settings, nullptr );
-	for ( auto& s : current_settings.map ) {
-
-		switch ( s.second.type_hash ) {
-		case ( SettingType::eBool ):
-			msg << s.second.name << " [ bool ] = '" << ( ( *( bool* )s.second.p_opj ) ? "true" : "false" ) << "'\n\r";
-			break;
-		case ( SettingType::eInt32_t ):
-			msg << s.second.name << " [ int32_t ] = '" << ( *( int32_t* )s.second.p_opj ) << "'\n\r";
-			break;
-		case ( SettingType::eUint32_t ):
-			msg << s.second.name << " [ uint32_t ] = '" << ( *( uint32_t* )s.second.p_opj ) << "'\n\r";
-			break;
-		case ( SettingType::eInt ):
-			msg << s.second.name << " [ int ] = '" << ( *( int* )s.second.p_opj ) << "'\n\r";
-			break;
-		case ( SettingType::eStdString ):
-			msg << s.second.name << " [ std::string ] = '" << ( *( std::string* )s.second.p_opj ) << "'\n\r";
-			break;
-		default:
-			msg << s.second.name << " [ unknown ] = '" << std::hex << s.second.p_opj << "'\n\r";
-			break;
-		}
+	for ( auto& [ key, s ] : current_settings.map ) {
+		write_setting_to( msg, &s );
 	}
 
 	connection->channel_out.post( msg.str() );
@@ -1243,7 +1235,7 @@ static void cb_log_command( Command const* cmd, std::string const& str, std::vec
 			le_console_produce_log_subscribers()[ uint32_t( connection->fd ) ].reset( nullptr );
 			connection->wants_log_subscriber = false;
 		}
-		le_log::le_log_channel_i.info( logger.getChannel(), "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
+		logger.info( "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
 	} else {
 		connection->channel_out.post( "Incorrect number of arguments.\n\rExpecting a single integer argument to specify log level mask.\n\r(E.g. -1 to capture all log levels.)\r\n" );
 	}
@@ -1465,7 +1457,7 @@ static void le_console_process_input() {
 		} else {
 
 			if ( !tokens.empty() ) {
-				le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
+				logger.warn( "Did not recognise command: '%s'", tokens[ 0 ] );
 
 				std::string msg = "Incorrect command: '";
 				msg += tokens[ 0 ];
@@ -1473,7 +1465,7 @@ static void le_console_process_input() {
 
 				connection->channel_out.post( msg.c_str() );
 			} else {
-				le_log::le_log_channel_i.warn( logger.getChannel(), "Empty command." );
+				logger.warn( "Empty command." );
 			}
 		}
 	} // end for each connection

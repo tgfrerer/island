@@ -1,11 +1,8 @@
 depends_on_island_module(le_log)
-#depends_on_island_module(le_settings)
-
 
 set (TARGET le_console)
 
 # list modules this module depends on
-# depends_on_island_module(le_path)
 
 set (SOURCES "le_console.cpp")
 set (SOURCES ${SOURCES} "le_console.h")
@@ -16,19 +13,12 @@ set (SOURCES ${SOURCES} "private/le_console/le_console_server.cpp")
 set (SOURCES ${SOURCES} "private/le_console/le_char_tree.h")
 
 if (${PLUGINS_DYNAMIC})
-
     add_library(${TARGET} SHARED ${SOURCES})
-
     add_dynamic_linker_flags()
-  
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
-
 else()
-
     add_library(${TARGET} STATIC ${SOURCES})
-
     add_static_lib( ${TARGET} )
-
 endif()
 
 
