@@ -87,6 +87,21 @@ static le_settings_map_t& get_global_settings_store() {
 	return store;
 };
 
+// ----------------------------------------------------------------------
+static LeSettingEntry& le_core_produce_setting_entry_by_name( char const* name, bool& did_already_exist ) {
+	const uint64_t key = hash_64_fnv1a( name );
+	// Fetch (or create and fetch) an entry from the store.
+	auto [ entry, was_inserted ] = [ & ]() -> auto {
+		std::scoped_lock          lock( get_settings_store_mutex() );
+		static le_settings_map_t& store = get_global_settings_store();
+		return store.map.emplace( key, LeSettingEntry() );
+	}(); // Note: this immediately evaluates the lambda.
+	     // We do this to that we can have the shortest possible lock on le_settings_store_mutex
+	did_already_exist = !was_inserted;
+	return entry->second;
+}
+
+// ----------------------------------------------------------------------
 // Setting names must be unique - and their types must match.
 ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const* type_name, char const* src_file, uint32_t const src_file_line, void const* p_initial_value_tmp, size_t initial_value_sz ) {
 	const uint64_t type_name_hash = type_name ? hash_64_fnv1a( type_name ) : 0;
@@ -108,7 +123,6 @@ ISL_API_ATTR void** le_core_produce_setting_entry( char const* name, char const*
 		entry->second.src_path                = std::filesystem::canonical( src_file );
 		entry->second.src_line_no             = src_file_line;
 		entry->second.initial_value_hash      = SpookyHash::Hash64( p_initial_value_tmp, initial_value_sz, 0 );
-		entry->second.initial_value_num_chars = initial_value_sz;
 
 	} else {
 		// There was already an entry - This is a lookup
@@ -199,8 +213,161 @@ static bool le_core_setting_has_changed( LeSettingEntry const& setting ) {
 	return true;
 };
 
-// ----------------------------------------------------------------------
+// return the regex used to describe a LE_SETTING as seen in code.
+static std::regex& get_setting_regex() {
+	static std::regex setting_regex(
+	    R"((\s*?))"             // prefix
+	    R"(LE_SETTING)"         //
+	    R"(\(.*?(\b.*?\b),\s*)" // type of setting, followed by comma, and optional spaces (capture group ignores whitespace here)
+	    R"(([A-Z0-9_]+),\s*)"   // name for setting must be capital letters, or numbers, or underscore, followed by comma and optional space(s)
+	    R"(()"
+	    R"((?:["](?:\\.|[^\\])*?["]))" // quoted string (with quotes and escapes)
+	    R"(|)"
+	    R"((?:true|false))" // literal "true", false
+	    R"(|)"
+	    R"((?:(?:\d*\.\d+|\d*\.\d*|\d+\.|\d+)[^x](?:e[+-]?\d+|E[+-]?\d+)?(?:l{1,2}|f|ul{1,2})?))" // number literals
+	    R"(|)"
+	    R"(0[xX][0-9a-fA-F]+)" // hex number literals
+	    R"())"
+	    R"((.*?\)\w*?;.*$))" // anything past the last semicolon
+	);
+	return setting_regex;
+}
 
+// ----------------------------------------------------------------------
+// load settings from source file...
+// the source file must be a valid c++ header file.
+ISL_API_ATTR void le_core_settings_load_from_source_files( char const** search_file_paths_, size_t settings_file_paths_count ) {
+	static auto logger = le::Log( "le_core" );
+
+	std::set<std::string> search_file_paths;
+
+	for ( int i = 0; i != settings_file_paths_count; i++ ) {
+		auto test_path = search_file_paths_[ i ];
+		if ( std::filesystem::exists( test_path ) ) {
+			search_file_paths.insert( std::filesystem::canonical( test_path ) );
+		}
+	}
+
+	auto parse_setting_value = []( void* setting, uint64_t type_hash, char const* setting_value, size_t* setting_hash, bool should_allocate = false ) {
+		uint32_t sz = 0; // number of bytes owned by this setting object (for a string this only counts the number of characters)
+
+		void* p_value = nullptr; // pointer to where to take the hash input from
+
+		switch ( type_hash ) {
+		case SettingType::eBool:
+			if ( should_allocate ) {
+				setting = new bool( strtoul( setting_value, nullptr, 0 ) );
+			} else {
+				*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 0 ) );
+			}
+			p_value = ( ( bool* )setting );
+			sz      = sizeof( bool );
+			break;
+		case SettingType::eUint32_t:
+			if ( should_allocate ) {
+				setting = new uint32_t( strtoul( setting_value, nullptr, 0 ) );
+			} else {
+				*( uint32_t* )( setting ) = uint32_t( strtoul( setting_value, nullptr, 0 ) );
+			}
+			p_value = ( ( uint32_t* )setting );
+			sz      = sizeof( uint32_t );
+			break;
+		case SettingType::eInt32_t:
+			if ( should_allocate ) {
+				setting = new int32_t( strtol( setting_value, nullptr, 0 ) );
+			} else {
+				*( int32_t* )( setting ) = int32_t( strtol( setting_value, nullptr, 0 ) );
+			}
+			p_value = ( ( int32_t* )setting );
+			sz      = sizeof( int32_t );
+			break;
+		case SettingType::eInt:
+			if ( should_allocate ) {
+				setting = new int( strtol( setting_value, nullptr, 0 ) );
+			} else {
+				*( int* )( setting ) = int( strtol( setting_value, nullptr, 0 ) );
+			}
+			p_value = ( ( int* )setting );
+			sz      = sizeof( int );
+			break;
+		case SettingType::eFloat:
+			if ( should_allocate ) {
+				setting = new float( strtof( setting_value, nullptr ) );
+			} else {
+				*( float* )( setting ) = float( strtof( setting_value, nullptr ) );
+			}
+			p_value = ( ( float* )setting );
+			sz      = sizeof( float );
+			break;
+		case SettingType::eStdString: {
+			std::string str_value = std::string( setting_value + 1, strlen( setting_value ) - 2 );
+			if ( should_allocate ) {
+				setting = new std::string( str_value );
+			} else {
+				*( std::string* )( setting ) = std::string( str_value );
+			}
+			p_value = ( ( std::string* )setting )->data();
+			sz      = strlen( ( char* )p_value );
+			break;
+		}
+		default:
+			// todo: we should perhaps add a warning here
+			return;
+		}
+		*setting_hash = SpookyHash::Hash64( p_value, sz, 0 );
+	};
+
+	for ( auto const& file_path : search_file_paths ) {
+		logger.info( "Loading settings from file: '%s'", file_path.c_str() );
+		size_t line_number = 1;
+		{
+			std::ifstream src_file( file_path );
+			if ( !src_file.is_open() ) {
+				logger.warn( "Error opening file: %s", file_path.c_str() );
+				continue;
+			}
+			std::string line;
+			std::smatch matches{};
+			while ( std::getline( src_file, line ) ) {
+
+				if ( std::regex_match( line, matches, get_setting_regex() ) ) {
+					// we have a match for our regex
+					bool            did_already_exist = false;
+					LeSettingEntry& setting_entry =
+					    le_core_produce_setting_entry_by_name( matches[ 3 ].str().c_str(), did_already_exist );
+
+					void*       setting       = setting_entry.p_opj;
+					std::string setting_value = matches[ 4 ].str();
+
+					size_t setting_hash = 0;
+					// if the setting did already exist, we must only update the value -
+					if ( did_already_exist ) {
+						// we must peel setting_value out from start and end quote
+						parse_setting_value( setting, setting_entry.type_hash, setting_value.c_str(), &setting_hash, false );
+						setting_entry.src_path    = file_path;
+						setting_entry.src_line_no = line_number;
+						logger.info( "Updated Setting: '%s' -> '%s'", setting_entry.name.c_str(), setting_value.c_str() );
+					} else {
+						setting_entry.name        = matches[ 3 ].str();
+						setting_entry.src_path    = file_path;
+						setting_entry.src_line_no = line_number;
+						setting_entry.type_hash   = hash_64_fnv1a( matches[ 2 ].str().c_str() );
+
+						parse_setting_value( setting, setting_entry.type_hash, setting_value.c_str(), &setting_hash, true );
+						setting_entry.initial_value_hash = setting_hash;
+						logger.info( "Created Setting: '%s' -> '%s'", setting_entry.name.c_str(), setting_value.c_str() );
+					}
+				}
+
+				line_number++;
+			};
+			src_file.close();
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
 ISL_API_ATTR void le_core_settings_update_source_files( char const** search_file_paths_, size_t settings_file_paths_count ) {
 
 	static auto logger = le::Log( "le_core" );
@@ -261,6 +428,7 @@ ISL_API_ATTR void le_core_settings_update_source_files( char const** search_file
 	}
 
 	// Now, we can process file-by-file...
+	std::regex const& setting_regex = get_setting_regex();
 
 	for ( auto& [ file_path, settings ] : per_file_settings ) {
 
@@ -346,36 +514,27 @@ ISL_API_ATTR void le_core_settings_update_source_files( char const** search_file
 
 			bool setting_line_found = false;
 
-			std::string setting_regex_str =
-			    R"((.*))"
-			    R"(:?)" +
-			    s->name +
-			    R"(,\s*)"
-			    R"(()"
-			    R"((?:["](?:\\.|[^\\])*?["]))" // quoted string (with quotes and escapes)
-			    R"(|)"
-			    R"((?:true|false))" // literal "true", false
-			    R"(|)"
-			    R"((?:(?:\d*\.\d+|\d*\.\d*|\d+\.|\d+)[^x](?:e[+-]?\d+|E[+-]?\d+)?(?:l{1,2}|f|ul{1,2})?))" // number literals
-			    R"(|)"
-			    R"(0[xX][0-9a-fA-F]+)" // hex number literals
-			    R"())"
-			    R"((.*?\)\w*?;.*$))" // anything past the last semicolon
-			    ;
+			std::smatch m = {};
 
-			std::regex setting_regex( setting_regex_str );
+			if ( false ) {
+				std::regex_match( src_line, m, setting_regex );
+				int i = 0;
+				for ( auto& match : m ) {
+					logger.info( "match[%d]: '%s'", i++, match.str().c_str() );
+				}
+				logger.info( "type hash: %x <-> %x", hash_64_fnv1a( m[ 2 ].str().data() ), s->type_hash );
+			}
 
-			std::smatch m;
-
-			setting_line_found = std::regex_match( src_line, m, setting_regex ) && m.size() == 4;
+			setting_line_found =
+			    std::regex_match( src_line, m, setting_regex ) &&
+			    hash_64_fnv1a( m[ 2 ].str().data() ) == s->type_hash &&
+			    m[ 3 ].str() == s->name;
 
 			if ( setting_line_found ) {
 				// Update the line from the regex elements
-
-				os << m[ 1 ];
-				os << s->name << ", ";
+				os << m[ 1 ] << "LE_SETTING" << "( " << m[ 2 ] << ", " << s->name << ", ";
 				insert_value( os, s );
-				os << m[ 3 ];
+				os << m[ 5 ];
 				src_line = os.str();
 
 			} else {

@@ -18,7 +18,6 @@ struct LeSettingEntry {
 
 	std::string src_path;    // first source file where we encounter this entry
 	uint32_t    src_line_no; // line number in source file of first occurrence
-	uint32_t    initial_value_num_chars; // number of chars of the initial value
 };
 
 struct le_settings_map_t {

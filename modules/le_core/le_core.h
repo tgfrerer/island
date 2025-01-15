@@ -142,6 +142,8 @@ ISL_API_ATTR DLL_CORE_API void le_core_copy_settings_entries( struct le_settings
 ISL_API_ATTR DLL_CORE_API struct LeSettingEntry* le_core_get_setting_entry( char const* setting_name );
 // update given source file paths in case they contain settings
 ISL_API_ATTR DLL_CORE_API void le_core_settings_update_source_files( char const** settings_filename, size_t settings_filename_count );
+// load settings from given source files
+ISL_API_ATTR DLL_CORE_API void le_core_settings_load_from_source_files( char const** settings_filename, size_t settings_filename_count );
 
 // For debug purposes - shader arguments
 ISL_API_ATTR DLL_CORE_API void        le_update_argument_name_table( const char* source, uint64_t value );
