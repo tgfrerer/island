@@ -2,6 +2,7 @@
 
 enum SettingType : uint64_t {
 	eInt       = hash_64_fnv1a_const( "int" ),
+	eFloat     = hash_64_fnv1a_const( "float" ),
 	eUint32_t  = hash_64_fnv1a_const( "uint32_t" ),
 	eInt32_t   = hash_64_fnv1a_const( "int32_t" ),
 	eStdString = hash_64_fnv1a_const( "std::string" ),

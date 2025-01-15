@@ -31,6 +31,8 @@
 #include <fstream>                        // for setting updates
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
+#include <regex> // for updating settings
+
 struct ApiStore {
 	std::vector<std::string> names{};      // Api names (used for debugging)
 	std::vector<uint64_t>    nameHashes{}; // Hashed api names (used for lookup)
@@ -171,6 +173,9 @@ static bool le_core_setting_has_changed( LeSettingEntry const& setting ) {
 	case ( eInt32_t ):
 		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( int32_t ), 0 );
 		break;
+	case ( eFloat ):
+		current_value_hash = SpookyHash::Hash64( setting.p_opj, sizeof( float ), 0 );
+		break;
 	case ( eStdString ):
 		// Note that we add 1 to the string size -- this is so that we also take into account the zero-byte at the end of
 		// the string, which gets is part of the hash initially, too.
@@ -277,24 +282,7 @@ ISL_API_ATTR void le_core_settings_update_source_files( char const** search_file
 		// we now have the file in memory. We can write the file out to storage again, but this time we update the
 		//
 
-		for ( auto s : settings ) {
-			std::string& src_line = lines[ s->src_line_no - 1 ];
-
-			// The value for the SETTING is between the first comma after the setting's name, and the last ')' before the last ';'
-			std::ostringstream os;
-
-			bool setting_line_found = false;
-
-			std::string::size_type setting_name_pos = src_line.find( s->name, 0 );
-			if ( setting_name_pos != std::string::npos ) {
-				setting_line_found = true;
-				os << std::string( src_line.begin(), src_line.begin() + setting_name_pos );
-			}
-
-			os << s->name << ", ";
-
-			// Add string representation of updated value -- this depends on the setting type
-
+		auto insert_value = []( std::ostringstream& os, LeSettingEntry const* s ) {
 			switch ( s->type_hash ) {
 			case ( eInt ):
 				os << ( *( int* )s->p_opj );
@@ -305,40 +293,110 @@ ISL_API_ATTR void le_core_settings_update_source_files( char const** search_file
 			case ( eInt32_t ):
 				os << ( *( int32_t* )s->p_opj );
 				break;
+			case ( eFloat ):
+				os << std::showpoint << ( *( float* )s->p_opj ) << "f";
+				break;
 			case ( eStdString ):
 				os << "\"" << ( *( std::string* )s->p_opj ) << "\"";
 				break;
-			case ( eBool ):
+			case ( eBool ): // deliberate fall-through
+			case ( eConstBool ):
 				os << ( *( bool* )s->p_opj ? "true" : "false" );
 				break;
+			default:
+				// todo: we should perhaps add a warning here
+				return;
+			}
+		};
+
+		auto insert_setting_type = []( std::ostringstream& os, LeSettingEntry const* s ) {
+			switch ( s->type_hash ) {
+			case ( eInt ):
+				os << "int";
+				break;
+			case ( eUint32_t ):
+				os << "uint32_t";
+				break;
+			case ( eInt32_t ):
+				os << "int32_t";
+				break;
+			case ( eFloat ):
+				os << "float";
+				break;
+			case ( eStdString ):
+				os << "std::string";
+				break;
+			case ( eBool ):
+				os << "bool";
+				break;
 			case ( eConstBool ):
-				os << "const " << ( *( bool* )s->p_opj ? "true" : "false" );
+				os << "const bool";
 				break;
 			default:
-				continue;
+				// todo: we should perhaps add a warning here
+				return;
 			}
+		};
 
-			os << " );";
+		for ( auto s : settings ) {
+			std::string& src_line = lines[ s->src_line_no - 1 ];
 
-			// we could also make an attempt at preserving comments in this line --
+			// The value for the SETTING is between the first comma after the setting's name, and the last ')' before the last ';'
+			std::ostringstream os;
 
-			// we know that a comment may be at the end of the line -- therefore we want to find the
-			// last double-slash that is not contained with quotes;
+			bool setting_line_found = false;
 
-			// if we detect a '//' after the last ';', we assume that there is a comment here.
+			std::string setting_regex_str =
+			    R"((.*))"
+			    R"(:?)" +
+			    s->name +
+			    R"(,\s*)"
+			    R"(()"
+			    R"((?:["](?:\\.|[^\\])*?["]))" // quoted string (with quotes and escapes)
+			    R"(|)"
+			    R"((?:true|false))" // literal "true", false
+			    R"(|)"
+			    R"((?:(?:\d*\.\d+|\d*\.\d*|\d+\.|\d+)[^x](?:e[+-]?\d+|E[+-]?\d+)?(?:l{1,2}|f|ul{1,2})?))" // number literals
+			    R"(|)"
+			    R"(0[xX][0-9a-fA-F]+)" // hex number literals
+			    R"())"
+			    R"((.*?\)\w*?;.*$))" // anything past the last semicolon
+			    ;
+
+			std::regex setting_regex( setting_regex_str );
+
+			std::smatch m;
+
+			setting_line_found = std::regex_match( src_line, m, setting_regex ) && m.size() == 4;
 
 			if ( setting_line_found ) {
+				// Update the line from the regex elements
+
+				os << m[ 1 ];
+				os << s->name << ", ";
+				insert_value( os, s );
+				os << m[ 3 ];
 				src_line = os.str();
+
 			} else {
-				logger.warn( "Setting could not be set: '( %s' in file: %s:%d", os.str().c_str(), file_path.c_str(), s->src_line_no );
+				// We must make up the line from scratch so that we can print it to the
+				// log.
+				os << "LE_SETTING( ";
+				insert_setting_type( os, s );
+				os << ", " << s->name << ", ";
+				insert_value( os, s );
+				os << " );";
+
+				logger.warn( "Setting '%s' could not be set in file: %s:%d", s->name.c_str(), file_path.c_str(), s->src_line_no );
+				logger.warn( "\t%s", os.str().c_str() );
 			}
 		}
 
 		std::ofstream out_file( file_path + ".gen" );
 		for ( auto const& l : lines ) {
 			out_file << l << std::endl;
-			// out_file.write( l.c_str(), l.size() );
 		}
+
 		out_file.close();
 
 		std::filesystem::copy_file( file_path, file_path + ".old", std::filesystem::copy_options::overwrite_existing );
@@ -347,7 +405,7 @@ ISL_API_ATTR void le_core_settings_update_source_files( char const** search_file
 		std::error_code ec = {};
 		std::filesystem::rename( file_path + ".gen", file_path, ec );
 
-		logger.info( "Updated file '%s'\n", file_path.c_str() );
+		logger.warn( "Updated source file in-place: '%s'", file_path.c_str() );
 	}
 };
 
