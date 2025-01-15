@@ -249,7 +249,7 @@ ISL_API_ATTR void le_core_settings_load_from_source_files( char const** search_f
 		}
 	}
 
-	auto parse_setting_value = []( void* setting, uint64_t type_hash, char const* setting_value, size_t* setting_hash, bool should_allocate = false ) {
+	auto parse_setting_value = []( void** setting, uint64_t type_hash, char const* setting_value, size_t* setting_hash, bool should_allocate = false ) {
 		uint32_t sz = 0; // number of bytes owned by this setting object (for a string this only counts the number of characters)
 
 		void* p_value = nullptr; // pointer to where to take the hash input from
@@ -257,57 +257,57 @@ ISL_API_ATTR void le_core_settings_load_from_source_files( char const** search_f
 		switch ( type_hash ) {
 		case SettingType::eBool:
 			if ( should_allocate ) {
-				setting = new bool( strtoul( setting_value, nullptr, 0 ) );
+				*setting = new bool( strtoul( setting_value, nullptr, 0 ) );
 			} else {
-				*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 0 ) );
+				*( bool* )( *setting ) = bool( std::strtoul( setting_value, nullptr, 0 ) );
 			}
-			p_value = ( ( bool* )setting );
+			p_value = *setting;
 			sz      = sizeof( bool );
 			break;
 		case SettingType::eUint32_t:
 			if ( should_allocate ) {
-				setting = new uint32_t( strtoul( setting_value, nullptr, 0 ) );
+				*setting = new uint32_t( strtoul( setting_value, nullptr, 0 ) );
 			} else {
-				*( uint32_t* )( setting ) = uint32_t( strtoul( setting_value, nullptr, 0 ) );
+				*( uint32_t* )( *setting ) = uint32_t( strtoul( setting_value, nullptr, 0 ) );
 			}
-			p_value = ( ( uint32_t* )setting );
+			p_value = *setting;
 			sz      = sizeof( uint32_t );
 			break;
 		case SettingType::eInt32_t:
 			if ( should_allocate ) {
-				setting = new int32_t( strtol( setting_value, nullptr, 0 ) );
+				*setting = new int32_t( strtol( setting_value, nullptr, 0 ) );
 			} else {
-				*( int32_t* )( setting ) = int32_t( strtol( setting_value, nullptr, 0 ) );
+				*( int32_t* )( *setting ) = int32_t( strtol( setting_value, nullptr, 0 ) );
 			}
-			p_value = ( ( int32_t* )setting );
+			p_value = *setting;
 			sz      = sizeof( int32_t );
 			break;
 		case SettingType::eInt:
 			if ( should_allocate ) {
-				setting = new int( strtol( setting_value, nullptr, 0 ) );
+				*setting = new int( strtol( setting_value, nullptr, 0 ) );
 			} else {
-				*( int* )( setting ) = int( strtol( setting_value, nullptr, 0 ) );
+				*( int* )( *setting ) = int( strtol( setting_value, nullptr, 0 ) );
 			}
-			p_value = ( ( int* )setting );
+			p_value = *setting;
 			sz      = sizeof( int );
 			break;
 		case SettingType::eFloat:
 			if ( should_allocate ) {
-				setting = new float( strtof( setting_value, nullptr ) );
+				*setting = new float( strtof( setting_value, nullptr ) );
 			} else {
-				*( float* )( setting ) = float( strtof( setting_value, nullptr ) );
+				*( float* )( *setting ) = float( strtof( setting_value, nullptr ) );
 			}
-			p_value = ( ( float* )setting );
+			p_value = *setting;
 			sz      = sizeof( float );
 			break;
 		case SettingType::eStdString: {
 			std::string str_value = std::string( setting_value + 1, strlen( setting_value ) - 2 );
 			if ( should_allocate ) {
-				setting = new std::string( str_value );
+				*setting = new std::string( str_value );
 			} else {
-				*( std::string* )( setting ) = std::string( str_value );
+				*( std::string* )( *setting ) = std::string( str_value );
 			}
-			p_value = ( ( std::string* )setting )->data();
+			p_value = ( ( std::string* )( *setting ) )->data();
 			sz      = strlen( ( char* )p_value );
 			break;
 		}
