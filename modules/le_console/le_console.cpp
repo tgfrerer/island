@@ -1146,19 +1146,19 @@ static void cb_set_setting_command( Command const* cmd, std::string const& str, 
 				break;
 
 			case SettingType::eBool:
-				*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 10 ) );
+				*( bool* )( setting ) = bool( std::strtoul( setting_value, nullptr, 0 ) );
 				break;
 			case SettingType::eUint32_t:
-				*( uint32_t* )( setting ) = uint32_t( strtoul( setting_value, nullptr, 10 ) );
+				*( uint32_t* )( setting ) = uint32_t( strtoul( setting_value, nullptr, 0 ) );
 				break;
 			case SettingType::eInt32_t:
-				*( int32_t* )( setting ) = int32_t( strtoul( setting_value, nullptr, 10 ) );
+				*( int32_t* )( setting ) = int32_t( strtol( setting_value, nullptr, 0 ) );
 				break;
 			case SettingType::eFloat:
 				*( float* )( setting ) = float( strtof( setting_value, nullptr ) );
 				break;
 			case SettingType::eInt:
-				*( int* )( setting ) = int( strtoul( setting_value, nullptr, 10 ) );
+				*( int* )( setting ) = int( strtol( setting_value, nullptr, 0 ) );
 				break;
 			case SettingType::eStdString:
 				*( std::string* )( setting ) = std::string( setting_value );
