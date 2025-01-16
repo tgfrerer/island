@@ -186,7 +186,7 @@ else:
     # Create a copy of the template in our target directory.
     # While copying template_name is substituted for project_name
     copy_tree(template_source_dir, app_dir, template_name, project_name,
-              ignore=shutil.ignore_patterns('CMakeLists.txt.user', 'build'),
+              ignore=shutil.ignore_patterns('CMakeLists.txt.user', 'build', '.vs'),
               replacements=replacements)
 
     # process_directory_recursively(app_dir, replacements)
