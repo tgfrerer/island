@@ -1,13 +1,13 @@
 # Windows port progress tracker
 
-Island is currently able to compile and run natively on Windows 10
+Island is currently able to compile and run natively on Windows 11
 (64bit) systems. Hot-reloading works, too. It is enabled by default
 for Debug targets.
 
-I've tested using Visual Studio 2019, with Visual Studio's CMake build
+I've tested using Visual Studio 2022, with Visual Studio's CMake build
 tools installed. 
 
-## Visual Studio 2019 hints 
+## Visual Studio 2022 hints 
 
 * Open the Cmake file by selecting "Open Directory"
 * After generating the CMake cache (which should happen automatically
@@ -87,7 +87,7 @@ This assumes that your build folder is at `${YOUR_ISLAND_BASE_DIR}\apps\examples
   [Fiber API](https://nullprogram.com/blog/2019/03/28/) 
 - [ ] swapchain direct - needs porting for windows, provided driver
   allows direct rendering
-- [ ] image swapchain needs porting - we can't pipe to ffmpeg like we
-  did on Linux - or can we?
+- [x] image swapchain needs porting - we can't pipe to ffmpeg like we
+  did on Linux - or can we? yes, we can.
 
 
