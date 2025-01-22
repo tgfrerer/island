@@ -123,9 +123,9 @@ static const auto& le_path_i = api->le_path_i;
 
 namespace le {
 
-class Path : NoCopy, NoMove {
+class Path {
 
-	le_path_o* self;
+	le_path_o* self = nullptr;
 
   public:
 	Path()
@@ -133,8 +133,43 @@ class Path : NoCopy, NoMove {
 	}
 
 	~Path() {
-		le_path::le_path_i.destroy( self );
+		if ( self ) {
+			le_path::le_path_i.destroy( self );
+		}
 	}
+
+	// -- rule of 5
+
+	Path( const Path& rhs ) { // copy constructor
+		this->self = le_path::le_path_i.clone( rhs.self );
+	}
+
+	Path& operator=( Path const& rhs ) { // copy assignment constructor
+		if ( self ) {
+			le_path::le_path_i.destroy( self );
+		}
+		this->self = le_path::le_path_i.clone( rhs.self );
+		return *this;
+	}
+
+	Path( Path&& rhs ) noexcept { // move constructor
+		if ( self ) {
+			le_path::le_path_i.destroy( self );
+		}
+		this->self = rhs.self;
+		rhs.self   = nullptr;
+	}
+
+	Path& operator=( Path&& rhs ) noexcept { // move assignment constructor
+		if ( self ) {
+			le_path::le_path_i.destroy( self );
+		}
+		this->self = rhs.self;
+		rhs.self   = nullptr;
+		return *this;
+	}
+
+	// --
 
 	Path& moveTo( glm::vec2 const& p ) {
 		le_path::le_path_i.move_to( self, &p );
@@ -212,15 +247,15 @@ class Path : NoCopy, NoMove {
 		return le_path::le_path_i.get_tangents_for_polyline( self, polyline_index, tangents, numTangents );
 	}
 
-	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) {
+	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) const {
 		le_path::le_path_i.get_polyline_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
 	}
 
-	bool getPolylinesTotalDistance( float* out_distance ) {
+	bool getPolylinesTotalDistance( float* out_distance ) const {
 		return le_path::le_path_i.get_polylines_total_distance( self, out_distance );
 	}
 
-	bool getPolylineDistance( size_t const& polylineIndex, float* out_distance ) {
+	bool getPolylineDistance( size_t const& polylineIndex, float* out_distance ) const {
 		return le_path::le_path_i.get_polyline_distance( self, polylineIndex, out_distance );
 	}
 
