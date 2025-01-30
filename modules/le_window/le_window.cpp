@@ -723,7 +723,7 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 	int windowX = 100;
 	int windowY = 100;
 
-	if ( monitorCount > 1 ) {
+	if ( false && monitorCount > 1 ) {
 		// if there is more than one monitor, we want our window to appear on the secondary monitor by default.
 		glfwGetMonitorPos( monitors[ 1 ], &windowX, &windowY );
 
