@@ -1401,6 +1401,9 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
     void*                             specialization_map_data,
     uint32_t                          specialization_map_data_num_bytes ) {
 
+	if ( !std::filesystem::exists( path ) ) {
+		logger().error( "Could not open file: %s", path );
+	}
 	// We use the canonical path to store a fingerprint of the file
 	if ( !std::filesystem::exists( path ) ) {
 		logger().error( "File not found : '%s'", path );

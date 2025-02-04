@@ -2287,8 +2287,54 @@ static void le_polyline_get_at( Polyline const& polyline, float t, glm::vec2* re
 // ----------------------------------------------------------------------
 // return calculated position on polyline
 static void le_path_get_polyline_at_pos_interpolated( le_path_o* self, size_t const& polyline_index, float t, glm::vec2* result ) {
+	assert( result );
 	assert( polyline_index < self->polylines.size() );
 	le_polyline_get_at( self->polylines[ polyline_index ], t, result );
+}
+
+// ----------------------------------------------------------------------
+// return total length of a path that has been converted to polylines
+// if the path has no polylines, returns 0.
+static bool le_path_get_polylines_total_distance( le_path_o* self, float* out_distance ) {
+
+	if ( nullptr == out_distance ) {
+		return false;
+	}
+
+	float total_length    = 0;
+	bool  found_distances = false;
+
+	// Sum up end distances over all polylines
+	// distances are stored as running sum total
+	// per polyline.
+
+	for ( auto& p : self->polylines ) {
+		if ( !p.distances.empty() ) {
+			total_length += p.distances.back();
+			found_distances = true;
+		}
+	}
+
+	*out_distance = total_length;
+
+	return found_distances;
+};
+
+// ----------------------------------------------------------------------
+// gets the total distance for a given polyline.
+bool le_path_get_polyline_distance( le_path_o* self, size_t const& polyline_index, float* out_distance ) {
+
+	if ( nullptr == out_distance ) {
+		return false;
+	}
+
+	if ( polyline_index < self->polylines.size() &&
+	     false == self->polylines[ polyline_index ].distances.empty() ) {
+		*out_distance = self->polylines[ polyline_index ].distances.back();
+		return true;
+	}
+
+	return false;
 }
 
 // ----------------------------------------------------------------------
@@ -3332,6 +3378,8 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 	le_path_i.get_vertices_for_polyline        = le_path_get_vertices_for_polyline;
 	le_path_i.get_tangents_for_polyline        = le_path_get_tangents_for_polyline;
 	le_path_i.get_polyline_at_pos_interpolated = le_path_get_polyline_at_pos_interpolated;
+	le_path_i.get_polylines_total_distance     = le_path_get_polylines_total_distance;
+	le_path_i.get_polyline_distance            = le_path_get_polyline_distance;
 
 	le_path_i.generate_offset_outline_for_contour = le_path_generate_offset_outline_for_contour;
 	le_path_i.tessellate_thick_contour            = le_path_tessellate_thick_contour;

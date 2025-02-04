@@ -1,13 +1,13 @@
 # Windows port progress tracker
 
-Island is currently able to compile and run natively on Windows 10
+Island is currently able to compile and run natively on Windows 11
 (64bit) systems. Hot-reloading works, too. It is enabled by default
 for Debug targets.
 
-I've tested using Visual Studio 2019, with Visual Studio's CMake build
+I've tested using Visual Studio 2022, with Visual Studio's CMake build
 tools installed. 
 
-## Visual Studio 2019 hints 
+## Visual Studio 2022 hints 
 
 * Open the Cmake file by selecting "Open Directory"
 * After generating the CMake cache (which should happen automatically
@@ -21,7 +21,7 @@ tools installed.
 * Hit Build All (ctrl+shift+b)
 * Hit Run (F5)
 
-## Visual Studio 2019 hot-reloading hints
+## Visual Studio 2022 hot-reloading hints
 
 Once you've hit the 'run' button on visual studio and the debugger is
 attached, the visual studio interface disables the shortcuts for
@@ -33,9 +33,9 @@ Here are a few steps to set you up for hot-reloading on Windows
 * Build your app using Visual Studio
 * Start your app the normal way from Visual Studio, so that the
   Debugger is attached 
-* Start a "x64 Native Tools Command Prompt for VS 2019": You'll find
-  this under 'Windows Start Button → Visual Studio 2019 Folder → "x64
-  Native Tools Command Prompt for VS 2019"
+* Start a "x64 Native Tools Command Prompt for VS 2022": You'll find
+  this under 'Windows Start Button → Visual Studio 2022 Folder → "x64
+  Native Tools Command Prompt for VS 2022"
 * Navigate to the directory in which your app gets built (that's the
   folder in which you find the app's .exe file)
 * Enter 'ninja' in the command prompt - this will trigger a recompile
@@ -83,11 +83,7 @@ This assumes that your build folder is at `${YOUR_ISLAND_BASE_DIR}\apps\examples
 - [x] File watcher ported to Windows
 - [x] Shader-hot-reloading works
 - [x] Hot-reloading for native code needs some thought
-- [ ] `le_jobs` needs porting - implementation should use Windows' own
-  [Fiber API](https://nullprogram.com/blog/2019/03/28/) 
-- [ ] swapchain direct - needs porting for windows, provided driver
-  allows direct rendering
-- [ ] image swapchain needs porting - we can't pipe to ffmpeg like we
-  did on Linux - or can we?
+- [x] image swapchain needs porting - we can't pipe to ffmpeg like we
+  did on Linux - or can we? yes, we can.
 
 

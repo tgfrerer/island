@@ -60,9 +60,16 @@ struct le_path_api {
 
 		void ( *add_from_simplified_svg )( le_path_o* self, char const* svg );
 
-		// Generate and cache polylines for each contour per path
+		// ----------------------------------------------------------------------
+		// Traces the path with all its subpaths into a list of polylines.
+		// Each subpath will be translated into one polyline.
+		// A polyline is a list of vertices which may be thought of being
+		// connected by lines.
+		//
 		void ( *trace    )( le_path_o* self, size_t resolution );
+		// updates a path's polylines by trying to best match given tolerance
 		void ( *flatten  )( le_path_o* self, float tolerance );
+		// updates a path's polylines by setting polyline vertices at even intervals
 		void ( *resample )( le_path_o* self, float interval );
 
 		// Always updates `max_count_outline_[l|r] with the number of used vertices for l and r outline.
@@ -78,6 +85,13 @@ struct le_path_api {
 		size_t ( *get_num_contours  )( le_path_o* self );
 		size_t ( *get_num_polylines )( le_path_o* self );
 
+		// the total distance of the path for a path that has been processed to polylines
+		bool (*get_polylines_total_distance)(le_path_o* self, float *out_distance);
+
+		// return true if distance for the polyline at given index can be found
+		// writes distance into out_distance if successful
+		bool (*get_polyline_distance)(le_path_o* self, size_t const& polyline_index , float * out_distance);
+		
 		// Always updates `numVertices` with number of vertices in polyline at `polyline_index`
 		// If `numVertices` < number of vertices in polyline at `polyline_index`:
 		//      + Returns true
@@ -109,9 +123,9 @@ static const auto& le_path_i = api->le_path_i;
 
 namespace le {
 
-class Path : NoCopy, NoMove {
+class Path {
 
-	le_path_o* self;
+	le_path_o* self = nullptr;
 
   public:
 	Path()
@@ -119,8 +133,43 @@ class Path : NoCopy, NoMove {
 	}
 
 	~Path() {
-		le_path::le_path_i.destroy( self );
+		if ( self ) {
+			le_path::le_path_i.destroy( self );
+		}
 	}
+
+	// -- rule of 5
+
+	Path( const Path& rhs ) { // copy constructor
+		this->self = le_path::le_path_i.clone( rhs.self );
+	}
+
+	Path& operator=( Path const& rhs ) { // copy assignment constructor
+		if ( self ) {
+			le_path::le_path_i.destroy( self );
+		}
+		this->self = le_path::le_path_i.clone( rhs.self );
+		return *this;
+	}
+
+	Path( Path&& rhs ) noexcept { // move constructor
+		if ( self ) {
+			le_path::le_path_i.destroy( self );
+		}
+		this->self = rhs.self;
+		rhs.self   = nullptr;
+	}
+
+	Path& operator=( Path&& rhs ) noexcept { // move assignment constructor
+		if ( self ) {
+			le_path::le_path_i.destroy( self );
+		}
+		this->self = rhs.self;
+		rhs.self   = nullptr;
+		return *this;
+	}
+
+	// --
 
 	Path& moveTo( glm::vec2 const& p ) {
 		le_path::le_path_i.move_to( self, &p );
@@ -198,8 +247,16 @@ class Path : NoCopy, NoMove {
 		return le_path::le_path_i.get_tangents_for_polyline( self, polyline_index, tangents, numTangents );
 	}
 
-	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) {
+	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) const {
 		le_path::le_path_i.get_polyline_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
+	}
+
+	bool getPolylinesTotalDistance( float* out_distance ) const {
+		return le_path::le_path_i.get_polylines_total_distance( self, out_distance );
+	}
+
+	bool getPolylineDistance( size_t const& polylineIndex, float* out_distance ) const {
+		return le_path::le_path_i.get_polyline_distance( self, polylineIndex, out_distance );
 	}
 
 	void clear() {
