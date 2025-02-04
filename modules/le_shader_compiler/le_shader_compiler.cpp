@@ -410,15 +410,18 @@ static void le_shader_compiler_print_error_context( const char* errMsg, const st
 	std::filesystem::path errorFilePath  = errorFileName.empty() ? "" : std::filesystem::canonical( std::filesystem::path( errorFileName ) );
 	std::filesystem::path sourceFilePath = std::filesystem::canonical( std::filesystem::path( sourceFileName ) );
 
+	auto source_file_path_string = std::filesystem::relative( sourceFilePath ).string();
+	auto error_file_path_string  = std::filesystem::relative( errorFilePath ).string();
+
 	logger.warn( "Shader module compilation failed." );
 	if ( errorFilePath.empty() ) {
-		logger.warn( "%s:%d : %s", std::filesystem::relative( sourceFilePath ).c_str(), lineNumber, errorMessage.c_str() );
+		logger.warn( "%s:%d : %s", source_file_path_string.c_str(), lineNumber, errorMessage.c_str() );
 	} else if ( errorFilePath != sourceFilePath ) {
 		// error happened in include file.
-		logger.warn( "%s contains error in included file:", std::filesystem::relative( std::filesystem::path( sourceFileName ) ).c_str() );
-		logger.warn( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
+		logger.warn( "%s contains error in included file:", source_file_path_string.c_str() );
+		logger.warn( "%s:%d : %s", error_file_path_string.c_str(), lineNumber, errorMessage.c_str() );
 	} else {
-		logger.warn( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
+		logger.warn( "%s:%d : %s", error_file_path_string.c_str(), lineNumber, errorMessage.c_str() );
 	}
 
 	std::istringstream sourceCode( shaderSource );

@@ -791,7 +791,8 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 	SpvReflectResult       spv_result{};
 
 	if ( module->spirv.empty() ) {
-		logger().error( "No SPIR-V code for module created from filepath: '%s'", module->filepath.c_str() );
+		std::string file_path_str = module->filepath.string();
+		logger().error( "No SPIR-V code for module created from filepath: '%s'", file_path_str.c_str() );
 	};
 
 	spv_result = spvReflectCreateShaderModule( module->spirv.size() * sizeof( uint32_t ), module->spirv.data(), &spv_module );
