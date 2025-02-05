@@ -1243,7 +1243,7 @@ static void cb_log_command( Command const* cmd, std::string const& str, std::vec
 			le_console_produce_log_subscribers()[ uint32_t( connection->fd ) ].reset( nullptr );
 			connection->wants_log_subscriber = false;
 		}
-		le_log::le_log_channel_i.info( logger.getChannel(), "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
+		logger.info( "Client %s updated console log level mask to 0x%x", connection->remote_ip.c_str(), connection->log_level_mask );
 	} else {
 		connection->channel_out.post( "Incorrect number of arguments.\n\rExpecting a single integer argument to specify log level mask.\n\r(E.g. -1 to capture all log levels.)\r\n" );
 	}
@@ -1465,7 +1465,7 @@ static void le_console_process_input() {
 		} else {
 
 			if ( !tokens.empty() ) {
-				le_log::le_log_channel_i.warn( logger.getChannel(), "Did not recognise command: '%s'", tokens[ 0 ] );
+				logger.warn( "Did not recognise command: '%s'", tokens[ 0 ] );
 
 				std::string msg = "Incorrect command: '";
 				msg += tokens[ 0 ];
@@ -1473,7 +1473,7 @@ static void le_console_process_input() {
 
 				connection->channel_out.post( msg.c_str() );
 			} else {
-				le_log::le_log_channel_i.warn( logger.getChannel(), "Empty command." );
+				logger.warn( "Empty command." );
 			}
 		}
 	} // end for each connection
