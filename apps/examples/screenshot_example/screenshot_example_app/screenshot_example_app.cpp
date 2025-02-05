@@ -14,6 +14,7 @@
 #include "le_swapchain_img.h"
 #include "le_png.h"
 #include "le_ffmpeg_pipe.h"
+#include "le_backend_vk/le_backend_vk.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -78,8 +79,7 @@ static auto logger = le::Log( "test_app" );
 static screenshot_example_app_o* screenshot_example_app_create() {
 
 	// If you want to disable validation layers in a debug build,
-	// set LE_SETTING_SHOULD_USE_VALIDATION_LAYERS to false:
-	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
+	// LE_SETTING( const bool, LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS, false );
 
 	auto app = new ( screenshot_example_app_o );
 

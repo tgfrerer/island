@@ -679,7 +679,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	LE_SETTING( bool, LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES, false );
+	static auto RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES = LE_SETTING( bool, LE_SETTING_IDENTIFIER_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES, false );
 	// We must express our list of passes as a list of nodes.
 	// A node holds two bitfields, the bitfield names are: `read` and `write`.
 	// Each bit in the bitfield represents a possible resource.
@@ -805,7 +805,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			}
 		}
 
-		if ( *LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
+		if ( *RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
 			{
 				logger.info( "Unique resources:" );
 				for ( size_t i = 0; i != numUniqueResources; i++ ) {
@@ -897,7 +897,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		le::RootPassesField check_subgraph_accum = 0;
 		for ( size_t i = 0; i != subgraph_id_idx.size(); i++ ) {
 
-			if ( *LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
+			if ( *RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
 				logger.info( "subgraph key [ %-12d], affinity: %x", i, subgraph_id[ subgraph_id_idx[ i ] ] );
 			}
 
@@ -913,11 +913,11 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		}
 	}
 
-	LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
+	static auto RENDERGRAPH_SHOULD_GENERATE_DOT_FILES = LE_SETTING( uint32_t, LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
 
-	if ( *LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES > 0 ) [[unlikely]] {
+	if ( *RENDERGRAPH_SHOULD_GENERATE_DOT_FILES > 0 ) [[unlikely]] {
 		generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, nodes.data(), frame_number );
-		( *LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES )--;
+		( *RENDERGRAPH_SHOULD_GENERATE_DOT_FILES )--;
 	}
 
 	{
@@ -950,7 +950,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		// Update debug root names
 		std::swap( self->root_debug_names, root_debug_names );
 
-		if ( *LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
+		if ( *RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
 			logger.info( "* Consolidated Pass List *" );
 			int i = 0;
 			for ( auto const& p : self->passes ) {
@@ -976,9 +976,9 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 	ZoneScoped;
 
 	static auto logger = LeLog( LOGGER_LABEL );
-	LE_SETTING( bool, LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES, false );
+	static auto RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES = LE_SETTING( bool, LE_SETTING_IDENTIFIER_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES, false );
 
-	if ( *LE_SETTING_RENDERGRAPH_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
+	if ( *RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
 		std::ostringstream msg;
 		logger.info( "Render graph: " );
 		for ( const auto& pass : self->passes ) {

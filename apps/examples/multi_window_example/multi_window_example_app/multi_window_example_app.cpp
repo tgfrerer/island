@@ -54,14 +54,18 @@ struct multi_window_example_app_o {
 
 static void app_initialize() {
 
+	// If you do not want validation layers active in a debug build, you can
+	// override validation layer usage here:
+	//
+	// LE_SETTING( const bool, LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS, false );
+
 	//
 	// Because we set up the renderer without naming swapchain settings in renderer settings
 	// we must explicitly trigger a request for backend capabilities to support this particular
 	// type of swapchains.
 	//
-	bool has_capabilities = le_swapchain_vk_api_i->swapchain_i.request_backend_capabilities( le_swapchain_windowed_settings_t{} );
-
-	assert( has_capabilities );
+	//
+	le::SwapchainVk::init( le_swapchain_windowed_settings_t() );
 
 	le::Window::init();
 };
@@ -78,8 +82,6 @@ static void reset_camera( multi_window_example_app_o* self, window_and_swapchain
 
 static multi_window_example_app_o* app_create() {
 	auto app = new ( multi_window_example_app_o );
-
-	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
 
 	le::Window::Settings settings_0;
 	settings_0
@@ -457,10 +459,10 @@ static bool app_update( multi_window_example_app_o* self ) {
 	}
 
 	if ( self->frame_counter == 10 ) {
-		LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 0 );
-		*LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES = 2; // generate 2 .dot files
-		LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
-		*LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES = 2; // generate 2 .dot files
+		static auto should_generate_dot_files       = LE_SETTING( uint32_t, LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
+		*should_generate_dot_files                  = 2; // generate 2 .dot files
+		static auto should_generate_queue_dot_files = LE_SETTING( uint32_t, LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_QUEUE_DOT_FILES, 0 );
+		*should_generate_queue_dot_files            = 2; // generate 2 .dot files
 	}
 
 	// update interactive camera using mouse data

@@ -6,8 +6,10 @@ set (TARGET triangle_app)
 #
 depends_on_island_module(le_window)
 depends_on_island_module(le_ui_event)
+depends_on_island_module(le_backend_vk)
 depends_on_island_module(le_renderer)
 depends_on_island_module(le_pipeline_builder)
+depends_on_island_module(le_swapchain_vk)
 depends_on_island_module(le_camera)
 
 set (SOURCES "triangle_app.cpp")

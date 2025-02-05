@@ -4431,15 +4431,15 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	// If we're running in debug, there is a chance that we might want to print out
 	// dot graph diagrams for queue sync - in which case we should fetch the global
 	// setting telling us whether to do so or not.
-	LE_SETTING( uint32_t, LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES, 0 );
+	static auto SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES = LE_SETTING( uint32_t, LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_QUEUE_DOT_FILES, 0 );
 	// we fetch this variable to a local copy, and only at a single point, here,
 	// so that there is no risk that the value of the variable is changed on
 	// another thread while the dot graph is being generated
-	frame.must_create_queues_dot_graph = ( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES > 0 );
+	frame.must_create_queues_dot_graph = ( *SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES > 0 );
 	// then, we decrement the number of requested queue sync dot files, so that we only generate
 	// as many dot graph files as requested.
-	if ( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES > 0 ) {
-		--( *LE_SETTING_GENERATE_QUEUE_SYNC_DOT_FILES );
+	if ( *SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES > 0 ) {
+		--( *SHOULD_GENERATE_QUEUE_SYNC_DOT_FILES );
 	};
 #endif
 
@@ -4701,12 +4701,12 @@ static bool updateArguments( const VkDevice&                    device,
 		// Whether to test that that arguments are set correctly
 		// - we don't do this check by default if we're running a release build
 #ifdef NDEBUG
-		LE_SETTING( bool, LE_SETTING_BACKEND_SHOULD_CHECK_ARGUMENT_STATE, false );
+		static auto BACKEND_SHOULD_CHECK_ARGUMENT_STATE = LE_SETTING( bool, LE_SETTING_IDENTIFIER_SHOULD_CHECK_ARGUMENT_STATE, false );
 #else
-		LE_SETTING( bool, LE_SETTING_BACKEND_SHOULD_CHECK_ARGUMENT_STATE, true );
+		static auto BACKEND_SHOULD_CHECK_ARGUMENT_STATE = LE_SETTING( bool, LE_SETTING_IDENTIFIER_SHOULD_CHECK_ARGUMENT_STATE, true );
 #endif
 
-		if ( *LE_SETTING_BACKEND_SHOULD_CHECK_ARGUMENT_STATE ) [[unlikely]] {
+		if ( *BACKEND_SHOULD_CHECK_ARGUMENT_STATE ) [[unlikely]] {
 			for ( auto& a : argumentState.setData[ setId ] ) {
 
 				switch ( a.type ) {

@@ -5,6 +5,9 @@
 #include "le_pipeline_builder.h"
 #include "le_camera.h"
 #include "le_ui_event.h"
+#include "le_backend_vk.h"
+#include "le_swapchain_vk.h"
+#include "le_swapchain_khr.h" // for windowed swapchain settings
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -31,6 +34,18 @@ typedef triangle_app_o app_o;
 // ----------------------------------------------------------------------
 
 static void app_initialize() {
+
+	// If you do not want validation layers active in a debug build, you can
+	// override validation layer usage here:
+	//
+	// LE_SETTING( const bool, LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS, false );
+
+	// Explicitly initialize swapchain by giving it a swapchain
+	// settings object -- you only need to do this if a swapchain
+	// is not implicitly generated.
+	//
+	// le::SwapchainVk::init( le_swapchain_windowed_settings_t() );
+
 	le::Window::init();
 };
 
@@ -45,10 +60,6 @@ static void app_reset_camera( app_o* self ); // ffdecl.
 // ----------------------------------------------------------------------
 
 static app_o* app_create() {
-
-	// If you want to disable validation layers in a debug build,
-	// set LE_SETTING_SHOULD_USE_VALIDATION_LAYERS to false:
-	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
 
 	auto app = new ( app_o );
 

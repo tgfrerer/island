@@ -44,7 +44,17 @@ typedef hello_triangle_app_o app_o;
 static void app_initialize() {
 	LE_TRACY_ENABLE_LOG( -1 );
 
-	le::SwapchainVk::init( le_swapchain_windowed_settings_t{} );
+	// If you do not want validation layers active in a debug build, you can
+	// override validation layer usage here:
+	//
+	// LE_SETTING( const bool, LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS, false );
+
+	// Explicitly initialize swapchain by giving it a swapchain
+	// settings object -- you only need to do this if a swapchain
+	// is not implicitly generated.
+	//
+	// le::SwapchainVk::init( le_swapchain_windowed_settings_t() );
+
 	le::Window::init();
 };
 
@@ -60,10 +70,6 @@ static void app_reset_camera( app_o* self ); // ffdecl.
 
 static app_o* app_create() {
 	auto app = new ( app_o );
-
-	// If you want to disable validation layers in a debug build,
-	// set the setting to false:
-	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
 
 	le::Window::Settings settings;
 	settings

@@ -119,13 +119,13 @@ return cached_str; }()
 //----------------------------------------------------------------------
 
 // this is not yet production-ready, as it does not protect against race-conditions etc.
-#define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                \
-	static SETTING_TYPE* SETTING_NAME = []() -> SETTING_TYPE* {                        \
-		void** p_addr = le_core_produce_setting_entry( #SETTING_NAME, #SETTING_TYPE ); \
-		if ( nullptr == *p_addr ) {                                                    \
-			*p_addr = new le::rm_const<SETTING_TYPE>::type( SETTING_DEFAULT_VALUE );   \
-		}                                                                              \
-		return ( ( SETTING_TYPE* )( *p_addr ) );                                       \
+#define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )               \
+	[]() -> SETTING_TYPE* {                                                           \
+		void** p_addr = le_core_produce_setting_entry( SETTING_NAME, #SETTING_TYPE ); \
+		if ( nullptr == *p_addr ) {                                                   \
+			*p_addr = new le::rm_const<SETTING_TYPE>::type( SETTING_DEFAULT_VALUE );  \
+		}                                                                             \
+		return ( ( SETTING_TYPE* )( *p_addr ) );                                      \
 	}()
 
 // settings_map_ptr (optional) target to place a copy of the settings_map into. set to nullptr to omit copy.

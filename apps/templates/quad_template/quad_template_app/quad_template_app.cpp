@@ -1,5 +1,6 @@
 #include "quad_template_app.h"
 
+#include "le_backend_vk.h"
 #include "le_window.h"
 #include "le_renderer.hpp"
 
@@ -40,8 +41,8 @@ static void app_terminate() {
 static quad_template_app_o* quad_template_app_create() {
 
 	// If you want to disable validation layers in a debug build,
-	// set LE_SETTING_SHOULD_USE_VALIDATION_LAYERS to false:
-	LE_SETTING( const bool, LE_SETTING_SHOULD_USE_VALIDATION_LAYERS, true );
+	// set use validation layers to false
+	LE_SETTING( const bool, LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS, false );
 
 	auto app = new ( quad_template_app_o );
 
