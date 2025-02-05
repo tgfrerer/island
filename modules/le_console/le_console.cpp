@@ -1080,6 +1080,33 @@ static void cb_autocomplete_command( Command const* cmd, std::string const& str,
 	}
 }
 
+static bool ostream_print_setting_value( std::ostringstream& os, LeSettingEntry const* e ) {
+	switch ( e->type_hash ) {
+	case ( SettingType::eConstBool ):
+		os << e->name << " [ const bool ] == '" << ( ( *( const bool* )e->p_opj ) ? "true" : "false" ) << "'\n\r";
+		break;
+	case ( SettingType::eBool ):
+		os << e->name << " [ bool ] == '" << ( ( *( bool* )e->p_opj ) ? "true" : "false" ) << "'\n\r";
+		break;
+	case ( SettingType::eInt32_t ):
+		os << e->name << " [ int32_t ] == '" << ( *( int32_t* )e->p_opj ) << "'\n\r";
+		break;
+	case ( SettingType::eUint32_t ):
+		os << e->name << " [ uint32_t ] == '" << ( *( uint32_t* )e->p_opj ) << "'\n\r";
+		break;
+	case ( SettingType::eInt ):
+		os << e->name << " [ int ] == '" << ( *( int* )e->p_opj ) << "'\n\r";
+		break;
+	case ( SettingType::eStdString ):
+		os << e->name << " [ std::string ] == '" << ( *( std::string* )e->p_opj ) << "'\n\r";
+		break;
+	default:
+		os << e->name << " [ unknown ] == '" << std::hex << e->p_opj << "'\n\r";
+		return false;
+	}
+	return true;
+}
+
 static void cb_get_setting_command( Command const* cmd, std::string const& str, std::vector<char const*> const& tokens, le_console_o::connection_t* connection ) {
 	if ( tokens.size() == 2 ) {
 		std::ostringstream msg;
@@ -1088,30 +1115,7 @@ static void cb_get_setting_command( Command const* cmd, std::string const& str, 
 		auto               found_setting = le_core_get_setting_entry( setting_name );
 
 		if ( found_setting != nullptr ) {
-			void* setting = found_setting->p_opj;
-			switch ( found_setting->type_hash ) {
-			case ( SettingType::eConstBool ):
-				msg << found_setting->name << " [ const bool ] == '" << ( ( *( const bool* )found_setting->p_opj ) ? "true" : "false" ) << "'\n\r";
-				break;
-			case ( SettingType::eBool ):
-				msg << found_setting->name << " [ bool ] == '" << ( ( *( bool* )found_setting->p_opj ) ? "true" : "false" ) << "'\n\r";
-				break;
-			case ( SettingType::eInt32_t ):
-				msg << found_setting->name << " [ int32_t ] == '" << ( *( int32_t* )found_setting->p_opj ) << "'\n\r";
-				break;
-			case ( SettingType::eUint32_t ):
-				msg << found_setting->name << " [ uint32_t ] == '" << ( *( uint32_t* )found_setting->p_opj ) << "'\n\r";
-				break;
-			case ( SettingType::eInt ):
-				msg << found_setting->name << " [ int ] == '" << ( *( int* )found_setting->p_opj ) << "'\n\r";
-				break;
-			case ( SettingType::eStdString ):
-				msg << found_setting->name << " [ std::string ] == '" << ( *( std::string* )found_setting->p_opj ) << "'\n\r";
-				break;
-			default:
-				msg << found_setting->name << " [ unknown ] == '" << std::hex << found_setting->p_opj << "'\n\r";
-				break;
-			}
+			ostream_print_setting_value( msg, found_setting );
 		}
 		connection->channel_out.post( msg.str() );
 	}
@@ -1162,6 +1166,7 @@ static void cb_show_help_command( Command const* cmd, std::string const& str, st
 
 	connection->channel_out.post( "There is no help.\n\r" );
 	connection->channel_out.post( "But there is autocomplete. Hit tab...\n\r" );
+	connection->channel_out.post( "If you want to list all available settings, type \"settings\"\n\r" );
 
 	check_cursor_pos( connection );
 	connection->wants_redraw = true;
@@ -1173,28 +1178,29 @@ static void cb_list_settings_command( Command const* cmd, std::string const& str
 
 	le_settings_map_t current_settings;
 	le_core_copy_settings_entries( &current_settings, nullptr );
-	for ( auto& s : current_settings.map ) {
 
-		switch ( s.second.type_hash ) {
-		case ( SettingType::eBool ):
-			msg << s.second.name << " [ bool ] = '" << ( ( *( bool* )s.second.p_opj ) ? "true" : "false" ) << "'\n\r";
-			break;
-		case ( SettingType::eInt32_t ):
-			msg << s.second.name << " [ int32_t ] = '" << ( *( int32_t* )s.second.p_opj ) << "'\n\r";
-			break;
-		case ( SettingType::eUint32_t ):
-			msg << s.second.name << " [ uint32_t ] = '" << ( *( uint32_t* )s.second.p_opj ) << "'\n\r";
-			break;
-		case ( SettingType::eInt ):
-			msg << s.second.name << " [ int ] = '" << ( *( int* )s.second.p_opj ) << "'\n\r";
-			break;
-		case ( SettingType::eStdString ):
-			msg << s.second.name << " [ std::string ] = '" << ( *( std::string* )s.second.p_opj ) << "'\n\r";
-			break;
-		default:
-			msg << s.second.name << " [ unknown ] = '" << std::hex << s.second.p_opj << "'\n\r";
-			break;
-		}
+	// we want to sort settings by name
+	struct settings_hash_name_t {
+		uint64_t        hash;
+		LeSettingEntry* entry;
+	};
+
+	std::vector<settings_hash_name_t> settings_by_name;
+	settings_by_name.reserve( current_settings.map.size() );
+
+	for ( auto& [ key, entry ] : current_settings.map ) {
+		settings_by_name.emplace_back( key, &entry );
+	}
+
+	// Apply sorting by setting name
+	//
+	std::sort( settings_by_name.begin(), settings_by_name.end(), []( settings_hash_name_t const& lhs, settings_hash_name_t const& rhs ) -> bool {
+		return lhs.entry->name < rhs.entry->name;
+	} );
+
+	// Print all settings to ostream
+	for ( auto const& s : settings_by_name ) {
+		ostream_print_setting_value( msg, s.entry );
 	}
 
 	connection->channel_out.post( msg.str() );
