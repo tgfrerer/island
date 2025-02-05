@@ -602,16 +602,19 @@ static void le_debug_print_text_printf( this_o* self, const char* msg, ... ) {
 
 // ----------------------------------------------------------------------
 
-LE_MODULE_UNREGISTER_IMPL( le_debug_print_text, api ) {
+LE_MODULE_UNREGISTER_IMPL( le_debug_print_text, api ){
 
-	// we must clean up in case we created a singleton debug printer object
-	auto p_le_debug_print_text_api = static_cast<le_debug_print_text_api*>( api );
+    // FIXME: Do nothing for now -- we should not destroy anything
+    // that will get deleted anyway during app teardown.
 
-	if ( p_le_debug_print_text_api->singleton_obj ) {
-		le_debug_print_text_o* tmp_obj = nullptr;
-		std::swap( p_le_debug_print_text_api->singleton_obj, tmp_obj );
-		le_debug_print_text_destroy( tmp_obj );
-	}
+    // // we must clean up in case we created a singleton debug printer object
+    // auto p_le_debug_print_text_api = static_cast<le_debug_print_text_api*>( api );
+
+    // if ( p_le_debug_print_text_api->singleton_obj ) {
+    // 	le_debug_print_text_o* tmp_obj = nullptr;
+    // 	std::swap( p_le_debug_print_text_api->singleton_obj, tmp_obj );
+    // 	le_debug_print_text_destroy( tmp_obj );
+    // }
 };
 
 // ----------------------------------------------------------------------
