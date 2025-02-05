@@ -608,8 +608,9 @@ LE_MODULE_UNREGISTER_IMPL( le_debug_print_text, api ) {
 	auto p_le_debug_print_text_api = static_cast<le_debug_print_text_api*>( api );
 
 	if ( p_le_debug_print_text_api->singleton_obj ) {
-		le_debug_print_text_destroy( p_le_debug_print_text_api->singleton_obj );
-		p_le_debug_print_text_api->singleton_obj = nullptr;
+		le_debug_print_text_o* tmp_obj = nullptr;
+		std::swap( p_le_debug_print_text_api->singleton_obj, tmp_obj );
+		le_debug_print_text_destroy( tmp_obj );
 	}
 };
 
