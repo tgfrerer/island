@@ -298,18 +298,25 @@ static void pass_main_draw_text( le_command_buffer_encoder_o* encoder_, void* us
 
 static void le_debug_print_text_draw( this_o* self, le_renderpass_o* rp_ ) {
 
-	// We only want to enqueue the print text callback once per frame -
+	// If draw was explicitly called on a renderpass, such as via
+	// 		le::DebugPrint::drawAllMessages( );
+	// then we might not need to draw again
 	//
-	self->needs_draw = false;
+	if ( self->needs_draw ) {
 
-	// We set the needs_draw flag so that we can signal that
-	// all the print commands until here are already being drawn
-	if ( rp_ ) {
-		auto rp = le::RenderPass( rp_ );
-		rp.setExecuteCallback( self, pass_main_draw_text );
-	} else {
-		// Discard messages as there is no renderpass to print them to.
-		le_debug_print_text_draw_reset( self );
+		// We only want to enqueue the print text callback once per frame -
+		//
+		self->needs_draw = false;
+
+		// We set the needs_draw flag so that we can signal that
+		// all the print commands until here are already being drawn
+		if ( rp_ ) {
+			auto rp = le::RenderPass( rp_ );
+			rp.setExecuteCallback( self, pass_main_draw_text );
+		} else {
+			// Discard messages as there is no renderpass to print them to.
+			le_debug_print_text_draw_reset( self );
+		}
 	}
 }
 
