@@ -194,7 +194,12 @@ static void app_process_ui_events( app_o* self ) {
 			self->renderer.removeSwapchain( self->window_data.swapchain );
 
 			if ( window_size.width * window_size.height == 0 ) {
-				self->window_data.swapchain = nullptr; // no swapchain
+
+				// In case the window has been minimized, the window extents will show 0
+				// this means that we should remove the swapchain because then there is
+				// nothing to render on screen.
+
+				self->window_data.swapchain       = nullptr; // no swapchain
 				self->window_data.swapchain_image = nullptr; // no swapchain image
 
 			} else {
@@ -324,11 +329,12 @@ static bool app_update( app_o* self ) {
 	// Our key tool for structure is a RenderPass, which represents
 	// a collection of resource inputs (images, buffers) and resource
 	// outputs (color attachments, depth attachments).
+	//
 	// By connecting their outputs to one or more subsequent RenderPass
 	// inputs, RenderPasses can form a graph, which the renderer must
 	// respect.
 	//
-	// A key image resource is `LE_SWAPCHAIN_IMAGE_HANDLE` - whatever
+	// A key image resource is the swapchain image - whatever
 	// you draw into this resource will end up on screen. Only
 	// renderpasses which contribute to this resource will get
 	// executed.
