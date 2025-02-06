@@ -53,7 +53,7 @@ static void app_initialize() {
 	// settings object -- you only need to do this if a swapchain
 	// is not implicitly generated.
 	//
-	// le::SwapchainVk::init( le_swapchain_windowed_settings_t() );
+	le::SwapchainVk::init( le_swapchain_windowed_settings_t() );
 
 	le::Window::init();
 };
@@ -80,14 +80,25 @@ static app_o* app_create() {
 	// create a new window
 	app->window_data.window.setup( settings );
 
-	// create a new renderer
+	// create a new renderer - note that we do not pass a window parameter here
+	// doing so would create a swapchain based on the window implicitly.
 	app->renderer.setup();
 
+	// Instead, we explicitly create a swapchain, which we associate with the window
 	app->window_data.windowed_swapchain_settings.window           = app->window_data.window;
+	// Explicitly creating a swapchain allows us to choose a presentmode.
 	app->window_data.windowed_swapchain_settings.presentmode_hint = le_swapchain_windowed_settings_t::Presentmode::eFifo;
 
 	app->window_data.swapchain       = app->renderer.addSwapchain( app->window_data.windowed_swapchain_settings );
+
+	// As soon as a swapchain has been created, we may query it for its 
+	// image resource. Anything rendered into this image will be displayed
+	// using the swapchain. 
+	// Because the image resource is a swapchain resource,
+	// this means that any renderpasses that contribute to this resource 
+	// will become active.
 	app->window_data.swapchain_image = app->renderer.getSwapchainResource();
+
 
 	// Set up the camera
 	app_reset_camera( app );
