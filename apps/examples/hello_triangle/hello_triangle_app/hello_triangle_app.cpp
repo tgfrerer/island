@@ -18,6 +18,8 @@
 #include <memory>
 #include <sstream>
 #include <vector>
+#include <thread> // for sleeping
+#include <chrono> // for sleeping a certain time
 
 struct WindowData {
 	le::Window                       window;
@@ -85,20 +87,19 @@ static app_o* app_create() {
 	app->renderer.setup();
 
 	// Instead, we explicitly create a swapchain, which we associate with the window
-	app->window_data.windowed_swapchain_settings.window           = app->window_data.window;
+	app->window_data.windowed_swapchain_settings.window = app->window_data.window;
 	// Explicitly creating a swapchain allows us to choose a presentmode.
 	app->window_data.windowed_swapchain_settings.presentmode_hint = le_swapchain_windowed_settings_t::Presentmode::eFifo;
 
-	app->window_data.swapchain       = app->renderer.addSwapchain( app->window_data.windowed_swapchain_settings );
+	app->window_data.swapchain = app->renderer.addSwapchain( app->window_data.windowed_swapchain_settings );
 
-	// As soon as a swapchain has been created, we may query it for its 
+	// As soon as a swapchain has been created, we may query it for its
 	// image resource. Anything rendered into this image will be displayed
-	// using the swapchain. 
+	// using the swapchain.
 	// Because the image resource is a swapchain resource,
-	// this means that any renderpasses that contribute to this resource 
+	// this means that any renderpasses that contribute to this resource
 	// will become active.
 	app->window_data.swapchain_image = app->renderer.getSwapchainResource();
-
 
 	// Set up the camera
 	app_reset_camera( app );
@@ -127,7 +128,7 @@ static void app_process_ui_events( app_o* self ) {
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
 	le::Extent2D window_size{};
-	bool      was_resized = false;
+	bool         was_resized = false;
 
 	bool wantsToggle = false;
 
@@ -183,7 +184,7 @@ static void app_process_ui_events( app_o* self ) {
 		// If the window was resized, we must resize the swapchain.
 		// There are two methods for doing this :
 
-		static bool CREATE_NEW_SWAPCHAIN = false;
+		static bool CREATE_NEW_SWAPCHAIN = true;
 
 		if ( CREATE_NEW_SWAPCHAIN ) {
 
@@ -192,14 +193,20 @@ static void app_process_ui_events( app_o* self ) {
 
 			self->renderer.removeSwapchain( self->window_data.swapchain );
 
-			// Create a new swapchain
-			self->window_data.windowed_swapchain_settings.width_hint  = window_size.width;
-			self->window_data.windowed_swapchain_settings.height_hint = window_size.height;
-			self->window_data.windowed_swapchain_settings.window      = self->window_data.window;
-			self->window_data.swapchain                               = self->renderer.addSwapchain( self->window_data.windowed_swapchain_settings );
+			if ( window_size.width * window_size.height == 0 ) {
+				self->window_data.swapchain = nullptr; // no swapchain
+				self->window_data.swapchain_image = nullptr; // no swapchain image
 
-			// We must update the swapchain image as we want the one from the newly created swapchain.
-			self->window_data.swapchain_image = self->renderer.getSwapchainResource( self->window_data.swapchain );
+			} else {
+				// Create a new swapchain
+				self->window_data.windowed_swapchain_settings.width_hint  = window_size.width;
+				self->window_data.windowed_swapchain_settings.height_hint = window_size.height;
+				self->window_data.windowed_swapchain_settings.window      = self->window_data.window;
+				self->window_data.swapchain                               = self->renderer.addSwapchain( self->window_data.windowed_swapchain_settings );
+
+				// We must update the swapchain image as we want the one from the newly created swapchain.
+				self->window_data.swapchain_image = self->renderer.getSwapchainResource( self->window_data.swapchain );
+			}
 
 		} else {
 
@@ -343,6 +350,13 @@ static bool app_update( app_o* self ) {
 	// `app->swapchain_image`, and then executing contributing
 	// passes in order.
 	self->renderer.update( rg );
+
+	if ( self->window_data.swapchain == nullptr ) {
+		// In case that this app has no swapchain,
+		// we want to sleep for a time - as we would otherwise
+		// update as fast as possible, burning CPU resources...
+		std::this_thread::sleep_for( std::chrono::milliseconds( 16 ) );
+	}
 
 	self->frame_counter++;
 
