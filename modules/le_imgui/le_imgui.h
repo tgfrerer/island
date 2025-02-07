@@ -16,13 +16,11 @@ struct le_imgui_api {
 		le_imgui_o *    ( * create            ) ( );
 		void            ( * destroy           ) ( le_imgui_o* self );
 
-		
 		void            ( * begin_frame             ) ( le_imgui_o* self);
 		void            ( * end_frame               ) ( le_imgui_o* self);
 
 		void            ( * setup_resources )( le_imgui_o *self, le_rendergraph_o *p_rendergraph, float display_width, float display_height );
 		void            ( * draw            )( le_imgui_o* self, le_renderpass_o* renderpass);
-
 
 		void            ( * process_events    ) ( le_imgui_o* self, LeUiEvent const * events, uint32_t num_events);
         
@@ -56,7 +54,7 @@ static const auto& le_imgui_i = api->le_imgui_i;
 
 #endif // __cplusplus
 
-#if ( WIN32 )
+#if ( WIN32 && defined(PLUGINS_DYNAMIC))
 #	pragma comment( lib, "bin/modules/imgui.lib " )
 #endif
 
