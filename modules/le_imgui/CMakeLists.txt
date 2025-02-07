@@ -43,6 +43,7 @@ if (${PLUGINS_DYNAMIC})
 	# this dependency is compiled as a dynamic library in case of a debug
 	# build, but statically compiled (and linked) in a regular build.
 	add_library(imgui SHARED ${IMGUI_SOURCES})
+	target_link_libraries(${TARGET} PRIVATE imgui)
 endif()
 
 source_group(${TARGET} FILES ${SOURCES})
