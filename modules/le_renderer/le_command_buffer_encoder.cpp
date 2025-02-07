@@ -226,7 +226,7 @@ static void cbe_set_viewport( le_command_buffer_encoder_o* self,
                               const uint32_t               viewportCount,
                               const le::Viewport*          pViewports ) {
 
-	size_t data_size = sizeof( le::Viewport ) * viewportCount;
+	uint32_t data_size = sizeof( le::Viewport ) * viewportCount;
 
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandSetViewport>( data_size ); // placement new!
 	// We point data to the next available position in the data stream
@@ -273,7 +273,7 @@ static void cbe_set_scissor( le_command_buffer_encoder_o* self,
                              const uint32_t               scissorCount,
                              le::Rect2D const*            pScissors ) {
 
-	size_t data_size = sizeof( le::Rect2D ) * scissorCount;
+	uint32_t data_size = sizeof( le::Rect2D ) * scissorCount;
 	auto   cmd       = self->mCommandStream->emplace_cmd<le::CommandSetScissor>( data_size ); // placement new!
 
 	// We point to the next available position in the data stream
@@ -298,10 +298,10 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*     self,
 	// in the backend to actual vulkan buffer ids.
 	// Buffer must will be annotated whether it is transient or not
 
-	size_t data_buffers_size = ( sizeof( le_buffer_resource_handle ) ) * bindingCount;
-	size_t data_offsets_size = ( sizeof( uint64_t ) ) * bindingCount;
+	uint32_t data_buffers_size = ( sizeof( le_buffer_resource_handle ) ) * bindingCount;
+	uint32_t data_offsets_size = ( sizeof( uint64_t ) ) * bindingCount;
 
-	size_t data_size = data_buffers_size + data_offsets_size;
+	uint32_t data_size = data_buffers_size + data_offsets_size;
 	auto   cmd       = self->mCommandStream->emplace_cmd<le::CommandBindVertexBuffers>( data_size ); // placement new!
 
 	le_buffer_resource_handle* dataBuffers = ( le_buffer_resource_handle* )( cmd + 1 );
@@ -831,7 +831,6 @@ static void cbe_map_image( le_command_buffer_encoder_o*        self,
     auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToImage>();
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
-	void*                     memAddr;
 	le_buffer_resource_handle stagingBufferId;
 
 	// -- Allocate memory using staging allocator
@@ -875,7 +874,7 @@ static void cbe_set_push_constant_data( le_command_buffer_encoder_o* self, void 
 	void* data = ( cmd + 1 ); // one after size of command struct
 
 	cmd->info = { num_bytes };
-	cmd->header.info.size += num_bytes; // we must increase the size of this command by its payload size
+	cmd->header.info.size += uint32_t( num_bytes ); // we must increase the size of this command by its payload size
 
 	// copy data into command stream
 	memcpy( data, src_data, num_bytes );
@@ -892,7 +891,7 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o*         self,
 		return;
 	}
 
-	size_t data_size = sizeof( le_resource_handle ) * handles_count;
+	uint32_t data_size = sizeof( le_resource_handle ) * handles_count;
 	auto   cmd       = self->mCommandStream->emplace_cmd<le::CommandBuildRtxBlas>( data_size );
 	void*  data      = cmd + 1;
 
@@ -911,8 +910,8 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o*      self,
                          le_blas_resource_handle const*    blas_handles,
                          uint32_t                          instances_count ) {
 
-	size_t data_size = sizeof( le_resource_handle ) * instances_count;
-	auto   cmd       = self->mCommandStream->emplace_cmd<le::CommandBuildRtxTlas>( data_size );
+	uint32_t data_size = sizeof( le_resource_handle ) * instances_count;
+	auto     cmd       = self->mCommandStream->emplace_cmd<le::CommandBuildRtxTlas>( data_size );
 
 	cmd->info                          = {};
 	cmd->info.tlas_handle              = *tlas_handle;

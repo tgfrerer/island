@@ -623,8 +623,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
-	if ( le::DebugPrint::needsDraw() ) {
-
+	{
 		// If there are debug messages to print to screen, we must draw them onto the last
 		// renderpass.
 		//
@@ -634,7 +633,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 		if ( !frame.rendergraph->passes.empty() ) {
 			le::DebugPrint::drawAllMessages( frame.rendergraph->passes.back() );
 		} else {
-			logger.warn( "le::DebugPrint has messages, but no way to print them. Discarding messages." );
+			logger.debug( "le::DebugPrint has messages, but no way to print them. Discarding messages." );
 			le::DebugPrint::drawAllMessages( nullptr );
 		}
 	}
