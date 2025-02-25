@@ -6,9 +6,9 @@
 
 extern const uint64_t LE_RENDERPASS_MARKER_EXTERNAL; // set in le_renderer.cpp
 
-static char const* LE_SETTING_IDENTIFIER_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES        = "le.rendergraph.should_print_extended_debug_messages";
-static char const* LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_DOT_FILES       = "le.rendergraph.should_generate_dot_files";
-static char const* LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_QUEUE_DOT_FILES = "le.rendergraph.should_generate_queue_dot_files";
+static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES        = "le.rendergraph.should_print_extended_debug_messages";
+static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_DOT_FILES       = "le.rendergraph.should_generate_dot_files";
+static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_QUEUE_DOT_FILES = "le.rendergraph.should_generate_queue_dot_files";
 
 struct le_renderer_o;
 struct le_renderpass_o;

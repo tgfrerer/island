@@ -25,8 +25,8 @@ struct le_pipeline_manager_o;
 constexpr uint8_t LE_MAX_BOUND_DESCRIPTOR_SETS = 8;
 constexpr uint8_t LE_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
 
-static char const* LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS = "le.backend_vk.should_use_validation_layers";
-static char const* LE_SETTING_IDENTIFIER_SHOULD_CHECK_ARGUMENT_STATE  = "le.backend_vk.should_check_argument_state";
+static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS = "le.backend_vk.should_use_validation_layers";
+static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_CHECK_ARGUMENT_STATE  = "le.backend_vk.should_check_argument_state";
 
 struct graphics_pipeline_state_o; // for le_pipeline_builder
 struct compute_pipeline_state_o;  // for le_pipeline_builder
