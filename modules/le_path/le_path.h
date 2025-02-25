@@ -101,6 +101,7 @@ struct le_path_api {
 		bool ( *get_vertices_for_polyline        )( le_path_o* self, size_t const& polyline_index, glm::vec2* vertices, size_t* numVertices );
 		bool ( *get_tangents_for_polyline        )( le_path_o* self, size_t const& polyline_index, glm::vec2* tangents, size_t* numTangents );
 
+		void ( *get_polyline_tangent_at_pos_interpolated )( le_path_o* self, size_t const& polyline_index, float normPos, glm::vec2* result );
 		void ( *get_polyline_at_pos_interpolated )( le_path_o* self, size_t const& polyline_index, float normPos, glm::vec2* result );
 
 		void ( *iterate_vertices_for_contour     )( le_path_o* self, size_t const& contour_index, contour_vertex_cb callback, void* user_data );
@@ -249,6 +250,10 @@ class Path {
 
 	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) const {
 		le_path::le_path_i.get_polyline_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
+	}
+
+	void getPolylineTangentAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) const {
+		le_path::le_path_i.get_polyline_tangent_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
 	}
 
 	bool getPolylinesTotalDistance( float* out_distance ) const {

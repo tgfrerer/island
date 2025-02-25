@@ -2293,6 +2293,49 @@ static void le_path_get_polyline_at_pos_interpolated( le_path_o* self, size_t co
 }
 
 // ----------------------------------------------------------------------
+// Updates `result` to the tangent on polyline
+// at normalized position `t`
+static void le_polyline_get_tangent_at( Polyline const& polyline, float t, glm::vec2* result ) {
+
+	// -- Calculate unnormalised distance
+	float d = t * float( polyline.total_distance );
+
+	// find the first element in polyline which has a position larger than pos
+
+	size_t       a = 0, b = 1;
+	size_t const n = polyline.distances.size();
+
+	assert( n >= 2 ); // we must have at least two elements for this to work.
+
+	for ( ; b < n - 1; ++a, ++b ) {
+		if ( polyline.distances[ b ] > d ) {
+			// find the second distance which is larger than our test distance
+			break;
+		}
+	}
+
+	// tangents are defined as connections between vertices -
+	// in case of an open path, this means that there will be
+	// one less tangent than vertices; for a closed path the
+	// number of tangents and vertices is equal.
+	assert( polyline.tangents.size() >= polyline.vertices.size() - 1 );
+
+	// Make sure that we don't overshoot the tangent vector
+	a                        = std::min( a, polyline.tangents.size() - 1 );
+	glm::vec2 const& tangent = polyline.tangents[ a ];
+
+	*result = tangent;
+}
+
+// ----------------------------------------------------------------------
+// return interpolated tangent on polyline
+static void le_path_get_polyline_tangent_at_pos_interpolated( le_path_o* self, size_t const& polyline_index, float t, glm::vec2* result ) {
+	assert( result );
+	assert( polyline_index < self->polylines.size() );
+	le_polyline_get_tangent_at( self->polylines[ polyline_index ], t, result );
+}
+
+// ----------------------------------------------------------------------
 // return total length of a path that has been converted to polylines
 // if the path has no polylines, returns 0.
 static bool le_path_get_polylines_total_distance( le_path_o* self, float* out_distance ) {
@@ -3377,7 +3420,8 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 	le_path_i.get_num_polylines                = le_path_get_num_polylines;
 	le_path_i.get_vertices_for_polyline        = le_path_get_vertices_for_polyline;
 	le_path_i.get_tangents_for_polyline        = le_path_get_tangents_for_polyline;
-	le_path_i.get_polyline_at_pos_interpolated = le_path_get_polyline_at_pos_interpolated;
+	le_path_i.get_polyline_at_pos_interpolated         = le_path_get_polyline_at_pos_interpolated;
+	le_path_i.get_polyline_tangent_at_pos_interpolated = le_path_get_polyline_tangent_at_pos_interpolated;
 	le_path_i.get_polylines_total_distance     = le_path_get_polylines_total_distance;
 	le_path_i.get_polyline_distance            = le_path_get_polyline_distance;
 
