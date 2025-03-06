@@ -118,14 +118,29 @@ return cached_str; }()
 
 //----------------------------------------------------------------------
 
+static constexpr bool le_core_check_setting_name( char const* str ) {
+
+	for ( const char* s = str; *s != 0; s++ ) {
+		if ( *s == '.' || *s == '_' )
+			continue;
+		if ( ( *s >= 'a' && *s <= 'z' ) ) {
+			continue;
+		}
+		return false;
+	}
+
+	return true;
+}
+
 // this is not yet production-ready, as it does not protect against race-conditions etc.
-#define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                      \
-	[]() -> SETTING_TYPE* {                                                                  \
-		static void** p_addr = le_core_produce_setting_entry( SETTING_NAME, #SETTING_TYPE ); \
-		if ( nullptr == *p_addr ) {                                                          \
-			*p_addr = new le::rm_const<SETTING_TYPE>::type( SETTING_DEFAULT_VALUE );         \
-		}                                                                                    \
-		return ( ( SETTING_TYPE* )( *p_addr ) );                                             \
+#define LE_SETTING( SETTING_TYPE, SETTING_NAME, SETTING_DEFAULT_VALUE )                                                                 \
+	[]() -> SETTING_TYPE* {                                                                                                             \
+		static_assert( le_core_check_setting_name( SETTING_NAME ), "Invalid name: must only use lowercase characters or '.' or '_'." ); \
+		static void** p_addr = le_core_produce_setting_entry( SETTING_NAME, #SETTING_TYPE );                                            \
+		if ( nullptr == *p_addr ) {                                                                                                     \
+			*p_addr = new le::rm_const<SETTING_TYPE>::type( SETTING_DEFAULT_VALUE );                                                    \
+		}                                                                                                                               \
+		return ( ( SETTING_TYPE* )( *p_addr ) );                                                                                        \
 	}()
 
 // settings_map_ptr (optional) target to place a copy of the settings_map into. set to nullptr to omit copy.
