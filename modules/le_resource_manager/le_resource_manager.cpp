@@ -260,7 +260,7 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 	layer_data.height             = h;
 	layer_data.image_info->format = requested_format.format;
 
-	layer_data.image_info->usage |= ( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage );
+	layer_data.image_info->usage |= ( le::ImageUsageFlagBits::eTransferDst );
 
 	layer_data.was_uploaded = false;
 }
