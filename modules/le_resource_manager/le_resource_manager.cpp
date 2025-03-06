@@ -224,7 +224,7 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 		break;
 
 	default:
-		requested_format.format = le::Format::eR8G8B8A8Unorm;
+		requested_format.format = detected_format.format;
 		break;
 	}
 
