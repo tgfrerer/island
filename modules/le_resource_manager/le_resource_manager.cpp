@@ -147,21 +147,15 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 				le_image_decoder_format_o decoder_format;
 
-				uint32_t    w, h, num_channels;
-				le_num_type channel_data_type;
+				size_t num_bytes = 0;
 
-				assert( layer.image_decoder );
-				layer.decoder_i->get_image_data_description( layer.image_decoder, &decoder_format, &w, &h );
-
-				bool result = le_format_infer_channels_and_num_type( decoder_format.format, &num_channels, &channel_data_type );
+				bool result = le_format_get_image_data_size( layer.image_info->format, &num_bytes, image_width, image_height, image_depth );
 
 				if ( false == result ) {
 					logger().error( "Could not infer format info from format: %s", le::to_str( decoder_format.format ) );
 					continue;
 				}
 
-				uint32_t bytes_per_pixel = num_channels * size_of( channel_data_type ); // See definition of le_num_type
-				size_t   num_bytes       = bytes_per_pixel * w * h;
 
 				// We map memory via the encoder - if all goes well the encoder gives us a pointer
 				// into which we can read pixels into.
