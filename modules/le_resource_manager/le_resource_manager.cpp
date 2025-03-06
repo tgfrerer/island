@@ -238,9 +238,9 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 	layer_data.decoder_i->set_requested_format( layer_data.image_decoder, &requested_format );
 
 	if ( layer_data.extents_inferred ) {
-		layer_data.image_info->extent.depth  = 1;
 		layer_data.image_info->extent.width  = w;
 		layer_data.image_info->extent.height = h;
+		layer_data.image_info->extent.depth  = 1;
 	}
 
 	// we must make sure that extents match
@@ -248,12 +248,14 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 	bool width_mismatch  = layer_data.image_info->extent.width != w;
 	bool height_mismatch = layer_data.image_info->extent.height != h;
 
-	if ( width_mismatch || height_mismatch ) {
-		logger().error( "Image dimension mismatch. Explicitly given: %dx%d, but image decoder reports: %dx%d",
-		                layer_data.image_info->extent.width,
-		                layer_data.image_info->extent.height,
-		                w,
-		                h );
+	if ( layer_data.image_info->extent.depth == 1 ) {
+		if ( width_mismatch || height_mismatch ) {
+			logger().error( "Image dimension mismatch. Explicitly given: %dx%d, but image decoder reports: %dx%d",
+			                layer_data.image_info->extent.width,
+			                layer_data.image_info->extent.height,
+			                w,
+			                h );
+		}
 	}
 
 	layer_data.width              = w;
