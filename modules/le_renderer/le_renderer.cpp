@@ -944,7 +944,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		auto& img                   = res.image;
 		img                         = {};
 		img.flags                   = le::ImageCreateFlagBits( 0 );
-		img.format                  = le::Format::eR8G8B8A8Unorm;
+		img.format                  = le::Format::eUndefined;
 		img.arrayLayers             = 1;
 		img.extent.width            = 0;
 		img.extent.height           = 0;
