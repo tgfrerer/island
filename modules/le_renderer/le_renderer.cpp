@@ -944,7 +944,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		auto& img                   = res.image;
 		img                         = {};
 		img.flags                   = le::ImageCreateFlagBits( 0 );
-		img.format                  = le::Format::eUndefined;
+		img.format                  = le::Format::eR8G8B8A8Unorm;
 		img.arrayLayers             = 1;
 		img.extent.width            = 0;
 		img.extent.height           = 0;
@@ -952,7 +952,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		img.extent_from_pass.width  = 0;
 		img.extent_from_pass.height = 0;
 		img.extent_from_pass.depth  = 1;
-		img.usage                   = le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled );
+		img.usage                   = le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled;
 		img.mipLevels               = 1;
 		img.sample_count_log2       = 0; // 0 means 1, as (1 << 0 == 1)
 		img.imageType               = le::ImageType::e2D;
