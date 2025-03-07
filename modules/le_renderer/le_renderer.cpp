@@ -27,8 +27,6 @@
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 
-using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
-
 #include "le_jobs.h"
 
 #ifndef LE_MT
