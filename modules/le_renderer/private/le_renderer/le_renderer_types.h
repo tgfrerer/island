@@ -540,10 +540,6 @@ constexpr uint32_t size_of( le_num_type const& tp ) {
 
 static bool le_format_get_data_size_for_block_format_image( le::Format const& fmt, size_t* out_num_bytes, uint32_t const& w, uint32_t const& h, uint32_t const& d ) {
 
-	if ( nullptr == out_num_bytes ) {
-		return false;
-	}
-	// ---------| invariant: out_num_bytes is not nullptr
 	uint32_t block_x = 1;
 	uint32_t block_y = 1;
 	uint32_t block_z = 1; //
@@ -707,7 +703,9 @@ static bool le_format_get_data_size_for_block_format_image( le::Format const& fm
 	uint32_t yblocks = ( h + block_y - 1 ) / block_y;
 	uint32_t zblocks = ( d + block_z - 1 ) / block_z;
 
-	*out_num_bytes = xblocks * yblocks * zblocks << 4;
+	if ( out_num_bytes ) {
+		*out_num_bytes = xblocks * yblocks * zblocks << 4;
+	}
 
 	return true;
 }
