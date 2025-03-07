@@ -34,7 +34,7 @@ jobs:
 
     steps:
     
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     
     - name: Install Vulkan SDK
       uses: humbletim/install-vulkan-sdk@v1.1.1
@@ -87,6 +87,6 @@ jobs:
 
     - name: Setup tmate session
       if: ${{ failure() }}
-      uses: mxschmitt/action-tmate@v3
+      uses: mxschmitt/action-tmate@v4
       with:
         limit-access-to-actor: true
