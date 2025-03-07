@@ -200,32 +200,11 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 
 	layer_data.decoder_i->get_image_data_description( layer_data.image_decoder, &detected_format, &w, &h );
 
-	// If Format is not any of the formats that we know, we
-	// adjust the format so that it fits.
+	// If format has not been explicitly requested, then
+	// use the format that is suggested by the decoder.
 	//
-
-	switch ( requested_format.format ) {
-	case ( le::Format::eR8G8B8A8Unorm ): // deliberate fall-through
-	case ( le::Format::eR8G8B8Unorm ):
-	case ( le::Format::eR8G8Unorm ):
-	case ( le::Format::eR8Unorm ):
-	case ( le::Format::eR32G32B32A32Sfloat ): // deliberate fall-through
-	case ( le::Format::eR32G32B32Sfloat ):
-	case ( le::Format::eR32G32Sfloat ):
-	case ( le::Format::eR32Sfloat ):
-	case ( le::Format::eR16G16B16A16Sfloat ): // deliberate fall-through
-	case ( le::Format::eR16G16B16Sfloat ):
-	case ( le::Format::eR16G16Sfloat ):
-	case ( le::Format::eR16Sfloat ):
-	case ( le::Format::eR16G16B16A16Unorm ): // deliberate fall-through
-	case ( le::Format::eR16G16B16Unorm ):
-	case ( le::Format::eR16G16Unorm ):
-	case ( le::Format::eR16Unorm ):
-		break;
-
-	default:
+	if ( requested_format.format == le::Format::eUndefined ) {
 		requested_format.format = detected_format.format;
-		break;
 	}
 
 	if ( detected_format.format != requested_format.format ) {
