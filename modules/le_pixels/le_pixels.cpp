@@ -22,58 +22,15 @@ struct le_image_decoder_o {
 	int32_t image_height;
 	int32_t image_depth;
 
+	int num_channels_in_file;
+
 	le::Format image_inferred_format;
 	le::Format image_requested_format = le::Format::eUndefined; // requested format wins over inferred format
-};
 
-// ----------------------------------------------------------------------
-
-
-// ----------------------------------------------------------------------
-// Todo: rewrite this using codegen and vk.xml which includes a formats table
-static void infer_data_info_from_le_format( le::Format const& format, int32_t* num_channels, le_num_type* num_type ) {
-	static auto logger = LeLog( "le_pixels" );
-	switch ( format ) {
-	case le::Format::eR8G8B8A8Uint: // deliberate fall-through
-	case le::Format::eR8G8B8A8Unorm:
-		*num_channels = 4;
-		*num_type     = le_num_type::eUChar;
-		return;
-	case le::Format::eR8G8B8Uint: // deliberate fall-through
-	case le::Format::eR8G8B8Unorm:
-		*num_channels = 3;
-		*num_type     = le_num_type::eUChar;
-		return;
-	case le::Format::eR8Unorm:
-		*num_channels = 1;
-		*num_type     = le_num_type::eUChar;
-		return;
-	case le::Format::eR32Sfloat:
-		*num_channels = 1;
-		*num_type     = le_num_type::eFloat;
-		return;
-	case le::Format::eR16G16B16Unorm:
-		*num_channels = 3;
-		*num_type     = le_num_type::eF16;
-		return;
-	case le::Format::eR32G32B32Sfloat:
-		*num_channels = 3;
-		*num_type     = le_num_type::eF32;
-		return;
-	case le::Format::eR16G16B16A16Unorm:
-		*num_channels = 4;
-		*num_type     = le_num_type::eF16;
-		return;
-	case le::Format::eR32G32B32A32Sfloat:
-		*num_channels = 4;
-		*num_type     = le_num_type::eF32;
-		return;
-	case le::Format::eUndefined: // deliberate fall-through
-	default:
-		logger.error( "Unhandled image format" );
-		assert( false && "Unhandled image format." );
+	le::Format get_format() {
+		return ( image_requested_format != le::Format::eUndefined ) ? image_requested_format : image_inferred_format;
 	}
-}
+};
 
 // ----------------------------------------------------------------------
 // load image file, and poke at file info; does not load file into memory
@@ -86,10 +43,9 @@ static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* fi
 
 		int width;
 		int height;
-		int components;
 		int result;
 
-		result = stbi_info( filepath, &width, &height, &components );
+		result = stbi_info( filepath, &width, &height, &self->num_channels_in_file );
 
 		if ( result != 1 ) {
 			delete self;
@@ -108,19 +64,16 @@ static le_image_decoder_o* le_image_decoder_create_image_decoder( char const* fi
 		// TODO accomodate for 16bit files - we can cross this bridge when we meet it.
 		// Right now, we're assuming any file that is not 8bit or HDR will need to be
 		// loaded as if it was encoded with 32bit floats.
-		if ( components == 4 ) {
+		//
+		// It makes currently no sense to have 3-channels images -
+		// this means that 3-channel files will be decoded into 4-channel images.
+		if ( self->num_channels_in_file == 4 || self->num_channels_in_file == 3 ) {
 			if ( is_hdr || is_16_bit ) {
 				self->image_inferred_format = le::Format::eR32G32B32A32Sfloat;
 			} else {
 				self->image_inferred_format = le::Format::eR8G8B8A8Unorm;
 			}
-		} else if ( components == 3 ) {
-			if ( is_hdr || is_16_bit ) {
-				self->image_inferred_format = le::Format::eR32G32B32Sfloat;
-			} else {
-				self->image_inferred_format = le::Format::eR8G8B8Unorm;
-			}
-		} else if ( components == 1 ) {
+		} else if ( self->num_channels_in_file == 1 ) {
 			if ( is_hdr || is_16_bit ) {
 				self->image_inferred_format = le::Format::eR32Sfloat;
 			} else {
@@ -149,7 +102,7 @@ static void le_image_decoder_destroy_image_decoder( le_image_decoder_o* self ) {
 
 static void le_image_decoder_get_image_data_description( le_image_decoder_o* self, le_image_decoder_format_o* p_format, uint32_t* w, uint32_t* h ) {
 	if ( p_format ) {
-		p_format->format = ( self->image_requested_format != le::Format::eUndefined ) ? self->image_requested_format : self->image_inferred_format;
+		p_format->format = self->get_format();
 	}
 	if ( w ) {
 		*w = self->image_width;
@@ -166,28 +119,30 @@ static bool le_image_decoder_read_pixels( le_image_decoder_o* self, uint8_t* pix
 	static auto logger = LeLog( "le_pixels" );
 
 	// TODO: read actual pixels
-	auto format = ( self->image_requested_format != le::Format::eUndefined ) ? self->image_requested_format : self->image_inferred_format;
+	auto format = self->get_format();
 
-	int32_t     num_channels;
+	uint32_t    num_channels;
 	le_num_type pixel_data_type;
-	infer_data_info_from_le_format( format, &num_channels, &pixel_data_type );
+	le_format_infer_channels_and_num_type( format, &num_channels, &pixel_data_type );
 
-	uint32_t num_bytes_per_channel = ( uint32_t( 1 ) << ( uint32_t( pixel_data_type ) & 0x3 ) );
-	size_t   num_bytes             = num_bytes_per_channel * num_channels * ( self->image_width * self->image_height );
+	size_t num_bytes = 0;
+	le_format_get_image_data_size( format, &num_bytes, self->image_width, self->image_height, self->image_depth );
 
-	if ( pixels_byte_count > num_bytes ) {
-		logger.error( "Number of requested bytes is too great. Requested: %d != Is: %d\nNo pixels copied.", pixels_byte_count, num_bytes );
+	if ( pixels_byte_count < num_bytes ) {
+		logger.error( "Not enough space to read image data into. Available: %d != Required: %d\nNo pixels copied.", pixels_byte_count, num_bytes );
 		return false;
 	}
+
 	// ----------| invariant: pixel count matches
 
 	void* pixel_data = nullptr;
+
 	if ( pixel_data_type == le_num_type::eU8 || pixel_data_type == le_num_type::eI8 ) {
-		pixel_data = stbi_load( self->image_path.c_str(), &self->image_width, &self->image_height, &num_channels, num_channels );
+		pixel_data = stbi_load( self->image_path.c_str(), &self->image_width, &self->image_height, &self->num_channels_in_file, num_channels );
 	} else if ( pixel_data_type == le_num_type::eU16 || pixel_data_type == le_num_type::eI16 || pixel_data_type == le_num_type::eF16 ) {
-		pixel_data = stbi_load_16( self->image_path.c_str(), &self->image_width, &self->image_height, &num_channels, num_channels );
+		pixel_data = stbi_load_16( self->image_path.c_str(), &self->image_width, &self->image_height, &self->num_channels_in_file, num_channels );
 	} else if ( pixel_data_type == le_num_type::eF32 ) {
-		pixel_data = stbi_loadf( self->image_path.c_str(), &self->image_width, &self->image_height, &num_channels, num_channels );
+		pixel_data = stbi_loadf( self->image_path.c_str(), &self->image_width, &self->image_height, &self->num_channels_in_file, num_channels );
 	}
 
 	if ( pixel_data ) {

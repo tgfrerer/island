@@ -147,21 +147,15 @@ static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_
 
 				le_image_decoder_format_o decoder_format;
 
-				uint32_t    w, h, num_channels;
-				le_num_type channel_data_type;
+				size_t num_bytes = 0;
 
-				assert( layer.image_decoder );
-				layer.decoder_i->get_image_data_description( layer.image_decoder, &decoder_format, &w, &h );
-
-				bool result = le_format_infer_channels_and_num_type( decoder_format.format, &num_channels, &channel_data_type );
+				bool result = le_format_get_image_data_size( layer.image_info->format, &num_bytes, image_width, image_height, image_depth );
 
 				if ( false == result ) {
 					logger().error( "Could not infer format info from format: %s", le::to_str( decoder_format.format ) );
 					continue;
 				}
 
-				uint32_t bytes_per_pixel = num_channels * size_of( channel_data_type ); // See definition of le_num_type
-				size_t   num_bytes       = bytes_per_pixel * w * h;
 
 				// We map memory via the encoder - if all goes well the encoder gives us a pointer
 				// into which we can read pixels into.
@@ -206,32 +200,11 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 
 	layer_data.decoder_i->get_image_data_description( layer_data.image_decoder, &detected_format, &w, &h );
 
-	// If Format is not any of the formats that we know, we
-	// adjust the format so that it fits.
+	// If format has not been explicitly requested, then
+	// use the format that is suggested by the decoder.
 	//
-
-	switch ( requested_format.format ) {
-	case ( le::Format::eR8G8B8A8Unorm ): // deliberate fall-through
-	case ( le::Format::eR8G8B8Unorm ):
-	case ( le::Format::eR8G8Unorm ):
-	case ( le::Format::eR8Unorm ):
-	case ( le::Format::eR32G32B32A32Sfloat ): // deliberate fall-through
-	case ( le::Format::eR32G32B32Sfloat ):
-	case ( le::Format::eR32G32Sfloat ):
-	case ( le::Format::eR32Sfloat ):
-	case ( le::Format::eR16G16B16A16Sfloat ): // deliberate fall-through
-	case ( le::Format::eR16G16B16Sfloat ):
-	case ( le::Format::eR16G16Sfloat ):
-	case ( le::Format::eR16Sfloat ):
-	case ( le::Format::eR16G16B16A16Unorm ): // deliberate fall-through
-	case ( le::Format::eR16G16B16Unorm ):
-	case ( le::Format::eR16G16Unorm ):
-	case ( le::Format::eR16Unorm ):
-		break;
-
-	default:
-		requested_format.format = le::Format::eR8G8B8A8Unorm;
-		break;
+	if ( requested_format.format == le::Format::eUndefined ) {
+		requested_format.format = detected_format.format;
 	}
 
 	if ( detected_format.format != requested_format.format ) {
@@ -244,9 +217,9 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 	layer_data.decoder_i->set_requested_format( layer_data.image_decoder, &requested_format );
 
 	if ( layer_data.extents_inferred ) {
-		layer_data.image_info->extent.depth  = 1;
 		layer_data.image_info->extent.width  = w;
 		layer_data.image_info->extent.height = h;
+		layer_data.image_info->extent.depth  = 1;
 	}
 
 	// we must make sure that extents match
@@ -254,19 +227,21 @@ static void update_image_array_layer( le_resource_manager_o::image_data_layer_t&
 	bool width_mismatch  = layer_data.image_info->extent.width != w;
 	bool height_mismatch = layer_data.image_info->extent.height != h;
 
-	if ( width_mismatch || height_mismatch ) {
-		logger().error( "Image dimension mismatch. Explicitly given: %dx%d, but image decoder reports: %dx%d",
-		                layer_data.image_info->extent.width,
-		                layer_data.image_info->extent.height,
-		                w,
-		                h );
+	if ( layer_data.image_info->extent.depth == 1 ) {
+		if ( width_mismatch || height_mismatch ) {
+			logger().error( "Image dimension mismatch. Explicitly given: %dx%d, but image decoder reports: %dx%d",
+			                layer_data.image_info->extent.width,
+			                layer_data.image_info->extent.height,
+			                w,
+			                h );
+		}
 	}
 
 	layer_data.width              = w;
 	layer_data.height             = h;
 	layer_data.image_info->format = requested_format.format;
 
-	layer_data.image_info->usage |= ( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled | le::ImageUsageFlagBits::eStorage );
+	layer_data.image_info->usage |= ( le::ImageUsageFlagBits::eTransferDst );
 
 	layer_data.was_uploaded = false;
 }

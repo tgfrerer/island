@@ -298,7 +298,7 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 					}
 					// -----| invariant: im_cmd was not user callback
 
-					static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "clip rect size must match for direct assignment" );
+					static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "Clip rect size must match for direct assignment" );
 
 					// -- update bound texture, but only if texture different from currently bound texture
 					le_texture_handle const nextTexture = reinterpret_cast<le_texture_handle>( im_cmd.TextureId );

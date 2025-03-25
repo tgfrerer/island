@@ -151,7 +151,7 @@ static le_parameter_o* le_parameter_store_add_parameter( le_parameter_store_o* s
 
 // ----------------------------------------------------------------------
 
-void print_entry( FILE* file, std::string const& name, le_parameter_o const& param ) {
+static void print_entry( FILE* file, std::string const& name, le_parameter_o const& param ) {
 	fprintf( file, "\n\t\"%s\": {", name.c_str() );
 	fprintf( file, "\n\t\t\"type\":\"%s\",", PARAMETER_TYPE_AS_STRING[ param.type ] );
 

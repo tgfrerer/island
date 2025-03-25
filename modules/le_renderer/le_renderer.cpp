@@ -27,8 +27,6 @@
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 
-using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
-
 #include "le_jobs.h"
 
 #ifndef LE_MT
@@ -952,7 +950,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		img.extent_from_pass.width  = 0;
 		img.extent_from_pass.height = 0;
 		img.extent_from_pass.depth  = 1;
-		img.usage                   = le::ImageUsageFlags( le::ImageUsageFlagBits::eSampled );
+		img.usage                   = le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled;
 		img.mipLevels               = 1;
 		img.sample_count_log2       = 0; // 0 means 1, as (1 << 0 == 1)
 		img.imageType               = le::ImageType::e2D;

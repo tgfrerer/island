@@ -538,6 +538,206 @@ constexpr uint32_t size_of( le_num_type const& tp ) {
 	return ( 1 << ( uint8_t( tp ) & 0b11 ) );
 }
 
+static bool le_format_get_data_size_for_block_format_image( le::Format const& fmt, size_t* out_num_bytes, uint32_t const& w, uint32_t const& h, uint32_t const& d ) {
+
+	uint32_t block_x = 1;
+	uint32_t block_y = 1;
+	uint32_t block_z = 1; //
+
+	// clang-format off
+	switch ( fmt ) {
+		case le::Format::eBc1RgbUnormBlock:
+		case le::Format::eBc1RgbSrgbBlock:
+		case le::Format::eBc1RgbaUnormBlock:
+		case le::Format::eBc1RgbaSrgbBlock:
+		case le::Format::eBc2UnormBlock:
+		case le::Format::eBc2SrgbBlock:
+		case le::Format::eBc3UnormBlock:
+		case le::Format::eBc3SrgbBlock:
+		case le::Format::eBc4UnormBlock:
+		case le::Format::eBc4SnormBlock:
+		case le::Format::eBc5UnormBlock:
+		case le::Format::eBc5SnormBlock:
+		case le::Format::eBc6HUfloatBlock:
+		case le::Format::eBc6HSfloatBlock:
+		case le::Format::eBc7UnormBlock:
+		case le::Format::eBc7SrgbBlock:
+		case le::Format::eEtc2R8G8B8UnormBlock:
+		case le::Format::eEtc2R8G8B8SrgbBlock:
+		case le::Format::eEtc2R8G8B8A1UnormBlock:
+		case le::Format::eEtc2R8G8B8A1SrgbBlock:
+		case le::Format::eEtc2R8G8B8A8UnormBlock:
+		case le::Format::eEtc2R8G8B8A8SrgbBlock:
+		case le::Format::eEacR11UnormBlock:
+		case le::Format::eEacR11SnormBlock:
+		case le::Format::eEacR11G11UnormBlock:
+		case le::Format::eEacR11G11SnormBlock:
+	// unsupported until now - need to find out correct values
+	return false;
+		break;
+		case le::Format::eAstc4X4UnormBlock: //
+		case le::Format::eAstc4X4SrgbBlock:
+	block_x = 4, block_y = 4; break;
+		case le::Format::eAstc5X4UnormBlock: //
+		case le::Format::eAstc5X4SrgbBlock:
+	block_x = 5, block_y = 4; break;  
+		case le::Format::eAstc5X5UnormBlock: // 
+		case le::Format::eAstc5X5SrgbBlock:
+	block_x = 5, block_y = 5; break; 
+		case le::Format::eAstc6X5UnormBlock: //
+		case le::Format::eAstc6X5SrgbBlock:
+	block_x = 6, block_y = 5; break; 
+		case le::Format::eAstc6X6UnormBlock: //
+		case le::Format::eAstc6X6SrgbBlock:
+	block_x = 6, block_y = 6; break; 
+		case le::Format::eAstc8X5UnormBlock:
+		case le::Format::eAstc8X5SrgbBlock:
+	block_x = 8, block_y = 5; break; 
+		case le::Format::eAstc8X6UnormBlock:
+		case le::Format::eAstc8X6SrgbBlock:
+	block_x = 8, block_y = 6; break; 
+		case le::Format::eAstc8X8UnormBlock:
+		case le::Format::eAstc8X8SrgbBlock:
+	block_x = 8, block_y = 8; break; 
+		case le::Format::eAstc10X5UnormBlock:
+		case le::Format::eAstc10X5SrgbBlock:
+	block_x = 10, block_y = 5; break; 
+		case le::Format::eAstc10X6UnormBlock:
+		case le::Format::eAstc10X6SrgbBlock:
+	block_x = 10, block_y = 6; break; 
+		case le::Format::eAstc10X8UnormBlock:
+		case le::Format::eAstc10X8SrgbBlock:
+	block_x = 10, block_y = 8; break; 
+		case le::Format::eAstc10X10UnormBlock:
+		case le::Format::eAstc10X10SrgbBlock:
+	block_x = 10, block_y = 10; break; 
+		case le::Format::eAstc12X10UnormBlock:
+		case le::Format::eAstc12X10SrgbBlock:
+	block_x = 12, block_y = 10; break; 
+		case le::Format::eAstc12X12UnormBlock:
+		case le::Format::eAstc12X12SrgbBlock:
+	block_x = 12, block_y = 12; break; 
+		case le::Format::ePvrtc12BppUnormBlockImg:
+		case le::Format::ePvrtc14BppUnormBlockImg:
+		case le::Format::ePvrtc22BppUnormBlockImg:
+		case le::Format::ePvrtc24BppUnormBlockImg:
+		case le::Format::ePvrtc12BppSrgbBlockImg:
+		case le::Format::ePvrtc14BppSrgbBlockImg:
+		case le::Format::ePvrtc22BppSrgbBlockImg:
+		case le::Format::ePvrtc24BppSrgbBlockImg:
+	return false;
+		case le::Format::eAstc4X4SfloatBlock:
+	block_x = 4, block_y = 4; break; 
+		case le::Format::eAstc5X4SfloatBlock:
+	block_x = 5, block_y = 4; break; 
+		case le::Format::eAstc5X5SfloatBlock:
+	block_x = 5, block_y = 5; break; 
+		case le::Format::eAstc6X5SfloatBlock:
+	block_x = 6, block_y = 5; break; 
+		case le::Format::eAstc6X6SfloatBlock:
+	block_x = 6, block_y = 6; break; 
+		case le::Format::eAstc8X5SfloatBlock:
+	block_x = 8, block_y = 5; break; 
+		case le::Format::eAstc8X6SfloatBlock:
+	block_x = 8, block_y = 6; break; 
+		case le::Format::eAstc8X8SfloatBlock:
+	block_x = 8, block_y = 8; break; 
+		case le::Format::eAstc10X5SfloatBlock:
+	block_x = 10, block_y = 5; break; 
+		case le::Format::eAstc10X6SfloatBlock:
+	block_x = 10, block_y = 6; break; 
+		case le::Format::eAstc10X8SfloatBlock:
+	block_x = 10, block_y = 8; break; 
+		case le::Format::eAstc10X10SfloatBlock:
+	block_x = 10, block_y = 10; break; 
+		case le::Format::eAstc12X10SfloatBlock:
+	block_x = 12, block_y = 10; break; 
+		case le::Format::eAstc12X12SfloatBlock:
+	block_x = 12, block_y = 12; break; 
+		case le::Format::eAstc3X3X3UnormBlockExt:
+		case le::Format::eAstc3X3X3SrgbBlockExt:
+		case le::Format::eAstc3X3X3SfloatBlockExt:
+	block_x = 3, block_y = 3, block_z = 3; break; 
+		case le::Format::eAstc4X3X3UnormBlockExt:
+		case le::Format::eAstc4X3X3SrgbBlockExt:
+		case le::Format::eAstc4X3X3SfloatBlockExt:
+	block_x = 4, block_y = 3, block_z = 3; break; 
+		case le::Format::eAstc4X4X3UnormBlockExt:
+		case le::Format::eAstc4X4X3SrgbBlockExt:
+		case le::Format::eAstc4X4X3SfloatBlockExt:
+	block_x = 4, block_y = 4, block_z = 3; break; 
+		case le::Format::eAstc4X4X4UnormBlockExt:
+		case le::Format::eAstc4X4X4SrgbBlockExt:
+		case le::Format::eAstc4X4X4SfloatBlockExt:
+	block_x = 4, block_y = 4, block_z = 4; break; 
+		case le::Format::eAstc5X4X4UnormBlockExt:
+		case le::Format::eAstc5X4X4SrgbBlockExt:
+		case le::Format::eAstc5X4X4SfloatBlockExt:
+	block_x = 5, block_y = 4, block_z = 4; break; 
+		case le::Format::eAstc5X5X4UnormBlockExt:
+		case le::Format::eAstc5X5X4SrgbBlockExt:
+		case le::Format::eAstc5X5X4SfloatBlockExt:
+	block_x = 5, block_y = 5, block_z = 4; break; 
+		case le::Format::eAstc5X5X5UnormBlockExt:
+		case le::Format::eAstc5X5X5SrgbBlockExt:
+		case le::Format::eAstc5X5X5SfloatBlockExt:
+	block_x = 5, block_y = 5, block_z = 5; break; 
+		case le::Format::eAstc6X5X5UnormBlockExt:
+		case le::Format::eAstc6X5X5SrgbBlockExt:
+		case le::Format::eAstc6X5X5SfloatBlockExt:
+		case le::Format::eAstc6X6X5UnormBlockExt:
+	block_x = 6, block_y = 5, block_z = 5; break; 
+		case le::Format::eAstc6X6X5SrgbBlockExt:
+		case le::Format::eAstc6X6X5SfloatBlockExt:
+	block_x = 6, block_y = 6, block_z = 5; break; 
+		case le::Format::eAstc6X6X6UnormBlockExt:
+		case le::Format::eAstc6X6X6SrgbBlockExt:
+		case le::Format::eAstc6X6X6SfloatBlockExt:
+	block_x = 6, block_y = 6, block_z = 6; break; 
+	default:
+	return false;
+	}
+	// clang-format on
+
+	uint32_t xblocks = ( w + block_x - 1 ) / block_x;
+	uint32_t yblocks = ( h + block_y - 1 ) / block_y;
+	uint32_t zblocks = ( d + block_z - 1 ) / block_z;
+
+	if ( out_num_bytes ) {
+		*out_num_bytes = xblocks * yblocks * zblocks << 4;
+	}
+
+	return true;
+}
+
+/// Calculate the size required in gpu memory for an image given format and image dimensions.
+/// @return false if size cannot be calculated, true otherwise.
+static bool le_format_get_image_data_size( le::Format const& fmt, size_t* out_num_bytes, uint32_t const& w, uint32_t const& h, uint32_t const& d = 1 ) {
+
+	if ( nullptr == out_num_bytes ) {
+		return false;
+	}
+
+	//---------- | invariant: out_num_bytes is not nullptr
+
+	le_num_type num_tp;
+	uint32_t    num_channels = 0;
+
+	if ( le_format_infer_channels_and_num_type( fmt, &num_channels, &num_tp ) ) {
+		*out_num_bytes = num_channels * size_of( num_tp ) * w * h * d;
+		return true;
+	} else if ( le_format_get_data_size_for_block_format_image( fmt, out_num_bytes, w, h, d ) ) {
+		// block complessed images have a standard number of bytes per-block.
+		// the number of bytes is therefore number of blocks * n_bytes_per_block
+		// a block spans 4x4 or a range of other block sizes of pixels, defined by the format.
+		return true;
+	}
+
+	// ----------| invariant: we could not calculate the number of bytes from the given format and dimensions
+
+	return false;
+}
+
 enum class le_vertex_input_rate : uint8_t {
 	ePerVertex   = 0,
 	ePerInstance = 1,

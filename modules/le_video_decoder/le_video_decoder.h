@@ -14,7 +14,7 @@
  *
  */
 
-static char const* LE_SETTING_IDENTIFIER_SHOULD_USE_VIDEO_STATUS_QUERIES = "le.video_decoder.should_use_video_status_queries";
+static constexpr auto LE_SETTING_IDENTIFIER_SHOULD_USE_VIDEO_STATUS_QUERIES = "le.video_decoder.should_use_video_status_queries";
 
 struct le_video_decoder_o;
 struct le_renderer_o;
