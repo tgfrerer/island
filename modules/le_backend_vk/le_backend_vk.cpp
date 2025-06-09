@@ -2722,13 +2722,23 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 /// - stagingAllocator.buffers[index] if staging,
 /// otherwise, fetch from frame available resources based on an id lookup.
 static inline VkBuffer frame_data_get_buffer_from_le_resource_id( BackendFrameData const* frame, le_buffer_resource_handle const buffer ) {
-	if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsVirtual ) ) {
-		return frame->allocatorBuffers[ buffer->data->index ];
-	} else if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsStaging ) ) {
-		return frame->stagingAllocator->buffers[ buffer->data->index ];
-	} else {
-		return frame->availableResources.at( buffer ).as.buffer;
-	}
+    if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsVirtual ) ) {
+        return frame->allocatorBuffers[ buffer->data->index ];
+    } else if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsStaging ) ) {
+        return frame->stagingAllocator->buffers[ buffer->data->index ];
+    } else {
+#ifndef NDEBUG
+        auto it_buf = frame->availableResources.find( buffer );
+        if ( it_buf != frame->availableResources.end() ) {
+            return it_buf->second.as.buffer;
+        } else {
+            logger().error( "Resource '%s' is not declared in current frame/renderpass.", buffer->data->debug_name );
+            return nullptr;
+        }
+#else
+        return frame->availableResources.at( buffer ).as.buffer;
+#endif
+    }
 }
 
 // ----------------------------------------------------------------------
