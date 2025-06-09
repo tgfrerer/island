@@ -141,6 +141,13 @@ static void cbe_dispatch( le_command_buffer_encoder_o* self, uint32_t groupCount
 
 // ----------------------------------------------------------------------
 
+static void cbe_fill_buffer( le_command_buffer_encoder_o* self, le_buffer_resource_handle buffer_id, uint64_t offset, uint64_t range, uint32_t data ) {
+	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandFillBuffer>(); // placement new!
+	cmd->info = { buffer_id, offset, range, data };
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*    self,
                                        le::PipelineStageFlags2 const   srcStageMask,
                                        le::PipelineStageFlags2 const   dstStageMask,
@@ -1079,6 +1086,7 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	    .write_to_buffer       = cbe_write_to_buffer,
 	    .write_to_image        = cbe_write_to_image,
 	    .buffer_memory_barrier = cbe_buffer_memory_barrier,
+	    .fill_buffer           = cbe_fill_buffer,
 	    .map_image_memory      = cbe_map_image,
 	    .map_buffer_memory     = cbe_map_buffer,
 	};

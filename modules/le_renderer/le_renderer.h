@@ -201,6 +201,7 @@ struct le_renderer_api {
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_image_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
 		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  dstAccessMask, le_buffer_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
+		void 						 ( *fill_buffer            )( le_command_buffer_encoder_o* self, le_buffer_resource_handle buffer_id,uint64_t offset, uint64_t range, uint32_t data );
 
         void                         ( *map_image_memory       )( le_command_buffer_encoder_o *self, le_image_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo,  size_t numBytes, void** p_memory_addr );
         void                         ( *map_buffer_memory      )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const& dst_buffer, size_t dst_offset, size_t numBytes, void ** p_memory_addr);

@@ -760,6 +760,11 @@ class TransferEncoder {
 		return *this;
 	}
 
+	TransferEncoder& fillBuffer( le_buffer_resource_handle const& dstBuffer, size_t const& byteOffsetDst, size_t const& numBytes, uint32_t const& data ) {
+		le_renderer::encoder_transfer_i.fill_buffer( self, dstBuffer, byteOffsetDst, numBytes, data );
+		return *this;
+	}
+
 	TransferEncoder& writeToImage( le_image_resource_handle const& dstImg, le_write_to_image_settings_t const& writeInfo, void const* data, size_t const& numBytes ) {
 		le_renderer::encoder_transfer_i.write_to_image( self, dstImg, writeInfo, data, numBytes );
 		return *this;

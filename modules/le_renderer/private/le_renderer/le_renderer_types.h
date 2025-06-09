@@ -784,6 +784,7 @@ enum class CommandType : uint32_t {
 	eDrawMeshTasks,
 	eDrawMeshTasksNV,
 	eDispatch,
+	eFillBuffer,
 	eBufferMemoryBarrier,
 	eTraceRays,
 	eSetLineWidth,
@@ -862,6 +863,17 @@ struct CommandDispatch {
 		uint32_t groupCountY;
 		uint32_t groupCountZ;
 		uint32_t __padding__;
+	} info;
+};
+
+// -- fill a buffer by splatting data over given range
+struct CommandFillBuffer {
+	CommandHeader header = { { { CommandType::eFillBuffer, sizeof( CommandFillBuffer ) } } };
+	struct {
+		le_buffer_resource_handle buffer; // id of buffer that holds data
+		uint64_t                  offset; // offset into buffer
+		uint64_t                  range;  // size of argument data in bytes - must be multiple of 4 or VK_WHOLE_SIZE
+		uint32_t                  data;   // const_char_hash id of argument name
 	} info;
 };
 

@@ -6036,8 +6036,15 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    le_cmd->info.depth //
 						);
 
-					} break;
-					case le::CommandType::eDispatch: {
+                    } break;
+                    case le::CommandType::eFillBuffer: {
+                        auto* le_cmd = static_cast<le::CommandFillBuffer*>( dataIt );
+
+                        VkBuffer buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer );
+                        vkCmdFillBuffer( cmd, buffer, le_cmd->info.offset, le_cmd->info.range, le_cmd->info.data );
+
+                    } break;
+                    case le::CommandType::eDispatch: {
 						auto* le_cmd = static_cast<le::CommandDispatch*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
