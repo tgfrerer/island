@@ -5443,7 +5443,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			/// from this, we can then go through all queues of the queue family
 			/// and pick the queue with the least submissions.
 			///
-			std::vector<uint32_t> num_submissions_per_queue( num_invocation_keys, 0 );
+            std::vector<uint32_t> num_submissions_per_queue(self->queues.size(), 0 );
 			for ( size_t i = 0; i != num_invocation_keys; i++ ) {
 
 				auto const& queues = self->queues;
