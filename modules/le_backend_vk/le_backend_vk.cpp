@@ -6073,12 +6073,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 					} break;
 					case le::CommandType::eBufferMemoryBarrier: {
 						auto*                  le_cmd = static_cast<le::CommandBufferMemoryBarrier*>( dataIt );
-						VkBufferMemoryBarrier2 bufferMemoryBarrier{
-						    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
-						    .pNext               = nullptr,
-						    .srcStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.srcStageMask ), // happens-before
-						    .srcAccessMask       = 0,                                                               // FIXME: no memory is made available from src stage ?!
-						    .dstStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.dstStageMask ), // before continuing with dst stage
+                        VkBufferMemoryBarrier2 bufferMemoryBarrier{
+                            .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+                            .pNext               = nullptr,
+                            .srcStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.srcStageMask ), // happens-before
+                            .srcAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.srcAccessMask ),    // happens-before
+                            .dstStageMask        = static_cast<VkPipelineStageFlags2>( le_cmd->info.dstStageMask ), // before continuing with dst stage
 						    .dstAccessMask       = static_cast<VkAccessFlagBits2>( le_cmd->info.dstAccessMask ),    // and making memory visible to dst stage
 						    .srcQueueFamilyIndex = 0,
 						    .dstQueueFamilyIndex = 0,
@@ -6092,8 +6092,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						    .pNext                    = nullptr, // optional
 						    .dependencyFlags          = 0,       // optional
 						    .memoryBarrierCount       = 0,       // optional
-						    .pMemoryBarriers          = 0,
-						    .bufferMemoryBarrierCount = 1, // optional
+                            .pMemoryBarriers          = 0,
+                            .bufferMemoryBarrierCount = 1,
 						    .pBufferMemoryBarriers    = &bufferMemoryBarrier,
 						    .imageMemoryBarrierCount  = 0, // optional
 						    .pImageMemoryBarriers     = 0,

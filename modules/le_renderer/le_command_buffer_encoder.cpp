@@ -134,7 +134,6 @@ static void cbe_set_line_width( le_command_buffer_encoder_o* self, float lineWid
 // ----------------------------------------------------------------------
 
 static void cbe_dispatch( le_command_buffer_encoder_o* self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ ) {
-
 	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandDispatch>(); // placement new!
 	cmd->info = { groupCountX, groupCountY, groupCountZ, 0 };
 }
@@ -151,6 +150,7 @@ static void cbe_fill_buffer( le_command_buffer_encoder_o* self, le_buffer_resour
 static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*    self,
                                        le::PipelineStageFlags2 const   srcStageMask,
                                        le::PipelineStageFlags2 const   dstStageMask,
+                                       le::AccessFlags2 const          srcAccessMask,
                                        le::AccessFlags2 const          dstAccessMask,
                                        le_buffer_resource_handle const buffer,
                                        uint64_t const                  offset,
@@ -160,6 +160,7 @@ static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o*    self,
 
 	cmd->info.srcStageMask  = srcStageMask;
 	cmd->info.dstStageMask  = dstStageMask;
+	cmd->info.srcAccessMask = srcAccessMask; // todo: backend should be able to imply this from last write operation
 	cmd->info.dstAccessMask = dstAccessMask;
 	cmd->info.buffer        = buffer;
 	cmd->info.offset        = offset;

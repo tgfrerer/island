@@ -569,11 +569,12 @@ class GraphicsEncoder {
 	GraphicsEncoder& bufferMemoryBarrier(
 	    le::PipelineStageFlags2 const&   srcStageMask,
 	    le::PipelineStageFlags2 const&   dstStageMask,
+	    le::AccessFlags2 const&          srcAccessMask,
 	    le::AccessFlags2 const&          dstAccessMask,
 	    le_buffer_resource_handle const& buffer,
 	    uint64_t const&                  offset = 0,
 	    uint64_t const&                  range  = ~( 0ull ) ) {
-		le_renderer::encoder_graphics_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
+		le_renderer::encoder_graphics_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, srcAccessMask, dstAccessMask, buffer, offset, range );
 		return *this;
 	}
 
@@ -731,11 +732,12 @@ class ComputeEncoder {
 	ComputeEncoder& bufferMemoryBarrier(
 	    le::PipelineStageFlags2 const&   srcStageMask,
 	    le::PipelineStageFlags2 const&   dstStageMask,
+	    le::AccessFlags2 const&          srcAccessMask,
 	    le::AccessFlags2 const&          dstAccessMask,
 	    le_buffer_resource_handle const& buffer,
 	    uint64_t const&                  offset = 0,
 	    uint64_t const&                  range  = ~( 0ull ) ) {
-		le_renderer::encoder_compute_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
+		le_renderer::encoder_compute_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, srcAccessMask, dstAccessMask, buffer, offset, range );
 		return *this;
 	}
 };
@@ -783,11 +785,12 @@ class TransferEncoder {
 	TransferEncoder& bufferMemoryBarrier(
 	    le::PipelineStageFlags2 const&   srcStageMask,
 	    le::PipelineStageFlags2 const&   dstStageMask,
+	    le::AccessFlags2 const&          srcAccessMask,
 	    le::AccessFlags2 const&          dstAccessMask,
 	    le_buffer_resource_handle const& buffer,
 	    uint64_t const&                  offset = 0,
 	    uint64_t const&                  range  = ~( 0ull ) ) {
-		le_renderer::encoder_transfer_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
+		le_renderer::encoder_transfer_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, srcAccessMask, dstAccessMask, buffer, offset, range );
 		return *this;
 	}
 };

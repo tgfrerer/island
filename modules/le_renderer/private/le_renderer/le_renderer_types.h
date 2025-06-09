@@ -882,6 +882,7 @@ struct CommandBufferMemoryBarrier {
 	struct {
 		le::PipelineStageFlags2   srcStageMask;
 		le::PipelineStageFlags2   dstStageMask;
+		le::AccessFlags2          srcAccessMask;
 		le::AccessFlags2          dstAccessMask;
 		le_buffer_resource_handle buffer;
 		uint64_t                  offset;
