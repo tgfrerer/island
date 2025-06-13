@@ -2052,7 +2052,7 @@ static void frame_track_resource_state(
 
 		auto finalState{ sync_chain.back() };
 
-		if ( std::find( swapchain_images.begin(), swapchain_images.end(), resource_handle ) != swapchain_images.end() ) {
+		if (s_entry.first->data->type != LeResourceType::eBuffer && std::find( swapchain_images.begin(), swapchain_images.end(), resource_handle ) != swapchain_images.end() ) {
 			finalState.stage          = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT; // Everything: Drain the pipeline
 			finalState.visible_access = VK_ACCESS_2_MEMORY_READ_BIT;            // Cached memory must be made visible to memory read access ...
 			finalState.layout         = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;        // ... so that it can perform layout transition to present_src
