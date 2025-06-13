@@ -5291,6 +5291,7 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 				// print out sync chain for sampled image
 				logger().info( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
 				logger().info( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
+				logger().info( "\t --- : ------------------------------ : ------------------------------ : ----------" );
 
 				auto const& syncChain = frame.syncChainTable.at( op.resource );
 
