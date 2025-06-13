@@ -196,6 +196,7 @@ struct le_renderer_api {
 		void                         ( *dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
 		void                         ( *dispatch_indirect      )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const buf, uint64_t offset);
 		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  srcAccessMask, le::AccessFlags2 const  dstAccessMask, le_buffer_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
+		void 						 ( *fill_buffer            )( le_command_buffer_encoder_o* self, le_buffer_resource_handle buffer_id,uint64_t offset, uint64_t range, uint32_t data );
 	 };
 
 	struct command_buffer_transfer_encoder_interface_t{

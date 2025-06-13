@@ -1089,6 +1089,7 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	    .dispatch               = cbe_dispatch,
 	    .dispatch_indirect      = cbe_dispatch_indirect,
 	    .buffer_memory_barrier  = cbe_buffer_memory_barrier,
+	    .fill_buffer           = cbe_fill_buffer,
 	};
 
 	cbe_transfer_i = {

@@ -723,6 +723,11 @@ class ComputeEncoder {
 		le_renderer::encoder_compute_i.set_argument_image( self, imageId, argumentName, arrayIndex );
 		return *this;
 	}
+	
+	ComputeEncoder& fillBuffer( le_buffer_resource_handle const& dstBuffer, size_t const& byteOffsetDst, size_t const& numBytes, uint32_t const& data ) {
+		le_renderer::encoder_compute_i.fill_buffer( self, dstBuffer, byteOffsetDst, numBytes, data );
+		return *this;
+	}
 
 	ComputeEncoder& dispatch( const uint32_t& groupCountX = 1, const uint32_t& groupCountY = 1, const uint32_t& groupCountZ = 1 ) {
 		le_renderer::encoder_compute_i.dispatch( self, groupCountX, groupCountY, groupCountZ );
