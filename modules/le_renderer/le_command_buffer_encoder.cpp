@@ -140,6 +140,13 @@ static void cbe_dispatch( le_command_buffer_encoder_o* self, uint32_t groupCount
 
 // ----------------------------------------------------------------------
 
+static void cbe_dispatch_indirect( le_command_buffer_encoder_o* self, le_buffer_resource_handle const buf, uint64_t offset ) {
+	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandDispatchIndirect>(); // placement new!
+	cmd->info = { buf, offset };
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_fill_buffer( le_command_buffer_encoder_o* self, le_buffer_resource_handle buffer_id, uint64_t offset, uint64_t range, uint32_t data ) {
 	auto cmd  = self->mCommandStream->emplace_cmd<le::CommandFillBuffer>(); // placement new!
 	cmd->info = { buffer_id, offset, range, data };
@@ -1080,6 +1087,7 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	    .set_argument_texture   = cbe_set_argument_texture,
 	    .set_argument_image     = cbe_set_argument_image,
 	    .dispatch               = cbe_dispatch,
+	    .dispatch_indirect      = cbe_dispatch_indirect,
 	    .buffer_memory_barrier  = cbe_buffer_memory_barrier,
 	};
 

@@ -194,6 +194,7 @@ struct le_renderer_api {
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
+		void                         ( *dispatch_indirect      )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const buf, uint64_t offset);
 		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  srcAccessMask, le::AccessFlags2 const  dstAccessMask, le_buffer_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
 	 };
 

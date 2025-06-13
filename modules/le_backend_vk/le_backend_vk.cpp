@@ -6045,6 +6045,35 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
                         vkCmdFillBuffer( cmd, buffer, le_cmd->info.offset, le_cmd->info.range, le_cmd->info.data );
 
                     } break;
+                    case le::CommandType::eDispatchIndirect: {
+						auto* le_cmd = static_cast<le::CommandDispatchIndirect*>( dataIt );
+
+						// -- update descriptorsets via template if tainted
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+
+						if ( false == argumentsOk ) {
+							break;
+						}
+
+						// --------| invariant: arguments were updated successfully
+
+						if ( argumentState.setCount > 0 ) {
+
+							vkCmdBindDescriptorSets( cmd,
+							                         VK_PIPELINE_BIND_POINT_COMPUTE,
+							                         currentPipelineLayout,
+							                         0,
+							                         argumentState.setCount,
+							                         descriptorSets,
+							                         argumentState.dynamicOffsetCount,
+							                         argumentState.dynamicOffsets.data() );
+						}
+
+						auto buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer );
+
+						vkCmdDispatchIndirect( cmd, buffer, le_cmd->info.offset);
+
+					} break;
                     case le::CommandType::eDispatch: {
 						auto* le_cmd = static_cast<le::CommandDispatch*>( dataIt );
 
@@ -6434,7 +6463,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							bindingData->imageInfo.imageLayout = le::ImageLayout::eGeneral;
 							bindingData->imageInfo.imageView   = foundImgView->second;
 
-							bindingData->type       = le::DescriptorType::eStorageImage;
+							// FIXME - we don't need to override the binding data here -- it's already set correctly 
+							// via descriptor.
+							// bindingData->type       = le::DescriptorType::eStorageImage;
 							bindingData->arrayIndex = uint32_t( le_cmd->info.array_index );
 						} else {
 							logger().error( "Could not find binding at set: %d, binding: %d.", b->setIndex, b->binding );

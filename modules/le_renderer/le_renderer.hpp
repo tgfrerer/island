@@ -728,6 +728,11 @@ class ComputeEncoder {
 		le_renderer::encoder_compute_i.dispatch( self, groupCountX, groupCountY, groupCountZ );
 		return *this;
 	}
+	
+	ComputeEncoder& dispatchIndirect(le_buffer_resource_handle buf, const uint64_t& offset=0) {
+		le_renderer::encoder_compute_i.dispatch_indirect(self, buf, offset);
+		return *this;
+	}
 
 	ComputeEncoder& bufferMemoryBarrier(
 	    le::PipelineStageFlags2 const&   srcStageMask,

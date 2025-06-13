@@ -784,6 +784,7 @@ enum class CommandType : uint32_t {
 	eDrawMeshTasks,
 	eDrawMeshTasksNV,
 	eDispatch,
+	eDispatchIndirect,
 	eFillBuffer,
 	eBufferMemoryBarrier,
 	eTraceRays,
@@ -863,6 +864,14 @@ struct CommandDispatch {
 		uint32_t groupCountY;
 		uint32_t groupCountZ;
 		uint32_t __padding__;
+	} info;
+};
+
+struct CommandDispatchIndirect {
+	CommandHeader header = { { { CommandType::eDispatchIndirect, sizeof( CommandDispatchIndirect ) } } };
+	struct {
+		le_buffer_resource_handle buffer;
+		uint64_t                  offset;
 	} info;
 };
 
