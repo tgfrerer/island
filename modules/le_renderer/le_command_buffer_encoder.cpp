@@ -289,7 +289,7 @@ static void cbe_set_scissor( le_command_buffer_encoder_o* self,
                              le::Rect2D const*            pScissors ) {
 
 	uint32_t data_size = sizeof( le::Rect2D ) * scissorCount;
-	auto   cmd       = self->mCommandStream->emplace_cmd<le::CommandSetScissor>( data_size ); // placement new!
+	auto     cmd       = self->mCommandStream->emplace_cmd<le::CommandSetScissor>( data_size ); // placement new!
 
 	// We point to the next available position in the data stream
 	// so that we can store the data for scissors inline.
@@ -317,7 +317,7 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*     self,
 	uint32_t data_offsets_size = ( sizeof( uint64_t ) ) * bindingCount;
 
 	uint32_t data_size = data_buffers_size + data_offsets_size;
-	auto   cmd       = self->mCommandStream->emplace_cmd<le::CommandBindVertexBuffers>( data_size ); // placement new!
+	auto     cmd       = self->mCommandStream->emplace_cmd<le::CommandBindVertexBuffers>( data_size ); // placement new!
 
 	le_buffer_resource_handle* dataBuffers = ( le_buffer_resource_handle* )( cmd + 1 );
 	uint64_t*                  dataOffsets = ( uint64_t* )( dataBuffers + bindingCount ); // start address for offset data
@@ -841,9 +841,9 @@ static void cbe_map_image( le_command_buffer_encoder_o*        self,
                            size_t                              numBytes,
                            void**                              p_mem_addr ) {
 
-    // ----------| invariant: resource info represents an image
+	// ----------| invariant: resource info represents an image
 
-    auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToImage>();
+	auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToImage>();
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 	le_buffer_resource_handle stagingBufferId;
@@ -907,8 +907,8 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o*         self,
 	}
 
 	uint32_t data_size = sizeof( le_resource_handle ) * handles_count;
-	auto   cmd       = self->mCommandStream->emplace_cmd<le::CommandBuildRtxBlas>( data_size );
-	void*  data      = cmd + 1;
+	auto     cmd       = self->mCommandStream->emplace_cmd<le::CommandBuildRtxBlas>( data_size );
+	void*    data      = cmd + 1;
 
 	cmd->info                    = {};
 	cmd->info.blas_handles_count = handles_count;
