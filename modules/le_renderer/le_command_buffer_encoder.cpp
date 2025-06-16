@@ -484,14 +484,13 @@ static void cbe_set_argument_texture( le_command_buffer_encoder_o* self, le_text
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_image( le_command_buffer_encoder_o* self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex, bool read_only ) {
+static void cbe_set_argument_image( le_command_buffer_encoder_o* self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandSetArgumentImage>();
 
 	cmd->info.argument_name_id = argumentName;
 	cmd->info.image_id         = imageId;
 	cmd->info.array_index      = arrayIndex;
-	cmd->info.read_only        = read_only;
 }
 
 // ----------------------------------------------------------------------
