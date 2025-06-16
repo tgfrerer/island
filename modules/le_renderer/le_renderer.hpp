@@ -588,8 +588,13 @@ class GraphicsEncoder {
 		return *this;
 	}
 
-	GraphicsEncoder& setArgumentImage( uint64_t const& argumentName, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
-		le_renderer::encoder_graphics_i.set_argument_image( self, imageId, argumentName, arrayIndex );
+	GraphicsEncoder& setArgumentReadOnlyImage( uint64_t const& argumentName, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
+		le_renderer::encoder_graphics_i.set_argument_image( self, imageId, argumentName, arrayIndex, true );
+		return *this;
+	}
+
+	GraphicsEncoder& setArgumentImage( uint64_t const& argumentName, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0, bool read_only = false ) {
+		le_renderer::encoder_graphics_i.set_argument_image( self, imageId, argumentName, arrayIndex, read_only );
 		return *this;
 	}
 
@@ -719,11 +724,16 @@ class ComputeEncoder {
 		return *this;
 	}
 
-	ComputeEncoder& setArgumentImage( uint64_t const& argumentName, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
-		le_renderer::encoder_compute_i.set_argument_image( self, imageId, argumentName, arrayIndex );
+	ComputeEncoder& setArgumentReadOnlyImage( uint64_t const& argumentName, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
+		le_renderer::encoder_compute_i.set_argument_image( self, imageId, argumentName, arrayIndex, true );
 		return *this;
 	}
-	
+
+	ComputeEncoder& setArgumentImage( uint64_t const& argumentName, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0, bool read_only = false ) {
+		le_renderer::encoder_compute_i.set_argument_image( self, imageId, argumentName, arrayIndex, read_only );
+		return *this;
+	}
+
 	ComputeEncoder& fillBuffer( le_buffer_resource_handle const& dstBuffer, size_t const& byteOffsetDst, size_t const& numBytes, uint32_t const& data ) {
 		le_renderer::encoder_compute_i.fill_buffer( self, dstBuffer, byteOffsetDst, numBytes, data );
 		return *this;

@@ -967,6 +967,7 @@ struct CommandSetArgumentImage {
 		uint64_t                 argument_name_id; // const_char_hash id of argument name
 		le_image_resource_handle image_id;         // image resource id,
 		uint64_t                 array_index;      // argument array index (default is 0)
+		uint64_t                 read_only;        // default false
 	} info;
 };
 
