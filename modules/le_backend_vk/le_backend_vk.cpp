@@ -5340,6 +5340,110 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 
 // ----------------------------------------------------------------------
 
+static void bind_pipeline(
+    le_pipeline_and_layout_info_t& currentPipeline,
+    le_pipeline_and_layout_info_t& requestedPipeline,
+    VkPipelineLayout&              currentPipelineLayout,
+    le_pipeline_manager_o*         pipelineManager,
+    ArgumentState&                 argumentState,
+    VkCommandBuffer& cmd, VkPipelineBindPoint bind_point ) {
+
+	using namespace le_renderer;   // for encoder
+	using namespace le_backend_vk; // for device
+
+	if ( !is_equal( currentPipeline, requestedPipeline ) ) {
+		// update current pipeline
+		currentPipeline = requestedPipeline;
+		// -- grab current pipeline layout from cache
+		currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
+		// -- update pipelineData - that's the data values for all descriptors which are currently bound
+
+		argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
+		argumentState.binding_infos.clear();
+
+		// -- reset dynamic offset count
+		argumentState.dynamicOffsetCount = 0;
+
+		// let's create descriptorData vector based on current bindings-
+		for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
+
+			// look up set layout info via set layout key
+			auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+
+			// If we store binding information with the set layout, then we
+			// get a different set layout info if a set has its members
+			// named differently, even if that does not have any influence
+			// on which vulkan objects are referenced. this it because we
+			// build the argument state object from the binding information
+			// associated with a pipeline.
+
+			auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
+
+			auto& setData = argumentState.setData[ setId ];
+
+			argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
+			argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
+
+			setData.clear();
+			setData.reserve( setLayoutInfo->binding_info.size() );
+
+			for ( auto b : setLayoutInfo->binding_info ) {
+
+				if ( b.count == 0 ) {
+					// If this is a placeholder binding, we continue early -
+					// this means that this binding will not be added to argumentState.
+					continue;
+				}
+
+				// ----------| invariant: b.count > 0
+
+				// add an entry for each array element with this binding to setData
+				for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
+					DescriptorData descriptorData{};
+
+					descriptorData.type          = b.type;
+					descriptorData.bindingNumber = uint32_t( b.binding );
+					descriptorData.arrayIndex    = uint32_t( arrayIndex );
+
+					if ( b.type == le::DescriptorType::eStorageBuffer ||
+					     b.type == le::DescriptorType::eUniformBuffer ||
+					     b.type == le::DescriptorType::eStorageBufferDynamic ||
+					     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+
+						descriptorData.bufferInfo.range = b.range;
+					}
+
+					setData.emplace_back( descriptorData );
+				}
+
+				if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+				     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+					assert( b.count != 0 ); // count cannot be 0
+
+					// store dynamic offset index for this element
+					b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
+
+					// increase dynamic offset count by number of elements in this binding
+					argumentState.dynamicOffsetCount += b.count;
+				}
+
+				// add this binding to list of current bindings
+				argumentState.binding_infos.push_back( b );
+			}
+		}
+
+		vkCmdBindPipeline( cmd, bind_point, currentPipeline.pipeline );
+	} else {
+		// Re-using previously bound pipeline. We may keep argumentState state as it is.
+	}
+
+	// -- Reset dynamic offsets in argumentState:
+	// we do this regardless of whether pipeline was already bound,
+	// because binding a pipeline should always reset parameters associated
+	// with the pipeline.
+	memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
+}
+
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
@@ -5673,105 +5777,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							auto requestedPipeline = le_pipeline_manager_i.produce_graphics_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
 
 							if ( /* DISABLES CODE */ ( false ) ) {
-
 								// Print pipeline debug info when a new pipeline gets bound.
-
 								logger().info( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
 								debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
 							}
 
-							if ( !is_equal( currentPipeline, requestedPipeline ) ) {
-								// update current pipeline
-								currentPipeline = requestedPipeline;
-								// -- grab current pipeline layout from cache
-								currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
-								// -- update pipelineData - that's the data values for all descriptors which are currently bound
-
-								argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
-								argumentState.binding_infos.clear();
-
-								// -- reset dynamic offset count
-								argumentState.dynamicOffsetCount = 0;
-
-								// let's create descriptorData vector based on current bindings-
-								for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
-
-									// look up set layout info via set layout key
-									auto const& set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
-
-									// If we store binding information with the set layout, then we
-									// get a different set layout info if a set has its members
-									// named differently, even if that does not have any influence
-									// on which vulkan objects are referenced. this it because we
-									// build the argument state object from the binding information
-									// associated with a pipeline.
-
-									auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
-
-									auto& setData = argumentState.setData[ setId ];
-
-									argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
-									argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
-
-									setData.clear();
-									setData.reserve( setLayoutInfo->binding_info.size() );
-
-									for ( auto b : setLayoutInfo->binding_info ) {
-
-										if ( b.count == 0 ) {
-											// If this is a placeholder binding, we continue early -
-											// this means that this binding will not be added to argumentState.
-											continue;
-										}
-
-										// ----------| invariant: b.count > 0
-
-										// add an entry for each array element with this binding to setData
-										for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-											DescriptorData descriptorData{};
-
-											descriptorData.type          = b.type;
-											descriptorData.bindingNumber = uint32_t( b.binding );
-											descriptorData.arrayIndex    = uint32_t( arrayIndex );
-
-											if ( b.type == le::DescriptorType::eStorageBuffer ||
-											     b.type == le::DescriptorType::eUniformBuffer ||
-											     b.type == le::DescriptorType::eStorageBufferDynamic ||
-											     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-
-												descriptorData.bufferInfo.range = b.range;
-											}
-
-											setData.emplace_back( descriptorData );
-										}
-
-										if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
-										     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-											assert( b.count != 0 ); // count cannot be 0
-
-											// store dynamic offset index for this element
-											b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
-
-											// increase dynamic offset count by number of elements in this binding
-											argumentState.dynamicOffsetCount += b.count;
-										}
-
-										// add this binding to list of current bindings
-										argumentState.binding_infos.push_back( b );
-									}
-								}
-
-								vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline.pipeline );
-							} else {
-								// Re-using previously bound pipeline. We may keep argumentState state as it is.
-							}
-
-							// -- Reset dynamic offsets in argumentState:
-							// we do this regardless of whether pipeline was already bound,
-							// because binding a pipeline should always reset parameters associated
-							// with the pipeline.
-
-							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
+							bind_pipeline( currentPipeline, requestedPipeline, currentPipelineLayout, pipelineManager, argumentState, cmd, VK_PIPELINE_BIND_POINT_GRAPHICS );
 
 						} else {
 							// -- TODO: warn that graphics pipelines may only be bound within
@@ -5786,12 +5797,15 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							using namespace le_backend_vk;
 							// -- potentially compile and create pipeline here, based on current pass and subpass
-							currentPipeline = le_pipeline_manager_i.produce_compute_pipeline( pipelineManager, le_cmd->info.cpsoHandle );
+							auto requestedPipeline = le_pipeline_manager_i.produce_compute_pipeline( pipelineManager, le_cmd->info.cpsoHandle );
 
-							// -- grab current pipeline layout from cache
-							currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
+#ifndef DISABLE_FEATURE_UNIFIED_PIPELINE_BINDING
+							bind_pipeline( currentPipeline, requestedPipeline, currentPipelineLayout, pipelineManager, argumentState, cmd, VK_PIPELINE_BIND_POINT_COMPUTE );
 
+#else
 							{
+								// -- grab current pipeline layout from cache
+								currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, requestedPipeline.layout_info.pipeline_layout_key );
 								// -- update pipelineData - that's the data values for all descriptors which are currently bound
 
 								argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
@@ -5853,12 +5867,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 								// we write directly into descriptorsetstate when we update descriptors.
 								// when we bind a pipeline, we update the descriptorsetstate based
 								// on what the pipeline requires.
+								vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, currentPipeline.pipeline );
 							}
-							vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, currentPipeline.pipeline );
 
+#endif
 						} else {
-							// -- TODO: warn that compute pipelines may only be bound within
-							// compute passes.
+							logger().error( "Compute pipelines may only be bound within compute passes." );
 						}
 
 					} break;
@@ -6459,12 +6473,26 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							// ----------| invariant: image view has been found
 
-							// FIXME: (sync) image layout at this point *must* be general, if we wanted to write to this image.
-							bindingData->imageInfo.imageLayout = le::ImageLayout::eGeneral;
-							bindingData->imageInfo.imageView   = foundImgView->second;
+							// If we want to write to image, the Image layout *MUST* be GENERAL,
+							// otherwise the layout can be ReadOnlyOptimal.
+							//
 
-							// FIXME - we don't need to override the binding data here -- it's already set correctly 
-							// via descriptor.
+							switch ( bindingData->type ) {
+							case le::DescriptorType::eSampledImage: {
+								// Sampled Images are always read only optimal
+								bindingData->imageInfo.imageLayout = le::ImageLayout::eReadOnlyOptimal;
+							} break;
+							case le::DescriptorType::eStorageImage: {
+								// In case we have a
+								bindingData->imageInfo.imageLayout = le_cmd->info.read_only ? le::ImageLayout::eReadOnlyOptimal : le::ImageLayout::eGeneral;
+							} break;
+							default:
+								logger().error( "Unhandled descriptor type for setArgumentImage: %d", ( bindingData->type ) );
+							}
+
+							bindingData->imageInfo.imageView = foundImgView->second;
+
+							// We don't need to override the binding data here -- it's already set correctly via descriptor.
 							// bindingData->type       = le::DescriptorType::eStorageImage;
 							bindingData->arrayIndex = uint32_t( le_cmd->info.array_index );
 						} else {
