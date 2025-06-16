@@ -1856,7 +1856,7 @@ static std::string to_string_le_access_flags2( const le::AccessFlags2& tp ) {
 	return result;
 }
 // ----------------------------------------------------------------------
-// Updates sync chain for resourcess referenced in rendergraph
+// Updates sync chain for resources referenced in rendergraph
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
 // resource sync state for images used as renderpass attachments is chosen so that they
 // can be implicitly synced using subpass dependencies.
