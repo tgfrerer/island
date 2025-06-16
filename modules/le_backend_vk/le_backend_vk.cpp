@@ -5411,6 +5411,12 @@ static void bind_pipeline(
 					     b.type == le::DescriptorType::eUniformBufferDynamic ) {
 
 						descriptorData.bufferInfo.range = b.range;
+					} else if ( b.type == le::DescriptorType::eSampledImage ||
+					            b.type == le::DescriptorType::eCombinedImageSampler ) {
+						descriptorData.imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
+					} else if ( b.type == le::DescriptorType::eStorageImage ) {
+						// Layout must be general for a rw storage image
+						descriptorData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
 					}
 
 					setData.emplace_back( descriptorData );
@@ -6473,28 +6479,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							// ----------| invariant: image view has been found
 
-							// If we want to write to image, the Image layout *MUST* be GENERAL,
-							// otherwise the layout can be ReadOnlyOptimal.
-							//
-
-							switch ( bindingData->type ) {
-							case le::DescriptorType::eSampledImage: {
-								// Sampled Images are always read only optimal
-								bindingData->imageInfo.imageLayout = le::ImageLayout::eReadOnlyOptimal;
-							} break;
-							case le::DescriptorType::eStorageImage: {
-								// In case we have a
-								bindingData->imageInfo.imageLayout = le_cmd->info.read_only ? le::ImageLayout::eReadOnlyOptimal : le::ImageLayout::eGeneral;
-							} break;
-							default:
-								logger().error( "Unhandled descriptor type for setArgumentImage: %d", ( bindingData->type ) );
-							}
-
 							bindingData->imageInfo.imageView = foundImgView->second;
-
-							// We don't need to override the binding data here -- it's already set correctly via descriptor.
-							// bindingData->type       = le::DescriptorType::eStorageImage;
 							bindingData->arrayIndex = uint32_t( le_cmd->info.array_index );
+
 						} else {
 							logger().error( "Could not find binding at set: %d, binding: %d.", b->setIndex, b->binding );
 							assert( bindingData && "Could not find specified binding" );
