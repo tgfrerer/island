@@ -6432,10 +6432,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							// ----------| invariant: texture has been found
 
-							bindingData->imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
 							bindingData->imageInfo.sampler     = foundTex->second.sampler;
 							bindingData->imageInfo.imageView   = foundTex->second.imageView;
-							bindingData->type                  = le::DescriptorType::eCombinedImageSampler;
 						} else {
 							logger().error( "Could not find binding at set: %d, binding: %d, array index: %d.", b->setIndex, b->binding, arrayIndex );
 							assert( bindingData && "could not find specified binding." );
