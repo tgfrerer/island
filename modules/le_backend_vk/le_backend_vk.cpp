@@ -3771,7 +3771,12 @@ static void printResourceInfo( le_resource_handle const& handle, ResourceCreateI
 		logger().info( "%-15s : %-32s : %11d : %30s : %-30s", prefix, handle->data->debug_name, info.bufferInfo.size, "-",
 		               to_string_vk_buffer_usage_flags( info.bufferInfo.usage ).c_str() );
 	} else if ( info.isImage() ) {
-		logger().info( "%-15s : %-30s@%d : %dx%dx%d : %30s : %-30s",
+		char tmp_dim_str[ 60 ] = {};
+		snprintf( tmp_dim_str, sizeof( tmp_dim_str ) - 1, "%dx%dx%d",
+		          info.imageInfo.extent.width,
+		          info.imageInfo.extent.height,
+		          info.imageInfo.extent.depth );
+		logger().info( "%-15s : %-30s@%d : % 11s : %30s : %-30s",
 		               prefix,
 		               !( handle->data->debug_name[ 0 ] == '\0' )
 		                   ? handle->data->debug_name
@@ -3779,9 +3784,7 @@ static void printResourceInfo( le_resource_handle const& handle, ResourceCreateI
 		                   ? handle->data->reference_handle->data->debug_name
 		                   : "unnamed",
 		               uint32( info.imageInfo.samples ),
-		               info.imageInfo.extent.width,
-		               info.imageInfo.extent.height,
-		               info.imageInfo.extent.depth,
+		               tmp_dim_str,
 		               to_str_vk_format( info.imageInfo.format ),
 		               to_string_vk_image_usage_flags( info.imageInfo.usage ).c_str() );
 	} else if ( info.isBlas() ) {
