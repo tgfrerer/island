@@ -164,7 +164,7 @@ struct le_renderer_api {
 
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);
-		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex );
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
 		void                         ( *draw_indexed           )( le_command_buffer_encoder_o *self, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
