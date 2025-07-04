@@ -333,7 +333,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D>& geometry,
 		size_t const num_polylines = le_path_i.get_num_polylines( path );
 		for ( size_t i = 0; i != num_polylines; ++i ) {
 			num_used_vertices = vertices.size();
-			while ( false == le_path_i.get_vertices_for_polyline( path, i, vertices.data(), &num_used_vertices ) ) {
+			while ( false == le_path_i.get_vertices_for_polyline( path, i, ( float2* )vertices.data(), &num_used_vertices ) ) {
 				vertices.resize( num_used_vertices );
 			}
 			auto const* p_prev = vertices.data();
@@ -362,12 +362,12 @@ static void generate_geometry_outline_path( std::vector<VertexData2D>& geometry,
 
 				glm::vec2* v_l                   = vertices_l.data();
 				glm::vec2* v_r                   = vertices_r.data();
-				bool       vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
+				bool       vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, ( float2* )v_l, &num_vertices_l, ( float2* )v_r, &num_vertices_r );
 
 				if ( !vertices_large_enough ) {
 					vertices_l.resize( num_vertices_l + 1 );
 					vertices_r.resize( num_vertices_r + 1 );
-					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, vertices_l.data(), &num_vertices_l, vertices_r.data(), &num_vertices_r );
+					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, ( float2* )vertices_l.data(), &num_vertices_l, ( float2* )vertices_r.data(), &num_vertices_r );
 				}
 
 				// reverse elements
@@ -405,12 +405,12 @@ static void generate_geometry_outline_path( std::vector<VertexData2D>& geometry,
 				glm::vec2* v_l = vertices_l.data();
 				glm::vec2* v_r = vertices_r.data();
 
-				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
+				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, ( float2* )v_l, &num_vertices_l, ( float2* )v_r, &num_vertices_r );
 
 				if ( !vertices_large_enough ) {
 					vertices_l.resize( num_vertices_l + 1 );
 					vertices_r.resize( num_vertices_r + 1 );
-					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, vertices_l.data(), &num_vertices_l, vertices_r.data(), &num_vertices_r );
+					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, ( float2* )vertices_l.data(), &num_vertices_l, ( float2* )vertices_r.data(), &num_vertices_r );
 				}
 
 				// reverse elements
@@ -455,21 +455,21 @@ static void generate_geometry_outline_path( std::vector<VertexData2D>& geometry,
 				size_t num_vertices_l = vertices_l.size();
 				size_t num_vertices_r = vertices_r.size();
 
-				glm::vec2* v_l = vertices_l.data();
-				glm::vec2* v_r = vertices_r.data();
+				float2* v_l = ( float2* )vertices_l.data();
+				float2* v_r = ( float2* )vertices_r.data();
 
 				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
 
 				if ( !vertices_large_enough ) {
 					vertices_l.resize( num_vertices_l + 1 );
 					vertices_r.resize( num_vertices_r + 1 );
-					v_l = vertices_l.data();
-					v_r = vertices_r.data();
+					v_l = ( float2* )vertices_l.data();
+					v_r = ( float2* )vertices_r.data();
 					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
 				}
 
-				glm::vec2 const* l_prev = v_l;
-				glm::vec2 const* r_prev = v_r;
+				glm::vec2 const* l_prev = ( glm::vec2* )v_l;
+				glm::vec2 const* r_prev = ( glm::vec2* )v_r;
 
 				glm::vec2 const* l = l_prev + 1;
 				glm::vec2 const* r = r_prev + 1;
@@ -516,7 +516,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D>& geometry,
 				stroke_attribs.line_join_type = to_path_enum( material.stroke_join_type );
 				stroke_attribs.line_cap_type  = to_path_enum( material.stroke_cap_type );
 
-				while ( false == le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, v_data, &num_vertices ) ) {
+				while ( false == le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, ( float2* )v_data, &num_vertices ) ) {
 					vertices.resize( num_vertices );
 					v_data = vertices.data();
 				}
@@ -560,7 +560,7 @@ static void generate_geometry_path( std::vector<VertexData2D>& geometry, le_path
 
 		num_used_vertices = line_vertices.size();
 
-		while ( false == le_path_i.get_vertices_for_polyline( path, i, line_vertices.data(), &num_used_vertices ) ) {
+		while ( false == le_path_i.get_vertices_for_polyline( path, i, ( float2* )line_vertices.data(), &num_used_vertices ) ) {
 			line_vertices.resize( num_used_vertices );
 		}
 
@@ -978,7 +978,7 @@ static le_2d_primitive_o* le_2d_primitive_create_path_from( le_2d_o* context, le
 static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, vec2f const* pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.move_to( obj.path, pos );
+	le_path::le_path_i.move_to( obj.path, ( float2* )pos );
 }
 
 // ----------------------------------------------------------------------
@@ -986,7 +986,7 @@ static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, vec2f const* pos
 static void le_2d_primitive_path_line_to( le_2d_primitive_o* p, vec2f const* pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.line_to( obj.path, pos );
+	le_path::le_path_i.line_to( obj.path, ( float2* )pos );
 }
 
 // ----------------------------------------------------------------------
@@ -1001,7 +1001,7 @@ static void le_2d_primitive_path_close( le_2d_primitive_o* p ) {
 static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* c1, vec2f const* c2 ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.cubic_bezier_to( obj.path, pos, c1, c2 );
+	le_path::le_path_i.cubic_bezier_to( obj.path, ( float2* )pos, ( float2* )c1, ( float2* )c2 );
 }
 
 // ----------------------------------------------------------------------
@@ -1009,7 +1009,7 @@ static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, vec2f co
 static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* c1 ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.quad_bezier_to( obj.path, pos, c1 );
+	le_path::le_path_i.quad_bezier_to( obj.path, ( float2* )pos, ( float2* )c1 );
 }
 
 // ----------------------------------------------------------------------
@@ -1017,7 +1017,7 @@ static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, vec2f con
 static void le_2d_primitive_path_arc_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* radii, float phi, bool large_arc, bool sweep ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.arc_to( obj.path, pos, radii, phi, large_arc, sweep );
+	le_path::le_path_i.arc_to( obj.path, ( float2* )pos, ( float2* )radii, phi, large_arc, sweep );
 }
 
 // ----------------------------------------------------------------------
@@ -1033,7 +1033,7 @@ static void le_2d_primitive_path_hobby( le_2d_primitive_o* p ) {
 static void le_2d_primitive_path_ellipse( le_2d_primitive_o* p, vec2f const* centre, float r_x, float r_y ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.ellipse( obj.path, centre, r_x, r_y );
+	le_path::le_path_i.ellipse( obj.path, ( float2* )centre, r_x, r_y );
 }
 
 // ----------------------------------------------------------------------

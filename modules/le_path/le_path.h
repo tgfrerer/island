@@ -12,6 +12,11 @@
 
 struct le_path_o;
 
+struct float2 {
+	float x;
+	float y;
+};
+
 // clang-format off
 struct le_path_api {
 
@@ -34,8 +39,15 @@ struct le_path_api {
 		LineCapType  line_cap_type;
 	};
 
-	typedef void contour_vertex_cb( void* user_data, glm::vec2 const& p );
-	typedef void contour_quad_bezier_cb( void* user_data, glm::vec2 const& p0, glm::vec2 const& p1, glm::vec2 const& c );
+	typedef void contour_vertex_cb( void* user_data, float2 const* p );
+	typedef void contour_quad_bezier_cb( void* user_data, float2 const* p0, float2 const* p1, float2 const* c );
+
+	typedef void move_to_cb 		( void* self, float2 const* p );
+	typedef void line_to_cb 		( void* self, float2 const* p );
+	typedef void quad_bezier_to_cb 	( void* self, float2 const* p, float2 const* c1 );
+	typedef void cubic_bezier_to_cb ( void* self, float2 const* p, float2 const* c1, float2 const* c2 );
+	typedef void arc_to_cb 			( void* self, float2 const* p, float2 const* radii, float phi, bool large_arc, bool sweep );
+	typedef void close_cb  			( void* self );
 
 	struct le_path_interface_t {
 
@@ -44,19 +56,20 @@ struct le_path_api {
 		void ( *destroy 		)( le_path_o* self );
 		void ( *clear   		)( le_path_o* self );
 
-		void ( *move_to 		)( le_path_o* self, glm::vec2 const* p );
-		void ( *line_to 		)( le_path_o* self, glm::vec2 const* p );
-		void ( *quad_bezier_to 	)( le_path_o* self, glm::vec2 const* p, glm::vec2 const* c1 );
-		void ( *cubic_bezier_to )( le_path_o* self, glm::vec2 const* p, glm::vec2 const* c1, glm::vec2 const* c2 );
-		void ( *arc_to 			)( le_path_o* self, glm::vec2 const* p, glm::vec2 const* radii, float phi, bool large_arc, bool sweep );
-		void ( *close  			)( le_path_o* self );
+		// these methods are held generic so that we can use them as callbacks for iterators
+		move_to_cb*         move_to;
+		line_to_cb*         line_to;
+		quad_bezier_to_cb*  quad_bezier_to ;	
+		cubic_bezier_to_cb* cubic_bezier_to; 
+		arc_to_cb*          arc_to;	
+		close_cb*           close;	
 
 		// Apply hobby algorithm onto path - any instructions apart from `moveto` and
 		// `close` will be turned into cubic bezier instructions.
 		void ( *hobby )( le_path_o* self );
 
 		// Macro - style commands which resolve to a series of subcommands from above
-		void ( *ellipse )( le_path_o* self, glm::vec2 const* centre, float r_x, float r_y );
+		void ( *ellipse )( le_path_o* self, float2 const* centre, float r_x, float r_y );
 
 		void ( *add_from_simplified_svg )( le_path_o* self, char const* svg );
 
@@ -76,11 +89,11 @@ struct le_path_api {
 		// Returns false if either given `max_count_outline_[l|r]` was less than the number of vertices needed
 		// Returns true if max_count_outline_[l|r] was sufficient to hold vertices for l and r outline: also
 		// writes vertex data to `outline_l_` and `outline_r_`.
-		bool ( *generate_offset_outline_for_contour )( le_path_o* self, size_t contour_index, float line_weight, float tolerance, glm::vec2* outline_l_, size_t* max_count_outline_l, glm::vec2* outline_r_, size_t* max_count_outline_r );
+		bool ( *generate_offset_outline_for_contour )( le_path_o* self, size_t contour_index, float line_weight, float tolerance, float2* outline_l_, size_t* max_count_outline_l, float2* outline_r_, size_t* max_count_outline_r );
 
 		/// Returns `false` if num_vertices was smaller than needed number of vertices.
 		/// Note: Upon return, `*num_vertices` will contain number of vertices needed to describe tessellated contour triangles.
-		bool ( *tessellate_thick_contour )( le_path_o* self, size_t contour_index, struct stroke_attribute_t const* stroke_attributes, glm::vec2* vertices, size_t* num_vertices );
+		bool ( *tessellate_thick_contour )( le_path_o* self, size_t contour_index, struct stroke_attribute_t const* stroke_attributes, float2* vertices, size_t* num_vertices );
 
 		size_t ( *get_num_contours  )( le_path_o* self );
 		size_t ( *get_num_polylines )( le_path_o* self );
@@ -98,11 +111,11 @@ struct le_path_api {
 		//      + Updates `vertices` with vertex data from polyline at `polyline_index`
 		// Else
 		//      + Returns false
-		bool ( *get_vertices_for_polyline        )( le_path_o* self, size_t const& polyline_index, glm::vec2* vertices, size_t* numVertices );
-		bool ( *get_tangents_for_polyline        )( le_path_o* self, size_t const& polyline_index, glm::vec2* tangents, size_t* numTangents );
+		bool ( *get_vertices_for_polyline        )( le_path_o* self, size_t const& polyline_index, float2* vertices, size_t* numVertices );
+		bool ( *get_tangents_for_polyline        )( le_path_o* self, size_t const& polyline_index, float2* tangents, size_t* numTangents );
 
-		void ( *get_polyline_tangent_at_pos_interpolated )( le_path_o* self, size_t const& polyline_index, float normPos, glm::vec2* result );
-		void ( *get_polyline_at_pos_interpolated )( le_path_o* self, size_t const& polyline_index, float normPos, glm::vec2* result );
+		void ( *get_polyline_tangent_at_pos_interpolated )( le_path_o* self, size_t const& polyline_index, float normPos, float2* result );
+		void ( *get_polyline_at_pos_interpolated )( le_path_o* self, size_t const& polyline_index, float normPos, float2* result );
 
 		void ( *iterate_vertices_for_contour     )( le_path_o* self, size_t const& contour_index, contour_vertex_cb callback, void* user_data );
 		void ( *iterate_quad_beziers_for_contour )( le_path_o* self, size_t const& contour_index, contour_quad_bezier_cb callback, void* user_data );
@@ -172,37 +185,37 @@ class Path {
 
 	// --
 
-	Path& moveTo( glm::vec2 const& p ) {
+	Path& moveTo( float2 const& p ) {
 		le_path::le_path_i.move_to( self, &p );
 		return *this;
 	}
 
-	Path& lineTo( glm::vec2 const& p ) {
+	Path& lineTo( float2 const& p ) {
 		le_path::le_path_i.line_to( self, &p );
 		return *this;
 	}
 
-	Path& quadBezierTo( glm::vec2 const& p, glm::vec2 const& c1 ) {
+	Path& quadBezierTo( float2 const& p, float2 const& c1 ) {
 		le_path::le_path_i.quad_bezier_to( self, &p, &c1 );
 		return *this;
 	}
 
-	Path& cubicBezierTo( glm::vec2 const& p, glm::vec2 const& c1, glm::vec2 const& c2 ) {
+	Path& cubicBezierTo( float2 const& p, float2 const& c1, float2 const& c2 ) {
 		le_path::le_path_i.cubic_bezier_to( self, &p, &c1, &c2 );
 		return *this;
 	}
 
-	Path& arcTo( glm::vec2 const& p, glm::vec2 const& radii, float phi, bool large_arc, bool sweep ) {
+	Path& arcTo( float2 const& p, float2 const& radii, float phi, bool large_arc, bool sweep ) {
 		le_path::le_path_i.arc_to( self, &p, &radii, phi, large_arc, sweep );
 		return *this;
 	}
 
-	Path& ellipse( glm::vec2 const& centre, float radiusX, float radiusY ) {
+	Path& ellipse( float2 const& centre, float radiusX, float radiusY ) {
 		le_path::le_path_i.ellipse( self, &centre, radiusX, radiusY );
 		return *this;
 	}
 
-	Path& circle( glm::vec2 const& centre, float radius ) {
+	Path& circle( float2 const& centre, float radius ) {
 		le_path::le_path_i.ellipse( self, &centre, radius, radius );
 		return *this;
 	}
@@ -240,19 +253,19 @@ class Path {
 		return le_path::le_path_i.get_num_contours( self );
 	}
 
-	bool getVerticesForPolyline( size_t const& polyline_index, glm::vec2* vertices, size_t* numVertices ) {
+	bool getVerticesForPolyline( size_t const& polyline_index, float2* vertices, size_t* numVertices ) {
 		return le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
 	}
 
-	bool getTangentsForPolyline( size_t const& polyline_index, glm::vec2* tangents, size_t* numTangents ) {
+	bool getTangentsForPolyline( size_t const& polyline_index, float2* tangents, size_t* numTangents ) {
 		return le_path::le_path_i.get_tangents_for_polyline( self, polyline_index, tangents, numTangents );
 	}
 
-	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) const {
+	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, float2* vertex ) const {
 		le_path::le_path_i.get_polyline_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
 	}
 
-	void getPolylineTangentAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) const {
+	void getPolylineTangentAtPos( size_t const& polylineIndex, float normalizedPos, float2* vertex ) const {
 		le_path::le_path_i.get_polyline_tangent_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
 	}
 

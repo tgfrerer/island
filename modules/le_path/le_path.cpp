@@ -15,10 +15,14 @@
 #include "glm/gtx/vector_angle.hpp"
 #include "glm/gtx/rotate_vector.hpp"
 
-
 using stroke_attribute_t = le_path_api::stroke_attribute_t;
 
 static auto logger = le::Log( "le_path" );
+
+// some static asserts to make sure that we can internally pun float2 to glm::vec2
+static_assert( sizeof( glm::vec2 ) == sizeof( float2 ), "float2 and glm::vec2 must have the same size" );
+static_assert( offsetof( glm::vec2, x ) == offsetof( float2, x ), "placement of x must be identical in float2 and glm::vec2" );
+static_assert( offsetof( glm::vec2, y ) == offsetof( float2, y ), "placement of y must be identical in float2 and glm::vec2" );
 
 struct PathCommand {
 
@@ -450,7 +454,7 @@ static bool calculate_arc_details(
     glm::vec2*       r_out,
     float*           theta_out,
     float*           theta_end_out ) {
-    // ---------| Invariant: radii.x and radii.y are not 0.
+	// ---------| Invariant: radii.x and radii.y are not 0.
 
 	// First, we perform an endpoint to centre form conversion, following the
 	// implementation notes of the w3/svg standards group.
@@ -1559,10 +1563,10 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2>& outline_l,
 // <https://doi.org/10.1016/j.cag.2005.08.002>
 static bool le_path_generate_offset_outline_for_contour(
     le_path_o* self, size_t contour_index,
-    float      line_weight,
-    float      tolerance,
-    glm::vec2* outline_l_, size_t* max_count_outline_l,
-    glm::vec2* outline_r_, size_t* max_count_outline_r ) {
+    float   line_weight,
+    float   tolerance,
+    float2* outline_l_, size_t* max_count_outline_l,
+    float2* outline_r_, size_t* max_count_outline_r ) {
 
 	// We allocate space internally to store the results of our outline generation.
 	// We do this because if we were to directly write back to the caller, we would
@@ -2010,7 +2014,8 @@ void tessellate_outline_l_r( std::vector<glm::vec2>& triangles, std::vector<glm:
 
 // ----------------------------------------------------------------------
 
-bool le_path_tessellate_thick_contour( le_path_o* self, size_t contour_index, le_path_api::stroke_attribute_t const* stroke_attributes, glm::vec2* vertices, size_t* num_vertices ) {
+bool le_path_tessellate_thick_contour(
+    le_path_o* self, size_t contour_index, le_path_api::stroke_attribute_t const* stroke_attributes, float2* vertices, size_t* num_vertices ) {
 	std::vector<glm::vec2> triangles;
 
 	triangles.reserve( *num_vertices );
@@ -2199,10 +2204,10 @@ static void le_path_iterate_vertices_for_contour( le_path_o* self, size_t const&
 		case PathCommand::eQuadBezierTo:  // fall-through, as we're allways just issueing the vertex, ignoring control points
 		case PathCommand::eCubicBezierTo: // fall-through, as we're allways just issueing the vertex, ignoring control points
 		case PathCommand::eArcTo:         // fall-through, as we're allways just issueing the vertex, ignoring control points
-			callback( user_data, command.p );
+			callback( user_data, ( float2 const* )( &command.p ) );
 			break;
 		case PathCommand::eClosePath:
-			callback( user_data, s.commands[ 0 ].p ); // re-issue first vertex
+			callback( user_data, ( float2 const* )( &s.commands[ 0 ].p ) ); // re-issue first vertex
 			break;
 		case PathCommand::eUnknown:
 			assert( false );
@@ -2231,7 +2236,7 @@ static void le_path_iterate_quad_beziers_for_contour( le_path_o* self, size_t co
 			p0 = command.p;
 			break;
 		case PathCommand::eQuadBezierTo:
-			callback( user_data, p0, command.p, command.data.as_quad_bezier.c1 );
+			callback( user_data, ( float2 const* )( &p0 ), ( float2 const* )( &command.p ), ( float2 const* )( &command.data.as_quad_bezier.c1 ) );
 			p0 = command.p;
 			break;
 		case PathCommand::eArcTo:
@@ -2286,10 +2291,10 @@ static void le_polyline_get_at( Polyline const& polyline, float t, glm::vec2* re
 
 // ----------------------------------------------------------------------
 // return calculated position on polyline
-static void le_path_get_polyline_at_pos_interpolated( le_path_o* self, size_t const& polyline_index, float t, glm::vec2* result ) {
+static void le_path_get_polyline_at_pos_interpolated( le_path_o* self, size_t const& polyline_index, float t, float2* result ) {
 	assert( result );
 	assert( polyline_index < self->polylines.size() );
-	le_polyline_get_at( self->polylines[ polyline_index ], t, result );
+	le_polyline_get_at( self->polylines[ polyline_index ], t, ( glm::vec2* )( result ) );
 }
 
 // ----------------------------------------------------------------------
@@ -2329,10 +2334,10 @@ static void le_polyline_get_tangent_at( Polyline const& polyline, float t, glm::
 
 // ----------------------------------------------------------------------
 // return interpolated tangent on polyline
-static void le_path_get_polyline_tangent_at_pos_interpolated( le_path_o* self, size_t const& polyline_index, float t, glm::vec2* result ) {
+static void le_path_get_polyline_tangent_at_pos_interpolated( le_path_o* self, size_t const& polyline_index, float t, float2* result ) {
 	assert( result );
 	assert( polyline_index < self->polylines.size() );
-	le_polyline_get_tangent_at( self->polylines[ polyline_index ], t, result );
+	le_polyline_get_tangent_at( self->polylines[ polyline_index ], t, ( glm::vec2* )( result ) );
 }
 
 // ----------------------------------------------------------------------
@@ -2448,21 +2453,23 @@ static void le_path_resample( le_path_o* self, float interval ) {
 
 // ----------------------------------------------------------------------
 
-static void le_path_move_to( le_path_o* self, glm::vec2 const* p ) {
+static void le_path_move_to( void* user_data, float2 const* p ) {
+	auto self = ( le_path_o* )user_data;
 	// move_to means a new subpath, unless the last command was a
 	self->contours.emplace_back(); // add empty subpath
-	self->contours.back().commands.emplace_back( PathCommand::eMoveTo, *p );
+	self->contours.back().commands.emplace_back( PathCommand::eMoveTo, *( glm::vec2* )( p ) );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_line_to( le_path_o* self, glm::vec2 const* p ) {
+static void le_path_line_to( void* user_data, float2 const* p ) {
+	auto self = ( le_path_o* )user_data;
 	if ( self->contours.empty() ) {
 		constexpr static auto v0 = glm::vec2{};
-		le_path_move_to( self, &v0 );
+		le_path_move_to( self, ( float2* )&v0 );
 	}
 	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( PathCommand::eLineTo, *p );
+	self->contours.back().commands.emplace_back( PathCommand::eLineTo, *( glm::vec2* )( p ) );
 }
 
 // ----------------------------------------------------------------------
@@ -2508,7 +2515,7 @@ static void le_path_line_horiz_to( le_path_o* self, float px ) {
 	if ( p ) {
 		glm::vec2 p2 = *p;
 		p2.x         = px;
-		le_path_line_to( self, &p2 );
+		le_path_line_to( self, ( float2* )( &p2 ) );
 	}
 }
 
@@ -2523,34 +2530,38 @@ static void le_path_line_vert_to( le_path_o* self, float py ) {
 	if ( p ) {
 		glm::vec2 p2 = *p;
 		p2.y         = py;
-		le_path_line_to( self, &p2 );
+		le_path_line_to( self, ( float2* )( &p2 ) );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_quad_bezier_to( le_path_o* self, glm::vec2 const* p, glm::vec2 const* c1 ) {
+static void le_path_quad_bezier_to( void* user_data, float2 const* p, float2 const* c1 ) {
+	auto self = ( le_path_o* )user_data;
 	assert( !self->contours.empty() ); // contour must exist
-	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsQuadBezier{ *c1 } );
+	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsQuadBezier{ *( glm::vec2* )( c1 ) } );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_cubic_bezier_to( le_path_o* self, glm::vec2 const* p, glm::vec2 const* c1, glm::vec2 const* c2 ) {
+static void le_path_cubic_bezier_to( void* user_data, float2 const* p, float2 const* c1, float2 const* c2 ) {
+	auto self = ( le_path_o* )user_data;
 	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsCubicBezier{ *c1, *c2 } );
+	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsCubicBezier{ *( glm::vec2* )( c1 ), *( glm::vec2* )( c2 ) } );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_arc_to( le_path_o* self, glm::vec2 const* p, glm::vec2 const* radii, float phi, bool large_arc, bool sweep ) {
+static void le_path_arc_to( void* user_data, float2 const* p, float2 const* radii, float phi, bool large_arc, bool sweep ) {
+	auto self = ( le_path_o* )user_data;
 	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsArc{ *radii, phi, large_arc, sweep } );
+	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsArc{ *( glm::vec2* )( radii ), phi, large_arc, sweep } );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_close_path( le_path_o* self ) {
+static void le_path_close_path( void* user_data ) {
+	auto      self        = ( le_path_o* )user_data;
 	glm::vec2 first_point = {};
 	if ( !self->contours.back().commands.empty() ) {
 		if ( self->contours.back().commands.front().type == PathCommand::eMoveTo ) {
@@ -2777,22 +2788,22 @@ static void le_path_apply_hobby_on_last_contour( le_path_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_path_ellipse( le_path_o* self, glm::vec2 const* centre, float r_x, float r_y ) {
+static void le_path_ellipse( le_path_o* self, float2 const* centre, float r_x, float r_y ) {
 	glm::vec2 radii = glm::vec2{ r_x, r_y };
 
-	glm::vec2 a0 = *centre + glm::vec2{ r_x, 0 };
-	le_path_move_to( self, &a0 );
+	glm::vec2 a0 = *( glm::vec2* )( centre ) + glm::vec2{ r_x, 0 };
+	le_path_move_to( self, ( float2* )( &a0 ) );
 
-	glm::vec2 a1 = *centre + glm::vec2{ 0, -r_y };
-	le_path_arc_to( self, &a1, &radii, 0, false, false );
+	glm::vec2 a1 = *( glm::vec2* )( centre ) + glm::vec2{ 0, -r_y };
+	le_path_arc_to( self, ( float2* )( &a1 ), ( float2* )( &radii ), 0, false, false );
 
-	glm::vec2 a2 = *centre + glm::vec2{ -r_x, 0 };
-	le_path_arc_to( self, &a2, &radii, 0, false, false );
+	glm::vec2 a2 = *( glm::vec2* )( centre ) + glm::vec2{ -r_x, 0 };
+	le_path_arc_to( self, ( float2* )( &a2 ), ( float2* )( &radii ), 0, false, false );
 
-	glm::vec2 a3 = *centre + glm::vec2{ 0, r_y };
-	le_path_arc_to( self, &a3, &radii, 0, false, false );
+	glm::vec2 a3 = *( glm::vec2* )( centre ) + glm::vec2{ 0, r_y };
+	le_path_arc_to( self, ( float2* )( &a3 ), ( float2* )( &radii ), 0, false, false );
 
-	le_path_arc_to( self, &a0, &radii, 0, false, false );
+	le_path_arc_to( self, ( float2* )( &a0 ), ( float2* )( &radii ), 0, false, false );
 
 	le_path_close_path( self );
 }
@@ -2809,7 +2820,7 @@ static size_t le_path_get_num_contours( le_path_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static bool le_path_get_vertices_for_polyline( le_path_o* self, size_t const& polyline_index, glm::vec2* vertices, size_t* numVertices ) {
+static bool le_path_get_vertices_for_polyline( le_path_o* self, size_t const& polyline_index, float2* vertices, size_t* numVertices ) {
 	bool success = false;
 	assert( polyline_index < self->polylines.size() );
 
@@ -2827,7 +2838,7 @@ static bool le_path_get_vertices_for_polyline( le_path_o* self, size_t const& po
 
 // ----------------------------------------------------------------------
 
-static bool le_path_get_tangents_for_polyline( le_path_o* self, size_t const& polyline_index, glm::vec2* tangents, size_t* numTangents ) {
+static bool le_path_get_tangents_for_polyline( le_path_o* self, size_t const& polyline_index, float2* tangents, size_t* numTangents ) {
 	bool success = false;
 	assert( polyline_index < self->polylines.size() );
 
@@ -3297,7 +3308,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_m_instruction( c + offset, &offset, &p, &state_flags ) ) {
-			le_path_move_to( self, &p );
+			le_path_move_to( self, ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3305,7 +3316,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_l_instruction( c + offset, &offset, &p, &state_flags ) ) {
-			le_path_line_to( self, &p );
+			le_path_line_to( self, ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3329,8 +3340,8 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_c_instruction( c + offset, &offset, &c1, &c2, &p, &state_flags ) ) {
-			le_path_cubic_bezier_to( self, &p, &c1, &c2 ); // Note that end vertex is p2 from SVG,
-			                                               // as SVG has target vertex as last vertex
+			le_path_cubic_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) ); // Note that end vertex is p2 from SVG,
+			                                                                                            // as SVG has target vertex as last vertex
 		}
 		if ( offset ) {
 			continue;
@@ -3340,7 +3351,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		while ( is_s_instruction( c + offset, &offset, &c2, &p, &state_flags ) ) {
 			// shorthand for smooth curveto
 			c1 = curr_p * 2.f - prev_c2; // calculate c2 as the reflection of previous c2 relative to the current point
-			le_path_cubic_bezier_to( self, &p, &c1, &c2 );
+			le_path_cubic_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) );
 			prev_c2 = c2;
 			curr_p  = p;
 		}
@@ -3350,7 +3361,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_q_instruction( c + offset, &offset, &c1, &p, &state_flags ) ) {
-			le_path_quad_bezier_to( self, &p, &c1 );
+			le_path_quad_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3360,7 +3371,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		while ( is_t_instruction( c + offset, &offset, &p, &state_flags ) ) {
 			// shorthand for smooth quadratic bezier curveto
 			c1 = curr_p * 2.f - prev_c1; // calculate c1 as a reflection of the previous control point on the previous command relative to the current point
-			le_path_quad_bezier_to( self, &p, &c1 );
+			le_path_quad_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ) );
 			prev_c1 = c1;
 			curr_p  = p;
 		}
@@ -3370,7 +3381,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_a_instruction( c + offset, &offset, &radii, &arc_axis_rotation, &arc_large, &arc_sweep, &p, &state_flags ) ) {
-			le_path_arc_to( self, &p, &radii, arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
+			le_path_arc_to( self, ( float2* )( &p ), ( float2* )( &radii ), arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
 		}
 		if ( offset ) {
 			continue;
