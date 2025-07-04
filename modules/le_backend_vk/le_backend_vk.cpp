@@ -5,7 +5,7 @@
 #include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
 #include "le_backend_types_internal.h"      // includes vulkan.hpp
 #include "le_swapchain_vk.h"
-#include "le_window.h"
+// #include "le_window.h"
 #include "le_renderer.h"
 #include "private/le_renderer/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
@@ -21,8 +21,8 @@
 #include <unordered_map>
 #include <forward_list>
 #include <sstream>
-#include <iomanip>
-#include <list>
+// #include <iomanip>
+// #include <list>
 #include <set>
 #include <atomic>
 #include <mutex>
