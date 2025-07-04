@@ -4918,6 +4918,8 @@ static void debug_print_command( void*& cmd ) {
                 case (le::CommandType::eDrawIndexed): os << "eDrawIndexed"; break;
                 case (le::CommandType::eDraw): os << "eDraw"; break;
                 case (le::CommandType::eDispatch): os << "eDispatch"; break;
+                case (le::CommandType::eDispatchIndirect): os << "eDispatchIndirect"; break;
+                case (le::CommandType::eFillBuffer): os << "eFillBuffer"; break;
                 case (le::CommandType::eBufferMemoryBarrier): os << "eBufferMemoryBarrier"; break;
                 case (le::CommandType::eSetLineWidth): os << "eSetLineWidth"; break;
                 case (le::CommandType::eSetViewport): os << "eSetViewport"; break;
