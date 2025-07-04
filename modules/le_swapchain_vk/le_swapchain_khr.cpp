@@ -33,7 +33,7 @@ struct khr_data_o {
 	std::vector<VkFence>             vk_present_fences              = {}; // one fence for each presentable image - we use these to protect ourselves by delaying destroying the present semaphores until any in-flight present has completed.
 	VkSurfaceKHR                     vk_surface                     = nullptr;
 	le_backend_o*                    backend                        = nullptr;
-	uint32_t                         mImagecount                    = 0;
+	uint32_t                         mImagecount                    = 2;
 	uint32_t                         mImageIndex                    = uint32_t( ~0 ); // current image index
 	VkSwapchainKHR                   swapchainKHR                   = nullptr;
 	VkExtent2D                       mSwapchainExtent               = {};
@@ -257,11 +257,14 @@ static bool swapchain_khr_reset( le_swapchain_o* base, const le_swapchain_window
 		               to_str( self->mPresentMode ) );
 	}
 
-	// We require a minimum of minImageCount+1, so that in case minImageCount
-	// is 3 we can still acquire 2 images without blocking.
+	// image count is limited by what this particular swapchain can provide
+	// -- addidionally, we must not have more swapchain images than there are
+	// backend data frames, as there must be exactly one present_complete per
+	// swapchain image, and exactly one render_complete per swapchain image.
+	// and these are owned by the backend data frame.
 	//
 	self->mImagecount = clamp( self->mSettings.base.imagecount_hint,
-	                           surfaceCapabilities.minImageCount + 1,
+	                           surfaceCapabilities.minImageCount,
 	                           surfaceCapabilities.maxImageCount );
 
 	if ( self->mImagecount != self->mSettings.base.imagecount_hint ) {
@@ -561,8 +564,11 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	    .sType          = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT, // VkStructureType
 	    .pNext          = nullptr,                                            // void *, optional
 	    .swapchainCount = 1,                                                  // uint32_t
-	    .pFences        = &self->vk_present_fences[ *pImageIndex ],           // VkFence const *
+	    .pFences        = &self->vk_present_fences[ image_index ],            // VkFence const *
 	};
+
+	// logger().warn( "presenting image: %d", image_index );
+	// logger().warn( "waiting for fence %x", self->vk_present_fences[ image_index ] );
 
 	vkWaitForFences( self->device, 1, present_fence_info.pFences, true, 1'000'000'000 );
 	vkResetFences( self->device, 1, present_fence_info.pFences );

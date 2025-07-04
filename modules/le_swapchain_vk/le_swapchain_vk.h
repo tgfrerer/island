@@ -16,6 +16,22 @@ struct VkImageView_T;
 struct VkQueue_T;
 struct VkSurfaceFormatKHR;
 
+/*-
+ * Note on imagecount_hint
+ *
+ * We must ensure that there is
+ * 	- 1 present_complete semaphore,
+ * 	- 1 render_complete semaphore
+ *  - (and 1 present fence)
+ *
+ * ... for every swapchain image that the swapchain provides.
+ *
+ * As these vulkan synd objects are owned by the backend data frame, we should not provide
+ * more swapchain images than there exist backend data frames, otherwise we don't have
+ * the correct corresponding number of sync objects for all our images.
+ *
+ */
+
 struct le_swapchain_settings_t {
 	enum Type : uint32_t {
 		LE_SWAPCHAIN_UNDEFINED = 0,
@@ -24,7 +40,7 @@ struct le_swapchain_settings_t {
 		LE_IMG_SWAPCHAIN,
 	};
 	Type                     type            = LE_SWAPCHAIN_UNDEFINED;
-	uint32_t                 imagecount_hint = 3;
+	uint32_t                 imagecount_hint = 2;
 	le_swapchain_settings_t* p_next          = nullptr;
 };
 

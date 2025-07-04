@@ -7,7 +7,7 @@
 struct le_swapchain_direct_settings_t {
 	le_swapchain_settings_t base = {
 	    .type            = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN,
-	    .imagecount_hint = 3,
+	    .imagecount_hint = 2,
 	    .p_next          = nullptr,
 	}; // we must do this so that we can fake inheritance
 

@@ -985,13 +985,11 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 		exit( 1 );
 	}
 
-	if ( !self->swapchains.empty() ) {
-		// If we already have a swapchain, we cannot have another swapchain which provides fewer images than
-		// this swapchain. more images is okay, fewer images is not okay.
-		local_swapchain_settings->imagecount_hint =
-		    std::min( local_swapchain_settings->imagecount_hint,
-		              backend_settings->data_frames_count );
-	}
+	// Force all swapchains to have the same image count --
+	// And make sure that the image count is identical to the number of backend frames.
+	// There must be exactly one `frame.render_complete` and exactly one `frame.present_complete`
+	// semaphore for each swapchain image.
+	local_swapchain_settings->imagecount_hint = backend_settings->data_frames_count;
 
 	// Abstract interface call to swapchain to initialize itself.
 	// window swapchains will know how to create a surface at this point
