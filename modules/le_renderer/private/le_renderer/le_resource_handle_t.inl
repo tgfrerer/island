@@ -22,7 +22,7 @@ struct le_img_resource_usage_flags_t {
 struct le_resource_handle_data_t {
 	LeResourceType        type;                        // type controls which of the following fields are used.
 	uint8_t               num_samples      = 0;        // number of samples log 2 if image
-	uint8_t               flags            = 0;        // bitfield of either buffer - or img_resource_useage_flags;
+	uint8_t               flags            = 0;        // bitfield of either buffer - or img_resource_usage_flags;
 	uint16_t              index            = 0;        // allocator index if virtual buffer
 	le_resource_handle_t *reference_handle = nullptr;  // if auto-generated from another handle, we keep a reference to the parent.
 	char                  debug_name[ 48 ] = { '\0' }; // space for 47 chars + \0
