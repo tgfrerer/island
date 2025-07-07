@@ -28,6 +28,15 @@ struct le_2d_primitive_o;
 // clang-format off
 struct le_2d_api {
 
+	#ifdef __cplusplus
+	using float2 = glm::vec2;
+	#else
+		struct float2{
+			float x;
+			float y;
+		};
+	#endif
+
 	enum StrokeJoinType : uint32_t { // names for these follow svg standard: https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/stroke-linejoin
 		eStrokeJoinMiter = 0,
 		eStrokeJoinBevel,

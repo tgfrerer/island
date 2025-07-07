@@ -28,7 +28,8 @@ namespace {
 #include "shaders/2d_primitives_vert.h"
 } // namespace
 
-using vec2f          = glm::vec2;
+using float2 = le_2d_api::float2;
+
 using StrokeCapType  = le_2d_api::StrokeCapType;
 using StrokeJoinType = le_2d_api::StrokeJoinType;
 
@@ -41,8 +42,8 @@ struct le_2d_o {
 
 struct node_data_t {
 	// application order: t,r,s
-	vec2f translation{ 0 }; // x,y
-	vec2f scale{ 1 };
+	float2 translation{ 0 }; // x,y
+	float2 scale{ 1 };
 	float rotation_ccw = 0; // rotation in ccw around z axis, around point at translation
 };
 
@@ -65,7 +66,7 @@ struct ellipse_data_t {
 };
 
 struct arc_data_t {
-	vec2f radii; // radius x, radius y
+	float2 radii; // radius x, radius y
 	float angle_start_rad;
 	float angle_end_rad;
 	float tolerance;
@@ -77,8 +78,8 @@ struct path_data_t {
 };
 
 struct line_data_t {
-	vec2f p0;
-	vec2f p1;
+	float2 p0;
+	float2 p1;
 };
 
 struct le_2d_primitive_o {
@@ -865,8 +866,8 @@ static le_2d_primitive_o* le_2d_allocate_primitive( le_2d_o* self ) {
 	le_2d_primitive_o* p = new le_2d_primitive_o();
 
 	p->hash              = 0;
-	p->node.scale        = vec2f{ 1 };
-	p->node.translation  = vec2f{ 0 };
+	p->node.scale        = float2{ 1 };
+	p->node.translation  = float2{ 0 };
 	p->node.rotation_ccw = 0;
 
 	p->material.color            = 0xffffffff;
@@ -975,7 +976,7 @@ static le_2d_primitive_o* le_2d_primitive_create_path_from( le_2d_o* context, le
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, vec2f const* pos ) {
+static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, float2 const* pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
 	le_path::le_path_operations_i.move_to( obj.path, ( float2* )pos );
@@ -983,7 +984,7 @@ static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, vec2f const* pos
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_line_to( le_2d_primitive_o* p, vec2f const* pos ) {
+static void le_2d_primitive_path_line_to( le_2d_primitive_o* p, float2 const* pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
 	le_path::le_path_operations_i.line_to( obj.path, ( float2* )pos );
@@ -998,7 +999,7 @@ static void le_2d_primitive_path_close( le_2d_primitive_o* p ) {
 }
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* c1, vec2f const* c2 ) {
+static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, float2 const* pos, float2 const* c1, float2 const* c2 ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
 	le_path::le_path_operations_i.cubic_bezier_to( obj.path, ( float2* )pos, ( float2* )c1, ( float2* )c2 );
@@ -1006,7 +1007,7 @@ static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, vec2f co
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* c1 ) {
+static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, float2 const* pos, float2 const* c1 ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
 	le_path::le_path_operations_i.quad_bezier_to( obj.path, ( float2* )pos, ( float2* )c1 );
@@ -1014,7 +1015,7 @@ static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, vec2f con
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_arc_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* radii, float phi, bool large_arc, bool sweep ) {
+static void le_2d_primitive_path_arc_to( le_2d_primitive_o* p, float2 const* pos, float2 const* radii, float phi, bool large_arc, bool sweep ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
 	le_path::le_path_operations_i.arc_to( obj.path, ( float2* )pos, ( float2* )radii, phi, large_arc, sweep );
@@ -1030,7 +1031,7 @@ static void le_2d_primitive_path_hobby( le_2d_primitive_o* p ) {
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_ellipse( le_2d_primitive_o* p, vec2f const* centre, float r_x, float r_y ) {
+static void le_2d_primitive_path_ellipse( le_2d_primitive_o* p, float2 const* centre, float r_x, float r_y ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
 	le_path::le_path_i.ellipse( obj.path, ( float2* )centre, r_x, r_y );
@@ -1054,7 +1055,7 @@ static void le_2d_primitive_path_set_tolerance( le_2d_primitive_o* p, float tole
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_set_node_position( le_2d_primitive_o* p, vec2f const* pos ) {
+static void le_2d_primitive_set_node_position( le_2d_primitive_o* p, float2 const* pos ) {
 	p->node.translation = *pos;
 }
 
@@ -1091,17 +1092,17 @@ static void le_2d_primitive_set_color( le_2d_primitive_o* p, uint32_t r8g8b8a8_c
 SETTER_IMPLEMENT( circle, float, radius );
 SETTER_IMPLEMENT( circle, float, tolerance );
 
-SETTER_IMPLEMENT_CPY( ellipse, vec2f const*, radii );
+SETTER_IMPLEMENT_CPY( ellipse, float2 const*, radii );
 SETTER_IMPLEMENT( ellipse, float, tolerance );
 
-SETTER_IMPLEMENT_CPY( arc, vec2f const*, radii );
+SETTER_IMPLEMENT_CPY( arc, float2 const*, radii );
 SETTER_IMPLEMENT( arc, float, tolerance );
 
 SETTER_IMPLEMENT( arc, float, angle_start_rad );
 SETTER_IMPLEMENT( arc, float, angle_end_rad );
 
-SETTER_IMPLEMENT_CPY( line, vec2f const*, p0 );
-SETTER_IMPLEMENT_CPY( line, vec2f const*, p1 );
+SETTER_IMPLEMENT_CPY( line, float2 const*, p0 );
+SETTER_IMPLEMENT_CPY( line, float2 const*, p1 );
 
 #undef SETTER_IMPLEMENT
 
