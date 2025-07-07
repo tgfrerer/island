@@ -16,10 +16,10 @@
 #include "le_ffmpeg_pipe.h"
 #include "le_backend_vk/le_backend_vk.h"
 
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtc/quaternion.hpp"
-#include "glm/gtx/easing.hpp"
+#include "3rdparty/src/glm/glm.hpp"
+#include "3rdparty/src/glm/gtc/matrix_transform.hpp"
+#include "3rdparty/src/glm/gtc/quaternion.hpp"
+#include "3rdparty/src/glm/gtx/easing.hpp"
 
 #include <iostream>
 #include <memory>

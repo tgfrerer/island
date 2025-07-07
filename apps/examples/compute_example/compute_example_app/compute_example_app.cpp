@@ -3,10 +3,10 @@
 #include "le_window.h"
 #include "le_renderer.hpp"
 
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
+#include "3rdparty/src/glm/glm.hpp"
+#include "3rdparty/src/glm/gtc/matrix_transform.hpp"
 #define GLM_ENABLE_EXPERIMENTAL
-#include "glm/gtx/string_cast.hpp"
+#include "3rdparty/src/glm/gtx/string_cast.hpp"
 
 #include "le_camera.h"
 #include "le_pipeline_builder.h"

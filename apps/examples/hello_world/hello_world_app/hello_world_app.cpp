@@ -13,9 +13,9 @@
 #include "le_resource_manager.h"
 #include "le_pixels.h"
 
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtx/string_cast.hpp"
+#include "3rdparty/src/glm/glm.hpp"
+#include "3rdparty/src/glm/gtc/matrix_transform.hpp"
+#include "3rdparty/src/glm/gtx/string_cast.hpp"
 
 #include <iostream>
 #include <memory>
