@@ -3327,8 +3327,8 @@ static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_
 
 		state_flags = 0;
 		while ( is_h_instruction( c + offset, &offset, &p.x, &state_flags ) ) {
-			// le_path_line_horiz_to( self, p.x );
 			{
+				// le_path_line_horiz_to( self, p.x );
 				glm::vec2 p2 = curr_p;
 				p2.x         = p.x;
 				cb->line_to( user_data, ( float2* )( &p2 ) );
@@ -3340,8 +3340,8 @@ static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_
 
 		state_flags = 0;
 		while ( is_v_instruction( c + offset, &offset, &p.y, &state_flags ) ) {
-			// le_path_line_vert_to( self, p.y );
 			{
+				// le_path_line_vert_to( self, p.y );
 				glm::vec2 p2 = curr_p;
 				p2.y         = p.y;
 				cb->line_to( user_data, ( float2* )( &p2 ) );
@@ -3353,8 +3353,7 @@ static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_
 
 		state_flags = 0;
 		while ( is_c_instruction( c + offset, &offset, &c1, &c2, &p, &state_flags ) ) {
-			cb->cubic_bezier_to( user_data, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) ); // Note that end vertex is p2 from SVG,
-			                                                                                             // as SVG has target vertex as last vertex
+			cb->cubic_bezier_to( user_data, ( float2* )( &c1 ), ( float2* )( &c2 ), ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3364,7 +3363,7 @@ static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_
 		while ( is_s_instruction( c + offset, &offset, &c2, &p, &state_flags ) ) {
 			// shorthand for smooth curveto
 			c1 = curr_p * 2.f - prev_c2; // calculate c2 as the reflection of previous c2 relative to the current point
-			cb->cubic_bezier_to( user_data, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) );
+			cb->cubic_bezier_to( user_data, ( float2* )( &c1 ), ( float2* )( &c2 ), ( float2* )( &p ) );
 			prev_c2 = c2;
 			curr_p  = p;
 		}
@@ -3374,7 +3373,7 @@ static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_
 
 		state_flags = 0;
 		while ( is_q_instruction( c + offset, &offset, &c1, &p, &state_flags ) ) {
-			cb->quad_bezier_to( user_data, ( float2* )( &p ), ( float2* )( &c1 ) );
+			cb->quad_bezier_to( user_data, ( float2* )( &c1 ), ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3384,7 +3383,7 @@ static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_
 		while ( is_t_instruction( c + offset, &offset, &p, &state_flags ) ) {
 			// shorthand for smooth quadratic bezier curveto
 			c1 = curr_p * 2.f - prev_c1; // calculate c1 as a reflection of the previous control point on the previous command relative to the current point
-			cb->quad_bezier_to( user_data, ( float2* )( &p ), ( float2* )( &c1 ) );
+			cb->quad_bezier_to( user_data, ( float2* )( &c1 ), ( float2* )( &p ) );
 			prev_c1 = c1;
 			curr_p  = p;
 		}

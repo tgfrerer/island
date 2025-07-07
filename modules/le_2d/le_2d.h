@@ -249,8 +249,8 @@ struct le_2d_api {
 
 		void (* path_move_to   )( le_2d_encoder_o* e, glm::vec2 const& p );
 		void (* path_line_to   )( le_2d_encoder_o* e, glm::vec2 const& p );
-		void (* path_quad_to   )( le_2d_encoder_o* e, glm::vec2 const& p1, glm::vec2 const& p2 );
-		void (* path_cubic_to  )( le_2d_encoder_o* e, glm::vec2 const& p1, glm::vec2 const& p2, glm::vec2 const& p3 );
+		void (* path_quad_to   )( le_2d_encoder_o* e, glm::vec2 const& c1, glm::vec2 const& p );
+		void (* path_cubic_to  )( le_2d_encoder_o* e, glm::vec2 const& c1, glm::vec2 const& c2, glm::vec2 const& p );
 		void (* path_close     )( le_2d_encoder_o* self);
 
 
@@ -347,13 +347,13 @@ class Encoder2D : NoCopy, NoMove {
 			return *this;
 		}
 
-		Path& quad_to( glm::vec2 const& p1, glm::vec2 const& p2 ) {
-			le_2d::le_2d_encoder_i.path_quad_to( static_cast<le_2d_encoder_o*>( parent ), p1, p2 );
+		Path& quad_to( glm::vec2 const& c1, glm::vec2 const& p ) {
+			le_2d::le_2d_encoder_i.path_quad_to( static_cast<le_2d_encoder_o*>( parent ), c1, p );
 			return *this;
 		}
 
-		Path& cubic_to( glm::vec2 const& p1, glm::vec2 const& p2, glm::vec2 const& p3 ) {
-			le_2d::le_2d_encoder_i.path_cubic_to( static_cast<le_2d_encoder_o*>( parent ), p1, p2, p3 );
+		Path& cubic_to( glm::vec2 const& c1, glm::vec2 const& c2, glm::vec2 const& p ) {
+			le_2d::le_2d_encoder_i.path_cubic_to( static_cast<le_2d_encoder_o*>( parent ), c1, c2, p );
 			return *this;
 		}
 

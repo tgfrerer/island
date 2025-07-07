@@ -754,11 +754,11 @@ static void encoder_path_line_to( le_2d_encoder_o* e, glm::vec2 const& p ) {
 
 // ----------------------------------------------------------------------
 
-static void encoder_path_quad_to( le_2d_encoder_o* e, glm::vec2 const& p1, glm::vec2 const& p2 ) {
+static void encoder_path_quad_to( le_2d_encoder_o* e, glm::vec2 const& c1, glm::vec2 const& p ) {
 
 	if ( e->path.state == path_encoder_o::eStart ) {
 		if ( 0 == e->path.n_encoded_segments ) {
-			encoder_path_move_to( e, p2 );
+			encoder_path_move_to( e, p );
 			return;
 		}
 		encoder_path_move_to( e, e->path.first_point );
@@ -766,24 +766,24 @@ static void encoder_path_quad_to( le_2d_encoder_o* e, glm::vec2 const& p1, glm::
 
 	if ( e->path.state == path_encoder_o::eMoveTo ) {
 		// Make sure that we don't end up with a zero-length start tangent
-		if ( false == start_tangent_for_quad( e, p1, p2, e->path.first_start_tangent_end ) ) {
+		if ( false == start_tangent_for_quad( e, c1, p, e->path.first_start_tangent_end ) ) {
 			return;
 		};
 	}
 
 	// Drop the segment if the length is zero
-	if ( is_zero_length_segment( e, p1, &p2, nullptr ) ) {
+	if ( is_zero_length_segment( e, c1, &p, nullptr ) ) {
 		return;
 	}
 
 	e->path_data.insert(
 	    e->path_data.end(),
 	    {
-	        p1.x,
-	        p1.y,
+	        c1.x,
+	        c1.y,
 	        //
-	        p2.x,
-	        p2.y,
+	        p.x,
+	        p.y,
 	    } );
 
 	e->path_tags.emplace_back( PathTag::QUAD_TO_F32 );
@@ -794,36 +794,36 @@ static void encoder_path_quad_to( le_2d_encoder_o* e, glm::vec2 const& p1, glm::
 
 // ----------------------------------------------------------------------
 
-static void encoder_path_cubic_to( le_2d_encoder_o* e, glm::vec2 const& p1, glm::vec2 const& p2, glm::vec2 const& p3 ) {
+static void encoder_path_cubic_to( le_2d_encoder_o* e, glm::vec2 const& c1, glm::vec2 const& c2, glm::vec2 const& p ) {
 
 	if ( e->path.state == path_encoder_o::eStart ) {
 		if ( 0 == e->path.n_encoded_segments ) {
-			encoder_path_move_to( e, p3 );
+			encoder_path_move_to( e, p );
 			return;
 		}
 		encoder_path_move_to( e, e->path.first_point );
 	}
 	if ( e->path.state == path_encoder_o::eMoveTo ) {
-		if ( false == start_tangent_for_curve( e, p1, p2, p3, e->path.first_start_tangent_end ) ) {
+		if ( false == start_tangent_for_curve( e, c1, c2, p, e->path.first_start_tangent_end ) ) {
 			return;
 		};
 	}
 	// drop the segment if its length is zero
-	if ( is_zero_length_segment( e, p1, &p2, &p3 ) ) {
+	if ( is_zero_length_segment( e, c1, &c2, &p ) ) {
 		return;
 	}
 
 	e->path_data.insert(
 	    e->path_data.end(),
 	    {
-	        p1.x,
-	        p1.y,
+	        c1.x,
+	        c1.y,
 	        //
-	        p2.x,
-	        p2.y,
+	        c2.x,
+	        c2.y,
 	        //
-	        p3.x,
-	        p3.y,
+	        p.x,
+	        p.y,
 	    } );
 
 	e->path_tags.emplace_back( PathTag::CUBIC_TO_F32 );
