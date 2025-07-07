@@ -11,13 +11,21 @@
 
 struct le_path_o;
 
-struct float2 {
-	float x;
-	float y;
-};
+#ifdef __cplusplus
+#	include "3rdparty/src/glm/fwd.hpp"
+#endif
 
 // clang-format off
 struct le_path_api {
+
+	#ifdef __cplusplus
+	using float2 = glm::vec2;
+	#else
+		struct float2{
+			float x;
+			float y;
+		};
+	#endif
 
 	struct stroke_attribute_t {
 
@@ -41,12 +49,16 @@ struct le_path_api {
 	typedef void contour_vertex_cb( void* user_data, float2 const* p );
 	typedef void contour_quad_bezier_cb( void* user_data, float2 const* p0, float2 const* p1, float2 const* c );
 
-	typedef void move_to_cb 		( void* self, float2 const* p );
-	typedef void line_to_cb 		( void* self, float2 const* p );
-	typedef void quad_bezier_to_cb 	( void* self, float2 const* p, float2 const* c1 );
-	typedef void cubic_bezier_to_cb ( void* self, float2 const* p, float2 const* c1, float2 const* c2 );
-	typedef void arc_to_cb 			( void* self, float2 const* p, float2 const* radii, float phi, bool large_arc, bool sweep );
-	typedef void close_cb  			( void* self );
+
+	// generic operations on path - 
+	struct le_path_operations_interface_t{
+		void (* move_to )         ( void* user_data, float2 const* p );
+		void (* line_to )         ( void* user_data, float2 const* p );
+		void (* quad_bezier_to )  ( void* user_data, float2 const* p, float2 const* c1 );
+		void (* cubic_bezier_to ) ( void* user_data, float2 const* p, float2 const* c1, float2 const* c2 );
+		void (* arc_to )          ( void* user_data, float2 const* p, float2 const* radii, float phi, bool large_arc, bool sweep );
+		void (* close )           ( void* user_data );
+	};
 
 	struct le_path_interface_t {
 
@@ -55,14 +67,6 @@ struct le_path_api {
 		void ( *destroy 		)( le_path_o* self );
 		void ( *clear   		)( le_path_o* self );
 
-		// these methods are held generic so that we can use them as callbacks for iterators
-		move_to_cb*         move_to;
-		line_to_cb*         line_to;
-		quad_bezier_to_cb*  quad_bezier_to ;	
-		cubic_bezier_to_cb* cubic_bezier_to; 
-		arc_to_cb*          arc_to;	
-		close_cb*           close;	
-
 		// Apply hobby algorithm onto path - any instructions apart from `moveto` and
 		// `close` will be turned into cubic bezier instructions.
 		void ( *hobby )( le_path_o* self );
@@ -70,8 +74,12 @@ struct le_path_api {
 		// Macro - style commands which resolve to a series of subcommands from above
 		void ( *ellipse )( le_path_o* self, float2 const* centre, float r_x, float r_y );
 
+		// parses path string with internal path operations provided by this module
 		void ( *add_from_simplified_svg )( le_path_o* self, char const* svg );
 
+		// parses path string with callback for path operations provided explicitly 
+		void ( *parse_simplified_svg )( void* user_data, le_path_operations_interface_t const* cb, char const* svg );
+		
 		// ----------------------------------------------------------------------
 		// Traces the path with all its subpaths into a list of polylines.
 		// Each subpath will be translated into one polyline.
@@ -121,6 +129,7 @@ struct le_path_api {
 	};
 
 	le_path_interface_t le_path_i;
+	le_path_operations_interface_t le_path_operations_i;
 };
 // clang-format on
 
@@ -131,7 +140,8 @@ LE_MODULE_LOAD_DEFAULT( le_path );
 
 namespace le_path {
 static const auto& api       = le_path_api_i;
-static const auto& le_path_i = api->le_path_i;
+static const auto& le_path_i            = api->le_path_i;
+static const auto& le_path_operations_i = api->le_path_operations_i;
 } // namespace le_path
 
 namespace le {
@@ -184,37 +194,37 @@ class Path {
 
 	// --
 
-	Path& moveTo( float2 const& p ) {
-		le_path::le_path_i.move_to( self, &p );
+	Path& moveTo( le_path_api::float2 const& p ) {
+		le_path::le_path_operations_i.move_to( self, &p );
 		return *this;
 	}
 
-	Path& lineTo( float2 const& p ) {
-		le_path::le_path_i.line_to( self, &p );
+	Path& lineTo( le_path_api::float2 const& p ) {
+		le_path::le_path_operations_i.line_to( self, &p );
 		return *this;
 	}
 
-	Path& quadBezierTo( float2 const& p, float2 const& c1 ) {
-		le_path::le_path_i.quad_bezier_to( self, &p, &c1 );
+	Path& quadBezierTo( le_path_api::float2 const& p, le_path_api::float2 const& c1 ) {
+		le_path::le_path_operations_i.quad_bezier_to( self, &p, &c1 );
 		return *this;
 	}
 
-	Path& cubicBezierTo( float2 const& p, float2 const& c1, float2 const& c2 ) {
-		le_path::le_path_i.cubic_bezier_to( self, &p, &c1, &c2 );
+	Path& cubicBezierTo( le_path_api::float2 const& p, le_path_api::float2 const& c1, le_path_api::float2 const& c2 ) {
+		le_path::le_path_operations_i.cubic_bezier_to( self, &p, &c1, &c2 );
 		return *this;
 	}
 
-	Path& arcTo( float2 const& p, float2 const& radii, float phi, bool large_arc, bool sweep ) {
-		le_path::le_path_i.arc_to( self, &p, &radii, phi, large_arc, sweep );
+	Path& arcTo( le_path_api::float2 const& p, le_path_api::float2 const& radii, float phi, bool large_arc, bool sweep ) {
+		le_path::le_path_operations_i.arc_to( self, &p, &radii, phi, large_arc, sweep );
 		return *this;
 	}
 
-	Path& ellipse( float2 const& centre, float radiusX, float radiusY ) {
+	Path& ellipse( le_path_api::float2 const& centre, float radiusX, float radiusY ) {
 		le_path::le_path_i.ellipse( self, &centre, radiusX, radiusY );
 		return *this;
 	}
 
-	Path& circle( float2 const& centre, float radius ) {
+	Path& circle( le_path_api::float2 const& centre, float radius ) {
 		le_path::le_path_i.ellipse( self, &centre, radius, radius );
 		return *this;
 	}
@@ -229,7 +239,7 @@ class Path {
 	}
 
 	void close() {
-		le_path::le_path_i.close( self );
+		le_path::le_path_operations_i.close( self );
 	}
 
 	void trace( size_t resolution = 12 ) {
@@ -252,19 +262,19 @@ class Path {
 		return le_path::le_path_i.get_num_contours( self );
 	}
 
-	bool getVerticesForPolyline( size_t const& polyline_index, float2* vertices, size_t* numVertices ) {
+	bool getVerticesForPolyline( size_t const& polyline_index, le_path_api::float2* vertices, size_t* numVertices ) {
 		return le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
 	}
 
-	bool getTangentsForPolyline( size_t const& polyline_index, float2* tangents, size_t* numTangents ) {
+	bool getTangentsForPolyline( size_t const& polyline_index, le_path_api::float2* tangents, size_t* numTangents ) {
 		return le_path::le_path_i.get_tangents_for_polyline( self, polyline_index, tangents, numTangents );
 	}
 
-	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, float2* vertex ) const {
+	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, le_path_api::float2* vertex ) const {
 		le_path::le_path_i.get_polyline_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
 	}
 
-	void getPolylineTangentAtPos( size_t const& polylineIndex, float normalizedPos, float2* vertex ) const {
+	void getPolylineTangentAtPos( size_t const& polylineIndex, float normalizedPos, le_path_api::float2* vertex ) const {
 		le_path::le_path_i.get_polyline_tangent_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
 	}
 

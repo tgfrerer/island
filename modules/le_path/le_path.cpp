@@ -20,6 +20,8 @@ using stroke_attribute_t = le_path_api::stroke_attribute_t;
 
 static auto logger = le::Log( "le_path" );
 
+using float2 = le_path_api::float2;
+
 // some static asserts to make sure that we can internally pun float2 to glm::vec2
 static_assert( sizeof( glm::vec2 ) == sizeof( float2 ), "float2 and glm::vec2 must have the same size" );
 static_assert( offsetof( glm::vec2, x ) == offsetof( float2, x ), "placement of x must be identical in float2 and glm::vec2" );
