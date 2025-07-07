@@ -1,1163 +1,1452 @@
 #include "le_2d.h"
-#include "le_core.h"
-#include "3rdparty/src/spooky/SpookyV2.h"
-#include "le_renderer.hpp"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-#include "3rdparty/src/glm/glm.hpp"
-#include "3rdparty/src/glm/gtc/constants.hpp" // for two_pi
-#include "3rdparty/src/glm/gtc/matrix_transform.hpp"
-
-#include <iostream>
-#include <iomanip>
+#include <cassert>
+#include <cmath>
+#include <cstring>
 #include <vector>
-#include <algorithm>
-#include <atomic>
-#include <string.h> // for memset, memcpy
+#include "le_core.h"
+#include "le_renderer.hpp"
+#include "le_pipeline_builder.h"
+#include "private/le_2d/le_2d_shared.h"
+#include "private/le_2d/SpookyV2.h"
+#include "le_log.h"
 
-#include "le_renderer.h"
-
-#include "le_pipeline_builder.h" // for pipeline creation
-
-#include "le_tessellator.h"
-#include "le_path.h"
-
-namespace {
-#include "shaders/2d_primitives_frag.h"
-#include "shaders/2d_primitives_vert.h"
-} // namespace
-
-using float2 = le_2d_api::float2;
-
-using StrokeCapType  = le_2d_api::StrokeCapType;
-using StrokeJoinType = le_2d_api::StrokeJoinType;
-
-// A drawing context, owner of all primitives.
-struct le_2d_o {
-	le_command_buffer_encoder_o*    encoder = nullptr;
-	std::vector<le_2d_primitive_o*> primitives;     // owning
-	le_gpso_handle                  maybe_pipeline; // non-owning, optional
-};
-
-struct node_data_t {
-	// application order: t,r,s
-	float2 translation{ 0 }; // x,y
-	float2 scale{ 1 };
-	float rotation_ccw = 0; // rotation in ccw around z axis, around point at translation
-};
-
-struct material_data_t {
-	StrokeCapType  stroke_cap_type;  // hashed
-	StrokeJoinType stroke_join_type; // hashed
-	float          stroke_weight;    // hashed
-	uint32_t       filled;           // hashed, used as boolean
-	uint32_t       color;            // *not* hashed
-};
-
-struct circle_data_t {
-	float radius;
-	float tolerance;
-};
-
-struct ellipse_data_t {
-	glm::vec2 radii; // radius x, radius y
-	float     tolerance;
-};
-
-struct arc_data_t {
-	float2 radii; // radius x, radius y
-	float angle_start_rad;
-	float angle_end_rad;
-	float tolerance;
-};
-
-struct path_data_t {
-	le_path_o* path;
-	float      tolerance;
-};
-
-struct line_data_t {
-	float2 p0;
-	float2 p1;
-};
-
-struct le_2d_primitive_o {
-
-	enum class Type : uint32_t {
-		eUndefined,
-		eCircle,
-		eEllipse,
-		eArc,
-		eLine,
-		ePath,
-	};
-
-	Type type;
-
-	union {
-		circle_data_t  as_circle;
-		ellipse_data_t as_ellipse;
-		arc_data_t     as_arc;
-		line_data_t    as_line;
-		path_data_t    as_path;
-		char           as_data[ 24 ];
-	} data = {};
-
-	material_data_t material;
-
-	node_data_t node;
-
-	uint64_t hash;
-};
-
-void le_2d_primitive_update_hash( le_2d_primitive_o* obj ) {
-	// We can hash everything until `material.color` in one go, as
-	// the top of the struct is tightly packed.
-	//
-	// Every primive is zero-initialised, meaning unused bytes in
-	// `le_2d_primitive_o.data` are initialised to zero, and the hash is
-	// therefore predictable.
-	obj->hash = SpookyHash::Hash32( &obj->type, offsetof( le_2d_primitive_o, material.color ), 0 );
-}
+constexpr uint32_t PATH_BBOX_WG_SZ        = 256;
+constexpr uint32_t FLATTEN_WG_SZ          = 256;
+constexpr uint32_t CLIP_REDUCE_WG_SZ      = 256;
+constexpr size_t   buf_bin_data_num_bytes = ( 1 << 18 ) * 4; // TODO: this needs to change
+constexpr uint32_t TILE_UNIT              = 16;              // tiles are 16x16 pixels
 
 // ----------------------------------------------------------------------
+// Decompression functions - these are used to retrieve shader code from inl strings
+static unsigned int stb_decompress( unsigned char* output, const unsigned char* i, unsigned int /*length*/ );
+static unsigned int stb_decompress_length( const unsigned char* input );
+// note decode85 is taken from ImGui
+static unsigned int decode_85_byte( char c ) {
+	return c >= '\\' ? c - 36 : c - 35;
+}
+static void decode_85( const unsigned char* src, unsigned char* dst ) {
+	while ( *src ) {
+		unsigned int tmp =
+		    decode_85_byte( src[ 0 ] ) +
+		    85 * ( decode_85_byte( src[ 1 ] ) +
+		           85 * ( decode_85_byte( src[ 2 ] ) +
+		                  85 * ( decode_85_byte( src[ 3 ] ) +
+		                         85 * decode_85_byte( src[ 4 ] ) ) ) );
+		dst[ 0 ] = ( ( tmp >> 0 ) & 0xFF );
+		dst[ 1 ] = ( ( tmp >> 8 ) & 0xFF );
+		dst[ 2 ] = ( ( tmp >> 16 ) & 0xFF );
+		dst[ 3 ] = ( ( tmp >> 24 ) & 0xFF ); // We can't assume little-endianness.
+		src += 5;
+		dst += 4;
+	}
+}
+// ----------------------------------------------------------------------
 
-static le_2d_o* le_2d_create( le_command_buffer_encoder_o* encoder, le_gpso_handle optional_custom_pipeline ) {
-	auto self     = new le_2d_o();
-	self->encoder = encoder;
-	self->primitives.reserve( 4096 / 8 );
-	self->maybe_pipeline = optional_custom_pipeline;
-	//	std::cout << "create 2d ctx: " << std::dec << self->id << std::flush << std::endl;
+constexpr auto LOG_ID = "le_2d";
+
+//
+
+#include "private/le_2d/inl/backdrop_dyn.inl"
+#include "private/le_2d/inl/bbox_clear.inl"
+#include "private/le_2d/inl/binning.inl"
+#include "private/le_2d/inl/clip_leaf.inl"
+#include "private/le_2d/inl/clip_reduce.inl"
+#include "private/le_2d/inl/coarse.inl"
+#include "private/le_2d/inl/draw_leaf.inl"
+#include "private/le_2d/inl/draw_reduce.inl"
+#include "private/le_2d/inl/fine_area.inl"
+#include "private/le_2d/inl/fine_msaa16.inl"
+#include "private/le_2d/inl/flatten.inl"
+#include "private/le_2d/inl/path_count.inl"
+#include "private/le_2d/inl/path_count_setup.inl"
+#include "private/le_2d/inl/pathtag_reduce2.inl"
+#include "private/le_2d/inl/pathtag_reduce.inl"
+#include "private/le_2d/inl/pathtag_scan1.inl"
+#include "private/le_2d/inl/pathtag_scan_large.inl"
+#include "private/le_2d/inl/pathtag_scan_small.inl"
+#include "private/le_2d/inl/path_tiling.inl"
+#include "private/le_2d/inl/path_tiling_setup.inl"
+#include "private/le_2d/inl/tile_alloc.inl"
+
+//
+
+static le::Log& logger() {
+	static le::Log l( LOG_ID );
+	return l;
+}
+
+struct RasterizerUboData {
+	uint32_t width_in_tiles;
+	uint32_t height_in_tiles;
+	uint32_t target_width;
+	uint32_t target_height;
+	uint32_t base_color; /// base background colour applied to the target before any blends
+	/// Layout follows
+	rasterizer_layout_data_t layout;
+	/// Layout ends
+	uint32_t lines_size;      /// count of LineSoups in line soup buffer allocation
+	uint32_t binning_size;    /// count of uint32_t in binning buffer allocation
+	uint32_t tiles_size;      /// count of Tiles in tile buffer allocation
+	uint32_t seg_counts_size; /// count of SegmentCounts in segment count buffer allocation
+	uint32_t segments_size;   /// count of PathSegments in segment buffer allocation
+	uint32_t blend_size;      /// count of uint32_t pixels in blend spill buffer allocation
+	uint32_t ptcl_size;       /// count of uint32_t in per-tile command list buffer allocation
+};
+
+struct BufferSizes {
+	size_t path_reduced;
+	size_t path_reduced2;
+	size_t path_reduced_scan;
+	size_t path_monoids;
+	size_t path_bboxes;
+	size_t draw_reduced;
+	size_t draw_monoids;
+	size_t info;
+	size_t clip_inps;
+	size_t clip_els;
+	size_t clip_bics;
+	size_t clip_bboxes;
+	size_t draw_bboxes;
+	size_t bump_alloc;
+	size_t indirect_count;
+	size_t bin_headers;
+	size_t paths;
+	// Bump allocated buffers
+	size_t lines;
+	size_t bin_data;
+	size_t tiles;
+	size_t seg_counts;
+	size_t segments;
+	size_t blend_spill;
+	size_t ptcl;
+};
+
+struct WorkGroupCounts {
+	bool     use_large_path_scan;
+	uint32_t path_reduce[ 3 ];
+	uint32_t path_reduce2[ 3 ];
+	uint32_t path_scan1[ 3 ];
+	uint32_t path_scan[ 3 ];
+	uint32_t bbox_clear[ 3 ];
+	uint32_t flatten[ 3 ];
+	uint32_t draw_reduce[ 3 ];
+	uint32_t draw_leaf[ 3 ];
+	uint32_t clip_reduce[ 3 ];
+	uint32_t clip_leaf[ 3 ];
+	uint32_t binning[ 3 ];
+	uint32_t tile_alloc[ 3 ];
+	uint32_t path_count_setup[ 3 ];
+	// Note: `path_count` must use an indirect dispatch
+	uint32_t backdrop[ 3 ];
+	uint32_t coarse[ 3 ];
+	uint32_t path_tiling_setup[ 3 ];
+	// Note: `path_tiling` must use an indirect dispatch
+	uint32_t fine[ 3 ];
+};
+
+// todo: n_path_tags should not need to be passed as a separate parameter, here.
+//
+static WorkGroupCounts get_work_group_counts( rasterizer_layout_data_t const& layout, uint32_t width_in_tiles, uint32_t height_in_tiles ) {
+
+	uint32_t n_path_tags         = sizeof( uint32_t ) * ( layout.path_data_base - layout.path_tag_base );
+	uint32_t n_paths             = layout.n_paths;
+	uint32_t n_draw_objects      = layout.n_drawobj;
+	uint32_t n_clips             = layout.n_clips;
+	uint32_t path_tag_padded     = align_up( n_path_tags, 4 * PATH_REDUCE_WG_SZ );
+	uint32_t path_tag_wgs        = ( path_tag_padded ) / ( 4 * PATH_REDUCE_WG_SZ );
+	bool     use_large_path_scan = path_tag_wgs > PATH_REDUCE_WG_SZ;
+	uint32_t reduced_size        = use_large_path_scan ? align_up( path_tag_wgs, PATH_REDUCE_WG_SZ ) : path_tag_wgs;
+	uint32_t draw_object_wgs     = ( n_draw_objects + PATH_BBOX_WG_SZ - 1 ) / PATH_BBOX_WG_SZ;
+	uint32_t draw_monoid_wgs     = std::min( draw_object_wgs, PATH_BBOX_WG_SZ );
+	uint32_t flatten_wgs         = ( n_path_tags + FLATTEN_WG_SZ - 1 ) / FLATTEN_WG_SZ;
+	uint32_t clip_reduce_wgs     = std::max<int32_t>( 0, n_clips - 1 ) / CLIP_REDUCE_WG_SZ;
+	uint32_t clip_wgs            = ( n_clips + CLIP_REDUCE_WG_SZ - 1 ) / CLIP_REDUCE_WG_SZ;
+	uint32_t path_wgs            = ( n_paths + PATH_BBOX_WG_SZ - 1 ) / PATH_BBOX_WG_SZ;
+	uint32_t width_in_bins       = ( width_in_tiles + 16 - 1 ) / 16;
+	uint32_t height_in_bins      = ( height_in_tiles + 16 - 1 ) / 16;
+
+	WorkGroupCounts wc{
+	    .use_large_path_scan = use_large_path_scan,
+	    .path_reduce         = { path_tag_wgs, 1, 1 },
+	    .path_reduce2        = { PATH_REDUCE_WG_SZ, 1, 1 },
+	    .path_scan1          = { reduced_size / PATH_REDUCE_WG_SZ, 1, 1 },
+	    .path_scan           = { path_tag_wgs, 1, 1 },
+	    .bbox_clear          = { draw_object_wgs, 1, 1 },
+	    .flatten             = { flatten_wgs, 1, 1 },
+	    .draw_reduce         = { draw_monoid_wgs, 1, 1 },
+	    .draw_leaf           = { draw_monoid_wgs, 1, 1 },
+	    .clip_reduce         = { clip_reduce_wgs, 1, 1 },
+	    .clip_leaf           = { clip_wgs, 1, 1 },
+	    .binning             = { draw_object_wgs, 1, 1 },
+	    .tile_alloc          = { path_wgs, 1, 1 },
+	    .path_count_setup    = { 1, 1, 1 },
+	    .backdrop            = { path_wgs, 1, 1 },
+	    .coarse              = { width_in_bins, height_in_bins, 1 },
+	    .path_tiling_setup   = { 1, 1, 1 },
+	    .fine                = { width_in_tiles, height_in_tiles, 1 },
+	};
+
+	return wc;
+}
+
+struct le_2d_o {
+	// members
+
+	static constexpr uint8_t transfer_lut_mask   = 0x1;
+	static constexpr uint8_t transfer_scene_mask = 0x2;
+
+	uint8_t rasterizer_xfer_flags = transfer_lut_mask | transfer_scene_mask; // masked by one of the masks above
+
+	std::vector<uint8_t> scene_bytes;
+	uint64_t             previous_scene_hash; // hash of current scene
+
+	std::vector<uint8_t> mask_lut_bytes;
+
+	le_buffer_resource_handle buf_vello_scene    = LE_BUF_RESOURCE( "vello.scene" );
+	le_buffer_resource_handle buf_reduced        = LE_BUF_RESOURCE( "vello.reduced_buf" );
+	le_buffer_resource_handle buf_reduced2       = LE_BUF_RESOURCE( "vello.reduced2_buf" );
+	le_buffer_resource_handle buf_reduced_scan   = LE_BUF_RESOURCE( "vello.reduced_scan_buf" );
+	le_buffer_resource_handle buf_tagmonoid      = LE_BUF_RESOURCE( "vello.tagmonoid_buf" );
+	le_buffer_resource_handle buf_path_bbox      = LE_BUF_RESOURCE( "vello.path_bbox_buf" );
+	le_buffer_resource_handle buf_bump           = LE_BUF_RESOURCE( "vello.bump_buf" );
+	le_buffer_resource_handle buf_lines          = LE_BUF_RESOURCE( "vello.lines_buf" );
+	le_buffer_resource_handle buf_draw_reduced   = LE_BUF_RESOURCE( "vello.draw_reduced_buf" );
+	le_buffer_resource_handle buf_draw_monoid    = LE_BUF_RESOURCE( "vello.draw_monoid_buf" );
+	le_buffer_resource_handle buf_info_bin_data  = LE_BUF_RESOURCE( "vello.info_bin_data_buf" );
+	le_buffer_resource_handle buf_clip_inp       = LE_BUF_RESOURCE( "vello.clip_inp_buf" );
+	le_buffer_resource_handle buf_clip_bic       = LE_BUF_RESOURCE( "vello.clip_bic_buf" );
+	le_buffer_resource_handle buf_clip_el        = LE_BUF_RESOURCE( "vello.clip_el_buf" );
+	le_buffer_resource_handle buf_clip_bbox      = LE_BUF_RESOURCE( "vello.clip_bbox_buf" );
+	le_buffer_resource_handle buf_draw_bbox      = LE_BUF_RESOURCE( "vello.draw_bbox_buf" );
+	le_buffer_resource_handle buf_bin_header     = LE_BUF_RESOURCE( "vello.bin_header_buf" );
+	le_buffer_resource_handle buf_path           = LE_BUF_RESOURCE( "vello.path_buf" );
+	le_buffer_resource_handle buf_tile           = LE_BUF_RESOURCE( "vello.tile_buf" );
+	le_buffer_resource_handle buf_indirect_count = LE_BUF_RESOURCE( "vello.indirect_count" );
+	le_buffer_resource_handle buf_seg_counts     = LE_BUF_RESOURCE( "vello.seg_counts_buf" );
+	le_buffer_resource_handle buf_segments       = LE_BUF_RESOURCE( "vello.segments_buf" );
+	le_buffer_resource_handle buf_ptcl           = LE_BUF_RESOURCE( "vello.ptcl_buf" );
+	le_buffer_resource_handle buf_blend_spill    = LE_BUF_RESOURCE( "vello.blend_spill" );
+	le_buffer_resource_handle buf_mask_lut       = LE_BUF_RESOURCE( "vello.mask_lut" );
+
+	le_resource_info_t buf_vello_scene_info;
+	le_resource_info_t buf_reduced_info;
+	le_resource_info_t buf_reduced2_info;
+	le_resource_info_t buf_reduced_scan_info;
+	le_resource_info_t buf_tagmonoid_info;
+	le_resource_info_t buf_path_bbox_info;
+	le_resource_info_t buf_bump_info;
+	le_resource_info_t buf_lines_info;
+	le_resource_info_t buf_draw_reduced_info;
+	le_resource_info_t buf_draw_monoid_info;
+	le_resource_info_t buf_info_bin_data_info;
+	le_resource_info_t buf_clip_inp_info;
+	le_resource_info_t buf_clip_bic_info;
+	le_resource_info_t buf_clip_el_info;
+	le_resource_info_t buf_clip_bbox_info;
+	le_resource_info_t buf_draw_bbox_info;
+	le_resource_info_t buf_bin_header_info;
+	le_resource_info_t buf_path_info;
+	le_resource_info_t buf_tile_info;
+	le_resource_info_t buf_indirect_count_info;
+	le_resource_info_t buf_seg_counts_info;
+	le_resource_info_t buf_segments_info;
+	le_resource_info_t buf_ptcl_info;
+	le_resource_info_t buf_blend_spill_info;
+	le_resource_info_t buf_mask_lut_info;
+
+	le_image_resource_handle img_gradients   = LE_IMG_RESOURCE( "vello.image_gradient" );
+	le_image_resource_handle img_image_atlas = LE_IMG_RESOURCE( "vello.image_atlas" );
+
+	le_image_resource_handle img_output = nullptr; // externally set by user
+
+	RasterizerUboData rasterizer_args = {};
+
+	WorkGroupCounts wg_counts;
+
+	BufferSizes bsz;
+
+	static_assert( sizeof( char ) == sizeof( uint8_t ), "char and uint8_t must be the same size." );
+};
+// ----------------------------------------------------------------------
+
+static le_2d_o * le_2d_create() {
+	auto self = new le_2d_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-// Data as it is laid out in the shader ubo
-struct Mvp {
-	glm::mat4 mvp; // contains view projection matrix
-};
+static void le_2d_destroy( le_2d_o *self ) {
 
-// Data as it is laid out for shader attribute
-struct VertexData2D {
-	glm::vec2 pos;
-	glm::vec2 texCoord;
-};
-
-// per-instance data for a primitive
-struct PrimitiveInstanceData2D {
-	glm::vec2 translation;
-	glm::vec2 scale;
-	float     rotation_ccw;
-	uint32_t  color;
-};
-
-// ----------------------------------------------------------------------
-
-static void generate_geometry_line( std::vector<VertexData2D>& geometry, glm::vec2 const& p0, glm::vec2 const& p1, float thickness ) {
-	if ( p0 == p1 ) {
-		// return empty if line cannot be generated.
-		return;
-	}
-
-	geometry.reserve( geometry.size() + 6 );
-
-	auto p_vec  = p1 - p0;
-	auto p_norm = glm::normalize( p_vec );
-
-	// Line offset: rotate p_norm 90 deg ccw
-	glm::vec2 off = { -p_norm.y, p_norm.x };
-
-	// Line thickness will be twice offset, therefore we scale offset by half line thickness
-
-	off *= 0.5f * thickness; // scale line by thickness
-
-	geometry.push_back( { p0 + off, { 0.f, 0.f } } );
-	geometry.push_back( { p0 - off, { 0.f, 1.f } } );
-	geometry.push_back( { p1 + off, { 1.f, 0.f } } );
-
-	geometry.push_back( { p0 - off, { 0.f, 1.f } } );
-	geometry.push_back( { p1 - off, { 1.f, 1.f } } );
-	geometry.push_back( { p1 + off, { 1.f, 0.f } } );
-}
-
-// ----------------------------------------------------------------------
-
-static void generate_geometry_outline_arc( std::vector<VertexData2D>& geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, float tolerance ) {
-
-	if ( std::numeric_limits<float>::epsilon() > angle_end_rad - angle_start_rad ) {
-		return;
-	}
-
-	// ---------| invariant: angle difference is not too close to zero
-
-	float     t = angle_start_rad;
-	glm::vec2 n{ cosf( t ), sinf( t ) };
-
-	float const offset = thickness * 0.5f;
-
-	glm::vec2 p1_perp = glm::normalize( glm::vec2{ radii.y, radii.x } * -n );
-
-	glm::vec2 p0_far  = n * radii + p1_perp * offset;
-	glm::vec2 p0_near = n * radii - p1_perp * offset;
-
-	for ( uint32_t i = 1; i != 1000; ++i ) {
-
-		// FIXME: angle_offset calculation is currently based on
-		// fantasy- matematics. Pin down the correct analytic solution by finding the
-		// correct curvature for the ellipse offset segment on the outide.
-		//
-
-		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, radii + glm::abs( p1_perp * offset ) );
-
-		float angle_offset = acosf( 1.f - ( tolerance / r_length ) );
-		t                  = std::min( t + angle_offset, angle_end_rad );
-		n                  = { cosf( t ), sinf( t ) };
-
-		// p1_perp is a normalized vector which is perpendicular to the tangent
-		// of the ellipse at point p1.
-		//
-		// The tangent is the first derivative of the ellipse in parametric notation:
-		//
-		// e(t) : {r.x * cos(t), r.y * sin(t)}
-		// e(t'): {r.x * -sin(t), r.y * cos(t)} // tangent is first derivative
-		//
-		// now rotate this 90 deg ccw:
-		//
-		// {-r.y*cos(t), r.x*-sin(t)} // we can invert sign to remove negative if we want
-		//
-		// `offset` is how far we want to move outwards/inwards at the ellipse point p1,
-		// in direction p1_perp. So that p1_perp has unit length, we must normalize it.
-		//
-
-		p1_perp = glm::normalize( glm::vec2{ radii.y, radii.x } * -n );
-
-		glm::vec2 p1_far  = n * radii + p1_perp * offset;
-		glm::vec2 p1_near = n * radii - p1_perp * offset;
-
-		geometry.push_back( { p0_far, { 0.f, 0.f } } );
-		geometry.push_back( { p0_near, { 0.f, 1.f } } );
-		geometry.push_back( { p1_far, { 1.f, 0.f } } );
-
-		geometry.push_back( { p0_near, { 0.f, 1.f } } );
-		geometry.push_back( { p1_near, { 1.f, 1.f } } );
-		geometry.push_back( { p1_far, { 1.f, 0.f } } );
-
-		std::swap( p0_far, p1_far );
-		std::swap( p0_near, p1_near );
-
-		if ( t >= angle_end_rad ) {
-			break;
-		}
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void generate_geometry_ellipse( std::vector<VertexData2D>& geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float tolerance ) {
-
-	// --------| invariant: It should be possible to generate circle geometry.
-
-	VertexData2D v_c{};
-	v_c.pos      = { 0.f, 0.f };
-	v_c.texCoord = { 0.5, 0.5 };
-
-	float     arc_angle = angle_start_rad;
-	glm::vec2 n{ cosf( arc_angle ), sinf( arc_angle ) };
-
-	VertexData2D v{};
-	v.pos      = radii * n;
-	v.texCoord = glm::vec2{ 0.5, 0.5 } + 0.5f * n;
-
-	for ( int i = 0; i != 1000; ++i ) {
-
-		geometry.push_back( v_c ); // centre vertex
-		geometry.push_back( v );   // previous vertex
-
-		/* The maths for this are based on the intuition that an ellipse is
-		 * a scaled circle.
-		 */
-		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, radii );
-
-		float angle_offset = acosf( 1.f - ( tolerance / r_length ) );
-		arc_angle          = std::min( arc_angle + angle_offset, angle_end_rad );
-		n                  = { cosf( arc_angle ), sinf( arc_angle ) };
-
-		v.pos      = radii * n;
-		v.texCoord = glm::vec2{ 0.5, 0.5 } + 0.5f * n;
-
-		geometry.push_back( v ); // current vertex
-
-		if ( arc_angle >= angle_end_rad ) {
-			break;
-		}
-	}
-}
-
-// clang-format off
-le_path_api::stroke_attribute_t::LineJoinType to_path_enum(StrokeJoinType const & t){
-	switch(t){
-	case (StrokeJoinType::eStrokeJoinMiter) : return le_path_api::stroke_attribute_t::LineJoinType::eLineJoinMiter;
-	case (StrokeJoinType::eStrokeJoinBevel) : return le_path_api::stroke_attribute_t::LineJoinType::eLineJoinBevel;
-	case (StrokeJoinType::eStrokeJoinRound) : return le_path_api::stroke_attribute_t::LineJoinType::eLineJoinRound;		
-	}
-assert(false);
-return le_path_api::stroke_attribute_t::LineJoinType::eLineJoinRound; // unreachable
-}
-le_path_api::stroke_attribute_t::LineCapType to_path_enum(StrokeCapType const & t){
-	switch(t){
-	case (StrokeCapType::eStrokeCapButt)   : return le_path_api::stroke_attribute_t::LineCapType::eLineCapButt;
-	case (StrokeCapType::eStrokeCapSquare) : return le_path_api::stroke_attribute_t::LineCapType::eLineCapSquare;
-	case (StrokeCapType::eStrokeCapRound)  : return le_path_api::stroke_attribute_t::LineCapType::eLineCapRound;		
-	}
-assert(false);
-return le_path_api::stroke_attribute_t::LineCapType::eLineCapRound; // unreachable
-}
-// clang-format on
-
-// ----------------------------------------------------------------------
-
-static void generate_geometry_outline_path( std::vector<VertexData2D>& geometry, le_path_o* path, float tolerance, material_data_t const& material ) {
-
-	using namespace le_path;
-
-	float stroke_weight = material.stroke_weight;
-
-	if ( stroke_weight < 2.f ) {
-
-		le_path_i.flatten( path, tolerance );
-
-		size_t                 num_used_vertices = 1024;
-		std::vector<glm::vec2> vertices( num_used_vertices );
-
-		size_t const num_polylines = le_path_i.get_num_polylines( path );
-		for ( size_t i = 0; i != num_polylines; ++i ) {
-			num_used_vertices = vertices.size();
-			while ( false == le_path_i.get_vertices_for_polyline( path, i, ( float2* )vertices.data(), &num_used_vertices ) ) {
-				vertices.resize( num_used_vertices );
-			}
-			auto const* p_prev = vertices.data();
-			for ( size_t j = 1; j != num_used_vertices; ++j ) {
-				glm::vec2 const* p_cur = vertices.data() + j;
-				generate_geometry_line( geometry, *p_prev, *p_cur, stroke_weight );
-				p_prev = p_cur;
-			}
-		}
-	} else {
-
-		size_t const num_contours = le_path_i.get_num_contours( path );
-
-		size_t WHICH_TESSELLATOR = 3;
-
-		switch ( WHICH_TESSELLATOR ) {
-
-		case 0: {
-			std::vector<glm::vec2> vertices_l( 1024 );
-			std::vector<glm::vec2> vertices_r( 1024 );
-
-			for ( size_t i = 0; i != num_contours; ++i ) {
-
-				size_t num_vertices_l = vertices_l.size();
-				size_t num_vertices_r = vertices_r.size();
-
-				glm::vec2* v_l                   = vertices_l.data();
-				glm::vec2* v_r                   = vertices_r.data();
-				bool       vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, ( float2* )v_l, &num_vertices_l, ( float2* )v_r, &num_vertices_r );
-
-				if ( !vertices_large_enough ) {
-					vertices_l.resize( num_vertices_l + 1 );
-					vertices_r.resize( num_vertices_r + 1 );
-					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, ( float2* )vertices_l.data(), &num_vertices_l, ( float2* )vertices_r.data(), &num_vertices_r );
-				}
-
-				// reverse elements
-				std::reverse( vertices_r.begin(), vertices_r.begin() + int64_t( num_vertices_r ) );
-
-				std::vector<glm::vec2> all_vertices;
-				all_vertices.insert( all_vertices.end(), vertices_l.begin(), vertices_l.begin() + int64_t( num_vertices_l ) );
-				all_vertices.insert( all_vertices.end(), vertices_r.begin(), vertices_r.begin() + int64_t( num_vertices_r ) );
-				all_vertices.push_back( all_vertices.front() );
-
-				auto p_prev = all_vertices.front();
-
-				for ( size_t j = 1; j != all_vertices.size(); ++j ) {
-					glm::vec2 const p_cur = all_vertices[ j ];
-					generate_geometry_line( geometry, p_prev, p_cur, 2.f );
-					p_prev = p_cur;
-				}
-			}
-		} break;
-		case 1: {
-			using namespace le_tessellator;
-			auto tess = le_tessellator_i.create();
-			le_tessellator_i.set_options( tess, le_tessellator::Options::eWindingOdd );
-			//			le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
-			//			le_tessellator_i.set_options( tess, le_tessellator::Options::bitUseEarcutTessellator );
-
-			std::vector<glm::vec2> vertices_l( 1024 );
-			std::vector<glm::vec2> vertices_r( 1024 );
-
-			for ( size_t i = 0; i != num_contours; ++i ) {
-
-				size_t num_vertices_l = vertices_l.size();
-				size_t num_vertices_r = vertices_r.size();
-
-				glm::vec2* v_l = vertices_l.data();
-				glm::vec2* v_r = vertices_r.data();
-
-				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, ( float2* )v_l, &num_vertices_l, ( float2* )v_r, &num_vertices_r );
-
-				if ( !vertices_large_enough ) {
-					vertices_l.resize( num_vertices_l + 1 );
-					vertices_r.resize( num_vertices_r + 1 );
-					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, ( float2* )vertices_l.data(), &num_vertices_l, ( float2* )vertices_r.data(), &num_vertices_r );
-				}
-
-				// reverse elements
-				std::reverse( vertices_r.begin(), vertices_r.begin() + int64_t( num_vertices_r ) );
-
-				std::vector<glm::vec2> all_vertices;
-				all_vertices.insert( all_vertices.end(), vertices_l.begin(), vertices_l.begin() + int64_t( num_vertices_l ) );
-				all_vertices.insert( all_vertices.end(), vertices_r.begin(), vertices_r.begin() + int64_t( num_vertices_r ) );
-
-				if ( !all_vertices.empty() ) {
-					all_vertices.push_back( all_vertices.front() );
-					le_tessellator_i.add_polyline( tess, all_vertices.data(), all_vertices.size() );
-				}
-			}
-
-			le_tessellator_i.tessellate( tess );
-
-			le_tessellator_api::IndexType const* indices;
-			size_t                               num_indices = 0;
-			glm::vec2 const*                     vertices;
-			size_t                               num_vertices = 0;
-
-			le_tessellator_i.get_indices( tess, &indices, &num_indices );
-			le_tessellator_i.get_vertices( tess, &vertices, &num_vertices );
-
-			// TODO: what do we want to set for tex coordinate?
-
-			for ( size_t i = 0; i + 2 < num_indices; ) {
-				geometry.push_back( { vertices[ indices[ i++ ] ], { 1, 0 } } );
-				geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 1 } } );
-				geometry.push_back( { vertices[ indices[ i++ ] ], { 1, 1 } } );
-			}
-
-			le_tessellator_i.destroy( tess );
-		} break;
-		case 2: {
-			std::vector<glm::vec2> vertices_l( 1024 );
-			std::vector<glm::vec2> vertices_r( 1024 );
-
-			for ( size_t i = 0; i != num_contours; ++i ) {
-
-				size_t num_vertices_l = vertices_l.size();
-				size_t num_vertices_r = vertices_r.size();
-
-				float2* v_l = ( float2* )vertices_l.data();
-				float2* v_r = ( float2* )vertices_r.data();
-
-				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
-
-				if ( !vertices_large_enough ) {
-					vertices_l.resize( num_vertices_l + 1 );
-					vertices_r.resize( num_vertices_r + 1 );
-					v_l = ( float2* )vertices_l.data();
-					v_r = ( float2* )vertices_r.data();
-					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
-				}
-
-				glm::vec2 const* l_prev = ( glm::vec2* )v_l;
-				glm::vec2 const* r_prev = ( glm::vec2* )v_r;
-
-				glm::vec2 const* l = l_prev + 1;
-				glm::vec2 const* r = r_prev + 1;
-
-				glm::vec2 const* const l_end = vertices_l.data() + num_vertices_l;
-				glm::vec2 const* const r_end = vertices_r.data() + num_vertices_r;
-
-				for ( ; ( l != l_end || r != r_end ); ) {
-
-					if ( r != r_end ) {
-
-						geometry.push_back( { *l_prev, { 1, 0 } } );
-						geometry.push_back( { *r_prev, { 0, 1 } } );
-						geometry.push_back( { *r, { 1, 1 } } );
-
-						r_prev = r;
-						r++;
-					}
-
-					if ( l != l_end ) {
-
-						geometry.push_back( { *l_prev, { 1, 0 } } );
-						geometry.push_back( { *r_prev, { 0, 1 } } );
-						geometry.push_back( { *l, { 1, 1 } } );
-
-						l_prev = l;
-						l++;
-					}
-				}
-			}
-		} break;
-		case 3: {
-			std::vector<glm::vec2> vertices( 1024 );
-
-			for ( size_t i = 0; i != num_contours; ++i ) {
-
-				size_t num_vertices = vertices.size();
-
-				glm::vec2* v_data = vertices.data();
-
-				le_path_api::stroke_attribute_t stroke_attribs{};
-				stroke_attribs.width          = stroke_weight;
-				stroke_attribs.tolerance      = tolerance;
-				stroke_attribs.line_join_type = to_path_enum( material.stroke_join_type );
-				stroke_attribs.line_cap_type  = to_path_enum( material.stroke_cap_type );
-
-				while ( false == le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, ( float2* )v_data, &num_vertices ) ) {
-					vertices.resize( num_vertices );
-					v_data = vertices.data();
-				}
-
-				glm::vec2 const*       v     = v_data;
-				glm::vec2 const* const v_end = v_data + num_vertices;
-
-				assert( num_vertices % 3 == 0 ); // vertices count must be divisible by 3
-
-				for ( ; ( v != v_end ); ) {
-					geometry.push_back( { *v++, { 1, 0 } } );
-					geometry.push_back( { *v++, { 0, 1 } } );
-					geometry.push_back( { *v++, { 1, 1 } } );
-				}
-			}
-		} break;
-		}
-	}
-}
-
-// Generates triangles by tessellating what's contained within path
-static void generate_geometry_path( std::vector<VertexData2D>& geometry, le_path_o* path, float tolerance ) {
-
-	using namespace le_path;
-	using namespace le_tessellator;
-
-	le_path_i.flatten( path, tolerance );
-
-	size_t const num_polylines = le_path_i.get_num_polylines( path );
-
-	auto tess = le_tessellator_i.create();
-	// TODO: we might want to allow setting the winding mode via the path's material
-	le_tessellator_i.set_options( tess, le_tessellator::Options::eWindingOdd );
-	// le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
-	// le_tessellator_i.set_options( tess, le_tessellator::Options::bitUseEarcutTessellator );
-
-	size_t                 num_used_vertices = 1024;
-	std::vector<glm::vec2> line_vertices( num_used_vertices );
-
-	for ( size_t i = 0; i != num_polylines; ++i ) {
-
-		num_used_vertices = line_vertices.size();
-
-		while ( false == le_path_i.get_vertices_for_polyline( path, i, ( float2* )line_vertices.data(), &num_used_vertices ) ) {
-			line_vertices.resize( num_used_vertices );
-		}
-
-		le_tessellator_i.add_polyline( tess, line_vertices.data(), num_used_vertices );
-	}
-
-	le_tessellator_i.tessellate( tess );
-
-	le_tessellator_api::IndexType const* indices;
-	size_t                               num_indices = 0;
-	glm::vec2 const*                     vertices;
-	size_t                               num_vertices = 0;
-
-	le_tessellator_i.get_indices( tess, &indices, &num_indices );
-	le_tessellator_i.get_vertices( tess, &vertices, &num_vertices );
-
-	// TODO: what do we want to set for tex coordinate?
-
-	for ( size_t i = 0; i + 2 < num_indices; ) {
-		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 } } );
-		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 } } );
-		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 } } );
-	}
-
-	le_tessellator_i.destroy( tess );
-}
-
-// ----------------------------------------------------------------------
-
-static void generate_geometry_for_primitive( le_2d_primitive_o* p, std::vector<VertexData2D>& geometry ) {
-
-	switch ( p->type ) {
-	case le_2d_primitive_o::Type::eLine: {
-		// generate geometry for line
-		auto const& line = p->data.as_line;
-
-		generate_geometry_line( geometry, line.p0, line.p1, p->material.stroke_weight );
-
-	} break;
-	case le_2d_primitive_o::Type::eCircle: {
-
-		auto const& circle = p->data.as_circle;
-
-		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, circle.tolerance );
-		} else {
-			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, p->material.stroke_weight, circle.tolerance );
-		}
-
-	} break;
-	case le_2d_primitive_o::Type::eEllipse: {
-		auto const& ellipse = p->data.as_ellipse;
-		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), ellipse.radii, ellipse.tolerance );
-		} else {
-			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), ellipse.radii, p->material.stroke_weight, ellipse.tolerance );
-		}
-	} break;
-	case le_2d_primitive_o::Type::eArc: {
-		auto const& arc = p->data.as_arc;
-		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, arc.tolerance );
-		} else {
-			generate_geometry_outline_arc( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, p->material.stroke_weight, arc.tolerance );
-		}
-	} break;
-	case le_2d_primitive_o::Type::ePath: {
-		auto const& path = p->data.as_path;
-		if ( p->material.filled ) {
-			generate_geometry_path( geometry, path.path, path.tolerance );
-		} else {
-			generate_geometry_outline_path( geometry, path.path, path.tolerance, p->material );
-		}
-	} break;
-	case le_2d_primitive_o::Type::eUndefined:
-		// noop
-		break;
-	}
-}
-
-// ----------------------------------------------------------------------
-// internal method, only triggered if le_2d is destroyed.
-static void le_2d_draw_primitives( le_2d_o* self ) {
-
-	/* We might want to do some sorting, and optimising here
-	 * Sort by pipeline for example. Also, issue draw commands
-	 * as instanced draws if more than three of the same prims
-	 * are issued.
-	 */
-
-	le::GraphicsEncoder encoder{ self->encoder };
-
-	// Use custom pipeline, if a custom pipeline has been specified
-	// otherwise use the default pipeline that we supply for drawing
-	// lines.
-	if ( self->maybe_pipeline ) {
-		encoder
-		    .bindGraphicsPipeline( self->maybe_pipeline )
-		    .setLineWidth( 1.0f );
-	} else {
-		auto* pm = encoder.getPipelineManager();
-
-		static auto vert =
-		    LeShaderModuleBuilder( pm )
-		        .setSpirvCode( SPIRV_SOURCE_2D_PRIMITIVES_VERT, sizeof( SPIRV_SOURCE_2D_PRIMITIVES_VERT ) / sizeof( uint32_t ) )
-		        .setShaderStage( le::ShaderStage::eVertex )
-		        .setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) )
-		        .build();
-		static auto frag =
-		    LeShaderModuleBuilder( pm )
-		        .setSpirvCode( SPIRV_SOURCE_2D_PRIMITIVES_FRAG, sizeof( SPIRV_SOURCE_2D_PRIMITIVES_FRAG ) / sizeof( uint32_t ) )
-		        .setShaderStage( le::ShaderStage::eFragment )
-		        .setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) )
-		        .build();
-
-		// clang-format off
-	static auto pipeline =
-	    LeGraphicsPipelineBuilder( pm )
-	        .addShaderStage( vert )
-	        .addShaderStage( frag )
-	        .withAttributeBindingState()
-	            .addBinding( sizeof( VertexData2D ) )
-	                .setInputRate( le_vertex_input_rate::ePerVertex )
-	                .addAttribute( offsetof( VertexData2D, pos ), le_num_type::eF32, 2 )
-	                .addAttribute( offsetof( VertexData2D, texCoord ), le_num_type::eF32, 2 )
-	            .end()
-                .addBinding(sizeof(PrimitiveInstanceData2D))
-                    .setInputRate(le_vertex_input_rate::ePerInstance)
-                    .addAttribute( offsetof( PrimitiveInstanceData2D, translation), le_num_type::eF32, 2)
-                    .addAttribute( offsetof( PrimitiveInstanceData2D, scale), le_num_type::eF32, 2)
-                    .addAttribute( offsetof( PrimitiveInstanceData2D, rotation_ccw), le_num_type::eF32, 1 )
-                    .addAttribute( offsetof( PrimitiveInstanceData2D, color), le_num_type::eU32, 1 )
-                .end()
-	        .end()
-			.withRasterizationState()
-	            .setPolygonMode(le::PolygonMode::eFill)
-//	            .setCullMode(le::CullModeFlagBits::eBack)
-	            .setFrontFace(le::FrontFace::eCounterClockwise)
-			.end()
-	        .build();
-	    // clang-format on
-
-	    // Note: we can use DepthCompareOp::NotEqual to prevent overdraw for individual paths.
-	    // This is useful for paths which self-overlap. If we want to draw such paths with
-	    // transparency or blend them onto the screen, we would not like to see the self-overlap.
-	    //
-	    // We must then make sure though to monotonously increase a depth uniform for each path (layer)
-	    // drawn, otherwise no overlap at all will be drawn.
-
-	    encoder
-		    .bindGraphicsPipeline( pipeline )
-		    .setLineWidth( 1.0f );
-	}
-
-	// Calculate view projection matrix
-	// for 2D, this will be a simple orthographic projection, which means that the view matrix
-	// (camera matrix) will be the identity, and does not need to be factored in.
-
-	auto extents          = encoder.getRenderpassExtent();
-	auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
-
-	{
-		// set a negative height for viewport so that +Y goes up, rather than down.
-
-		le::Viewport viewports[ 2 ] = {
-		    { 0.f, float( extents.height ), float( extents.width ), -float( extents.height ), 0.f, 1.f },
-		    { 0.f, 0, float( extents.width ), float( extents.height ), 0.f, 1.f },
-		};
-
-		encoder.setViewports( 0, 1, viewports + 1 );
-	}
-
-	encoder
-	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &ortho_projection, sizeof( glm::mat4 ) );
-
-	// Update sort key for all primitives
-
-	for ( auto& p : self->primitives ) {
-		le_2d_primitive_update_hash( p );
-	}
-
-	// Now, we do essentially run-length encoding.
-
-	std::vector<std::vector<VertexData2D>> geometry_data;
-	std::vector<PrimitiveInstanceData2D>   per_instance_data;
-	per_instance_data.reserve( self->primitives.size() );
-
-	struct InstancedDraw {
-		uint32_t geometry_data_index; // which geometry
-		uint32_t instance_data_index; // first index for instance data
-		uint32_t instance_count;      // number of instances with same geometry
-	};
-
-	std::vector<InstancedDraw> instanced_draws;
-
-	uint64_t previous_hash = 0;
-
-	for ( auto const& p : self->primitives ) {
-
-		if ( instanced_draws.empty() ) {
-
-			std::vector<VertexData2D> geometry;
-
-			generate_geometry_for_primitive( p, geometry );
-			geometry_data.emplace_back( geometry );
-
-			PrimitiveInstanceData2D instance_data{};
-			instance_data.color        = p->material.color;
-			instance_data.rotation_ccw = p->node.rotation_ccw;
-			instance_data.scale        = p->node.scale;
-			instance_data.translation  = p->node.translation;
-
-			per_instance_data.emplace_back( instance_data );
-
-			instanced_draws.push_back( { 0, 0, 1 } );
-			previous_hash = p->hash;
-			continue;
-		}
-
-		uint32_t hash = p->hash;
-
-		if ( hash != previous_hash ) {
-
-			instanced_draws.push_back( { uint32_t( geometry_data.size() ),
-			                             uint32_t( per_instance_data.size() ),
-			                             1 } );
-			// geometry has changed.
-
-			std::vector<VertexData2D> geometry;
-
-			generate_geometry_for_primitive( p, geometry );
-			geometry_data.emplace_back( geometry );
-
-			PrimitiveInstanceData2D instance_data{};
-			instance_data.color        = p->material.color;
-			instance_data.rotation_ccw = p->node.rotation_ccw;
-			instance_data.scale        = p->node.scale;
-			instance_data.translation  = p->node.translation;
-
-			per_instance_data.emplace_back( instance_data );
-
-			previous_hash = hash;
-		} else {
-
-			PrimitiveInstanceData2D instance_data{};
-			instance_data.color        = p->material.color;
-			instance_data.rotation_ccw = p->node.rotation_ccw;
-			instance_data.scale        = p->node.scale;
-			instance_data.translation  = p->node.translation;
-
-			per_instance_data.emplace_back( instance_data );
-
-			instanced_draws.back().instance_count++;
-		}
-	}
-
-	for ( auto& d : instanced_draws ) {
-
-		auto& geom = geometry_data[ d.geometry_data_index ];
-
-		encoder
-		    .setVertexData( geom.data(), sizeof( VertexData2D ) * geom.size(), 0 )
-		    .setVertexData( per_instance_data.data() + d.instance_data_index, d.instance_count * sizeof( PrimitiveInstanceData2D ), 1 )
-		    .draw( uint32_t( geom.size() ), d.instance_count );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_destroy( le_2d_o* self ) {
-
-	// We draw all primtives which have been attached to this 2d context.
-
-	le_2d_draw_primitives( self );
-
-	// Clean up
-
-	for ( auto& p : self->primitives ) {
-
-		// Most primitives are POD types, but some might own
-		// their own heap-allocated objects which we must clean up.
-
-		switch ( p->type ) {
-		case ( le_2d_primitive_o::Type::ePath ):
-			if ( p->data.as_path.path ) {
-				le_path::le_path_i.destroy( p->data.as_path.path );
-			}
-			break;
-		default:
-			break;
-		}
-
-		delete p;
-	}
+	// we should signal to the renderer that we do not require any of the buffer resources anymore
 
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static le_2d_primitive_o* le_2d_allocate_primitive( le_2d_o* self ) {
-	le_2d_primitive_o* p = new le_2d_primitive_o();
+static void generate_msaa16_lut( std::vector<uint8_t>& table ) {
+	// generate data for 16 sample lookup table
+	// Width is number of discrete translations
+	static constexpr uint64_t MASK16_WIDTH = 64;
+	// Height is the number of discrete slopes
+	static constexpr uint64_t MASK16_HEIGHT = 64;
 
-	p->hash              = 0;
-	p->node.scale        = float2{ 1 };
-	p->node.translation  = float2{ 0 };
-	p->node.rotation_ccw = 0;
+	// This is based on the [D3D11 standard sample pattern].
+	//
+	// [D3D11 standard sample pattern]: https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_standard_multisample_quality_levels
+	static constexpr uint8_t PATTERN_16[ 16 ] = { 1, 8, 4, 11, 15, 7, 3, 12, 0, 9, 5, 13, 2, 10, 6, 14 };
 
-	p->material.color            = 0xffffffff;
-	p->material.stroke_weight    = 1.f;
-	p->material.filled           = false;
-	p->material.stroke_cap_type  = StrokeCapType::eStrokeCapRound;
-	p->material.stroke_join_type = StrokeJoinType::eStrokeJoinRound;
+	auto one_mask_16 = []( double slope, double translation, bool is_pos ) -> uint16_t {
+		if ( is_pos ) {
+			translation = 1. - translation;
+		}
 
-	memset( p->data.as_data, 0, sizeof( p->data ) );
+		uint16_t result = 0;
 
-	self->primitives.push_back( p );
+		int i = 0;
+		for ( auto const& item : PATTERN_16 ) {
 
-	return p;
+			double y = ( double( i ) + 0.5 ) * 0.0625;
+			double x = ( double( item ) + 0.5 ) * 0.0625;
+			if ( !is_pos ) {
+				y = 1.0 - y;
+			}
+			if ( ( x - ( 1.0 - translation ) ) * ( 1. - slope ) - ( y - translation ) * slope >= 0. ) {
+				result |= 1 << i;
+			}
+			i++;
+		}
+
+		return result;
+	};
+
+	/// Make a lookup table of half-plane masks.
+	///
+	/// The table is organized into two blocks each with `MASK16_HEIGHT/2` slopes.
+	/// The first block is negative slopes (x decreases as y increases),
+	/// the second as positive.
+
+	table.reserve( MASK16_WIDTH * MASK16_HEIGHT * 2 );
+
+	for ( int i = 0; i != MASK16_HEIGHT * MASK16_WIDTH; i++ ) {
+
+		const auto HALF_HEIGHT = MASK16_HEIGHT >> 1;
+		uint64_t   u           = i % MASK16_WIDTH;
+		uint64_t   v           = i / MASK16_WIDTH;
+
+		bool is_pos = v >= HALF_HEIGHT;
+
+		double y = ( double( v % HALF_HEIGHT ) + 0.5 ) * ( 1.0 / double( HALF_HEIGHT ) );
+		double x = ( double( u ) + 0.5 ) * ( 1.0 / double( MASK16_WIDTH ) );
+
+		uint16_t mask = one_mask_16( y, x, is_pos );
+
+		table.emplace_back( ( mask >> 8 ) & 0xff ); // big end next
+		table.emplace_back( mask & 0xff );          // little end first
+	}
 }
 
 // ----------------------------------------------------------------------
 
-static le_2d_primitive_o* le_2d_primitive_create_circle( le_2d_o* context ) {
-	auto p = le_2d_allocate_primitive( context );
+static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resource_info_t* out_img_info, uint32_t background_colour_argb ) {
 
-	p->type   = le_2d_primitive_o::Type::eCircle;
-	auto& obj = p->data.as_circle;
+	if ( nullptr == out_img_info ) {
+		return false;
+	}
+	// ---------| invariant: resource is valid
 
-	obj.radius    = 100.f;
-	obj.tolerance = 0.5f;
-
-	return p;
-}
-
-// ----------------------------------------------------------------------
-
-static le_2d_primitive_o* le_2d_primitive_create_ellipse( le_2d_o* context ) {
-	auto p = le_2d_allocate_primitive( context );
-
-	p->type = le_2d_primitive_o::Type::eEllipse;
-
-	auto& obj = p->data.as_ellipse;
-
-	obj.radii     = { 0.f, 0.f };
-	obj.tolerance = 0.5;
-
-	return p;
-}
-
-// ----------------------------------------------------------------------
-
-static le_2d_primitive_o* le_2d_primitive_create_arc( le_2d_o* context ) {
-	auto p = le_2d_allocate_primitive( context );
-
-	p->type = le_2d_primitive_o::Type::eArc;
-
-	auto& obj = p->data.as_arc;
-
-	obj.radii           = { 0.f, 0.f };
-	obj.tolerance       = 0.5;
-	obj.angle_start_rad = 0;
-	obj.angle_end_rad   = glm::two_pi<float>();
-
-	p->material.stroke_weight = 1.f;
-
-	return p;
-}
-
-// ----------------------------------------------------------------------
-
-static le_2d_primitive_o* le_2d_primitive_create_line( le_2d_o* context ) {
-	auto p = le_2d_allocate_primitive( context );
-
-	p->type   = le_2d_primitive_o::Type::eLine;
-	auto& obj = p->data.as_line;
-
-	obj.p0                    = {};
-	obj.p1                    = {};
-	p->material.stroke_weight = 1.f;
-
-	return p;
-}
-
-// ----------------------------------------------------------------------
-
-static le_2d_primitive_o* le_2d_primitive_create_path( le_2d_o* context ) {
-	auto p = le_2d_allocate_primitive( context );
-
-	p->type   = le_2d_primitive_o::Type::ePath;
-	auto& obj = p->data.as_path;
-
-	obj.path      = le_path::le_path_i.create();
-	obj.tolerance = 0.1f;
-
-	p->material.stroke_weight = 1.f;
-	return p;
-}
-
-static le_2d_primitive_o* le_2d_primitive_create_path_from( le_2d_o* context, le_path_o const* path ) {
-	auto p = le_2d_allocate_primitive( context );
-
-	p->type   = le_2d_primitive_o::Type::ePath;
-	auto& obj = p->data.as_path;
-
-	obj.path      = le_path::le_path_i.clone( path );
-	obj.tolerance = 0.1f;
-
-	p->material.stroke_weight = 1.f;
-	return p;
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, float2 const* pos ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_operations_i.move_to( obj.path, ( float2* )pos );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_line_to( le_2d_primitive_o* p, float2 const* pos ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_operations_i.line_to( obj.path, ( float2* )pos );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_close( le_2d_primitive_o* p ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_operations_i.close( obj.path );
-}
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, float2 const* pos, float2 const* c1, float2 const* c2 ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_operations_i.cubic_bezier_to( obj.path, ( float2* )pos, ( float2* )c1, ( float2* )c2 );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, float2 const* pos, float2 const* c1 ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_operations_i.quad_bezier_to( obj.path, ( float2* )pos, ( float2* )c1 );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_arc_to( le_2d_primitive_o* p, float2 const* pos, float2 const* radii, float phi, bool large_arc, bool sweep ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_operations_i.arc_to( obj.path, ( float2* )pos, ( float2* )radii, phi, large_arc, sweep );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_hobby( le_2d_primitive_o* p ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_i.hobby( obj.path );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_ellipse( le_2d_primitive_o* p, float2 const* centre, float r_x, float r_y ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_i.ellipse( obj.path, ( float2* )centre, r_x, r_y );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_add_from_simplified_svg( le_2d_primitive_o* p, char const* svg ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj = p->data.as_path;
-	le_path::le_path_i.add_from_simplified_svg( obj.path, svg );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_path_set_tolerance( le_2d_primitive_o* p, float tolerance ) {
-	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto& obj     = p->data.as_path;
-	obj.tolerance = tolerance;
-}
-
-// ----------------------------------------------------------------------
-
-static void le_2d_primitive_set_node_position( le_2d_primitive_o* p, float2 const* pos ) {
-	p->node.translation = *pos;
-}
-
-static void le_2d_primitive_set_stroke_weight( le_2d_primitive_o* p, float weight ) {
-	p->material.stroke_weight = weight;
-}
-
-static void le_2d_primitive_set_stroke_cap_type( le_2d_primitive_o* p, StrokeCapType cap_type ) {
-	p->material.stroke_cap_type = cap_type;
-}
-
-static void le_2d_primitive_set_stroke_join_type( le_2d_primitive_o* p, StrokeJoinType join_type ) {
-	p->material.stroke_join_type = join_type;
-}
-
-static void le_2d_primitive_set_filled( le_2d_primitive_o* p, bool filled ) {
-	p->material.filled = filled;
-}
-
-static void le_2d_primitive_set_color( le_2d_primitive_o* p, uint32_t r8g8b8a8_color ) {
-	p->material.color = r8g8b8a8_color;
-}
-
-#define SETTER_IMPLEMENT( prim_type, field_type, field_name )                                                   \
-	static void le_2d_primitive_##prim_type##_set_##field_name( le_2d_primitive_o* p, field_type field_name ) { \
-		p->data.as_##prim_type.field_name = field_name;                                                         \
+	if ( out_img_info->type != LeResourceType::eImage ) {
+		return false;
 	}
 
-#define SETTER_IMPLEMENT_CPY( prim_type, field_type, field_name )                                               \
-	static void le_2d_primitive_##prim_type##_set_##field_name( le_2d_primitive_o* p, field_type field_name ) { \
-		p->data.as_##prim_type.field_name = *field_name;                                                        \
+	// ---------| resource type is image
+
+	if ( 0 == out_img_info->image.extent.width * out_img_info->image.extent.height * out_img_info->image.extent.depth ) {
+		return false;
 	}
 
-SETTER_IMPLEMENT( circle, float, radius );
-SETTER_IMPLEMENT( circle, float, tolerance );
+	// ---------| image has valid extent
 
-SETTER_IMPLEMENT_CPY( ellipse, float2 const*, radii );
-SETTER_IMPLEMENT( ellipse, float, tolerance );
+	{
+		// update rasterizer layout data
 
-SETTER_IMPLEMENT_CPY( arc, float2 const*, radii );
-SETTER_IMPLEMENT( arc, float, tolerance );
+		if ( true ) {
 
-SETTER_IMPLEMENT( arc, float, angle_start_rad );
-SETTER_IMPLEMENT( arc, float, angle_end_rad );
+			size_t num_scene_bytes = self->scene_bytes.size();
 
-SETTER_IMPLEMENT_CPY( line, float2 const*, p0 );
-SETTER_IMPLEMENT_CPY( line, float2 const*, p1 );
+			while ( false == le_2d::le_2d_encoder_i.encode_to_bytes( e, self->scene_bytes.data(), &num_scene_bytes, &self->rasterizer_args.layout ) ) {
+				self->scene_bytes.resize( num_scene_bytes );
+			};
 
-#undef SETTER_IMPLEMENT
+			// snip off any extra bytes that were not used
+			self->scene_bytes.resize( num_scene_bytes );
+
+			// self->rasterizer_args.layout       = le_2d_api::le_2d_encoder_i.encode_to_bytes( e, self->scene_bytes );
+			self->rasterizer_args.binning_size = buf_bin_data_num_bytes / sizeof( uint32_t ) - self->rasterizer_args.layout.bin_data_start;
+
+			self->buf_vello_scene_info =
+			    le::BufferInfoBuilder()
+			        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst |
+			                        le::BufferUsageFlagBits::eStorageBuffer )
+			        .setSize( self->scene_bytes.size() )
+			        .build();
+		}
+
+		self->rasterizer_args.base_color      = background_colour_argb;
+		self->rasterizer_args.target_width    = out_img_info->image.extent.width;
+		self->rasterizer_args.target_height   = out_img_info->image.extent.height;
+		self->rasterizer_args.width_in_tiles  = align_up( self->rasterizer_args.target_width / TILE_UNIT, TILE_UNIT );
+		self->rasterizer_args.height_in_tiles = align_up( self->rasterizer_args.target_height / TILE_UNIT, TILE_UNIT );
+
+		self->wg_counts = get_work_group_counts( self->rasterizer_args.layout, self->rasterizer_args.width_in_tiles, self->rasterizer_args.height_in_tiles );
+	}
+	{
+		// TODO: only call get_work_group_counts once -- consolidate all this when you ingest / process the scene for the first time...
+		//
+		auto const& wg              = self->wg_counts;
+		size_t      n_paths         = self->rasterizer_args.layout.n_paths;
+		size_t      n_draw_objs     = self->rasterizer_args.layout.n_drawobj;
+		size_t      n_clips         = self->rasterizer_args.layout.n_clips;
+		size_t      path_tag_wgs    = wg.path_reduce[ 0 ];
+		size_t      reduced_size    = wg.use_large_path_scan ? align_up( path_tag_wgs, PATH_REDUCE_WG_SZ ) : path_tag_wgs;
+		size_t      binning_wgs     = wg.binning[ 0 ];
+		size_t      draw_monoid_wgs = wg.draw_reduce[ 0 ];
+		size_t      n_paths_aligned = align_up( n_paths, 256 );
+
+		self->bsz = {
+		    // all sizes here are given in bytes.
+		    .path_reduced      = 20 * reduced_size,
+		    .path_reduced2     = 20 * PATH_REDUCE_WG_SZ,
+		    .path_reduced_scan = 20 * reduced_size,
+		    .path_monoids      = 20 * path_tag_wgs * PATH_REDUCE_WG_SZ,
+		    .path_bboxes       = 24 * n_paths,
+		    .draw_reduced      = 20 * draw_monoid_wgs,
+		    .draw_monoids      = 20 * n_draw_objs,
+		    .info              = self->rasterizer_args.layout.bin_data_start, // does this need to be scaled?
+		    .clip_inps         = 8 * n_clips,
+		    .clip_els          = 32 * n_clips,
+		    .clip_bics         = 8 * ( n_clips / CLIP_REDUCE_WG_SZ ),
+		    .clip_bboxes       = 16 * n_clips,
+		    .draw_bboxes       = 16 * n_paths,
+		    .bump_alloc        = 32,
+		    .indirect_count    = 16,
+		    .bin_headers       = 8 * binning_wgs * 256,
+		    .paths             = 32 * n_paths_aligned,
+		    // these should be based on heuristics
+		    .lines       = 24 * ( 1 << 21 ),
+		    .bin_data    = buf_bin_data_num_bytes, // TODO: this needs to change based on the actual size of the data
+		    .tiles       = 8 * ( 1 << 21 ),
+		    .seg_counts  = 8 * ( 1 << 21 ),
+		    .segments    = 24 * ( 1 << 21 ),
+		    .blend_spill = 4 * ( 1 << 20 ), // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
+		    .ptcl        = 4 * ( 1 << 23 ), // TODO: this also needs to reflect the actual number of pt
+		};
+	}
+	{
+		// the sizes here are object counts. we must divide the buffer sizes by
+		self->rasterizer_args.lines_size      = self->bsz.lines / 24; // number of lines in linesoup, ( sizeof LineSoup == 16 )
+		self->rasterizer_args.tiles_size      = self->bsz.tiles / 8;  // number of tiles, sizeof(Tile) = 8
+		self->rasterizer_args.seg_counts_size = self->bsz.seg_counts / 8;
+		self->rasterizer_args.segments_size   = self->bsz.segments / 24; // number of segments (sizeof Segment ==8)
+		self->rasterizer_args.blend_size      = self->bsz.blend_spill / 4;
+		self->rasterizer_args.ptcl_size       = self->bsz.ptcl / 4;
+	}
+	return true;
+}
+
+// ----------------------------------------------------------------------
+// Creates a compute pipeline state object from compressed shader code.
+// shader code is provided as a base85 encoded string which contains compressed
+// spir-v. Spirv is decompressed via stb_decompress.
+//
+// We do this so that we can embed shader code directly into this
+// compilation unit.
+static le_cpso_handle create_cpso_from_compressed_and_encoded_spirv_code( le_pipeline_manager_o* pm, char const* compressed_shader_code ) {
+	int  compressed_size = ( ( ( int )strlen( compressed_shader_code ) + 4 ) / 5 ) * 4;
+	auto decoded_data    = ( uint8_t* )malloc( compressed_size );
+	decode_85( ( unsigned char const* )compressed_shader_code, decoded_data );
+
+	const unsigned int    buf_spv_num_bytes = stb_decompress_length( ( const unsigned char* )decoded_data );
+	std::vector<uint32_t> buf_spv_code( buf_spv_num_bytes / 4 );
+	stb_decompress( ( uint8_t* )buf_spv_code.data(), ( const unsigned char* )decoded_data, ( unsigned int )compressed_size );
+
+	free( decoded_data );
+
+	return LeComputePipelineBuilder( pm )
+	    .setShaderStage(
+	        LeShaderModuleBuilder( pm )
+	            .setShaderStage( le::ShaderStage::eCompute )
+	            .setSpirvCode( ( uint32_t* )buf_spv_code.data(), buf_spv_code.size() )
+	            .setSourceLanguage( le::ShaderSourceLanguage::eSpirv )
+	            .build() )
+	    .build();
+};
+
+// ----------------------------------------------------------------------
+
+static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* encoder, le_image_resource_handle img_output, le_resource_info_t* img_output_info, uint32_t background_colour_argb ) {
+
+	if ( self->mask_lut_bytes.empty() ) {
+		generate_msaa16_lut( self->mask_lut_bytes );
+	}
+
+	bool result = le_encode_scene( self, encoder, img_output_info, background_colour_argb );
+
+	if ( false == result ) {
+		assert( false );
+		logger().error( "Could not encode scene." );
+		return;
+	}
+
+	{
+		uint64_t scene_hash = SpookyHash::Hash64( self->scene_bytes.data(), self->scene_bytes.size(), 0 );
+
+		if ( scene_hash != self->previous_scene_hash ) {
+			// Only transfer data if contents have changed
+			self->rasterizer_xfer_flags |= self->transfer_scene_mask;
+			self->previous_scene_hash = scene_hash;
+			logger().info( "scene update detected" );
+		}
+
+		// FIXME: for now, we update the scene every time.
+		self->rasterizer_xfer_flags |= self->transfer_scene_mask;
+	}
+
+	self->img_output = img_output;
+
+	// -------
+
+	le::RenderGraph renderGraph( rg );
+
+	auto build_buffer_info = []( size_t num_bytes, le::BufferUsageFlags const& flags ) -> le_resource_info_t {
+		// note that we align up to 256 bytes by default, because we don't want to have super small buffers
+		// flying around, and it's very likely that small buffers are less performant because they might
+		// not fit cache lines that well.
+		// we're also making sure that there is at least 256 bytes that are allocated because we don't want any empty
+		// allocations
+		return le::BufferInfoBuilder().addUsageFlags( flags ).setSize( align_up( std::max<size_t>( 1, num_bytes ), 256 ) ).build();
+	};
+
+	self->buf_reduced_info       = build_buffer_info( self->bsz.path_reduced, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
+	self->buf_reduced2_info      = build_buffer_info( self->bsz.path_reduced2, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
+	self->buf_reduced_scan_info  = build_buffer_info( self->bsz.path_reduced_scan, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
+	self->buf_tagmonoid_info     = build_buffer_info( self->bsz.path_monoids, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
+	self->buf_path_bbox_info     = build_buffer_info( self->bsz.path_bboxes, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
+	self->buf_bump_info          = build_buffer_info( self->bsz.bump_alloc, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );   // the size for this buffer is determined by how many threads want to allocate concurrently
+	self->buf_draw_reduced_info  = build_buffer_info( self->bsz.draw_reduced, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst ); // the size for this buffer is determined by how many threads want to allocate concurrently
+	self->buf_lines_info         = build_buffer_info( self->bsz.lines, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_draw_monoid_info   = build_buffer_info( self->bsz.draw_monoids, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_info_bin_data_info = build_buffer_info( buf_bin_data_num_bytes, le::BufferUsageFlagBits::eStorageBuffer );
+
+	self->buf_clip_inp_info  = build_buffer_info( self->bsz.clip_inps, le::BufferUsageFlagBits::eStorageBuffer ); // size for this needs to be determined by what?
+	self->buf_clip_bbox_info = build_buffer_info( self->bsz.clip_bboxes, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_clip_el_info   = build_buffer_info( self->bsz.clip_els, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_clip_bic_info  = build_buffer_info( self->bsz.clip_bics, le::BufferUsageFlagBits::eStorageBuffer );
+
+	self->buf_draw_bbox_info      = build_buffer_info( self->bsz.draw_bboxes, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_bin_header_info     = build_buffer_info( self->bsz.bin_headers, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_path_info           = build_buffer_info( self->bsz.paths, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_mask_lut_info       = build_buffer_info( 8196, le::BufferUsageFlagBits::eStorageBuffer ); // size is constant because this is constant data
+	self->buf_tile_info           = build_buffer_info( self->bsz.tiles, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_seg_counts_info     = build_buffer_info( self->bsz.seg_counts, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_ptcl_info           = build_buffer_info( self->bsz.ptcl, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_segments_info       = build_buffer_info( self->bsz.segments, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_indirect_count_info = build_buffer_info( sizeof( uint32_t ) * 3, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eIndirectBuffer );
+	self->buf_blend_spill_info    = build_buffer_info( self->bsz.blend_spill, le::BufferUsageFlagBits::eStorageBuffer );
+
+	img_output_info->image.usage |=
+	    le::ImageUsageFlagBits::eStorage | le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled;
+
+	// const auto img_output_info =
+	//     le::ImageInfoBuilder()
+	//         .setExtent( self->rasterizer_args.target_width, self->rasterizer_args.target_height )
+	//         .addUsageFlags( le::ImageUsageFlagBits::eStorage | le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled )
+	//         .setFormat( le::Format::eR32G32B32A32Sfloat )
+	//         .build();
+
+	static const auto img_gradients_info =
+	    le::ImageInfoBuilder()
+	        .setExtent( 1, 1 )
+	        .addUsageFlags( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled )
+	        .setFormat( le::Format::eR8G8B8A8Unorm )
+	        .build();
+
+	static const auto img_image_atlas_info =
+	    le::ImageInfoBuilder()
+	        .setExtent( 1, 1 )
+	        .addUsageFlags( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled )
+	        .setFormat( le::Format::eR8G8B8A8Unorm )
+	        .build();
+
+	renderGraph
+	    .declareResource( self->buf_vello_scene, self->buf_vello_scene_info )
+	    .declareResource( self->buf_reduced, self->buf_reduced_info )
+
+	    .declareResource( self->buf_reduced2, self->buf_reduced2_info )         // only used when large path numbers
+	    .declareResource( self->buf_reduced_scan, self->buf_reduced_scan_info ) // only used when large path numbers
+
+	    .declareResource( self->buf_tagmonoid, self->buf_tagmonoid_info )
+	    .declareResource( self->buf_path_bbox, self->buf_path_bbox_info )
+
+	    .declareResource( self->buf_bump, self->buf_bump_info )
+	    .declareResource( self->buf_lines, self->buf_lines_info )
+	    .declareResource( self->buf_draw_monoid, self->buf_draw_monoid_info )
+
+	    .declareResource( self->buf_draw_reduced, self->buf_draw_reduced_info )
+
+	    .declareResource( self->buf_clip_inp, self->buf_clip_inp_info )
+	    .declareResource( self->buf_clip_bbox, self->buf_clip_bbox_info )
+	    .declareResource( self->buf_clip_el, self->buf_clip_el_info )
+	    .declareResource( self->buf_clip_bic, self->buf_clip_bic_info )
+
+	    .declareResource( self->buf_info_bin_data, self->buf_info_bin_data_info )
+	    .declareResource( self->buf_draw_bbox, self->buf_draw_bbox_info )
+
+	    .declareResource( self->buf_bin_header, self->buf_bin_header_info )
+	    .declareResource( self->buf_path, self->buf_path_info )
+	    .declareResource( self->buf_tile, self->buf_tile_info )
+	    .declareResource( self->buf_indirect_count, self->buf_indirect_count_info )
+	    .declareResource( self->buf_seg_counts, self->buf_seg_counts_info )
+	    .declareResource( self->buf_ptcl, self->buf_ptcl_info )
+	    .declareResource( self->buf_blend_spill, self->buf_blend_spill_info )
+
+	    .declareResource( self->buf_segments, self->buf_segments_info )
+	    .declareResource( self->buf_mask_lut, self->buf_mask_lut_info )
+
+	    .declareResource( img_output, *img_output_info )
+	    .declareResource( self->img_gradients, img_gradients_info )
+	    .declareResource( self->img_image_atlas, img_image_atlas_info )
+
+	    ;
+
+	auto rp_xfer_lut =
+	    le::RenderPass( "rp_xfer_lut", le::QueueFlagBits::eTransfer )
+	        .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
+		        le::RenderPass rp{ rp_ };
+		        auto           app = ( le_2d_o* )( user_data );
+		        if ( app->rasterizer_xfer_flags & app->transfer_lut_mask ) {
+			        rp.useBufferResource( app->buf_mask_lut, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
+			        // unset transfer lut mask
+			        app->rasterizer_xfer_flags &= ( ~app->transfer_lut_mask );
+			        return true;
+		        }
+		        return false;
+	        } )
+	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
+		        auto app     = ( le_2d_o const* )( user_data );
+		        auto encoder = le::TransferEncoder( e_ );
+		        encoder.writeToBuffer( app->buf_mask_lut, 0, app->mask_lut_bytes.data(), app->mask_lut_bytes.size() );
+	        } );
+
+	auto rp_xfer_scene =
+	    le::RenderPass( "rp_xfer_2d_scene", le::QueueFlagBits::eTransfer )
+	        .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
+		        le::RenderPass rp{ rp_ };
+		        auto           app = ( le_2d_o* )( user_data );
+		        if ( app->rasterizer_xfer_flags & le_2d_o::transfer_scene_mask ) {
+			        rp.useBufferResource( app->buf_vello_scene, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
+			        app->rasterizer_xfer_flags &= ( ~app->transfer_scene_mask );
+			        return true;
+		        }
+		        return false;
+	        } )
+	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
+		        auto app     = ( le_2d_o const* )( user_data );
+		        auto encoder = le::TransferEncoder( e_ );
+		        // Upload scene data to GPU buffer
+		        encoder.writeToBuffer( app->buf_vello_scene, 0, app->scene_bytes.data(), app->scene_bytes.size() );
+	        } );
+
+	auto rp_clear_images =
+	    le::RenderPass( "img_clear_src_img", le::QueueFlagBits::eGraphics )
+	        .setWidth( 1 )
+	        .setHeight( 1 )
+	        .addColorAttachment(
+	            self->img_gradients,
+	            le::ImageAttachmentInfoBuilder()
+	                .setLoadOp( le::AttachmentLoadOp::eClear )
+	                .build() )
+	        .addColorAttachment(
+	            self->img_image_atlas,
+	            le::ImageAttachmentInfoBuilder()
+	                .setLoadOp( le::AttachmentLoadOp::eClear )
+	                .build() ) //
+	    ;
+
+	auto rp_pathtag_reduce =
+	    le::RenderPass( "rasterize_2d_scene", le::QueueFlagBits::eCompute )
+
+	        .useBufferResource( self->buf_vello_scene, le::AccessFlagBits2::eShaderRead )
+	        .useBufferResource( self->buf_reduced, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	        .useBufferResource( self->buf_reduced2, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )     // only when large path numbers
+	        .useBufferResource( self->buf_reduced_scan, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite ) // only when large path numbers
+
+	        .useBufferResource( self->buf_tagmonoid, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_path_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_bump, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_lines, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_draw_reduced, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_draw_monoid, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	        .useBufferResource( self->buf_info_bin_data, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	        .useBufferResource( self->buf_clip_inp, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_clip_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_clip_el, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_clip_bic, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	        .useBufferResource( self->buf_draw_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_bin_header, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_path, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_tile, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_indirect_count, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_seg_counts, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_ptcl, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_segments, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_blend_spill, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	        .useBufferResource( self->buf_mask_lut, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	        .useImageResource( self->img_output, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderStorageWrite )
+	        .useImageResource( self->img_image_atlas, le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2::eNone )
+	        .useImageResource( self->img_gradients, le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2::eNone )
+
+	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
+		        auto ctx = ( le_2d_o* )user_data;
+
+		        auto const& wg = ctx->wg_counts;
+
+		        /*
+		         * witdh and height and number of tiles is dependent on the dimensions of the target framebuffer.
+		         *
+		         * data in layout depends on the scene
+		         *
+		         * then we have the number of allowed allocations based on how much data we allocated
+		         *
+		         */
+
+		        auto encoder = le::ComputeEncoder( e_ );
+
+		        static auto pm = encoder.getPipelineManager();
+
+		        { // Zero out any buffers that need to be reset
+			        assert( ctx->buf_bump_info.buffer.size % 4 == 0 && "bump buffer size must be multiple of 4" );
+			        encoder.fillBuffer( ctx->buf_bump, 0, ctx->buf_bump_info.buffer.size, 0 );
+
+			        // float fill_data = 1.0;
+			        // encoder.fillBuffer( app->buf_lines, 0, buf_lines_info.buffer.size, *( uint32_t* )( &fill_data ) );
+			        encoder.fillBuffer( ctx->buf_lines, 0, ctx->buf_lines_info.buffer.size, 0 );
+
+			        encoder.fillBuffer( ctx->buf_clip_bbox, 0, ctx->buf_clip_bbox_info.buffer.size, 0 );
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eTransfer,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eTransferWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_clip_bbox );
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eTransfer,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eTransferWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_bump );
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eTransfer,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eTransferWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_lines );
+		        }
+
+		        {
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eTransfer,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eTransferWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_vello_scene );
+
+			        static auto pso_pathtag_reduce =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_pathtag_reduce )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_reduced, 0 )
+			            .dispatch( wg.path_reduce[ 0 ], wg.path_reduce[ 1 ], wg.path_reduce[ 2 ] );
+			        //
+		        }
+
+		        // ----------
+
+		        if ( wg.use_large_path_scan ) {
+			        // dispatch reduce2
+
+			        {
+
+				        static auto pso_pathtag_reduce2 =
+				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce2_compressed_data_base85 );
+
+				        encoder.bindComputePipeline( pso_pathtag_reduce2 )
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced_in" ), ctx->buf_reduced, 0 ) // r
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_reduced2, 0 )   // rw
+				            .dispatch( wg.path_reduce2[ 0 ], wg.path_reduce2[ 1 ], wg.path_reduce2[ 2 ] );
+				        //
+			        }
+			        {
+
+				        encoder.bufferMemoryBarrier(
+				            le::PipelineStageFlagBits2::eComputeShader,
+				            le::PipelineStageFlagBits2::eComputeShader,
+				            le::AccessFlagBits2::eShaderWrite,
+				            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+				            ctx->buf_reduced2 );
+
+				        static auto pso_pathtag_scan1 =
+				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan1_compressed_data_base85 );
+
+				        encoder.bindComputePipeline( pso_pathtag_scan1 )
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_reduced, 0 )          // r
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced2" ), ctx->buf_reduced2, 0 )        // r
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tag_monoids" ), ctx->buf_reduced_scan, 0 ) // rw
+				            .dispatch( wg.path_scan1[ 0 ], wg.path_scan1[ 1 ], wg.path_scan1[ 2 ] );
+				        //
+			        }
+		        }
+
+		        // ---------
+
+		        {
+
+			        le_buffer_resource_handle reduced_buf = ctx->buf_reduced;
+
+			        if ( wg.use_large_path_scan ) {
+				        reduced_buf = ctx->buf_reduced_scan;
+			        }
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eShaderWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            reduced_buf );
+
+			        static auto pso_pathtag_scan_large =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_large_compressed_data_base85 );
+			        static auto pso_pathtag_scan_small =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_small_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( wg.use_large_path_scan ? pso_pathtag_scan_large : pso_pathtag_scan_small )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )     // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), reduced_buf, 0 )            // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tag_monoids" ), ctx->buf_tagmonoid, 0 ) // w
+
+			            .dispatch( wg.path_scan[ 0 ], wg.path_scan[ 1 ], wg.path_scan[ 2 ] );
+		        }
+
+		        // -----------
+
+		        {
+			        static auto pso_path_bbox_clear =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, bbox_clear_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_path_bbox_clear )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox, 0 ) // w
+			            .dispatch( wg.bbox_clear[ 0 ], wg.bbox_clear[ 1 ], wg.bbox_clear[ 2 ] );
+		        }
+
+		        {
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eShaderWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_tagmonoid );
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eShaderWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_path_bbox );
+
+			        static auto pso_flatten =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, flatten_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_flatten )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )     // readonly
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tag_monoids" ), ctx->buf_tagmonoid, 0 ) // readonly
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox, 0 ) // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "lines" ), ctx->buf_lines )              // w
+			            .dispatch( wg.flatten[ 0 ], wg.flatten[ 1 ], wg.flatten[ 2 ] );
+		        }
+		        //
+		        {
+			        static auto pso_draw_reduce =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_reduce_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_draw_reduce )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 ) // readonly
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_draw_reduced ) // w
+			            .dispatch( wg.draw_reduce[ 0 ], wg.draw_reduce[ 1 ], wg.draw_reduce[ 2 ] );
+		        }
+
+		        // make sure that buf_path_bbox is available
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_path_bbox );
+
+		        // make sure that  buf_reduced is available
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_reduced );
+
+		        {
+			        static auto pso_draw_leaf =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_leaf_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_draw_leaf )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )       // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_draw_reduced )       // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bbox" ), ctx->buf_path_bbox, 0 )     // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_monoid" ), ctx->buf_draw_monoid, 0 ) // w
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "info" ), ctx->buf_info_bin_data, 0 )      // w
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_inp" ), ctx->buf_clip_inp, 0 )       // w
+			            .dispatch( wg.draw_leaf[ 0 ], wg.draw_leaf[ 1 ], wg.draw_leaf[ 2 ] );
+		        }
+
+		        if ( wg.clip_reduce[ 0 ] > 0 ) {
+			        // clip_reduce
+			        static auto pso_clip_reduce =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_reduce_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_clip_reduce )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_inp" ), ctx->buf_clip_inp, 0 )     // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox, 0 ) // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_clip_bic, 0 )      // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_out" ), ctx->buf_clip_el, 0 )      // rw
+			            .dispatch( wg.clip_reduce[ 0 ], wg.clip_reduce[ 1 ], wg.clip_reduce[ 2 ] );
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eShaderWrite,
+			            le::AccessFlagBits2::eShaderRead,
+			            ctx->buf_clip_bic );
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eShaderWrite,
+			            le::AccessFlagBits2::eShaderRead,
+			            ctx->buf_clip_el );
+		        }
+
+		        if ( wg.clip_leaf[ 0 ] > 0 ) {
+			        // clip_leaf
+			        static auto pso_clip_leaf =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_leaf_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_clip_leaf )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_inp" ), ctx->buf_clip_inp, 0 )        // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox, 0 )    // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_clip_bic, 0 )         // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_els" ), ctx->buf_clip_el, 0 )         // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_monoids" ), ctx->buf_draw_monoid, 0 ) // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_bboxes" ), ctx->buf_clip_bbox, 0 )    // rw
+
+			            .dispatch( wg.clip_leaf[ 0 ], wg.clip_leaf[ 1 ], wg.clip_leaf[ 2 ] );
+		        }
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_bump );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_info_bin_data );
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_draw_monoid );
+		        {
+			        static auto pso_binning =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, binning_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_binning )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_monoids" ), ctx->buf_draw_monoid, 0 )   // w
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bbox_buf" ), ctx->buf_path_bbox, 0 )    // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_bbox_buf" ), ctx->buf_clip_bbox, 0 )    // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "intersected_bbox" ), ctx->buf_draw_bbox, 0 ) // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                     // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bin_data" ), ctx->buf_info_bin_data, 0 )     // w
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bin_header" ), ctx->buf_bin_header, 0 )      // w
+			            .dispatch( wg.binning[ 0 ], wg.binning[ 1 ], wg.binning[ 2 ] );
+		        }
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_bump );
+		        {
+
+			        static auto pso_tile_alloc =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, tile_alloc_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_tile_alloc )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )     // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_bboxes" ), ctx->buf_draw_bbox, 0 ) // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path, 0 )            // w
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tiles" ), ctx->buf_tile, 0 )            // w
+			            .dispatch( wg.tile_alloc[ 0 ], wg.tile_alloc[ 1 ], wg.tile_alloc[ 2 ] );
+		        }
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_bump );
+
+		        {
+
+			        static auto pso_path_count_setup =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_setup_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_path_count_setup )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                  // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "indirect" ), ctx->buf_indirect_count, 0 ) // w
+			            .dispatch( wg.path_count_setup[ 0 ], wg.path_count_setup[ 1 ], wg.path_count_setup[ 2 ] );
+		        }
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eAllCommands,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eIndirectCommandRead,
+		            ctx->buf_indirect_count,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_bump );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_lines );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_path );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_tile );
+		        {
+
+			        static auto pso_path_count =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_path_count )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )             // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "lines" ), ctx->buf_lines )           // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path )            // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tile" ), ctx->buf_tile )             // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "seg_counts" ), ctx->buf_seg_counts ) // rw
+			            .dispatchIndirect( ctx->buf_indirect_count );
+		        }
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_tile,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_bump,
+		            0 );
+		        {
+
+			        static auto pso_backdrop_dyn =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, backdrop_dyn_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_backdrop_dyn )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path ) // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )  // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tiles" ), ctx->buf_tile ) // rw
+			            .dispatch( wg.backdrop[ 0 ], wg.backdrop[ 1 ], wg.backdrop[ 2 ] );
+		        }
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_bump,
+		            0 );
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_tile,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_info_bin_data,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_draw_monoid );
+
+		        {
+
+			        static auto pso_coarse =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, coarse_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_coarse )
+			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene )           // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_monoids" ), ctx->buf_draw_monoid )    // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bin_headers" ), ctx->buf_bin_header )      // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "info_bin_data" ), ctx->buf_info_bin_data ) // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path )                  // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tiles" ), ctx->buf_tile )                  // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                   // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "ptcl" ), ctx->buf_ptcl )                   // rw
+			            .dispatch( wg.coarse[ 0 ], wg.coarse[ 1 ], wg.coarse[ 2 ] );
+		        }
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_bump,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_ptcl,
+		            0 );
+
+		        {
+
+			        static auto pso_path_tiling_setup =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_setup_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_path_tiling_setup )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                  // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "indirect" ), ctx->buf_indirect_count, 0 ) // w
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "ptcl" ), ctx->buf_ptcl )                  // rw
+			            .dispatch( wg.path_tiling_setup[ 0 ], wg.path_tiling_setup[ 1 ], wg.path_tiling_setup[ 2 ] );
+		        }
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eAllCommands,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eIndirectCommandRead,
+		            ctx->buf_indirect_count,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_tile,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_bump,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_seg_counts,
+		            0 );
+
+		        {
+
+			        static auto pso_path_tiling =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_compressed_data_base85 );
+
+			        encoder.bindComputePipeline( pso_path_tiling )
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "seg_counts" ), ctx->buf_seg_counts, 0 ) // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "lines" ), ctx->buf_lines )              // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path )               // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tiles" ), ctx->buf_tile )               // r
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "segments" ), ctx->buf_segments )        // rw
+			            .dispatchIndirect( ctx->buf_indirect_count );                                   // r
+		        }
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_segments,
+		            0 );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_ptcl,
+		            0 );
+
+		        {
+
+			        static auto pso_fine_msaa_16 =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_msaa16_compressed_data_base85 );
+
+			        static auto pso_fine_area =
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_area_compressed_data_base85 );
+
+			        bool should_use_msaa = false;
+
+			        if ( should_use_msaa ) {
+				        encoder.bindComputePipeline( pso_fine_msaa_16 )
+				            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "segments" ), ctx->buf_segments )        // rw
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "ptcl" ), ctx->buf_ptcl )                // rw
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "info" ), ctx->buf_info_bin_data )       // r
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "blend_spill" ), ctx->buf_blend_spill )  // r
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "mask_lut" ), ctx->buf_mask_lut )        // rw
+				            .setArgumentImage( LE_ARGUMENT_NAME( "output" ), ctx->img_output, 0 )           // w
+				            .setArgumentImage( LE_ARGUMENT_NAME( "gradients" ), ctx->img_gradients, 0 )     // r
+				            .setArgumentImage( LE_ARGUMENT_NAME( "image_atlas" ), ctx->img_image_atlas, 0 ) // r
+				            .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
+			        } else {
+				        encoder.bindComputePipeline( pso_fine_area )
+				            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "segments" ), ctx->buf_segments )        // rw
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "ptcl" ), ctx->buf_ptcl )                // rw
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "info" ), ctx->buf_info_bin_data )       // r
+				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "blend_spill" ), ctx->buf_blend_spill )  // r
+				            .setArgumentImage( LE_ARGUMENT_NAME( "output" ), ctx->img_output, 0 )           // w
+				            .setArgumentImage( LE_ARGUMENT_NAME( "gradients" ), ctx->img_gradients, 0 )     // r
+				            .setArgumentImage( LE_ARGUMENT_NAME( "image_atlas" ), ctx->img_image_atlas, 0 ) // r
+				            .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
+			        }
+		        }
+	        } );
+
+	if ( true ) {
+		renderGraph
+		    .addRenderPass( rp_xfer_lut )
+		    .addRenderPass( rp_xfer_scene )
+		    .addRenderPass( rp_clear_images )
+		    .addRenderPass( rp_pathtag_reduce );
+	}
+}
+
+extern void register_le_2d_encoder_api( void* api_ );
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_2d, api ) {
-	auto& le_2d_i = static_cast<le_2d_api*>( api )->le_2d_i;
+	auto &le_2d_i = static_cast<le_2d_api *>( api )->le_2d_i;
 
-	le_2d_i.create  = le_2d_create;
-	le_2d_i.destroy = le_2d_destroy;
+	le_2d_i.create               = le_2d_create;
+	le_2d_i.destroy              = le_2d_destroy;
+	le_2d_i.update               = le_2d_update;
 
-	auto& le_2d_primitive_i = static_cast<le_2d_api*>( api )->le_2d_primitive_i;
+	register_le_2d_encoder_api( api );
+}
+//-----------------------------------------------------------------------------
+// [SECTION] Decompression code
+//-----------------------------------------------------------------------------
+// Compressed with stb_compress() then converted to a C array and encoded as base85.
+// Use the program in misc/fonts/binary_to_compressed_c.cpp to create the array from a TTF file.
+// The purpose of encoding as base85 instead of "0x00,0x01,..." style is only save on _source code_ size.
+// Decompression from stb.h (public domain) by Sean Barrett https://github.com/nothings/stb/blob/master/stb.h
+//-----------------------------------------------------------------------------
 
-#define SET_PRIMITIVE_FPTR( prim_type, field_name ) \
-	le_2d_primitive_i.prim_type##_set_##field_name = le_2d_primitive_##prim_type##_set_##field_name
+static unsigned int stb_decompress_length( const unsigned char* input ) {
+	return ( input[ 8 ] << 24 ) + ( input[ 9 ] << 16 ) + ( input[ 10 ] << 8 ) + input[ 11 ];
+}
 
-	SET_PRIMITIVE_FPTR( circle, radius );
-	SET_PRIMITIVE_FPTR( circle, tolerance );
+static unsigned char *      stb__barrier_out_e, *stb__barrier_out_b;
+static const unsigned char* stb__barrier_in_b;
+static unsigned char*       stb__dout;
+static void                 stb__match( const unsigned char* data, unsigned int length ) {
+    // INVERSE of memmove... write each byte before copying the next...
+    assert( stb__dout + length <= stb__barrier_out_e );
+    if ( stb__dout + length > stb__barrier_out_e ) {
+        stb__dout += length;
+        return;
+    }
+    if ( data < stb__barrier_out_b ) {
+        stb__dout = stb__barrier_out_e + 1;
+        return;
+    }
+    while ( length-- )
+        *stb__dout++ = *data++;
+}
 
-	SET_PRIMITIVE_FPTR( ellipse, radii );
-	SET_PRIMITIVE_FPTR( ellipse, tolerance );
+static void stb__lit( const unsigned char* data, unsigned int length ) {
+	assert( stb__dout + length <= stb__barrier_out_e );
+	if ( stb__dout + length > stb__barrier_out_e ) {
+		stb__dout += length;
+		return;
+	}
+	if ( data < stb__barrier_in_b ) {
+		stb__dout = stb__barrier_out_e + 1;
+		return;
+	}
+	memcpy( stb__dout, data, length );
+	stb__dout += length;
+}
 
-	SET_PRIMITIVE_FPTR( arc, radii );
-	SET_PRIMITIVE_FPTR( arc, tolerance );
-	SET_PRIMITIVE_FPTR( arc, angle_start_rad );
-	SET_PRIMITIVE_FPTR( arc, angle_end_rad );
+#define stb__in2( x ) ( ( i[ x ] << 8 ) + i[ ( x ) + 1 ] )
+#define stb__in3( x ) ( ( i[ x ] << 16 ) + stb__in2( ( x ) + 1 ) )
+#define stb__in4( x ) ( ( i[ x ] << 24 ) + stb__in3( ( x ) + 1 ) )
 
-	SET_PRIMITIVE_FPTR( line, p0 );
-	SET_PRIMITIVE_FPTR( line, p1 );
+static const unsigned char* stb_decompress_token( const unsigned char* i ) {
+	if ( *i >= 0x20 ) { // use fewer if's for cases that expand small
+		if ( *i >= 0x80 )
+			stb__match( stb__dout - i[ 1 ] - 1, i[ 0 ] - 0x80 + 1 ), i += 2;
+		else if ( *i >= 0x40 )
+			stb__match( stb__dout - ( stb__in2( 0 ) - 0x4000 + 1 ), i[ 2 ] + 1 ), i += 3;
+		else /* *i >= 0x20 */
+			stb__lit( i + 1, i[ 0 ] - 0x20 + 1 ), i += 1 + ( i[ 0 ] - 0x20 + 1 );
+	} else { // more ifs for cases that expand large, since overhead is amortized
+		if ( *i >= 0x18 )
+			stb__match( stb__dout - ( stb__in3( 0 ) - 0x180000 + 1 ), i[ 3 ] + 1 ), i += 4;
+		else if ( *i >= 0x10 )
+			stb__match( stb__dout - ( stb__in3( 0 ) - 0x100000 + 1 ), stb__in2( 3 ) + 1 ), i += 5;
+		else if ( *i >= 0x08 )
+			stb__lit( i + 2, stb__in2( 0 ) - 0x0800 + 1 ), i += 2 + ( stb__in2( 0 ) - 0x0800 + 1 );
+		else if ( *i == 0x07 )
+			stb__lit( i + 3, stb__in2( 1 ) + 1 ), i += 3 + ( stb__in2( 1 ) + 1 );
+		else if ( *i == 0x06 )
+			stb__match( stb__dout - ( stb__in3( 1 ) + 1 ), i[ 4 ] + 1 ), i += 5;
+		else if ( *i == 0x04 )
+			stb__match( stb__dout - ( stb__in3( 1 ) + 1 ), stb__in2( 4 ) + 1 ), i += 6;
+	}
+	return i;
+}
 
-#undef SET_PRIMITIVE_FPTR
+static unsigned int stb_adler32( unsigned int adler32, unsigned char* buffer, unsigned int buflen ) {
+	const unsigned long ADLER_MOD = 65521;
+	unsigned long       s1 = adler32 & 0xffff, s2 = adler32 >> 16;
+	unsigned long       blocklen = buflen % 5552;
 
-	le_2d_primitive_i.path_move_to                 = le_2d_primitive_path_move_to;
-	le_2d_primitive_i.path_line_to                 = le_2d_primitive_path_line_to;
-	le_2d_primitive_i.path_quad_bezier_to          = le_2d_primitive_path_quad_bezier_to;
-	le_2d_primitive_i.path_cubic_bezier_to         = le_2d_primitive_path_cubic_bezier_to;
-	le_2d_primitive_i.path_arc_to                  = le_2d_primitive_path_arc_to;
-	le_2d_primitive_i.path_ellipse                 = le_2d_primitive_path_ellipse;
-	le_2d_primitive_i.path_add_from_simplified_svg = le_2d_primitive_path_add_from_simplified_svg;
-	le_2d_primitive_i.path_set_tolerance           = le_2d_primitive_path_set_tolerance;
-	le_2d_primitive_i.path_close                   = le_2d_primitive_path_close;
-	le_2d_primitive_i.path_hobby                   = le_2d_primitive_path_hobby;
-	le_2d_primitive_i.create_path                  = le_2d_primitive_create_path;
-	le_2d_primitive_i.create_path_from             = le_2d_primitive_create_path_from;
+	unsigned long i;
+	while ( buflen ) {
+		for ( i = 0; i + 7 < blocklen; i += 8 ) {
+			s1 += buffer[ 0 ], s2 += s1;
+			s1 += buffer[ 1 ], s2 += s1;
+			s1 += buffer[ 2 ], s2 += s1;
+			s1 += buffer[ 3 ], s2 += s1;
+			s1 += buffer[ 4 ], s2 += s1;
+			s1 += buffer[ 5 ], s2 += s1;
+			s1 += buffer[ 6 ], s2 += s1;
+			s1 += buffer[ 7 ], s2 += s1;
 
-	le_2d_primitive_i.create_arc     = le_2d_primitive_create_arc;
-	le_2d_primitive_i.create_ellipse = le_2d_primitive_create_ellipse;
-	le_2d_primitive_i.create_circle  = le_2d_primitive_create_circle;
-	le_2d_primitive_i.create_line    = le_2d_primitive_create_line;
+			buffer += 8;
+		}
 
-	le_2d_primitive_i.set_node_position    = le_2d_primitive_set_node_position;
-	le_2d_primitive_i.set_stroke_weight    = le_2d_primitive_set_stroke_weight;
-	le_2d_primitive_i.set_stroke_cap_type  = le_2d_primitive_set_stroke_cap_type;
-	le_2d_primitive_i.set_stroke_join_type = le_2d_primitive_set_stroke_join_type;
+		for ( ; i < blocklen; ++i )
+			s1 += *buffer++, s2 += s1;
 
-	le_2d_primitive_i.set_filled = le_2d_primitive_set_filled;
-	le_2d_primitive_i.set_color  = le_2d_primitive_set_color;
+		s1 %= ADLER_MOD, s2 %= ADLER_MOD;
+		buflen -= blocklen;
+		blocklen = 5552;
+	}
+	return ( unsigned int )( s2 << 16 ) + ( unsigned int )s1;
+}
+
+static unsigned int stb_decompress( unsigned char* output, const unsigned char* i, unsigned int /*length*/ ) {
+	if ( stb__in4( 0 ) != 0x57bC0000 )
+		return 0;
+	if ( stb__in4( 4 ) != 0 )
+		return 0; // error! stream is > 4GB
+	const unsigned int olen = stb_decompress_length( i );
+	stb__barrier_in_b       = i;
+	stb__barrier_out_e      = output + olen;
+	stb__barrier_out_b      = output;
+	i += 16;
+
+	stb__dout = output;
+	for ( ;; ) {
+		const unsigned char* old_i = i;
+		i                          = stb_decompress_token( i );
+		if ( i == old_i ) {
+			if ( *i == 0x05 && i[ 1 ] == 0xfa ) {
+				assert( stb__dout == output + olen );
+				if ( stb__dout != output + olen )
+					return 0;
+				if ( stb_adler32( 1, output, olen ) != ( unsigned int )stb__in4( 2 ) )
+					return 0;
+				return olen;
+			} else {
+				assert( 0 ); /* NOTREACHED */
+				return 0;
+			}
+		}
+		assert( stb__dout <= output + olen );
+		if ( stb__dout > output + olen )
+			return 0;
+	}
 }
