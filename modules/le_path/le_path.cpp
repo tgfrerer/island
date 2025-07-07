@@ -10,10 +10,11 @@
 #include <cstdlib>
 #include <cctype> // for toupper
 
-#include "glm/glm.hpp"
-#include "glm/gtx/vector_query.hpp"
-#include "glm/gtx/vector_angle.hpp"
-#include "glm/gtx/rotate_vector.hpp"
+#include "3rdparty/src/glm/glm.hpp"
+#define GLM_ENABLE_EXPERIMENTAL
+#include "3rdparty/src/glm/gtx/vector_query.hpp"
+#include "3rdparty/src/glm/gtx/vector_angle.hpp"
+#include "3rdparty/src/glm/gtx/rotate_vector.hpp"
 
 using stroke_attribute_t = le_path_api::stroke_attribute_t;
 
@@ -3281,11 +3282,11 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 // The full grammar for SVG paths is defined here:
 // <https://svgwg.org/svg2-draft/paths.html#PathDataBNF>
 //
-static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) {
+static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_operations_interface_t const* cb, char const* svg ) {
 
 	char const* c = svg;
 
-	glm::vec2 p                 = ( !self->contours.empty() && !self->contours.back().commands.empty() ) ? *le_path_get_previous_p( self ) : glm::vec2{};
+	glm::vec2 p                 = {};
 	glm::vec2 c1                = {};
 	glm::vec2 c2                = {};
 	glm::vec2 radii             = {};
@@ -3308,7 +3309,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_m_instruction( c + offset, &offset, &p, &state_flags ) ) {
-			le_path_move_to( self, ( float2* )( &p ) );
+			cb->move_to( user_data, ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3316,7 +3317,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_l_instruction( c + offset, &offset, &p, &state_flags ) ) {
-			le_path_line_to( self, ( float2* )( &p ) );
+			cb->line_to( user_data, ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3324,7 +3325,12 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_h_instruction( c + offset, &offset, &p.x, &state_flags ) ) {
-			le_path_line_horiz_to( self, p.x );
+			// le_path_line_horiz_to( self, p.x );
+			{
+				glm::vec2 p2 = curr_p;
+				p2.x         = p.x;
+				cb->line_to( user_data, ( float2* )( &p2 ) );
+			}
 		}
 		if ( offset ) {
 			continue;
@@ -3332,7 +3338,12 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_v_instruction( c + offset, &offset, &p.y, &state_flags ) ) {
-			le_path_line_vert_to( self, p.y );
+			// le_path_line_vert_to( self, p.y );
+			{
+				glm::vec2 p2 = curr_p;
+				p2.y         = p.y;
+				cb->line_to( user_data, ( float2* )( &p2 ) );
+			}
 		}
 		if ( offset ) {
 			continue;
@@ -3340,8 +3351,8 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_c_instruction( c + offset, &offset, &c1, &c2, &p, &state_flags ) ) {
-			le_path_cubic_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) ); // Note that end vertex is p2 from SVG,
-			                                                                                            // as SVG has target vertex as last vertex
+			cb->cubic_bezier_to( user_data, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) ); // Note that end vertex is p2 from SVG,
+			                                                                                             // as SVG has target vertex as last vertex
 		}
 		if ( offset ) {
 			continue;
@@ -3351,7 +3362,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		while ( is_s_instruction( c + offset, &offset, &c2, &p, &state_flags ) ) {
 			// shorthand for smooth curveto
 			c1 = curr_p * 2.f - prev_c2; // calculate c2 as the reflection of previous c2 relative to the current point
-			le_path_cubic_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) );
+			cb->cubic_bezier_to( user_data, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) );
 			prev_c2 = c2;
 			curr_p  = p;
 		}
@@ -3361,7 +3372,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_q_instruction( c + offset, &offset, &c1, &p, &state_flags ) ) {
-			le_path_quad_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ) );
+			cb->quad_bezier_to( user_data, ( float2* )( &p ), ( float2* )( &c1 ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3371,7 +3382,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		while ( is_t_instruction( c + offset, &offset, &p, &state_flags ) ) {
 			// shorthand for smooth quadratic bezier curveto
 			c1 = curr_p * 2.f - prev_c1; // calculate c1 as a reflection of the previous control point on the previous command relative to the current point
-			le_path_quad_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ) );
+			cb->quad_bezier_to( user_data, ( float2* )( &p ), ( float2* )( &c1 ) );
 			prev_c1 = c1;
 			curr_p  = p;
 		}
@@ -3381,7 +3392,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_a_instruction( c + offset, &offset, &radii, &arc_axis_rotation, &arc_large, &arc_sweep, &p, &state_flags ) ) {
-			le_path_arc_to( self, ( float2* )( &p ), ( float2* )( &radii ), arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
+			cb->arc_to( user_data, ( float2* )( &p ), ( float2* )( &radii ), arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
 		}
 		if ( offset ) {
 			continue;
@@ -3391,7 +3402,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		while ( is_character_match( 'Z', c + offset, &offset ) ||
 		        is_character_match( 'z', c + offset, &offset ) ) {
 			// close path event.
-			le_path_close_path( self );
+			cb->close( user_data );
 		}
 
 		if ( offset ) {
@@ -3408,6 +3419,9 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 	}
 };
 
+static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) {
+	le_path_parse_simplified_svg( self, &le_path::le_path_operations_i, svg );
+}
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_path, api ) {
@@ -3415,17 +3429,12 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 
 	le_path_i.create          = le_path_create;
 	le_path_i.destroy         = le_path_destroy;
-	le_path_i.move_to         = le_path_move_to;
-	le_path_i.line_to         = le_path_line_to;
-	le_path_i.quad_bezier_to  = le_path_quad_bezier_to;
-	le_path_i.cubic_bezier_to = le_path_cubic_bezier_to;
-	le_path_i.arc_to          = le_path_arc_to;
-	le_path_i.close           = le_path_close_path;
 
 	le_path_i.hobby   = le_path_apply_hobby_on_last_contour;
 	le_path_i.ellipse = le_path_ellipse;
 
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
+	le_path_i.parse_simplified_svg    = le_path_parse_simplified_svg;
 
 	le_path_i.get_num_contours                 = le_path_get_num_contours;
 	le_path_i.get_num_polylines                = le_path_get_num_polylines;
@@ -3447,4 +3456,13 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 	le_path_i.resample = le_path_resample;
 	le_path_i.clone    = le_path_clone;
 	le_path_i.clear    = le_path_clear;
+
+	auto& le_path_operations_i = static_cast<le_path_api*>( api )->le_path_operations_i;
+
+	le_path_operations_i.move_to         = le_path_move_to;
+	le_path_operations_i.line_to         = le_path_line_to;
+	le_path_operations_i.quad_bezier_to  = le_path_quad_bezier_to;
+	le_path_operations_i.cubic_bezier_to = le_path_cubic_bezier_to;
+	le_path_operations_i.arc_to          = le_path_arc_to;
+	le_path_operations_i.close           = le_path_close_path;
 }

@@ -10,7 +10,7 @@
 #include "le_core.h"
 
 #ifdef __cplusplus
-#	include <glm/fwd.hpp>
+#	include "3rdparty/src/glm/fwd.hpp"
 #endif
 
 struct le_2d_o;

@@ -5,9 +5,9 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-#include "glm/glm.hpp"
-#include "glm/gtc/constants.hpp" // for two_pi
-#include "glm/gtc/matrix_transform.hpp"
+#include "3rdparty/src/glm/glm.hpp"
+#include "3rdparty/src/glm/gtc/constants.hpp" // for two_pi
+#include "3rdparty/src/glm/gtc/matrix_transform.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -978,7 +978,7 @@ static le_2d_primitive_o* le_2d_primitive_create_path_from( le_2d_o* context, le
 static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, vec2f const* pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.move_to( obj.path, ( float2* )pos );
+	le_path::le_path_operations_i.move_to( obj.path, ( float2* )pos );
 }
 
 // ----------------------------------------------------------------------
@@ -986,7 +986,7 @@ static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, vec2f const* pos
 static void le_2d_primitive_path_line_to( le_2d_primitive_o* p, vec2f const* pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.line_to( obj.path, ( float2* )pos );
+	le_path::le_path_operations_i.line_to( obj.path, ( float2* )pos );
 }
 
 // ----------------------------------------------------------------------
@@ -994,14 +994,14 @@ static void le_2d_primitive_path_line_to( le_2d_primitive_o* p, vec2f const* pos
 static void le_2d_primitive_path_close( le_2d_primitive_o* p ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.close( obj.path );
+	le_path::le_path_operations_i.close( obj.path );
 }
 // ----------------------------------------------------------------------
 
 static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* c1, vec2f const* c2 ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.cubic_bezier_to( obj.path, ( float2* )pos, ( float2* )c1, ( float2* )c2 );
+	le_path::le_path_operations_i.cubic_bezier_to( obj.path, ( float2* )pos, ( float2* )c1, ( float2* )c2 );
 }
 
 // ----------------------------------------------------------------------
@@ -1009,7 +1009,7 @@ static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, vec2f co
 static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* c1 ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.quad_bezier_to( obj.path, ( float2* )pos, ( float2* )c1 );
+	le_path::le_path_operations_i.quad_bezier_to( obj.path, ( float2* )pos, ( float2* )c1 );
 }
 
 // ----------------------------------------------------------------------
@@ -1017,7 +1017,7 @@ static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, vec2f con
 static void le_2d_primitive_path_arc_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* radii, float phi, bool large_arc, bool sweep ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto& obj = p->data.as_path;
-	le_path::le_path_i.arc_to( obj.path, ( float2* )pos, ( float2* )radii, phi, large_arc, sweep );
+	le_path::le_path_operations_i.arc_to( obj.path, ( float2* )pos, ( float2* )radii, phi, large_arc, sweep );
 }
 
 // ----------------------------------------------------------------------
