@@ -16,6 +16,7 @@ constexpr uint32_t FLATTEN_WG_SZ          = 256;
 constexpr uint32_t CLIP_REDUCE_WG_SZ      = 256;
 constexpr size_t   buf_bin_data_num_bytes = ( 1 << 18 ) * 4; // TODO: this needs to change
 constexpr uint32_t TILE_UNIT              = 16;              // tiles are 16x16 pixels
+constexpr auto     VK_WHOLE_SIZE          = ( ~0ULL );
 
 // ----------------------------------------------------------------------
 // Decompression functions - these are used to retrieve shader code from inl strings
@@ -390,7 +391,7 @@ static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resourc
 			    le::BufferInfoBuilder()
 			        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst |
 			                        le::BufferUsageFlagBits::eStorageBuffer )
-			        // .setSize( self->scene_bytes.size() ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
+			        //.setSize( self->scene_bytes.size() ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
 			        .setSize( std::max<size_t>( self->buf_vello_scene_info.buffer.size, self->scene_bytes.size() ) ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
 			        .build();
 		}
@@ -657,6 +658,8 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        auto app     = ( le_2d_o const* )( user_data );
 		        auto encoder = le::TransferEncoder( e_ );
 		        // Upload scene data to GPU buffer
+		        // first null out scene buffer
+		        encoder.fillBuffer( app->buf_vello_scene, 0, VK_WHOLE_SIZE, 0 );
 		        encoder.writeToBuffer( app->buf_vello_scene, 0, app->scene_bytes.data(), app->scene_bytes.size() );
 	        } );
 
@@ -734,13 +737,13 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 		        { // Zero out any buffers that need to be reset
 			        assert( ctx->buf_bump_info.buffer.size % 4 == 0 && "bump buffer size must be multiple of 4" );
-			        encoder.fillBuffer( ctx->buf_bump, 0, ctx->buf_bump_info.buffer.size, 0 );
+			        encoder.fillBuffer( ctx->buf_bump, 0, VK_WHOLE_SIZE, 0 );
 
 			        // float fill_data = 1.0;
 			        // encoder.fillBuffer( app->buf_lines, 0, buf_lines_info.buffer.size, *( uint32_t* )( &fill_data ) );
-			        encoder.fillBuffer( ctx->buf_lines, 0, ctx->buf_lines_info.buffer.size, 0 );
+			        encoder.fillBuffer( ctx->buf_lines, 0, VK_WHOLE_SIZE, 0 );
 
-			        encoder.fillBuffer( ctx->buf_clip_bbox, 0, ctx->buf_clip_bbox_info.buffer.size, 0 );
+			        encoder.fillBuffer( ctx->buf_clip_bbox, 0, VK_WHOLE_SIZE, 0 );
 
 			        encoder.bufferMemoryBarrier(
 			            le::PipelineStageFlagBits2::eTransfer,
