@@ -465,6 +465,13 @@ static void encoder_reset( le_2d_encoder_o* e ) {
 	e->flags           = 0;
 }
 
+template <typename T>
+inline static size_t append_to_stream( T const& src, uint8_t* target ) {
+	size_t num_bytes = src.size() * sizeof( typename T::value_type );
+	memcpy( target, src.data(), num_bytes );
+	return num_bytes;
+}
+
 // NOTE: this method should not need to be exposed - we can keep this internal to the
 // 2d renderer... only the rasterizer needs to know how to encode the data. the data
 // itself does not need to be exposed.
@@ -472,15 +479,6 @@ static void encoder_reset( le_2d_encoder_o* e ) {
 // static rasterizer_layout_data_t encoder_encode_to_bytes( le_2d_encoder_o const* e, std::vector<uint8_t>& bytes ) {
 static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, size_t* bytes_count, rasterizer_layout_data_t* p_layout ) {
 
-#define vec_count_bytes( X ) \
-	( X.size() * sizeof( decltype( X )::value_type ) )
-
-#define append_to_stream( X )                              \
-	{                                                      \
-		size_t num_bytes = vec_count_bytes( X );           \
-		memcpy( bytes + used_bytes, X.data(), num_bytes ); \
-		used_bytes += num_bytes;                           \
-	}
 
 	assert( e );
 
@@ -557,28 +555,28 @@ static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, s
 		}
 	}
 
-	append_to_stream( e->draw_tags );
+	used_bytes += append_to_stream( e->draw_tags, bytes + used_bytes );
 
 	if ( e->n_open_clips ) {
 
 		// Append any open clips as pathtag::Path
 		std::vector<DrawTag> tmpOpenClips( e->n_open_clips, { DrawTag::END_CLIP } );
 
-		append_to_stream( tmpOpenClips );
+		used_bytes += append_to_stream( tmpOpenClips, bytes + used_bytes );
 	}
 
 	// draw data stream
 
 	layout.draw_data_base = used_bytes / sizeof( uint32_t );
-	append_to_stream( e->draw_data );
+	used_bytes += append_to_stream( e->draw_data, bytes + used_bytes );
 
 	layout.transform_base = used_bytes / sizeof( uint32_t );
 
-	append_to_stream( e->transforms );
+	used_bytes += append_to_stream( e->transforms, bytes + used_bytes );
 
 	layout.style_base = used_bytes / sizeof( uint32_t );
 
-	append_to_stream( e->styles );
+	used_bytes += append_to_stream( e->styles, bytes + used_bytes );
 
 	layout.n_drawobj = layout.n_paths;
 
