@@ -45,7 +45,7 @@ static void decode_85( const unsigned char* src, unsigned char* dst ) {
 
 constexpr auto LOG_ID = "le_2d";
 
-//
+// shader spv code compressed, and endoded in base 85.
 
 #include "private/le_2d/inl/backdrop_dyn.inl"
 #include "private/le_2d/inl/bbox_clear.inl"
@@ -508,7 +508,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			// Only transfer data if contents have changed
 			self->rasterizer_xfer_flags |= self->transfer_scene_mask;
 			self->previous_scene_hash = scene_hash;
-			logger().info( "scene update detected" );
+			// logger().info( "scene update detected" );
 		}
 
 		// FIXME: for now, we update the scene every time.
