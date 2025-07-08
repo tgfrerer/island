@@ -529,12 +529,12 @@ static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, s
 
 	layout.path_tag_base = used_bytes;
 
-	append_to_stream( e->path_tags );
+	used_bytes += append_to_stream( e->path_tags, bytes + used_bytes );
 
 	if ( e->n_open_clips ) {
 		// Append any open clips as pathtag::Path
 		std::vector<PathTag> tmpOpenClips( e->n_open_clips, { PathTag::PATH } );
-		append_to_stream( tmpOpenClips );
+		used_bytes += append_to_stream( tmpOpenClips, bytes + used_bytes );
 	}
 
 	assert( align_up( used_bytes, 4 * PATH_REDUCE_WG_SZ ) == path_tag_padded );
@@ -543,7 +543,7 @@ static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, s
 
 	layout.path_data_base = used_bytes / sizeof( uint32_t );
 
-	append_to_stream( e->path_data );
+	used_bytes += append_to_stream( e->path_data, bytes + used_bytes );
 
 	layout.draw_tag_base = used_bytes / sizeof( uint32_t );
 
