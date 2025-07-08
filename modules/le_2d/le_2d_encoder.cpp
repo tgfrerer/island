@@ -26,13 +26,19 @@ Vello shaders are licensed under Apache License, Version 2.0, MIT, or Unilicense
  */
 
 #include "le_2d.h"
+#include "le_log.h"
 
 #include <cassert>
 #include <cmath>
 #include <vector>
 // ----------------------------------------------------------------------
 #include "private/le_2d/le_2d_shared.h"
-#include "3rdparty/src/glm/vec2.hpp"
+#include "3rdparty/src/glm/glm/vec2.hpp"
+
+static auto logger() {
+	static auto logger = le::Log( "le_2d_encoder" );
+	return logger;
+}
 
 // ----------------------------------------------------------------------
 
@@ -43,68 +49,127 @@ enum class PathSegmentType : uint8_t {
 	eCubicTo   = 3,
 };
 
-class PathTag {
+enum class PathTag : uint8_t {
 	/// Bit for path segments that are represented as f32 values. If unset
 	/// they are represented as i16.
-	static constexpr uint8_t F32_BIT = 0x8;
+	F32_BIT = 0x8,
 	/// Mask for bottom 3 bits that contain the [`PathSegmentType`].
-	static constexpr uint8_t SEGMENT_MASK = 0x3;
-
-  public:
-	uint8_t data = 0;
+	SEGMENT_MASK = 0x3,
 
 	/// 32-bit floating point line segment.
-	static constexpr uint8_t LINE_TO_F32 = uint8_t( PathSegmentType::eLineTo ) | F32_BIT;
+	LINE_TO_F32 = uint8_t( PathSegmentType::eLineTo ) | F32_BIT,
 
 	/// 32-bit floating point quadratic segment.
-	static constexpr uint8_t QUAD_TO_F32 = uint8_t( PathSegmentType::eQuadTo ) | F32_BIT;
+	QUAD_TO_F32 = uint8_t( PathSegmentType::eQuadTo ) | F32_BIT,
 
 	/// 32-bit floating point cubic segment.
-	static constexpr uint8_t CUBIC_TO_F32 = uint8_t( PathSegmentType::eCubicTo ) | F32_BIT;
+	CUBIC_TO_F32 = uint8_t( PathSegmentType::eCubicTo ) | F32_BIT,
 
 	/// 16-bit integral line segment.
-	static constexpr uint8_t LINE_TO_I16 = uint8_t( PathSegmentType::eLineTo );
+	LINE_TO_I16 = uint8_t( PathSegmentType::eLineTo ),
 
 	/// 16-bit integral quadratic segment.
-	static constexpr uint8_t QUAD_TO_I16 = uint8_t( PathSegmentType::eQuadTo );
+	QUAD_TO_I16 = uint8_t( PathSegmentType::eQuadTo ),
 
 	/// 16-bit integral cubic segment.
-	static constexpr uint8_t CUBIC_TO_I16 = uint8_t( PathSegmentType::eCubicTo );
+	CUBIC_TO_I16 = uint8_t( PathSegmentType::eCubicTo ),
 
 	/// Transform marker.
-	static constexpr uint8_t TRANSFORM = 0x20;
+	TRANSFORM = 0x20,
 
 	/// Path marker.
-	static constexpr uint8_t PATH = 0x10;
+	PATH = 0x10,
 
 	/// Style setting.
-	static constexpr uint8_t STYLE = 0x40;
+	STYLE = 0x40,
 
 	/// Bit that marks a segment that is the end of a subpath.
-	static constexpr uint8_t SUBPATH_END_BIT = 0x4;
-
-	inline PathSegmentType get_path_segment_type() const {
-		return PathSegmentType( data & SEGMENT_MASK );
-	}
-
-	inline bool is_path_segment() const {
-		return data & SEGMENT_MASK;
-	}
-
-	inline bool is_subpath_end() const {
-		return data & SUBPATH_END_BIT;
-	}
-
-	inline void set_subpath_end() {
-		data |= SUBPATH_END_BIT;
-	}
-
-	inline bool is_f32() const {
-		return data & F32_BIT;
-	}
+	SUBPATH_END_BIT = 0x4,
 };
 
+static inline PathSegmentType get_path_segment_type( PathTag const& e ) {
+	return PathSegmentType( uint8_t( e ) & uint8_t( PathTag::SEGMENT_MASK ) );
+}
+
+static inline bool is_path_segment( PathTag const& e ) {
+	return uint8_t( e ) & uint8_t( PathTag::SEGMENT_MASK );
+}
+
+static inline bool is_subpath_end( PathTag const& e ) {
+	return uint8_t( e ) & uint8_t( PathTag::SUBPATH_END_BIT );
+}
+
+static inline void set_subpath_end( PathTag& e ) {
+	e = PathTag( uint8_t( e ) | uint8_t( PathTag::SUBPATH_END_BIT ) );
+}
+
+static inline bool is_f32( PathTag const& e ) {
+	return uint8_t( e ) & uint8_t( PathTag::F32_BIT );
+}
+
+/*
+class PathTag {
+/// Bit for path segments that are represented as f32 values. If unset
+/// they are represented as i16.
+static constexpr uint8_t F32_BIT = 0x8;
+/// Mask for bottom 3 bits that contain the [`PathSegmentType`].
+static constexpr uint8_t SEGMENT_MASK = 0x3;
+
+public:
+uint8_t data = 0;
+
+/// 32-bit floating point line segment.
+static constexpr uint8_t LINE_TO_F32 = uint8_t( PathSegmentType::eLineTo ) | F32_BIT;
+
+/// 32-bit floating point quadratic segment.
+static constexpr uint8_t QUAD_TO_F32 = uint8_t( PathSegmentType::eQuadTo ) | F32_BIT;
+
+/// 32-bit floating point cubic segment.
+static constexpr uint8_t CUBIC_TO_F32 = uint8_t( PathSegmentType::eCubicTo ) | F32_BIT;
+
+/// 16-bit integral line segment.
+static constexpr uint8_t LINE_TO_I16 = uint8_t( PathSegmentType::eLineTo );
+
+/// 16-bit integral quadratic segment.
+static constexpr uint8_t QUAD_TO_I16 = uint8_t( PathSegmentType::eQuadTo );
+
+/// 16-bit integral cubic segment.
+static constexpr uint8_t CUBIC_TO_I16 = uint8_t( PathSegmentType::eCubicTo );
+
+/// Transform marker.
+static constexpr uint8_t TRANSFORM = 0x20;
+
+/// Path marker.
+static constexpr uint8_t PATH = 0x10;
+
+/// Style setting.
+static constexpr uint8_t STYLE = 0x40;
+
+/// Bit that marks a segment that is the end of a subpath.
+static constexpr uint8_t SUBPATH_END_BIT = 0x4;
+
+inline PathSegmentType get_path_segment_type() const {
+    return PathSegmentType( data & SEGMENT_MASK );
+}
+
+inline bool is_path_segment() const {
+    return data & SEGMENT_MASK;
+}
+
+inline bool is_subpath_end() const {
+    return data & SUBPATH_END_BIT;
+}
+
+inline void set_subpath_end() {
+    data |= SUBPATH_END_BIT;
+}
+
+inline bool is_f32() const {
+    return data & F32_BIT;
+}
+};
 static_assert( sizeof( PathTag ) == sizeof( uint8_t ), "pathtag must be one byte in size." );
+*/
 
 using namespace le_2d;
 
@@ -335,7 +400,7 @@ struct path_encoder_o {
 
 // ----------------------------------------------------------------------
 
-struct le_2d_encoder_o {
+struct le_2d_encoder_o : NoCopy, NoMove {
 
 	path_encoder_o path = {};
 
@@ -383,6 +448,22 @@ struct le_2d_encoder_o {
 	// one path encoder active; we should also assert that the atomic counter is 0 when
 	// destroying the encoder_o.
 };
+
+static void encoder_reset( le_2d_encoder_o* e ) {
+	e->path = {};
+	e->path_tags.clear();
+	e->path_data.clear();
+	e->draw_tags.clear();
+	e->draw_data.clear();
+	e->transforms.clear();
+	e->styles.clear();
+	e->resources       = {};
+	e->n_paths         = 0;
+	e->n_path_segments = 0;
+	e->n_clips         = 0;
+	e->n_open_clips    = 0;
+	e->flags           = 0;
+}
 
 // NOTE: this method should not need to be exposed - we can keep this internal to the
 // 2d renderer... only the rasterizer needs to know how to encode the data. the data
@@ -525,6 +606,7 @@ static void encoder_encode_style( le_2d_encoder_o* e, Style const& style ) {
 static void encoder_encode_colour( le_2d_encoder_o* e, uint32_t color ) {
 	e->draw_tags.emplace_back( DrawTag::COLOUR );
 	e->draw_data.emplace_back( color );
+	// logger().info( "encode_colour" );
 }
 
 // ----------------------------------------------------------------------
@@ -687,7 +769,7 @@ static void encoder_path_move_to( le_2d_encoder_o* e, glm::vec2 const& p ) {
 			encoder_path_insert_stroke_cap_marker_segment( e, false );
 		}
 		if ( false == e->path_tags.empty() ) {
-			e->path_tags.back().set_subpath_end();
+			set_subpath_end( e->path_tags.back() );
 		}
 	}
 
@@ -895,7 +977,7 @@ static void encoder_path_close( le_2d_encoder_o* e ) {
 	}
 
 	if ( false == e->path_tags.empty() ) {
-		e->path_tags.back().set_subpath_end();
+		set_subpath_end(e->path_tags.back() );
 	}
 
 	e->path.state = path_encoder_o::eStart;
@@ -921,7 +1003,7 @@ static uint32_t encoder_path_end( le_2d_encoder_o* e, bool insert_path_marker ) 
 			encoder_path_insert_stroke_cap_marker_segment( e, false );
 		}
 		if ( !e->path_tags.empty() ) {
-			e->path_tags.back().set_subpath_end();
+			set_subpath_end( e->path_tags.back() );
 		}
 		e->n_path_segments += e->path.n_encoded_segments;
 		if ( insert_path_marker ) {
@@ -998,12 +1080,11 @@ static void encoder_path_circle( le_2d_encoder_o* e, glm::vec2 const& centre, fl
 }
 
 static le_2d_encoder_o* encoder_create() {
-	return new le_2d_encoder_o{};
+	auto e = new le_2d_encoder_o{};
+	encoder_reset( e );
+	return e;
 }
 
-static void encoder_reset( le_2d_encoder_o* self ) {
-	*self = {};
-}
 // ----------------------------------------------------------------------
 
 static void encoder_destroy( le_2d_encoder_o* self ) {
