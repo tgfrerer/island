@@ -42,12 +42,12 @@ static auto logger() {
 
 // ----------------------------------------------------------------------
 
-enum class PathSegmentType : uint8_t {
-	eUndefined = 0,
-	eLineTo    = 1,
-	eQuadTo    = 2,
-	eCubicTo   = 3,
-};
+// enum class PathSegmentType : uint8_t {
+//	eUndefined = 0,
+//	eLineTo    = 1,
+//	eQuadTo    = 2,
+//	eCubicTo   = 3,
+// };
 
 enum class PathTag : uint8_t {
 	/// Bit for path segments that are represented as f32 values. If unset
@@ -56,23 +56,23 @@ enum class PathTag : uint8_t {
 	/// Mask for bottom 3 bits that contain the [`PathSegmentType`].
 	SEGMENT_MASK = 0x3,
 
-	/// 32-bit floating point line segment.
-	LINE_TO_F32 = uint8_t( PathSegmentType::eLineTo ) | F32_BIT,
-
-	/// 32-bit floating point quadratic segment.
-	QUAD_TO_F32 = uint8_t( PathSegmentType::eQuadTo ) | F32_BIT,
-
-	/// 32-bit floating point cubic segment.
-	CUBIC_TO_F32 = uint8_t( PathSegmentType::eCubicTo ) | F32_BIT,
-
 	/// 16-bit integral line segment.
-	LINE_TO_I16 = uint8_t( PathSegmentType::eLineTo ),
+	LINE_TO_I16 = uint8_t( 1 ),
 
 	/// 16-bit integral quadratic segment.
-	QUAD_TO_I16 = uint8_t( PathSegmentType::eQuadTo ),
+	QUAD_TO_I16 = uint8_t( 2 ),
 
 	/// 16-bit integral cubic segment.
-	CUBIC_TO_I16 = uint8_t( PathSegmentType::eCubicTo ),
+	CUBIC_TO_I16 = uint8_t( 3 ),
+
+	/// 32-bit floating point line segment.
+	LINE_TO_F32 = LINE_TO_I16 | F32_BIT,
+
+	/// 32-bit floating point quadratic segment.
+	QUAD_TO_F32 = QUAD_TO_I16 | F32_BIT,
+
+	/// 32-bit floating point cubic segment.
+	CUBIC_TO_F32 = CUBIC_TO_I16 | F32_BIT,
 
 	/// Transform marker.
 	TRANSFORM = 0x20,
@@ -87,9 +87,9 @@ enum class PathTag : uint8_t {
 	SUBPATH_END_BIT = 0x4,
 };
 
-static inline PathSegmentType get_path_segment_type( PathTag const& e ) {
-	return PathSegmentType( uint8_t( e ) & uint8_t( PathTag::SEGMENT_MASK ) );
-}
+// static inline PathSegmentType get_path_segment_type( PathTag const& e ) {
+// 	return PathSegmentType( uint8_t( e ) & uint8_t( PathTag::SEGMENT_MASK ) );
+// }
 
 static inline bool is_path_segment( PathTag const& e ) {
 	return uint8_t( e ) & uint8_t( PathTag::SEGMENT_MASK );
