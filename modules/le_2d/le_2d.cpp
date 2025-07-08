@@ -270,14 +270,14 @@ struct le_2d_o {
 };
 // ----------------------------------------------------------------------
 
-static le_2d_o * le_2d_create() {
+static le_2d_o* le_2d_create() {
 	auto self = new le_2d_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_destroy( le_2d_o *self ) {
+static void le_2d_destroy( le_2d_o* self ) {
 
 	// we should signal to the renderer that we do not require any of the buffer resources anymore
 
@@ -381,7 +381,7 @@ static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resourc
 			};
 
 			// snip off any extra bytes that were not used
-			self->scene_bytes.resize( num_scene_bytes );
+			 self->scene_bytes.resize( num_scene_bytes );
 
 			// self->rasterizer_args.layout       = le_2d_api::le_2d_encoder_i.encode_to_bytes( e, self->scene_bytes );
 			self->rasterizer_args.binning_size = buf_bin_data_num_bytes / sizeof( uint32_t ) - self->rasterizer_args.layout.bin_data_start;
@@ -390,7 +390,7 @@ static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resourc
 			    le::BufferInfoBuilder()
 			        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst |
 			                        le::BufferUsageFlagBits::eStorageBuffer )
-			        //.setSize( self->scene_bytes.size() ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
+			        // .setSize( self->scene_bytes.size() ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
 			        .setSize( std::max<size_t>( self->buf_vello_scene_info.buffer.size, self->scene_bytes.size() ) ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
 			        .build();
 		}
@@ -487,13 +487,13 @@ static le_cpso_handle create_cpso_from_compressed_and_encoded_spirv_code( le_pip
 
 // ----------------------------------------------------------------------
 
-static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* encoder, le_image_resource_handle img_output, le_resource_info_t* img_output_info, uint32_t background_colour_argb ) {
+static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* encoder_2d, le_image_resource_handle img_output, le_resource_info_t* img_output_info, uint32_t background_colour_argb ) {
 
 	if ( self->mask_lut_bytes.empty() ) {
 		generate_msaa16_lut( self->mask_lut_bytes );
 	}
 
-	bool result = le_encode_scene( self, encoder, img_output_info, background_colour_argb );
+	bool result = le_encode_scene( self, encoder_2d, img_output_info, background_colour_argb );
 
 	if ( false == result ) {
 		assert( false );
@@ -770,7 +770,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            le::PipelineStageFlagBits2::eTransfer,
 			            le::PipelineStageFlagBits2::eComputeShader,
 			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            le::AccessFlagBits2::eShaderRead ,
 			            ctx->buf_vello_scene );
 
 			        static auto pso_pathtag_reduce =
@@ -860,7 +860,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 			        encoder.bindComputePipeline( pso_path_bbox_clear )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox, 0 ) // w
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox ) // w
 			            .dispatch( wg.bbox_clear[ 0 ], wg.bbox_clear[ 1 ], wg.bbox_clear[ 2 ] );
 		        }
 
@@ -884,11 +884,11 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 			        encoder.bindComputePipeline( pso_flatten )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )     // readonly
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tag_monoids" ), ctx->buf_tagmonoid, 0 ) // readonly
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox, 0 ) // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "lines" ), ctx->buf_lines )              // w
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene )     // readonly
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tag_monoids" ), ctx->buf_tagmonoid ) // readonly
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox ) // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )             // rw
+			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "lines" ), ctx->buf_lines )           // w
 			            .dispatch( wg.flatten[ 0 ], wg.flatten[ 1 ], wg.flatten[ 2 ] );
 		        }
 		        //
@@ -1306,11 +1306,11 @@ extern void register_le_2d_encoder_api( void* api_ );
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_2d, api ) {
-	auto &le_2d_i = static_cast<le_2d_api *>( api )->le_2d_i;
+	auto& le_2d_i = static_cast<le_2d_api*>( api )->le_2d_i;
 
-	le_2d_i.create               = le_2d_create;
-	le_2d_i.destroy              = le_2d_destroy;
-	le_2d_i.update               = le_2d_update;
+	le_2d_i.create  = le_2d_create;
+	le_2d_i.destroy = le_2d_destroy;
+	le_2d_i.update  = le_2d_update;
 
 	register_le_2d_encoder_api( api );
 }
