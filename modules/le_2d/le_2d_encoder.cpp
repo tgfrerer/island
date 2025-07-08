@@ -1002,7 +1002,7 @@ static le_2d_encoder_o* encoder_create() {
 }
 
 static void encoder_reset( le_2d_encoder_o* self ) {
-	self = {};
+	*self = {};
 }
 // ----------------------------------------------------------------------
 
