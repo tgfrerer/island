@@ -324,6 +324,7 @@ class Le2D : NoCopy, NoMove {
 	}
 };
 
+namespace le {
 class Encoder2D : NoCopy, NoMove {
 
   public:
@@ -447,6 +448,7 @@ class Encoder2D : NoCopy, NoMove {
 		return self;
 	}
 };
+} // namespace le
 
 #endif // __cplusplus
 
