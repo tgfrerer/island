@@ -12,7 +12,7 @@
 struct le_path_o;
 
 #ifdef __cplusplus
-#	include "3rdparty/src/glm/fwd.hpp"
+#	include "3rdparty/src/glm/glm/fwd.hpp"
 #endif
 
 // clang-format off

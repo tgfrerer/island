@@ -10,11 +10,11 @@
 #include <cstdlib>
 #include <cctype> // for toupper
 
-#include "3rdparty/src/glm/glm.hpp"
+#include "3rdparty/src/glm/glm/glm.hpp"
 #define GLM_ENABLE_EXPERIMENTAL
-#include "3rdparty/src/glm/gtx/vector_query.hpp"
-#include "3rdparty/src/glm/gtx/vector_angle.hpp"
-#include "3rdparty/src/glm/gtx/rotate_vector.hpp"
+#include "3rdparty/src/glm/glm/gtx/vector_query.hpp"
+#include "3rdparty/src/glm/glm/gtx/vector_angle.hpp"
+#include "3rdparty/src/glm/glm/gtx/rotate_vector.hpp"
 
 using stroke_attribute_t = le_path_api::stroke_attribute_t;
 
