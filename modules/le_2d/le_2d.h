@@ -28,7 +28,7 @@ Vello shaders are licensed under Unilicense.
 
 #include "le_core.h"
 #include <cstring>
-#include "3rdparty/src/glm/fwd.hpp"
+#include "3rdparty/src/glm/glm/fwd.hpp"
 
 struct le_2d_o;
 struct le_rendergraph_o;
@@ -408,7 +408,7 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	};
 
-	Encoder2D& transform( Transform2D const& t ) {
+	Encoder2D& transform( Transform2D const& t = {} ) {
 		le_2d::le_2d_encoder_i.encode_transform( self, &t );
 		return *this;
 	};
