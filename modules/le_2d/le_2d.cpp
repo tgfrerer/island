@@ -390,7 +390,8 @@ static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resourc
 			    le::BufferInfoBuilder()
 			        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst |
 			                        le::BufferUsageFlagBits::eStorageBuffer )
-			        .setSize( self->scene_bytes.size() )
+			        //.setSize( self->scene_bytes.size() ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
+			        .setSize( std::max<size_t>( self->buf_vello_scene_info.buffer.size, self->scene_bytes.size() ) ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
 			        .build();
 		}
 
