@@ -475,6 +475,12 @@ static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, s
 
 	assert( align_up( used_bytes, 4 * PATH_REDUCE_WG_SZ ) == path_tag_padded );
 
+
+	// ACHTUNG
+	// at this point, we can't just jump over the bytes taht are not used,
+	// because they could contain garbage data
+	memset( bytes + used_bytes, 0, path_tag_padded - used_bytes );
+
 	used_bytes = path_tag_padded;
 
 	layout.path_data_base = used_bytes / sizeof( uint32_t );
