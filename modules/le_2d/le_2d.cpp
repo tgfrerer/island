@@ -382,7 +382,7 @@ static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resourc
 			};
 
 			// snip off any extra bytes that were not used
-			 self->scene_bytes.resize( num_scene_bytes );
+			self->scene_bytes.resize( num_scene_bytes );
 
 			// self->rasterizer_args.layout       = le_2d_api::le_2d_encoder_i.encode_to_bytes( e, self->scene_bytes );
 			self->rasterizer_args.binning_size = buf_bin_data_num_bytes / sizeof( uint32_t ) - self->rasterizer_args.layout.bin_data_start;
@@ -660,6 +660,20 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        // Upload scene data to GPU buffer
 		        // first null out scene buffer
 		        encoder.fillBuffer( app->buf_vello_scene, 0, VK_WHOLE_SIZE, 0 );
+
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eTransfer,
+		            le::PipelineStageFlagBits2::eTransfer,
+		            le::AccessFlagBits2::eTransferWrite,
+		            le::AccessFlagBits2::eTransferWrite,
+		            app->buf_vello_scene );
+
+				// TODO: do we really need this barrier?
+				//
+				// make sure that the fill operation was completed before we do the next operation
+				// this should not be necessary, as filling and writing the buffer should use the same 
+				// memory caches and these therefore should not need to be flushed!
+
 		        encoder.writeToBuffer( app->buf_vello_scene, 0, app->scene_bytes.data(), app->scene_bytes.size() );
 	        } );
 
@@ -737,20 +751,15 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 		        { // Zero out any buffers that need to be reset
 			        assert( ctx->buf_bump_info.buffer.size % 4 == 0 && "bump buffer size must be multiple of 4" );
+
 			        encoder.fillBuffer( ctx->buf_bump, 0, VK_WHOLE_SIZE, 0 );
-
-			        // float fill_data = 1.0;
-			        // encoder.fillBuffer( app->buf_lines, 0, buf_lines_info.buffer.size, *( uint32_t* )( &fill_data ) );
 			        encoder.fillBuffer( ctx->buf_lines, 0, VK_WHOLE_SIZE, 0 );
-
 			        encoder.fillBuffer( ctx->buf_clip_bbox, 0, VK_WHOLE_SIZE, 0 );
 
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eTransfer,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            ctx->buf_clip_bbox );
+					// If we don't zero out this buffer, we may end with NAN's in 
+					// segments, because leftover path data may result in zero-length
+					// paths getting processed.
+			        encoder.fillBuffer( ctx->buf_path, 0, VK_WHOLE_SIZE, 0 );
 
 			        encoder.bufferMemoryBarrier(
 			            le::PipelineStageFlagBits2::eTransfer,
@@ -764,7 +773,17 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            le::PipelineStageFlagBits2::eComputeShader,
 			            le::AccessFlagBits2::eTransferWrite,
 			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_clip_bbox );
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eTransfer,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eTransferWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
 			            ctx->buf_lines );
+
+
+
 		        }
 
 		        {
@@ -773,7 +792,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            le::PipelineStageFlagBits2::eTransfer,
 			            le::PipelineStageFlagBits2::eComputeShader,
 			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead ,
+			            le::AccessFlagBits2::eShaderRead,
 			            ctx->buf_vello_scene );
 
 			        static auto pso_pathtag_reduce =
@@ -1021,6 +1040,15 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		            le::AccessFlagBits2::eShaderWrite,
 		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
 		            ctx->buf_bump );
+
+				// last possible time to wait on buf path to be cleared.
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eTransfer,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eTransferWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_path );
+
 		        {
 
 			        static auto pso_tile_alloc =
