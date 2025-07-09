@@ -540,7 +540,6 @@ static void encoder_encode_style( le_2d_encoder_o* e, Style const& style ) {
 static void encoder_encode_colour( le_2d_encoder_o* e, uint32_t color ) {
 	e->draw_tags.emplace_back( DrawTag::COLOUR );
 	e->draw_data.emplace_back( color );
-	// logger().info( "encode_colour" );
 }
 
 // ----------------------------------------------------------------------
@@ -589,7 +588,6 @@ static void encoder_encode_begin_clip( le_2d_encoder_o* e, BlendMode const* blen
 static void encoder_encode_end_clip( le_2d_encoder_o* e ) {
 	if ( e->n_open_clips ) {
 		e->draw_tags.emplace_back( DrawTag::END_CLIP );
-		// dummy path (todo: can we do without this?)
 		e->path_tags.emplace_back( PathTag::PATH );
 		e->n_paths++;
 		e->n_clips++;
