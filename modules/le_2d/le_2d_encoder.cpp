@@ -1018,7 +1018,7 @@ static void encoder_path_circle( le_2d_encoder_o* e, glm::vec2 const& centre, fl
 }
 
 static le_2d_encoder_o* encoder_create() {
-	auto e = new le_2d_encoder_o{};
+	le_2d_encoder_o* e = new le_2d_encoder_o();
 	encoder_reset( e );
 	return e;
 }
