@@ -538,12 +538,12 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	self->buf_path_bbox_info     = build_buffer_info( self->bsz.path_bboxes, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
 	self->buf_bump_info          = build_buffer_info( self->bsz.bump_alloc, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );   // the size for this buffer is determined by how many threads want to allocate concurrently
 	self->buf_draw_reduced_info  = build_buffer_info( self->bsz.draw_reduced, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst ); // the size for this buffer is determined by how many threads want to allocate concurrently
-	self->buf_lines_info         = build_buffer_info( self->bsz.lines, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_lines_info         = build_buffer_info( self->bsz.lines, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst);
 	self->buf_draw_monoid_info   = build_buffer_info( self->bsz.draw_monoids, le::BufferUsageFlagBits::eStorageBuffer );
 	self->buf_info_bin_data_info = build_buffer_info( buf_bin_data_num_bytes, le::BufferUsageFlagBits::eStorageBuffer );
 
 	self->buf_clip_inp_info  = build_buffer_info( self->bsz.clip_inps, le::BufferUsageFlagBits::eStorageBuffer ); // size for this needs to be determined by what?
-	self->buf_clip_bbox_info = build_buffer_info( self->bsz.clip_bboxes, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_clip_bbox_info = build_buffer_info( self->bsz.clip_bboxes, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst  );
 	self->buf_clip_el_info   = build_buffer_info( self->bsz.clip_els, le::BufferUsageFlagBits::eStorageBuffer );
 	self->buf_clip_bic_info  = build_buffer_info( self->bsz.clip_bics, le::BufferUsageFlagBits::eStorageBuffer );
 
