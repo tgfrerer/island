@@ -617,7 +617,7 @@ bool path_encoder_get_last_point( le_2d_encoder_o const* e, glm::vec2& pt ) {
 	if ( sz < 2 ) {
 		return false;
 	} else {
-		memcpy( &pt, e->path_data.data() - 2, sizeof( pt ) );
+		memcpy( &pt, e->path_data.data() + e->path_data.size() - 2, sizeof( pt ) );
 		return true;
 	}
 }
