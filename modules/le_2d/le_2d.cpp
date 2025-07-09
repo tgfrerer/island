@@ -755,6 +755,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			        encoder.fillBuffer( ctx->buf_bump, 0, VK_WHOLE_SIZE, 0 );
 			        encoder.fillBuffer( ctx->buf_lines, 0, VK_WHOLE_SIZE, 0 );
 			        encoder.fillBuffer( ctx->buf_clip_bbox, 0, VK_WHOLE_SIZE, 0 );
+			        encoder.fillBuffer( ctx->buf_tagmonoid, 0, VK_WHOLE_SIZE, 0 );
 
 					// If we don't zero out this buffer, we may end with NAN's in 
 					// segments, because leftover path data may result in zero-length
@@ -859,6 +860,13 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            le::AccessFlagBits2::eShaderWrite,
 			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
 			            reduced_buf );
+
+			        encoder.bufferMemoryBarrier(
+			            le::PipelineStageFlagBits2::eTransfer,
+			            le::PipelineStageFlagBits2::eComputeShader,
+			            le::AccessFlagBits2::eTransferWrite,
+			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			            ctx->buf_tagmonoid);
 
 			        static auto pso_pathtag_scan_large =
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_large_compressed_data_base85 );
