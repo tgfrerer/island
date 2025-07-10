@@ -7,9 +7,9 @@
 #include "le_ui_event.h"
 #include "hershey.h"
 
-#include "3rdparty/src/glm/glm.hpp"
-#include "3rdparty/src/glm/gtc/matrix_transform.hpp"
-#include "3rdparty/src/glm/gtc/random.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/random.hpp"
 
 #include "le_ecs.h"
 
