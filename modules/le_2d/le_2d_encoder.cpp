@@ -33,7 +33,7 @@ Vello shaders are licensed under Apache License, Version 2.0, MIT, or Unilicense
 #include <vector>
 // ----------------------------------------------------------------------
 #include "private/le_2d/le_2d_shared.h"
-#include "vec2.hpp"
+#include "glm/vec2.hpp"
 
 static auto logger() {
 	static auto logger = le::Log( "le_2d_encoder" );

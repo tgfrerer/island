@@ -44,7 +44,7 @@ Usage hints:
 
 #include "le_core.h"
 #include <cstring>
-#include "3rdparty/src/glm/glm/fwd.hpp"
+#include "glm/fwd.hpp"
 
 struct le_2d_o;
 struct le_rendergraph_o;
