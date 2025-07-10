@@ -477,8 +477,9 @@ static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, s
 
 
 	// ACHTUNG
-	// at this point, we can't just jump over the bytes taht are not used,
-	// because they could contain garbage data
+	// at this point, we can't just jump over the bytes that are not used,
+	// because they could contain garbage data which will confuse the gpu 
+	// -- we must zero out padding.
 	memset( bytes + used_bytes, 0, path_tag_padded - used_bytes );
 
 	used_bytes = path_tag_padded;

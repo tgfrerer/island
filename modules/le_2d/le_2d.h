@@ -1,6 +1,3 @@
-#ifndef GUARD_le_2d_H
-#define GUARD_le_2d_H
-
 /*
 
 # LICENSE
@@ -25,6 +22,25 @@ Vello shaders are licensed under Unilicense.
 <https://github.com/linebender/vello/blob/main/vello_shaders/shader/UNLICENSE>
 
  */
+#ifndef GUARD_le_2d_H
+#define GUARD_le_2d_H
+
+/*
+
+Usage hints:
+
+- you must issue a TRANSFORM instruction before each path
+- you must issue a COLOUR instruction before each new path
+- every `path_begin` must have a corresponding `path_end`.
+- paths can have multiple `moveto` and `close` instructions, this is how you can define subpaths.
+- before `begin_clip` you must issue a path that is:
+	- filled (not stroked)
+	- has no colour instruction
+	- finished (begin / end)
+- every `begin_clip` must have a corresponding `end_clip`.
+
+*/
+
 
 #include "le_core.h"
 #include <cstring>
@@ -254,8 +270,11 @@ struct le_2d_api {
 		void (* path_close     )( le_2d_encoder_o* self);
 
 
-		// ---------- macro methods
+		// ---------- macro methods 
 
+		// Note that `circle` does not begin/end a path - you must do that explicitly, 
+		// because this allows you to have more than one circle inside of a path.
+		//
 		void (* path_circle ) (le_2d_encoder_o*e, glm::vec2 const & centre, float r, float tolerance);
 
 		// ---------- private methods
@@ -413,6 +432,9 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	};
 
+	// before begin_clip you must have issued a path without colour instruction 
+	// and with fill instead of stroke style.
+	// the path must have ended.
 	Encoder2D& begin_clip( le_2d::BlendMode const& blend_mode, float alpha ) {
 		le_2d::le_2d_encoder_i.encode_begin_clip( self, &blend_mode, alpha );
 		return *this;
