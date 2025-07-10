@@ -898,7 +898,7 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 				info.range = binding->block.size;
 			}
 
-			if ( std::string::npos != std::string( binding->name ).find( TEXTURE_NAME_YCBCR_REQUEST_STRING ) ) {
+			if ( binding->name && std::string::npos != std::string( binding->name ).find( TEXTURE_NAME_YCBCR_REQUEST_STRING ) ) {
 
 				// If the binding name contains the special string value "__ycbcr__", then
 				// we set the .immutable_sampler value with a special sentinel - this
