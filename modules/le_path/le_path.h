@@ -51,7 +51,7 @@ struct le_path_api {
 
 
 	// generic operations on path - 
-	struct le_path_operations_interface_t{
+	struct le_path_iterator_interface_t{
 		void (* move_to )         ( void* user_data, float2 const* p );
 		void (* line_to )         ( void* user_data, float2 const* p );
 		void (* quad_bezier_to )  ( void* user_data, float2 const* c1, float2 const* p );
@@ -78,8 +78,11 @@ struct le_path_api {
 		void ( *add_from_simplified_svg )( le_path_o* self, char const* svg );
 
 		// parses path string with callback for path operations provided explicitly 
-		void ( *parse_simplified_svg )( void* user_data, le_path_operations_interface_t const* cb, char const* svg );
+		void ( *parse_simplified_svg )( void* user_data, le_path_iterator_interface_t const* cb, char const* svg );
 		
+		// iterate over full path, subpaths (contours) will begin with `moveto` instructions
+		void ( *iterate)(le_path_o* self, void* user_data, le_path_iterator_interface_t const* cb);
+
 		// ----------------------------------------------------------------------
 		// Traces the path with all its subpaths into a list of polylines.
 		// Each subpath will be translated into one polyline.
@@ -129,7 +132,7 @@ struct le_path_api {
 	};
 
 	le_path_interface_t le_path_i;
-	le_path_operations_interface_t le_path_operations_i;
+	le_path_iterator_interface_t le_path_operations_i;
 };
 // clang-format on
 
@@ -232,6 +235,10 @@ class Path {
 	Path& addFromSimplifiedSvg( char const* svg ) {
 		le_path::le_path_i.add_from_simplified_svg( self, svg );
 		return *this;
+	}
+
+	void iterate( void* user_data, le_path_api::le_path_iterator_interface_t const* cb ) {
+		le_path::le_path_i.iterate( self, user_data, cb );
 	}
 
 	void hobby() {

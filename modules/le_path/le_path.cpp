@@ -2259,6 +2259,54 @@ static void le_path_iterate_quad_beziers_for_contour( le_path_o* self, size_t co
 }
 
 // ----------------------------------------------------------------------
+
+static void le_path_iterate( le_path_o* self, void* user_data, le_path_api::le_path_iterator_interface_t const* cb ) {
+
+	for ( auto const& s : self->sub_path ) {
+
+		bool is_first_command_for_subpath = true;
+
+		for ( auto const& command : s.commands ) {
+
+			if ( is_first_command_for_subpath ) {
+				if ( command.type != PathCommand::eMoveTo ) {
+					logger.warn( "First command in subpath is not a moveto - auto-updating this." );
+				}
+				// the first command in a subpath must be a moveto -
+				cb->move_to( user_data, &command.p );
+				is_first_command_for_subpath = false;
+				continue;
+			}
+
+			switch ( command.type ) {
+			case PathCommand::eMoveTo:
+				cb->move_to( user_data, &command.p );
+				break;
+			case PathCommand::eLineTo:
+				cb->line_to( user_data, &command.p );
+				break;
+			case PathCommand::eQuadBezierTo:
+				cb->quad_bezier_to( user_data, &command.data.as_cubic_bezier.c1, &command.p );
+				break;
+			case PathCommand::eCubicBezierTo:
+				cb->cubic_bezier_to( user_data, &command.data.as_cubic_bezier.c1, &command.data.as_cubic_bezier.c2, &command.p );
+				break;
+			case PathCommand::eArcTo:
+				// not yet implemented
+				cb->arc_to( user_data, &command.p, &command.data.as_arc.radii, command.data.as_arc.phi, command.data.as_arc.large_arc, command.data.as_arc.sweep );
+				break;
+			case PathCommand::eClosePath:
+				cb->close( user_data ); // re-issue first vertex
+				break;
+			case PathCommand::eUnknown:
+				assert( false );
+				break;
+			}
+		} // end for all commands
+	} // end for all subpaths
+}
+
+// ----------------------------------------------------------------------
 // Updates `result` to the vertex position on polyline
 // at normalized position `t`
 static void le_polyline_get_at( Polyline const& polyline, float t, glm::vec2* result ) {
@@ -3285,7 +3333,7 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 // The full grammar for SVG paths is defined here:
 // <https://svgwg.org/svg2-draft/paths.html#PathDataBNF>
 //
-static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_operations_interface_t const* cb, char const* svg ) {
+static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_iterator_interface_t const* cb, char const* svg ) {
 
 	char const* c = svg;
 
@@ -3452,6 +3500,8 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 
 	le_path_i.iterate_vertices_for_contour     = le_path_iterate_vertices_for_contour;
 	le_path_i.iterate_quad_beziers_for_contour = le_path_iterate_quad_beziers_for_contour;
+
+	le_path_i.iterate = le_path_iterate;
 
 	le_path_i.trace    = le_path_trace_path;
 	le_path_i.flatten  = le_path_flatten_path;
