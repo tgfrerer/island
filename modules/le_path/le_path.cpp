@@ -94,7 +94,7 @@ struct Polyline {
 };
 
 struct le_path_o {
-	std::vector<Contour>  contours;  // an array of sub-paths, a contour must start with a moveto instruction
+	std::vector<Contour>  sub_path;  // an array of sub-paths, a contour must start with a moveto instruction
 	std::vector<Polyline> polylines; // an array of polylines, each corresponding to a sub-path.
 };
 
@@ -271,7 +271,7 @@ static le_path_o* le_path_clone( le_path_o const* old ) {
 }
 
 static void le_path_clear( le_path_o* self ) {
-	self->contours.clear();
+	self->sub_path.clear();
 	self->polylines.clear();
 }
 
@@ -601,17 +601,18 @@ static void trace_arc_to( Polyline&        polyline,
 }
 
 // ----------------------------------------------------------------------
-// Traces the path with all its subpaths into a list of polylines.
-// Each subpath will be translated into one polyline.
+// Traces the path with all its sub_paths into a list of polylines.
+// Each sub_path will be translated into one polyline.
+//
 // A polyline is a list of vertices which may be thought of being
 // connected by lines.
 //
 static void le_path_trace_path( le_path_o* self, size_t resolution ) {
 
 	self->polylines.clear();
-	self->polylines.reserve( self->contours.size() );
+	self->polylines.reserve( self->sub_path.size() );
 
-	for ( auto const& s : self->contours ) {
+	for ( auto const& s : self->sub_path ) {
 
 		Polyline polyline;
 
@@ -1220,9 +1221,9 @@ static void flatten_arc_to( Polyline&        polyline,
 static void le_path_flatten_path( le_path_o* self, float tolerance ) {
 
 	self->polylines.clear();
-	self->polylines.reserve( self->contours.size() );
+	self->polylines.reserve( self->sub_path.size() );
 
-	for ( auto const& s : self->contours ) {
+	for ( auto const& s : self->sub_path ) {
 
 		Polyline polyline;
 
@@ -1589,7 +1590,7 @@ static bool le_path_generate_offset_outline_for_contour(
 	glm::vec2 prev_point  = {};
 	float     line_offset = line_weight * 0.5f;
 
-	auto& s = self->contours[ contour_index ];
+	auto& s = self->sub_path[ contour_index ];
 	for ( auto const& command : s.commands ) {
 
 		switch ( command.type ) {
@@ -2023,7 +2024,7 @@ bool le_path_tessellate_thick_contour(
 
 	triangles.reserve( *num_vertices );
 
-	auto& contour = self->contours[ contour_index ];
+	auto& contour = self->sub_path[ contour_index ];
 
 	if ( contour.commands.empty() ) {
 		*num_vertices = 0;
@@ -2195,9 +2196,9 @@ bool le_path_tessellate_thick_contour(
 
 static void le_path_iterate_vertices_for_contour( le_path_o* self, size_t const& contour_index, le_path_api::contour_vertex_cb callback, void* user_data ) {
 
-	assert( self->contours.size() > contour_index );
+	assert( self->sub_path.size() > contour_index );
 
-	auto const& s = self->contours[ contour_index ];
+	auto const& s = self->sub_path[ contour_index ];
 
 	for ( auto const& command : s.commands ) {
 
@@ -2223,9 +2224,9 @@ static void le_path_iterate_vertices_for_contour( le_path_o* self, size_t const&
 
 static void le_path_iterate_quad_beziers_for_contour( le_path_o* self, size_t const& contour_index, le_path_api::contour_quad_bezier_cb callback, void* user_data ) {
 
-	assert( self->contours.size() > contour_index );
+	assert( self->sub_path.size() > contour_index );
 
-	auto const& s = self->contours[ contour_index ];
+	auto const& s = self->sub_path[ contour_index ];
 
 	glm::vec2 p0 = {};
 
@@ -2434,7 +2435,7 @@ static void le_polyline_resample( Polyline& polyline, float interval ) {
 
 static void le_path_resample( le_path_o* self, float interval ) {
 
-	if ( self->contours.empty() ) {
+	if ( self->sub_path.empty() ) {
 		// nothing to do.
 		return;
 	}
@@ -2459,20 +2460,20 @@ static void le_path_resample( le_path_o* self, float interval ) {
 static void le_path_move_to( void* user_data, float2 const* p ) {
 	auto self = ( le_path_o* )user_data;
 	// move_to means a new subpath, unless the last command was a
-	self->contours.emplace_back(); // add empty subpath
-	self->contours.back().commands.emplace_back( PathCommand::eMoveTo, *( glm::vec2* )( p ) );
+	self->sub_path.emplace_back(); // add empty subpath
+	self->sub_path.back().commands.emplace_back( PathCommand::eMoveTo, *( glm::vec2* )( p ) );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_line_to( void* user_data, float2 const* p ) {
 	auto self = ( le_path_o* )user_data;
-	if ( self->contours.empty() ) {
+	if ( self->sub_path.empty() ) {
 		constexpr static auto v0 = glm::vec2{};
 		le_path_move_to( self, ( float2* )&v0 );
 	}
-	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( PathCommand::eLineTo, *( glm::vec2* )( p ) );
+	assert( !self->sub_path.empty() ); // subpath must exist
+	self->sub_path.back().commands.emplace_back( PathCommand::eLineTo, *( glm::vec2* )( p ) );
 }
 
 // ----------------------------------------------------------------------
@@ -2480,12 +2481,12 @@ static void le_path_line_to( void* user_data, float2 const* p ) {
 // Fetch the current pen point by grabbing the previous target point
 // from the command stream.
 static glm::vec2 const* le_path_get_previous_p( le_path_o* self ) {
-	assert( !self->contours.empty() );                 // Subpath must exist
-	assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->sub_path.empty() );                 // Subpath must exist
+	assert( !self->sub_path.back().commands.empty() ); // previous command must exist
 
 	glm::vec2 const* p = nullptr;
 
-	auto const& c = self->contours.back().commands.back(); // fetch last command
+	auto const& c = self->sub_path.back().commands.back(); // fetch last command
 
 	switch ( c.type ) {
 	case PathCommand::eMoveTo:        // fall-through
@@ -2510,8 +2511,8 @@ static glm::vec2 const* le_path_get_previous_p( le_path_o* self ) {
 // ----------------------------------------------------------------------
 
 static void le_path_line_horiz_to( le_path_o* self, float px ) {
-	assert( !self->contours.empty() );                 // Subpath must exist
-	assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->sub_path.empty() );                 // Subpath must exist
+	assert( !self->sub_path.back().commands.empty() ); // previous command must exist
 
 	auto p = le_path_get_previous_p( self );
 
@@ -2525,8 +2526,8 @@ static void le_path_line_horiz_to( le_path_o* self, float px ) {
 // ----------------------------------------------------------------------
 
 static void le_path_line_vert_to( le_path_o* self, float py ) {
-	assert( !self->contours.empty() );                 // Subpath must exist
-	assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->sub_path.empty() );                 // Subpath must exist
+	assert( !self->sub_path.back().commands.empty() ); // previous command must exist
 
 	auto p = le_path_get_previous_p( self );
 
@@ -2539,26 +2540,26 @@ static void le_path_line_vert_to( le_path_o* self, float py ) {
 
 // ----------------------------------------------------------------------
 
-static void le_path_quad_bezier_to( void* user_data, float2 const* p, float2 const* c1 ) {
+static void le_path_quad_bezier_to( void* user_data, float2 const* c1, float2 const* p ) {
 	auto self = ( le_path_o* )user_data;
-	assert( !self->contours.empty() ); // contour must exist
-	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsQuadBezier{ *( glm::vec2* )( c1 ) } );
+	assert( !self->sub_path.empty() ); // contour must exist
+	self->sub_path.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsQuadBezier{ *( glm::vec2* )( c1 ) } );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_cubic_bezier_to( void* user_data, float2 const* p, float2 const* c1, float2 const* c2 ) {
+static void le_path_cubic_bezier_to( void* user_data, float2 const* c1, float2 const* c2, float2 const* p ) {
 	auto self = ( le_path_o* )user_data;
-	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsCubicBezier{ *( glm::vec2* )( c1 ), *( glm::vec2* )( c2 ) } );
+	assert( !self->sub_path.empty() ); // subpath must exist
+	self->sub_path.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsCubicBezier{ *( glm::vec2* )( c1 ), *( glm::vec2* )( c2 ) } );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_arc_to( void* user_data, float2 const* p, float2 const* radii, float phi, bool large_arc, bool sweep ) {
 	auto self = ( le_path_o* )user_data;
-	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsArc{ *( glm::vec2* )( radii ), phi, large_arc, sweep } );
+	assert( !self->sub_path.empty() ); // subpath must exist
+	self->sub_path.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsArc{ *( glm::vec2* )( radii ), phi, large_arc, sweep } );
 }
 
 // ----------------------------------------------------------------------
@@ -2566,12 +2567,12 @@ static void le_path_arc_to( void* user_data, float2 const* p, float2 const* radi
 static void le_path_close_path( void* user_data ) {
 	auto      self        = ( le_path_o* )user_data;
 	glm::vec2 first_point = {};
-	if ( !self->contours.back().commands.empty() ) {
-		if ( self->contours.back().commands.front().type == PathCommand::eMoveTo ) {
-			first_point = self->contours.back().commands.front().p;
+	if ( !self->sub_path.back().commands.empty() ) {
+		if ( self->sub_path.back().commands.front().type == PathCommand::eMoveTo ) {
+			first_point = self->sub_path.back().commands.front().p;
 		}
 	}
-	self->contours.back().commands.emplace_back( PathCommand::eClosePath, first_point );
+	self->sub_path.back().commands.emplace_back( PathCommand::eClosePath, first_point );
 }
 
 // ----------------------------------------------------------------------
@@ -2774,13 +2775,13 @@ static void path_commands_apply_hobby_open( std::vector<PathCommand>& commands )
 // applied.
 static void le_path_apply_hobby_on_last_contour( le_path_o* self ) {
 
-	if ( self->contours.empty() ) {
+	if ( self->sub_path.empty() ) {
 		return;
 	}
 
 	// ----------| invariant: there is a last contour
 
-	auto& commands = self->contours.back().commands;
+	auto& commands = self->sub_path.back().commands;
 
 	if ( commands.back().type == PathCommand::Type::eClosePath ) {
 		path_commands_apply_hobby_closed( commands );
@@ -2818,7 +2819,7 @@ static size_t le_path_get_num_polylines( le_path_o* self ) {
 }
 
 static size_t le_path_get_num_contours( le_path_o* self ) {
-	return self->contours.size();
+	return self->sub_path.size();
 }
 
 // ----------------------------------------------------------------------
