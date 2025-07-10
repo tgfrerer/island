@@ -10,8 +10,6 @@
 
 #include "le_log.h"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
@@ -398,6 +396,7 @@ static void pass_sort_execute( le_command_buffer_encoder_o* encoder_, void* user
 		    .dispatch( workgroup_count )
 		    .bufferMemoryBarrier( le::PipelineStageFlags2( le::PipelineStageFlagBits2::eComputeShader ),
 		                          le::PipelineStageFlags2( le::PipelineStageFlagBits2::eComputeShader ),
+		                          le::AccessFlags2( le::AccessFlagBits2::eShaderWrite ),
 		                          le::AccessFlags2( le::AccessFlagBits2::eShaderRead ),
 		                          app->pixels_data->handle );
 	};
