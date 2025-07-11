@@ -752,39 +752,27 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        { // Zero out any buffers that need to be reset
 			        assert( ctx->buf_bump_info.buffer.size % 4 == 0 && "bump buffer size must be multiple of 4" );
 
-			        encoder.fillBuffer( ctx->buf_bump, 0, VK_WHOLE_SIZE, 0 );
-			        encoder.fillBuffer( ctx->buf_lines, 0, VK_WHOLE_SIZE, 0 );
-			        encoder.fillBuffer( ctx->buf_clip_bbox, 0, VK_WHOLE_SIZE, 0 );
+			        auto zero_out_buffer = [ &encoder ]( le_buffer_resource_handle buf ) {
+				        encoder.fillBuffer( buf, 0, VK_WHOLE_SIZE, 0 );
+
+				        encoder.bufferMemoryBarrier(
+				            le::PipelineStageFlagBits2::eTransfer,
+				            le::PipelineStageFlagBits2::eComputeShader,
+				            le::AccessFlagBits2::eTransferWrite,
+				            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+				            buf );
+			        };
+
 			        encoder.fillBuffer( ctx->buf_tagmonoid, 0, VK_WHOLE_SIZE, 0 );
 
-					// If we don't zero out this buffer, we may end with NAN's in 
+			        // If we don't zero out this buffer, we may end with NAN's in 
 					// segments, because leftover path data may result in zero-length
 					// paths getting processed.
-			        encoder.fillBuffer( ctx->buf_path, 0, VK_WHOLE_SIZE, 0 );
+			        zero_out_buffer( ctx->buf_path );
 
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eTransfer,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            ctx->buf_bump );
-
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eTransfer,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            ctx->buf_clip_bbox );
-
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eTransfer,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            ctx->buf_lines );
-
-
-
+			        zero_out_buffer( ctx->buf_bump );
+			        zero_out_buffer( ctx->buf_lines );
+			        zero_out_buffer( ctx->buf_clip_bbox );
 		        }
 
 		        {
