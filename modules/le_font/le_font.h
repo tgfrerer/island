@@ -2,31 +2,13 @@
 #define GUARD_le_font_H
 
 #include "le_core.h"
-
-#ifndef ISL_ALLOW_GLM_TYPES
-#	define ISL_ALLOW_GLM_TYPES 1
-#endif
-
-// Life is terrible without 3d type primitives, so let's include some glm forward declarations
-
-#if ( ISL_ALLOW_GLM_TYPES == 1 )
-#	include <glm/fwd.hpp>
-#endif
+#include "glm/fwd.hpp"
 
 struct le_font_o;
 struct le_path_o;
 
 // clang-format off
 struct le_font_api {
-
-#if ( ISL_ALLOW_GLM_TYPES == 1 )
-	typedef glm::vec2 Vertex;
-#else
-	struct Vertex{
-		float x;
-		float y;
-	};
-#endif
 
 	typedef void le_uft8_iterator_cb_t( uint32_t codepoint, void *user_data );
 
@@ -46,7 +28,7 @@ struct le_font_api {
 		void                 ( * destroy_codepoint_sdf_bitmap ) ( le_font_o* self, uint8_t * bitmap);
 
 		// NOTE: `codepoint_prev` is optional, if 0, no kerning is applied, any other value will apply kerning for kerning pair (`codepoint_prev`,`codepoint`).
-		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, float const scale, Vertex *offset, int32_t const codepoint_prev);
+		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev);
 
 	};
 
