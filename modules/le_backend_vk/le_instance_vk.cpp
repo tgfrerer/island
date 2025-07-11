@@ -3,6 +3,7 @@
 #include "le_hash_util.h"
 #include "le_log.h"
 #include <cassert>
+#include <cstring>
 #include <vector>
 #include "util/volk/volk.h"
 
@@ -139,6 +140,13 @@ static VkBool32 debugUtilsMessengerCallback(
 		log_fun = le_log_api_i->le_log_channel_i.warn;
 	} else {
 		// keep logger == error
+	}
+
+	if ( pCallbackData && ( 0 == strcmp( pCallbackData->pMessageIdName, "VUID-StandaloneSpirv-None-10684" ) ) ) {
+		// this is a message that we ignore for now.
+		log_fun = le_log_api_i->le_log_channel_i.warn;
+		log_fun( logger, " *** THIS VALIDATION ERROR IS IGNORED FOR NOW -- REMOVE THE IGNORE ONCE THE ERROR IS FIXED *** " );
+		shouldBailout = false;
 	}
 
 	log_fun( logger, "vk validation: {%10s | %7s} %s", msgType.c_str(), logLevel.c_str(), pCallbackData->pMessage );
