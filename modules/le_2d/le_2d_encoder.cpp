@@ -363,7 +363,7 @@ struct le_2d_encoder_o : NoCopy, NoMove {
 	std::vector<Style> styles;
 
 	// /// Late bound resource data.
-	Resources resources; // TODO: this is not used for now.
+	// Resources resources; // NOTE(tig): this is not used for now as we only do full-colour paths and shapes
 
 	// /// Number of encoded paths.
 	uint32_t n_paths;
@@ -396,7 +396,7 @@ static void encoder_reset( le_2d_encoder_o* e ) {
 	e->draw_data.clear();
 	e->transforms.clear();
 	e->styles.clear();
-	e->resources       = {};
+	// e->resources       = {};
 	e->n_paths         = 0;
 	e->n_path_segments = 0;
 	e->n_clips         = 0;
@@ -1053,6 +1053,8 @@ static glm::vec2 sample_ellipse( glm::vec2 const& radii, double x_rotation, doub
 	return rotate_pt( glm::vec2( u, v ), x_rotation );
 }
 
+// ----------------------------------------------------------------------
+
 static void encoder_path_arc( le_2d_encoder_o* e, glm::vec2 const& centre, glm::vec2 const& radii, double start_angle_rad, double sweep_angle_rad, double x_rotation_rad, float tolerance = 0.1 ) {
 
 	// This method was adapted from kurbo-0.11.2/src/arc.rs
@@ -1076,8 +1078,13 @@ static void encoder_path_arc( le_2d_encoder_o* e, glm::vec2 const& centre, glm::
 
 	glm::vec2 p0 = sample_ellipse( radii, x_rotation_rad, angle0 );
 
-	// Move to first point
-	encoder_path_move_to( e, centre + p0 );
+	// Move to first point if there is no earlier point in the current path
+	if ( e->path.state == path_encoder_o::eStart ) {
+		encoder_path_move_to( e, centre + p0 );
+	} else {
+		// if there was a previous path, we trace a line to the first point
+		encoder_path_line_to( e, centre + p0 );
+	}
 
 	for ( int i = 0; i != n_sz; i++ ) {
 		double angle1 = angle0 + angle_step;
@@ -1092,6 +1099,41 @@ static void encoder_path_arc( le_2d_encoder_o* e, glm::vec2 const& centre, glm::
 		p0     = p3;
 	}
 }
+
+// ----------------------------------------------------------------------
+// Note that this assumes that both encoders, self, and rhs are in a valid state.
+static void encoder_append_into_encoder( le_2d_encoder_o* self, le_2d_encoder_o const* rhs, Transform2D const* maybe_transform ) {
+
+	Transform2D t = maybe_transform ? *maybe_transform : Transform2D();
+
+	// TODO apply optional transform to all transform objects in rhs
+
+	size_t old_transforms_count = self->transforms.size();
+	self->transforms.insert( self->transforms.end(), rhs->transforms.begin(), rhs->transforms.end() );
+
+	// Apply transform to all added elements
+	for ( size_t i = old_transforms_count; i != self->transforms.size(); i++ ) {
+		self->transforms[ i ] = t * self->transforms[ i ];
+	}
+
+	self->path_tags.insert( self->path_tags.end(), rhs->path_tags.begin(), rhs->path_tags.end() );
+	self->path_data.insert( self->path_data.end(), rhs->path_data.begin(), rhs->path_data.end() );
+
+	self->draw_tags.insert( self->draw_tags.end(), rhs->draw_tags.begin(), rhs->draw_tags.end() );
+	self->draw_data.insert( self->draw_data.end(), rhs->draw_data.begin(), rhs->draw_data.end() );
+
+	self->styles.insert( self->styles.end(), rhs->styles.begin(), rhs->styles.end() );
+
+	self->n_paths += rhs->n_paths;
+	self->n_path_segments += rhs->n_path_segments;
+	self->n_clips += rhs->n_clips;
+	self->n_open_clips += rhs->n_open_clips;
+
+	self->flags |= rhs->flags;
+
+	// reset path encoder -- just so that there is no accidental state leftover
+	self->path = {};
+};
 
 // ----------------------------------------------------------------------
 
@@ -1129,6 +1171,7 @@ void register_le_2d_encoder_api( void* api_ ) {
 
 	//
 	encoder_i.encode_to_bytes = encoder_encode_to_bytes;
+	encoder_i.append_into_encoder = encoder_append_into_encoder;
 
 	//
 	encoder_i.path_end      = encoder_path_end;

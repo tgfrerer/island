@@ -284,6 +284,7 @@ struct le_2d_api {
 
 		// todo: make this private - as it is only used by le_2d_o internally
 		bool (* encode_to_bytes )( le_2d_encoder_o const* e, uint8_t* bytes, size_t* bytes_count, rasterizer_layout_data_t* p_layout );
+		void (* append_into_encoder)(le_2d_encoder_o* self, le_2d_encoder_o const * rhs, Transform2D const* maybe_transform);
 	};
 
 	struct le_2d_interface_t {
@@ -476,6 +477,16 @@ class Encoder2D : NoCopy, NoMove {
 
 	explicit operator le_2d_encoder_o const*() const {
 		return self;
+	}
+
+	Encoder2D& operator+=( Encoder2D const& rhs ) {
+		le_2d::le_2d_encoder_i.append_into_encoder( self, rhs.self, nullptr );
+		return *this;
+	}
+
+	Encoder2D& append( Encoder2D const& rhs, Transform2D const& optional_transform = {} ) {
+		le_2d::le_2d_encoder_i.append_into_encoder( self, rhs.self, &optional_transform );
+		return *this;
 	}
 };
 } // namespace le
