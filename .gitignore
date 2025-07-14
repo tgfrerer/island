@@ -24,3 +24,7 @@ apps/examples/hello_world/resources/images/images.tar.gz
 apps/examples/hello_world/resources/images/white.tga
 apps/examples/hello_world/resources/images/world_winter.jpg
 /apps/examples/exr_decode_example/resources/images
+/modules/le_image_fx/private/le_image_fx/resources/shaders/compress
+/modules/le_image_fx/private/le_image_fx/resources/shaders/spv/blit_frag.spv
+/modules/le_image_fx/private/le_image_fx/resources/shaders/spv/blur_frag.spv
+/modules/le_image_fx/private/le_image_fx/resources/shaders/spv/fullscreen_vert.spv
