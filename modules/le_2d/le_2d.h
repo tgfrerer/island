@@ -277,6 +277,9 @@ struct le_2d_api {
 		//
 		void (* path_circle ) (le_2d_encoder_o*e, glm::vec2 const & centre, float r, float tolerance);
 
+		// Encode an arc as cubic beziers
+		void (* path_arc    )( le_2d_encoder_o* e, glm::vec2 const& centre, glm::vec2 const& radii, double start_angle_rad, double sweep_angle_rad, double x_rotation_rad, float tolerance);
+
 		// ---------- private methods
 
 		// todo: make this private - as it is only used by le_2d_o internally
@@ -379,6 +382,11 @@ class Encoder2D : NoCopy, NoMove {
 
 		Path& circle( glm::vec2 const& centre, float radius, float tolerance = 0.1 ) {
 			le_2d::le_2d_encoder_i.path_circle( static_cast<le_2d_encoder_o*>( parent ), centre, radius, tolerance );
+			return *this;
+		};
+
+		Path& arc( glm::vec2 const& centre, glm::vec2 const& radii, double start_angle_rad, double sweep_angle_rad, double x_rotation_rad, float tolerance = 0.1 ) {
+			le_2d::le_2d_encoder_i.path_arc( static_cast<le_2d_encoder_o*>( parent ), centre, radii, start_angle_rad, sweep_angle_rad, x_rotation_rad, tolerance );
 			return *this;
 		};
 

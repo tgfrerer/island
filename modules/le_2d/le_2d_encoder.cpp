@@ -35,6 +35,9 @@ Vello shaders are licensed under Apache License, Version 2.0, MIT, or Unilicense
 #include "private/le_2d/le_2d_shared.h"
 #include "glm/vec2.hpp"
 
+static constexpr auto FRAC_PI_2 = 1.57079632679489661923132169163975144; // 1.57079637f32
+static constexpr auto TWO_PI    = 6.28318530717958647692528676655900576;
+
 static auto logger() {
 	static auto logger = le::Log( "le_2d_encoder" );
 	return logger;
@@ -969,8 +972,6 @@ static void encoder_path_circle( le_2d_encoder_o* e, glm::vec2 const& centre, fl
 	// SPDX-License-Identifier: Apache-2.0 OR MIT
 	//
 
-	static constexpr auto FRAC_PI_2  = 1.57079632679489661923132169163975144; // 1.57079637f32
-	static constexpr auto TWO_PI     = 6.28318530717958647692528676655900576;
 	double                scaled_err = fabs( r ) / tolerance;
 	size_t                n          = 0;
 	double                arm_len    = 0;
@@ -1017,6 +1018,82 @@ static void encoder_path_circle( le_2d_encoder_o* e, glm::vec2 const& centre, fl
 
 	encoder_path_close( e );
 }
+
+// ----------------------------------------------------------------------
+
+/// Rotate `pt` about the origin by `angle` radians.
+static inline glm::vec2 rotate_pt( glm::vec2 const& pt, double angle ) {
+	// This method was adapted from kurbo-0.11.2/src/arc.rs
+	//
+	// Copyright 2019 the Kurbo Authors
+	// SPDX-License-Identifier: Apache-2.0 OR MIT
+	//
+
+	double angle_sin = sin( angle );
+	double angle_cos = cos( angle );
+
+	return {
+	    pt.x * angle_cos - pt.y * angle_sin,
+	    pt.x * angle_sin + pt.y * angle_cos,
+	};
+}
+
+/// Take the ellipse radii, how the radii are rotated, and the sweep angle, and return a point on
+/// the ellipse.
+static glm::vec2 sample_ellipse( glm::vec2 const& radii, double x_rotation, double angle ) {
+	// This method was adapted from kurbo-0.11.2/src/arc.rs
+	//
+	// Copyright 2019 the Kurbo Authors
+	// SPDX-License-Identifier: Apache-2.0 OR MIT
+	//
+	double angle_sin = sin( angle );
+	double angle_cos = cos( angle );
+	double u         = radii.x * angle_cos;
+	double v         = radii.y * angle_sin;
+	return rotate_pt( glm::vec2( u, v ), x_rotation );
+}
+
+static void encoder_path_arc( le_2d_encoder_o* e, glm::vec2 const& centre, glm::vec2 const& radii, double start_angle_rad, double sweep_angle_rad, double x_rotation_rad, float tolerance = 0.1 ) {
+
+	// This method was adapted from kurbo-0.11.2/src/arc.rs
+	//
+	// Copyright 2019 the Kurbo Authors
+	// SPDX-License-Identifier: Apache-2.0 OR MIT
+	//
+
+	double sign       = std::copysign( 1.0, sweep_angle_rad );
+	double scaled_err = std::max( radii.x, radii.y ) / tolerance;
+
+	// Number of subdivisions per ellipse based on error tolerance.
+	// Note: this may slightly underestimate the error for quadrants.
+	double n_err = std::max( pow( 1.1163 * scaled_err, ( 1.0 / 6.0 ) ), 3.999999 );
+
+	double n          = ceilf( n_err * fabs( sweep_angle_rad ) * ( 1.0 / ( TWO_PI ) ) );
+	double angle_step = sweep_angle_rad / n;
+	size_t n_sz       = n;
+	double arm_len    = ( 4.0 / 3.0 ) * tan( fabs( ( 0.25 * angle_step ) ) ) * sign;
+	double angle0     = start_angle_rad;
+
+	glm::vec2 p0 = sample_ellipse( radii, x_rotation_rad, angle0 );
+
+	// Move to first point
+	encoder_path_move_to( e, centre + p0 );
+
+	for ( int i = 0; i != n_sz; i++ ) {
+		double angle1 = angle0 + angle_step;
+
+		glm::vec2 p1 = p0 + float( arm_len ) * sample_ellipse( radii, x_rotation_rad, angle0 + FRAC_PI_2 );
+		glm::vec2 p3 = sample_ellipse( radii, x_rotation_rad, angle1 );
+		glm::vec2 p2 = p3 - float( arm_len ) * sample_ellipse( radii, x_rotation_rad, angle1 + FRAC_PI_2 );
+
+		encoder_path_cubic_to( e, centre + p1, centre + p2, centre + p3 );
+
+		angle0 = angle1;
+		p0     = p3;
+	}
+}
+
+// ----------------------------------------------------------------------
 
 static le_2d_encoder_o* encoder_create() {
 	le_2d_encoder_o* e = new le_2d_encoder_o();
@@ -1065,6 +1142,7 @@ void register_le_2d_encoder_api( void* api_ ) {
 	//
 
 	encoder_i.path_circle = encoder_path_circle;
+	encoder_i.path_arc    = encoder_path_arc;
 
 	// TODO:
 	// - add the rest of the encoder functions,
