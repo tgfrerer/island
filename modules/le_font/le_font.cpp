@@ -119,14 +119,14 @@ static void le_font_add_paths_for_glyph( le_font_o const* self, le_path_o* path,
 			// quadratic bezier to pos
 			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
 			p1 = *offset + scale * glm::vec2{ pp->cx + kern_advance, -pp->cy };
-			le_path_operations_i.quad_bezier_to( path, &p0, &p1 );
+			le_path_operations_i.quad_bezier_to( path, &p1, &p0 );
 			break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
 			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
 			p1 = *offset + scale * glm::vec2{ pp->cx + kern_advance, -pp->cy };
 			p2 = *offset + scale * glm::vec2{ pp->cx1 + kern_advance, -pp->cy1 };
-			le_path_operations_i.cubic_bezier_to( path, &p0, &p1, &p2 );
+			le_path_operations_i.cubic_bezier_to( path, &p1, &p2, &p0 );
 			break;
 		}
 	}
