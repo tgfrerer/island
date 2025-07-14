@@ -91,6 +91,7 @@ struct le_timebase_api {
 
 		uint64_t ( *get_current_ticks )( le_timebase_o* self );
 		uint64_t ( *get_ticks_since_last_frame )( le_timebase_o* self );
+		double   ( *get_seconds_since_last_frame)( le_timebase_o* self );
 	};
 
 	le_timebase_interface_t le_timebase_i;
@@ -137,10 +138,18 @@ class LeTimebase : NoCopy, NoMove {
 		return le_timebase::le_timebase_i.get_ticks_since_last_frame( self );
 	}
 
+	double getSecondsSinceLastFrame() {
+		return le_timebase::le_timebase_i.get_seconds_since_last_frame( self );
+	}
+
 	operator auto() {
 		return self;
 	}
 };
+
+namespace le {
+using Timebase = LeTimebase;
+}
 
 #endif // __cplusplus
 
