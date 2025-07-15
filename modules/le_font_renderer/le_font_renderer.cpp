@@ -8,7 +8,8 @@
 #include <forward_list>
 #include <cstdio>
 #include <atomic>
-
+#include <vector>
+#include "glm/vec4.hpp"
 
 struct font_info_t {
 	le_font_o*             font; // non-owning
