@@ -6,12 +6,12 @@
 #ifdef __cplusplus
 
 // Unless explicitly disabled, enable glm types by default.
-#	ifndef ISL_ALLOW_GLM_TYPES
-#		define ISL_ALLOW_GLM_TYPES
+#	ifndef LE_ALLOW_GLM_TYPES
+#		define LE_ALLOW_GLM_TYPES
 #	endif
 
-#	ifdef ISL_ALLOW_GLM_TYPES
-#		include <glm/fwd.hpp>
+#	ifdef LE_ALLOW_GLM_TYPES
+#		include "glm/fwd.hpp"
 #	endif
 
 #endif
@@ -21,10 +21,10 @@ struct le_verlet_particle_system_o;
 // clang-format off
 struct le_verlet_api {
 
-#ifdef ISL_ALLOW_GLM_TYPES
-	typedef glm::vec2 Vertex;
+#ifdef LE_ALLOW_GLM_TYPES
+	typedef glm::vec2 float2;
 #else
-	struct Vertex{
+	struct float2{
 		float x;
 		float y;
 	};
@@ -82,12 +82,12 @@ struct le_verlet_api {
 	struct le_verl_particle_system_interface_t{
 		le_verlet_particle_system_o* ( * create             ) ( );
 		void                       ( * destroy            ) ( le_verlet_particle_system_o* self );
-		void                       ( * add_particles      ) ( le_verlet_particle_system_o* self, Vertex*p_vertex, size_t num_vertices);
-		void                       ( * get_particles      ) ( le_verlet_particle_system_o* self, Vertex** p_vertex, size_t * num_vertices);
+		void                       ( * add_particles      ) ( le_verlet_particle_system_o* self, float2* p_vertices, size_t num_vertices);
+		void                       ( * get_particles      ) ( le_verlet_particle_system_o* self, float2** p_vertices, size_t * num_vertices);
 		size_t                     ( * get_particle_count ) ( le_verlet_particle_system_o* self );
 		void                       ( * add_constraint     ) ( le_verlet_particle_system_o* self, Constraint const & constraint);
 		void                       ( * update             ) ( le_verlet_particle_system_o* self, size_t num_steps );
-		void                       ( * set_particle       ) ( le_verlet_particle_system_o* self, size_t idx, Vertex const & vertex );
+		void                       ( * set_particle       ) ( le_verlet_particle_system_o* self, size_t idx, float2 const * vertex);
 	};
 
 	le_verl_particle_system_interface_t  le_verlet_i;

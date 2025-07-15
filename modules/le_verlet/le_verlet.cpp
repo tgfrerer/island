@@ -130,7 +130,7 @@ static void le_verlet_update( le_verlet_particle_system_o* self, size_t num_step
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_get_particles( le_verlet_particle_system_o* self, le_verlet_api::Vertex** vertices, size_t* num_vertices ) {
+static void le_verlet_get_particles( le_verlet_particle_system_o* self, glm::vec2** vertices, size_t* num_vertices ) {
 	*vertices = self->pos.data();
 	if ( num_vertices ) {
 		*num_vertices = self->pos.size();
@@ -139,12 +139,12 @@ static void le_verlet_get_particles( le_verlet_particle_system_o* self, le_verle
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_set_particle( le_verlet_particle_system_o* self, size_t idx, le_verlet_api::Vertex const& vertex ) {
+static void le_verlet_set_particle( le_verlet_particle_system_o* self, size_t idx, glm::vec2 const* vertex ) {
 
 	assert( self->pos.size() == self->prev_pos.size() );
 
 	if ( idx < self->pos.size() ) {
-		self->prev_pos[ idx ] = self->pos[ idx ] = vertex;
+		self->prev_pos[ idx ] = self->pos[ idx ] = *vertex;
 	}
 }
 
