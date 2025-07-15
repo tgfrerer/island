@@ -324,7 +324,7 @@ static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le
 	        .addColorAttachment(
 	            image_dst,
 	            le::ImageAttachmentInfoBuilder()
-	                .setLoadOp( le::AttachmentLoadOp::eLoad )
+	                .setLoadOp( self->blend_preset == le_image_fx::BlitBlendPreset::BLIT_BLEND_COPY ? le::AttachmentLoadOp::eDontCare : le::AttachmentLoadOp::eLoad )
 	                .build() ) // color attachment
 	        .sampleTexture(
 	            self->tex_blit_source,
