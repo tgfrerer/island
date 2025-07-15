@@ -31,16 +31,16 @@ Usage hints:
 
 - you must issue a TRANSFORM instruction before each path
 - you must issue a COLOUR instruction before each new path
+- Colours must be PREMULTIPLIED ALPHA (i.e. if colours use alpha, then alpha must be applied to colours; use the provided `premult` colour functions if in doubt)
 - every `path_begin` must have a corresponding `path_end`.
 - paths can have multiple `moveto` and `close` instructions, this is how you can define subpaths.
 - before `begin_clip` you must issue a path that is:
-	- filled (not stroked)
-	- has no colour instruction
-	- finished (begin / end)
+    - filled (not stroked)
+    - has no colour instruction
+    - finished (begin / end)
 - every `begin_clip` must have a corresponding `end_clip`.
 
 */
-
 
 #include "le_core.h"
 #include <cstring>
@@ -101,13 +101,63 @@ struct Transform2D {
 	}
 };
 
-// clang-format off
 struct le_2d_api {
 
-//
+	struct Colour {
+
+		inline static float saturate( float x ) {
+			if ( x > 1.0 ) {
+				return 1.0;
+			} else if ( x < 0.0 ) {
+				return 0.0;
+			} else {
+				return x;
+			}
+		};
+
+		float r = 0;
+		float g = 0;
+		float b = 0;
+		float a = 0;
+
+		explicit Colour( uint8_t r, uint8_t g, uint8_t b, uint8_t a )
+		    : r( saturate( r / 255.f ) )
+		    , g( saturate( g / 255.f ) )
+		    , b( saturate( b / 255.f ) )
+		    , a( saturate( a / 255.f ) ) {
+		}
+
+		explicit Colour( float* rgba )
+		    : r( saturate( rgba[ 0 ] ) )
+		    , g( saturate( rgba[ 1 ] ) )
+		    , b( saturate( rgba[ 2 ] ) )
+		    , a( saturate( rgba[ 3 ] ) ) {
+		}
+
+		explicit Colour( float r, float g, float b, float a )
+		    : r( r )
+		    , g( g )
+		    , b( b )
+		    , a( a ) {
+		}
+
+		uint32_t to_premult_rgba_u32() const {
+			return ( ( uint32_t( saturate( a ) * 255.f + 0.5f ) << 24 ) |
+			         ( uint32_t( saturate( a * b ) * 255.0 + 0.5f ) << 16 ) |
+			         ( uint32_t( saturate( a * g ) * 255.0 + 0.5f ) << 8 ) |
+			         ( uint32_t( saturate( a * r ) * 255.0 + 0.5f ) ) );
+		}
+
+		uint32_t to_un_premult_rgba_u32() const {
+			return ( ( uint32_t( saturate( a ) * 255.f + 0.5f ) << 24 ) |
+			         ( uint32_t( saturate( b ) * 255.0 + 0.5f ) << 16 ) |
+			         ( uint32_t( saturate( g ) * 255.0 + 0.5f ) << 8 ) |
+			         uint32_t( saturate( r ) * 255.0 + 0.5f ) );
+		}
+	};
 
 	struct BlendMode {
-	
+
 		enum class Mix : uint8_t {
 			/// Default attribute which specifies no blending. The blending formula simply selects the source color.
 			Normal = 0,
@@ -155,9 +205,9 @@ struct le_2d_api {
 			/// `Clip` is the same as `Normal`, but the latter always creates an isolated blend group and the
 			/// former can optimize that out.
 			Clip = 128,
-	
+
 		};
-	
+
 		enum class Compose : uint8_t {
 			/// No regions are enabled.
 			Clear = 0,
@@ -191,11 +241,11 @@ struct le_2d_api {
 			/// element and 1 to 0 on the other element.
 			PlusLighter = 13,
 		};
-	
+
 		Mix     mix     = Mix::Clip;
 		Compose compose = Compose::SrcOver;
 	};
-	
+
 	enum class FillStyle : uint8_t {
 		NonZero = 0,
 		EvenOdd = 1,
@@ -242,6 +292,8 @@ struct le_2d_api {
  * - add a method to combine encoders (append from one onto the other, and apply last transform)
  * 
  */
+
+	// clang-format off
 
 	struct le_2d_encoder_interface_t {
 
@@ -333,15 +385,6 @@ class Le2D : NoCopy, NoMove {
 		le_2d::le_2d_i.update( self, rg, encoder, img_output, img_output_info, background_colour_argb );
 	}
 
-	inline static uint32_t colour_to_abgr( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
-		uint32_t c =
-		    ( uint32_t( a ) << 24 ) |
-		    ( uint32_t( b ) << 16 ) |
-		    ( uint32_t( g ) << 8 ) |
-		    uint32_t( r );
-		return c;
-	};
-
 	operator auto() {
 		return self;
 	}
@@ -427,7 +470,12 @@ class Encoder2D : NoCopy, NoMove {
 	}
 
 	Encoder2D& colour( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
-		le_2d::le_2d_encoder_i.encode_colour( self, Le2D::colour_to_abgr( r, g, b, a ) );
+		le_2d::le_2d_encoder_i.encode_colour( self, le_2d_api::Colour( r, g, b, a ).to_premult_rgba_u32() );
+		return *this;
+	};
+
+	Encoder2D& colour( le_2d_api::Colour const& colour ) {
+		le_2d::le_2d_encoder_i.encode_colour( self, colour.to_premult_rgba_u32() );
 		return *this;
 	};
 
