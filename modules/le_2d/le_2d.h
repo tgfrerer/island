@@ -32,6 +32,11 @@ Usage hints:
 - you must issue a TRANSFORM instruction before each path
 - you must issue a COLOUR instruction before each new path
 - Colours must be PREMULTIPLIED ALPHA (i.e. if colours use alpha, then alpha must be applied to colours; use the provided `premult` colour functions if in doubt)
+- Colours are first mixed (RGB), then composed(blended) (where alpha is taken into account)
+- Blend modes are per-layer (and NOT PER-PATH)
+    - blend mode controls how a clip layer blends with the clip layer below
+    - blend mode does not control how paths blend inside the current clip layer
+    - inside a clip layer, the blending is always premultiplied alpha.
 - every `path_begin` must have a corresponding `path_end`.
 - paths can have multiple `moveto` and `close` instructions, this is how you can define subpaths.
 - before `begin_clip` you must issue a path that is:
@@ -328,6 +333,7 @@ struct le_2d_api {
 		// because this allows you to have more than one circle inside of a path.
 		//
 		void (* path_circle ) (le_2d_encoder_o*e, glm::vec2 const & centre, float r, float tolerance);
+		void (* path_rect ) (le_2d_encoder_o*e, glm::vec2 const & top_left, glm::vec2 const& bottom_right);
 
 		// Encode an arc as cubic beziers
 		void (* path_arc    )( le_2d_encoder_o* e, glm::vec2 const& centre, glm::vec2 const& radii, double start_angle_rad, double sweep_angle_rad, double x_rotation_rad, float tolerance);
@@ -366,6 +372,8 @@ using FillStyle = le_2d_api::FillStyle;
 using Stroke    = le_2d_api::Stroke;
 using Join      = le_2d_api::Join;
 using Cap       = le_2d_api::Cap;
+
+using Colour = le_2d_api::Colour;
 
 } // namespace le_2d
 class Le2D : NoCopy, NoMove {
@@ -428,6 +436,11 @@ class Encoder2D : NoCopy, NoMove {
 			le_2d::le_2d_encoder_i.path_circle( static_cast<le_2d_encoder_o*>( parent ), centre, radius, tolerance );
 			return *this;
 		};
+
+		Path& rect( glm::vec2 const& top_left, glm::vec2 const& bottom_right ) {
+			le_2d::le_2d_encoder_i.path_rect( static_cast<le_2d_encoder_o*>( parent ), top_left, bottom_right );
+			return *this;
+		}
 
 		Path& arc( glm::vec2 const& centre, glm::vec2 const& radii, double start_angle_rad, double sweep_angle_rad, double x_rotation_rad, float tolerance = 0.1 ) {
 			le_2d::le_2d_encoder_i.path_arc( static_cast<le_2d_encoder_o*>( parent ), centre, radii, start_angle_rad, sweep_angle_rad, x_rotation_rad, tolerance );

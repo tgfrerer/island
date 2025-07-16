@@ -1021,6 +1021,16 @@ static void encoder_path_circle( le_2d_encoder_o* e, glm::vec2 const& centre, fl
 
 // ----------------------------------------------------------------------
 
+static void encoder_path_rect( le_2d_encoder_o* e, glm::vec2 const& top_left, glm::vec2 const& bottom_right ) {
+	encoder_path_move_to( e, top_left );
+	encoder_path_line_to( e, { bottom_right.x, top_left.y } );
+	encoder_path_line_to( e, bottom_right );
+	encoder_path_line_to( e, { top_left.x, bottom_right.y } );
+	encoder_path_close( e );
+};
+
+// ----------------------------------------------------------------------
+
 /// Rotate `pt` about the origin by `angle` radians.
 static inline glm::vec2 rotate_pt( glm::vec2 const& pt, double angle ) {
 	// This method was adapted from kurbo-0.11.2/src/arc.rs
@@ -1185,6 +1195,7 @@ void register_le_2d_encoder_api( void* api_ ) {
 	//
 
 	encoder_i.path_circle = encoder_path_circle;
+	encoder_i.path_rect   = encoder_path_rect;
 	encoder_i.path_arc    = encoder_path_arc;
 
 	// TODO:
