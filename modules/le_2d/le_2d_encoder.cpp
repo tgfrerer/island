@@ -1082,7 +1082,7 @@ static void encoder_path_arc( le_2d_encoder_o* e, glm::vec2 const& centre, glm::
 
 	double n          = ceilf( n_err * fabs( sweep_angle_rad ) * ( 1.0 / ( TWO_PI ) ) );
 	double angle_step = sweep_angle_rad / n;
-	size_t n_sz       = n;
+	size_t n_sz       = n == n ? n : 0; // test for NaN
 	double arm_len    = ( 4.0 / 3.0 ) * tan( fabs( ( 0.25 * angle_step ) ) ) * sign;
 	double angle0     = start_angle_rad;
 
