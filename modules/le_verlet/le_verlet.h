@@ -83,9 +83,14 @@ struct le_verlet_api {
 		le_verlet_particle_system_o* ( * create             ) ( );
 		void                       ( * destroy            ) ( le_verlet_particle_system_o* self );
 		void                       ( * add_particles      ) ( le_verlet_particle_system_o* self, float2* p_vertices, size_t num_vertices);
-		void                       ( * get_particles      ) ( le_verlet_particle_system_o* self, float2** p_vertices, size_t * num_vertices);
+
+		// return a pointer to particles held by le_verlet - you may update these
+		void                       ( * get_particles      ) ( le_verlet_particle_system_o* self, float2 const ** p_vertices, size_t * num_vertices);
 		size_t                     ( * get_particle_count ) ( le_verlet_particle_system_o* self );
 		void                       ( * add_constraint     ) ( le_verlet_particle_system_o* self, Constraint const & constraint);
+
+		// return a pointer to constraints as held by le_verlet; update num_constraints to number of available constraints
+		void                       ( * get_constraints    ) ( le_verlet_particle_system_o* self, Constraint const ** constraints, size_t*num_constraints);
 		void                       ( * update             ) ( le_verlet_particle_system_o* self, size_t num_steps );
 		void                       ( * set_particle       ) ( le_verlet_particle_system_o* self, size_t idx, float2 const * vertex);
 	};

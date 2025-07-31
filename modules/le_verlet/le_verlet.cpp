@@ -1,6 +1,7 @@
 #include "le_verlet.h"
 #include "le_core.h"
 
+#include <cstring>
 #include <vector>
 #include "glm/glm.hpp"
 
@@ -80,6 +81,7 @@ static void le_verlet_add_particles( le_verlet_particle_system_o* self, glm::vec
 // then add it to the particle system.
 static void le_verlet_add_constraint( le_verlet_particle_system_o* self, Constraint const& constraint ) {
 	// setup constraint
+
 	auto  c   = constraint;
 	auto& pos = self->pos;
 
@@ -97,6 +99,19 @@ static void le_verlet_add_constraint( le_verlet_particle_system_o* self, Constra
 
 	self->constraints.emplace_back( std::move( c ) );
 }
+
+// ----------------------------------------------------------------------
+
+static void le_verlet_get_constraints( le_verlet_particle_system_o* self, Constraint const** constraints, size_t* num_constraints ) {
+
+	if ( constraints ) {
+		*constraints = self->constraints.data();
+	}
+
+	if ( num_constraints ) {
+		*num_constraints = self->constraints.size();
+	}
+};
 
 // ----------------------------------------------------------------------
 
@@ -130,7 +145,7 @@ static void le_verlet_update( le_verlet_particle_system_o* self, size_t num_step
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_get_particles( le_verlet_particle_system_o* self, glm::vec2** vertices, size_t* num_vertices ) {
+static void le_verlet_get_particles( le_verlet_particle_system_o* self, glm::vec2 const** vertices, size_t* num_vertices ) {
 	*vertices = self->pos.data();
 	if ( num_vertices ) {
 		*num_vertices = self->pos.size();
@@ -166,5 +181,6 @@ LE_MODULE_REGISTER_IMPL( le_verlet, api ) {
 	le_verlet_i.add_constraint     = le_verlet_add_constraint;
 	le_verlet_i.get_particles      = le_verlet_get_particles;
 	le_verlet_i.get_particle_count = le_verlet_get_particle_count;
+	le_verlet_i.get_constraints    = le_verlet_get_constraints;
 	le_verlet_i.set_particle       = le_verlet_set_particle;
 }
