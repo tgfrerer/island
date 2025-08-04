@@ -6,14 +6,18 @@
 
 struct le_font_o;
 struct le_path_o;
+struct le_path_operations_interface_t;
 
 // clang-format off
 struct le_font_api {
 
 	typedef void le_uft8_iterator_cb_t( uint32_t codepoint, void *user_data );
 
-	// Parses str, calls `cb` for each glyph.
-	// Returns true once end of str reached, and all characters were parsed successfully.
+	// Iterate over utf-8 glyphs: <https://en.m.wikipedia.org/wiki/UTF-8>
+	// Calls given callback for each codepoint in str.
+	// Runs until it meets '\0' (end of c-string) character.
+	// Returns true on success, false if the last codepoint was not completely
+	// parsed.
 	bool  (*le_utf8_iterator)( char const *str, void *user_data, le_uft8_iterator_cb_t cb );
 
 	struct le_font_interface_t {
@@ -28,10 +32,9 @@ struct le_font_api {
 		void                 ( * destroy_codepoint_sdf_bitmap ) ( le_font_o* self, uint8_t * bitmap);
 
 		// NOTE: `codepoint_prev` is optional, if 0, no kerning is applied, any other value will apply kerning for kerning pair (`codepoint_prev`,`codepoint`).
-		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev);
+		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, void* path_or_user_data, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev, le_path_operations_interface_t const * optional_path_operations_interface);
 
 	};
-
 
 	le_font_interface_t       le_font_i;
 };

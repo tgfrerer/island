@@ -19,8 +19,6 @@ using stroke_attribute_t = le_path_api::stroke_attribute_t;
 
 static auto logger = le::Log( "le_path" );
 
-using float2 = le_path_api::float2;
-
 // some static asserts to make sure that we can internally pun float2 to glm::vec2
 static_assert( sizeof( glm::vec2 ) == sizeof( float2 ), "float2 and glm::vec2 must have the same size" );
 static_assert( offsetof( glm::vec2, x ) == offsetof( float2, x ), "placement of x must be identical in float2 and glm::vec2" );
@@ -2259,7 +2257,7 @@ static void le_path_iterate_quad_beziers_for_contour( le_path_o* self, size_t co
 
 // ----------------------------------------------------------------------
 
-static void le_path_iterate( le_path_o* self, void* user_data, le_path_api::le_path_iterator_interface_t const* cb ) {
+static void le_path_iterate( le_path_o* self, void* user_data, le_path_operations_interface_t const* cb ) {
 
 	for ( auto const& s : self->sub_path ) {
 
@@ -3332,7 +3330,7 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 // The full grammar for SVG paths is defined here:
 // <https://svgwg.org/svg2-draft/paths.html#PathDataBNF>
 //
-static void le_path_parse_simplified_svg( void* user_data, le_path_api::le_path_iterator_interface_t const* cb, char const* svg ) {
+static void le_path_parse_simplified_svg( void* user_data, le_path_operations_interface_t const* cb, char const* svg ) {
 
 	char const* c = svg;
 

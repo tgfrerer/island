@@ -81,13 +81,17 @@ typedef glm::vec2 Vertex;
 
 // ----------------------------------------------------------------------
 
-static void le_font_add_paths_for_glyph( le_font_o const* self, le_path_o* path, int32_t const codepoint, float const scale, glm::vec2* offset, int32_t const codepoint_prev ) {
+static void le_font_add_paths_for_glyph( le_font_o const* self, void* path_or_user_data, int32_t const codepoint, float const scale, glm::vec2* offset, int32_t const codepoint_prev, le_path_operations_interface_t const* path_operations_i ) {
 	stbtt_vertex* pp_arr   = nullptr;
 	int           pp_count = stbtt_GetCodepointShape( &self->info, codepoint, &pp_arr );
 
 	stbtt_vertex const* const pp_end = pp_arr + pp_count;
 
 	using namespace le_path;
+
+	if ( path_operations_i == nullptr ) {
+		path_operations_i = &le_path::le_path_operations_i;
+	}
 
 	float kern_advance = 0.f;
 
@@ -108,25 +112,25 @@ static void le_font_add_paths_for_glyph( le_font_o const* self, le_path_o* path,
 		case STBTT_vmove:
 			// a move signals the start of a new glyph
 			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
-			le_path_operations_i.move_to( path, &p0 );
+			path_operations_i->move_to( path_or_user_data, &p0 );
 			break;
 		case STBTT_vline:
 			// line from last position to this pos
 			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
-			le_path_operations_i.line_to( path, &p0 );
+			path_operations_i->line_to( path_or_user_data, &p0 );
 			break;
 		case STBTT_vcurve:
 			// quadratic bezier to pos
 			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
 			p1 = *offset + scale * glm::vec2{ pp->cx + kern_advance, -pp->cy };
-			le_path_operations_i.quad_bezier_to( path, &p1, &p0 );
+			path_operations_i->quad_bezier_to( path_or_user_data, &p1, &p0 );
 			break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
 			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
 			p1 = *offset + scale * glm::vec2{ pp->cx + kern_advance, -pp->cy };
 			p2 = *offset + scale * glm::vec2{ pp->cx1 + kern_advance, -pp->cy1 };
-			le_path_operations_i.cubic_bezier_to( path, &p1, &p2, &p0 );
+			path_operations_i->cubic_bezier_to( path_or_user_data, &p1, &p2, &p0 );
 			break;
 		}
 	}
