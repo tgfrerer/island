@@ -78,7 +78,21 @@ struct Transform2D {
 	float transform[ 4 ]   = { 1, 0, 0, 1 }; // 2x2 matrix, column major
 	float translation[ 2 ] = { 0, 0 };
 
+	/*
+	 *  Use this to create an affine rotation Transform:
+	 *
+
+	inline static Transform2D rotation_rad( float angle_rad ) {
+	    float       cosa  = cosf( angle_rad );
+	    float       sina  = sinf( angle_rad );
+	    Transform2D rot_m = { .transform = { cosa, sina, -sina, cosa }, .translation = { 0, 0 } };
+	    return rot_m;
+	};
+	 */
+
 	inline Transform2D operator*( Transform2D const& rhs ) const {
+		// Note: this has been checked against vello to make sure that we're using the same
+		// conventions.
 		auto const& t = this->transform;
 		auto const& o = rhs.transform;
 		return {
@@ -96,6 +110,30 @@ struct Transform2D {
 		    },
 		};
 	}
+
+	inline float determinant() {
+		return transform[ 0 ] * transform[ 3 ] - transform[ 1 ] * transform[ 2 ];
+	}
+
+	Transform2D inverse() {
+		float inv_det = 1.0 / determinant();
+		assert( inv_det == inv_det ); // test for NaN
+
+		auto result = Transform2D{
+		    .transform{
+		        inv_det * transform[ 3 ],
+		        -inv_det * transform[ 1 ],
+		        -inv_det * transform[ 2 ],
+		        inv_det * transform[ 0 ],
+		    },
+		    .translation{
+		        inv_det * ( transform[ 2 ] * translation[ 1 ] - transform[ 3 ] * translation[ 0 ] ),
+		        inv_det * ( transform[ 1 ] * translation[ 0 ] - transform[ 0 ] * translation[ 1 ] ),
+		    },
+		};
+
+		return result;
+	};
 
 	const bool operator==( Transform2D const& rhs ) const {
 		return ( 0 == memcmp( this, &rhs, sizeof( Transform2D ) ) );
@@ -325,7 +363,6 @@ struct le_2d_api {
 		void (* path_quad_to   )( le_2d_encoder_o* e, glm::vec2 const& c1, glm::vec2 const& p );
 		void (* path_cubic_to  )( le_2d_encoder_o* e, glm::vec2 const& c1, glm::vec2 const& c2, glm::vec2 const& p );
 		void (* path_close     )( le_2d_encoder_o* self);
-
 
 		// ---------- macro methods 
 
