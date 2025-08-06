@@ -14,7 +14,7 @@
 constexpr uint32_t PATH_BBOX_WG_SZ        = 256;
 constexpr uint32_t FLATTEN_WG_SZ          = 256;
 constexpr uint32_t CLIP_REDUCE_WG_SZ      = 256;
-constexpr size_t   buf_bin_data_num_bytes = ( 1 << 18 ) * 4; // TODO: this needs to change
+constexpr size_t   buf_bin_data_num_bytes = ( 1 << 18 ) * 4; // TODO: is there a method to calculate the required number of bytes required?
 constexpr uint32_t TILE_UNIT              = 16;              // tiles are 16x16 pixels
 constexpr auto     VK_WHOLE_SIZE          = ( ~0ULL );
 

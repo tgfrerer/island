@@ -298,9 +298,60 @@ static uint32_t draw_tag_get_info_size( DrawTag const& t ) {
 	return ( ( uint32_t( t ) >> 6 ) & uint32_t( 0xf ) );
 }
 
+enum ExtendMode {
+	Pad     = 0, // extends image by repeating the edge of the brush
+	Repeat  = 1, // extends image by repeating the brush
+	Reflect = 2, // extends image by reflecting the brush
+};
+
+struct le_2d_linear_gradient_t {
+	uint32_t  index; // ramp index
+	glm::vec2 p0;    // start point
+	glm::vec2 p1;    // end point
+};
+
+struct le_2d_colour_stop_t {
+	float             offset; // normalized offset of the stop
+	le_2d_api::Colour colour;
+};
+
+struct Patch {
+	enum class Type : uint8_t {
+		Undefined = 0,
+		Ramp,
+		GlyphRun,
+		// Image,
+	};
+	Type type = {};
+
+	struct RampData {
+		size_t     draw_data_offset = 0; // given in count of uint32_t
+		size_t     stops_start;
+		size_t     stops_end;
+		ExtendMode extend;
+	};
+
+	struct GlyphRunData {
+		size_t index; // index of the glyph in the glyph run buffer
+	};
+
+	struct ImageData {
+		size_t draw_data_offset; // given in count of uint32_t
+		                         // Image image;
+	};
+
+	union Data {
+		RampData     as_ramp;
+		GlyphRunData as_glyph_run;
+		ImageData    as_image;
+	} data = {};
+};
+
 struct Resources {
 	// Fill this in once we want to make more advanced rendering available.
 	// this is for gradients, and images, and glyph runs.
+	std::vector<le_2d_colour_stop_t> colour_stops;
+	std::vector<Patch>               patches;
 };
 
 // ----------------------------------------------------------------------
@@ -363,7 +414,7 @@ struct le_2d_encoder_o : NoCopy, NoMove {
 	std::vector<Style> styles;
 
 	// /// Late bound resource data.
-	// Resources resources; // NOTE(tig): this is not used for now as we only do full-colour paths and shapes
+	Resources resources; // NOTE(tig): this is not used for now as we only do full-colour paths and shapes
 
 	// /// Number of encoded paths.
 	uint32_t n_paths;
@@ -605,6 +656,66 @@ static void encoder_encode_end_clip( le_2d_encoder_o* e ) {
 	}
 }
 
+// ----------------------------------------------------------------------
+
+static void encoder_encode_linear_gradient( le_2d_encoder_o* e, le_2d_linear_gradient_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend ) {
+
+	// Special cases:
+	//
+	// + if zero stops, then encode transparent colour, and encode as solid shape
+	// + if one stop, just encode a colour and ignore gradient treatment, encode as solid shape
+
+	if ( colour_stops_sz == 0 ) {
+		encoder_encode_colour( e, 0x00000000 ); // encode transparent colour
+		return;
+	} else if ( colour_stops_sz == 1 ) {
+		encoder_encode_colour( e, colour_stops[ 0 ].colour.to_premult_rgba_u32() ); // encode solid colour
+		return;
+	}
+
+	// ----------| invariant: more than one colour stops
+
+	// add ramp
+
+	size_t offset = e->draw_data.size(); // TODO: note : granulatity of offset is uint32_t?!
+
+	// Append colour stops
+	size_t stops_start = e->resources.colour_stops.size();
+	e->resources.colour_stops.insert( e->resources.colour_stops.end(), colour_stops, colour_stops + colour_stops_sz );
+	size_t stops_end = e->resources.colour_stops.size();
+
+	// If alpha is not 1.0, then we must premultiply alpha for all added colour stops
+	// we do this after appending so that we don't have to allocate temporary objects.
+	if ( alpha != 1.0 ) {
+		for ( auto col = e->resources.colour_stops.end() - colour_stops_sz; col != e->resources.colour_stops.end(); col++ ) {
+			col->colour.r *= alpha;
+			col->colour.g *= alpha;
+			col->colour.b *= alpha;
+		}
+	}
+
+	// Push patch for ramp
+
+	Patch p{
+	    .type = Patch::Type::Ramp,
+	    .data = {
+	        .as_ramp = {
+	            .draw_data_offset = offset,
+	            .stops_start      = stops_start,
+	            .stops_end        = stops_end,
+	            .extend           = extend,
+	        },
+
+	    },
+	};
+
+	e->resources.patches.emplace_back( std::move( p ) );
+
+	// now, we must serialise the gradient into draw data - first allocate some memory inside draw data
+	e->draw_data.resize( offset + sizeof( le_2d_linear_gradient_t ) / sizeof( uint32_t ) );
+	// copy gradient into draw_data
+	memcpy( e->draw_data.data() + offset, gradient, sizeof( le_2d_linear_gradient_t ) );
+};
 // ----------------------------------------------------------------------
 
 // ----
