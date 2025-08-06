@@ -1,8 +1,8 @@
 #include "le_2d.h"
 
 #include <cassert>
-#include <cmath>
 #include <cstring>
+#include <stdlib.h>
 #include <vector>
 #include "le_core.h"
 #include "le_renderer.hpp"
