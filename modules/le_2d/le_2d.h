@@ -569,6 +569,10 @@ class Encoder2D : NoCopy, NoMove {
 		return m_path;
 	};
 
+	Path& get_path() {
+		return m_path;
+	};
+
 	Encoder2D& path_end( bool insert_path_marker = true ) {
 		le_2d::le_2d_encoder_i.path_end( self, insert_path_marker );
 		return *this;
