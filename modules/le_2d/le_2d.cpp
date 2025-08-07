@@ -1,9 +1,11 @@
+#include "glm/common.hpp"
 #include "le_core.h"
 #include "private/le_2d/le_2d_shared.h"
 
 #include <cassert>
 #include <cstring>
 #include <stdlib.h>
+#include <unordered_map>
 #include "le_renderer.hpp"
 #include "le_pipeline_builder.h"
 #include "private/le_2d/SpookyV2.h"
@@ -15,6 +17,7 @@ constexpr uint32_t CLIP_REDUCE_WG_SZ      = 256;
 constexpr size_t   buf_bin_data_num_bytes = ( 1 << 18 ) * 4; // TODO: is there a method to calculate the required number of bytes required?
 constexpr uint32_t TILE_UNIT              = 16;              // tiles are 16x16 pixels
 constexpr auto     VK_WHOLE_SIZE          = ( ~0ULL );
+constexpr size_t   N_GRADIENT_SAMPLES     = 512;
 
 // ----------------------------------------------------------------------
 // Decompression functions - these are used to retrieve shader code from inl strings
@@ -252,6 +255,212 @@ static void generate_msaa16_lut( std::vector<uint8_t>& table ) {
 	}
 }
 
+static void render_gradient( le_2d_colour_stop_t const* colour_stops, size_t colour_stops_count, uint32_t* data ) {
+	// render all colour stops into 512 colours
+	assert( colour_stops_count > 1 );
+
+	float previous_t = 0;
+	float next_t     = 0;
+
+	le_2d::Colour previous_colour = colour_stops->colour;
+	le_2d::Colour next_colour     = previous_colour;
+
+	size_t j = 0;
+
+	le_2d::Colour blended_colour{ 0.f, 0.f, 0.f, 0.f };
+
+	for ( size_t i = 0; i != N_GRADIENT_SAMPLES; i++ ) {
+
+		float t = i / float( N_GRADIENT_SAMPLES - 1 );
+
+		while ( t > next_t ) {
+			previous_t      = next_t;
+			previous_colour = next_colour;
+			if ( j + 1 < colour_stops_count ) {
+				next_t      = colour_stops[ j + 1 ].offset;
+				next_colour = colour_stops[ j + 1 ].colour;
+				j++;
+			} else {
+				break;
+			}
+		}
+
+		float distance_t = next_t - previous_t;
+
+		if ( distance_t < 1e-9 ) {
+			blended_colour = next_colour;
+		} else {
+
+			// TODO: Respect colour space when blending
+
+			// we just do linear blending of linear colours for now -- we should implemend blending in a nicer colour space - perhaps
+			// oklab so that we can get nicer gradients.
+
+			blended_colour.r = previous_colour.r + ( next_colour.r - previous_colour.r ) * ( ( t - previous_t ) / distance_t );
+			blended_colour.g = previous_colour.g + ( next_colour.g - previous_colour.g ) * ( ( t - previous_t ) / distance_t );
+			blended_colour.b = previous_colour.b + ( next_colour.b - previous_colour.b ) * ( ( t - previous_t ) / distance_t );
+			blended_colour.a = previous_colour.a + ( next_colour.a - previous_colour.a ) * ( ( t - previous_t ) / distance_t );
+		}
+
+		data[ i ] = blended_colour.to_premult_rgba_u32();
+	}
+}
+
+// ----------------------------------------------------------------------
+
+struct RampCache {
+	static constexpr size_t MAX_ENTRIES = 64;
+
+	struct Entry {
+		uint32_t id; // id into cache (line index of gradient cache image)R
+		uint32_t epoch;
+	};
+
+	uint32_t                            epoch = 0;
+	std::unordered_map<uint64_t, Entry> entries;
+	std::vector<uint32_t>               data_int32; // raw data for sampled gradients encoded into N_GRADIENT_SAMPLES colour samples (each colour sample encoded to uint32_t)
+
+	void maintain() {
+
+		epoch++;
+
+		// evict any element that has an id that is greater as the max number of entries
+
+		for ( auto it = entries.begin(); it != entries.end(); ) {
+			if ( it->second.id > MAX_ENTRIES ) {
+				it = entries.erase( it );
+				continue;
+			}
+			it++;
+		}
+
+		// truncate data_int32_t if it was greater than MAX_ENTRIES
+
+		if ( data_int32.size() / N_GRADIENT_SAMPLES > MAX_ENTRIES ) {
+			data_int32.resize( MAX_ENTRIES * N_GRADIENT_SAMPLES );
+		}
+	};
+
+	uint32_t add( le_2d_colour_stop_t const* stops_start, le_2d_colour_stop_t const* stops_end ) {
+
+		uint64_t key = SpookyHash::Hash64( stops_start, sizeof( le_2d_colour_stop_t ) * ( stops_end - stops_start ), 0 );
+
+		auto it = entries.find( key );
+
+		if ( it != entries.end() ) {
+			// an already existing entry with this key was found
+			it->second.epoch = epoch; // mark it as used by the current epoch
+			return it->second.id;
+		}
+
+		// ----------| no current entry was found
+
+		if ( entries.size() < MAX_ENTRIES ) {
+			// We still have space to add another entry
+
+			uint32_t id = data_int32.size() / N_GRADIENT_SAMPLES;
+
+			entries[ key ] = {
+			    .id    = id,
+			    .epoch = epoch,
+			};
+
+			data_int32.insert( data_int32.end(), N_GRADIENT_SAMPLES, 0 );
+			render_gradient( stops_start, stops_end - stops_start, data_int32.data() + id * N_GRADIENT_SAMPLES );
+			return id;
+		}
+
+		// ---------| invariant: cache is full of (potentially old) entries
+
+		// Can we make space for another entry by evicting an entry that is stale?
+
+		// Find the first entry that has an epoch that is 2 frames behind
+		for ( it = entries.begin(); it != entries.end(); it++ ) {
+			if ( it->second.epoch + 2 < epoch ) {
+				break;
+			}
+		}
+
+		if ( it != entries.end() ) {
+			// We found an entry that we can re-use
+			uint32_t id      = it->second.id;
+			it->second.epoch = epoch;
+			render_gradient( stops_start, stops_end - stops_start, data_int32.data() + id * N_GRADIENT_SAMPLES );
+			return id;
+		}
+
+		// ---------| invariant: No element that can be re-used has been found
+
+		// We must append an extra element (it will be removed by the next call to `maintain()`)
+
+		uint32_t id = data_int32.size() / N_GRADIENT_SAMPLES;
+
+		entries[ key ] = {
+		    .id    = id,
+		    .epoch = epoch,
+		};
+
+		data_int32.insert( data_int32.end(), N_GRADIENT_SAMPLES, 0 );
+		render_gradient( stops_start, stops_end - stops_start, data_int32.data() + id * N_GRADIENT_SAMPLES );
+
+		return id;
+	};
+};
+
+// ----------------------------------------------------------------------
+
+struct Resolver {
+	std::vector<ResolvedPatch> resolved_patches;
+	RampCache                  ramp_cache;
+
+	void maintain() {
+		// maintain and clear caches
+		ramp_cache.maintain();
+	}
+};
+
+// ----------------------------------------------------------------------
+
+static bool le_2d_encoder_resolve_patches( le_2d_encoder_o* e, Resolver& resources ) {
+
+	size_t draw_data_sz = e->draw_data.size(); // given in uint32 units
+
+	for ( auto& patch : e->resources.patches ) {
+
+		switch ( patch.type ) {
+		case Patch::Type::Ramp: {
+			// if we have a ramp, we want to encode this
+			auto const& p = patch.data.as_ramp;
+
+			uint32_t ramp_id = resources.ramp_cache.add(
+			    e->resources.colour_stops.data() + p.stops_start,
+			    e->resources.colour_stops.data() + p.stops_end );
+
+			ResolvedPatch r{
+			    .type = ResolvedPatch::Type::Ramp,
+			    .data = {
+			        .as_ramp = {
+			            .draw_data_offset = p.draw_data_offset + draw_data_sz,
+			            .ramp_id          = ramp_id,
+			            .extend           = p.extend,
+			        },
+
+			    },
+			};
+
+			resources.resolved_patches.emplace_back( std::move( r ) );
+
+			break;
+		}
+		case Patch::Type::Undefined:
+		default:
+			assert( false ); // unreachable
+		}
+	}
+
+	return true;
+}
+
 // --------------------------------------------------------------------------------
 template <typename T>
 inline static size_t append_to_stream( T const& src, uint8_t* target ) {
@@ -460,6 +669,8 @@ struct le_2d_o {
 
 	BufferSizes bsz;
 
+	Resolver resource_cache = {};
+
 	static_assert( sizeof( char ) == sizeof( uint8_t ), "char and uint8_t must be the same size." );
 };
 
@@ -477,10 +688,6 @@ static void le_2d_destroy( le_2d_o* self ) {
 	// we should signal to the renderer that we do not require any of the buffer resources anymore
 
 	delete self;
-}
-
-static bool le_2d_encoder_resolve_patches( le_2d_encoder_o* e ) {
-	return true;
 }
 
 // ----------------------------------------------------------------------
@@ -645,7 +852,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		 *  3. resolved ramps can then be used to
 		 *
 		 */
-		le_2d_encoder_resolve_patches( encoder_2d );
+		le_2d_encoder_resolve_patches( encoder_2d, self->resource_cache );
 	}
 
 	bool result = le_2d_encode_scene( self, encoder_2d, img_output_info, background_colour_argb );

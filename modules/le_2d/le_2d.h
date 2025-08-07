@@ -199,6 +199,8 @@ struct le_2d_api {
 		}
 	};
 
+	static_assert( sizeof( Colour ) == sizeof( float ) * 4, "Colour must be POD so that it may be hashed." );
+
 	struct BlendMode {
 
 		enum class Mix : uint8_t {
