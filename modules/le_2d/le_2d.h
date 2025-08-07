@@ -375,10 +375,7 @@ struct le_2d_api {
 		// Encode an arc as cubic beziers
 		void (* path_arc    )( le_2d_encoder_o* e, glm::vec2 const& centre, glm::vec2 const& radii, double start_angle_rad, double sweep_angle_rad, double x_rotation_rad, float tolerance);
 
-		// ---------- private methods
-
-		// todo: make this private - as it is only used by le_2d_o internally
-		bool (* encode_to_bytes )( le_2d_encoder_o const* e, uint8_t* bytes, size_t* bytes_count, rasterizer_layout_data_t* p_layout );
+		// Append endoded data from one encoder into the other
 		void (* append_into_encoder)(le_2d_encoder_o* self, le_2d_encoder_o const * rhs, Transform2D const* maybe_transform);
 	};
 

@@ -1,13 +1,11 @@
-#include "le_2d.h"
+#include "le_core.h"
+#include "private/le_2d/le_2d_shared.h"
 
 #include <cassert>
 #include <cstring>
 #include <stdlib.h>
-#include <vector>
-#include "le_core.h"
 #include "le_renderer.hpp"
 #include "le_pipeline_builder.h"
-#include "private/le_2d/le_2d_shared.h"
 #include "private/le_2d/SpookyV2.h"
 #include "le_log.h"
 
@@ -146,8 +144,6 @@ struct WorkGroupCounts {
 	uint32_t fine[ 3 ];
 };
 
-// todo: n_path_tags should not need to be passed as a separate parameter, here.
-//
 static WorkGroupCounts get_work_group_counts( rasterizer_layout_data_t const& layout, uint32_t width_in_tiles, uint32_t height_in_tiles ) {
 
 	uint32_t n_path_tags         = sizeof( uint32_t ) * ( layout.path_data_base - layout.path_tag_base );
@@ -190,6 +186,215 @@ static WorkGroupCounts get_work_group_counts( rasterizer_layout_data_t const& la
 
 	return wc;
 }
+
+// ----------------------------------------------------------------------
+
+/// Generate data for 16 sample lookup table - this is used for anti-aliasing
+static void generate_msaa16_lut( std::vector<uint8_t>& table ) {
+
+	// Width is number of discrete translations
+	static constexpr uint64_t MASK16_WIDTH = 64;
+	// Height is the number of discrete slopes
+	static constexpr uint64_t MASK16_HEIGHT = 64;
+
+	// This is based on the [D3D11 standard sample pattern].
+	//
+	// [D3D11 standard sample pattern]: https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_standard_multisample_quality_levels
+	static constexpr uint8_t PATTERN_16[ 16 ] = { 1, 8, 4, 11, 15, 7, 3, 12, 0, 9, 5, 13, 2, 10, 6, 14 };
+
+	auto one_mask_16 = []( double slope, double translation, bool is_pos ) -> uint16_t {
+		if ( is_pos ) {
+			translation = 1. - translation;
+		}
+
+		uint16_t result = 0;
+
+		int i = 0;
+		for ( auto const& item : PATTERN_16 ) {
+
+			double y = ( double( i ) + 0.5 ) * 0.0625;
+			double x = ( double( item ) + 0.5 ) * 0.0625;
+			if ( !is_pos ) {
+				y = 1.0 - y;
+			}
+			if ( ( x - ( 1.0 - translation ) ) * ( 1. - slope ) - ( y - translation ) * slope >= 0. ) {
+				result |= 1 << i;
+			}
+			i++;
+		}
+
+		return result;
+	};
+
+	/// Make a lookup table of half-plane masks.
+	///
+	/// The table is organized into two blocks each with `MASK16_HEIGHT/2` slopes.
+	/// The first block is negative slopes (x decreases as y increases),
+	/// the second as positive.
+
+	table.reserve( MASK16_WIDTH * MASK16_HEIGHT * 2 );
+
+	for ( int i = 0; i != MASK16_HEIGHT * MASK16_WIDTH; i++ ) {
+
+		const auto HALF_HEIGHT = MASK16_HEIGHT >> 1;
+		uint64_t   u           = i % MASK16_WIDTH;
+		uint64_t   v           = i / MASK16_WIDTH;
+
+		bool is_pos = v >= HALF_HEIGHT;
+
+		double y = ( double( v % HALF_HEIGHT ) + 0.5 ) * ( 1.0 / double( HALF_HEIGHT ) );
+		double x = ( double( u ) + 0.5 ) * ( 1.0 / double( MASK16_WIDTH ) );
+
+		uint16_t mask = one_mask_16( y, x, is_pos );
+
+		table.emplace_back( ( mask >> 8 ) & 0xff ); // big end next
+		table.emplace_back( mask & 0xff );          // little end first
+	}
+}
+
+// --------------------------------------------------------------------------------
+template <typename T>
+inline static size_t append_to_stream( T const& src, uint8_t* target ) {
+	size_t num_bytes = src.size() * sizeof( typename T::value_type );
+	memcpy( target, src.data(), num_bytes );
+	return num_bytes;
+}
+
+// --------------------------------------------------------------------------------
+
+static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, size_t* bytes_count, rasterizer_layout_data_t* p_layout ) {
+
+	if ( !e->resources.patches.empty() ) {
+		// TODO: in case that there are any late-bound resources,
+		// we must resolve these via patches here.
+
+		/*
+		 *  resolving patches works differently for each type of patch
+		 *  for now, we are only interested in ramps (and possibly images)
+		 *
+		 *  1. for all ramp patches: add to the ramp cache
+		 *  2. use the ramp cache id to store a ResolvedRamp into encoder.patches
+		 *
+		 */
+		// resolve_patches( e );
+	}
+
+	assert( e );
+
+	size_t n_path_tags     = e->path_tags.size() + e->n_open_clips;
+	size_t path_tag_padded = align_up( n_path_tags, 4 * PATH_REDUCE_WG_SZ );
+
+	// size_t path_tags_size  = n_path_tags * sizeof( decltype( e->path_tags )::value_type );
+	size_t path_data_size  = e->path_data.size() * sizeof( decltype( e->path_data )::value_type );
+	size_t draw_tags_size  = e->draw_tags.size() * sizeof( decltype( e->draw_tags )::value_type );
+	size_t open_clips_size = e->n_open_clips * sizeof( decltype( e->draw_tags )::value_type );
+	size_t draw_data_size  = e->draw_data.size() * sizeof( decltype( e->draw_data )::value_type );
+	size_t transforms_size = e->transforms.size() * sizeof( decltype( e->transforms )::value_type );
+	size_t styles_size     = e->styles.size() * sizeof( decltype( e->styles )::value_type );
+
+	size_t buffer_size =
+	    path_tag_padded +
+	    path_data_size +
+	    draw_tags_size + open_clips_size +
+	    draw_data_size +
+	    transforms_size +
+	    styles_size;
+
+	if ( nullptr == bytes_count ) {
+		return false;
+	}
+
+	if ( *bytes_count < buffer_size ) {
+		*bytes_count = buffer_size;
+		return false;
+	}
+
+	if ( nullptr == bytes ) {
+		return false;
+	}
+
+	if ( nullptr == p_layout ) {
+		return 0;
+	}
+
+	size_t used_bytes = 0;
+
+	rasterizer_layout_data_t& layout = *p_layout;
+
+	layout = {
+	    .n_paths = e->n_paths,
+	    .n_clips = e->n_clips,
+	};
+
+	layout.path_tag_base = used_bytes;
+
+	used_bytes += append_to_stream( e->path_tags, bytes + used_bytes );
+
+	if ( e->n_open_clips ) {
+		// Append any open clips as pathtag::Path
+		std::vector<PathTag> tmpOpenClips( e->n_open_clips, { PathTag::PATH } );
+		used_bytes += append_to_stream( tmpOpenClips, bytes + used_bytes );
+	}
+
+	assert( align_up( used_bytes, 4 * PATH_REDUCE_WG_SZ ) == path_tag_padded );
+
+	// ACHTUNG
+	// at this point, we can't just jump over the bytes that are not used,
+	// because they could contain garbage data which will confuse the gpu
+	// -- we must zero out padding.
+	memset( bytes + used_bytes, 0, path_tag_padded - used_bytes );
+
+	used_bytes = path_tag_padded;
+
+	layout.path_data_base = used_bytes / sizeof( uint32_t );
+
+	used_bytes += append_to_stream( e->path_data, bytes + used_bytes );
+
+	layout.draw_tag_base = used_bytes / sizeof( uint32_t );
+
+	{
+		layout.bin_data_start = 0;
+
+		for ( auto const& t : e->draw_tags ) {
+			layout.bin_data_start += draw_tag_get_info_size( t );
+		}
+	}
+
+	used_bytes += append_to_stream( e->draw_tags, bytes + used_bytes );
+
+	if ( e->n_open_clips ) {
+
+		// Append any open clips as pathtag::Path
+		std::vector<DrawTag> tmpOpenClips( e->n_open_clips, { DrawTag::END_CLIP } );
+
+		used_bytes += append_to_stream( tmpOpenClips, bytes + used_bytes );
+	}
+
+	// draw data stream
+
+	layout.draw_data_base = used_bytes / sizeof( uint32_t );
+	used_bytes += append_to_stream( e->draw_data, bytes + used_bytes );
+
+	layout.transform_base = used_bytes / sizeof( uint32_t );
+
+	used_bytes += append_to_stream( e->transforms, bytes + used_bytes );
+
+	layout.style_base = used_bytes / sizeof( uint32_t );
+
+	used_bytes += append_to_stream( e->styles, bytes + used_bytes );
+
+	layout.n_drawobj = layout.n_paths;
+
+	assert( used_bytes == buffer_size );
+
+#undef vec_count_bytes
+#undef append_to_stream
+
+	*bytes_count = used_bytes;
+	return true;
+}
+
+// ----------------------------------------------------------------------
 
 struct le_2d_o {
 	// members
@@ -269,6 +474,7 @@ struct le_2d_o {
 
 	static_assert( sizeof( char ) == sizeof( uint8_t ), "char and uint8_t must be the same size." );
 };
+
 // ----------------------------------------------------------------------
 
 static le_2d_o* le_2d_create() {
@@ -284,71 +490,6 @@ static void le_2d_destroy( le_2d_o* self ) {
 
 	delete self;
 }
-
-// ----------------------------------------------------------------------
-
-static void generate_msaa16_lut( std::vector<uint8_t>& table ) {
-	// generate data for 16 sample lookup table
-	// Width is number of discrete translations
-	static constexpr uint64_t MASK16_WIDTH = 64;
-	// Height is the number of discrete slopes
-	static constexpr uint64_t MASK16_HEIGHT = 64;
-
-	// This is based on the [D3D11 standard sample pattern].
-	//
-	// [D3D11 standard sample pattern]: https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_standard_multisample_quality_levels
-	static constexpr uint8_t PATTERN_16[ 16 ] = { 1, 8, 4, 11, 15, 7, 3, 12, 0, 9, 5, 13, 2, 10, 6, 14 };
-
-	auto one_mask_16 = []( double slope, double translation, bool is_pos ) -> uint16_t {
-		if ( is_pos ) {
-			translation = 1. - translation;
-		}
-
-		uint16_t result = 0;
-
-		int i = 0;
-		for ( auto const& item : PATTERN_16 ) {
-
-			double y = ( double( i ) + 0.5 ) * 0.0625;
-			double x = ( double( item ) + 0.5 ) * 0.0625;
-			if ( !is_pos ) {
-				y = 1.0 - y;
-			}
-			if ( ( x - ( 1.0 - translation ) ) * ( 1. - slope ) - ( y - translation ) * slope >= 0. ) {
-				result |= 1 << i;
-			}
-			i++;
-		}
-
-		return result;
-	};
-
-	/// Make a lookup table of half-plane masks.
-	///
-	/// The table is organized into two blocks each with `MASK16_HEIGHT/2` slopes.
-	/// The first block is negative slopes (x decreases as y increases),
-	/// the second as positive.
-
-	table.reserve( MASK16_WIDTH * MASK16_HEIGHT * 2 );
-
-	for ( int i = 0; i != MASK16_HEIGHT * MASK16_WIDTH; i++ ) {
-
-		const auto HALF_HEIGHT = MASK16_HEIGHT >> 1;
-		uint64_t   u           = i % MASK16_WIDTH;
-		uint64_t   v           = i / MASK16_WIDTH;
-
-		bool is_pos = v >= HALF_HEIGHT;
-
-		double y = ( double( v % HALF_HEIGHT ) + 0.5 ) * ( 1.0 / double( HALF_HEIGHT ) );
-		double x = ( double( u ) + 0.5 ) * ( 1.0 / double( MASK16_WIDTH ) );
-
-		uint16_t mask = one_mask_16( y, x, is_pos );
-
-		table.emplace_back( ( mask >> 8 ) & 0xff ); // big end next
-		table.emplace_back( mask & 0xff );          // little end first
-	}
-}
-
 // ----------------------------------------------------------------------
 
 static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resource_info_t* out_img_info, uint32_t background_colour_argb ) {
@@ -377,7 +518,7 @@ static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resourc
 
 			size_t num_scene_bytes = self->scene_bytes.size();
 
-			while ( false == le_2d::le_2d_encoder_i.encode_to_bytes( e, self->scene_bytes.data(), &num_scene_bytes, &self->rasterizer_args.layout ) ) {
+			while ( false == encoder_encode_to_bytes( e, self->scene_bytes.data(), &num_scene_bytes, &self->rasterizer_args.layout ) ) {
 				self->scene_bytes.resize( num_scene_bytes );
 			};
 
