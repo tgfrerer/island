@@ -276,8 +276,8 @@ struct Patch {
 	enum class Type : uint8_t {
 		Undefined = 0,
 		Ramp,
-		GlyphRun,
-		// Image,
+		// GlyphRun, // NOT YET IMPLEMENTED
+		// Image,    // NOT YET IMPLEMENTED
 	};
 	Type type = {};
 
@@ -289,12 +289,12 @@ struct Patch {
 	};
 
 	struct GlyphRunData {
-		size_t index; // index of the glyph in the glyph run buffer
+		size_t index; // index  in the glyph run buffer
 	};
 
 	struct ImageData {
-		size_t draw_data_offset; // given in count of uint32_t
-		                         // Image image;
+		size_t                             draw_data_offset; // offset to the atlas coordinates in the draw data stream
+		struct le_image_resource_handle_t* image_handle;     // NOT YET IMPLEMENTED
 	};
 
 	union Data {
@@ -303,6 +303,44 @@ struct Patch {
 		ImageData    as_image;
 	} data = {};
 };
+
+struct ResolvedPatch {
+	enum class Type : uint8_t {
+		Undefined = 0,
+		Ramp,
+		// GlyphRun, // NOT YET IMPLEMENTED
+		// Image,    // NOT YET IMPLEMENTED
+	};
+	Type type = {};
+
+	struct RampData {
+		size_t     draw_data_offset = 0; // given in count of uint32_t
+		uint32_t   ramp_id;              // resolved ramp index (=line number into ramp image)
+		ExtendMode extend;
+	};
+
+	struct GlyphRunData {
+		size_t      index; // index of the glyph in the glyph run buffer
+		size_t      glyphs_start;
+		size_t      glyphs_end; // range into the glyphs encoding range buffer
+		Transform2D transform;  // global transform
+		float       scale;      // additional scale factor
+		bool        hint;       // whether the glyph was hinted
+	};
+
+	struct ImageData {
+		// FIXME: NOT YET IMPLEMENTED
+		size_t index;            // index of pending image element
+		size_t draw_data_offset; // offset to the atlas location in the draw data stream
+	};
+
+	union Data {
+		RampData     as_ramp;
+		GlyphRunData as_glyph_run;
+		ImageData    as_image;
+	} data = {};
+};
+
 // ----------------------------------------------------------------------
 
 struct DrawBeginClip {
