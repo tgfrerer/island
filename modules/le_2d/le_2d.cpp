@@ -264,20 +264,8 @@ inline static size_t append_to_stream( T const& src, uint8_t* target ) {
 
 static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, size_t* bytes_count, rasterizer_layout_data_t* p_layout ) {
 
-	if ( !e->resources.patches.empty() ) {
-		// TODO: in case that there are any late-bound resources,
-		// we must resolve these via patches here.
-
-		/*
-		 *  resolving patches works differently for each type of patch
-		 *  for now, we are only interested in ramps (and possibly images)
-		 *
-		 *  1. for all ramp patches: add to the ramp cache
-		 *  2. use the ramp cache id to store a ResolvedRamp into encoder.patches
-		 *
-		 */
-		// resolve_patches( e );
-	}
+	// TODO: do we need to do something special here if the encoder has patches for ramps and
+	// images or glyph runs? (probably we do.)
 
 	assert( e );
 
@@ -490,9 +478,14 @@ static void le_2d_destroy( le_2d_o* self ) {
 
 	delete self;
 }
+
+static bool le_2d_encoder_resolve_patches( le_2d_encoder_o* e ) {
+	return true;
+}
+
 // ----------------------------------------------------------------------
 
-static bool le_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resource_info_t* out_img_info, uint32_t background_colour_argb ) {
+static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resource_info_t* out_img_info, uint32_t background_colour_argb ) {
 
 	if ( nullptr == out_img_info ) {
 		return false;
@@ -635,7 +628,27 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		generate_msaa16_lut( self->mask_lut_bytes );
 	}
 
-	bool result = le_encode_scene( self, encoder_2d, img_output_info, background_colour_argb );
+	if ( !encoder_2d->resources.patches.empty() ) {
+
+		// In case that there are any late-bound resources,
+		// we must resolve (turn them into cache references here)
+
+		// This will update the cache.
+		// This means we need to upload any tainted cache resources.
+
+		/*
+		 *  resolving patches works differently for each type of patch
+		 *  for now, we are only interested in ramps (and possibly images)
+		 *
+		 *  1. for all ramp patches: add to the ramp cache
+		 *  2. use the ramp cache id to store a ResolvedRamp into encoder.patches
+		 *  3. resolved ramps can then be used to
+		 *
+		 */
+		le_2d_encoder_resolve_patches( encoder_2d );
+	}
+
+	bool result = le_2d_encode_scene( self, encoder_2d, img_output_info, background_colour_argb );
 
 	if ( false == result ) {
 		assert( false );
