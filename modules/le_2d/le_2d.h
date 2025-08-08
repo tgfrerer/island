@@ -144,62 +144,73 @@ struct Transform2D {
 	}
 };
 
-struct le_2d_api {
+struct le_2d_colour {
 
-	struct Colour {
-
-		inline static float saturate( float x ) {
-			if ( x > 1.0 ) {
-				return 1.0;
-			} else if ( x < 0.0 ) {
-				return 0.0;
-			} else {
-				return x;
-			}
-		};
-
-		float r = 0;
-		float g = 0;
-		float b = 0;
-		float a = 0;
-
-		explicit Colour( uint8_t r, uint8_t g, uint8_t b, uint8_t a )
-		    : r( saturate( r / 255.f ) )
-		    , g( saturate( g / 255.f ) )
-		    , b( saturate( b / 255.f ) )
-		    , a( saturate( a / 255.f ) ) {
-		}
-
-		explicit Colour( float* rgba )
-		    : r( saturate( rgba[ 0 ] ) )
-		    , g( saturate( rgba[ 1 ] ) )
-		    , b( saturate( rgba[ 2 ] ) )
-		    , a( saturate( rgba[ 3 ] ) ) {
-		}
-
-		explicit Colour( float r, float g, float b, float a )
-		    : r( r )
-		    , g( g )
-		    , b( b )
-		    , a( a ) {
-		}
-
-		uint32_t to_premult_rgba_u32() const {
-			return ( ( uint32_t( saturate( a ) * 255.f + 0.5f ) << 24 ) |
-			         ( uint32_t( saturate( a * b ) * 255.0 + 0.5f ) << 16 ) |
-			         ( uint32_t( saturate( a * g ) * 255.0 + 0.5f ) << 8 ) |
-			         ( uint32_t( saturate( a * r ) * 255.0 + 0.5f ) ) );
-		}
-
-		uint32_t to_un_premult_rgba_u32() const {
-			return ( ( uint32_t( saturate( a ) * 255.f + 0.5f ) << 24 ) |
-			         ( uint32_t( saturate( b ) * 255.0 + 0.5f ) << 16 ) |
-			         ( uint32_t( saturate( g ) * 255.0 + 0.5f ) << 8 ) |
-			         uint32_t( saturate( r ) * 255.0 + 0.5f ) );
+	inline static float saturate( float x ) {
+		if ( x > 1.0 ) {
+			return 1.0;
+		} else if ( x < 0.0 ) {
+			return 0.0;
+		} else {
+			return x;
 		}
 	};
 
-	static_assert( sizeof( Colour ) == sizeof( float ) * 4, "Colour must be POD so that it may be hashed." );
+	float r = 0;
+	float g = 0;
+	float b = 0;
+	float a = 0;
+
+	explicit le_2d_colour( uint8_t r, uint8_t g, uint8_t b, uint8_t a )
+	    : r( saturate( r / 255.f ) )
+	    , g( saturate( g / 255.f ) )
+	    , b( saturate( b / 255.f ) )
+	    , a( saturate( a / 255.f ) ) {
+	}
+
+	explicit le_2d_colour( float* rgba )
+	    : r( saturate( rgba[ 0 ] ) )
+	    , g( saturate( rgba[ 1 ] ) )
+	    , b( saturate( rgba[ 2 ] ) )
+	    , a( saturate( rgba[ 3 ] ) ) {
+	}
+
+	explicit le_2d_colour( float r, float g, float b, float a )
+	    : r( r )
+	    , g( g )
+	    , b( b )
+	    , a( a ) {
+	}
+
+	uint32_t to_premult_rgba_u32() const {
+		return ( ( uint32_t( saturate( a ) * 255.f + 0.5f ) << 24 ) |
+		         ( uint32_t( saturate( a * b ) * 255.0 + 0.5f ) << 16 ) |
+		         ( uint32_t( saturate( a * g ) * 255.0 + 0.5f ) << 8 ) |
+		         ( uint32_t( saturate( a * r ) * 255.0 + 0.5f ) ) );
+	}
+
+	uint32_t to_un_premult_rgba_u32() const {
+		return ( ( uint32_t( saturate( a ) * 255.f + 0.5f ) << 24 ) |
+		         ( uint32_t( saturate( b ) * 255.0 + 0.5f ) << 16 ) |
+		         ( uint32_t( saturate( g ) * 255.0 + 0.5f ) << 8 ) |
+		         uint32_t( saturate( r ) * 255.0 + 0.5f ) );
+	}
+};
+
+static_assert( sizeof( le_2d_colour ) == sizeof( float ) * 4, "Colour must be POD so that it may be hashed." );
+
+struct le_2d_linear_gradient_t {
+	uint32_t index_and_extent; // ramp index
+	float    p0[ 2 ];          // start point (in what coordinate system?)
+	float    p1[ 2 ];          // end point
+};
+
+struct le_2d_colour_stop_t {
+	float        offset; // normalized offset of the stop
+	le_2d_colour colour;
+};
+
+struct le_2d_api {
 
 	struct BlendMode {
 
@@ -331,16 +342,6 @@ struct le_2d_api {
 		Reflect = 2, // extends image by reflecting the brush
 	};
 
-	struct le_2d_linear_gradient_t {
-		uint32_t index_and_extent; // ramp index
-		float    p0[ 2 ];          // start point
-		float    p1[ 2 ];          // end point
-	};
-
-	struct le_2d_colour_stop_t {
-		float             offset; // normalized offset of the stop
-		le_2d_api::Colour colour;
-	};
 
 /*
  * 
@@ -426,7 +427,7 @@ using Stroke    = le_2d_api::Stroke;
 using Join      = le_2d_api::Join;
 using Cap       = le_2d_api::Cap;
 
-using Colour = le_2d_api::Colour;
+using Colour = le_2d_colour;
 
 } // namespace le_2d
 class Le2D : NoCopy, NoMove {
@@ -536,11 +537,11 @@ class Encoder2D : NoCopy, NoMove {
 	}
 
 	Encoder2D& colour( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
-		le_2d::le_2d_encoder_i.encode_colour( self, le_2d_api::Colour( r, g, b, a ).to_premult_rgba_u32() );
+		le_2d::le_2d_encoder_i.encode_colour( self, le_2d::Colour( r, g, b, a ).to_premult_rgba_u32() );
 		return *this;
 	};
 
-	Encoder2D& colour( le_2d_api::Colour const& colour ) {
+	Encoder2D& colour( le_2d::Colour const& colour ) {
 		le_2d::le_2d_encoder_i.encode_colour( self, colour.to_premult_rgba_u32() );
 		return *this;
 	};

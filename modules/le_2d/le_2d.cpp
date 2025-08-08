@@ -19,8 +19,6 @@ constexpr uint32_t TILE_UNIT              = 16;              // tiles are 16x16 
 constexpr auto     VK_WHOLE_SIZE          = ( ~0ULL );
 constexpr size_t   N_GRADIENT_SAMPLES     = 512;
 
-using le_2d_colour_stop_t     = le_2d_api::le_2d_colour_stop_t;
-using le_2d_linear_gradient_t = le_2d_api::le_2d_linear_gradient_t;
 using ExtendMode              = le_2d_api::ExtendMode;
 
 // ----------------------------------------------------------------------

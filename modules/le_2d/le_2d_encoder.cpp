@@ -38,8 +38,6 @@ static auto logger() {
 	return logger;
 }
 
-using le_2d_colour_stop_t     = le_2d_api::le_2d_colour_stop_t;
-using le_2d_linear_gradient_t = le_2d_api::le_2d_linear_gradient_t;
 using ExtendMode              = le_2d_api::ExtendMode;
 
 // ----------------------------------------------------------------------
@@ -156,10 +154,12 @@ static void encoder_encode_linear_gradient( le_2d_encoder_o* e, le_2d_linear_gra
 
 	// Special cases:
 	//
+	// + if no gradient given, or
 	// + if zero stops, then encode transparent colour, and encode as solid shape
+	//
 	// + if one stop, just encode a colour and ignore gradient treatment, encode as solid shape
 
-	if ( colour_stops_sz == 0 ) {
+	if ( colour_stops_sz == 0 || gradient == nullptr ) {
 		encoder_encode_colour( e, 0x00000000 ); // encode transparent colour
 		return;
 	} else if ( colour_stops_sz == 1 ) {
@@ -785,6 +785,9 @@ void register_le_2d_encoder_api( void* api_ ) {
 	encoder_i.encode_fill_style   = encoder_encode_fill_style;
 	encoder_i.encode_begin_clip   = encoder_encode_begin_clip;
 	encoder_i.encode_end_clip     = encoder_encode_end_clip;
+
+	//
+	encoder_i.encode_linear_gradient = encoder_encode_linear_gradient;
 
 	//
 	encoder_i.append_into_encoder = encoder_append_into_encoder;

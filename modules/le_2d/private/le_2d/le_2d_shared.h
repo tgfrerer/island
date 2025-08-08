@@ -345,7 +345,7 @@ struct DrawBeginClip {
 struct Resources {
 	// Fill this in once we want to make more advanced rendering available.
 	// this is for gradients, and images, and glyph runs.
-	std::vector<le_2d_api::le_2d_colour_stop_t> colour_stops;
+	std::vector<le_2d_colour_stop_t> colour_stops;
 	std::vector<Patch>               patches;
 };
 
