@@ -199,10 +199,22 @@ struct le_2d_colour {
 
 static_assert( sizeof( le_2d_colour ) == sizeof( float ) * 4, "Colour must be POD so that it may be hashed." );
 
-struct le_2d_linear_gradient_t {
-	uint32_t index_and_extent; // ramp index
-	float    p0[ 2 ];          // start point (in what coordinate system?)
+struct le_2d_gradient_linear_t {
+	float    p0[ 2 ];          // start point (coordinate system is centered on shape origin)
 	float    p1[ 2 ];          // end point
+};
+
+struct le_2d_gradient_radial_t {
+	float    p0[ 2 ];          // start point (coordinate system is centered on shape origin)
+	float    p1[ 2 ];          // end point
+	float    r0;               // radius start
+	float    r1;               // radius end
+};
+
+struct le_2d_gradient_sweep_t {
+	float    p0[ 2 ];          // start point (coordinate system is centered on shape origin)
+	float    t0;               // normalized start angle
+	float    t1;               // normalized end angle
 };
 
 struct le_2d_colour_stop_t {
@@ -367,8 +379,13 @@ struct le_2d_api {
 		void (* encode_stroke_style )( le_2d_encoder_o* e, Stroke const* stroke);
 		void (* encode_fill_style )( le_2d_encoder_o* e, FillStyle const fill );
 
-		void (* encode_linear_gradient)( le_2d_encoder_o* e, le_2d_linear_gradient_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
 		void (* encode_colour)(le_2d_encoder_o* self, uint32_t colour);
+
+		void (* encode_linear_gradient)( le_2d_encoder_o* e, le_2d_gradient_linear_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
+		void (* encode_radial_gradient)( le_2d_encoder_o* e, le_2d_gradient_radial_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
+		void (* encode_sweep_gradient )( le_2d_encoder_o* e, le_2d_gradient_sweep_t  const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
+
+
 		bool (* encode_transform)(le_2d_encoder_o* e, Transform2D const *t);
  		void (* encode_begin_clip)( le_2d_encoder_o* e, BlendMode const* blend_mode, float alpha );
  		void (* encode_end_clip)( le_2d_encoder_o* e);

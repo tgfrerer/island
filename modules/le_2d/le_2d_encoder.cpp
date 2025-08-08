@@ -150,28 +150,7 @@ static void encoder_encode_end_clip( le_2d_encoder_o* e ) {
 
 // ----------------------------------------------------------------------
 
-static void encoder_encode_linear_gradient( le_2d_encoder_o* e, le_2d_linear_gradient_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, ExtendMode extend ) {
-
-	// Special cases:
-	//
-	// + if no gradient given, or
-	// + if zero stops, then encode transparent colour, and encode as solid shape
-	//
-	// + if one stop, just encode a colour and ignore gradient treatment, encode as solid shape
-
-	if ( colour_stops_sz == 0 || gradient == nullptr ) {
-		encoder_encode_colour( e, 0x00000000 ); // encode transparent colour
-		return;
-	} else if ( colour_stops_sz == 1 ) {
-		encoder_encode_colour( e, colour_stops[ 0 ].colour.to_premult_rgba_u32() ); // encode solid colour
-		return;
-	}
-
-	// ----------| invariant: more than one colour stops
-
-	// This is actually a gradient
-
-	size_t offset = e->draw_data.size(); // NOTE granularity is uint32_t
+static void encoder_encode_ramp_patch( float alpha, le_2d_encoder_o* e, size_t colour_stops_sz, le_2d_colour_stop_t const* colour_stops, ExtendMode const& extend, size_t offset ) {
 
 	// Append colour stops
 	size_t stops_start = e->resources.colour_stops.size();
@@ -204,17 +183,97 @@ static void encoder_encode_linear_gradient( le_2d_encoder_o* e, le_2d_linear_gra
 	};
 
 	e->resources.patches.emplace_back( std::move( p ) );
+}
 
-	e->draw_tags.push_back( DrawTag::LINEAR_GRADIENT );
-
-	// now, we must serialise the gradient into draw data - first allocate some memory inside draw data
-	e->draw_data.resize( offset + sizeof( le_2d_linear_gradient_t ) / sizeof( uint32_t ) );
-	// copy gradient into draw_data
-	memcpy( e->draw_data.data() + offset, gradient, sizeof( le_2d_linear_gradient_t ) );
-};
 // ----------------------------------------------------------------------
 
-// ----
+static bool encoder_is_invalid_gradient( le_2d_encoder_o* e, DrawTag const& gradient_type, void* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz ) {
+
+	static constexpr float SKIA_EPSILON              = 1.0 / float( 1 << 12 );
+	static constexpr float SKIA_DEGENERATE_THRESHOLD = 1.0 / float( 1 << 15 );
+
+	// Special cases:
+	//
+	// + if no gradient given, or
+	// + if zero stops, then encode transparent colour, and encode as solid shape
+	//
+	// + if one stop, just encode a colour and ignore gradient treatment, encode as solid shape
+
+	if ( colour_stops_sz == 0 || gradient == nullptr ) {
+		encoder_encode_colour( e, 0x00000000 ); // encode transparent colour
+		return true;
+	} else if ( colour_stops_sz == 1 ) {
+		encoder_encode_colour( e, colour_stops[ 0 ].colour.to_premult_rgba_u32() ); // encode solid colour
+		return true;
+	}
+
+	switch ( gradient_type ) {
+	case DrawTag::LINEAR_GRADIENT:
+		break;
+	case DrawTag::RADIAL_GRADIENT: {
+		auto g = ( le_2d_gradient_radial_t* )gradient;
+		if ( ( g->p0[ 0 ] == g->p1[ 0 ] ) &&
+		     ( g->p0[ 1 ] == g->p1[ 1 ] ) &&
+		     fabs( g->r0 - g->r1 ) < SKIA_EPSILON ) {
+			encoder_encode_colour( e, 0x00000000 ); // encode transparent colour
+			return true;
+		}
+	} break;
+	case DrawTag::SWEEP_GRADIENT: {
+		auto g = ( le_2d_gradient_sweep_t* )gradient;
+		if ( fabsf( g->t0 - g->t1 ) < SKIA_DEGENERATE_THRESHOLD ) {
+			encoder_encode_colour( e, 0x00000000 ); // encode transparent colour
+			return true;
+		}
+	} break;
+	default:
+		assert( false ); // unreachable;
+		break;
+	}
+
+	return false;
+}
+
+// ----------------------------------------------------------------------
+
+template <typename T>
+static void encoder_encode_gradient_draw_data( le_2d_encoder_o* e, T const* gradient_type, DrawTag draw_tag, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, ExtendMode extend ) {
+
+	if ( encoder_is_invalid_gradient( e, draw_tag, ( void* )gradient_type, colour_stops, colour_stops_sz ) ) {
+		return;
+	}
+
+	// ----------| invariant: more than one colour stops, gradient is valid.
+	size_t offset = e->draw_data.size(); // NOTE granularity is uint32_t
+
+	encoder_encode_ramp_patch( alpha, e, colour_stops_sz, colour_stops, extend, offset );
+	e->draw_tags.push_back( draw_tag );
+
+	// Reserve a single uint32_t for (ramp_id | extend) which will be patched in `le_2d_encoder_resolve_patches`
+	e->draw_data.resize( offset + sizeof( T ) / sizeof( uint32_t ) + 1 ); // NOTE +1
+	// Zero out this placeholder uint32_t
+	memset( e->draw_data.data() + offset, 0, sizeof( uint32_t ) );
+	// Store gradient information into draw data stream at the subsequent position
+	memcpy( e->draw_data.data() + offset + 1, gradient_type, sizeof( T ) );
+}
+
+static void encoder_encode_linear_gradient( le_2d_encoder_o* e, le_2d_gradient_linear_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, ExtendMode extend ) {
+	encoder_encode_gradient_draw_data( e, gradient, DrawTag::LINEAR_GRADIENT, colour_stops, colour_stops_sz, alpha, extend );
+};
+
+// ----------------------------------------------------------------------
+
+static void encoder_encode_radial_gradient( le_2d_encoder_o* e, le_2d_gradient_radial_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, ExtendMode extend ) {
+	encoder_encode_gradient_draw_data( e, gradient, DrawTag::RADIAL_GRADIENT, colour_stops, colour_stops_sz, alpha, extend );
+};
+
+// ----------------------------------------------------------------------
+
+static void encoder_encode_sweep_gradient( le_2d_encoder_o* e, le_2d_gradient_sweep_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, ExtendMode extend ) {
+	encoder_encode_gradient_draw_data( e, gradient, DrawTag::SWEEP_GRADIENT, colour_stops, colour_stops_sz, alpha, extend );
+};
+
+// ----------------------------------------------------------------------
 
 static void     encoder_path_close( le_2d_encoder_o* e );                                            // ffdecl;
 static void     encoder_path_insert_stroke_cap_marker_segment( le_2d_encoder_o* e, bool is_closed ); // ffdecl
@@ -788,6 +847,8 @@ void register_le_2d_encoder_api( void* api_ ) {
 
 	//
 	encoder_i.encode_linear_gradient = encoder_encode_linear_gradient;
+	encoder_i.encode_radial_gradient = encoder_encode_radial_gradient;
+	encoder_i.encode_sweep_gradient  = encoder_encode_sweep_gradient;
 
 	//
 	encoder_i.append_into_encoder = encoder_append_into_encoder;

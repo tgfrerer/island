@@ -947,14 +947,15 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	img_output_info->image.usage |=
 	    le::ImageUsageFlagBits::eStorage | le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled;
 
-	static const auto img_gradients_info =
+	// update image gradients info based on current number of gradient cache entries (up to max number of entries)
+	const auto img_gradients_info =
 	    le::ImageInfoBuilder()
 	        .setExtent( N_GRADIENT_SAMPLES, std::max<uint32_t>( self->resource_cache.ramp_cache.data_int32.size() / N_GRADIENT_SAMPLES, 1 ), 1 )
 	        .addUsageFlags( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled )
 	        .setFormat( le::Format::eR8G8B8A8Unorm )
 	        .build();
 
-	static const auto img_image_atlas_info =
+	const auto img_image_atlas_info =
 	    le::ImageInfoBuilder()
 	        .setExtent( 1, 1 )
 	        .addUsageFlags( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled )
