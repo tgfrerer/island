@@ -38,6 +38,10 @@ static auto logger() {
 	return logger;
 }
 
+using le_2d_colour_stop_t     = le_2d_api::le_2d_colour_stop_t;
+using le_2d_linear_gradient_t = le_2d_api::le_2d_linear_gradient_t;
+using ExtendMode              = le_2d_api::ExtendMode;
+
 // ----------------------------------------------------------------------
 
 static inline bool is_path_segment( PathTag const& e ) {
@@ -148,7 +152,7 @@ static void encoder_encode_end_clip( le_2d_encoder_o* e ) {
 
 // ----------------------------------------------------------------------
 
-static void encoder_encode_linear_gradient( le_2d_encoder_o* e, le_2d_linear_gradient_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend ) {
+static void encoder_encode_linear_gradient( le_2d_encoder_o* e, le_2d_linear_gradient_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, ExtendMode extend ) {
 
 	// Special cases:
 	//
@@ -167,7 +171,7 @@ static void encoder_encode_linear_gradient( le_2d_encoder_o* e, le_2d_linear_gra
 
 	// This is actually a gradient
 
-	size_t offset = e->draw_data.size(); // TODO: note : granulatity of offset is uint32_t?!
+	size_t offset = e->draw_data.size(); // NOTE granularity is uint32_t
 
 	// Append colour stops
 	size_t stops_start = e->resources.colour_stops.size();

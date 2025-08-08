@@ -255,22 +255,7 @@ static uint32_t draw_tag_get_info_size( DrawTag const& t ) {
 	return ( ( uint32_t( t ) >> 6 ) & uint32_t( 0xf ) );
 }
 
-enum ExtendMode {
-	Pad     = 0, // extends image by repeating the edge of the brush
-	Repeat  = 1, // extends image by repeating the brush
-	Reflect = 2, // extends image by reflecting the brush
-};
 
-struct le_2d_linear_gradient_t {
-	uint32_t  index; // ramp index
-	glm::vec2 p0;    // start point
-	glm::vec2 p1;    // end point
-};
-
-struct le_2d_colour_stop_t {
-	float             offset; // normalized offset of the stop
-	le_2d_api::Colour colour;
-};
 
 struct Patch {
 	enum class Type : uint8_t {
@@ -285,7 +270,7 @@ struct Patch {
 		size_t     draw_data_offset = 0; // given in count of uint32_t
 		size_t     stops_start;
 		size_t     stops_end;
-		ExtendMode extend;
+		le_2d_api::ExtendMode extend;
 	};
 
 	struct GlyphRunData {
@@ -316,7 +301,7 @@ struct ResolvedPatch {
 	struct RampData {
 		size_t     draw_data_offset = 0; // given in count of uint32_t
 		uint32_t   ramp_id;              // resolved ramp index (=line number into ramp image)
-		ExtendMode extend;
+		le_2d_api::ExtendMode extend;
 	};
 
 	struct GlyphRunData {
@@ -360,7 +345,7 @@ struct DrawBeginClip {
 struct Resources {
 	// Fill this in once we want to make more advanced rendering available.
 	// this is for gradients, and images, and glyph runs.
-	std::vector<le_2d_colour_stop_t> colour_stops;
+	std::vector<le_2d_api::le_2d_colour_stop_t> colour_stops;
 	std::vector<Patch>               patches;
 };
 
@@ -396,7 +381,7 @@ struct le_2d_encoder_o : NoCopy, NoMove {
 	std::vector<DrawTag> draw_tags;
 
 	// /// The draw data stream.
-	std::vector<uint32_t> draw_data; // TODO: (tig) we should use float here, so that it becomes easier to debug -- we can still do comparisons by bitfields
+	std::vector<uint32_t> draw_data;
 
 	// /// The transform stream.
 	std::vector<Transform2D> transforms;
@@ -405,7 +390,7 @@ struct le_2d_encoder_o : NoCopy, NoMove {
 	std::vector<Style> styles;
 
 	// /// Late bound resource data.
-	Resources resources; // NOTE(tig): this is not used for now as we only do full-colour paths and shapes
+	Resources resources; ///< TODO: resources need to be cleared at some point?
 
 	// /// Number of encoded paths.
 	uint32_t n_paths;

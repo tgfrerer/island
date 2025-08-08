@@ -325,6 +325,22 @@ struct le_2d_api {
 		double dash_offset = { 0 };
 	};
 
+	enum ExtendMode {
+		Pad     = 0, // extends image by repeating the edge of the brush
+		Repeat  = 1, // extends image by repeating the brush
+		Reflect = 2, // extends image by reflecting the brush
+	};
+
+	struct le_2d_linear_gradient_t {
+		uint32_t index_and_extent; // ramp index
+		float    p0[ 2 ];          // start point
+		float    p1[ 2 ];          // end point
+	};
+
+	struct le_2d_colour_stop_t {
+		float             offset; // normalized offset of the stop
+		le_2d_api::Colour colour;
+	};
 
 /*
  * 
@@ -350,6 +366,7 @@ struct le_2d_api {
 		void (* encode_stroke_style )( le_2d_encoder_o* e, Stroke const* stroke);
 		void (* encode_fill_style )( le_2d_encoder_o* e, FillStyle const fill );
 
+		void (* encode_linear_gradient)( le_2d_encoder_o* e, le_2d_linear_gradient_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
 		void (* encode_colour)(le_2d_encoder_o* self, uint32_t colour);
 		bool (* encode_transform)(le_2d_encoder_o* e, Transform2D const *t);
  		void (* encode_begin_clip)( le_2d_encoder_o* e, BlendMode const* blend_mode, float alpha );

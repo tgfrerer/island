@@ -19,6 +19,10 @@ constexpr uint32_t TILE_UNIT              = 16;              // tiles are 16x16 
 constexpr auto     VK_WHOLE_SIZE          = ( ~0ULL );
 constexpr size_t   N_GRADIENT_SAMPLES     = 512;
 
+using le_2d_colour_stop_t     = le_2d_api::le_2d_colour_stop_t;
+using le_2d_linear_gradient_t = le_2d_api::le_2d_linear_gradient_t;
+using ExtendMode              = le_2d_api::ExtendMode;
+
 // ----------------------------------------------------------------------
 // Decompression functions - these are used to retrieve shader code from inl strings
 static unsigned int stb_decompress( unsigned char* output, const unsigned char* i, unsigned int /*length*/ );
@@ -293,8 +297,9 @@ static void render_gradient( le_2d_colour_stop_t const* colour_stops, size_t col
 
 			// TODO: Respect colour space when blending
 
-			// we just do linear blending of linear colours for now -- we should implemend blending in a nicer colour space - perhaps
-			// oklab so that we can get nicer gradients.
+			// we just do linear blending of linear colours for now -- we should implement
+			// blending in a nicer colour space - perhaps oklab so that we can get
+			// nicer gradients.
 
 			blended_colour.r = previous_colour.r + ( next_colour.r - previous_colour.r ) * ( ( t - previous_t ) / distance_t );
 			blended_colour.g = previous_colour.g + ( next_colour.g - previous_colour.g ) * ( ( t - previous_t ) / distance_t );
@@ -414,8 +419,8 @@ struct Resolver {
 	RampCache                  ramp_cache;
 
 	void maintain() {
-		// maintain and clear caches
 		ramp_cache.maintain();
+		resolved_patches.clear();
 	}
 };
 
@@ -423,7 +428,7 @@ struct Resolver {
 
 static bool le_2d_encoder_resolve_patches( le_2d_encoder_o* e, Resolver& resources ) {
 
-	size_t draw_data_sz = e->draw_data.size(); // given in uint32 units
+	resources.maintain();
 
 	for ( auto& patch : e->resources.patches ) {
 
@@ -440,13 +445,26 @@ static bool le_2d_encoder_resolve_patches( le_2d_encoder_o* e, Resolver& resourc
 			    .type = ResolvedPatch::Type::Ramp,
 			    .data = {
 			        .as_ramp = {
-			            .draw_data_offset = p.draw_data_offset + draw_data_sz,
+			            .draw_data_offset = p.draw_data_offset,
 			            .ramp_id          = ramp_id,
 			            .extend           = p.extend,
 			        },
 
 			    },
 			};
+
+			// Now patch the ramp `index_and_extent` in the draw data stream for this gradient
+			//
+			// it does not matter whether the gradient is a linear, radial, or sweep gradient
+			// as the first field in any encoded gradients is an uint32_t holding the ramp-index-and-extend
+			// information.
+
+			uint32_t& gradient_ramp_index_and_extent = e->draw_data[ p.draw_data_offset ];
+
+			// this must have been set to 0 when initially encoding the gradient information into the draw stream.
+			assert( gradient_ramp_index_and_extent == 0 );
+
+			gradient_ramp_index_and_extent = uint32_t( ramp_id << 2 ) | uint32_t( p.extend );
 
 			resources.resolved_patches.emplace_back( std::move( r ) );
 
@@ -598,8 +616,9 @@ struct le_2d_o {
 
 	static constexpr uint8_t transfer_lut_mask   = 0x1;
 	static constexpr uint8_t transfer_scene_mask = 0x2;
+	static constexpr uint8_t transfer_gradient_cache_mask = 0x4;
 
-	uint8_t rasterizer_xfer_flags = transfer_lut_mask | transfer_scene_mask; // masked by one of the masks above
+	uint8_t rasterizer_xfer_flags = transfer_lut_mask | transfer_scene_mask | transfer_gradient_cache_mask; // masked by one of the masks above
 
 	std::vector<uint8_t> scene_bytes;
 	uint64_t             previous_scene_hash; // hash of current scene
@@ -844,15 +863,22 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		// This means we need to upload any tainted cache resources.
 
 		/*
-		 *  resolving patches works differently for each type of patch
+		 *  Resolving patches works differently for each type of patch
 		 *  for now, we are only interested in ramps (and possibly images)
 		 *
 		 *  1. for all ramp patches: add to the ramp cache
 		 *  2. use the ramp cache id to store a ResolvedRamp into encoder.patches
-		 *  3. resolved ramps can then be used to
+		 *  3. patch gradient draw_data stream entries with the correct ramp_id and extend for each ramp
+		 *
+		 *  TODO:
+		 *  4. allocate gradient cache image resource with rendergraph
+		 *  5. upload gradient cache data to gradient image resource
 		 *
 		 */
 		le_2d_encoder_resolve_patches( encoder_2d, self->resource_cache );
+
+		// always set gradient transfer mask
+		self->rasterizer_xfer_flags |= self->transfer_gradient_cache_mask;
 	}
 
 	bool result = le_2d_encode_scene( self, encoder_2d, img_output_info, background_colour_argb );
@@ -922,16 +948,9 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	img_output_info->image.usage |=
 	    le::ImageUsageFlagBits::eStorage | le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled;
 
-	// const auto img_output_info =
-	//     le::ImageInfoBuilder()
-	//         .setExtent( self->rasterizer_args.target_width, self->rasterizer_args.target_height )
-	//         .addUsageFlags( le::ImageUsageFlagBits::eStorage | le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled )
-	//         .setFormat( le::Format::eR32G32B32A32Sfloat )
-	//         .build();
-
 	static const auto img_gradients_info =
 	    le::ImageInfoBuilder()
-	        .setExtent( 1, 1 )
+	        .setExtent( N_GRADIENT_SAMPLES, std::max<uint32_t>( self->resource_cache.ramp_cache.data_int32.size() / N_GRADIENT_SAMPLES, 1 ), 1 )
 	        .addUsageFlags( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled )
 	        .setFormat( le::Format::eR8G8B8A8Unorm )
 	        .build();
@@ -984,58 +1003,84 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 	    ;
 
-	auto rp_xfer_lut =
-	    le::RenderPass( "rp_xfer_lut", le::QueueFlagBits::eTransfer )
+	auto rp_xfer_gradients_cache =
+	    le::RenderPass( "rp_xfer_gradients_cache", le::QueueFlagBits::eTransfer )
 	        .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
 		        le::RenderPass rp{ rp_ };
-		        auto           app = ( le_2d_o* )( user_data );
-		        if ( app->rasterizer_xfer_flags & app->transfer_lut_mask ) {
-			        rp.useBufferResource( app->buf_mask_lut, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
-			        // unset transfer lut mask
-			        app->rasterizer_xfer_flags &= ( ~app->transfer_lut_mask );
+		        auto           ctx = ( le_2d_o* )( user_data );
+		        if ( !ctx->resource_cache.ramp_cache.data_int32.empty() && ( ctx->rasterizer_xfer_flags & ctx->transfer_gradient_cache_mask ) ) {
+			        rp.useImageResource( ctx->img_gradients, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
+			        ctx->rasterizer_xfer_flags &= ( ~ctx->transfer_gradient_cache_mask );
 			        return true;
 		        }
 		        return false;
 	        } )
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
-		        auto app     = ( le_2d_o const* )( user_data );
+		        auto                         app     = ( le_2d_o const* )( user_data );
+		        auto                         encoder = le::TransferEncoder( e_ );
+		        le_write_to_image_settings_t write_info =
+		            le::WriteToImageSettingsBuilder()
+		                .setImageW( N_GRADIENT_SAMPLES )
+		                .setImageH( app->resource_cache.ramp_cache.data_int32.size() / N_GRADIENT_SAMPLES )
+		                .build();
+		        encoder.writeToImage(
+		            app->img_gradients, write_info,
+		            app->resource_cache.ramp_cache.data_int32.data(),
+		            app->resource_cache.ramp_cache.data_int32.size() * sizeof( uint32_t ) );
+	        } );
+
+	auto rp_xfer_lut =
+	    le::RenderPass( "rp_xfer_lut", le::QueueFlagBits::eTransfer )
+	        .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
+		        le::RenderPass rp{ rp_ };
+		        auto           ctx = ( le_2d_o* )( user_data );
+		        if ( ctx->rasterizer_xfer_flags & ctx->transfer_lut_mask ) {
+			        rp.useBufferResource( ctx->buf_mask_lut, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
+			        // unset transfer lut mask
+			        ctx->rasterizer_xfer_flags &= ( ~ctx->transfer_lut_mask );
+			        return true;
+		        }
+		        return false;
+	        } )
+	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
+		        auto ctx     = ( le_2d_o const* )( user_data );
 		        auto encoder = le::TransferEncoder( e_ );
-		        encoder.writeToBuffer( app->buf_mask_lut, 0, app->mask_lut_bytes.data(), app->mask_lut_bytes.size() );
+		        encoder.writeToBuffer( ctx->buf_mask_lut, 0, ctx->mask_lut_bytes.data(), ctx->mask_lut_bytes.size() );
 	        } );
 
 	auto rp_xfer_scene =
 	    le::RenderPass( "rp_xfer_2d_scene", le::QueueFlagBits::eTransfer )
 	        .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
 		        le::RenderPass rp{ rp_ };
-		        auto           app = ( le_2d_o* )( user_data );
-		        if ( app->rasterizer_xfer_flags & le_2d_o::transfer_scene_mask ) {
-			        rp.useBufferResource( app->buf_vello_scene, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
-			        app->rasterizer_xfer_flags &= ( ~app->transfer_scene_mask );
+		        auto           ctx = ( le_2d_o* )( user_data );
+		        if ( ctx->rasterizer_xfer_flags & le_2d_o::transfer_scene_mask ) {
+			        rp.useBufferResource( ctx->buf_vello_scene, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
+			        ctx->rasterizer_xfer_flags &= ( ~ctx->transfer_scene_mask );
 			        return true;
 		        }
 		        return false;
 	        } )
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
-		        auto app     = ( le_2d_o const* )( user_data );
+		        auto ctx     = ( le_2d_o const* )( user_data );
 		        auto encoder = le::TransferEncoder( e_ );
 		        // Upload scene data to GPU buffer
 		        // first null out scene buffer
-		        encoder.fillBuffer( app->buf_vello_scene, 0, VK_WHOLE_SIZE, 0 );
+		        encoder.fillBuffer( ctx->buf_vello_scene, 0, VK_WHOLE_SIZE, 0 );
 
 		        encoder.bufferMemoryBarrier(
 		            le::PipelineStageFlagBits2::eTransfer,
 		            le::PipelineStageFlagBits2::eTransfer,
 		            le::AccessFlagBits2::eTransferWrite,
 		            le::AccessFlagBits2::eTransferWrite,
-		            app->buf_vello_scene );
+		            ctx->buf_vello_scene );
 
-				// TODO: do we really need this barrier?
-				//
-				// make sure that the fill operation was completed before we do the next operation
-				// this should not be necessary, as filling and writing the buffer should use the same 
-				// memory caches and these therefore should not need to be flushed!
+		        // TODO: do we really need this barrier?
+		        //
+		        // make sure that the fill operation was completed before we do the next operation
+		        // this should not be necessary, as filling and writing the buffer should use the same
+		        // memory caches and these therefore should not need to be flushed!
 
-		        encoder.writeToBuffer( app->buf_vello_scene, 0, app->scene_bytes.data(), app->scene_bytes.size() );
+		        encoder.writeToBuffer( ctx->buf_vello_scene, 0, ctx->scene_bytes.data(), ctx->scene_bytes.size() );
 	        } );
 
 	auto rp_clear_images =
@@ -1682,6 +1727,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 	if ( true ) {
 		renderGraph
+		    .addRenderPass( rp_xfer_gradients_cache )
 		    .addRenderPass( rp_xfer_lut )
 		    .addRenderPass( rp_xfer_scene )
 		    .addRenderPass( rp_clear_images )
