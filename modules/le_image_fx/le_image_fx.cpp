@@ -218,7 +218,7 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 	                .end()
 	                .build() )
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	            auto                fx = static_cast<typeof( self )>( user_data );
+	            auto                fx = static_cast<le_image_fx_blur_o*>( user_data );
 	            le::GraphicsEncoder encoder{ encoder_ };
 	            encoder
 	                .bindGraphicsPipeline( pipelineBlurH )
@@ -245,7 +245,7 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 	                .end()
 	                .build() )
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	            auto                fx = static_cast<typeof( self )>( user_data );
+	            auto                fx = static_cast<le_image_fx_blur_o*>( user_data );
 	            le::GraphicsEncoder encoder{ encoder_ };
 	            encoder
 	                .bindGraphicsPipeline( pipelineBlurV )
@@ -338,7 +338,7 @@ static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le
 	                .end()
 	                .build() )
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	            auto                fx = static_cast<typeof( self )>( user_data );
+	            auto                fx = static_cast<le_image_fx_blit_o*>( user_data );
 	            le::GraphicsEncoder encoder{ encoder_ };
 
 		        // we want to make sure that the current attachment blend preset exists - if id does not exist in our cache, then
