@@ -6,6 +6,7 @@
 #include <cstring>
 #include <stdlib.h>
 #include <unordered_map>
+#include <array>
 #include "le_renderer.hpp"
 #include "le_pipeline_builder.h"
 #include "private/le_2d/SpookyV2.h"
@@ -1006,7 +1007,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	        .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
 		        le::RenderPass rp{ rp_ };
 		        auto           ctx = ( le_2d_o* )( user_data );
-		        if ( !ctx->resource_cache.ramp_cache.data_int32.empty() && ( ctx->rasterizer_xfer_flags & ctx->transfer_gradient_cache_mask ) ) {
+		        if ( ( ctx->rasterizer_xfer_flags & ctx->transfer_gradient_cache_mask ) ) {
 			        rp.useImageResource( ctx->img_gradients, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
 			        ctx->rasterizer_xfer_flags &= ( ~ctx->transfer_gradient_cache_mask );
 			        return true;
@@ -1016,15 +1017,28 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
 		        auto                         app     = ( le_2d_o const* )( user_data );
 		        auto                         encoder = le::TransferEncoder( e_ );
+
 		        le_write_to_image_settings_t write_info =
 		            le::WriteToImageSettingsBuilder()
 		                .setImageW( N_GRADIENT_SAMPLES )
 		                .setImageH( app->resource_cache.ramp_cache.data_int32.size() / N_GRADIENT_SAMPLES )
 		                .build();
-		        encoder.writeToImage(
-		            app->img_gradients, write_info,
-		            app->resource_cache.ramp_cache.data_int32.data(),
-		            app->resource_cache.ramp_cache.data_int32.size() * sizeof( uint32_t ) );
+
+				size_t          num_bytes = app->resource_cache.ramp_cache.data_int32.size() * sizeof( uint32_t );
+		        uint32_t const* data      = app->resource_cache.ramp_cache.data_int32.data();
+
+		        std::array<uint32_t, N_GRADIENT_SAMPLES> placeholder_data = {};
+
+				// If there are no bytes to copy, we will copy at least the placeholder data
+				// (it is guaranteed that the image is at least N_GRADIENT_SAMPLES wide)
+
+				if ( num_bytes == 0 ) {
+			        num_bytes = N_GRADIENT_SAMPLES;
+			        data      = placeholder_data.data();
+		        }
+
+		        encoder.writeToImage( app->img_gradients, write_info, data, num_bytes);
+
 	        } );
 
 	auto rp_xfer_lut =
@@ -1085,11 +1099,6 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	    le::RenderPass( "img_clear_src_img", le::QueueFlagBits::eGraphics )
 	        .setWidth( 1 )
 	        .setHeight( 1 )
-	        .addColorAttachment(
-	            self->img_gradients,
-	            le::ImageAttachmentInfoBuilder()
-	                .setLoadOp( le::AttachmentLoadOp::eClear )
-	                .build() )
 	        .addColorAttachment(
 	            self->img_image_atlas,
 	            le::ImageAttachmentInfoBuilder()
