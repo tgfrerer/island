@@ -1022,10 +1022,10 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        le_write_to_image_settings_t write_info =
 		            le::WriteToImageSettingsBuilder()
 		                .setImageW( N_GRADIENT_SAMPLES )
-		                .setImageH( app->resource_cache.ramp_cache.data_int32.size() / N_GRADIENT_SAMPLES )
+		                .setImageH( std::max<uint32_t>( 1, app->resource_cache.ramp_cache.data_int32.size() / N_GRADIENT_SAMPLES ) )
 		                .build();
 
-				size_t          num_bytes = app->resource_cache.ramp_cache.data_int32.size() * sizeof( uint32_t );
+		        size_t          num_bytes = app->resource_cache.ramp_cache.data_int32.size() * sizeof( uint32_t );
 		        uint32_t const* data      = app->resource_cache.ramp_cache.data_int32.data();
 
 		        std::array<uint32_t, N_GRADIENT_SAMPLES> placeholder_data = {};
@@ -1034,11 +1034,11 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 				// (it is guaranteed that the image is at least N_GRADIENT_SAMPLES wide)
 
 				if ( num_bytes == 0 ) {
-			        num_bytes = N_GRADIENT_SAMPLES;
+			        num_bytes = placeholder_data.size() * sizeof( uint32_t );
 			        data      = placeholder_data.data();
 		        }
 
-		        encoder.writeToImage( app->img_gradients, write_info, data, num_bytes);
+		        encoder.writeToImage( app->img_gradients, write_info, data, num_bytes );
 
 	        } );
 
