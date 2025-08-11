@@ -893,6 +893,8 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			info.stage_bits = uint32_t( module->stage );
 			info.count      = binding->count;
 
+			assert( info.count > 0 );
+
 			// Dynamic uniform buffers need to specify a range given in bytes.
 			if ( info.type == le::DescriptorType::eUniformBufferDynamic ) {
 				info.range = binding->block.size;
