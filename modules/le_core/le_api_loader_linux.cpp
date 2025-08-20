@@ -1,4 +1,5 @@
 #include "le_api_loader.h"
+#include <cstring>
 
 #ifdef LE_API_LOADER_IMPL_LINUX
 
@@ -7,9 +8,10 @@
 #	include "assert.h"
 #	include <string>
 #	include <iostream>
-#	include "le_log.h"
 #	include <cstdarg>
 #	include <stdio.h>
+
+#	include "le_log.h"
 
 struct le_file_watcher_o;
 
@@ -88,9 +90,12 @@ static void unload_library( void* handle_, const char* path ) {
 		auto result = dlclose( handle_ );
 
 		// we must detect whether the module that was unloaded was the logger module -
-		// in which case we can't log using the logger module.
+		// in which case we can't log from here anymore using the logger module.
+		if ( strstr( path, "le_log" ) != nullptr ) {
+			logger = nullptr;
+		}
 
-		log_debug( "[%-10s] %-20s: %-50s, handle: %p ", "OK", "Close Module", path, handle_ );
+		log_info( "[%-10s] %-20s: %-50s, handle: %p ", "OK", "Close Module", path, handle_ );
 
 		if ( result ) {
 			auto error = dlerror();
@@ -117,6 +122,7 @@ static void* load_library( const char* lib_name ) {
 	} else {
 		log_info( "[%-10s] %-20s: %-50s, handle: %p", "OK", "Loaded Module", lib_name, handle );
 	}
+
 	return handle;
 }
 
@@ -179,6 +185,7 @@ static bool register_api( le_module_loader_o* obj, void* api_interface, const ch
 		assert( false );
 		return false;
 	}
+
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
 	log_debug( "Register Module: '%s'", register_api_fun_name );
