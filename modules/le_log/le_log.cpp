@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <vector>
 #include <string>
+#include <3rdparty/src/spooky/SpookyV2.h>
+#include <string.h> // for memcpy
 
 #ifdef _MSC_VER
 #	include <intrin.h> // for debugbreak()
@@ -24,6 +26,8 @@ struct le_log_channel_o {
 	std::atomic_int log_level = LE_LOG_LEVEL_INFO;
 #endif
 };
+
+constexpr auto LE_SHOULD_FILTER_N_REPEATING_LINES = 8; // whether to filter repeating log lines - set to 0 to not filter
 
 struct subscriber_entry {
 	uint64_t                             unique_id           = 0;
@@ -194,35 +198,34 @@ static void api_remove_subscriber( uint64_t handle ) {
 
 static void default_subscriber_cout( char const* chars, uint32_t num_chars, void* ) {
 
-	{
-		// Do not repeat message if it just has been printed.
+	if ( LE_SHOULD_FILTER_N_REPEATING_LINES ) {
 
-		static uint64_t last_hash = 0;
+		static constexpr auto& N_LINES = LE_SHOULD_FILTER_N_REPEATING_LINES;
+
+		static uint32_t hashed_lines[ N_LINES ] = {};
 
 		// This is optimised for the most common case:
 		// Messages are not repeating.
+		uint32_t h = SpookyHash::Hash32( chars, num_chars, 0 );
 
-		// First, we check whether the number of chars is equivalent to
-		// the number of chars that we hashed the last time.
+		uint32_t last_hashed_lines[ N_LINES ] = {};
+		memcpy( last_hashed_lines, hashed_lines, sizeof( hashed_lines ) );
 
-		static uint32_t last_num_chars = 0;
+		// calculate next iteration of hashed lines
 
-		if ( last_num_chars == num_chars ) {
-
-			// Only if the number of chars matches, do calculate the hash
-			// for the current message and compare it to the hash of the last
-			// message.
-
-			uint64_t current_hash = hash_64_fnv1a( chars );
-			if ( current_hash == last_hash ) {
-				return;
-			}
-			last_hash = current_hash;
-		} else {
-			last_hash = 0;
+		for ( int i = N_LINES - 1; i > 0; i-- ) {
+			hashed_lines[ i ] = hashed_lines[ i - 1 ] ^ h; // hash over (i+1) lines
 		}
+		hashed_lines[ 0 ] = h; // hash over 0th line
 
-		last_num_chars = num_chars;
+		for ( int i = 0; i != N_LINES; i++ ) {
+			if ( hashed_lines[ i ] == last_hashed_lines[ i ] ) {
+				// we found an identical hash, this means that i lines have been repeating
+				fflush( stdout );
+				return;
+				;
+			}
+		}
 	}
 
 	fprintf( stdout, "%*s\n", num_chars, chars );
