@@ -9,7 +9,6 @@
 #include <cstdio>
 #include <vector>
 #include <string>
-#include <3rdparty/src/spooky/SpookyV2.h>
 #include <string.h> // for memcpy
 
 #ifdef _MSC_VER
@@ -200,21 +199,32 @@ static void default_subscriber_cout( char const* chars, uint32_t num_chars, void
 
 	if ( LE_SHOULD_FILTER_N_REPEATING_LINES ) {
 
+		/*
+		 * Filter log messages so that repeating messages are discarded.
+		 *
+		 * Set `LE_SHOULD_FILTER_N_REPEATING_LINES=0` to disable filtering.
+		 *
+		 * Note that since we are xoring hashes and the XOR operation is
+		 * commutative, two lines that appear twice, but in different order
+		 * will still produce the same hash for both lines, and will get
+		 * filtered ([A,B] has the same combined hash over two lines as [B,A]).
+		 *
+		 */
+
 		static constexpr auto& N_LINES = LE_SHOULD_FILTER_N_REPEATING_LINES;
 
-		static uint32_t hashed_lines[ N_LINES ] = {};
+		static uint64_t hashed_lines[ N_LINES ] = {};
 
 		// This is optimised for the most common case:
 		// Messages are not repeating.
-		uint32_t h = SpookyHash::Hash32( chars, num_chars, 0 );
+		uint64_t h = hash_64_fnv1a( chars );
 
-		uint32_t last_hashed_lines[ N_LINES ] = {};
+		uint64_t last_hashed_lines[ N_LINES ] = {};
 		memcpy( last_hashed_lines, hashed_lines, sizeof( hashed_lines ) );
 
-		// calculate next iteration of hashed lines
-
+		// Calculate next iteration of hashed lines
 		for ( int i = N_LINES - 1; i > 0; i-- ) {
-			hashed_lines[ i ] = hashed_lines[ i - 1 ] ^ h; // hash over (i+1) lines
+			hashed_lines[ i ] = hashed_lines[ i - 1 ] ^ h; // hash over (i+1) lines (XOR COMMUTATIVITY means order of lines is irrelevant)
 		}
 		hashed_lines[ 0 ] = h; // hash over 0th line
 
