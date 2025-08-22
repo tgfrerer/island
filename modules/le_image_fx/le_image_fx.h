@@ -38,7 +38,7 @@ struct le_image_fx_api {
 
 		le_image_fx_blit_o * ( * create_blit    ) ( le_renderer_o* renderer , BlitBlendPreset blend_preset);
 		void            	 ( * destroy_blit   ) ( le_image_fx_blit_o* self );
-		void                 ( * blit_apply     ) ( le_image_fx_blit_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_a, le_image_resource_handle_t* image_b);
+		void                 ( * blit_apply     ) ( le_image_fx_blit_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst);
 
 	};
 
