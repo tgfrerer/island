@@ -70,6 +70,10 @@ struct le_path_api {
 		// `close` will be turned into cubic bezier instructions.
 		void ( *hobby )( le_path_o* self );
 
+		// Apply hobby algorithm onto path - any instructions apart from `moveto` and
+		// `close` will be turned into cubic bezier instructions.
+		void ( *natural_cubic )( le_path_o* self );
+
 		// Macro - style commands which resolve to a series of subcommands from above
 		void ( *ellipse )( le_path_o* self, float2 const* centre, float r_x, float r_y );
 
@@ -131,6 +135,9 @@ struct le_path_api {
 	};
 
 	le_path_interface_t le_path_i;
+
+	
+	// Default implementations for path operations -- These expect `user_data` to be a `le_path_o*`.
 	le_path_operations_interface_t le_path_operations_i;
 };
 // clang-format on
@@ -242,6 +249,10 @@ class Path {
 
 	void hobby() {
 		le_path::le_path_i.hobby( self );
+	}
+
+	void natural_cubic() {
+		le_path::le_path_i.natural_cubic( self );
 	}
 
 	void close() {

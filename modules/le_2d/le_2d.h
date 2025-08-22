@@ -168,6 +168,13 @@ struct le_2d_colour {
 	    , a( saturate( a / 255.f ) ) {
 	}
 
+	explicit le_2d_colour( int r, int g, int b, int a )
+	    : r( saturate( r / 255.f ) )
+	    , g( saturate( g / 255.f ) )
+	    , b( saturate( b / 255.f ) )
+	    , a( saturate( a / 255.f ) ) {
+	}
+
 	explicit le_2d_colour( float* rgba )
 	    : r( saturate( rgba[ 0 ] ) )
 	    , g( saturate( rgba[ 1 ] ) )

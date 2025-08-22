@@ -141,8 +141,18 @@ struct InflectionData {
 // with the important difference that our arrays are zero-indexed, so as to
 // follow the c/cpp convention.
 //
-// Note: Parameters a, b, c, d are arrays of length `count`. a[0], and c[n]
+// NOTE: Parameters a, b, c, d are arrays of length `count`. a[0], and c[n]
 // are not used, `result` must be an array of length `count`.
+//
+// The arrays each a, b, c, contain a diagonal of the tridiagonal matrix;
+// d contains the right side vector of the matrix system:
+//
+//	| b0 c0 .. .. .. |    | d0 |
+//  | a1 b1 c1 .. .. |    | d1 |
+//  | .. a2 b2 c2 .. |  = | d2 |
+//  | .. .. a3 b3 c3 |    | d4 |
+//  | .. .. .. a4 b4 |    | d4 |
+//
 //
 template <typename T>
 inline static void thomas( T const* a, T const* b, T const* c, T const* d, size_t const count, T* result ) {
@@ -2729,10 +2739,9 @@ static void path_commands_apply_hobby_open( std::vector<PathCommand>& commands )
 	//
 	// m, p(0), p(1), p(2), p(n)
 	//
-	// Note that the last element is purely a flag, and the first element
-	// only contains a moveto instruction.
+	// Note that the first element contains a moveto instruction.
 
-	int count = commands.size() - 1; // we remove the close flag from the count, and the last, doubled vertex
+	int count = commands.size() - 1;
 
 	std::vector<float>     D( count );
 	std::vector<glm::vec2> delta( count ); // vector between points
@@ -2832,6 +2841,113 @@ static void le_path_apply_hobby_on_last_contour( le_path_o* self ) {
 		path_commands_apply_hobby_closed( commands );
 	} else {
 		path_commands_apply_hobby_open( commands );
+	}
+}
+
+// Apply hobby algorithm for a closed path onto path commands.
+// This effectively changes all commands to type cubic bezier, and
+// will set their control points to optimise for best curvature.
+static void path_commands_apply_natural_cubic_closed( std::vector<PathCommand>& commands ) {
+	// not implemented yet
+}
+
+// Apply hobby algorithm for a closed path onto path commands.
+// This effectively changes all commands to type cubic bezier, and
+// will set their control points to optimise for best curvature.
+static void path_commands_apply_natural_cubic_open( std::vector<PathCommand>& commands ) {
+	// note that last command will be the close command - all other commands are legit.
+
+	// We expect a list of path commands with the following pattern:
+	//
+	// m, p(0), p(1), p(2), p(n)
+	//
+	// Note that the first element only contains a moveto instruction.
+
+	const int point_count   = commands.size(); // every command, including a moveto, defines a point
+	const int segment_count = point_count - 1;
+
+	if ( point_count < 2 ) {
+		// we cannot apply this algorithm if we have less than 2 points.
+		return;
+	}
+
+	std::vector<glm::vec2> k_sum( segment_count ); // K values, summed up (right side of tridiagonal matrix system)
+	std::vector<glm::vec2> c_1( segment_count );   // c1 values for each segment
+
+	{
+		int i      = 0;
+		k_sum[ i ] = commands[ i ].p + 2.f * commands[ i + 1 ].p;
+		for ( i = 1; i < segment_count - 1; i++ ) {
+			k_sum[ i ] = 4.f * commands[ i ].p + 2.f * commands[ i + 1 ].p;
+		}
+		if ( i < segment_count ) {
+			k_sum[ i ] = 8.f * commands[ i ].p + commands[ i + 1 ].p;
+		}
+	}
+
+	{
+		// Calculate alpha (and implicitly beta)
+		// via the Thomas algorithm.
+
+		std::vector<glm::vec2> a( segment_count, { 1, 1 } ); // a[0] is unused
+		std::vector<glm::vec2> b( segment_count, { 4, 4 } ); //
+		std::vector<glm::vec2> c( segment_count, { 1, 1 } ); // c[count-1] is unused
+
+		b[ 0 ]                 = { 2, 2 };
+		a[ segment_count - 1 ] = { 2, 2 };
+		b[ segment_count - 1 ] = { 7, 7 };
+
+		thomas( a.data(), b.data(), c.data(), k_sum.data(), segment_count, c_1.data() );
+	}
+
+	{
+		int i = 0;
+		for ( ; i < segment_count - 1; i++ ) {
+
+			auto& c = commands[ 1 + i ];
+
+			c.data.as_cubic_bezier.c1 = c_1[ i ];                 // first control point
+			c.data.as_cubic_bezier.c2 = 2.f * c.p - c_1[ i + 1 ]; // second control point
+
+			c.type = PathCommand::Type::eCubicBezierTo;
+		}
+
+		if ( i < segment_count ) {
+			auto& c                   = commands[ i + 1 ];
+			c.data.as_cubic_bezier.c1 = c_1[ i ];                  // first control point
+			c.data.as_cubic_bezier.c2 = 0.5f * ( c.p + c_1[ i ] ); // second control point
+
+			c.type = PathCommand::Type::eCubicBezierTo;
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+
+// Transforms the last contour into a sequence of natural cubic splines
+//
+// For details of the algorithms see: <https://www.youtube.com/watch?v=0oUo1d6PpGU>
+//
+// any commands in the contour will be interpreted as plain points, and
+// the contour will be transformed into cubic beziers, with freshly
+// calculated control points.
+// Depending on whether the contour has a `close` command as the last
+// element, the open or the closed version of the hobby algorithm is
+// applied.
+static void le_path_apply_natural_cubic_on_last_contour( le_path_o* self ) {
+
+	if ( self->sub_path.empty() ) {
+		return;
+	}
+
+	// ----------| invariant: there is a last contour
+
+	auto& commands = self->sub_path.back().commands;
+
+	if ( commands.back().type == PathCommand::Type::eClosePath ) {
+		path_commands_apply_natural_cubic_closed( commands );
+	} else {
+		path_commands_apply_natural_cubic_open( commands );
 	}
 }
 
@@ -3478,6 +3594,8 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 	le_path_i.destroy         = le_path_destroy;
 
 	le_path_i.hobby   = le_path_apply_hobby_on_last_contour;
+	le_path_i.natural_cubic = le_path_apply_natural_cubic_on_last_contour;
+
 	le_path_i.ellipse = le_path_ellipse;
 
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
