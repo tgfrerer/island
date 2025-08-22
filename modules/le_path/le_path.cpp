@@ -2866,18 +2866,63 @@ static void le_path_apply_hobby_on_last_contour( le_path_o* self ) {
 	}
 }
 
-// Apply hobby algorithm for a closed path onto path commands.
+// Apply natural cubic bezier interpolation algorithm for a closed path onto path commands.
+//
 // This effectively changes all commands to type cubic bezier, and
 // will set their control points to optimise for best curvature.
 static void path_commands_apply_natural_cubic_closed( std::vector<PathCommand>& commands ) {
-	// not implemented yet
+
+	// We expect a list of path commands with the following pattern:
+	//
+	// m, p(0), p(1), p(2), p(n), p(0), close
+	//
+	// Note that the first element only contains a moveto instruction,
+	// and that the before the close flag the first element is repeated.
+
+	const int point_count   = commands.size() - 1; // every command up to commands.size()-1, including a moveto, defines a point.
+	const int segment_count = point_count - 1;
+
+	if ( point_count < 2 ) {
+		// we cannot apply this algorithm if we have less than 2 points.
+		return;
+	}
+
+	std::vector<glm::vec2> k_sum( segment_count ); // K values, summed up (right side of tridiagonal matrix system)
+	std::vector<glm::vec2> c_1( segment_count );   // c1 values for each segment
+
+	for ( int i = 0; i != segment_count; i++ ) {
+		k_sum[ i ] = 4.f * commands[ i ].p + 2.f * commands[ ( i + 1 ) % segment_count ].p;
+	}
+
+	{
+		// Calculate alpha (and implicitly beta)
+		// via the Thomas algorithm.
+
+		std::vector<glm::vec2> a( segment_count, { 1, 1 } ); // a[0] is used for sherman_morrisson_woodbury
+		std::vector<glm::vec2> b( segment_count, { 4, 4 } ); //
+		std::vector<glm::vec2> c( segment_count, { 1, 1 } ); // c[count-1] is used for sherman_morrisson_woodbury
+
+		a[ 0 ]                 = { 1, 1 };
+		c[ segment_count - 1 ] = { 1, 1 };
+
+		sherman_morrisson_woodbury( a.data(), b.data(), c.data(), k_sum.data(), segment_count, c_1.data() );
+	}
+
+	for ( int i = 0; i != segment_count; i++ ) {
+
+		auto& c = commands[ 1 + i ];
+
+		c.data.as_cubic_bezier.c1 = c_1[ i ];                                     // first control point
+		c.data.as_cubic_bezier.c2 = 2.f * c.p - c_1[ ( i + 1 ) % segment_count ]; // second control point
+
+		c.type = PathCommand::Type::eCubicBezierTo;
+	}
 }
 
-// Apply hobby algorithm for a closed path onto path commands.
+// Apply natural cubic bezier interpolation algorithm for an open path onto path commands.
 // This effectively changes all commands to type cubic bezier, and
 // will set their control points to optimise for best curvature.
 static void path_commands_apply_natural_cubic_open( std::vector<PathCommand>& commands ) {
-	// note that last command will be the close command - all other commands are legit.
 
 	// We expect a list of path commands with the following pattern:
 	//
