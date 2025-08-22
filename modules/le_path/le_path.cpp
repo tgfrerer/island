@@ -2622,12 +2622,34 @@ static void le_path_arc_to( void* user_data, float2 const* p, float2 const* radi
 static void le_path_close_path( void* user_data ) {
 	auto      self        = ( le_path_o* )user_data;
 	glm::vec2 first_point = {};
-	if ( !self->sub_path.back().commands.empty() ) {
-		if ( self->sub_path.back().commands.front().type == PathCommand::eMoveTo ) {
-			first_point = self->sub_path.back().commands.front().p;
-		}
+
+	if ( self->sub_path.empty() ) {
+		return;
 	}
-	self->sub_path.back().commands.emplace_back( PathCommand::eClosePath, first_point );
+
+	// ---------| Invariant: these is at least one subpath
+
+	auto& current_subpath = self->sub_path.back().commands;
+
+	if ( current_subpath.empty() ) {
+		return;
+	}
+
+	// ---------| Invariant: the last subpath is not empty.
+
+	if ( current_subpath.front().type == PathCommand::eMoveTo ) {
+		first_point = current_subpath.front().p;
+	}
+
+	glm::vec2 last_point = current_subpath.back().p;
+
+	if ( !glm::all( glm::equal( first_point, last_point ) ) ) {
+		le_path_line_to( user_data, &first_point );
+	}
+	// if the last entry was not to the first point, then we must add another entry
+	// as the close-path command is only used as a flag.
+
+	current_subpath.emplace_back( PathCommand::eClosePath, first_point );
 }
 
 // ----------------------------------------------------------------------
