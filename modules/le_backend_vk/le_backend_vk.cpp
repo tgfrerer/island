@@ -6298,11 +6298,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							// If current pipeline has not push constants enabled, then exit early, and print an error message.
 							if ( ( currentPipeline.layout_info.push_constants_enabled & 0x1 ) == false ) {
 								// We only want to print this message once.
-								if ( LE_DEBUG_TRUE_ONCE_IF_CHANGED( uint64_t( currentPipeline.pipeline ) ) ) {
 									LeLog( LOGGER_LABEL ).warn( "Push Constants used, but none available for this particular Pipeline: %p\n"
 									                            "\t>> Perhaps Push Constants have been optimised out in shader code as their members are not used by the shader(s)?",
 									                            currentPipeline.pipeline );
-								}
 								break; // early-out, prevents rest of command to be interpreted
 							}
 #endif
