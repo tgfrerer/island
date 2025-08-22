@@ -188,11 +188,11 @@ inline static void thomas( T const* a, T const* b, T const* c, T const* d, size_
 template <typename T>
 inline static void sherman_morrisson_woodbury( T const* a, T const* b, T const* c, T const* d, size_t const count, T* result ) {
 
-	std::vector<T> u( count, 0 );
-	std::vector<T> v( count, 0 );
+	std::vector<T> u( count, T{ 0 } );
+	std::vector<T> v( count, T{ 0 } );
 
-	u[ 0 ]         = 1;
-	u[ count - 1 ] = 1;
+	u[ 0 ]         = T{ 1 };
+	u[ count - 1 ] = T{ 1 };
 
 	auto const& s = a[ 0 ];         // note: a[0] not used by thomas algorithm
 	auto const& t = c[ count - 1 ]; // note: c[count-1] not used by thomas algorithm
@@ -213,7 +213,7 @@ inline static void sherman_morrisson_woodbury( T const* a, T const* b, T const* 
 
 	const T factor = ( t * Td[ 0 ] +
 	                   s * Td[ count - 1 ] ) /
-	                 ( 1 + t * Tu[ 0 ] +
+	                 ( T{ 1 } + t * Tu[ 0 ] +
 	                   s * Tu[ count - 1 ] );
 
 	for ( size_t i = 0; i != count; i++ ) {
