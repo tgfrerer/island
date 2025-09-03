@@ -71,6 +71,10 @@ class Font : NoCopy, NoMove {
 		return le_font::le_font_i.get_atlas( self, pixels, &width, &height, &pix_stride_in_bytes );
 	}
 
+	operator le_font_o*() {
+		return self;
+	}
+
 	~Font() {
 		le_font::le_font_i.destroy( self );
 	}
