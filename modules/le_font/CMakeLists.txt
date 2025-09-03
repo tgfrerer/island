@@ -1,6 +1,7 @@
 set (TARGET le_font)
 
 depends_on_island_module(le_path)
+depends_on_island_module(le_log)
 
 set (SOURCES "le_font.cpp")
 set (SOURCES ${SOURCES} "le_font.h")

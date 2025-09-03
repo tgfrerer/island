@@ -13,6 +13,7 @@
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
 
+#include "le_log.h"
 #include "le_path.h" // for get_path_for_glyph
 
 struct UnicodeRange {
@@ -34,6 +35,11 @@ struct le_font_o {
 	std::vector<UnicodeRange>                                      unicode_ranges; // available unicode ranges, assumed to be sorted.
 };
 
+static le::Log& logger() {
+	static le::Log logger( "le_font" );
+	return logger;
+}
+
 // ----------------------------------------------------------------------
 /// \brief   file loader utility method
 /// \details loads file given by filepath and returns a vector of chars if successful
@@ -43,11 +49,19 @@ static std::vector<char> load_file( const std::filesystem::path& file_path, bool
 	std::vector<char> contents;
 
 	size_t        fileSize = 0;
+
+	std::error_code ec = {};
+
+	if ( !std::filesystem::exists( file_path, ec ) ) {
+		logger().error( "Could not find file: '%s'", file_path.c_str() );
+		*success = false;
+		return contents;
+	}
+
 	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
 
 	if ( !file.is_open() ) {
-		std::cerr << "Unable to open file: " << std::filesystem::canonical( file_path ) << std::endl
-		          << std::flush;
+		logger().error( "Unable to open file: '%s'", file_path.c_str() );
 		*success = false;
 		return contents;
 	}
