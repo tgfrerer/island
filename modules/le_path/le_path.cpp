@@ -2765,6 +2765,10 @@ static void path_commands_apply_hobby_open( std::vector<PathCommand>& commands )
 
 	int count = commands.size() - 1;
 
+	if ( count <= 0 ) {
+		return;
+	}
+
 	std::vector<float>     D( count );
 	std::vector<glm::vec2> delta( count ); // vector between points
 
