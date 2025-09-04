@@ -92,10 +92,19 @@ struct le_path_api {
 		// A polyline is a list of vertices which may be thought of being
 		// connected by lines.
 		//
+		// resolution controls into how many straight lines a curve instruction should be translated
 		void ( *trace    )( le_path_o* self, size_t resolution );
-		// updates a path's polylines by trying to best match given tolerance
+
+		// Update a path's polylines by trying to best match given tolerance
+		// tolerance controls max distance from straight line to curve (lower is higher fidelity)
+		//
+		// Note: this updates the polyline representation of the path.
 		void ( *flatten  )( le_path_o* self, float tolerance );
-		// updates a path's polylines by setting polyline vertices at even intervals
+
+		// Update a path's polylines by setting polyline vertices at even intervals
+		//
+		// Note: this operates only on polylines, and does not touch path instructions.
+		// If polylines were not yet generated, this will generate polylines implicitly by tracing the path.
 		void ( *resample )( le_path_o* self, float interval );
 
 		// Always updates `max_count_outline_[l|r] with the number of used vertices for l and r outline.
