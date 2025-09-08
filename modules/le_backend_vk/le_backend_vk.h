@@ -482,4 +482,10 @@ class Device : NoCopy, NoMove {
 
 } // namespace le
 #endif // __cplusplus
+
+#if ( WIN32 && defined(PLUGINS_DYNAMIC))
+#	pragma comment( lib, "bin/modules/vma.lib " )
+#endif
+
+
 #endif // GUARD_PAL_BACKEND_VK_H

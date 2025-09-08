@@ -64,8 +64,14 @@ if (${PLUGINS_DYNAMIC})
     # It could interfere otherwise because it seems to use virtual inheritance in c++ objects, and the
     # v-tables of these objects can not be automatically updated on hot-reload.
     add_library(vma SHARED ${VK_MEM_ALLOC_SOURCES})
-    target_link_libraries(${TARGET} PRIVATE vma )
+
+    if (WIN32)
+        target_compile_definitions(vma PUBLIC "VMA_CALL_PRE=__declspec(dllexport)")
+        target_compile_definitions(vma PUBLIC "VMA_CALL_POST=__cdecl")
+    endif(WIN32)
+
+    target_link_libraries(${TARGET} PRIVATE vma)
 endif()
 
-
 source_group(${TARGET} FILES ${SOURCES})
+source_group(vma FILES ${VK_MEM_ALLOC_SOURCES})
