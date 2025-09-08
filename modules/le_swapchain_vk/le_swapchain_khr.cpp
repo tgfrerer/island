@@ -2,7 +2,7 @@
 #include <cassert>
 
 #include "private/le_swapchain_vk/le_swapchain_vk_common.inl"
-#include "util/volk/volk.h"
+#include "3rdparty/le_backend_vk/volk/volk.h"
 #include "private/le_swapchain_vk/vk_to_string_helpers.inl"
 
 #include "le_backend_vk.h"

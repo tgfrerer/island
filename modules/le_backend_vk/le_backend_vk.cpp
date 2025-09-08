@@ -2,7 +2,7 @@
 #include "le_backend_vk.h"
 #include "le_log.h"
 #include "private/le_backend_vk/le_command_stream_t.h"
-#include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
+#include "3rdparty/le_backend_vk/vma/vk_mem_alloc.h" // for allocation
 #include "le_backend_types_internal.h"      // includes vulkan.hpp
 #include "le_swapchain_vk.h"
 // #include "le_window.h"
@@ -31,7 +31,7 @@
 #include <array>
 #include <algorithm> // for std::find, for std::max
 
-#include "util/volk/volk.h"
+#include "3rdparty/le_backend_vk/volk/volk.h"
 
 #include "le_backend_vk_settings.inl"
 #include "private/le_backend_vk/vk_to_str_helpers.inl"
@@ -8455,6 +8455,10 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 		// Global settings object for backend - this object will only get initialzed once
 		api_i->backend_settings_singleton = le_backend_vk_settings_create();
 	}
+
+#if defined( PLUGINS_DYNAMIC )
+	le_core_load_library_persistently( "./modules/libvma.so" );
+#endif
 
 #ifdef LE_LOAD_TRACING_LIBRARY
 	LE_LOAD_TRACING_LIBRARY;

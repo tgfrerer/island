@@ -9,7 +9,7 @@
 #include "shared/interfaces/le_image_encoder_interface.h" // generic encoder interface - to use it, you must set encoder api, and image encoder parameter object via swapchain creation parameters
 
 #include <cassert>
-#include "util/vk_mem_alloc/vk_mem_alloc.h"
+#include "3rdparty/le_backend_vk/vma/vk_mem_alloc.h"
 #include "le_log.h"
 
 #include <string>

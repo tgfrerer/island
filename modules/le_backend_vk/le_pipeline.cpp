@@ -17,7 +17,7 @@
 #include "le_core.h"
 #include "le_shader_compiler.h"
 
-#include "util/spirv_reflect/spirv_reflect.h"
+#include "3rdparty/le_backend_vk//spirv_reflect/spirv_reflect.h"
 
 #include "le_file_watcher.h" // for watching shader source files
 #include "le_log.h"

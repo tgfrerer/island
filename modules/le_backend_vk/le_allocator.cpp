@@ -1,7 +1,7 @@
 #include "le_core.h"
 #include "le_backend_vk.h"
 
-#include "util/vk_mem_alloc/vk_mem_alloc.h"
+#include "3rdparty/le_backend_vk/vma/vk_mem_alloc.h"
 #include <cstring> // for memcpy
 
 /*

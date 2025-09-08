@@ -19,7 +19,7 @@ static le::Log& logger() {
 #ifdef PLUGINS_DYNAMIC
 #	define VOLK_IMPLEMENTATION
 #endif
-#include "util/volk/volk.h"
+#include "3rdparty/le_backend_vk/volk/volk.h"
 
 static void post_reload_hook( le_backend_o* backend ) {
 #ifdef PLUGINS_DYNAMIC
