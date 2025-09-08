@@ -7,8 +7,6 @@
 #include "le_pipeline_builder.h"
 #include "le_ui_event.h"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
@@ -167,30 +165,8 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 	// We want to save the raw value in the pointer, because if we passed in a
 	// pointer to the name of the texture, the texture may have changed.
 	// for this to work, we first cast to uint64_t, then cast to void*
-	io.Fonts->TexID = static_cast<void*>( self->texture_font );
 
-	// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
-	io.KeyMap[ ImGuiKey_Tab ]        = uint32_t( LeUiEvent::NamedKey::eTab );
-	io.KeyMap[ ImGuiKey_LeftArrow ]  = uint32_t( LeUiEvent::NamedKey::eLeft );
-	io.KeyMap[ ImGuiKey_RightArrow ] = uint32_t( LeUiEvent::NamedKey::eRight );
-	io.KeyMap[ ImGuiKey_UpArrow ]    = uint32_t( LeUiEvent::NamedKey::eUp );
-	io.KeyMap[ ImGuiKey_DownArrow ]  = uint32_t( LeUiEvent::NamedKey::eDown );
-	io.KeyMap[ ImGuiKey_PageUp ]     = uint32_t( LeUiEvent::NamedKey::ePageUp );
-	io.KeyMap[ ImGuiKey_PageDown ]   = uint32_t( LeUiEvent::NamedKey::ePageDown );
-	io.KeyMap[ ImGuiKey_Home ]       = uint32_t( LeUiEvent::NamedKey::eHome );
-	io.KeyMap[ ImGuiKey_End ]        = uint32_t( LeUiEvent::NamedKey::eEnd );
-	io.KeyMap[ ImGuiKey_Insert ]     = uint32_t( LeUiEvent::NamedKey::eInsert );
-	io.KeyMap[ ImGuiKey_Delete ]     = uint32_t( LeUiEvent::NamedKey::eDelete );
-	io.KeyMap[ ImGuiKey_Backspace ]  = uint32_t( LeUiEvent::NamedKey::eBackspace );
-	io.KeyMap[ ImGuiKey_Space ]      = uint32_t( LeUiEvent::NamedKey::eSpace );
-	io.KeyMap[ ImGuiKey_Enter ]      = uint32_t( LeUiEvent::NamedKey::eEnter );
-	io.KeyMap[ ImGuiKey_Escape ]     = uint32_t( LeUiEvent::NamedKey::eEscape );
-	io.KeyMap[ ImGuiKey_A ]          = uint32_t( LeUiEvent::NamedKey::eA );
-	io.KeyMap[ ImGuiKey_C ]          = uint32_t( LeUiEvent::NamedKey::eC );
-	io.KeyMap[ ImGuiKey_V ]          = uint32_t( LeUiEvent::NamedKey::eV );
-	io.KeyMap[ ImGuiKey_X ]          = uint32_t( LeUiEvent::NamedKey::eX );
-	io.KeyMap[ ImGuiKey_Y ]          = uint32_t( LeUiEvent::NamedKey::eY );
-	io.KeyMap[ ImGuiKey_Z ]          = uint32_t( LeUiEvent::NamedKey::eZ );
+	io.Fonts->SetTexID( self->texture_font );
 
 	io.DisplaySize.x = display_width;
 	io.DisplaySize.y = display_height;
@@ -301,7 +277,7 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 					static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "Clip rect size must match for direct assignment" );
 
 					// -- update bound texture, but only if texture different from currently bound texture
-					le_texture_handle const nextTexture = reinterpret_cast<le_texture_handle>( im_cmd.TextureId );
+					le_texture_handle const nextTexture = reinterpret_cast<le_texture_handle>( im_cmd.GetTexID() );
 					if ( nextTexture != currentTexture ) {
 						encoder.setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), nextTexture, 0 );
 						currentTexture = nextTexture;
@@ -330,6 +306,136 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 	} );
 }
 
+// clang-format off
+static ImGuiKey to_imgui_key( LeUiEvent::NamedKey const& k ) {
+	switch ( k ) {
+	case LeUiEvent::NamedKey::eUnknown: return ImGuiKey_None;
+	case LeUiEvent::NamedKey::eSpace: return ImGuiKey_Space;
+	case LeUiEvent::NamedKey::eApostrophe: return ImGuiKey_Apostrophe;
+	case LeUiEvent::NamedKey::eComma: return ImGuiKey_Comma;
+	case LeUiEvent::NamedKey::eMinus: return ImGuiKey_Minus;
+	case LeUiEvent::NamedKey::ePeriod: return ImGuiKey_Period;
+	case LeUiEvent::NamedKey::eSlash: return ImGuiKey_Slash;
+	case LeUiEvent::NamedKey::e0: return ImGuiKey_0;
+	case LeUiEvent::NamedKey::e1: return ImGuiKey_1;
+	case LeUiEvent::NamedKey::e2: return ImGuiKey_2;
+	case LeUiEvent::NamedKey::e3: return ImGuiKey_3;
+	case LeUiEvent::NamedKey::e4: return ImGuiKey_4;
+	case LeUiEvent::NamedKey::e5: return ImGuiKey_5;
+	case LeUiEvent::NamedKey::e6: return ImGuiKey_6;
+	case LeUiEvent::NamedKey::e7: return ImGuiKey_7;
+	case LeUiEvent::NamedKey::e8: return ImGuiKey_8;
+	case LeUiEvent::NamedKey::e9: return ImGuiKey_9;
+	case LeUiEvent::NamedKey::eSemicolon: return ImGuiKey_Semicolon;
+	case LeUiEvent::NamedKey::eEqual: return ImGuiKey_Equal;
+	case LeUiEvent::NamedKey::eA: return ImGuiKey_A;
+	case LeUiEvent::NamedKey::eB: return ImGuiKey_B;
+	case LeUiEvent::NamedKey::eC: return ImGuiKey_C;
+	case LeUiEvent::NamedKey::eD: return ImGuiKey_D;
+	case LeUiEvent::NamedKey::eE: return ImGuiKey_E;
+	case LeUiEvent::NamedKey::eF: return ImGuiKey_F;
+	case LeUiEvent::NamedKey::eG: return ImGuiKey_G;
+	case LeUiEvent::NamedKey::eH: return ImGuiKey_H;
+	case LeUiEvent::NamedKey::eI: return ImGuiKey_I;
+	case LeUiEvent::NamedKey::eJ: return ImGuiKey_J;
+	case LeUiEvent::NamedKey::eK: return ImGuiKey_K;
+	case LeUiEvent::NamedKey::eL: return ImGuiKey_L;
+	case LeUiEvent::NamedKey::eM: return ImGuiKey_M;
+	case LeUiEvent::NamedKey::eN: return ImGuiKey_N;
+	case LeUiEvent::NamedKey::eO: return ImGuiKey_O;
+	case LeUiEvent::NamedKey::eP: return ImGuiKey_P;
+	case LeUiEvent::NamedKey::eQ: return ImGuiKey_Q;
+	case LeUiEvent::NamedKey::eR: return ImGuiKey_R;
+	case LeUiEvent::NamedKey::eS: return ImGuiKey_S;
+	case LeUiEvent::NamedKey::eT: return ImGuiKey_T;
+	case LeUiEvent::NamedKey::eU: return ImGuiKey_U;
+	case LeUiEvent::NamedKey::eV: return ImGuiKey_V;
+	case LeUiEvent::NamedKey::eW: return ImGuiKey_W;
+	case LeUiEvent::NamedKey::eX: return ImGuiKey_X;
+	case LeUiEvent::NamedKey::eY: return ImGuiKey_Y;
+	case LeUiEvent::NamedKey::eZ: return ImGuiKey_Z;
+	case LeUiEvent::NamedKey::eLeftBracket: return ImGuiKey_LeftBracket;
+	case LeUiEvent::NamedKey::eBackslash: return ImGuiKey_Backslash;
+	case LeUiEvent::NamedKey::eRightBracket: return ImGuiKey_RightBracket;
+	case LeUiEvent::NamedKey::eGraveAccent: return ImGuiKey_GraveAccent;
+	case LeUiEvent::NamedKey::eWorld1: return ImGuiKey_None; // not recognised
+	case LeUiEvent::NamedKey::eWorld2: return ImGuiKey_None; // not recognised
+	case LeUiEvent::NamedKey::eEscape: return ImGuiKey_Escape;
+	case LeUiEvent::NamedKey::eEnter: return ImGuiKey_Enter;
+	case LeUiEvent::NamedKey::eTab: return ImGuiKey_Tab;
+	case LeUiEvent::NamedKey::eBackspace: return ImGuiKey_Backspace;
+	case LeUiEvent::NamedKey::eInsert: return ImGuiKey_Insert;
+	case LeUiEvent::NamedKey::eDelete: return ImGuiKey_Delete;
+	case LeUiEvent::NamedKey::eRight: return ImGuiKey_RightArrow;
+	case LeUiEvent::NamedKey::eLeft: return ImGuiKey_LeftArrow;
+	case LeUiEvent::NamedKey::eDown: return ImGuiKey_DownArrow;
+	case LeUiEvent::NamedKey::eUp: return ImGuiKey_UpArrow;
+	case LeUiEvent::NamedKey::ePageUp: return ImGuiKey_PageUp;
+	case LeUiEvent::NamedKey::ePageDown: return ImGuiKey_PageDown;
+	case LeUiEvent::NamedKey::eHome: return ImGuiKey_Home;
+	case LeUiEvent::NamedKey::eEnd: return ImGuiKey_End;
+	case LeUiEvent::NamedKey::eCapsLock: return ImGuiKey_CapsLock;
+	case LeUiEvent::NamedKey::eScrollLock: return ImGuiKey_ScrollLock;
+	case LeUiEvent::NamedKey::eNumLock: return ImGuiKey_NumLock;
+	case LeUiEvent::NamedKey::ePrintScreen: return ImGuiKey_PrintScreen;
+	case LeUiEvent::NamedKey::ePause: return ImGuiKey_Pause;
+	case LeUiEvent::NamedKey::eF1: return ImGuiKey_F1;
+	case LeUiEvent::NamedKey::eF2: return ImGuiKey_F2;
+	case LeUiEvent::NamedKey::eF3: return ImGuiKey_F3;
+	case LeUiEvent::NamedKey::eF4: return ImGuiKey_F4;
+	case LeUiEvent::NamedKey::eF5: return ImGuiKey_F5;
+	case LeUiEvent::NamedKey::eF6: return ImGuiKey_F6;
+	case LeUiEvent::NamedKey::eF7: return ImGuiKey_F7;
+	case LeUiEvent::NamedKey::eF8: return ImGuiKey_F8;
+	case LeUiEvent::NamedKey::eF9: return ImGuiKey_F9;
+	case LeUiEvent::NamedKey::eF10: return ImGuiKey_F10;
+	case LeUiEvent::NamedKey::eF11: return ImGuiKey_F11;
+	case LeUiEvent::NamedKey::eF12: return ImGuiKey_F12;
+	case LeUiEvent::NamedKey::eF13: return ImGuiKey_F13;
+	case LeUiEvent::NamedKey::eF14: return ImGuiKey_F14;
+	case LeUiEvent::NamedKey::eF15: return ImGuiKey_F15;
+	case LeUiEvent::NamedKey::eF16: return ImGuiKey_F16;
+	case LeUiEvent::NamedKey::eF17: return ImGuiKey_F17;
+	case LeUiEvent::NamedKey::eF18: return ImGuiKey_F18;
+	case LeUiEvent::NamedKey::eF19: return ImGuiKey_F19;
+	case LeUiEvent::NamedKey::eF20: return ImGuiKey_F20;
+	case LeUiEvent::NamedKey::eF21: return ImGuiKey_F21;
+	case LeUiEvent::NamedKey::eF22: return ImGuiKey_F22;
+	case LeUiEvent::NamedKey::eF23: return ImGuiKey_F23;
+	case LeUiEvent::NamedKey::eF24: return ImGuiKey_F24;
+	case LeUiEvent::NamedKey::eF25: return ImGuiKey_None; // Not implemented
+	case LeUiEvent::NamedKey::eKp0: return ImGuiKey_Keypad0;
+	case LeUiEvent::NamedKey::eKp1: return ImGuiKey_Keypad1;
+	case LeUiEvent::NamedKey::eKp2: return ImGuiKey_Keypad2;
+	case LeUiEvent::NamedKey::eKp3: return ImGuiKey_Keypad3;
+	case LeUiEvent::NamedKey::eKp4: return ImGuiKey_Keypad4;
+	case LeUiEvent::NamedKey::eKp5: return ImGuiKey_Keypad5;
+	case LeUiEvent::NamedKey::eKp6: return ImGuiKey_Keypad6;
+	case LeUiEvent::NamedKey::eKp7: return ImGuiKey_Keypad7;
+	case LeUiEvent::NamedKey::eKp8: return ImGuiKey_Keypad8;
+	case LeUiEvent::NamedKey::eKp9: return ImGuiKey_Keypad9;
+	case LeUiEvent::NamedKey::eKpDecimal: return ImGuiKey_KeypadDecimal;
+	case LeUiEvent::NamedKey::eKpDivide: return ImGuiKey_KeypadDivide;
+	case LeUiEvent::NamedKey::eKpMultiply: return ImGuiKey_KeypadMultiply;
+	case LeUiEvent::NamedKey::eKpSubtract: return ImGuiKey_KeypadSubtract;
+	case LeUiEvent::NamedKey::eKpAdd: return ImGuiKey_KeypadAdd;
+	case LeUiEvent::NamedKey::eKpEnter: return ImGuiKey_KeypadEnter;
+	case LeUiEvent::NamedKey::eKpEqual: return ImGuiKey_KeypadEqual;
+	case LeUiEvent::NamedKey::eLeftShift: return  ImGuiKey_ModShift;
+	case LeUiEvent::NamedKey::eLeftControl: return  ImGuiKey_ModCtrl;
+	case LeUiEvent::NamedKey::eLeftAlt: return  ImGuiKey_ModAlt;
+	case LeUiEvent::NamedKey::eLeftSuper: return  ImGuiKey_ModSuper;
+	case LeUiEvent::NamedKey::eRightShift: return  ImGuiKey_ModShift;
+	case LeUiEvent::NamedKey::eRightControl: return  ImGuiKey_ModCtrl;
+	case LeUiEvent::NamedKey::eRightAlt: return  ImGuiKey_ModAlt ;
+	case LeUiEvent::NamedKey::eRightSuper: return  ImGuiKey_ModSuper;
+	case LeUiEvent::NamedKey::eMenu: return ImGuiKey_Menu;
+	}
+    assert(false); // unreachable
+	return ImGuiKey_None;
+}
+// clang-format on
+
 // ----------------------------------------------------------------------
 
 void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, uint32_t numEvents ) {
@@ -353,17 +459,11 @@ void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, uint32_
 			// -----------| invariant: key is not -1 (unknown)
 
 			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
-				io.KeysDown[ uint32_t( e.key ) ] = true;
+				io.AddKeyEvent( to_imgui_key( e.key ), true );
 			}
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
-				io.KeysDown[ uint32_t( e.key ) ] = false;
+				io.AddKeyEvent( to_imgui_key( e.key ), false );
 			}
-
-			// ( void )e.mods; // Modifiers are not reliable across systems
-			io.KeyCtrl  = io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eLeftControl ) ] || io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eRightControl ) ];
-			io.KeyShift = io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eLeftShift ) ] || io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eRightShift ) ];
-			io.KeyAlt   = io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eLeftAlt ) ] || io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eRightAlt ) ];
-			io.KeySuper = io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eLeftSuper ) ] || io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eRightSuper ) ];
 
 		} break;
 		case LeUiEvent::Type::eCharacter: {
@@ -374,34 +474,25 @@ void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, uint32_
 		} break;
 		case LeUiEvent::Type::eCursorPosition: {
 			auto& e                      = event->cursorPosition;
-			self->mouse_state.cursor_pos = { float( e.x ), float( e.y ) };
+			io.AddMousePosEvent( e.x, e.y );
 		} break;
 		case LeUiEvent::Type::eCursorEnter: {
 			auto& e = event->cursorEnter;
+			io.AddFocusEvent( true );
 		} break;
 		case LeUiEvent::Type::eMouseButton: {
 			auto& e = event->mouseButton;
-			if ( e.button >= 0 && e.button < int( self->mouse_state.buttonState.size() ) ) {
-				self->mouse_state.buttonState[ size_t( e.button ) ] = ( e.action == LeUiEvent::ButtonAction::ePress );
-			}
+			io.AddMouseButtonEvent( e.button, ( e.action == LeUiEvent::ButtonAction::ePress ) );
 		} break;
 		case LeUiEvent::Type::eScroll: {
 			auto& e = event->scroll;
-			io.MouseWheelH += float( e.x_offset );
-			io.MouseWheel += float( e.y_offset );
-
+			io.AddMouseWheelEvent( e.x_offset, e.y_offset );
 		} break;
 		default:
 			break;
 		} // end switch event->event
 	}
 
-	// update mouse pos and buttons
-	for ( size_t i = 0; i < self->mouse_state.buttonState.size(); i++ ) {
-		// If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
-		io.MouseDown[ i ] = self->mouse_state.buttonState[ i ];
-	}
-	io.MousePos = { self->mouse_state.cursor_pos.x, self->mouse_state.cursor_pos.y };
 }
 
 // ----------------------------------------------------------------------
@@ -440,6 +531,7 @@ void le_imgui_process_and_filter_events( le_imgui_o* self, LeUiEvent* events, ui
 		return !( uint32_t( e.event ) & ioFilterFlags );
 	} );
 	memcpy( events, ev.data(), sizeof( LeUiEvent ) * ev.size() );
+
 	*num_events = ev.size();
 }
 

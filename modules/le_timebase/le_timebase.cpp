@@ -66,13 +66,20 @@ static uint64_t le_timebase_get_ticks_since_last_frame( le_timebase_o* self ) {
 	return ( self->ticks_before_update - self->ticks_before_previous_update ).count();
 }
 
+static double le_timebase_get_seconds_since_last_frame( le_timebase_o* self ) {
+	return std::chrono::duration_cast<std::chrono::duration<double>>(
+	           le::Ticks( le_timebase_get_ticks_since_last_frame( self ) ) )
+	    .count();
+}
+
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_timebase, api ) {
 	auto& le_timebase_i                      = static_cast<le_timebase_api*>( api )->le_timebase_i;
 	le_timebase_i.get_current_ticks          = le_timebase_get_current_ticks;
 	le_timebase_i.get_ticks_since_last_frame = le_timebase_get_ticks_since_last_frame;
-	le_timebase_i.reset                      = le_timebase_reset;
+	le_timebase_i.get_seconds_since_last_frame = le_timebase_get_seconds_since_last_frame;
+	le_timebase_i.reset                        = le_timebase_reset;
 	le_timebase_i.create                     = le_timebase_create;
 	le_timebase_i.destroy                    = le_timebase_destroy;
 	le_timebase_i.update                     = le_timebase_update;

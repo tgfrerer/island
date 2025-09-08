@@ -5,7 +5,7 @@
 #include "tesselator.h"
 
 #include <string.h> // memcpy
-#include <glm/vec2.hpp>
+#include "glm/vec2.hpp"
 
 using Point     = glm::vec2;
 using IndexType = le_tessellator_api::IndexType;

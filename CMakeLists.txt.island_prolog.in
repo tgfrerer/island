@@ -125,6 +125,11 @@ if (REQUIRES_ISLAND_CORE)
     # add glm include directory to includes search path 
     include_using_absolute_path("${ISLAND_BASE_DIR}/3rdparty/src/glm/")
 
+    add_compile_definitions( GLM_ENABLE_EXPERIMENTAL )
+    add_compile_definitions( GLM_FORCE_DEPTH_ZERO_TO_ONE) #  vulkan clip space is from 0 to 1
+    add_compile_definitions( GLM_FORCE_RIGHT_HANDED )     #  glTF uses right handed coordinate system, and we're following its lead.
+
+
     # create a link to project specific resources in runtime output directory
     if (EXISTS ${PROJECT_SOURCE_DIR}/resources)
         link_resources("${PROJECT_SOURCE_DIR}/resources" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/local_resources")

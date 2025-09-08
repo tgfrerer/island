@@ -1,17 +1,14 @@
 #include "le_font_renderer.h"
 #include "le_core.h"
 
-#include "le_renderer.h"
+#include "le_renderer.hpp"
 #include "le_font.h"
 #include "le_pipeline_builder.h"
 
 #include <forward_list>
 #include <cstdio>
 #include <atomic>
-#include <algorithm>
-
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
+#include <vector>
 #include "glm/vec4.hpp"
 
 struct font_info_t {
@@ -72,7 +69,7 @@ void le_font_renderer_add_font( le_font_renderer_o* self, le_font_o* font ) {
 	le_font_i.get_atlas( font, &pixels_data, &atlas_width, &atlas_height, &atlas_stride );
 
 	le_resource_info_t font_atlas_info =
-	    le::ImageInfoBuilder()
+	    le::ImageResourceInfoBuilder()
 	        .setExtent( atlas_width, atlas_height )
 	        .setFormat( le::Format::eR8Unorm )
 	        .build();
@@ -130,7 +127,7 @@ bool le_font_renderer_setup_resources( le_font_renderer_o* self, le_rendergraph_
 		        bool needs_upload = false; // If any atlasses need upload this must flip to true.
 
 		        for ( auto& fnt : self->fonts_info ) {
-			        rp.useImageResource( fnt.font_image, le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) );
+			        rp.useImageResource( fnt.font_image, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite );
 			        needs_upload |= !fnt.atlas_uploaded;
 		        }
 
@@ -139,7 +136,7 @@ bool le_font_renderer_setup_resources( le_font_renderer_o* self, le_rendergraph_
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 		        auto self = static_cast<le_font_renderer_o*>( user_data );
 
-		        le::Encoder encoder{ encoder_ };
+		        le::TransferEncoder encoder{ encoder_ };
 
 		        for ( auto& fnt : self->fonts_info ) {
 
@@ -217,7 +214,7 @@ bool le_font_renderer_use_fonts( le_font_renderer_o* self, le_font_o** fonts, si
 
 bool le_font_renderer_draw_string( le_font_renderer_o* self, le_font_o* font, le_command_buffer_encoder_o* encoder_, draw_string_info_t& info ) {
 
-	le::Encoder encoder{ encoder_ };
+	le::GraphicsEncoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
 

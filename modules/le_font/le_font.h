@@ -2,36 +2,22 @@
 #define GUARD_le_font_H
 
 #include "le_core.h"
-
-#ifndef ISL_ALLOW_GLM_TYPES
-#	define ISL_ALLOW_GLM_TYPES 1
-#endif
-
-// Life is terrible without 3d type primitives, so let's include some glm forward declarations
-
-#if ( ISL_ALLOW_GLM_TYPES == 1 )
-#	include <glm/fwd.hpp>
-#endif
+#include "glm/fwd.hpp"
 
 struct le_font_o;
 struct le_path_o;
+struct le_path_operations_interface_t;
 
 // clang-format off
 struct le_font_api {
 
-#if ( ISL_ALLOW_GLM_TYPES == 1 )
-	typedef glm::vec2 Vertex;
-#else
-	struct Vertex{
-		float x;
-		float y;
-	};
-#endif
-
 	typedef void le_uft8_iterator_cb_t( uint32_t codepoint, void *user_data );
 
-	// Parses str, calls `cb` for each glyph.
-	// Returns true once end of str reached, and all characters were parsed successfully.
+	// Iterate over utf-8 glyphs: <https://en.m.wikipedia.org/wiki/UTF-8>
+	// Calls given callback for each codepoint in str.
+	// Runs until it meets '\0' (end of c-string) character.
+	// Returns true on success, false if the last codepoint was not completely
+	// parsed.
 	bool  (*le_utf8_iterator)( char const *str, void *user_data, le_uft8_iterator_cb_t cb );
 
 	struct le_font_interface_t {
@@ -46,10 +32,9 @@ struct le_font_api {
 		void                 ( * destroy_codepoint_sdf_bitmap ) ( le_font_o* self, uint8_t * bitmap);
 
 		// NOTE: `codepoint_prev` is optional, if 0, no kerning is applied, any other value will apply kerning for kerning pair (`codepoint_prev`,`codepoint`).
-		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, float const scale, Vertex *offset, int32_t const codepoint_prev);
+		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, void* path_or_user_data, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev, le_path_operations_interface_t const * optional_path_operations_interface);
 
 	};
-
 
 	le_font_interface_t       le_font_i;
 };
@@ -84,6 +69,10 @@ class Font : NoCopy, NoMove {
 
 	bool getAtlas( uint8_t const** pixels, uint32_t& width, uint32_t& height, uint32_t& pix_stride_in_bytes ) {
 		return le_font::le_font_i.get_atlas( self, pixels, &width, &height, &pix_stride_in_bytes );
+	}
+
+	operator le_font_o*() {
+		return self;
 	}
 
 	~Font() {

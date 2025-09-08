@@ -382,8 +382,8 @@ class BackendSettings : NoCopy, NoMove {
 
 	/// returns link of same sType that was found, otherwise return appended link. Appends link to features chain only if no link with this sType was yet found.
 	template <typename T>
-	static T* getOrAppendFeaturesChainLink( T& features_chain_link ) {
-		return reinterpret_cast<T*>( le_backend_vk::settings_i.get_or_append_features_chain_link( reinterpret_cast<GenericVkStruct*>( &features_chain_link ) ) );
+	static T* getOrAppendFeaturesChainLink( T* features_chain_link ) {
+		return reinterpret_cast<T*>( le_backend_vk::settings_i.get_or_append_features_chain_link( reinterpret_cast<GenericVkStruct*>( features_chain_link ) ) );
 	};
 };
 

@@ -91,7 +91,7 @@ struct Polyline {
 };
 
 struct le_path_o {
-	std::vector<Contour>  contours;  // an array of sub-paths, a contour must start with a moveto instruction
+	std::vector<Contour>  sub_path;  // an array of sub-paths, a contour must start with a moveto instruction
 	std::vector<Polyline> polylines; // an array of polylines, each corresponding to a sub-path.
 };
 
@@ -141,8 +141,18 @@ struct InflectionData {
 // with the important difference that our arrays are zero-indexed, so as to
 // follow the c/cpp convention.
 //
-// Note: Parameters a, b, c, d are arrays of length `count`. a[0], and c[n]
+// NOTE: Parameters a, b, c, d are arrays of length `count`. a[0], and c[n]
 // are not used, `result` must be an array of length `count`.
+//
+// The arrays each a, b, c, contain a diagonal of the tridiagonal matrix;
+// d contains the right side vector of the matrix system:
+//
+//	| b0 c0 .. .. .. |    | d0 |
+//  | a1 b1 c1 .. .. |    | d1 |
+//  | .. a2 b2 c2 .. |  = | d2 |
+//  | .. .. a3 b3 c3 |    | d4 |
+//  | .. .. .. a4 b4 |    | d4 |
+//
 //
 template <typename T>
 inline static void thomas( T const* a, T const* b, T const* c, T const* d, size_t const count, T* result ) {
@@ -178,11 +188,11 @@ inline static void thomas( T const* a, T const* b, T const* c, T const* d, size_
 template <typename T>
 inline static void sherman_morrisson_woodbury( T const* a, T const* b, T const* c, T const* d, size_t const count, T* result ) {
 
-	std::vector<T> u( count, 0 );
-	std::vector<T> v( count, 0 );
+	std::vector<T> u( count, T{ 0 } );
+	std::vector<T> v( count, T{ 0 } );
 
-	u[ 0 ]         = 1;
-	u[ count - 1 ] = 1;
+	u[ 0 ]         = T{ 1 };
+	u[ count - 1 ] = T{ 1 };
 
 	auto const& s = a[ 0 ];         // note: a[0] not used by thomas algorithm
 	auto const& t = c[ count - 1 ]; // note: c[count-1] not used by thomas algorithm
@@ -203,7 +213,7 @@ inline static void sherman_morrisson_woodbury( T const* a, T const* b, T const* 
 
 	const T factor = ( t * Td[ 0 ] +
 	                   s * Td[ count - 1 ] ) /
-	                 ( 1 + t * Tu[ 0 ] +
+	                 ( T{ 1 } + t * Tu[ 0 ] +
 	                   s * Tu[ count - 1 ] );
 
 	for ( size_t i = 0; i != count; i++ ) {
@@ -268,7 +278,7 @@ static le_path_o* le_path_clone( le_path_o const* old ) {
 }
 
 static void le_path_clear( le_path_o* self ) {
-	self->contours.clear();
+	self->sub_path.clear();
 	self->polylines.clear();
 }
 
@@ -598,17 +608,18 @@ static void trace_arc_to( Polyline&        polyline,
 }
 
 // ----------------------------------------------------------------------
-// Traces the path with all its subpaths into a list of polylines.
-// Each subpath will be translated into one polyline.
+// Traces the path with all its sub_paths into a list of polylines.
+// Each sub_path will be translated into one polyline.
+//
 // A polyline is a list of vertices which may be thought of being
 // connected by lines.
 //
 static void le_path_trace_path( le_path_o* self, size_t resolution ) {
 
 	self->polylines.clear();
-	self->polylines.reserve( self->contours.size() );
+	self->polylines.reserve( self->sub_path.size() );
 
-	for ( auto const& s : self->contours ) {
+	for ( auto const& s : self->sub_path ) {
 
 		Polyline polyline;
 
@@ -1217,9 +1228,9 @@ static void flatten_arc_to( Polyline&        polyline,
 static void le_path_flatten_path( le_path_o* self, float tolerance ) {
 
 	self->polylines.clear();
-	self->polylines.reserve( self->contours.size() );
+	self->polylines.reserve( self->sub_path.size() );
 
-	for ( auto const& s : self->contours ) {
+	for ( auto const& s : self->sub_path ) {
 
 		Polyline polyline;
 
@@ -1586,7 +1597,7 @@ static bool le_path_generate_offset_outline_for_contour(
 	glm::vec2 prev_point  = {};
 	float     line_offset = line_weight * 0.5f;
 
-	auto& s = self->contours[ contour_index ];
+	auto& s = self->sub_path[ contour_index ];
 	for ( auto const& command : s.commands ) {
 
 		switch ( command.type ) {
@@ -2020,7 +2031,7 @@ bool le_path_tessellate_thick_contour(
 
 	triangles.reserve( *num_vertices );
 
-	auto& contour = self->contours[ contour_index ];
+	auto& contour = self->sub_path[ contour_index ];
 
 	if ( contour.commands.empty() ) {
 		*num_vertices = 0;
@@ -2192,9 +2203,9 @@ bool le_path_tessellate_thick_contour(
 
 static void le_path_iterate_vertices_for_contour( le_path_o* self, size_t const& contour_index, le_path_api::contour_vertex_cb callback, void* user_data ) {
 
-	assert( self->contours.size() > contour_index );
+	assert( self->sub_path.size() > contour_index );
 
-	auto const& s = self->contours[ contour_index ];
+	auto const& s = self->sub_path[ contour_index ];
 
 	for ( auto const& command : s.commands ) {
 
@@ -2220,9 +2231,9 @@ static void le_path_iterate_vertices_for_contour( le_path_o* self, size_t const&
 
 static void le_path_iterate_quad_beziers_for_contour( le_path_o* self, size_t const& contour_index, le_path_api::contour_quad_bezier_cb callback, void* user_data ) {
 
-	assert( self->contours.size() > contour_index );
+	assert( self->sub_path.size() > contour_index );
 
-	auto const& s = self->contours[ contour_index ];
+	auto const& s = self->sub_path[ contour_index ];
 
 	glm::vec2 p0 = {};
 
@@ -2252,6 +2263,54 @@ static void le_path_iterate_quad_beziers_for_contour( le_path_o* self, size_t co
 			break;
 		}
 	}
+}
+
+// ----------------------------------------------------------------------
+
+static void le_path_iterate( le_path_o* self, void* user_data, le_path_operations_interface_t const* cb ) {
+
+	for ( auto const& s : self->sub_path ) {
+
+		bool is_first_command_for_subpath = true;
+
+		for ( auto const& command : s.commands ) {
+
+			if ( is_first_command_for_subpath ) {
+				if ( command.type != PathCommand::eMoveTo ) {
+					logger.warn( "First command in subpath is not a moveto - auto-updating this." );
+				}
+				// the first command in a subpath must be a moveto -
+				cb->move_to( user_data, &command.p );
+				is_first_command_for_subpath = false;
+				continue;
+			}
+
+			switch ( command.type ) {
+			case PathCommand::eMoveTo:
+				cb->move_to( user_data, &command.p );
+				break;
+			case PathCommand::eLineTo:
+				cb->line_to( user_data, &command.p );
+				break;
+			case PathCommand::eQuadBezierTo:
+				cb->quad_bezier_to( user_data, &command.data.as_cubic_bezier.c1, &command.p );
+				break;
+			case PathCommand::eCubicBezierTo:
+				cb->cubic_bezier_to( user_data, &command.data.as_cubic_bezier.c1, &command.data.as_cubic_bezier.c2, &command.p );
+				break;
+			case PathCommand::eArcTo:
+				// not yet implemented
+				cb->arc_to( user_data, &command.p, &command.data.as_arc.radii, command.data.as_arc.phi, command.data.as_arc.large_arc, command.data.as_arc.sweep );
+				break;
+			case PathCommand::eClosePath:
+				cb->close( user_data ); // re-issue first vertex
+				break;
+			case PathCommand::eUnknown:
+				assert( false );
+				break;
+			}
+		} // end for all commands
+	} // end for all subpaths
 }
 
 // ----------------------------------------------------------------------
@@ -2431,7 +2490,7 @@ static void le_polyline_resample( Polyline& polyline, float interval ) {
 
 static void le_path_resample( le_path_o* self, float interval ) {
 
-	if ( self->contours.empty() ) {
+	if ( self->sub_path.empty() ) {
 		// nothing to do.
 		return;
 	}
@@ -2456,20 +2515,20 @@ static void le_path_resample( le_path_o* self, float interval ) {
 static void le_path_move_to( void* user_data, float2 const* p ) {
 	auto self = ( le_path_o* )user_data;
 	// move_to means a new subpath, unless the last command was a
-	self->contours.emplace_back(); // add empty subpath
-	self->contours.back().commands.emplace_back( PathCommand::eMoveTo, *( glm::vec2* )( p ) );
+	self->sub_path.emplace_back(); // add empty subpath
+	self->sub_path.back().commands.emplace_back( PathCommand::eMoveTo, *( glm::vec2* )( p ) );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_line_to( void* user_data, float2 const* p ) {
 	auto self = ( le_path_o* )user_data;
-	if ( self->contours.empty() ) {
+	if ( self->sub_path.empty() ) {
 		constexpr static auto v0 = glm::vec2{};
 		le_path_move_to( self, ( float2* )&v0 );
 	}
-	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( PathCommand::eLineTo, *( glm::vec2* )( p ) );
+	assert( !self->sub_path.empty() ); // subpath must exist
+	self->sub_path.back().commands.emplace_back( PathCommand::eLineTo, *( glm::vec2* )( p ) );
 }
 
 // ----------------------------------------------------------------------
@@ -2477,12 +2536,12 @@ static void le_path_line_to( void* user_data, float2 const* p ) {
 // Fetch the current pen point by grabbing the previous target point
 // from the command stream.
 static glm::vec2 const* le_path_get_previous_p( le_path_o* self ) {
-	assert( !self->contours.empty() );                 // Subpath must exist
-	assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->sub_path.empty() );                 // Subpath must exist
+	assert( !self->sub_path.back().commands.empty() ); // previous command must exist
 
 	glm::vec2 const* p = nullptr;
 
-	auto const& c = self->contours.back().commands.back(); // fetch last command
+	auto const& c = self->sub_path.back().commands.back(); // fetch last command
 
 	switch ( c.type ) {
 	case PathCommand::eMoveTo:        // fall-through
@@ -2507,8 +2566,8 @@ static glm::vec2 const* le_path_get_previous_p( le_path_o* self ) {
 // ----------------------------------------------------------------------
 
 static void le_path_line_horiz_to( le_path_o* self, float px ) {
-	assert( !self->contours.empty() );                 // Subpath must exist
-	assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->sub_path.empty() );                 // Subpath must exist
+	assert( !self->sub_path.back().commands.empty() ); // previous command must exist
 
 	auto p = le_path_get_previous_p( self );
 
@@ -2522,8 +2581,8 @@ static void le_path_line_horiz_to( le_path_o* self, float px ) {
 // ----------------------------------------------------------------------
 
 static void le_path_line_vert_to( le_path_o* self, float py ) {
-	assert( !self->contours.empty() );                 // Subpath must exist
-	assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->sub_path.empty() );                 // Subpath must exist
+	assert( !self->sub_path.back().commands.empty() ); // previous command must exist
 
 	auto p = le_path_get_previous_p( self );
 
@@ -2536,26 +2595,26 @@ static void le_path_line_vert_to( le_path_o* self, float py ) {
 
 // ----------------------------------------------------------------------
 
-static void le_path_quad_bezier_to( void* user_data, float2 const* p, float2 const* c1 ) {
+static void le_path_quad_bezier_to( void* user_data, float2 const* c1, float2 const* p ) {
 	auto self = ( le_path_o* )user_data;
-	assert( !self->contours.empty() ); // contour must exist
-	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsQuadBezier{ *( glm::vec2* )( c1 ) } );
+	assert( !self->sub_path.empty() ); // contour must exist
+	self->sub_path.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsQuadBezier{ *( glm::vec2* )( c1 ) } );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_cubic_bezier_to( void* user_data, float2 const* p, float2 const* c1, float2 const* c2 ) {
+static void le_path_cubic_bezier_to( void* user_data, float2 const* c1, float2 const* c2, float2 const* p ) {
 	auto self = ( le_path_o* )user_data;
-	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsCubicBezier{ *( glm::vec2* )( c1 ), *( glm::vec2* )( c2 ) } );
+	assert( !self->sub_path.empty() ); // subpath must exist
+	self->sub_path.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsCubicBezier{ *( glm::vec2* )( c1 ), *( glm::vec2* )( c2 ) } );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_arc_to( void* user_data, float2 const* p, float2 const* radii, float phi, bool large_arc, bool sweep ) {
 	auto self = ( le_path_o* )user_data;
-	assert( !self->contours.empty() ); // subpath must exist
-	self->contours.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsArc{ *( glm::vec2* )( radii ), phi, large_arc, sweep } );
+	assert( !self->sub_path.empty() ); // subpath must exist
+	self->sub_path.back().commands.emplace_back( *( glm::vec2* )( p ), PathCommand::Data::AsArc{ *( glm::vec2* )( radii ), phi, large_arc, sweep } );
 }
 
 // ----------------------------------------------------------------------
@@ -2563,12 +2622,34 @@ static void le_path_arc_to( void* user_data, float2 const* p, float2 const* radi
 static void le_path_close_path( void* user_data ) {
 	auto      self        = ( le_path_o* )user_data;
 	glm::vec2 first_point = {};
-	if ( !self->contours.back().commands.empty() ) {
-		if ( self->contours.back().commands.front().type == PathCommand::eMoveTo ) {
-			first_point = self->contours.back().commands.front().p;
-		}
+
+	if ( self->sub_path.empty() ) {
+		return;
 	}
-	self->contours.back().commands.emplace_back( PathCommand::eClosePath, first_point );
+
+	// ---------| Invariant: these is at least one subpath
+
+	auto& current_subpath = self->sub_path.back().commands;
+
+	if ( current_subpath.empty() ) {
+		return;
+	}
+
+	// ---------| Invariant: the last subpath is not empty.
+
+	if ( current_subpath.front().type == PathCommand::eMoveTo ) {
+		first_point = current_subpath.front().p;
+	}
+
+	glm::vec2 last_point = current_subpath.back().p;
+
+	if ( !glm::all( glm::equal( first_point, last_point ) ) ) {
+		le_path_line_to( user_data, &first_point );
+	}
+	// if the last entry was not to the first point, then we must add another entry
+	// as the close-path command is only used as a flag.
+
+	current_subpath.emplace_back( PathCommand::eClosePath, first_point );
 }
 
 // ----------------------------------------------------------------------
@@ -2680,10 +2761,13 @@ static void path_commands_apply_hobby_open( std::vector<PathCommand>& commands )
 	//
 	// m, p(0), p(1), p(2), p(n)
 	//
-	// Note that the last element is purely a flag, and the first element
-	// only contains a moveto instruction.
+	// Note that the first element contains a moveto instruction.
 
-	int count = commands.size() - 1; // we remove the close flag from the count, and the last, doubled vertex
+	int count = commands.size() - 1;
+
+	if ( count <= 0 ) {
+		return;
+	}
 
 	std::vector<float>     D( count );
 	std::vector<glm::vec2> delta( count ); // vector between points
@@ -2771,18 +2855,170 @@ static void path_commands_apply_hobby_open( std::vector<PathCommand>& commands )
 // applied.
 static void le_path_apply_hobby_on_last_contour( le_path_o* self ) {
 
-	if ( self->contours.empty() ) {
+	if ( self->sub_path.empty() ) {
 		return;
 	}
 
 	// ----------| invariant: there is a last contour
 
-	auto& commands = self->contours.back().commands;
+	auto& commands = self->sub_path.back().commands;
 
 	if ( commands.back().type == PathCommand::Type::eClosePath ) {
 		path_commands_apply_hobby_closed( commands );
 	} else {
 		path_commands_apply_hobby_open( commands );
+	}
+}
+
+// Apply natural cubic bezier interpolation algorithm for a closed path onto path commands.
+//
+// This effectively changes all commands to type cubic bezier, and
+// will set their control points to optimise for best curvature.
+static void path_commands_apply_natural_cubic_closed( std::vector<PathCommand>& commands ) {
+
+	// We expect a list of path commands with the following pattern:
+	//
+	// m, p(0), p(1), p(2), p(n), p(0), close
+	//
+	// Note that the first element only contains a moveto instruction,
+	// and that the before the close flag the first element is repeated.
+
+	const int point_count   = commands.size() - 1; // every command up to commands.size()-1, including a moveto, defines a point.
+	const int segment_count = point_count - 1;
+
+	if ( point_count < 2 ) {
+		// we cannot apply this algorithm if we have less than 2 points.
+		return;
+	}
+
+	std::vector<glm::vec2> k_sum( segment_count ); // K values, summed up (right side of tridiagonal matrix system)
+	std::vector<glm::vec2> c_1( segment_count );   // c1 values for each segment
+
+	for ( int i = 0; i != segment_count; i++ ) {
+		k_sum[ i ] = 4.f * commands[ i ].p + 2.f * commands[ ( i + 1 ) % segment_count ].p;
+	}
+
+	{
+		// Calculate alpha (and implicitly beta)
+		// via the Thomas algorithm.
+
+		std::vector<glm::vec2> a( segment_count, { 1, 1 } ); // a[0] is used for sherman_morrisson_woodbury
+		std::vector<glm::vec2> b( segment_count, { 4, 4 } ); //
+		std::vector<glm::vec2> c( segment_count, { 1, 1 } ); // c[count-1] is used for sherman_morrisson_woodbury
+
+		a[ 0 ]                 = { 1, 1 };
+		c[ segment_count - 1 ] = { 1, 1 };
+
+		sherman_morrisson_woodbury( a.data(), b.data(), c.data(), k_sum.data(), segment_count, c_1.data() );
+	}
+
+	for ( int i = 0; i != segment_count; i++ ) {
+
+		auto& c = commands[ 1 + i ];
+
+		c.data.as_cubic_bezier.c1 = c_1[ i ];                                     // first control point
+		c.data.as_cubic_bezier.c2 = 2.f * c.p - c_1[ ( i + 1 ) % segment_count ]; // second control point
+
+		c.type = PathCommand::Type::eCubicBezierTo;
+	}
+}
+
+// Apply natural cubic bezier interpolation algorithm for an open path onto path commands.
+// This effectively changes all commands to type cubic bezier, and
+// will set their control points to optimise for best curvature.
+static void path_commands_apply_natural_cubic_open( std::vector<PathCommand>& commands ) {
+
+	// We expect a list of path commands with the following pattern:
+	//
+	// m, p(0), p(1), p(2), p(n)
+	//
+	// Note that the first element only contains a moveto instruction.
+
+	const int point_count   = commands.size(); // every command, including a moveto, defines a point
+	const int segment_count = point_count - 1;
+
+	if ( point_count < 2 ) {
+		// we cannot apply this algorithm if we have less than 2 points.
+		return;
+	}
+
+	std::vector<glm::vec2> k_sum( segment_count ); // K values, summed up (right side of tridiagonal matrix system)
+	std::vector<glm::vec2> c_1( segment_count );   // c1 values for each segment
+
+	{
+		int i      = 0;
+		k_sum[ i ] = commands[ i ].p + 2.f * commands[ i + 1 ].p;
+		for ( i = 1; i < segment_count - 1; i++ ) {
+			k_sum[ i ] = 4.f * commands[ i ].p + 2.f * commands[ i + 1 ].p;
+		}
+		if ( i < segment_count ) {
+			k_sum[ i ] = 8.f * commands[ i ].p + commands[ i + 1 ].p;
+		}
+	}
+
+	{
+		// Calculate alpha (and implicitly beta)
+		// via the Thomas algorithm.
+
+		std::vector<glm::vec2> a( segment_count, { 1, 1 } ); // a[0] is unused
+		std::vector<glm::vec2> b( segment_count, { 4, 4 } ); //
+		std::vector<glm::vec2> c( segment_count, { 1, 1 } ); // c[count-1] is unused
+
+		b[ 0 ]                 = { 2, 2 };
+		a[ segment_count - 1 ] = { 2, 2 };
+		b[ segment_count - 1 ] = { 7, 7 };
+
+		thomas( a.data(), b.data(), c.data(), k_sum.data(), segment_count, c_1.data() );
+	}
+
+	{
+		int i = 0;
+		for ( ; i < segment_count - 1; i++ ) {
+
+			auto& c = commands[ 1 + i ];
+
+			c.data.as_cubic_bezier.c1 = c_1[ i ];                 // first control point
+			c.data.as_cubic_bezier.c2 = 2.f * c.p - c_1[ i + 1 ]; // second control point
+
+			c.type = PathCommand::Type::eCubicBezierTo;
+		}
+
+		if ( i < segment_count ) {
+			auto& c                   = commands[ i + 1 ];
+			c.data.as_cubic_bezier.c1 = c_1[ i ];                  // first control point
+			c.data.as_cubic_bezier.c2 = 0.5f * ( c.p + c_1[ i ] ); // second control point
+
+			c.type = PathCommand::Type::eCubicBezierTo;
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+
+// Transforms the last contour into a sequence of natural cubic splines
+//
+// For details of the algorithms see: <https://www.youtube.com/watch?v=0oUo1d6PpGU>
+//
+// any commands in the contour will be interpreted as plain points, and
+// the contour will be transformed into cubic beziers, with freshly
+// calculated control points.
+// Depending on whether the contour has a `close` command as the last
+// element, the open or the closed version of the hobby algorithm is
+// applied.
+static void le_path_apply_natural_cubic_on_last_contour( le_path_o* self ) {
+
+	if ( self->sub_path.empty() ) {
+		return;
+	}
+
+	// ----------| invariant: there is a last contour
+
+	auto& commands = self->sub_path.back().commands;
+
+	if ( commands.back().type == PathCommand::Type::eClosePath ) {
+		path_commands_apply_natural_cubic_closed( commands );
+	} else {
+		path_commands_apply_natural_cubic_open( commands );
 	}
 }
 
@@ -2815,7 +3051,7 @@ static size_t le_path_get_num_polylines( le_path_o* self ) {
 }
 
 static size_t le_path_get_num_contours( le_path_o* self ) {
-	return self->contours.size();
+	return self->sub_path.size();
 }
 
 // ----------------------------------------------------------------------
@@ -3281,11 +3517,11 @@ static bool is_a_instruction( char const* c, int* offset, glm::vec2* radii, floa
 // The full grammar for SVG paths is defined here:
 // <https://svgwg.org/svg2-draft/paths.html#PathDataBNF>
 //
-static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) {
+static void le_path_parse_simplified_svg( void* user_data, le_path_operations_interface_t const* cb, char const* svg ) {
 
 	char const* c = svg;
 
-	glm::vec2 p                 = ( !self->contours.empty() && !self->contours.back().commands.empty() ) ? *le_path_get_previous_p( self ) : glm::vec2{};
+	glm::vec2 p                 = {};
 	glm::vec2 c1                = {};
 	glm::vec2 c2                = {};
 	glm::vec2 radii             = {};
@@ -3308,7 +3544,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_m_instruction( c + offset, &offset, &p, &state_flags ) ) {
-			le_path_move_to( self, ( float2* )( &p ) );
+			cb->move_to( user_data, ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3316,7 +3552,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_l_instruction( c + offset, &offset, &p, &state_flags ) ) {
-			le_path_line_to( self, ( float2* )( &p ) );
+			cb->line_to( user_data, ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3324,7 +3560,12 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_h_instruction( c + offset, &offset, &p.x, &state_flags ) ) {
-			le_path_line_horiz_to( self, p.x );
+			{
+				// le_path_line_horiz_to( self, p.x );
+				glm::vec2 p2 = curr_p;
+				p2.x         = p.x;
+				cb->line_to( user_data, ( float2* )( &p2 ) );
+			}
 		}
 		if ( offset ) {
 			continue;
@@ -3332,7 +3573,12 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_v_instruction( c + offset, &offset, &p.y, &state_flags ) ) {
-			le_path_line_vert_to( self, p.y );
+			{
+				// le_path_line_vert_to( self, p.y );
+				glm::vec2 p2 = curr_p;
+				p2.y         = p.y;
+				cb->line_to( user_data, ( float2* )( &p2 ) );
+			}
 		}
 		if ( offset ) {
 			continue;
@@ -3340,8 +3586,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_c_instruction( c + offset, &offset, &c1, &c2, &p, &state_flags ) ) {
-			le_path_cubic_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) ); // Note that end vertex is p2 from SVG,
-			                                                                                            // as SVG has target vertex as last vertex
+			cb->cubic_bezier_to( user_data, ( float2* )( &c1 ), ( float2* )( &c2 ), ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3351,7 +3596,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		while ( is_s_instruction( c + offset, &offset, &c2, &p, &state_flags ) ) {
 			// shorthand for smooth curveto
 			c1 = curr_p * 2.f - prev_c2; // calculate c2 as the reflection of previous c2 relative to the current point
-			le_path_cubic_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ), ( float2* )( &c2 ) );
+			cb->cubic_bezier_to( user_data, ( float2* )( &c1 ), ( float2* )( &c2 ), ( float2* )( &p ) );
 			prev_c2 = c2;
 			curr_p  = p;
 		}
@@ -3361,7 +3606,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_q_instruction( c + offset, &offset, &c1, &p, &state_flags ) ) {
-			le_path_quad_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ) );
+			cb->quad_bezier_to( user_data, ( float2* )( &c1 ), ( float2* )( &p ) );
 		}
 		if ( offset ) {
 			continue;
@@ -3371,7 +3616,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		while ( is_t_instruction( c + offset, &offset, &p, &state_flags ) ) {
 			// shorthand for smooth quadratic bezier curveto
 			c1 = curr_p * 2.f - prev_c1; // calculate c1 as a reflection of the previous control point on the previous command relative to the current point
-			le_path_quad_bezier_to( self, ( float2* )( &p ), ( float2* )( &c1 ) );
+			cb->quad_bezier_to( user_data, ( float2* )( &c1 ), ( float2* )( &p ) );
 			prev_c1 = c1;
 			curr_p  = p;
 		}
@@ -3381,7 +3626,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 
 		state_flags = 0;
 		while ( is_a_instruction( c + offset, &offset, &radii, &arc_axis_rotation, &arc_large, &arc_sweep, &p, &state_flags ) ) {
-			le_path_arc_to( self, ( float2* )( &p ), ( float2* )( &radii ), arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
+			cb->arc_to( user_data, ( float2* )( &p ), ( float2* )( &radii ), arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
 		}
 		if ( offset ) {
 			continue;
@@ -3391,7 +3636,7 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 		while ( is_character_match( 'Z', c + offset, &offset ) ||
 		        is_character_match( 'z', c + offset, &offset ) ) {
 			// close path event.
-			le_path_close_path( self );
+			cb->close( user_data );
 		}
 
 		if ( offset ) {
@@ -3408,6 +3653,9 @@ static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) 
 	}
 };
 
+static void le_path_add_from_simplified_svg( le_path_o* self, char const* svg ) {
+	le_path_parse_simplified_svg( self, &le_path::le_path_operations_i, svg );
+}
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_path, api ) {
@@ -3415,17 +3663,14 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 
 	le_path_i.create          = le_path_create;
 	le_path_i.destroy         = le_path_destroy;
-	le_path_i.move_to         = le_path_move_to;
-	le_path_i.line_to         = le_path_line_to;
-	le_path_i.quad_bezier_to  = le_path_quad_bezier_to;
-	le_path_i.cubic_bezier_to = le_path_cubic_bezier_to;
-	le_path_i.arc_to          = le_path_arc_to;
-	le_path_i.close           = le_path_close_path;
 
 	le_path_i.hobby   = le_path_apply_hobby_on_last_contour;
+	le_path_i.natural_cubic = le_path_apply_natural_cubic_on_last_contour;
+
 	le_path_i.ellipse = le_path_ellipse;
 
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
+	le_path_i.parse_simplified_svg    = le_path_parse_simplified_svg;
 
 	le_path_i.get_num_contours                 = le_path_get_num_contours;
 	le_path_i.get_num_polylines                = le_path_get_num_polylines;
@@ -3442,9 +3687,20 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 	le_path_i.iterate_vertices_for_contour     = le_path_iterate_vertices_for_contour;
 	le_path_i.iterate_quad_beziers_for_contour = le_path_iterate_quad_beziers_for_contour;
 
+	le_path_i.iterate = le_path_iterate;
+
 	le_path_i.trace    = le_path_trace_path;
 	le_path_i.flatten  = le_path_flatten_path;
 	le_path_i.resample = le_path_resample;
 	le_path_i.clone    = le_path_clone;
 	le_path_i.clear    = le_path_clear;
+
+	auto& le_path_operations_i = static_cast<le_path_api*>( api )->le_path_operations_i;
+
+	le_path_operations_i.move_to         = le_path_move_to;
+	le_path_operations_i.line_to         = le_path_line_to;
+	le_path_operations_i.quad_bezier_to  = le_path_quad_bezier_to;
+	le_path_operations_i.cubic_bezier_to = le_path_cubic_bezier_to;
+	le_path_operations_i.arc_to          = le_path_arc_to;
+	le_path_operations_i.close           = le_path_close_path;
 }

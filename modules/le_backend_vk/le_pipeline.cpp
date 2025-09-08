@@ -893,12 +893,14 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			info.stage_bits = uint32_t( module->stage );
 			info.count      = binding->count;
 
+			assert( info.count > 0 );
+
 			// Dynamic uniform buffers need to specify a range given in bytes.
 			if ( info.type == le::DescriptorType::eUniformBufferDynamic ) {
 				info.range = binding->block.size;
 			}
 
-			if ( std::string::npos != std::string( binding->name ).find( TEXTURE_NAME_YCBCR_REQUEST_STRING ) ) {
+			if ( binding->name && std::string::npos != std::string( binding->name ).find( TEXTURE_NAME_YCBCR_REQUEST_STRING ) ) {
 
 				// If the binding name contains the special string value "__ycbcr__", then
 				// we set the .immutable_sampler value with a special sentinel - this

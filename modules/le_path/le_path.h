@@ -11,13 +11,29 @@
 
 struct le_path_o;
 
+#ifdef __cplusplus
+#	include "3rdparty/src/glm/glm/fwd.hpp"
+using float2 = glm::vec2;
+#else
 struct float2 {
 	float x;
 	float y;
 };
+#endif
+
+// generic operations on path -
+struct le_path_operations_interface_t {
+	void ( *move_to )( void* user_data, float2 const* p );
+	void ( *line_to )( void* user_data, float2 const* p );
+	void ( *quad_bezier_to )( void* user_data, float2 const* c1, float2 const* p );
+	void ( *cubic_bezier_to )( void* user_data, float2 const* c1, float2 const* c2, float2 const* p );
+	void ( *arc_to )( void* user_data, float2 const* p, float2 const* radii, float phi, bool large_arc, bool sweep );
+	void ( *close )( void* user_data );
+};
 
 // clang-format off
 struct le_path_api {
+
 
 	struct stroke_attribute_t {
 
@@ -41,12 +57,7 @@ struct le_path_api {
 	typedef void contour_vertex_cb( void* user_data, float2 const* p );
 	typedef void contour_quad_bezier_cb( void* user_data, float2 const* p0, float2 const* p1, float2 const* c );
 
-	typedef void move_to_cb 		( void* self, float2 const* p );
-	typedef void line_to_cb 		( void* self, float2 const* p );
-	typedef void quad_bezier_to_cb 	( void* self, float2 const* p, float2 const* c1 );
-	typedef void cubic_bezier_to_cb ( void* self, float2 const* p, float2 const* c1, float2 const* c2 );
-	typedef void arc_to_cb 			( void* self, float2 const* p, float2 const* radii, float phi, bool large_arc, bool sweep );
-	typedef void close_cb  			( void* self );
+
 
 	struct le_path_interface_t {
 
@@ -55,22 +66,25 @@ struct le_path_api {
 		void ( *destroy 		)( le_path_o* self );
 		void ( *clear   		)( le_path_o* self );
 
-		// these methods are held generic so that we can use them as callbacks for iterators
-		move_to_cb*         move_to;
-		line_to_cb*         line_to;
-		quad_bezier_to_cb*  quad_bezier_to ;	
-		cubic_bezier_to_cb* cubic_bezier_to; 
-		arc_to_cb*          arc_to;	
-		close_cb*           close;	
-
 		// Apply hobby algorithm onto path - any instructions apart from `moveto` and
 		// `close` will be turned into cubic bezier instructions.
 		void ( *hobby )( le_path_o* self );
 
+		// Apply hobby algorithm onto path - any instructions apart from `moveto` and
+		// `close` will be turned into cubic bezier instructions.
+		void ( *natural_cubic )( le_path_o* self );
+
 		// Macro - style commands which resolve to a series of subcommands from above
 		void ( *ellipse )( le_path_o* self, float2 const* centre, float r_x, float r_y );
 
+		// parses path string with internal path operations provided by this module
 		void ( *add_from_simplified_svg )( le_path_o* self, char const* svg );
+
+		// parses path string with callback for path operations provided explicitly 
+		void ( *parse_simplified_svg )( void* user_data, le_path_operations_interface_t const* cb, char const* svg );
+		
+		// iterate over full path, subpaths (contours) will begin with `moveto` instructions
+		void ( *iterate)(le_path_o* self, void* user_data, le_path_operations_interface_t const* cb);
 
 		// ----------------------------------------------------------------------
 		// Traces the path with all its subpaths into a list of polylines.
@@ -78,10 +92,19 @@ struct le_path_api {
 		// A polyline is a list of vertices which may be thought of being
 		// connected by lines.
 		//
+		// resolution controls into how many straight lines a curve instruction should be translated
 		void ( *trace    )( le_path_o* self, size_t resolution );
-		// updates a path's polylines by trying to best match given tolerance
+
+		// Update a path's polylines by trying to best match given tolerance
+		// tolerance controls max distance from straight line to curve (lower is higher fidelity)
+		//
+		// Note: this updates the polyline representation of the path.
 		void ( *flatten  )( le_path_o* self, float tolerance );
-		// updates a path's polylines by setting polyline vertices at even intervals
+
+		// Update a path's polylines by setting polyline vertices at even intervals
+		//
+		// Note: this operates only on polylines, and does not touch path instructions.
+		// If polylines were not yet generated, this will generate polylines implicitly by tracing the path.
 		void ( *resample )( le_path_o* self, float interval );
 
 		// Always updates `max_count_outline_[l|r] with the number of used vertices for l and r outline.
@@ -121,6 +144,10 @@ struct le_path_api {
 	};
 
 	le_path_interface_t le_path_i;
+
+	
+	// Default implementations for path operations -- These expect `user_data` to be a `le_path_o*`.
+	le_path_operations_interface_t le_path_operations_i;
 };
 // clang-format on
 
@@ -131,7 +158,8 @@ LE_MODULE_LOAD_DEFAULT( le_path );
 
 namespace le_path {
 static const auto& api       = le_path_api_i;
-static const auto& le_path_i = api->le_path_i;
+static const auto& le_path_i            = api->le_path_i;
+static const auto& le_path_operations_i = api->le_path_operations_i;
 } // namespace le_path
 
 namespace le {
@@ -185,27 +213,27 @@ class Path {
 	// --
 
 	Path& moveTo( float2 const& p ) {
-		le_path::le_path_i.move_to( self, &p );
+		le_path::le_path_operations_i.move_to( self, &p );
 		return *this;
 	}
 
 	Path& lineTo( float2 const& p ) {
-		le_path::le_path_i.line_to( self, &p );
+		le_path::le_path_operations_i.line_to( self, &p );
 		return *this;
 	}
 
 	Path& quadBezierTo( float2 const& p, float2 const& c1 ) {
-		le_path::le_path_i.quad_bezier_to( self, &p, &c1 );
+		le_path::le_path_operations_i.quad_bezier_to( self, &p, &c1 );
 		return *this;
 	}
 
 	Path& cubicBezierTo( float2 const& p, float2 const& c1, float2 const& c2 ) {
-		le_path::le_path_i.cubic_bezier_to( self, &p, &c1, &c2 );
+		le_path::le_path_operations_i.cubic_bezier_to( self, &p, &c1, &c2 );
 		return *this;
 	}
 
 	Path& arcTo( float2 const& p, float2 const& radii, float phi, bool large_arc, bool sweep ) {
-		le_path::le_path_i.arc_to( self, &p, &radii, phi, large_arc, sweep );
+		le_path::le_path_operations_i.arc_to( self, &p, &radii, phi, large_arc, sweep );
 		return *this;
 	}
 
@@ -224,12 +252,20 @@ class Path {
 		return *this;
 	}
 
+	void iterate( void* user_data, le_path_operations_interface_t const* cb ) {
+		le_path::le_path_i.iterate( self, user_data, cb );
+	}
+
 	void hobby() {
 		le_path::le_path_i.hobby( self );
 	}
 
+	void natural_cubic() {
+		le_path::le_path_i.natural_cubic( self );
+	}
+
 	void close() {
-		le_path::le_path_i.close( self );
+		le_path::le_path_operations_i.close( self );
 	}
 
 	void trace( size_t resolution = 12 ) {
