@@ -1,12 +1,12 @@
 #include "le_video_decoder.h"
 #include "le_core.h"
 #include "le_log.h"
-#include "util/volk/volk.h"
+#include "3rdparty/le_backend_vk/volk/volk.h"
 
 #include "le_backend_vk.h"
 #include "le_renderer.h"
 #include "le_renderer.hpp"
-#include "util/vk_mem_alloc/vk_mem_alloc.h"
+#include "3rdparty/le_backend_vk/vma/vk_mem_alloc.h"
 
 #include <vector>
 #include <deque>
@@ -40,7 +40,7 @@
 // here anyway.
 #	define VOLK_IMPLEMENTATION
 #endif
-#include "util/volk/volk.h"
+#include "3rdparty/le_backend_vk/volk/volk.h"
 
 static constexpr char const* vk_err_to_c_str( const VkResult& tp );                                                                                  // ffdecl
 static void                  post_reload_hook( le_backend_o* backend );                                                                              // ffdecl
