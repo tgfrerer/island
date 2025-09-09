@@ -510,13 +510,14 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 		// and the h264 decode capabilities
 
 		VkPhysicalDeviceVideoFormatInfoKHR format_info = {
-		    .sType      = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_FORMAT_INFO_KHR,
-		    .pNext      = &self->settings.profile_list_info,
-		    .imageUsage = VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
-		                  VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
-		                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-		                  VK_IMAGE_USAGE_SAMPLED_BIT |
-		                  VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR,
+		    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_FORMAT_INFO_KHR,
+		    .pNext = &self->settings.profile_list_info,
+		    .imageUsage =
+		        // VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR | // reseved for future use
+		    VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
+		    VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+		    VK_IMAGE_USAGE_SAMPLED_BIT |
+		    VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR,
 		};
 
 		VkResult                                result = VK_SUCCESS;
