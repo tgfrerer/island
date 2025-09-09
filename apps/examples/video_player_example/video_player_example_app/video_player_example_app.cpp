@@ -16,14 +16,9 @@
 #include <chrono>
 #include "private/le_timebase/le_timebase_ticks_type.h"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
-#include <iostream>
-#include <memory>
-#include <sstream>
 #include <vector>
 
 struct video_and_texture_t {
