@@ -30,8 +30,8 @@ enum class AccessFlagBits2 : uint64_t {
 	eHostWrite                               = 0x00004000ULL,
 	eMemoryRead                              = 0x00008000ULL,
 	eMemoryWrite                             = 0x00010000ULL,
-	eCommandPreprocessReadBitNv              = 0x00020000ULL,
-	eCommandPreprocessWriteBitNv             = 0x00040000ULL,
+	eCommandPreprocessReadBitExt             = 0x00020000ULL,
+	eCommandPreprocessWriteBitExt            = 0x00040000ULL,
 	eColorAttachmentReadNoncoherentBitExt    = 0x00080000ULL,
 	eConditionalRenderingReadBitExt          = 0x00100000ULL, // read access flag for reading conditional rendering predicate
 	eAccelerationStructureReadBitKhr         = 0x00200000ULL,
@@ -41,25 +41,28 @@ enum class AccessFlagBits2 : uint64_t {
 	eTransformFeedbackWriteBitExt            = 0x02000000ULL,
 	eTransformFeedbackCounterReadBitExt      = 0x04000000ULL,
 	eTransformFeedbackCounterWriteBitExt     = 0x08000000ULL,
-	eReserved52BitQcom                       = 0x10000000000000ULL,
+	eReserved56BitNv                         = 0x100000000000000ULL,
+	eShaderTileAttachmentWriteBitQcom        = 0x10000000000000ULL,
 	eReserved48BitExt                        = 0x1000000000000ULL,
 	eMicromapReadBitExt                      = 0x100000000000ULL,
 	eShaderBindingTableReadBitKhr            = 0x10000000000ULL,
 	eVideoDecodeWriteBitKhr                  = 0x1000000000ULL,
 	eShaderSampledRead                       = 0x100000000ULL,
-	eReserved53BitQcom                       = 0x20000000000000ULL,
+	eReserved57BitKhr                        = 0x200000000000000ULL,
 	eReserved49BitArm                        = 0x2000000000000ULL,
 	eMicromapWriteBitExt                     = 0x200000000000ULL,
 	eDescriptorBufferReadBitExt              = 0x20000000000ULL,
 	eVideoEncodeReadBitKhr                   = 0x2000000000ULL,
 	eShaderStorageRead                       = 0x200000000ULL,
-	eReserved54BitQcom                       = 0x40000000000000ULL,
+	eReserved58BitKhr                        = 0x400000000000000ULL,
 	eReserved50BitArm                        = 0x4000000000000ULL,
 	eReserved46BitIntel                      = 0x400000000000ULL,
 	eOpticalFlowReadBitNv                    = 0x40000000000ULL,
 	eVideoEncodeWriteBitKhr                  = 0x4000000000ULL,
 	eShaderStorageWrite                      = 0x400000000ULL,
-	eReserved51BitQcom                       = 0x8000000000000ULL,
+	eReserved59BitKhr                        = 0x800000000000000ULL,
+	eReserved55BitNv                         = 0x80000000000000ULL,
+	eShaderTileAttachmentReadBitQcom         = 0x8000000000000ULL,
 	eReserved47BitExt                        = 0x800000000000ULL,
 	eOpticalFlowWriteBitNv                   = 0x80000000000ULL,
 	eInvocationMaskReadBitHuawei             = 0x8000000000ULL,
@@ -68,6 +71,8 @@ enum class AccessFlagBits2 : uint64_t {
 	eAccelerationStructureWriteBitNv         = eAccelerationStructureWriteBitKhr,
 	eColorAttachmentReadBitKhr               = eColorAttachmentRead,
 	eColorAttachmentWriteBitKhr              = eColorAttachmentWrite,
+	eCommandPreprocessReadBitNv              = eCommandPreprocessReadBitExt,
+	eCommandPreprocessWriteBitNv             = eCommandPreprocessWriteBitExt,
 	eDepthStencilAttachmentReadBitKhr        = eDepthStencilAttachmentRead,
 	eDepthStencilAttachmentWriteBitKhr       = eDepthStencilAttachmentWrite,
 	eShadingRateImageReadBitNv               = eFragmentShadingRateAttachmentReadBitKhr,
@@ -151,8 +156,8 @@ static constexpr char const* to_str( const AccessFlagBits2& tp ) {
 		case 0x00004000ULL: return "HostWrite";
 		case 0x00008000ULL: return "MemoryRead";
 		case 0x00010000ULL: return "MemoryWrite";
-		case 0x00020000ULL: return "CommandPreprocessReadBitNv";
-		case 0x00040000ULL: return "CommandPreprocessWriteBitNv";
+		case 0x00020000ULL: return "CommandPreprocessReadBitExt";
+		case 0x00040000ULL: return "CommandPreprocessWriteBitExt";
 		case 0x00080000ULL: return "ColorAttachmentReadNoncoherentBitExt";
 		case 0x00100000ULL: return "ConditionalRenderingReadBitExt";
 		case 0x00200000ULL: return "AccelerationStructureReadBitKhr";
@@ -162,25 +167,28 @@ static constexpr char const* to_str( const AccessFlagBits2& tp ) {
 		case 0x02000000ULL: return "TransformFeedbackWriteBitExt";
 		case 0x04000000ULL: return "TransformFeedbackCounterReadBitExt";
 		case 0x08000000ULL: return "TransformFeedbackCounterWriteBitExt";
-		case 0x10000000000000ULL: return "Reserved52BitQcom";
+		case 0x100000000000000ULL: return "Reserved56BitNv";
+		case 0x10000000000000ULL: return "ShaderTileAttachmentWriteBitQcom";
 		case 0x1000000000000ULL: return "Reserved48BitExt";
 		case 0x100000000000ULL: return "MicromapReadBitExt";
 		case 0x10000000000ULL: return "ShaderBindingTableReadBitKhr";
 		case 0x1000000000ULL: return "VideoDecodeWriteBitKhr";
 		case 0x100000000ULL: return "ShaderSampledRead";
-		case 0x20000000000000ULL: return "Reserved53BitQcom";
+		case 0x200000000000000ULL: return "Reserved57BitKhr";
 		case 0x2000000000000ULL: return "Reserved49BitArm";
 		case 0x200000000000ULL: return "MicromapWriteBitExt";
 		case 0x20000000000ULL: return "DescriptorBufferReadBitExt";
 		case 0x2000000000ULL: return "VideoEncodeReadBitKhr";
 		case 0x200000000ULL: return "ShaderStorageRead";
-		case 0x40000000000000ULL: return "Reserved54BitQcom";
+		case 0x400000000000000ULL: return "Reserved58BitKhr";
 		case 0x4000000000000ULL: return "Reserved50BitArm";
 		case 0x400000000000ULL: return "Reserved46BitIntel";
 		case 0x40000000000ULL: return "OpticalFlowReadBitNv";
 		case 0x4000000000ULL: return "VideoEncodeWriteBitKhr";
 		case 0x400000000ULL: return "ShaderStorageWrite";
-		case 0x8000000000000ULL: return "Reserved51BitQcom";
+		case 0x800000000000000ULL: return "Reserved59BitKhr";
+		case 0x80000000000000ULL: return "Reserved55BitNv";
+		case 0x8000000000000ULL: return "ShaderTileAttachmentReadBitQcom";
 		case 0x800000000000ULL: return "Reserved47BitExt";
 		case 0x80000000000ULL: return "OpticalFlowWriteBitNv";
 		case 0x8000000000ULL: return "InvocationMaskReadBitHuawei";
@@ -196,7 +204,9 @@ enum class AttachmentLoadOp : uint32_t {
 	eLoad     = 0,
 	eClear    = 1,
 	eDontCare = 2,
-	eNoneExt  = 1000400000,
+	eNone     = 1000400000,
+	eNoneExt  = eNone,
+	eNoneKhr  = eNone,
 };
 
 static constexpr char const* to_str( const AttachmentLoadOp& tp ) {
@@ -205,7 +215,7 @@ static constexpr char const* to_str( const AttachmentLoadOp& tp ) {
 		case          0: return "Load";
 		case          1: return "Clear";
 		case          2: return "DontCare";
-		case 1000400000: return "NoneExt";
+		case 1000400000: return "None";
 		default: return "Unknown";
 		// clang-format on
 	};
@@ -457,10 +467,8 @@ enum class BufferUsageFlagBits : uint32_t {
 	eMicromapStorageBitExt                         = 0x01000000,
 	eExecutionGraphScratchBitAmdx                  = 0x02000000,
 	ePushDescriptorsDescriptorBufferBitExt         = 0x04000000,
-	eReserved27BitQcom                             = 0x08000000,
+	eTileMemoryQcom                                = 0x08000000,
 	eReserved28BitKhr                              = 0x10000000,
-	eReserved29BitKhr                              = 0x20000000,
-	eReserved30BitKhr                              = 0x40000000,
 	eRayTracingBitNv                               = eShaderBindingTableBitKhr,
 	eShaderDeviceAddressBitExt                     = eShaderDeviceAddress,
 	eShaderDeviceAddressBitKhr                     = eShaderDeviceAddress,
@@ -535,10 +543,8 @@ static constexpr char const* to_str( const BufferUsageFlagBits& tp ) {
 		case 0x01000000: return "MicromapStorageBitExt";
 		case 0x02000000: return "ExecutionGraphScratchBitAmdx";
 		case 0x04000000: return "PushDescriptorsDescriptorBufferBitExt";
-		case 0x08000000: return "Reserved27BitQcom";
+		case 0x08000000: return "TileMemoryQcom";
 		case 0x10000000: return "Reserved28BitKhr";
-		case 0x20000000: return "Reserved29BitKhr";
-		case 0x40000000: return "Reserved30BitKhr";
 		default: return "Unknown";
 		// clang-format on
 	};
@@ -704,6 +710,18 @@ static constexpr char const* to_str( const CompareOp& tp ) {
 
 // ----------------------------------------------------------------------
 
+enum class ComponentSwizzle : uint32_t {
+	eIdentity = 0,
+	eZero     = 1,
+	eOne      = 2,
+	eR        = 3,
+	eG        = 4,
+	eB        = 5,
+	eA        = 6,
+};
+
+// ----------------------------------------------------------------------
+
 enum class CullModeFlagBits : uint32_t {
 	eNone         = 0,
 	eFront        = 0x00000001,
@@ -754,25 +772,26 @@ inline constexpr CullModeFlags operator&( CullModeFlags const& lhs, CullModeFlag
 // ----------------------------------------------------------------------
 
 enum class DescriptorType : uint32_t {
-	eSampler                  = 0,
-	eCombinedImageSampler     = 1,
-	eSampledImage             = 2,
-	eStorageImage             = 3,
-	eUniformTexelBuffer       = 4,
-	eStorageTexelBuffer       = 5,
-	eUniformBuffer            = 6,
-	eStorageBuffer            = 7,
-	eUniformBufferDynamic     = 8,
-	eStorageBufferDynamic     = 9,
-	eInputAttachment          = 10,
-	eInlineUniformBlock       = 1000138000,
-	eAccelerationStructureKhr = 1000150000,
-	eAccelerationStructureNv  = 1000165000,
-	eMutableExt               = 1000351000,
-	eSampleWeightImageQcom    = 1000440000,
-	eBlockMatchImageQcom      = 1000440001,
-	eInlineUniformBlockExt    = eInlineUniformBlock,
-	eMutableValve             = eMutableExt,
+	eSampler                            = 0,
+	eCombinedImageSampler               = 1,
+	eSampledImage                       = 2,
+	eStorageImage                       = 3,
+	eUniformTexelBuffer                 = 4,
+	eStorageTexelBuffer                 = 5,
+	eUniformBuffer                      = 6,
+	eStorageBuffer                      = 7,
+	eUniformBufferDynamic               = 8,
+	eStorageBufferDynamic               = 9,
+	eInputAttachment                    = 10,
+	eInlineUniformBlock                 = 1000138000,
+	eAccelerationStructureKhr           = 1000150000,
+	eAccelerationStructureNv            = 1000165000,
+	eMutableExt                         = 1000351000,
+	eSampleWeightImageQcom              = 1000440000,
+	eBlockMatchImageQcom                = 1000440001,
+	ePartitionedAccelerationStructureNv = 1000570000,
+	eInlineUniformBlockExt              = eInlineUniformBlock,
+	eMutableValve                       = eMutableExt,
 };
 
 // ----------------------------------------------------------------------
@@ -1075,11 +1094,13 @@ enum class Format : uint32_t {
 	eG16B16R162Plane444Unorm                 = 1000330003,
 	eA4R4G4B4UnormPack16                     = 1000340000,
 	eA4B4G4R4UnormPack16                     = 1000340001,
-	eR16G16S105Nv                            = 1000464000,
-	eA1B5G5R5UnormPack16Khr                  = 1000470000,
-	eA8UnormKhr                              = 1000470001,
+	eR16G16Sfixed5Nv                         = 1000464000,
+	eA1B5G5R5UnormPack16                     = 1000470000,
+	eA8Unorm                                 = 1000470001,
+	eA1B5G5R5UnormPack16Khr                  = eA1B5G5R5UnormPack16,
 	eA4B4G4R4UnormPack16Ext                  = eA4B4G4R4UnormPack16,
 	eA4R4G4B4UnormPack16Ext                  = eA4R4G4B4UnormPack16,
+	eA8UnormKhr                              = eA8Unorm,
 	eAstc10X10SfloatBlockExt                 = eAstc10X10SfloatBlock,
 	eAstc10X5SfloatBlockExt                  = eAstc10X5SfloatBlock,
 	eAstc10X6SfloatBlockExt                  = eAstc10X6SfloatBlock,
@@ -1132,6 +1153,7 @@ enum class Format : uint32_t {
 	eR12X4G12X4B12X4A12X4Unorm4Pack16Khr     = eR12X4G12X4B12X4A12X4Unorm4Pack16,
 	eR12X4G12X4Unorm2Pack16Khr               = eR12X4G12X4Unorm2Pack16,
 	eR12X4UnormPack16Khr                     = eR12X4UnormPack16,
+	eR16G16S105Nv                            = eR16G16Sfixed5Nv,
 };
 
 static constexpr char const* to_str( const Format& tp ) {
@@ -1414,9 +1436,9 @@ static constexpr char const* to_str( const Format& tp ) {
 		case 1000330003: return "G16B16R162Plane444Unorm";
 		case 1000340000: return "A4R4G4B4UnormPack16";
 		case 1000340001: return "A4B4G4R4UnormPack16";
-		case 1000464000: return "R16G16S105Nv";
-		case 1000470000: return "A1B5G5R5UnormPack16Khr";
-		case 1000470001: return "A8UnormKhr";
+		case 1000464000: return "R16G16Sfixed5Nv";
+		case 1000470000: return "A1B5G5R5UnormPack16";
+		case 1000470001: return "A8Unorm";
 		default: return "Unknown";
 		// clang-format on
 	};
@@ -1457,7 +1479,7 @@ enum class ImageCreateFlagBits : uint32_t {
 	eSampleLocationsCompatibleDepthBitExt    = 0x00001000,
 	eCornerSampledBitNv                      = 0x00002000,
 	eSubsampledBitExt                        = 0x00004000,
-	eFragmentDensityMapOffsetBitQcom         = 0x00008000,
+	eFragmentDensityMapOffsetBitExt          = 0x00008000,
 	eDescriptorBufferCaptureReplayBitExt     = 0x00010000,
 	e2DViewCompatibleBitExt                  = 0x00020000, // Image is created with a layout where individual slices are capable of being used as 2D images
 	eMultisampledRenderToSingleSampledBitExt = 0x00040000,
@@ -1468,6 +1490,7 @@ enum class ImageCreateFlagBits : uint32_t {
 	eBlockTexelViewCompatibleBitKhr          = eBlockTexelViewCompatible,
 	eDisjointBitKhr                          = eDisjoint,
 	eExtendedUsageBitKhr                     = eExtendedUsage,
+	eFragmentDensityMapOffsetBitQcom         = eFragmentDensityMapOffsetBitExt,
 	eSplitInstanceBindRegionsBitKhr          = eSplitInstanceBindRegions,
 };
 
@@ -1532,6 +1555,7 @@ enum class ImageLayout : uint32_t {
 	eDepthAttachmentStencilReadOnlyOptimal    = 1000117001,
 	eFragmentShadingRateAttachmentOptimalKhr  = 1000164003,
 	eFragmentDensityMapOptimalExt             = 1000218000,
+	eRenderingLocalRead                       = 1000232000,
 	eDepthAttachmentOptimal                   = 1000241000,
 	eDepthReadOnlyOptimal                     = 1000241001,
 	eStencilAttachmentOptimal                 = 1000241002,
@@ -1542,6 +1566,7 @@ enum class ImageLayout : uint32_t {
 	eReadOnlyOptimal                          = 1000314000,
 	eAttachmentOptimal                        = 1000314001,
 	eAttachmentFeedbackLoopOptimalExt         = 1000339000,
+	eVideoEncodeQuantizationMapKhr            = 1000553000,
 	eAttachmentOptimalKhr                     = eAttachmentOptimal,
 	eDepthAttachmentOptimalKhr                = eDepthAttachmentOptimal,
 	eDepthAttachmentStencilReadOnlyOptimalKhr = eDepthAttachmentStencilReadOnlyOptimal,
@@ -1549,6 +1574,7 @@ enum class ImageLayout : uint32_t {
 	eDepthReadOnlyStencilAttachmentOptimalKhr = eDepthReadOnlyStencilAttachmentOptimal,
 	eShadingRateOptimalNv                     = eFragmentShadingRateAttachmentOptimalKhr,
 	eReadOnlyOptimalKhr                       = eReadOnlyOptimal,
+	eRenderingLocalReadKhr                    = eRenderingLocalRead,
 	eStencilAttachmentOptimalKhr              = eStencilAttachmentOptimal,
 	eStencilReadOnlyOptimalKhr                = eStencilReadOnlyOptimal,
 };
@@ -1574,6 +1600,7 @@ static constexpr char const* to_str( const ImageLayout& tp ) {
 		case 1000117001: return "DepthAttachmentStencilReadOnlyOptimal";
 		case 1000164003: return "FragmentShadingRateAttachmentOptimalKhr";
 		case 1000218000: return "FragmentDensityMapOptimalExt";
+		case 1000232000: return "RenderingLocalRead";
 		case 1000241000: return "DepthAttachmentOptimal";
 		case 1000241001: return "DepthReadOnlyOptimal";
 		case 1000241002: return "StencilAttachmentOptimal";
@@ -1584,6 +1611,7 @@ static constexpr char const* to_str( const ImageLayout& tp ) {
 		case 1000314000: return "ReadOnlyOptimal";
 		case 1000314001: return "AttachmentOptimal";
 		case 1000339000: return "AttachmentFeedbackLoopOptimalExt";
+		case 1000553000: return "VideoEncodeQuantizationMapKhr";
 		default: return "Unknown";
 		// clang-format on
 	};
@@ -1630,30 +1658,34 @@ static constexpr char const* to_str( const ImageType& tp ) {
 // ----------------------------------------------------------------------
 
 enum class ImageUsageFlagBits : uint32_t {
-	eTransferSrc                         = 0x00000001, // Can be used as a source of transfer operations
-	eTransferDst                         = 0x00000002, // Can be used as a destination of transfer operations
-	eSampled                             = 0x00000004, // Can be sampled from (SAMPLED_IMAGE and COMBINED_IMAGE_SAMPLER descriptor types)
-	eStorage                             = 0x00000008, // Can be used as storage image (STORAGE_IMAGE descriptor type)
-	eColorAttachment                     = 0x00000010, // Can be used as framebuffer color attachment
-	eDepthStencilAttachment              = 0x00000020, // Can be used as framebuffer depth/stencil attachment
-	eTransientAttachment                 = 0x00000040, // Image data not needed outside of rendering
-	eInputAttachment                     = 0x00000080, // Can be used as framebuffer input attachment
-	eFragmentShadingRateAttachmentBitKhr = 0x00000100,
-	eFragmentDensityMapBitExt            = 0x00000200,
-	eVideoDecodeDstBitKhr                = 0x00000400,
-	eVideoDecodeSrcBitKhr                = 0x00000800,
-	eVideoDecodeDpbBitKhr                = 0x00001000,
-	eVideoEncodeDstBitKhr                = 0x00002000,
-	eVideoEncodeSrcBitKhr                = 0x00004000,
-	eVideoEncodeDpbBitKhr                = 0x00008000,
-	eInvocationMaskBitHuawei             = 0x00040000,
-	eAttachmentFeedbackLoopBitExt        = 0x00080000,
-	eSampleWeightBitQcom                 = 0x00100000,
-	eSampleBlockMatchBitQcom             = 0x00200000,
-	eHostTransferBitExt                  = 0x00400000, // Can be used with host image copies
-	eReserved23BitExt                    = 0x00800000,
-	eReserved24BitCoreavi                = 0x01000000,
-	eShadingRateImageBitNv               = eFragmentShadingRateAttachmentBitKhr,
+	eTransferSrc                           = 0x00000001, // Can be used as a source of transfer operations
+	eTransferDst                           = 0x00000002, // Can be used as a destination of transfer operations
+	eSampled                               = 0x00000004, // Can be sampled from (SAMPLED_IMAGE and COMBINED_IMAGE_SAMPLER descriptor types)
+	eStorage                               = 0x00000008, // Can be used as storage image (STORAGE_IMAGE descriptor type)
+	eColorAttachment                       = 0x00000010, // Can be used as framebuffer color attachment
+	eDepthStencilAttachment                = 0x00000020, // Can be used as framebuffer depth/stencil attachment
+	eTransientAttachment                   = 0x00000040, // Image data not needed outside of rendering
+	eInputAttachment                       = 0x00000080, // Can be used as framebuffer input attachment
+	eFragmentShadingRateAttachmentBitKhr   = 0x00000100,
+	eFragmentDensityMapBitExt              = 0x00000200,
+	eVideoDecodeDstBitKhr                  = 0x00000400,
+	eVideoDecodeSrcBitKhr                  = 0x00000800,
+	eVideoDecodeDpbBitKhr                  = 0x00001000,
+	eVideoEncodeDstBitKhr                  = 0x00002000,
+	eVideoEncodeSrcBitKhr                  = 0x00004000,
+	eVideoEncodeDpbBitKhr                  = 0x00008000,
+	eInvocationMaskBitHuawei               = 0x00040000,
+	eAttachmentFeedbackLoopBitExt          = 0x00080000,
+	eSampleWeightBitQcom                   = 0x00100000,
+	eSampleBlockMatchBitQcom               = 0x00200000,
+	eHostTransfer                          = 0x00400000,
+	eReserved23BitExt                      = 0x00800000,
+	eReserved24BitCoreavi                  = 0x01000000,
+	eVideoEncodeQuantizationDeltaMapBitKhr = 0x02000000,
+	eVideoEncodeEmphasisMapBitKhr          = 0x04000000,
+	eTileMemoryQcom                        = 0x08000000,
+	eShadingRateImageBitNv                 = eFragmentShadingRateAttachmentBitKhr,
+	eHostTransferBitExt                    = eHostTransfer, // Can be used with host image copies
 };
 
 struct ImageUsageFlags {
@@ -1719,9 +1751,12 @@ static constexpr char const* to_str( const ImageUsageFlagBits& tp ) {
 		case 0x00080000: return "AttachmentFeedbackLoopBitExt";
 		case 0x00100000: return "SampleWeightBitQcom";
 		case 0x00200000: return "SampleBlockMatchBitQcom";
-		case 0x00400000: return "HostTransferBitExt";
+		case 0x00400000: return "HostTransfer";
 		case 0x00800000: return "Reserved23BitExt";
 		case 0x01000000: return "Reserved24BitCoreavi";
+		case 0x02000000: return "VideoEncodeQuantizationDeltaMapBitKhr";
+		case 0x04000000: return "VideoEncodeEmphasisMapBitKhr";
+		case 0x08000000: return "TileMemoryQcom";
 		default: return "Unknown";
 		// clang-format on
 	};
@@ -1760,8 +1795,10 @@ enum class IndexType : uint32_t {
 	eUint16   = 0,
 	eUint32   = 1,
 	eNoneKhr  = 1000165000,
-	eUint8Ext = 1000265000,
+	eUint8    = 1000265000,
 	eNoneNv   = eNoneKhr,
+	eUint8Ext = eUint8,
+	eUint8Khr = eUint8,
 };
 
 static constexpr char const* to_str( const IndexType& tp ) {
@@ -1770,7 +1807,7 @@ static constexpr char const* to_str( const IndexType& tp ) {
 		case          0: return "Uint16";
 		case          1: return "Uint32";
 		case 1000165000: return "NoneKhr";
-		case 1000265000: return "Uint8Ext";
+		case 1000265000: return "Uint8";
 		default: return "Unknown";
 		// clang-format on
 	};
@@ -1797,7 +1834,7 @@ enum class PipelineStageFlagBits2 : uint64_t {
 	eHost                                = 0x00004000ULL,
 	eAllGraphics                         = 0x00008000ULL,
 	eAllCommands                         = 0x00010000ULL,
-	eCommandPreprocessBitNv              = 0x00020000ULL,
+	eCommandPreprocessBitExt             = 0x00020000ULL,
 	eConditionalRenderingBitExt          = 0x00040000ULL, // A pipeline stage for conditional rendering predicate fetch
 	eTaskShaderBitExt                    = 0x00080000ULL,
 	eMeshShaderBitExt                    = 0x00100000ULL,
@@ -1808,14 +1845,17 @@ enum class PipelineStageFlagBits2 : uint64_t {
 	eAccelerationStructureBuildBitKhr    = 0x02000000ULL,
 	eVideoDecodeBitKhr                   = 0x04000000ULL,
 	eVideoEncodeBitKhr                   = 0x08000000ULL,
+	eConvertCooperativeVectorMatrixBitNv = 0x100000000000ULL,
 	eInvocationMaskBitHuawei             = 0x10000000000ULL,
 	eIndexInput                          = 0x1000000000ULL,
 	eCopy                                = 0x100000000ULL,
 	eAccelerationStructureCopyBitKhr     = 0x10000000ULL,
+	eReserved45BitNv                     = 0x200000000000ULL,
 	eClusterCullingShaderBitHuawei       = 0x20000000000ULL,
 	eVertexAttributeInput                = 0x2000000000ULL,
 	eResolve                             = 0x200000000ULL,
 	eOpticalFlowBitNv                    = 0x20000000ULL,
+	eReserved46BitNv                     = 0x400000000000ULL,
 	eReserved42BitExt                    = 0x40000000000ULL,
 	ePreRasterizationShaders             = 0x4000000000ULL,
 	eBlit                                = 0x400000000ULL,
@@ -1826,13 +1866,14 @@ enum class PipelineStageFlagBits2 : uint64_t {
 	eAccelerationStructureBuildBitNv     = eAccelerationStructureBuildBitKhr,
 	eAllCommandsBitKhr                   = eAllCommands,
 	eAllGraphicsBitKhr                   = eAllGraphics,
+	eTransfer                            = eAllTransfer,
 	eAllTransferBitKhr                   = eAllTransfer,
 	eTransferBitKhr                      = eAllTransfer,
-	eTransfer                            = eAllTransferBitKhr,
 	eBlitBitKhr                          = eBlit,
 	eBottomOfPipeBitKhr                  = eBottomOfPipe,
 	eClearBitKhr                         = eClear,
 	eColorAttachmentOutputBitKhr         = eColorAttachmentOutput,
+	eCommandPreprocessBitNv              = eCommandPreprocessBitExt,
 	eComputeShaderBitKhr                 = eComputeShader,
 	eCopyBitKhr                          = eCopy,
 	eDrawIndirectBitKhr                  = eDrawIndirect,
@@ -2143,6 +2184,7 @@ enum class ShaderStageFlagBits : uint32_t {
 	eIntersectionBitKhr      = 0x00001000,
 	eCallableBitKhr          = 0x00002000,
 	eSubpassShadingBitHuawei = 0x00004000,
+	eReserved15BitNv         = 0x00008000,
 	eClusterCullingBitHuawei = 0x00080000,
 	eAll                     = 0x7FFFFFFF,
 	eAnyHitBitNv             = eAnyHitBitKhr,
@@ -2214,6 +2256,7 @@ static constexpr char const* to_str( const ShaderStageFlagBits& tp ) {
 		case 0x00001000: return "IntersectionBitKhr";
 		case 0x00002000: return "CallableBitKhr";
 		case 0x00004000: return "SubpassShadingBitHuawei";
+		case 0x00008000: return "Reserved15BitNv";
 		case 0x00080000: return "ClusterCullingBitHuawei";
 		case 0x7FFFFFFF: return "All";
 		default: return "Unknown";

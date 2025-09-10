@@ -12,6 +12,7 @@ VkBufferUsageFlagBits, yes
 VkBuildAccelerationStructureFlagBitsKHR, yes
 VkColorComponentFlagBits
 VkCompareOp, yes
+VkComponentSwizzle, 
 VkCullModeFlagBits
 VkDescriptorType,
 VkFilter, yes
