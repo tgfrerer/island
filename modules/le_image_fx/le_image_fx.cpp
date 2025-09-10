@@ -109,7 +109,7 @@ static le_shader_module_handle get_shader_frag_blur_h( le_pipeline_manager_o* pm
 	auto spv = decode_and_decompress_spv_str( blur_frag_compressed_data_base85 );
 
 	s = LeShaderModuleBuilder( pm )
-	        //.setSourceFilePath( "./local_resources/shaders/blur.frag" )
+	        // .setSourceFilePath( "./local_resources/shaders/blur.frag" )
 	        .setSpirvCode( spv.data(), spv.size() )
 	        .setShaderStage( le::ShaderStage::eFragment )
 	        .setSpecializationConstant( 0, 1.f )
@@ -131,7 +131,7 @@ static le_shader_module_handle get_shader_frag_blur_v( le_pipeline_manager_o* pm
 	auto spv = decode_and_decompress_spv_str( blur_frag_compressed_data_base85 );
 
 	s = LeShaderModuleBuilder( pm )
-	        //.setSourceFilePath( "./local_resources/shaders/blur.frag" )
+	        // .setSourceFilePath( "./local_resources/shaders/blur.frag" )
 	        .setSpirvCode( spv.data(), spv.size() )
 	        .setShaderStage( le::ShaderStage::eFragment )
 	        .setSpecializationConstant( 1, 1.f )
@@ -179,10 +179,11 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 	        .setDstColorBlendFactor( le::BlendFactor::eZero )
 	        .setAlphaBlendOp( le::BlendOp::eAdd )
 	        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
-	        .setDstAlphaBlendFactor( le::BlendFactor::eZero ) // note we don't want to add alpha - we want to just get the dst alpha
+	        .setDstAlphaBlendFactor( le::BlendFactor::eZero )
 	        .end()
 	        .addShaderStage( get_shader_vert( self->pipeline_manager ) )
 	        .addShaderStage( get_shader_frag_blur_h( self->pipeline_manager ) )
+
 	        .build();
 
 	static auto pipelineBlurV =
@@ -193,7 +194,7 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 	        .setDstColorBlendFactor( le::BlendFactor::eZero )
 	        .setAlphaBlendOp( le::BlendOp::eAdd )
 	        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
-	        .setDstAlphaBlendFactor( le::BlendFactor::eZero ) // note we don't want to add alpha - we want to just get the dst alpha
+	        .setDstAlphaBlendFactor( le::BlendFactor::eZero )
 	        .end()
 	        .addShaderStage( get_shader_vert( self->pipeline_manager ) )
 	        .addShaderStage( get_shader_frag_blur_v( self->pipeline_manager ) )
@@ -220,10 +221,10 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	            auto                fx = static_cast<le_image_fx_blur_o*>( user_data );
 	            le::GraphicsEncoder encoder{ encoder_ };
-	            encoder
-	                .bindGraphicsPipeline( pipelineBlurH )
-	                .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blur_source )
-	                .draw( 4 );
+		        encoder
+		            .bindGraphicsPipeline( pipelineBlurH )
+		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blur_source )
+		            .draw( 4 );
             } );
 
 	auto blur_v =
@@ -247,10 +248,12 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	            auto                fx = static_cast<le_image_fx_blur_o*>( user_data );
 	            le::GraphicsEncoder encoder{ encoder_ };
-	            encoder
-	                .bindGraphicsPipeline( pipelineBlurV )
-	                .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blur_source )
-	                .draw( 4 );
+		        encoder
+
+		            .bindGraphicsPipeline( pipelineBlurV )
+
+		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blur_source )
+		            .draw( 4 );
             } );
 
 	auto rendergraph = le::RenderGraph( rg );

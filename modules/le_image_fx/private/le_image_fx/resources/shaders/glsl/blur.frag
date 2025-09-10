@@ -97,16 +97,16 @@ void main() {
 
   // float n = noise_fbm(vec3(inTexCoord*2, 0.45 ), 0.2);
 
-  outFragColor = vec4(
-    mix(
-      p.rgb,
-      s.rgb,
-      clamp(pow(vec3(p.a),vec3(12.2)),vec3(0),vec3(0.1))
-      ), // RGB 
-    b.a * 0.999  // wetness
-    + clamp(dot(s.rgb, b.rgb),0, 0.0075 ) // higher means more meanders, here
-  ) 
-  ;
+  // outFragColor = vec4(
+  //   mix(
+  //     p.rgb,
+  //     s.rgb,
+  //     clamp(pow(vec3(p.a),vec3(12.2)),vec3(0),vec3(0.1))
+  //     ), // RGB 
+  //   b.a * 0.999  // wetness
+  //   + clamp(dot(s.rgb, b.rgb),0, 0.0075 ) // higher means more meanders, here
+  // ) 
+  // ;
   // outFragColor = vec4(
   //   mix(
   //     p.rgb,
@@ -114,4 +114,5 @@ void main() {
   //     clamp(pow(p.a,22.2),0.0,0.03)), // RGB 
   //   b.a * 0.97 + clamp(dot(s.rgb, s.rgb),0.0, 0.3 )
   //   * (1-smoothstep(0.12, 0.15, n * 0.5 + 0.5) ) );
+  outFragColor = b;
 }
