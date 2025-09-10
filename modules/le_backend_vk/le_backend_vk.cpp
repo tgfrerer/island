@@ -4340,13 +4340,19 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					VkImageViewCreateInfo imageViewCreateInfo;
 
 					imageViewCreateInfo = {
-					    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-					    .pNext            = nullptr, // optional
-					    .flags            = 0,       // optional
-					    .image            = frame_data_get_image_from_le_resource_id( &frame, texInfo.imageView.imageId ),
-					    .viewType         = VkImageViewType( texInfo.imageView.image_view_type ),
-					    .format           = VkFormat( imageFormat ),
-					    .components       = {}, // default component mapping
+					    .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+					    .pNext      = nullptr, // optional
+					    .flags      = 0,       // optional
+					    .image      = frame_data_get_image_from_le_resource_id( &frame, texInfo.imageView.imageId ),
+					    .viewType   = VkImageViewType( texInfo.imageView.image_view_type ),
+					    .format     = VkFormat( imageFormat ),
+					    .components = {
+					        .r = VkComponentSwizzle( texInfo.imageView.r_swizzle ),
+					        .g = VkComponentSwizzle( texInfo.imageView.g_swizzle ),
+					        .b = VkComponentSwizzle( texInfo.imageView.b_swizzle ),
+					        .a = VkComponentSwizzle( texInfo.imageView.a_swizzle ),
+
+					    }, // default component mapping
 					    .subresourceRange = subresourceRange,
 					};
 

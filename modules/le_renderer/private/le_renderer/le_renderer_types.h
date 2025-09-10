@@ -220,6 +220,10 @@ struct le_image_sampler_info_t {
 		le::ImageViewType        image_view_type{ le::ImageViewType::e2D };
 		uint32_t                 base_array_layer{ 0 };
 		uint32_t                 layer_count{ 1 };
+		le::ComponentSwizzle     r_swizzle{ 0 }; // zero means identity
+		le::ComponentSwizzle     g_swizzle{ 0 };
+		le::ComponentSwizzle     b_swizzle{ 0 };
+		le::ComponentSwizzle     a_swizzle{ 0 };
 	};
 	le_sampler_info_t    sampler{};
 	le_image_view_info_t imageView{};

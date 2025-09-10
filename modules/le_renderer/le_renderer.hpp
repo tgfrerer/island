@@ -67,6 +67,10 @@ class ImageSamplerInfoBuilder {
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setFormat, le::Format, format, = le::Format::eUndefined )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setBaseArrayLayer, uint32_t, base_array_layer, = 0 )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setLayerCount, uint32_t, layer_count, = 1 )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleR, le::ComponentSwizzle, r_swizzle, = {} )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleG, le::ComponentSwizzle, g_swizzle, = {} )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleB, le::ComponentSwizzle, b_swizzle, = {} )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleA, le::ComponentSwizzle, a_swizzle, = {} )
 
 		ImageSamplerInfoBuilder& end() {
 			return parent;
