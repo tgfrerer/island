@@ -34,6 +34,7 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
 
+// A Node corresponds to a Renderpass - every Renderpass gets translated into a Node upon building the rendergraph
 struct Node {
 	ResourceField       reads               = 0;
 	ResourceField       writes              = 0;
@@ -484,6 +485,7 @@ static bool generate_dot_file_for_rendergraph(
 			os << "<td cellpadding='3' port=\"";
 			auto const& r = p->resources[ j ];
 			os << r->data->debug_name << "\">";
+			auto const& r_access = p->resources_access_flags[ j ];
 
 			{
 				auto const needle = r;
@@ -496,15 +498,26 @@ static bool generate_dot_file_for_rendergraph(
 					}
 				}
 
-				// if resource is being written to, then underline resource name
+				// generic resource for any resources that are not images
 				if ( nodes[ i ].reads[ res_idx ] ) {
 					os << "△";
 				}
-				if ( nodes[ i ].writes[ res_idx ] ) {
+
+				// we exclude implied writes here -- so that images that are only layout transformed
+				// don't show as targets. An implied write is: No explicit write detected, and implied
+				// write access detected.
+
+				bool is_implicit_write = !( r_access & LE_ALL_WRITE_ACCESS_FLAGS ) && ( r_access & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
+				bool is_explicit_write = nodes[ i ].writes[ res_idx ] && !( is_implicit_write );
+
+				if ( is_explicit_write ) {
 					os << "▼";
+				} else if ( is_implicit_write ) {
+					os << "▾";
 				}
 
-				if ( nodes[ i ].writes[ res_idx ] ) {
+				// if resource is being written to, then underline resource name
+				if ( is_explicit_write ) {
 					os << "<u>" << r->data->debug_name << "</u>";
 				} else {
 					os << " " << r->data->debug_name << "";
