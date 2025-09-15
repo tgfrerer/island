@@ -271,12 +271,12 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 
 	VkInstanceCreateInfo info{
 	    .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-	    .pNext                   = self->is_using_validation_layers ? &validationFeatures : nullptr, // optional
-	    .flags                   = 0,                                                                // optional
-	    .pApplicationInfo        = &appInfo,                                                         // optional
-	    .enabledLayerCount       = uint32_t( instanceLayerNames.size() ),                            // optional
+	    .pNext                   = self->is_using_validation_layers ? &validationFeatures : nullptr,
+	    .flags                   = 0,
+	    .pApplicationInfo        = &appInfo,
+	    .enabledLayerCount       = uint32_t( instanceLayerNames.size() ),
 	    .ppEnabledLayerNames     = instanceLayerNames.data(),
-	    .enabledExtensionCount   = uint32_t( instanceExtensionCstr.size() ), // optional
+	    .enabledExtensionCount   = uint32_t( instanceExtensionCstr.size() ),
 	    .ppEnabledExtensionNames = instanceExtensionCstr.data(),
 	};
 
