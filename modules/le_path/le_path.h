@@ -280,19 +280,19 @@ class Path {
 		le_path::le_path_i.resample( self, interval );
 	}
 
-	size_t getNumPolylines() {
+	size_t getNumPolylines() const {
 		return le_path::le_path_i.get_num_polylines( self );
 	}
 
-	size_t getNumContours() {
+	size_t getNumContours() const {
 		return le_path::le_path_i.get_num_contours( self );
 	}
 
-	bool getVerticesForPolyline( size_t const& polyline_index, float2* vertices, size_t* numVertices ) {
+	bool getVerticesForPolyline( size_t const& polyline_index, float2* vertices, size_t* numVertices ) const {
 		return le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
 	}
 
-	bool getTangentsForPolyline( size_t const& polyline_index, float2* tangents, size_t* numTangents ) {
+	bool getTangentsForPolyline( size_t const& polyline_index, float2* tangents, size_t* numTangents ) const {
 		return le_path::le_path_i.get_tangents_for_polyline( self, polyline_index, tangents, numTangents );
 	}
 
