@@ -116,7 +116,7 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o*>    passes;                                 //
+	std::vector<le_renderpass_o*>    passes;                                 // owning
 	std::vector<le_resource_handle>  declared_resources_id;                  // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t>  declared_resources_info;                // | pre-declared resources (declared via module)
 	std::vector<le::RootPassesField> root_passes_affinity_masks;             // vector of masks, one per distinct subgraph within the rendergraph,
