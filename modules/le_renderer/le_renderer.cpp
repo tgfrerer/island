@@ -721,7 +721,18 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	// ----------| invariant: frame is either initial, or cleared.
 
 	le_renderpass_o** passes          = frame.rendergraph->passes.data();
-	size_t            numRenderPasses = frame.rendergraph->passes.size();
+	size_t            numRenderPasses = frame.rendergraph->num_contributing_passes;
+
+	std::vector<le_renderpass_o*> contributing_passes;
+	contributing_passes.reserve( numRenderPasses );
+
+	for ( auto& p : frame.rendergraph->passes ) {
+		contributing_passes.push_back( p );
+	}
+
+	assert( numRenderPasses == contributing_passes.size() && "Number of contributing renderpasses must match" );
+
+	// TODO -- you should only use passes here that are contributing.
 
 	le_resource_handle const* declared_resources       = frame.rendergraph->declared_resources_id.data();
 	le_resource_info_t const* declared_resources_infos = frame.rendergraph->declared_resources_info.data();
@@ -730,8 +741,8 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	vk_backend_i.acquire_physical_resources(
 	    self->backend,
 	    frameIndex,
-	    passes,
-	    numRenderPasses,
+	    contributing_passes.data(),
+	    contributing_passes.size(),
 	    declared_resources,
 	    declared_resources_infos,
 	    declared_resources_count );
