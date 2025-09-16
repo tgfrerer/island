@@ -51,6 +51,8 @@ static le_renderpass_o* renderpass_clone( le_renderpass_o const* rhs ) {
 	ZoneScoped;
 	auto self       = new le_renderpass_o();
 	*self           = *rhs;
+	// FIXME -- you must not copy the encoder pointer, as only one renderpass can own the encoder.
+	// further, encoder gets stolen by the backend.
 	self->ref_count = 1;
 	return self;
 }
@@ -59,12 +61,6 @@ static le_renderpass_o* renderpass_clone( le_renderpass_o const* rhs ) {
 
 static void renderpass_destroy( le_renderpass_o* self ) {
 	ZoneScoped;
-
-	if ( self->encoder ) {
-		using namespace le_renderer;
-		encoder_i.destroy( self->encoder );
-	}
-
 	delete self;
 }
 
@@ -92,10 +88,10 @@ static void renderpass_set_execute_callback( le_renderpass_o* self, void* user_d
 }
 
 // ----------------------------------------------------------------------
-static void renderpass_run_execute_callbacks( le_renderpass_o* self ) {
+static void renderpass_run_execute_callbacks( le_renderpass_o* self, le_command_buffer_encoder_o* encoder ) {
 	ZoneScoped;
 	for ( auto const& c : self->executeCallbacks ) {
-		c.fn( self->encoder, c.user_data );
+		c.fn( encoder, c.user_data );
 	}
 }
 
@@ -300,13 +296,16 @@ static bool renderpass_get_is_root( le_renderpass_o const* self ) {
 	return self->is_root;
 }
 
-static void renderpass_get_queue_submission_info( const le_renderpass_o* self, le::QueueFlagBits* pass_type, le::RootPassesField* queue_submission_id ) {
+static void renderpass_get_queue_submission_info( const le_renderpass_o* self, le::QueueFlagBits* pass_type, le::RootPassesField* queue_submission_id, bool* has_commands ) {
 	if ( pass_type ) {
 		*pass_type =
 		    self->type;
 	}
 	if ( queue_submission_id ) {
 		*queue_submission_id = self->root_passes_affinity;
+	}
+	if ( has_commands ) {
+		*has_commands = self->has_commands;
 	}
 }
 
@@ -351,13 +350,6 @@ static bool renderpass_has_setup_callback( const le_renderpass_o* self ) {
 	return self->callbackSetup != nullptr;
 }
 
-/// @warning Encoder becomes the thief's worry to destroy!
-/// @returns null if encoder was already stolen, otherwise a pointer to an encoder object
-le_command_buffer_encoder_o* renderpass_steal_encoder( le_renderpass_o* self ) {
-	auto result   = self->encoder;
-	self->encoder = nullptr;
-	return result;
-}
 
 // ----------------------------------------------------------------------
 
@@ -376,7 +368,8 @@ static void rendergraph_reset( le_rendergraph_o* self ) {
 		renderpass_destroy( rp );
 	}
 	self->passes.clear();
-
+	self->nodes.clear();
+	self->unique_resources.clear();
 	self->root_passes_affinity_masks.clear();
 	self->root_debug_names.clear();
 	self->declared_resources_id.clear();
@@ -1054,20 +1047,23 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 	// Create one encoder per pass, and then record commands by calling the execute callback.
 
-	const size_t numPasses = self->passes.size();
+	const size_t numPasses = self->num_contributing_passes;
 
 	le_command_stream_t** const ppCommandStreams = vk_backend_i.get_frame_command_streams( backend, frameIndex, numPasses );
 
-	for ( size_t i = 0; i != numPasses; ++i ) {
-		ZoneScopedN( "Prepare Pass" );
-		auto& pass = self->passes[ i ];
+	size_t used_command_streams = 0;
 
-		if ( pass->executeCallbacks.empty() || !pass->is_contributing ) {
+	for ( auto& pass : self->passes ) {
+		ZoneScopedN( "Prepare Pass" );
+
+		pass->has_commands = !pass->executeCallbacks.empty();
+
+		if ( !pass->has_commands || !pass->is_contributing ) {
 			continue;
 		}
 
-		// ---------- invariant: there are callbacks to execute for this pass AND this pass is contributing to the final
-		// outcome.
+		// ---------- invariant: there are callbacks to execute for this pass
+		// 			  AND this pass is contributing to the final outcome.
 
 		le::Extent2D pass_extents{
 		    pass->width,
@@ -1087,12 +1083,14 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 			}
 		}
 
-		// NOTE: we must manually track the lifetime of encoder!
-		pass->encoder = encoder_i.create( ppAllocators, ppCommandStreams[ i ], pipelineCache, stagingAllocator, &pass_extents );
+		// NOTE: The encoder lives only until the end of this scope.
+
+		le_command_stream_t*         command_stream = ppCommandStreams[ used_command_streams++ ];
+		le_command_buffer_encoder_o* encoder        = encoder_i.create( ppAllocators, command_stream, pipelineCache, stagingAllocator, &pass_extents );
 
 		if ( pass->type == le::QueueFlagBits::eGraphics ) {
 
-			// Set default scissor and viewport to full extent.
+			// Set initial scissor and viewport to full extent of the curent pass.
 
 			le::Rect2D default_scissor[ 1 ] = {
 			    { 0, 0, pass_extents.width, pass_extents.height },
@@ -1103,11 +1101,17 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 			};
 
 			// setup encoder default viewport and scissor to extent
-			encoder_graphics_i.set_scissor( pass->encoder, 0, 1, default_scissor );
-			encoder_graphics_i.set_viewport( pass->encoder, 0, 1, default_viewport );
+			encoder_graphics_i.set_scissor( encoder, 0, 1, default_scissor );
+			encoder_graphics_i.set_viewport( encoder, 0, 1, default_viewport );
 		}
 
-		renderpass_run_execute_callbacks( pass ); // record draw commands into encoder
+		renderpass_run_execute_callbacks( pass, encoder ); // record draw commands into encoder
+
+		// We can now destroy this encoder - it has encoded all commands into the
+		// command stream `ppCommandStream[i]`, which is owned by the backend.
+		//
+		encoder_i.destroy( encoder );
+		encoder = nullptr;
 	}
 
 	// TODO: consolidate pipeline caches
@@ -1207,7 +1211,6 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.get_image_attachments        = renderpass_get_image_attachments;
 	le_renderpass_i.use_resource                 = renderpass_use_resource;
 	le_renderpass_i.get_used_resources           = renderpass_get_used_resources;
-	le_renderpass_i.steal_encoder                = renderpass_steal_encoder;
 	le_renderpass_i.sample_texture               = renderpass_sample_texture;
 	le_renderpass_i.get_texture_ids              = renderpass_get_texture_ids;
 	le_renderpass_i.get_texture_infos            = renderpass_get_texture_infos;

@@ -65,7 +65,7 @@ struct le_shader_binding_table_o {
 	bool                       has_ray_gen;
 
 	// stateful, used so that we can add parameters to the last shader_record
-	shader_record* last_shader_record = nullptr;
+	shader_record* last_shader_record = nullptr; // weak reference
 };
 
 // ----------------------------------------------------------------------
@@ -83,12 +83,12 @@ struct le_shader_binding_table_o {
 // this means we want to keep it alive - even through a reload...
 //
 struct le_command_buffer_encoder_o {
-	le_command_stream_t*                    mCommandStream;
+	le_command_stream_t*                    mCommandStream   = nullptr; // non-owning, owned by backend
 	le_allocator_o**                        ppAllocator      = nullptr; // allocator list is owned by backend, externally
 	le_pipeline_manager_o*                  pipelineManager  = nullptr; // non-owning: owned by backend.
 	le_staging_allocator_o*                 stagingAllocator = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
 	le::Extent2D                            extent           = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
-	std::vector<le_shader_binding_table_o*> shader_binding_tables;      // owning
+	std::vector<le_shader_binding_table_o*> shader_binding_tables;      // Owning (This is only used to track shader table state while recording an RTX pipeline)
 };
 
 // ----------------------------------------------------------------------

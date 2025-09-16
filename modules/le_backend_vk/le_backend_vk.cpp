@@ -1969,8 +1969,8 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 }
 
 static void frame_track_resource_state(
-    BackendFrameData& frame, le_renderpass_o** ppPasses,
-    size_t numRenderPasses, const std::vector<le_image_resource_handle>& swapchain_images ) {
+    BackendFrameData& frame, le_renderpass_o** pp_passes,
+    size_t num_renderpasses, const std::vector<le_image_resource_handle>& swapchain_images ) {
 
 	ZoneScoped;
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
@@ -2017,29 +2017,33 @@ static void frame_track_resource_state(
 	}
 
 	using namespace le_renderer;
+	frame.passes.reserve( num_renderpasses );
 
-	frame.passes.reserve( numRenderPasses );
+	assert( frame.command_streams.size() >= num_renderpasses && "there must be at least one command stream for each renderpass" );
 
-	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
+	size_t num_used_command_streams = 0;
+	for ( size_t i = 0; i != num_renderpasses; i++ ) {
 
+		le_renderpass_o*  pass         = pp_passes[ i ];
+		bool              has_commands = false;
 		BackendRenderPass currentPass{};
 
-		renderpass_i.get_queue_sumbission_info( *pass, &currentPass.type, &currentPass.root_passes_affinity );
+		renderpass_i.get_queue_sumbission_info( pass, &currentPass.type, &currentPass.root_passes_affinity, &has_commands );
 
-		memcpy( currentPass.debugName, renderpass_i.get_debug_name( *pass ), sizeof( currentPass.debugName ) );
+		if ( has_commands ) {
+			currentPass.p_command_stream = frame.command_streams[ num_used_command_streams++ ];
+		}
 
-		renderpass_i.get_framebuffer_settings( *pass, &currentPass.width, &currentPass.height, &currentPass.sampleCount );
+		memcpy( currentPass.debugName, renderpass_i.get_debug_name( pass ), sizeof( currentPass.debugName ) );
+
+		renderpass_i.get_framebuffer_settings( pass, &currentPass.width, &currentPass.height, &currentPass.sampleCount );
 
 		// Find explicit sync ops needed for resources which are not attachments
 		//
-		le_renderpass_add_explicit_sync( *pass, currentPass, syncChainTable );
+		le_renderpass_add_explicit_sync( pass, currentPass, syncChainTable );
 
 		// Iterate over all image attachments
-		le_renderpass_add_attachments( *pass, currentPass, frame, currentPass.sampleCount );
-
-		// Note that we "steal" the encoder from the renderer pass -
-		// it becomes now our (the backend's) job to destroy it.
-		currentPass.encoder = renderpass_i.steal_encoder( *pass );
+		le_renderpass_add_attachments( pass, currentPass, frame, currentPass.sampleCount );
 
 		frame.passes.emplace_back( std::move( currentPass ) );
 	} // end for all passes
@@ -2328,13 +2332,6 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	frame.syncChainTable.clear();
 	frame.explicit_sync_requests.clear();
 
-	for ( auto& f : frame.passes ) {
-		if ( f.encoder ) {
-			using namespace le_renderer;
-			encoder_i.destroy( f.encoder );
-			f.encoder = nullptr;
-		}
-	}
 	frame.passes.clear();
 
 	// Reset command streams
@@ -4213,7 +4210,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 
 		// fetch pass type from this passes' queue sumbission info
-		renderpass_i.get_queue_sumbission_info( *p, &pass_type, nullptr );
+		renderpass_i.get_queue_sumbission_info( *p, &pass_type, nullptr, nullptr );
 
 		if ( pass_type != le::QueueFlagBits::eCompute ) {
 			continue;
@@ -5733,9 +5730,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 			// -- Translate intermediary command stream data to api-native instructions
 
-			void*    commandStream = nullptr;
-			size_t   dataSize      = 0;
-			size_t   numCommands   = 0;
 			size_t   commandIndex  = 0;
 			uint32_t subpassIndex  = 0;
 
@@ -5754,20 +5748,30 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 			static le_buffer_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
-			if ( pass.encoder ) {
-				encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
-			} else {
-				// This is legit behaviour for draw passes which are used only to clear attachments,
-				// in which case they don't need to include any draw commands.
+			void*  commandsDataStream = nullptr;
+			size_t dataSize           = 0;
+			size_t numCommands        = 0;
+			{
+				auto cmd_stream = pass.p_command_stream;
+
+				if ( cmd_stream ) {
+					commandsDataStream = cmd_stream->data;
+					numCommands        = cmd_stream->cmd_count;
+					dataSize           = cmd_stream->size;
+				} else {
+					// This is legit behaviour for draw passes which are used only to clear attachments,
+					// in which case they don't need to include any draw commands.
+					logger().warn( "no commands encoded with this pass" );
+				}
 			}
 
-			if ( commandStream != nullptr && numCommands > 0 ) {
+			if ( commandsDataStream != nullptr && numCommands > 0 ) {
 
-				le_pipeline_manager_o* pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
+				le_pipeline_manager_o* pipelineManager = self->pipelineCache;
 				assert( pipelineManager );
 
 				std::vector<VkBuffer>         vertexInputBindings( maxVertexInputBindings, nullptr );
-				void*                         dataIt = commandStream;
+				void*                         dataIt = commandsDataStream;
 				le_pipeline_and_layout_info_t currentPipeline{};
 
 				while ( commandIndex != numCommands ) {

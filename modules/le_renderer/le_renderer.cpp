@@ -653,8 +653,8 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	using namespace le_renderer; // for rendergraph_i, rendergraph_i
 	le_renderer::api->le_rendergraph_private_i.setup_passes( graph, frame.rendergraph );
 
-	// Find out which renderpasses contribute, only add contributing render passes to
-	// rendergraph
+	// Find out which renderpasses contribute -
+	// tag contributing renderpasses as `is_contributing`
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
 	{
@@ -727,7 +727,9 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 	contributing_passes.reserve( numRenderPasses );
 
 	for ( auto& p : frame.rendergraph->passes ) {
-		contributing_passes.push_back( p );
+		if ( p->is_contributing ) {
+			contributing_passes.push_back( p );
+		}
 	}
 
 	assert( numRenderPasses == contributing_passes.size() && "Number of contributing renderpasses must match" );

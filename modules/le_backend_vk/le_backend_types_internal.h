@@ -8,6 +8,8 @@
 #include "3rdparty/le_backend_vk/volk/volk.h"
 #include "private/le_renderer/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`, `le_resource_handle`, `LeRenderPassType`
 
+struct le_command_stream_t; // ffdecl.
+
 // This struct must be tightly packed, as a arrays of bindings get hashed
 // so that we can get a hash over DescriptorSets.
 struct le_shader_binding_info {
@@ -178,7 +180,7 @@ struct BackendRenderPass {
 
 	std::vector<le_resource_handle> resources; // resources used with this renderpass
 
-	struct le_command_buffer_encoder_o* encoder; // owning
+	le_command_stream_t* p_command_stream = nullptr; // weak, owned by backend frame
 
 	char                        debugName[ 256 ] = ""; // Debug name for renderpass
 	std::vector<ExplicitSyncOp> sync_ops_before_pass;  // explicit sync operations for renderpass, these execute before renderpass begins.

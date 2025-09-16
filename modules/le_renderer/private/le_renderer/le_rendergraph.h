@@ -98,6 +98,7 @@ struct le_renderpass_o {
 
 	bool is_root         = false; // Whether pass *must* be processed
 	bool is_contributing = true;  // Whether this pass contributes to the final result or could be pruned.
+	bool has_commands    = false;
 
 	le::RootPassesField root_passes_affinity; // Association of this renderpass with one or more root passes that it contributes to -
 	                                          // this needs to be communicated to backend, so that you may create queue submissions
@@ -117,7 +118,8 @@ struct le_renderpass_o {
 
 	std::vector<ExecuteCallbackInfo> executeCallbacks;
 
-	le_command_buffer_encoder_o* encoder = nullptr;
+	// TODO: keep track of how many commands were encoded - if no commands were encoded, that is still valid in case this
+	// was a graphics pass -- in which case the pass might be used for clearing only.
 
 	std::string debug_name;
 };
@@ -143,7 +145,7 @@ struct le_rendergraph_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o*>    passes;                                 // owning
 	size_t                           num_contributing_passes = 0;            // number of passes which are contributing (the count of all passes where is_contributing is true, set when building the rendergraph)
 	std::vector<le_resource_handle>  declared_resources_id;                  // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t>  declared_resources_info;                // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>  declared_resources_info;                // | pre-declared resources infos (declared via module)
 	std::vector<le::RootPassesField> root_passes_affinity_masks;             // vector of masks, one per distinct subgraph within the rendergraph,
 	                                                                         // each mask represents a filter: passes whose root_passes_affinity
 	                                                                         // match via OR are contributing to the distinct tree whose key it was tested against.
