@@ -407,7 +407,7 @@ static void rendergraph_destroy( le_rendergraph_o* self ) {
 
 static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o* renderpass ) {
 	ZoneScoped;
-	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the pass here. We must destroy it.
+	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the cloned renderpass here. We must destroy it.
 }
 
 // ----------------------------------------------------------------------
