@@ -36,13 +36,13 @@ using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit repre
 
 // A Node corresponds to a Renderpass - every Renderpass gets translated into a Node upon building the rendergraph
 struct Node {
-	ResourceField       reads               = 0;
-	ResourceField       writes              = 0;
+	uint64_t            unique_id           = 0;       // unique id for each node, assigned upon node creation
+	ResourceField       reads               = 0;       // per-node reads from resources (indexed by unique id)
+	ResourceField       writes              = 0;       // per-node writes to resources (indexed by unique id)
 	le::RootPassesField root_nodes_affinity = 0;       // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
 	bool                is_root             = false;   // whether this node is a root node
 	bool                is_contributing     = false;   // whether this node contributes to a root node
-	char const*         debug_name          = nullptr; // non-owning pointer to char[256]
-	uint64_t            unique_id           = 0;       // unique id for each node, assigned upon node creation
+	std::string         debug_name          = {};      // non-owning pointer to char[256]
 };
 
 // ----------------------------------------------------------------------
@@ -769,7 +769,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	node_tag_contributing( nodes.data(), nodes.size(), &root_count );
 
 	// non-owning pointers to debug names within passes which are root, in the same order as RootPassesField is constructed
-	std::vector<char const*> root_debug_names( root_count );
+	std::vector<std::string> root_debug_names( root_count );
 
 	assert( root_count <= LE_MAX_NUM_GRAPH_ROOTS && "number of nodes must fit LE_MAX_NUM_TREES, otherwise we can't express tree affinity as a bitfield" );
 

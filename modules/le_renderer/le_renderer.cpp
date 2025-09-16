@@ -747,10 +747,17 @@ static const FrameData::State& renderer_acquire_backend_resources( le_renderer_o
 		le::RootPassesField const* p_affinity_masks   = frame.rendergraph->root_passes_affinity_masks.data();
 		uint32_t                   num_affinity_masks = frame.rendergraph->root_passes_affinity_masks.size();
 
+		std::vector<char const*> names_ptrs;
+		names_ptrs.reserve( frame.rendergraph->root_debug_names.size() );
+
+		for ( auto& n : frame.rendergraph->root_debug_names ) {
+			names_ptrs.push_back( n.c_str() );
+		}
+
 		vk_backend_i.set_frame_queue_submission_keys(
 		    self->backend, frameIndex,
 		    reinterpret_cast<void const*>( p_affinity_masks ), num_affinity_masks,
-		    frame.rendergraph->root_debug_names.data(), frame.rendergraph->root_debug_names.size() );
+		    names_ptrs.data(), names_ptrs.size() );
 	}
 
 	frame.state = FrameData::State::eAcquired;
