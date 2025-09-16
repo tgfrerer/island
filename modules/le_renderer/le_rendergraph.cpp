@@ -52,7 +52,7 @@ static le_renderpass_o* renderpass_create( const char* renderpass_name, const le
 	auto self  = new le_renderpass_o();
 	self->id   = hash_64_fnv1a( renderpass_name );
 	self->type = type_;
-	strncpy( self->debugName, renderpass_name, sizeof( self->debugName ) );
+	self->debug_name = std::string( renderpass_name );
 	self->ref_count = 1;
 	return self;
 }
@@ -172,7 +172,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 			              "\tHINT: Check if you didn't accidentally sample from this resource (via a texture) "
 			              "while it is already bound as a ColorAttachment.",
 			              self->resources[ resource_idx ]->data->debug_name,
-			              self->debugName );
+			              self->debug_name.c_str() );
 		}
 	}
 
@@ -331,7 +331,7 @@ static void renderpass_get_used_resources( le_renderpass_o const* self, le_resou
 }
 
 static const char* renderpass_get_debug_name( le_renderpass_o const* self ) {
-	return self->debugName;
+	return self->debug_name.c_str();
 }
 
 static uint64_t renderpass_get_id( le_renderpass_o const* self ) {
@@ -468,14 +468,14 @@ static bool generate_dot_file_for_rendergraph(
 			   << ( nodes[ i ].is_root ? "10" : "0" )
 			   << "' sides='b' cellpadding='3'><b>"
 			   << ( nodes[ i ].is_root ? "⊥ " : "" )
-			   << p->debugName << "</b></td>";
+			   << p->debug_name << "</b></td>";
 		} else {
 			os << "\"" << nodes[ i ].debug_name << "_" << nodes[ i ].unique_id << "\""
 			   << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='"
 			   << ( nodes[ i ].is_root ? "10" : "0" )
 			   << "' sides='b' cellpadding='3'><b>"
 			   << ( nodes[ i ].is_root ? "⊥ " : "" )
-			   << p->debugName << "</b></td>";
+			   << p->debug_name << "</b></td>";
 		}
 
 		if ( p->resources.empty() ) {
@@ -757,7 +757,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			node.is_root = true;
 		}
 
-		node.debug_name = p->debugName;
+		node.debug_name = p->debug_name;
 		nodes.emplace_back( std::move( node ) );
 	}
 
@@ -835,7 +835,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 			logger.info( "" );
 			for ( size_t i = 0; i < self->passes.size(); i++ ) {
-				logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debugName, nodes[ i ].root_nodes_affinity );
+				logger.info( "node %-20s, affinity: %x", self->passes[ i ]->debug_name.c_str(), nodes[ i ].root_nodes_affinity );
 			}
 			logger.info( "" );
 		}
@@ -969,7 +969,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			logger.info( "* Consolidated Pass List *" );
 			int i = 0;
 			for ( auto const& p : self->passes ) {
-				logger.info( "Pass : %3d : %s ", i, p->debugName );
+				logger.info( "Pass : %3d : %s ", i, p->debug_name.c_str() );
 				i++;
 			}
 			logger.info( "" );
@@ -998,7 +998,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 		logger.info( "Render graph: " );
 		for ( const auto& pass : self->passes ) {
 
-			logger.info( "Renderpass: '%s'", pass->debugName );
+			logger.info( "Renderpass: '%s'", pass->debug_name.c_str() );
 			le_image_attachment_info_t const* pImageAttachments   = nullptr;
 			le_image_resource_handle const*     pResources          = nullptr;
 			size_t                            numImageAttachments = 0;

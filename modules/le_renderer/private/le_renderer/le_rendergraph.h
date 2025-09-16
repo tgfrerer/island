@@ -103,17 +103,19 @@ struct le_renderpass_o {
 	std::vector<le::AccessFlags2> resources_access_flags; // first read | last write access for each resource used in this pass
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
-	std::vector<le_image_resource_handle>     attachmentResources; // kept in sync with imageAttachments, one resource per attachment
+	std::vector<le_image_resource_handle>   attachmentResources; // kept in sync with imageAttachments, one resource per attachment
 
 	std::vector<le_texture_handle>       textureIds;   // imageSampler resource infos
 	std::vector<le_image_sampler_info_t> textureInfos; // kept in sync with texture id: info for corresponding texture id
 
 	le_renderer_api::pfn_renderpass_setup_t callbackSetup            = nullptr;
 	void*                                   setup_callback_user_data = nullptr;
-	std::vector<ExecuteCallbackInfo>        executeCallbacks;
+
+	std::vector<ExecuteCallbackInfo> executeCallbacks;
 
 	le_command_buffer_encoder_o* encoder = nullptr;
-	char                         debugName[ 256 ];
+
+	std::string debug_name;
 };
 
 // ----------------------------------------------------------------------
