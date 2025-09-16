@@ -1143,7 +1143,7 @@ static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rend
 		if ( renderpass_has_setup_callback( pass ) ) {
 			if ( renderpass_run_setup_callback( pass ) ) {
 				// if pass.setup() returns true, this means we shall add this pass to the graph
-				// This means a transfer of ownership for pass: pass moves from into graph_builder
+				// This means a transfer of ownership for pass: pass moves into dst_rendergraph
 				dst_rendergraph->passes.push_back( pass );
 				pass = nullptr;
 			} else {
