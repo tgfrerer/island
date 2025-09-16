@@ -143,7 +143,8 @@ struct le_renderer_o {
 	std::vector<FrameData>           frames;
 	size_t                           backendDataFramesCount = 0;
 	size_t                           currentFrameNumber     = 0;  // ever increasing number of current frame
-	le_renderer_settings_t           settings               = {}; // initial settings for the renderer - these will be used on setup()
+	size_t                           last_recorded_frame_number = -1; // index into `frames` for last recorded frame (-1 if none recorded yet)
+	le_renderer_settings_t           settings                   = {}; // initial settings for the renderer - these will be used on setup()
 	le_swapchain_windowed_settings_t default_windowed_swapchain_setting;
 };
 
@@ -590,7 +591,47 @@ static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_rendergraph_o* graph_, size_t frameNumber ) {
+static bool renderer_clone_latest_rendergraph_into( le_renderer_o* self, le_rendergraph_o* graph ) {
+	if ( graph == nullptr ) {
+		return false;
+	}
+
+	// ---------: invariant: graph is valid
+
+	if ( self->last_recorded_frame_number == size_t( -1 ) ) {
+		return false;
+	}
+
+	// ----------| invariant: self->last_recorded is not -1
+
+	auto& frame = self->frames[ self->last_recorded_frame_number ];
+
+	// Copy built renderpasses into original graph so that we can do some introspection
+	// we should only do this upon request -- otherwise this fill cost unnecessary copies
+	// during execution.
+
+	graph->declared_resources_id   = frame.rendergraph->declared_resources_id;
+	graph->declared_resources_info = frame.rendergraph->declared_resources_info;
+
+	{
+		// clear original pass data if there is any
+		for ( auto& p : graph->passes ) {
+			le_renderer_api_i->le_renderpass_i.destroy( p );
+		}
+		graph->passes.clear();
+	}
+	{
+		// copy built pass data
+		for ( auto& f : frame.rendergraph->passes ) {
+			graph->passes.push_back( le_renderer_api_i->le_renderpass_i.clone( f ) );
+		}
+	}
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_rendergraph_o* graph, size_t frameNumber ) {
 	static auto logger = LeLog( "le_renderer" );
 
 	ZoneScoped;
@@ -615,29 +656,38 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	// and stores their descriptors (information needed to allocate physical resources)
 	//
 	using namespace le_renderer; // for rendergraph_i, rendergraph_i
-	le_renderer::api->le_rendergraph_private_i.setup_passes( graph_, frame.rendergraph );
+	le_renderer::api->le_rendergraph_private_i.setup_passes( graph, frame.rendergraph );
 
 	// Find out which renderpasses contribute, only add contributing render passes to
 	// rendergraph
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
 	{
-		// If there are debug messages to print to screen, we must draw them onto the last
-		// renderpass.
+		// If there are debug messages to print to screen, we must draw them
+		// onto the last graphics renderpass.
 		//
-		// This assumes that the last renderpass is the renderpass that goes to the screen.
-		// If there is no last renderpass, then we must warn about this.
+		// This assumes that the last graphics renderpass is a renderpass
+		// that goes to the screen. If there is no last graphics renderpass,
+		// then we must warn about this.
 		//
 		if ( !frame.rendergraph->passes.empty() ) {
-			le::DebugPrint::drawAllMessages( frame.rendergraph->passes.back() );
+			// Find last graphics pass, starting at the end
+			for ( auto p = frame.rendergraph->passes.rbegin(); p != frame.rendergraph->passes.rend(); p++ ) {
+				if ( ( *p )->type & le::QueueFlagBits::eGraphics ) {
+					le::DebugPrint::drawAllMessages( frame.rendergraph->passes.back() );
+					break;
+				}
+			}
 		} else {
 			logger.debug( "le::DebugPrint has messages, but no way to print them. Discarding messages." );
 			le::DebugPrint::drawAllMessages( nullptr );
 		}
 	}
 
-	// Register any clear callbacks for the current frame so that any object with frame lifetime
-	// can be cleaned up on frame clear:
+	// Register any `on_clear_callback`s for the current frame so that
+	// for example any object with frame lifetime can be cleaned up when
+	// the frame comes around after the VkFence for clear().
+	//
 	if ( !frame.rendergraph->on_frame_clear_callbacks.empty() ) {
 		le_backend_vk::private_backend_vk_i.frame_add_on_clear_callbacks(
 		    self->backend, frameIndex,
@@ -653,7 +703,8 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	//
 	le_renderer::api->le_rendergraph_private_i.execute( frame.rendergraph, frameIndex, self->backend );
 
-	frame.state = FrameData::State::eRecorded;
+	self->last_recorded_frame_number = frameIndex;
+	frame.state                      = FrameData::State::eRecorded;
 }
 
 // ----------------------------------------------------------------------
@@ -900,11 +951,12 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 		// render on the main thread
 		vk_backend_i.update_shader_modules( self->backend );
 
+		size_t recorded_frame_index = 0;
 		{
 			// RECORD FRAME
-			auto frameIndex = ( index + 0 ) % numFrames;
+			recorded_frame_index = ( index + 0 ) % numFrames;
 			// logger.info( "+++ [%5d] RECO", frameIndex );
-			renderer_record_frame( self, frameIndex, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
+			renderer_record_frame( self, recorded_frame_index, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 		}
 
 		{
@@ -1000,6 +1052,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.texture_handle_get_name        = texture_handle_get_name;
 	le_renderer_i.create_rtx_blas_info           = renderer_create_rtx_blas_info_handle;
 	le_renderer_i.create_rtx_tlas_info           = renderer_create_rtx_tlas_info_handle;
+	le_renderer_i.clone_latest_rendergraph_into  = renderer_clone_latest_rendergraph_into;
 
 	auto& helpers_i = le_renderer_api_i->helpers_i;
 
