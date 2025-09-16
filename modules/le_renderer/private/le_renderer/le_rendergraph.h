@@ -1,7 +1,8 @@
 #ifndef LE_RENDERGRAPH_H
 #define LE_RENDERGRAPH_H
 
-#include "le_renderer.hpp"
+#include "le_renderer.h"
+#include "le_renderer_types.h"
 #include <string>
 #include <vector>
 // ----------------------------------------------------------------------
@@ -94,7 +95,9 @@ struct le_renderpass_o {
 	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
 
-	uint32_t            is_root = false;      // Whether pass *must* be processed
+	bool is_root         = false; // Whether pass *must* be processed
+	bool is_contributing = true;  // Whether this pass contributes to the final result or could be pruned.
+
 	le::RootPassesField root_passes_affinity; // Association of this renderpass with one or more root passes that it contributes to -
 	                                          // this needs to be communicated to backend, so that you may create queue submissions
 	                                          // by filtering via root_passes_affinity_masks
@@ -122,6 +125,7 @@ struct le_renderpass_o {
 
 struct le_rendergraph_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o*>    passes;                                 // owning
+	size_t                           num_contributing_passes = 0;            // number of passes which are contributing (the count of all passes where is_contributing is true, set when building the rendergraph)
 	std::vector<le_resource_handle>  declared_resources_id;                  // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t>  declared_resources_info;                // | pre-declared resources (declared via module)
 	std::vector<le::RootPassesField> root_passes_affinity_masks;             // vector of masks, one per distinct subgraph within the rendergraph,

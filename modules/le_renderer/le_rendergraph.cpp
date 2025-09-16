@@ -36,13 +36,13 @@ using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit repre
 
 // A Node corresponds to a Renderpass - every Renderpass gets translated into a Node upon building the rendergraph
 struct Node {
-	uint64_t            unique_id           = 0;       // unique id for each node, assigned upon node creation
-	ResourceField       reads               = 0;       // per-node reads from resources (indexed by unique id)
-	ResourceField       writes              = 0;       // per-node writes to resources (indexed by unique id)
-	le::RootPassesField root_nodes_affinity = 0;       // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
-	bool                is_root             = false;   // whether this node is a root node
-	bool                is_contributing     = false;   // whether this node contributes to a root node
-	std::string         debug_name          = {};      // non-owning pointer to char[256]
+	uint64_t            unique_id           = 0;     // unique id for each node, assigned upon node creation
+	ResourceField       reads               = 0;     // per-node reads from resources (indexed by unique id)
+	ResourceField       writes              = 0;     // per-node writes to resources (indexed by unique id)
+	le::RootPassesField root_nodes_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
+	bool                is_root             = false; // whether this node is a root node
+	bool                is_contributing     = false; // whether this node contributes to a root node
+	std::string         debug_name          = {};    // non-owning pointer to char[256]
 };
 
 // ----------------------------------------------------------------------
@@ -176,7 +176,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		}
 	}
 
-	//	le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debugName, resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
+	// le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debug_name.c_str(), resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
 
 	bool detectRead  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
 	bool detectWrite = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
@@ -936,41 +936,34 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	}
 
 	{
-		// Remove any passes from rendergraph which do not contribute.
+		// Count contributing passes, and write node info back into corresponding passes.
 		//
 		//
 		size_t num_passes = self->passes.size();
-
-		std::vector<le_renderpass_o*> consolidated_passes;
-		consolidated_passes.reserve( num_passes );
+		self->num_contributing_passes = 0;
 
 		for ( size_t i = 0; i != num_passes; i++ ) {
 			if ( nodes[ i ].is_contributing ) {
-				// Pass contributes, add it to consolidated passes
-				self->passes[ i ]->is_root              = nodes[ i ].is_root;
-				self->passes[ i ]->root_passes_affinity = nodes[ i ].root_nodes_affinity;
-				consolidated_passes.push_back( self->passes[ i ] );
-			} else {
-				// Pass is not contributing, we will not keep it.
-				// Since the rendergraph owns this pass at this point,
-				// we must explicitly delete it.
-				delete self->passes[ i ];
-				self->passes[ i ] = nullptr;
+				self->num_contributing_passes++;
 			}
+			self->passes[ i ]->is_contributing      = nodes[ i ].is_contributing;
+			self->passes[ i ]->is_root              = nodes[ i ].is_root;
+			self->passes[ i ]->root_passes_affinity = nodes[ i ].root_nodes_affinity;
 		}
 
 		// Update self->passes
-		std::swap( self->passes, consolidated_passes );
 
 		// Update debug root names
 		std::swap( self->root_debug_names, root_debug_names );
 
 		if ( *RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
-			logger.info( "* Consolidated Pass List *" );
+			logger.info( "* List of contributing passes *" );
 			int i = 0;
 			for ( auto const& p : self->passes ) {
-				logger.info( "Pass : %3d : %s ", i, p->debug_name.c_str() );
-				i++;
+				if ( p->is_contributing ) {
+					logger.info( "Pass : %3d : %s ", i, p->debug_name.c_str() );
+					i++;
+				}
 			}
 			logger.info( "" );
 		}
@@ -1078,48 +1071,52 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 		ZoneScopedN( "Prepare Pass" );
 		auto& pass = self->passes[ i ];
 
-		if ( !pass->executeCallbacks.empty() ) {
+		if ( pass->executeCallbacks.empty() || !pass->is_contributing ) {
+			continue;
+		}
 
-			le::Extent2D pass_extents{
-			    pass->width,
-			    pass->height,
+		// ---------- invariant: there are callbacks to execute for this pass AND this pass is contributing to the final
+		// outcome.
+
+		le::Extent2D pass_extents{
+		    pass->width,
+		    pass->height,
+		};
+
+		if ( pass->type == le::QueueFlagBits::eGraphics ) {
+
+			if ( pass_extents.width == 0 || pass_extents.height == 0 ) {
+				// we must infer pass width and pass height
+
+				// check if any of our pass image attachments matches a swapchain resource
+				uint32_t matching_swapchain_idx = find_matching_resource( pass->attachmentResources, swapchain_images, num_swapchain_images ); // default to zero
+
+				pass->width = pass_extents.width = swapchain_image_width[ matching_swapchain_idx ];
+				pass->height = pass_extents.height = swapchain_image_height[ matching_swapchain_idx ];
+			}
+		}
+
+		// NOTE: we must manually track the lifetime of encoder!
+		pass->encoder = encoder_i.create( ppAllocators, ppCommandStreams[ i ], pipelineCache, stagingAllocator, &pass_extents );
+
+		if ( pass->type == le::QueueFlagBits::eGraphics ) {
+
+			// Set default scissor and viewport to full extent.
+
+			le::Rect2D default_scissor[ 1 ] = {
+			    { 0, 0, pass_extents.width, pass_extents.height },
 			};
 
-			if ( pass->type == le::QueueFlagBits::eGraphics ) {
+			le::Viewport default_viewport[ 1 ] = {
+			    { 0.f, 0.f, float( pass_extents.width ), float( pass_extents.height ), 0.f, 1.f },
+			};
 
-				if ( pass_extents.width == 0 || pass_extents.height == 0 ) {
-					// we must infer pass width and pass height
-
-					// check if any of our pass image attachments matches a swapchain resource
-					uint32_t matching_swapchain_idx = find_matching_resource( pass->attachmentResources, swapchain_images, num_swapchain_images ); // default to zero
-
-					pass->width = pass_extents.width = swapchain_image_width[ matching_swapchain_idx ];
-					pass->height = pass_extents.height = swapchain_image_height[ matching_swapchain_idx ];
-				}
-			}
-
-			// NOTE: we must manually track the lifetime of encoder!
-			pass->encoder = encoder_i.create( ppAllocators, ppCommandStreams[ i ], pipelineCache, stagingAllocator, &pass_extents );
-
-			if ( pass->type == le::QueueFlagBits::eGraphics ) {
-
-				// Set default scissor and viewport to full extent.
-
-				le::Rect2D default_scissor[ 1 ] = {
-				    { 0, 0, pass_extents.width, pass_extents.height },
-				};
-
-				le::Viewport default_viewport[ 1 ] = {
-				    { 0.f, 0.f, float( pass_extents.width ), float( pass_extents.height ), 0.f, 1.f },
-				};
-
-				// setup encoder default viewport and scissor to extent
-				encoder_graphics_i.set_scissor( pass->encoder, 0, 1, default_scissor );
-				encoder_graphics_i.set_viewport( pass->encoder, 0, 1, default_viewport );
-			}
-
-			renderpass_run_execute_callbacks( pass ); // record draw commands into encoder
+			// setup encoder default viewport and scissor to extent
+			encoder_graphics_i.set_scissor( pass->encoder, 0, 1, default_scissor );
+			encoder_graphics_i.set_viewport( pass->encoder, 0, 1, default_viewport );
 		}
+
+		renderpass_run_execute_callbacks( pass ); // record draw commands into encoder
 	}
 
 	// TODO: consolidate pipeline caches
