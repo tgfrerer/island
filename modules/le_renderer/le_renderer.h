@@ -79,6 +79,7 @@ struct le_renderer_api {
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const* flags);
 
+		bool (*clone_latest_rendergraph_into)( le_renderer_o* self, le_rendergraph_o* graph );
 	};
 
 	struct helpers_interface_t {
