@@ -406,7 +406,7 @@ class RenderPass {
 class RenderGraph {
 
 	le_rendergraph_o* self;
-	bool              is_reference = false;
+	const bool        is_reference = false;
 
   public:
 	RenderGraph()
