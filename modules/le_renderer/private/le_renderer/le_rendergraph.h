@@ -5,6 +5,7 @@
 #include "le_renderer_types.h"
 #include <string>
 #include <vector>
+#include <bitset>
 // ----------------------------------------------------------------------
 
 namespace le {
@@ -123,6 +124,21 @@ struct le_renderpass_o {
 
 // ----------------------------------------------------------------------
 
+using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
+
+// A Node corresponds to a Renderpass - every Renderpass gets translated into a Node upon building the rendergraph
+struct Node {
+	uint64_t            unique_id           = 0;     // unique id for each node, assigned upon node creation
+	ResourceField       reads               = 0;     // per-node reads from resources (indexed by unique id)
+	ResourceField       writes              = 0;     // per-node writes to resources (indexed by unique id)
+	le::RootPassesField root_nodes_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
+	bool                is_root             = false; // whether this node is a root node
+	bool                is_contributing     = false; // whether this node contributes to a root node
+	std::string         debug_name          = {};    // non-owning pointer to char[256]
+};
+
+// ----------------------------------------------------------------------
+
 struct le_rendergraph_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o*>    passes;                                 // owning
 	size_t                           num_contributing_passes = 0;            // number of passes which are contributing (the count of all passes where is_contributing is true, set when building the rendergraph)
@@ -136,5 +152,8 @@ struct le_rendergraph_o : NoCopy, NoMove {
 	                                                                         //
 	std::vector<std::string>                       root_debug_names;         // not owning: pointers to debug_names for root passes held within passes, in same order as RootPassesField indices
 	std::vector<le_on_frame_clear_callback_data_t> on_frame_clear_callbacks; // passed on to the backend: callbacks which get called once the backend frame into which this renderpass was placed gets cleared
+
+	std::vector<Node>               nodes;
+	std::vector<le_resource_handle> unique_resources; // unique resource handles, field indices in Node::ResourceField refer to resource index
 };
 #endif

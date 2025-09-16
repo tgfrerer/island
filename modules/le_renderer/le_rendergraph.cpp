@@ -32,18 +32,6 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 #include "le_log.h"
 
-using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit represents a distinct resource
-
-// A Node corresponds to a Renderpass - every Renderpass gets translated into a Node upon building the rendergraph
-struct Node {
-	uint64_t            unique_id           = 0;     // unique id for each node, assigned upon node creation
-	ResourceField       reads               = 0;     // per-node reads from resources (indexed by unique id)
-	ResourceField       writes              = 0;     // per-node writes to resources (indexed by unique id)
-	le::RootPassesField root_nodes_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
-	bool                is_root             = false; // whether this node is a root node
-	bool                is_contributing     = false; // whether this node contributes to a root node
-	std::string         debug_name          = {};    // non-owning pointer to char[256]
-};
 
 // ----------------------------------------------------------------------
 
@@ -418,11 +406,10 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 // The graphviz file is stored as graph.dot in the executable's directory.
 //
 static bool generate_dot_file_for_rendergraph(
-    le_rendergraph_o*   self,
-    le_resource_handle* uniqueResources,
-    size_t const&       numUniqueResources,
-    Node const*         nodes,
-    size_t              frame_number ) {
+    le_rendergraph_o*                      self,
+    std::vector<le_resource_handle> const& known_resources,
+    Node const*                            nodes,
+    size_t                                 frame_number ) {
 	ZoneScoped;
 
 	static auto                  logger   = LeLog( LOGGER_LABEL );
@@ -493,11 +480,12 @@ static bool generate_dot_file_for_rendergraph(
 				auto const needle = r;
 
 				size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
-				for ( auto ur = uniqueResources; res_idx != numUniqueResources; res_idx++, ur++ ) {
-					if ( *ur == needle ) {
+				for ( auto const& ur : known_resources ) {
+					if ( ur == needle ) {
 						// found matching resource, res_idx is index into uniqueHandles for resource
 						break;
 					}
+					res_idx++;
 				}
 
 				// generic resource for any resources that are not images
@@ -547,14 +535,15 @@ static bool generate_dot_file_for_rendergraph(
 			auto const needle = p->resources[ j ];
 
 			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
-			for ( auto r = uniqueResources; res_idx != numUniqueResources; res_idx++, r++ ) {
-				if ( *r == needle ) {
+			for ( auto const& ur : known_resources ) {
+				if ( ur == needle ) {
 					// found matching resource, res_idx is index into uniqueHandles for resource
 					break;
 				}
+				res_idx++;
 			}
 
-			assert( res_idx != numUniqueResources && "something went wrong, handle could not be found in list of unique handles." );
+			assert( res_idx != known_resources.size() && "something went wrong, handle could not be found in list of unique handles." );
 
 			if ( !nodes[ i ].writes[ res_idx ] ) {
 				continue;
@@ -701,9 +690,13 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
 
-	std::vector<Node>                                          nodes;         // There is exactly one Node per `pass` - their indices correspond
-	std::array<le_resource_handle, LE_MAX_NUM_GRAPH_RESOURCES> uniqueHandles; // lookup for resource handles.
-	size_t                                                     numUniqueResources = 0;
+	self->unique_resources.clear();
+	self->nodes.clear();
+
+	auto& nodes                = self->nodes; // There is exactly one Node per `pass` - their indices correspond
+	auto& known_unique_handles = self->unique_resources;
+
+	self->unique_resources.reserve( LE_MAX_NUM_GRAPH_RESOURCES );
 
 	// Translate all passes into a node
 	//   Get list of resources per pass and build node from this
@@ -715,9 +708,9 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		Node node{};
 		node.unique_id = ++node_unique_id;
 
-		const size_t numResources = p->resources.size();
+		const size_t resources_per_pass_count = p->resources.size();
 
-		for ( size_t i = 0; i != numResources; i++ ) {
+		for ( size_t i = 0; i != resources_per_pass_count; i++ ) {
 			auto const& resource_handle = p->resources[ i ];
 			auto        access_flags    = p->resources_access_flags[ i ];
 
@@ -733,18 +726,18 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			}
 
 			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
-			for ( auto r = uniqueHandles.data(); res_idx != numUniqueResources; res_idx++, r++ ) {
-				if ( *r == resource_handle ) {
+			for ( auto& h : known_unique_handles ) {
+				if ( h == resource_handle ) {
 					// found matching resource, res_idx is index into uniqueHandles for resource
 					break;
 				}
+				res_idx++;
 			}
 
-			if ( res_idx == numUniqueResources ) {
+			if ( res_idx == known_unique_handles.size() ) {
 				// resource was not found, we must add a new resource
-				uniqueHandles[ res_idx ] = resource_handle;
-				numUniqueResources++;
-				assert( numUniqueResources < LE_MAX_NUM_GRAPH_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
+				known_unique_handles.push_back( resource_handle );
+				assert( known_unique_handles.size() < LE_MAX_NUM_GRAPH_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
 			}
 
 			// --------| invariant: uniqueHandles[res_idx] is valid
@@ -823,8 +816,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		if ( *RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES ) [[unlikely]] {
 			{
 				logger.info( "Unique resources:" );
-				for ( size_t i = 0; i != numUniqueResources; i++ ) {
-					logger.info( "%3d : %s", i, uniqueHandles[ i ]->data->debug_name );
+				for ( size_t i = 0; i != known_unique_handles.size(); i++ ) {
+					logger.info( "%3d : %s", i, known_unique_handles[ i ]->data->debug_name );
 				}
 			}
 			for ( size_t i = 0; i < root_count; i++ ) {
@@ -931,7 +924,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	static auto RENDERGRAPH_SHOULD_GENERATE_DOT_FILES = LE_SETTING( uint32_t, LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
 
 	if ( *RENDERGRAPH_SHOULD_GENERATE_DOT_FILES > 0 ) [[unlikely]] {
-		generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, nodes.data(), frame_number );
+		generate_dot_file_for_rendergraph( self, known_unique_handles, nodes.data(), frame_number );
 		( *RENDERGRAPH_SHOULD_GENERATE_DOT_FILES )--;
 	}
 
@@ -950,8 +943,6 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			self->passes[ i ]->is_root              = nodes[ i ].is_root;
 			self->passes[ i ]->root_passes_affinity = nodes[ i ].root_nodes_affinity;
 		}
-
-		// Update self->passes
 
 		// Update debug root names
 		std::swap( self->root_debug_names, root_debug_names );
