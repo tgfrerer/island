@@ -390,8 +390,10 @@ static void rendergraph_reset( le_rendergraph_o* self ) {
 	self->passes.clear();
 
 	self->root_passes_affinity_masks.clear();
+	self->root_debug_names.clear();
 	self->declared_resources_id.clear();
 	self->declared_resources_info.clear();
+	self->on_frame_clear_callbacks.clear();
 }
 
 // ----------------------------------------------------------------------
