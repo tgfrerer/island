@@ -613,13 +613,8 @@ static bool renderer_clone_latest_rendergraph_into( le_renderer_o* self, le_rend
 	graph->declared_resources_id   = frame.rendergraph->declared_resources_id;
 	graph->declared_resources_info = frame.rendergraph->declared_resources_info;
 
-	{
-		// clear original pass data if there is any
-		for ( auto& p : graph->passes ) {
-			le_renderer_api_i->le_renderpass_i.destroy( p );
-		}
-		graph->passes.clear();
-	}
+	le_renderer_api_i->le_rendergraph_i.reset( graph );
+
 	{
 		// copy built pass data
 		for ( auto& f : frame.rendergraph->passes ) {
