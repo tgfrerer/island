@@ -51,8 +51,6 @@ static le_renderpass_o* renderpass_clone( le_renderpass_o const* rhs ) {
 	ZoneScoped;
 	auto self       = new le_renderpass_o();
 	*self           = *rhs;
-	// FIXME -- you must not copy the encoder pointer, as only one renderpass can own the encoder.
-	// further, encoder gets stolen by the backend.
 	self->ref_count = 1;
 	return self;
 }
