@@ -608,10 +608,9 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 		return;
 	}
 
-	// Clone the given rendergraph, store clone into frame.rendergraph
-	// TODO: we should probably move here, as it is understood that graph will not be used any further
-	// after the frame has been recorded.
-	frame.rendergraph = le_renderer::api->le_rendergraph_private_i.clone( graph );
+	// Move the given rendergraph into frame.rendergraph - this means that `graph`
+	// gets consumed in the process.
+	frame.rendergraph = le_renderer::api->le_rendergraph_private_i.move( graph );
 
 	// ---------| invariant: Frame was previously acquired successfully.
 

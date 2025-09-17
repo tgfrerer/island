@@ -1166,6 +1166,31 @@ static le_rendergraph_o* rendergraph_clone( le_rendergraph_o* self ) {
 	return ret;
 };
 
+static le_rendergraph_o* rendergraph_move( le_rendergraph_o* self ) {
+	ZoneScoped;
+
+	if ( self == nullptr ) {
+		return nullptr;
+	}
+
+	// ---------: invariant: self is valid
+	le_rendergraph_o* ret = rendergraph_create();
+
+	ret->nodes                      = std::move( self->nodes );
+	ret->root_debug_names           = std::move( self->root_debug_names );
+	ret->root_passes_affinity_masks = std::move( self->root_passes_affinity_masks );
+	ret->on_frame_clear_callbacks   = std::move( self->on_frame_clear_callbacks );
+	ret->unique_resources           = std::move( self->unique_resources );
+	ret->num_contributing_passes    = std::move( self->num_contributing_passes );
+
+	ret->declared_resources_id   = std::move( self->declared_resources_id );
+	ret->declared_resources_info = std::move( self->declared_resources_info );
+
+	ret->passes = std::move( self->passes );
+
+	return ret;
+}
+
 // ----------------------------------------------------------------------
 
 static void rendergraph_declare_resource( le_rendergraph_o* self, le_resource_handle const& resource_id, le_resource_info_t const& info ) {
@@ -1197,6 +1222,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_private_i.build                = rendergraph_build;
 	le_rendergraph_private_i.execute              = rendergraph_execute;
 	le_rendergraph_private_i.clone                = rendergraph_clone;
+	le_rendergraph_private_i.move                 = rendergraph_move;
 	le_rendergraph_private_i.generate_dot_diagram = rendergraph_generate_dot_diagram;
 
 	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
