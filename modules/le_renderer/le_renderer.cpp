@@ -591,41 +591,6 @@ static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static bool renderer_clone_latest_rendergraph_into( le_renderer_o* self, le_rendergraph_o* graph ) {
-	if ( graph == nullptr ) {
-		return false;
-	}
-
-	// ---------: invariant: graph is valid
-
-	if ( self->last_recorded_frame_number == size_t( -1 ) ) {
-		return false;
-	}
-
-	// ----------| invariant: self->last_recorded is not -1
-
-	auto& frame = self->frames[ self->last_recorded_frame_number ];
-
-	// Copy built renderpasses into original graph so that we can do some introspection
-	// we should only do this upon request -- otherwise this fill cost unnecessary copies
-	// during execution.
-
-	graph->declared_resources_id   = frame.rendergraph->declared_resources_id;
-	graph->declared_resources_info = frame.rendergraph->declared_resources_info;
-
-	le_renderer_api_i->le_rendergraph_i.reset( graph );
-
-	{
-		// copy built pass data
-		for ( auto& f : frame.rendergraph->passes ) {
-			graph->passes.push_back( le_renderer_api_i->le_renderpass_i.clone( f ) );
-		}
-	}
-	return true;
-}
-
-// ----------------------------------------------------------------------
-
 static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_rendergraph_o* graph, size_t frameNumber ) {
 	static auto logger = LeLog( "le_renderer" );
 
@@ -1067,7 +1032,6 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.texture_handle_get_name        = texture_handle_get_name;
 	le_renderer_i.create_rtx_blas_info           = renderer_create_rtx_blas_info_handle;
 	le_renderer_i.create_rtx_tlas_info           = renderer_create_rtx_tlas_info_handle;
-	le_renderer_i.clone_latest_rendergraph_into  = renderer_clone_latest_rendergraph_into;
 
 	auto& helpers_i = le_renderer_api_i->helpers_i;
 

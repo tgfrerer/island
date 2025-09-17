@@ -174,15 +174,8 @@ class Renderer {
 	}
 
 	/// Call this method exactly once per Frame - this is where rendergraph execution callbacks are triggered.
-	void update( le_rendergraph_o* rendergraph, bool should_update_rendergraph = false ) {
+	void update( le_rendergraph_o* rendergraph ) {
 		le_renderer::renderer_i.update( self, rendergraph );
-		if ( should_update_rendergraph ) {
-			le_renderer::renderer_i.clone_latest_rendergraph_into( self, rendergraph );
-		}
-	}
-
-	bool cloneLatestRendergraphInto( le_rendergraph_o* out_rendergraph ) {
-		return le_renderer::renderer_i.clone_latest_rendergraph_into( self, out_rendergraph );
 	}
 
 	le_renderer_settings_t const& getSettings() const noexcept {
