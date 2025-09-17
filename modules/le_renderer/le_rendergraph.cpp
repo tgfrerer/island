@@ -1149,6 +1149,13 @@ static le_rendergraph_o* rendergraph_clone( le_rendergraph_o* self ) {
 
 	le_rendergraph_o* ret = rendergraph_create();
 
+	ret->nodes                      = self->nodes;
+	ret->root_debug_names           = self->root_debug_names;
+	ret->root_passes_affinity_masks = self->root_passes_affinity_masks;
+	ret->on_frame_clear_callbacks   = self->on_frame_clear_callbacks;
+	ret->unique_resources           = self->unique_resources;
+	ret->num_contributing_passes    = self->num_contributing_passes;
+
 	ret->declared_resources_id   = self->declared_resources_id;
 	ret->declared_resources_info = self->declared_resources_info;
 
