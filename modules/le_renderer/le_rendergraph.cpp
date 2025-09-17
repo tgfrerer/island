@@ -396,12 +396,11 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 //
 // The graphviz file is stored as graph.dot in the executable's directory.
 //
-static bool generate_dot_file_for_rendergraph(
-    le_rendergraph_o*                      self,
-    std::vector<le_resource_handle> const& known_resources,
-    Node const*                            nodes,
-    size_t                                 frame_number ) {
+static void rendergraph_generate_dot_diagram( le_rendergraph_o* self, size_t frame_number ) {
 	ZoneScoped;
+
+	auto& known_resources = self->unique_resources;
+	auto& nodes           = self->nodes;
 
 	static auto                  logger   = LeLog( LOGGER_LABEL );
 	static std::filesystem::path exe_path = []() {
@@ -600,8 +599,6 @@ static bool generate_dot_file_for_rendergraph(
 	std::filesystem::create_symlink( full_path, link_path, ec );
 
 	std::string error_msg = ec.message();
-
-	return true;
 };
 
 /// \brief Tag any nodes which contribute to any root nodes
@@ -912,13 +909,6 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		}
 	}
 
-	static auto RENDERGRAPH_SHOULD_GENERATE_DOT_FILES = LE_SETTING( uint32_t, LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
-
-	if ( *RENDERGRAPH_SHOULD_GENERATE_DOT_FILES > 0 ) [[unlikely]] {
-		generate_dot_file_for_rendergraph( self, known_unique_handles, nodes.data(), frame_number );
-		( *RENDERGRAPH_SHOULD_GENERATE_DOT_FILES )--;
-	}
-
 	{
 		// Count contributing passes, and write node info back into corresponding passes.
 		//
@@ -1206,11 +1196,12 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_i.declare_resource             = rendergraph_declare_resource;
 	le_rendergraph_i.add_on_frame_clear_callbacks = rendergraph_add_on_frame_clear_callbacks;
 
-	auto& le_rendergraph_private_i        = le_renderer_api_i->le_rendergraph_private_i;
-	le_rendergraph_private_i.setup_passes = rendergraph_setup_passes;
-	le_rendergraph_private_i.build        = rendergraph_build;
-	le_rendergraph_private_i.execute      = rendergraph_execute;
-	le_rendergraph_private_i.clone        = rendergraph_clone;
+	auto& le_rendergraph_private_i                = le_renderer_api_i->le_rendergraph_private_i;
+	le_rendergraph_private_i.setup_passes         = rendergraph_setup_passes;
+	le_rendergraph_private_i.build                = rendergraph_build;
+	le_rendergraph_private_i.execute              = rendergraph_execute;
+	le_rendergraph_private_i.clone                = rendergraph_clone;
+	le_rendergraph_private_i.generate_dot_diagram = rendergraph_generate_dot_diagram;
 
 	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
 	le_renderpass_i.create                       = renderpass_create;

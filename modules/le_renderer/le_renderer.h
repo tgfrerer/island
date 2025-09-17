@@ -139,6 +139,7 @@ struct le_renderer_api {
 		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
 		void                 ( *setup_passes           ) ( le_rendergraph_o *self, le_rendergraph_o *dst );
 		le_rendergraph_o*    ( *clone                  ) ( le_rendergraph_o* self);
+		void 				 ( *generate_dot_diagram   ) ( le_rendergraph_o* self, size_t frame_number );
     };
 
 	struct command_buffer_encoder_interface_t {
