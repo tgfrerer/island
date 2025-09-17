@@ -636,21 +636,23 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 
 	{
 		// If there are debug messages to print to screen, we must draw them
-		// onto the last graphics renderpass.
+		// onto the last graphics renderpass *which is contributing*.
 		//
 		// This assumes that the last graphics renderpass is a renderpass
 		// that goes to the screen. If there is no last graphics renderpass,
-		// then we must warn about this.
+		// then we must warn about this, and discard any messages that we would
+		// have wanted to print to screen.
 		//
-		if ( !frame.rendergraph->passes.empty() ) {
-			// Find last graphics pass, starting at the end
-			for ( auto p = frame.rendergraph->passes.rbegin(); p != frame.rendergraph->passes.rend(); p++ ) {
-				if ( ( *p )->type & le::QueueFlagBits::eGraphics ) {
-					le::DebugPrint::drawAllMessages( frame.rendergraph->passes.back() );
-					break;
-				}
+		// Find last graphics pass, starting at the end
+		auto p = frame.rendergraph->passes.rbegin();
+		for ( ; p != frame.rendergraph->passes.rend(); p++ ) {
+			if ( ( *p )->type & le::QueueFlagBits::eGraphics && ( *p )->is_contributing ) {
+				le::DebugPrint::drawAllMessages( *p );
+				break;
 			}
-		} else {
+		}
+
+		if ( p == frame.rendergraph->passes.rend() ) {
 			logger.debug( "le::DebugPrint has messages, but no way to print them. Discarding messages." );
 			le::DebugPrint::drawAllMessages( nullptr );
 		}
