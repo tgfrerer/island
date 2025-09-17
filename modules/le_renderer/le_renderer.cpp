@@ -616,14 +616,13 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 
 	// - build up dependencies for graph, create table of unique resources for graph
 
-	// setup passes calls `setup` callback on all passes - this initalises virtual resources,
+	// `setup_passes` calls `setup` callback on all passes - this initalises virtual resources,
 	// and stores their descriptors (information needed to allocate physical resources)
 	//
 	using namespace le_renderer; // for rendergraph_i, rendergraph_i
 	le_renderer::api->le_rendergraph_private_i.setup_passes( frame.rendergraph );
 
-	// Find out which renderpasses contribute -
-	// tag contributing renderpasses as `is_contributing`
+	// Find out which renderpasses contribute & tag contributing renderpasses as `is_contributing`
 	le_renderer::api->le_rendergraph_private_i.build( frame.rendergraph, frameNumber );
 
 	static auto RENDERGRAPH_SHOULD_GENERATE_DOT_FILES = LE_SETTING( uint32_t, LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_DOT_FILES, 0 );

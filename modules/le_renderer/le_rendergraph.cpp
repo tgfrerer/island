@@ -1145,7 +1145,7 @@ static le_rendergraph_o* rendergraph_clone( le_rendergraph_o* self ) {
 		return nullptr;
 	}
 
-	// ---------: invariant: graph is valid
+	// ---------: invariant: self is valid
 
 	le_rendergraph_o* ret = rendergraph_create();
 
