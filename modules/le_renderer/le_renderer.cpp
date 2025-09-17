@@ -628,7 +628,9 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	static auto RENDERGRAPH_SHOULD_GENERATE_DOT_FILES = LE_SETTING( uint32_t, LE_SETTING_IDENTIFIER_SHOULD_RENDERGRAPH_GENERATE_DOT_FILES, 0 );
 
 	if ( *RENDERGRAPH_SHOULD_GENERATE_DOT_FILES > 0 ) [[unlikely]] {
-		le_renderer_api_i->le_rendergraph_private_i.generate_dot_diagram( frame.rendergraph, frameNumber );
+		char label[ 9 ];
+		snprintf( label, sizeof( label ), "%08zu", frameNumber );
+		le_renderer_api_i->le_rendergraph_private_i.generate_dot_diagram( frame.rendergraph, label );
 		( *RENDERGRAPH_SHOULD_GENERATE_DOT_FILES )--;
 	}
 

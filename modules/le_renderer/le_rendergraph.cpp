@@ -398,7 +398,7 @@ static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o*
 //
 // The graphviz file is stored as graph.dot in the executable's directory.
 //
-static void rendergraph_generate_dot_diagram( le_rendergraph_o* self, size_t frame_number ) {
+static void rendergraph_generate_dot_diagram( le_rendergraph_o* self, char const* label ) {
 	ZoneScoped;
 
 	auto& known_resources = self->unique_resources;
@@ -433,7 +433,7 @@ static void rendergraph_generate_dot_diagram( le_rendergraph_o* self, size_t fra
 	   << "<table border='0' cellborder='0' cellspacing='0' cellpadding='3'>"
 	   << "<tr><td align='left'>Island Rendergraph</td></tr>"
 	   << "<tr><td align='left'>" << exe_path << "</td></tr>"
-	   << "<tr><td align='left'>Frame \xe2\x84\x96 " << frame_number << "</td></tr>"
+	   << "<tr><td align='left'> Frame: " << label << "</td></tr>"
 	   << "</table>"
 	   << ">"
 	   << ", splines=true, nodesep=0.7, fontname=\"IBM Plex Sans\", fontsize=10, labeljust=\"l\"];" << std::endl;
@@ -584,7 +584,7 @@ static void rendergraph_generate_dot_diagram( le_rendergraph_o* self, size_t fra
 	// and then we write the same contents into a file with the frame number in the
 	// filename so that we may keep a history of rendergraphs...
 	char filename[ 32 ] = "";
-	snprintf( filename, sizeof( filename ), "graph_%08zu.dot", frame_number );
+	snprintf( filename, sizeof( filename ), "graph_%s.dot", label );
 
 	std::filesystem::path full_path = exe_path.parent_path() / filename;
 	write_to_file( full_path.string().c_str(), os );
