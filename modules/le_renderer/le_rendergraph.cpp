@@ -1110,10 +1110,10 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 // `setup` callback.
 // If renderpass provides a setup method, pass is only added to rendergraph if its setup
 // method returns true. Discards contents of `src_rendergraph` at the end
-static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rendergraph_o* dst_rendergraph ) {
+static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph ) {
 
 	ZoneScoped;
-	for ( auto& pass : src_rendergraph->passes ) {
+	for ( auto it = src_rendergraph->passes.begin(); it != src_rendergraph->passes.end(); ) {
 		// Call setup function on all passes, in order of addition to module
 		//
 		// Setup Function must:
@@ -1121,30 +1121,26 @@ static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rend
 		// + populate output attachments
 		// + (optionally) add renderpass to graph builder.
 
-		if ( renderpass_has_setup_callback( pass ) ) {
-			if ( renderpass_run_setup_callback( pass ) ) {
-				// if pass.setup() returns true, this means we shall add this pass to the graph
-				// This means a transfer of ownership for pass: pass moves into dst_rendergraph
-				dst_rendergraph->passes.push_back( pass );
-				pass = nullptr;
-			} else {
-				renderpass_destroy( pass );
-				pass = nullptr;
+		if ( renderpass_has_setup_callback( *it ) ) {
+			if ( false == renderpass_run_setup_callback( *it ) ) {
+				// if setup() returns `false` this means that we must remove the
+				// pass from the current graph.
+				renderpass_destroy( *it );
+				it = src_rendergraph->passes.erase( it );
+				continue;
 			}
-		} else {
-			dst_rendergraph->passes.push_back( pass );
-			pass = nullptr;
 		}
+		it++;
 	}
 
 	// Move any resource ids and resource infos from module into rendergraph
-	dst_rendergraph->declared_resources_id   = std::move( src_rendergraph->declared_resources_id );
-	dst_rendergraph->declared_resources_info = std::move( src_rendergraph->declared_resources_info );
+	// dst_rendergraph->declared_resources_id   = std::move( src_rendergraph->declared_resources_id );
+	// dst_rendergraph->declared_resources_info = std::move( src_rendergraph->declared_resources_info );
 
-	// Move any callbacks that have been attached to the src_rendergraph
-	dst_rendergraph->on_frame_clear_callbacks = std::move( src_rendergraph->on_frame_clear_callbacks );
+	// // Move any callbacks that have been attached to the src_rendergraph
+	// dst_rendergraph->on_frame_clear_callbacks = std::move( src_rendergraph->on_frame_clear_callbacks );
 
-	src_rendergraph->passes.clear();
+	// src_rendergraph->passes.clear();
 };
 
 // ----------------------------------------------------------------------

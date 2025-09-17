@@ -300,9 +300,6 @@ static void renderer_destroy( le_renderer_o* self ) {
 	for ( size_t i = 0; i != self->frames.size(); ++i ) {
 		auto index = ( lastIndex + i ) % self->frames.size();
 		renderer_clear_frame( self, index );
-		// -- FIXME: delete graph builders which we added in create.
-		// This is not elegant.
-		rendergraph_i.destroy( self->frames[ index ].rendergraph );
 	}
 
 	self->frames.clear();
@@ -480,7 +477,7 @@ static void renderer_setup( le_renderer_o* self, le_renderer_settings_t const* s
 
 	for ( size_t i = 0; i != self->backendDataFramesCount; ++i ) {
 		auto frameData        = FrameData();
-		frameData.rendergraph = rendergraph_i.create();
+		frameData.rendergraph = nullptr;
 		self->frames.push_back( std::move( frameData ) );
 	}
 
@@ -581,7 +578,10 @@ static void renderer_clear_frame( le_renderer_o* self, size_t frameIndex ) {
 		}
 	}
 
-	rendergraph_i.reset( frame.rendergraph );
+	if ( frame.rendergraph ) {
+		rendergraph_i.destroy( frame.rendergraph );
+		frame.rendergraph = nullptr;
+	}
 
 	//	std::cout << "CLEAR FRAME " << frameIndex << std::endl
 	//	          << std::flush;
@@ -608,6 +608,11 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 		return;
 	}
 
+	// Clone the given rendergraph, store clone into frame.rendergraph
+	// TODO: we should probably move here, as it is understood that graph will not be used any further
+	// after the frame has been recorded.
+	frame.rendergraph = le_renderer::api->le_rendergraph_private_i.clone( graph );
+
 	// ---------| invariant: Frame was previously acquired successfully.
 
 	// - build up dependencies for graph, create table of unique resources for graph
@@ -616,7 +621,7 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 	// and stores their descriptors (information needed to allocate physical resources)
 	//
 	using namespace le_renderer; // for rendergraph_i, rendergraph_i
-	le_renderer::api->le_rendergraph_private_i.setup_passes( graph, frame.rendergraph );
+	le_renderer::api->le_rendergraph_private_i.setup_passes( frame.rendergraph );
 
 	// Find out which renderpasses contribute -
 	// tag contributing renderpasses as `is_contributing`

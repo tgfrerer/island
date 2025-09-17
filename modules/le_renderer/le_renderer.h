@@ -137,7 +137,7 @@ struct le_renderer_api {
 	struct rendergraph_private_interface_t {
 		void                 ( *build                  ) ( le_rendergraph_o *self, size_t frameNumber );
 		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
-		void                 ( *setup_passes           ) ( le_rendergraph_o *self, le_rendergraph_o *dst );
+		void                 ( *setup_passes           ) ( le_rendergraph_o *self);
 		le_rendergraph_o*    ( *clone                  ) ( le_rendergraph_o* self);
 		void 				 ( *generate_dot_diagram   ) ( le_rendergraph_o* self, size_t frame_number );
     };
