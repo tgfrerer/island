@@ -96,7 +96,9 @@ static void renderpass_run_execute_callbacks( le_renderpass_o* self, le_command_
 // ----------------------------------------------------------------------
 static bool renderpass_run_setup_callback( le_renderpass_o* self ) {
 	ZoneScoped;
-	return self->callbackSetup( self, self->setup_callback_user_data );
+	bool result         = self->callbackSetup( self, self->setup_callback_user_data );
+	self->callbackSetup = nullptr; // remove setup callback so that it cannot be called again
+	return result;
 }
 
 // ----------------------------------------------------------------------
