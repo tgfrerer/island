@@ -5761,7 +5761,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				} else {
 					// This is legit behaviour for draw passes which are used only to clear attachments,
 					// in which case they don't need to include any draw commands.
-					logger().warn( "no commands encoded with this pass" );
+					logger().info( "no commands encoded with pass: %s", pass.debugName );
 				}
 			}
 
