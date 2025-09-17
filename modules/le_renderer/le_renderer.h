@@ -138,6 +138,7 @@ struct le_renderer_api {
 		void                 ( *build                  ) ( le_rendergraph_o *self, size_t frameNumber );
 		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
 		void                 ( *setup_passes           ) ( le_rendergraph_o *self, le_rendergraph_o *dst );
+		le_rendergraph_o*    ( *clone                  ) ( le_rendergraph_o* self);
     };
 
 	struct command_buffer_encoder_interface_t {

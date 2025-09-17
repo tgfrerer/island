@@ -1122,6 +1122,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 // method returns true. Discards contents of `src_rendergraph` at the end
 static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rendergraph_o* dst_rendergraph ) {
 
+	ZoneScoped;
 	for ( auto& pass : src_rendergraph->passes ) {
 		// Call setup function on all passes, in order of addition to module
 		//
@@ -1158,6 +1159,29 @@ static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph, le_rend
 
 // ----------------------------------------------------------------------
 
+static le_rendergraph_o* rendergraph_clone( le_rendergraph_o* self ) {
+	ZoneScoped;
+
+	if ( self == nullptr ) {
+		return nullptr;
+	}
+
+	// ---------: invariant: graph is valid
+
+	le_rendergraph_o* ret = rendergraph_create();
+
+	ret->declared_resources_id   = self->declared_resources_id;
+	ret->declared_resources_info = self->declared_resources_info;
+
+	for ( auto& f : self->passes ) {
+		ret->passes.push_back( le_renderer_api_i->le_renderpass_i.clone( f ) );
+	}
+
+	return ret;
+};
+
+// ----------------------------------------------------------------------
+
 static void rendergraph_declare_resource( le_rendergraph_o* self, le_resource_handle const& resource_id, le_resource_info_t const& info ) {
 	self->declared_resources_id.emplace_back( resource_id );
 	self->declared_resources_info.emplace_back( info );
@@ -1186,6 +1210,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_private_i.setup_passes = rendergraph_setup_passes;
 	le_rendergraph_private_i.build        = rendergraph_build;
 	le_rendergraph_private_i.execute      = rendergraph_execute;
+	le_rendergraph_private_i.clone        = rendergraph_clone;
 
 	auto& le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
 	le_renderpass_i.create                       = renderpass_create;
