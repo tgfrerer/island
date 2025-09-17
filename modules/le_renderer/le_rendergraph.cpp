@@ -1132,15 +1132,6 @@ static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph ) {
 		}
 		it++;
 	}
-
-	// Move any resource ids and resource infos from module into rendergraph
-	// dst_rendergraph->declared_resources_id   = std::move( src_rendergraph->declared_resources_id );
-	// dst_rendergraph->declared_resources_info = std::move( src_rendergraph->declared_resources_info );
-
-	// // Move any callbacks that have been attached to the src_rendergraph
-	// dst_rendergraph->on_frame_clear_callbacks = std::move( src_rendergraph->on_frame_clear_callbacks );
-
-	// src_rendergraph->passes.clear();
 };
 
 // ----------------------------------------------------------------------
