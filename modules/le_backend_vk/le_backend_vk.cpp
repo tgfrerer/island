@@ -2034,7 +2034,7 @@ static void frame_track_resource_state(
 			currentPass.p_command_stream = frame.command_streams[ num_used_command_streams++ ];
 		}
 
-		memcpy( currentPass.debugName, renderpass_i.get_debug_name( pass ), sizeof( currentPass.debugName ) );
+		snprintf( currentPass.debugName, sizeof( currentPass.debugName ), "%s", renderpass_i.get_debug_name( pass ) );
 
 		renderpass_i.get_framebuffer_settings( pass, &currentPass.width, &currentPass.height, &currentPass.sampleCount );
 
