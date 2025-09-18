@@ -172,8 +172,7 @@ static le_font_o* le_font_create( char const* font_filename, float font_size ) {
 	if ( loadOk ) {
 		stbtt_InitFont( &self->info, self->data.data(), 0 );
 	} else {
-		std::cerr << "Could not load font file: '" << font_filename << "'" << std::endl
-		          << std::flush;
+		logger().error( "Could not load font file: '%s'", font_filename );
 	}
 
 	self->font_size = font_size;
