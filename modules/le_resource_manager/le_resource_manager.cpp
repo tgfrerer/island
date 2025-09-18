@@ -511,9 +511,9 @@ static void le_resource_manager_set_decoder_interface_for_filetype( le_resource_
 	self->available_decoder_interfaces[ file_ext ] = decoder_interface;
 
 	if ( interface_did_already_exist ) {
-		logger().info( "Updated    interface for file extension: '%s'", file_ext.c_str() );
+		logger().info( "Updated    decoder interface for file extension: '%s'", file_ext.c_str() );
 	} else {
-		logger().info( "Registered interface for file extension: '%s'", file_ext.c_str() );
+		logger().info( "Registered decoder interface for file extension: '%s'", file_ext.c_str() );
 	}
 };
 
