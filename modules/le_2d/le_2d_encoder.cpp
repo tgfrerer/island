@@ -756,6 +756,43 @@ static void encoder_path_rect( le_2d_encoder_o* e, glm::vec2 const& top_left, gl
 
 // ----------------------------------------------------------------------
 
+static void encoder_path_rounded_rect( le_2d_encoder_o* e, glm::vec2 const& top_left, glm::vec2 const& bottom_right, float r ) {
+
+	float arm_len = 0.551915024494;
+	arm_len *= 1.1; // we nudge the circle a little bit towards a "squircle" by making the tangents a bit flatter than circular
+
+	encoder_path_move_to( e, { bottom_right.x - r, top_left.y } );
+	encoder_path_cubic_to( e,
+	                       { bottom_right.x - r * ( 1 - arm_len ), top_left.y },
+	                       { bottom_right.x, top_left.y + r * ( 1 - arm_len ) },
+	                       { bottom_right.x, top_left.y + r } );
+
+	encoder_path_line_to( e, { bottom_right.x, bottom_right.y - r } );
+
+	encoder_path_cubic_to( e,
+	                       { bottom_right.x, bottom_right.y - r * ( 1 - arm_len ) },
+	                       { bottom_right.x - r * ( 1 - arm_len ), bottom_right.y },
+	                       { bottom_right.x - r, bottom_right.y } );
+
+	encoder_path_line_to( e, { top_left.x + r, bottom_right.y } );
+
+	encoder_path_cubic_to( e,
+	                       { top_left.x + r * ( 1 - arm_len ), bottom_right.y },
+	                       { top_left.x, bottom_right.y - r * ( 1 - arm_len ) },
+	                       { top_left.x, bottom_right.y - r } );
+
+	encoder_path_line_to( e, { top_left.x, top_left.y + r } );
+
+	encoder_path_cubic_to( e,
+	                       { top_left.x, top_left.y + r * ( 1 - arm_len ) },
+	                       { top_left.x + r * ( 1 - arm_len ), top_left.y },
+	                       { top_left.x + r, top_left.y } );
+
+	encoder_path_close( e );
+}
+
+// ----------------------------------------------------------------------
+
 /// Rotate `pt` about the origin by `angle` radians.
 static inline glm::vec2 rotate_pt( glm::vec2 const& pt, double angle ) {
 	// This method was adapted from kurbo-0.11.2/src/arc.rs
@@ -929,7 +966,8 @@ void register_le_2d_encoder_api( void* api_ ) {
 
 	encoder_i.path_circle = encoder_path_circle;
 	encoder_i.path_rect   = encoder_path_rect;
-	encoder_i.path_arc    = encoder_path_arc;
+	encoder_i.path_rounded_rect = encoder_path_rounded_rect;
+	encoder_i.path_arc          = encoder_path_arc;
 
 	// TODO:
 	// - add the rest of the encoder functions,

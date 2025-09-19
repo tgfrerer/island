@@ -418,6 +418,7 @@ struct le_2d_api {
 		// Note that `circle` does not begin/end a path - you must do that explicitly, 
 		// because this allows you to have more than one circle inside of a path.
 		//
+		void (* path_rounded_rect ) (le_2d_encoder_o*e, glm::vec2 const & top_left, glm::vec2 const& bottom_right, float r);
 		void (* path_circle ) (le_2d_encoder_o*e, glm::vec2 const & centre, float r, float tolerance);
 		void (* path_rect ) (le_2d_encoder_o*e, glm::vec2 const & top_left, glm::vec2 const& bottom_right);
 
@@ -522,6 +523,11 @@ class Encoder2D : NoCopy, NoMove {
 
 		Path& rect( glm::vec2 const& top_left, glm::vec2 const& bottom_right ) {
 			le_2d::le_2d_encoder_i.path_rect( static_cast<le_2d_encoder_o*>( parent ), top_left, bottom_right );
+			return *this;
+		}
+
+		Path& rounded_rect( glm::vec2 const& top_left, glm::vec2 const& bottom_right, float r ) {
+			le_2d::le_2d_encoder_i.path_rounded_rect( static_cast<le_2d_encoder_o*>( parent ), top_left, bottom_right, r );
 			return *this;
 		}
 
