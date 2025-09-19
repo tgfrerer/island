@@ -304,7 +304,7 @@ static void encoder_encode_blurred_rounded_rect( le_2d_encoder_o* e, Transform2D
 	encoder_path_end( e, true );
 
 	Transform2D t = { .translation = { width * 0.5f, height * 0.5f } };
-	t             = t * ( *transform );
+	t             = ( *transform ) * t;
 
 	if ( encoder_encode_transform( e, &t ) ) {
 		encoder_swap_last_two_path_tags( e );
