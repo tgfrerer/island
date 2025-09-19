@@ -67,6 +67,18 @@ ISL_API_ATTR char const* le_core_produce_string_literal( char const* string_lite
 
 // ----------------------------------------------------------------------
 
+ISL_API_ATTR uint32_t le_core_spooky_hash_32( const void* message, size_t length, uint32_t seed ) {
+	return SpookyHash::Hash32( message, length, seed );
+};
+
+// ----------------------------------------------------------------------
+
+ISL_API_ATTR uint64_t le_core_spooky_hash_64( const void* message, size_t length, uint64_t seed ) {
+	return SpookyHash::Hash64( message, length, seed );
+};
+
+// ----------------------------------------------------------------------
+
 #include "private/le_core/le_settings_private_types.inl"
 // ----------------------------------------------------------------------
 // mutex that protects our main settings map - if you change the map structure, you

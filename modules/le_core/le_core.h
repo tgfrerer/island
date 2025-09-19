@@ -60,6 +60,10 @@ ISL_API_ATTR DLL_CORE_API void** le_core_produce_setting_entry( char const* name
 // Globally available, app-lifetime-persistent store for char literals
 ISL_API_ATTR DLL_CORE_API char const* le_core_produce_string_literal( char const* string_literal );
 
+// Spooky hash methods -- so that these are available to all modules that need a good hashing function
+ISL_API_ATTR DLL_CORE_API uint32_t le_core_spooky_hash_32( const void* message, size_t length, uint32_t seed );
+ISL_API_ATTR DLL_CORE_API uint64_t le_core_spooky_hash_64( const void* message, size_t length, uint64_t seed );
+
 // Persistent settings that can be shared among modules.
 
 namespace le {
