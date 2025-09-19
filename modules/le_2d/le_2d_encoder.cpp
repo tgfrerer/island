@@ -40,6 +40,12 @@ static auto logger() {
 
 using ExtendMode              = le_2d_api::ExtendMode;
 
+static void     encoder_path_begin( le_2d_encoder_o* e, bool is_fill );
+static void     encoder_path_rect( le_2d_encoder_o* e, glm::vec2 const& top_left, glm::vec2 const& bottom_right );
+static void     encoder_path_close( le_2d_encoder_o* e );                                            // ffdecl;
+static void     encoder_path_insert_stroke_cap_marker_segment( le_2d_encoder_o* e, bool is_closed ); // ffdecl
+static uint32_t encoder_path_end( le_2d_encoder_o* e, bool insert_path_marker );
+
 // ----------------------------------------------------------------------
 
 static inline bool is_path_segment( PathTag const& e ) {
@@ -77,7 +83,17 @@ static void encoder_reset( le_2d_encoder_o* e ) {
 	e->flags           = 0;
 }
 
+static void encoder_swap_last_two_path_tags( le_2d_encoder_o* e ) {
 
+	if ( e->path_tags.size() < 2 ) {
+		return;
+	}
+
+	// invariant: there are at least two path tags
+
+	std::swap( e->path_tags[ e->path_tags.size() - 1 ],
+	           e->path_tags[ e->path_tags.size() - 2 ] );
+}
 // ----------------------------------------------------------------------
 
 static void encoder_encode_style( le_2d_encoder_o* e, Style const& style ) {
@@ -275,9 +291,52 @@ static void encoder_encode_sweep_gradient( le_2d_encoder_o* e, le_2d_gradient_sw
 
 // ----------------------------------------------------------------------
 
-static void     encoder_path_close( le_2d_encoder_o* e );                                            // ffdecl;
-static void     encoder_path_insert_stroke_cap_marker_segment( le_2d_encoder_o* e, bool is_closed ); // ffdecl
-static uint32_t encoder_path_end( le_2d_encoder_o* e, bool insert_path_marker );
+static void encoder_encode_blurred_rounded_rect( le_2d_encoder_o* e, Transform2D const* transform, le_2d_colour const* colour, float width, float height, float radius, float std_dev ) {
+
+	float kernel_size = 2.5f * std_dev;
+
+	encoder_encode_transform( e, transform );
+
+	encoder_encode_fill_style( e, FillStyle::NonZero );
+
+	encoder_path_begin( e, true );
+	encoder_path_rect( e, { -kernel_size, -kernel_size }, { width + kernel_size * 2, height + kernel_size * 2 } );
+	encoder_path_end( e, true );
+
+	Transform2D t = { .translation = { width * 0.5f, height * 0.5f } };
+	t             = t * ( *transform );
+
+	if ( encoder_encode_transform( e, &t ) ) {
+		encoder_swap_last_two_path_tags( e );
+	}
+
+	{
+		e->draw_tags.push_back( DrawTag::BLUR_RECT );
+
+		struct blur_data_t {
+			uint32_t colour;
+			float    width;
+			float    height;
+			float    radius;
+			float    std_dev;
+		};
+
+		blur_data_t blur_data = {
+		    .colour  = colour->to_premult_rgba_u32(),
+		    .width   = width,
+		    .height  = height,
+		    .radius  = radius,
+		    .std_dev = std_dev,
+		};
+
+		size_t offset = e->draw_data.size(); // NOTE granularity is uint32_t
+		e->draw_data.resize( offset + sizeof( blur_data_t ) / sizeof( uint32_t ) );
+		memcpy( e->draw_data.data() + offset, &blur_data, sizeof( blur_data_t ) );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 
 static const float EPSILON = 1e-12;
 // ----
@@ -836,6 +895,8 @@ void register_le_2d_encoder_api( void* api_ ) {
 	encoder_i.create  = encoder_create;
 	encoder_i.destroy = encoder_destroy;
 	encoder_i.reset   = encoder_reset;
+
+	encoder_i.swap_last_two_path_tags = encoder_swap_last_two_path_tags;
 	//
 
 	encoder_i.encode_colour       = encoder_encode_colour;
@@ -844,6 +905,8 @@ void register_le_2d_encoder_api( void* api_ ) {
 	encoder_i.encode_fill_style   = encoder_encode_fill_style;
 	encoder_i.encode_begin_clip   = encoder_encode_begin_clip;
 	encoder_i.encode_end_clip     = encoder_encode_end_clip;
+
+	encoder_i.encode_blurred_rounded_rect = encoder_encode_blurred_rounded_rect;
 
 	//
 	encoder_i.encode_linear_gradient = encoder_encode_linear_gradient;

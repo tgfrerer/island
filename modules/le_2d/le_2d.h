@@ -392,6 +392,11 @@ struct le_2d_api {
 		void (* encode_radial_gradient)( le_2d_encoder_o* e, le_2d_gradient_radial_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
 		void (* encode_sweep_gradient )( le_2d_encoder_o* e, le_2d_gradient_sweep_t  const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
 
+		void (*encode_blurred_rounded_rect)( le_2d_encoder_o* e, Transform2D const* transform, le_2d_colour const* colour, float width, float height, float radius, float std_dev );
+
+		// ----------
+
+		void (*swap_last_two_path_tags)( le_2d_encoder_o* e );
 
 		bool (* encode_transform)(le_2d_encoder_o* e, Transform2D const *t);
  		void (* encode_begin_clip)( le_2d_encoder_o* e, BlendMode const* blend_mode, float alpha );
@@ -587,6 +592,11 @@ class Encoder2D : NoCopy, NoMove {
 
 	Encoder2D& sweep_gradient( le_2d_gradient_sweep_t const& gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_count, enum le_2d_api::ExtendMode extend = le_2d_api::ExtendMode::Pad, float alpha = 1.0 ) {
 		le_2d::le_2d_encoder_i.encode_sweep_gradient( self, &gradient, colour_stops, colour_stops_count, alpha, extend );
+		return *this;
+	}
+
+	Encoder2D& blurred_rounded_rect( Transform2D const& transform, le_2d_colour const& colour, float width, float height, float radius, float std_dev ) {
+		le_2d::le_2d_encoder_i.encode_blurred_rounded_rect( self, &transform, &colour, width, height, radius, std_dev );
 		return *this;
 	}
 
