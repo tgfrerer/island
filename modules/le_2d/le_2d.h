@@ -111,11 +111,11 @@ struct Transform2D {
 		};
 	}
 
-	inline float determinant() {
+	inline float determinant() const {
 		return transform[ 0 ] * transform[ 3 ] - transform[ 1 ] * transform[ 2 ];
 	}
 
-	Transform2D inverse() {
+	Transform2D inverse() const {
 		float inv_det = 1.0 / determinant();
 		assert( inv_det == inv_det ); // test for NaN
 
