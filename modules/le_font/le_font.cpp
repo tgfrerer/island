@@ -155,7 +155,6 @@ static void le_font_add_paths_for_glyph( le_font_o const* self, void* path_or_us
 	offset->x += scale * ( kern_advance + advanceWidth );
 
 	stbtt_FreeShape( &self->info, pp_arr );
-	// TODO: if we know the previous codepoint, we may add kerning to offset before drawing
 }
 
 // ----------------------------------------------------------------------
