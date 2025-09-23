@@ -88,24 +88,22 @@ struct ExecuteCallbackInfo {
 };
 
 struct le_renderpass_o {
+	// -- start hashed block
+	uint64_t                id                   = 0;                           // | fnv1a_64 hash of debug_name -- calculated at creation
+	le::QueueFlagBits       type                 = le::QueueFlagBits{};         // | Requirements for a queue to which this pass can be submitted.
+	uint32_t                width                = 0;                           // | < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
+	uint32_t                height               = 0;                           // | < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
+	le::SampleCountFlagBits sample_count         = le::SampleCountFlagBits::e1; // | < SampleCount for all attachments.
+	bool                    is_root              = false;                       // | Whether pass *must* be processed
+	bool                    is_contributing      = true;                        // | Whether this pass contributes to the final result or could be pruned.
+	bool                    padding[ 6 ]         = { 0 };                       // | padding for a full uint8_t
+	le::RootPassesField     root_passes_affinity = {};                          // | Association of this renderpass with one or more root passes that it contributes to -
+	                                                                            // | this needs to be communicated to backend, so that you may create queue submissions
+	                                                                            // | by filtering via root_passes_affinity_masks
+	// -- end hashed block
 
-	le::QueueFlagBits       type         = le::QueueFlagBits{};         // Requirements for a queue to which this pass can be submitted.
-	uint32_t                ref_count    = 0;                           // reference count (we're following an intrusive shared pointer pattern)
-	uint64_t                id           = 0;                           // hash of name
-	uint32_t                width        = 0;                           // < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
-	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
-	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
-
-	bool is_root         = false; // Whether pass *must* be processed
-	bool is_contributing = true;  // Whether this pass contributes to the final result or could be pruned.
-	bool has_commands    = false;
-
-	le::RootPassesField root_passes_affinity; // Association of this renderpass with one or more root passes that it contributes to -
-	                                          // this needs to be communicated to backend, so that you may create queue submissions
-	                                          // by filtering via root_passes_affinity_masks
-
-	std::vector<le_resource_handle> resources; // all resources used in this pass, contains info about resource type
-	std::vector<le::AccessFlags2> resources_access_flags; // first read | last write access for each resource used in this pass
+	std::vector<le_resource_handle> resources;              // all resources used in this pass, contains info about resource type
+	std::vector<le::AccessFlags2>   resources_access_flags; // first read | last write access for each resource used in this pass
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_image_resource_handle>   attachmentResources; // kept in sync with imageAttachments, one resource per attachment
@@ -120,6 +118,9 @@ struct le_renderpass_o {
 
 	// TODO: keep track of how many commands were encoded - if no commands were encoded, that is still valid in case this
 	// was a graphics pass -- in which case the pass might be used for clearing only.
+	uint32_t ref_count = 0; // reference count (we're following an intrusive shared pointer pattern)
+
+	bool has_commands = false;
 
 	std::string debug_name;
 };

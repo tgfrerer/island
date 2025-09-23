@@ -350,6 +350,18 @@ static bool renderpass_has_setup_callback( const le_renderpass_o* self ) {
 	return self->callbackSetup != nullptr;
 }
 
+// ----------------------------------------------------------------------
+
+static uint64_t renderpass_get_hash( const le_renderpass_o* self ) {
+	ZoneScoped;
+
+	uint64_t hash = SpookyHash::Hash64( &self->id, offsetof( le_renderpass_o, resources ), 0 );
+
+	hash = SpookyHash::Hash64( self->resources.data(), self->resources.size() * sizeof( le_resource_handle ), hash );
+	hash = SpookyHash::Hash64( self->resources_access_flags.data(), self->resources_access_flags.size() * sizeof( le::AccessFlags2 ), hash );
+
+	return hash;
+}
 
 // ----------------------------------------------------------------------
 
@@ -1250,6 +1262,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.sample_texture               = renderpass_sample_texture;
 	le_renderpass_i.get_texture_ids              = renderpass_get_texture_ids;
 	le_renderpass_i.get_texture_infos            = renderpass_get_texture_infos;
+	le_renderpass_i.get_hash                     = renderpass_get_hash;
 	le_renderpass_i.ref_inc                      = renderpass_ref_inc;
 	le_renderpass_i.ref_dec                      = renderpass_ref_dec;
 }
