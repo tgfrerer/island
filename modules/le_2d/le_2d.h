@@ -74,6 +74,7 @@ static_assert( align_up( 0, 4 ) == 0, "must produce the correct alignment" );
 static_assert( align_up( 12, 4 ) == 12, "must produce the correct alignment" );
 static_assert( align_up( 13, 4 ) == 16, "must produce the correct alignment" );
 
+// Think of this as "first translate, then rotate(transform)"
 struct Transform2D {
 	float transform[ 4 ]   = { 1, 0, 0, 1 }; // 2x2 matrix, column major
 	float translation[ 2 ] = { 0, 0 };
