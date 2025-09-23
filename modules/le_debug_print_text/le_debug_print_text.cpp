@@ -21,7 +21,7 @@ using float_colour_t = le_debug_print_text_api::float_colour_t;
 
 struct style_t {
 	float_colour_t col_fg     = { 1, 1, 1, 1 }; // rgba
-	float_colour_t col_bg     = { 0, 0, 0, 0 }; // rgba
+	float_colour_t col_bg     = { 0, 0, 0, .3 }; // rgba
 	float          char_scale = 1;
 
 	bool operator==( style_t const& rhs ) {
@@ -90,7 +90,7 @@ static void le_debug_print_text_draw_reset( this_o* self ) {
 	// Add default style
 	self->styles.push_back( {
 	    .col_fg     = { 1, 1, 1, 1 },
-	    .col_bg     = { 0, 0, 0, 0 },
+	    .col_bg     = { 0, 0, 0, .3 },
 	    .char_scale = 1.f,
 	} );
 
