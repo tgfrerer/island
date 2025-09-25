@@ -718,6 +718,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 			bool detect_read  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
 			bool detect_write = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
+			bool detect_explicit_write = detect_write;
 
 			// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
 			// this means that some reads to image resources are implicit read/writes.
@@ -746,6 +747,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 			node.reads.set( res_idx, detect_read );
 			node.writes.set( res_idx, detect_write );
+			node.explicit_writes.set( res_idx, detect_explicit_write );
 		}
 
 		if ( p->is_root ) {

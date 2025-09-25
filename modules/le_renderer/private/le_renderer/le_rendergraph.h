@@ -132,8 +132,9 @@ using ResourceField = std::bitset<LE_MAX_NUM_GRAPH_RESOURCES>; // Each bit repre
 // A Node corresponds to a Renderpass - every Renderpass gets translated into a Node upon building the rendergraph
 struct Node {
 	uint64_t            unique_id           = 0;     // unique id for each node, assigned upon node creation
-	ResourceField       reads               = 0;     // per-node reads from resources (indexed by unique id)
-	ResourceField       writes              = 0;     // per-node writes to resources (indexed by unique id)
+	ResourceField       reads               = {};    // per-node reads from resources (indexed by unique id)
+	ResourceField       writes              = {};    // per-node writes to resources (indexed by unique id) -- this includes pessimistic cases where we assume sampling from an image resource requires a layout transform (which is an implicit write op)
+	ResourceField       explicit_writes     = {};    // we distinguish between writes and explicit writes because to trace the origin of (content) change to a resource, we don't care about pessimistic implicit writes
 	le::RootPassesField root_nodes_affinity = 0;     // association of node with root node(s) - each bit represents a root node, if set, this pass contributes to that particular root node
 	bool                is_root             = false; // whether this node is a root node
 	bool                is_contributing     = false; // whether this node contributes to a root node
