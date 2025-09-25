@@ -113,9 +113,9 @@ static void encoder_encode_colour( le_2d_encoder_o* e, uint32_t color ) {
 
 // ----------------------------------------------------------------------
 
-static bool encoder_encode_transform( le_2d_encoder_o* e, Transform2D const* t ) {
+static bool encoder_encode_transform( le_2d_encoder_o* e, LeTransform2D const* t ) {
 
-	static constexpr Transform2D t_identity = {};
+	static constexpr LeTransform2D t_identity = {};
 
 	if ( t == nullptr ) {
 		t = &t_identity;
@@ -298,7 +298,7 @@ static void encoder_encode_sweep_gradient( le_2d_encoder_o* e, le_2d_gradient_sw
 
 // ----------------------------------------------------------------------
 
-static void encoder_encode_blurred_rounded_rect( le_2d_encoder_o* e, Transform2D const* transform, le_2d_colour const* colour, float width, float height, float radius, float std_dev ) {
+static void encoder_encode_blurred_rounded_rect( le_2d_encoder_o* e, LeTransform2D const* transform, le_2d_colour const* colour, float width, float height, float radius, float std_dev ) {
 
 	float kernel_size = 2.5f * std_dev;
 
@@ -310,7 +310,7 @@ static void encoder_encode_blurred_rounded_rect( le_2d_encoder_o* e, Transform2D
 	encoder_path_rect( e, { -kernel_size, -kernel_size }, { width + kernel_size * 2, height + kernel_size * 2 } );
 	encoder_path_end( e, true );
 
-	Transform2D t = { .translation = { width * 0.5f, height * 0.5f } };
+	LeTransform2D t = { .translation = { width * 0.5f, height * 0.5f } };
 	t             = ( *transform ) * t;
 
 	if ( encoder_encode_transform( e, &t ) ) {
@@ -881,9 +881,9 @@ static void encoder_path_arc( le_2d_encoder_o* e, glm::vec2 const& centre, glm::
 
 // ----------------------------------------------------------------------
 // Note that this assumes that both encoders, self, and rhs are in a valid state.
-static void encoder_append_into_encoder( le_2d_encoder_o* self, le_2d_encoder_o const* rhs, Transform2D const* maybe_transform ) {
+static void encoder_append_into_encoder( le_2d_encoder_o* self, le_2d_encoder_o const* rhs, LeTransform2D const* maybe_transform ) {
 
-	Transform2D t = maybe_transform ? *maybe_transform : Transform2D();
+	LeTransform2D t = maybe_transform ? *maybe_transform : LeTransform2D();
 
 	// TODO apply optional transform to all transform objects in rhs
 

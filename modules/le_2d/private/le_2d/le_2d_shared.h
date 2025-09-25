@@ -308,7 +308,7 @@ struct ResolvedPatch {
 		size_t      index; // index of the glyph in the glyph run buffer
 		size_t      glyphs_start;
 		size_t      glyphs_end; // range into the glyphs encoding range buffer
-		Transform2D transform;  // global transform
+		LeTransform2D transform;  // global transform
 		float       scale;      // additional scale factor
 		bool        hint;       // whether the glyph was hinted
 	};
@@ -384,7 +384,7 @@ struct le_2d_encoder_o : NoCopy, NoMove {
 	std::vector<uint32_t> draw_data;
 
 	// /// The transform stream.
-	std::vector<Transform2D> transforms;
+	std::vector<LeTransform2D> transforms;
 
 	// /// The style stream
 	std::vector<Style> styles;

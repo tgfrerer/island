@@ -198,7 +198,7 @@ glm::vec2 RenderPassView::getPortForResource( const le_resource_handle& resource
 
 // ----------------------------------------------------------------------
 
-void RenderPassView::draw( le::Encoder2D& encoder, const Transform2D& transform ) {
+void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transform ) {
 
 	float card_height = 5 + this->required_height;
 	float radius      = 10;

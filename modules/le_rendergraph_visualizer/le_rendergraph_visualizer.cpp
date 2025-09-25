@@ -47,10 +47,10 @@ struct io_state_t {
 	bool      should_zoom = false;
 };
 
-inline static Transform2D rotation_rad( float angle_rad ) {
+inline static LeTransform2D rotation_rad( float angle_rad ) {
 	float       cosa  = cosf( angle_rad );
 	float       sina  = sinf( angle_rad );
-	Transform2D rot_m = { .transform = { cosa, sina, -sina, cosa }, .translation = { 0, 0 } };
+	LeTransform2D rot_m = { .transform = { cosa, sina, -sina, cosa }, .translation = { 0, 0 } };
 	return rot_m;
 };
 
@@ -68,7 +68,7 @@ struct le_rendergraph_visualizer_o {
 
 	std::unordered_map<uint64_t, RenderPassView*> rp;
 
-	Transform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph
+	LeTransform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph
 
 	glm::vec2 canvas_extents;  // dimensions of the visualization canvas
 	glm::vec2 canvas_blit_pos; // where the visualization gets rendered on the final image
@@ -206,8 +206,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 		le::Encoder2D encoder_views{};
 
-		// Transform2D affine = { .transform = { 0.5, 0, 0, 0.5 }, .translation = { 20, 100 } };
-		// Transform2D affine = { .transform = { 1, 0, 0, 1 }, .translation = { 0, 0 } };
+		// LeTransform2D affine = { .transform = { 0.5, 0, 0, 0.5 }, .translation = { 20, 100 } };
+		// LeTransform2D affine = { .transform = { 1, 0, 0, 1 }, .translation = { 0, 0 } };
 
 		self->canvas_blit_pos = { 50, 100 };
 		self->canvas_extents  = { 1080 - 100.f, 540 };
@@ -296,20 +296,20 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		// We should store the transforms for all our renderpasses
 		//
 		//
-		std::vector<Transform2D>     per_pass_transforms;
+		std::vector<LeTransform2D>     per_pass_transforms;
 		std::vector<RenderPassView*> rp_views;
 
 		{
 			ZoneScoped;
 			int         i = 0;
-			Transform2D t = canvas_to_screen;
+			LeTransform2D t = canvas_to_screen;
 			for ( auto const& p : rp_src->passes ) {
 				uint64_t pass_id = renderpass_hashes[ i ]; // this was updated when updating the cache
 				auto&    pass    = self->rp.at( pass_id );
 				pass->draw( encoder_views, t );
 				per_pass_transforms.push_back( t );
 				rp_views.push_back( pass );
-				Transform2D t_local{ .translation = { pass->get_leftmost_x() + 50, 0 } };
+				LeTransform2D t_local{ .translation = { pass->get_leftmost_x() + 50, 0 } };
 				t = t * t_local;
 				i++;
 			}
@@ -320,8 +320,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 		le::Encoder2D encoder_connections{};
 
-		Transform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } }; // mouse space
-		Transform2D mouse_on_canvas = canvas_to_screen.inverse() * mouse_to_screen;                                           // mouse space to canvas space
+		LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } }; // mouse space
+		LeTransform2D mouse_on_canvas = canvas_to_screen.inverse() * mouse_to_screen;                                           // mouse space to canvas space
 
 		for ( auto const& c : connections ) {
 
@@ -334,8 +334,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			glm::vec2 from_port = from_view->getPortForResource( c.resource, false );
 			glm::vec2 to_port   = to_view->getPortForResource( c.resource, true );
 
-			Transform2D from_transform = { .translation = { from_port.x, from_port.y } };
-			Transform2D to_transform   = { .translation = { to_port.x, to_port.y } };
+			LeTransform2D from_transform = { .translation = { from_port.x, from_port.y } };
+			LeTransform2D to_transform   = { .translation = { to_port.x, to_port.y } };
 
 			from_transform = per_pass_transforms[ c.renderpass_idx_from ] * from_transform;
 			to_transform   = per_pass_transforms[ c.renderpass_idx_to ] * to_transform;
@@ -406,17 +406,17 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		constexpr bool USE_ARTBOARD_MAGNIFIER = true;
 
 		if ( USE_ARTBOARD_MAGNIFIER && self->io_state.should_zoom ) {
-			Transform2D artboard_to_magnified_screen;
+			LeTransform2D artboard_to_magnified_screen;
 			{
 				float       zoom           = 2;
-				Transform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
+				LeTransform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
 
 				// i need to transform from mouse space into into artboard space
 				// mouse space is where the mouse is at the centre of all things
 				// artboard space is where the artboard is centred.
 
-				Transform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
-				Transform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
+				LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
+				LeTransform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
 
 				// This applies zooms around where the mouse is:
 				// Read this right-to-left.
@@ -650,7 +650,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 		// signal that the mouse has been captured
 		// self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
 
-		Transform2D grab_transform = { .translation = { cursor_delta.x, cursor_delta.y } };
+		LeTransform2D grab_transform = { .translation = { cursor_delta.x, cursor_delta.y } };
 
 		self->artboard_to_screen = grab_transform * self->artboard_to_screen;
 
@@ -660,14 +660,14 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 	if ( fabsf( self->ui_zoom_level_delta ) > std::numeric_limits<float>::epsilon() ) {
 
 		float       zoom             = self->ui_zoom_level_delta;
-		Transform2D zoom_transform   = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
+		LeTransform2D zoom_transform   = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
 
 		// i need to transform from mouse space into into artboard space
 		// mouse space is where the mouse is at the centre of all things
 		// artboard space is where the artboard is centred.
 
-		Transform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
-		Transform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
+		LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
+		LeTransform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
 
 		// This applies zooms around where the mouse is:
 		// Read this right-to-left.

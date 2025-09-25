@@ -56,7 +56,7 @@ struct le_2d_o;
 struct le_rendergraph_o;
 struct le_image_resource_handle_t;
 struct le_resource_info_t;
-struct Transform2D; // declared in "public/le_2d/transform_2d.hpp"
+struct LeTransform2D; // declared in "public/le_2d/transform_2d.hpp"
 
 //
 
@@ -301,13 +301,13 @@ struct le_2d_api {
 		void (* encode_radial_gradient)( le_2d_encoder_o* e, le_2d_gradient_radial_t const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
 		void (* encode_sweep_gradient )( le_2d_encoder_o* e, le_2d_gradient_sweep_t  const* gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_sz, float alpha, enum ExtendMode extend );
 
-		void (*encode_blurred_rounded_rect)( le_2d_encoder_o* e, Transform2D const* transform, le_2d_colour const* colour, float width, float height, float radius, float std_dev );
+		void (*encode_blurred_rounded_rect)( le_2d_encoder_o* e, LeTransform2D const* transform, le_2d_colour const* colour, float width, float height, float radius, float std_dev );
 
 		// ----------
 
 		void (*swap_last_two_path_tags)( le_2d_encoder_o* e );
 
-		bool (* encode_transform)(le_2d_encoder_o* e, Transform2D const *t);
+		bool (* encode_transform)(le_2d_encoder_o* e, LeTransform2D const *t);
  		void (* encode_begin_clip)( le_2d_encoder_o* e, BlendMode const* blend_mode, float alpha );
  		void (* encode_end_clip)( le_2d_encoder_o* e);
 
@@ -335,7 +335,7 @@ struct le_2d_api {
 		void (* path_arc    )( le_2d_encoder_o* e, glm::vec2 const& centre, glm::vec2 const& radii, double start_angle_rad, double sweep_angle_rad, double x_rotation_rad, float tolerance);
 
 		// Append endoded data from one encoder into the other
-		void (* append_into_encoder)(le_2d_encoder_o* self, le_2d_encoder_o const * rhs, Transform2D const* maybe_transform);
+		void (* append_into_encoder)(le_2d_encoder_o* self, le_2d_encoder_o const * rhs, LeTransform2D const* maybe_transform);
 	};
 
 	struct le_2d_interface_t {
@@ -511,7 +511,7 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	}
 
-	Encoder2D& blurred_rounded_rect( Transform2D const& transform, le_2d_colour const& colour, float width, float height, float radius, float std_dev ) {
+	Encoder2D& blurred_rounded_rect( LeTransform2D const& transform, le_2d_colour const& colour, float width, float height, float radius, float std_dev ) {
 		le_2d::le_2d_encoder_i.encode_blurred_rounded_rect( self, &transform, &colour, width, height, radius, std_dev );
 		return *this;
 	}
@@ -521,7 +521,7 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	};
 
-	Encoder2D& transform( Transform2D const& t ) {
+	Encoder2D& transform( LeTransform2D const& t ) {
 		le_2d::le_2d_encoder_i.encode_transform( self, &t );
 		return *this;
 	};
@@ -583,7 +583,7 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	}
 
-	Encoder2D& append( Encoder2D const& rhs, Transform2D const& optional_transform ) {
+	Encoder2D& append( Encoder2D const& rhs, LeTransform2D const& optional_transform ) {
 		le_2d::le_2d_encoder_i.append_into_encoder( self, rhs.self, &optional_transform );
 		return *this;
 	}

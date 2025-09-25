@@ -57,5 +57,5 @@ class RenderPassView {
 	// we need to list all positions at which a port is drawn for a particular resource
 	glm::vec2 getPortForResource( le_resource_handle const& resource, bool in_out );
 
-	void draw( le::Encoder2D& encoder, Transform2D const& transform );
+	void draw( le::Encoder2D& encoder, LeTransform2D const& transform );
 };
