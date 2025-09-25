@@ -125,7 +125,7 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 
 		if ( is_root_resource ) {
 			// this resource is a root resource (a swapchain resource probably)
-			font_cache_encoder.colour( 255, 255, 0, alpha_value );
+			font_cache_encoder.colour( 0x71, 0x1f, 0x1f, alpha_value );
 		} else {
 			font_cache_encoder.colour( 0, 0, 0, alpha_value );
 		}
@@ -244,7 +244,7 @@ void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transfor
 				    .path_begin( le_2d::FillStyle::NonZero );
 			} else {
 				encoder
-				    .colour( 0x79, 0x89, 0x79, 0xff )
+				    .colour_abgr( 0xff2d5016 )
 				    .path_begin( le_2d::Stroke{ .width = 1.f } );
 			}
 
