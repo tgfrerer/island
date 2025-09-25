@@ -1,0 +1,764 @@
+#include "le_core.h"
+#include "le_rendergraph_visualizer.h"
+#include "le_debug_print_text.h"
+#include "le_renderer.h"
+#include "le_renderer.hpp"
+#include "private/le_renderer/le_rendergraph.h"
+#include "le_2d.h"
+#include "le_shader_compiler.h"
+#include "le_pipeline_builder.h"
+#include "glm/glm.hpp"
+#include "le_font.h"
+#include "le_tracy.h"
+#include "le_path.h"
+#include "le_ui_event.h"
+#include "le_log.h"
+
+#include "private/le_rendergraph_visualizer/views.h"
+
+#include "private/le_renderer/le_resource_handle_t.inl"
+
+#include <algorithm> // for copy_if
+
+static constexpr size_t C_VIEWS_CACHE_CAPACITY = 10; // Number of RenderpassViews to keep in the cache
+
+static auto& logger() {
+	static le::Log logger = le::Log( "rendergraph_visualizer" );
+	return logger;
+}
+
+// ----------------------------------------------------------------------
+
+enum class UI_CAPTURE_STATE_BIT : uint32_t {
+	eNone     = 0,
+	eMouse    = 1,
+	eKeyboard = uint32_t( 1 ) << 1,
+};
+
+enum class IO_STATES : uint32_t {
+	eInactive = 0,
+	eGrabbing = 1, // mouse has grabbed hold of canvas
+};
+
+struct io_state_t {
+	glm::vec2 last_cursor_pos;      // relative to canvas_blit_pos
+	uint32_t  mouse_button_pressed; // bitfield for mouse buttons
+	IO_STATES state = IO_STATES::eInactive;
+	bool      should_zoom = false;
+};
+
+inline static Transform2D rotation_rad( float angle_rad ) {
+	float       cosa  = cosf( angle_rad );
+	float       sina  = sinf( angle_rad );
+	Transform2D rot_m = { .transform = { cosa, sina, -sina, cosa }, .translation = { 0, 0 } };
+	return rot_m;
+};
+
+struct le_rendergraph_visualizer_o {
+	// members
+	le_image_resource_handle canvas_image;   // the canvas onto which we draw the visualization.
+	le_resource_info_t       canvas_image_info; // resource image information
+	le_texture_handle        canvas_texture;    // the texture which we use to sample the canvas
+	le::Font                 font = { "./resources/fonts/IBMPlexSans-Regular.otf", 8 };
+	Le2D                     ctx_2d; // 2d drawing context
+
+	uint32_t   ui_capture_state = 0;
+	io_state_t io_state         = {};
+	float      ui_zoom_level_delta = 0; // relative zoom level, 0 means 1:1
+
+	std::unordered_map<uint64_t, RenderPassView*> rp;
+
+	Transform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph
+
+	glm::vec2 canvas_extents;  // dimensions of the visualization canvas
+	glm::vec2 canvas_blit_pos; // where the visualization gets rendered on the final image
+
+	bool is_active = true; // whether we should respond to ui input and draw
+
+	uint8_t epoch; // update count, used for cache
+};
+
+// ----------------------------------------------------------------------
+
+static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create() {
+	auto self = new le_rendergraph_visualizer_o();
+
+	self->canvas_image = LE_IMG_RESOURCE( "visualizer_output_image" );
+
+	self->canvas_blit_pos = { 50, 50 };
+	self->canvas_extents  = { 1080 - 100.f, 400.f };
+
+	self->artboard_to_screen = {};
+
+	self->canvas_image_info = le::ImageInfoBuilder().build();
+
+	return self;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_rendergraph_visualizer_destroy( le_rendergraph_visualizer_o *self ) {
+
+	for ( auto& v : self->rp ) {
+		delete v.second;
+	}
+	self->rp.clear();
+
+	delete self;
+}
+
+// ----------------------------------------------------------------------
+
+static void list_renderpasses_as_text( le_rendergraph_o* rp_src ) {
+	le::DebugPrint::setBgColour( { 0.f, 0.f, 0.f, 1.f } );
+	le::DebugPrint::setColour( { 1.f, 1, 1, 1 } );
+	le::DebugPrint( "|Renderpasses:\n" );
+	le::DebugPrint( "|-------------\n" );
+
+	for ( auto const& p : rp_src->passes ) {
+		p->is_contributing ? le::DebugPrint::setColour( { 1, 1, 1, 1 } ) : le::DebugPrint::setColour( { .60, .60, .7, 1 } );
+		le::DebugPrint( "|+\t%s%s\n", p->debug_name.c_str(), p->is_contributing ? " " : " -- (optimised away) " );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergraph_visualizer_o* self, le_rendergraph_o const* rp_src, std::vector<uint64_t>& renderpass_hashes ) {
+	for ( auto const& p : rp_src->passes ) {
+
+		uint64_t rp_hash = le_renderer_api_i->le_renderpass_i.get_hash( p );
+
+		// we store the renderpass hash locally, so that we don't have to re-calculate the hash again later
+		renderpass_hashes.push_back( rp_hash );
+
+		auto [ it, did_emplace ] = self->rp.emplace( rp_hash, nullptr );
+
+		if ( did_emplace ) {
+			it->second = new RenderPassView( &self->font, p, self->epoch );
+		} else {
+			// Mark this RenderpassView as being used in this epoch -
+			// this means that cache control should not delete it yet...
+			it->second->epoch = self->epoch;
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void rendergraph_visualizer_renderpass_view_cache_maintain( le_rendergraph_visualizer_o*& self ) {
+
+	// This maintains renderpass view cache -- you need to use all resources and their
+	// properties as the control for whether a renderpass is the same -- not just the name.
+	//
+	// You should then also kill any elements from the cache that have not been used/drawn for
+	// the last 10 epochs.
+
+	size_t num_elements_in_cache = self->rp.size();
+
+	if ( num_elements_in_cache > C_VIEWS_CACHE_CAPACITY ) {
+		for ( auto it = self->rp.begin(); it != self->rp.end(); ) {
+			uint8_t age = uint32_t( self->epoch - it->second->epoch );
+			if ( age > 3 ) {
+				// If an element is older than three epochs, we may evict it from the cache
+				// immediately if we need space.
+				delete it->second;         // delete the cached RenderpassView
+				it = self->rp.erase( it ); // delete the cache entry
+				if ( --num_elements_in_cache <= C_VIEWS_CACHE_CAPACITY ) {
+					break;
+				} else {
+					continue;
+				}
+			}
+			it++;
+		}
+	}
+
+	self->epoch++;
+}
+
+// ----------------------------------------------------------------------
+
+/// `target_image` tells us where to draw the visualization into.
+/// Usually you would want to set this to the current swapchain image.
+static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self, le_rendergraph_o* rendergraph_to_draw_into, le_image_resource_handle target_image, le_rendergraph_o* rp_src ) {
+
+	ZoneScoped;
+
+	if ( self->is_active ) {
+
+		// ----------| invariant: visualizer is active
+
+		// We must first evaluate the rendergraph by calling its setup callbacks.
+		//
+		// This is so that all resources which are dynamically declared become
+		// available to the rendergraph.
+		//
+		// Note that this means that any subsequent
+		// calls to setup_passes will have no effects for passes whose callback
+		// functions have been called at this point. Callbacks are one-shot. This
+		// is so that we can guarantee that any side-effects of calling setup()
+		// only happens once, and that the rendergraph can not change if
+		// `setup_passes` is called on it more than once (first call is canonical).
+		le_renderer_api_i->le_rendergraph_private_i.setup_passes( rp_src );
+		le_renderer_api_i->le_rendergraph_private_i.build( rp_src, 0 );
+
+		// list_renderpasses_as_text( rp_src );
+
+		le::Encoder2D encoder_views{};
+
+		// Transform2D affine = { .transform = { 0.5, 0, 0, 0.5 }, .translation = { 20, 100 } };
+		// Transform2D affine = { .transform = { 1, 0, 0, 1 }, .translation = { 0, 0 } };
+
+		self->canvas_blit_pos = { 50, 100 };
+		self->canvas_extents  = { 1080 - 100.f, 540 };
+
+		//
+		struct connection_t {
+			int32_t            renderpass_idx_from; // index of renderpass in current rendergraph, -1 means external
+			int32_t            renderpass_idx_to;
+			le_resource_handle resource;
+		};
+
+		std::vector<connection_t> connections;
+		{
+			ZoneScoped;
+			auto get_resource_idx = []( le_rendergraph_o const* rg, le_resource_handle const r ) -> uint32_t {
+				// Will find resource in linear time; the more resources we have, the more time it
+				// may take; We could cache this locally; But we're effectively comparing pointers;
+				// so this should be plenty fast.
+				uint32_t i = 0;
+				for ( ; i != rg->unique_resources.size(); i++ ) {
+					if ( rg->unique_resources[ i ] == r ) {
+						break;
+					}
+				}
+				return i;
+			};
+
+			uint32_t rp_src_unique_resources_size = rp_src->unique_resources.size();
+
+			for ( int i = rp_src->passes.size() - 1; i >= 0; i-- ) {
+				auto& p = *( rp_src->passes[ i ] );
+				auto& n = rp_src->nodes[ i ];
+
+				if ( false == p.is_contributing ) {
+					continue;
+				}
+
+				// ----------| invariant: this pass contributes
+
+				connection_t c{
+				    .renderpass_idx_from = -1,
+				    .renderpass_idx_to   = i,
+				};
+
+				for ( auto& r : p.resources ) {
+
+					c.resource = r;
+					// we only care if the resource is a read resource
+					uint32_t res_idx = get_resource_idx( rp_src, r );
+					if ( res_idx == rp_src_unique_resources_size ) {
+						// Resource could not be found for some reason
+						// this should not happen, but if it happens,
+						// we ignore this resource.
+						continue;
+					}
+					// ----------| Invariant: resource was found
+
+					if ( n.reads.test( res_idx ) ) {
+						// we have a read -- now we need to find any previous
+						// passes that might have written to this
+
+						for ( int j = i - 1; j >= 0; j-- ) {
+							auto& n_dest = rp_src->nodes[ j ];
+
+							if ( n_dest.explicit_writes.test( res_idx ) ) {
+								// we have found our connecsion
+								c.renderpass_idx_from = j;
+								connections.push_back( c );
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		auto const& canvas_to_screen = self->artboard_to_screen;
+
+		std::vector<uint64_t> renderpass_hashes;
+		le_rendergraph_visualizer_update_renderpass_view_cache( self, rp_src, renderpass_hashes );
+
+		// This is where we draw the renderpasses
+		//
+		// Connections need to be drawn before renderpasses, so that they lie underneath.
+		//
+		// We should store the transforms for all our renderpasses
+		//
+		//
+		std::vector<Transform2D>     per_pass_transforms;
+		std::vector<RenderPassView*> rp_views;
+
+		{
+			ZoneScoped;
+			int         i = 0;
+			Transform2D t = canvas_to_screen;
+			for ( auto const& p : rp_src->passes ) {
+				uint64_t pass_id = renderpass_hashes[ i ]; // this was updated when updating the cache
+				auto&    pass    = self->rp.at( pass_id );
+				pass->draw( encoder_views, t );
+				per_pass_transforms.push_back( t );
+				rp_views.push_back( pass );
+				Transform2D t_local{ .translation = { pass->get_leftmost_x() + 50, 0 } };
+				t = t * t_local;
+				i++;
+			}
+		}
+
+		// we should now be able to draw the connections. we will add the connections before
+		// the renderpasses, later.
+
+		le::Encoder2D encoder_connections{};
+
+		Transform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } }; // mouse space
+		Transform2D mouse_on_canvas = canvas_to_screen.inverse() * mouse_to_screen;                                           // mouse space to canvas space
+
+		for ( auto const& c : connections ) {
+
+			// first, just draw circles over the given points of connection - this is so
+			// that we can tell whether our geometry is correct.
+
+			auto from_view = rp_views[ c.renderpass_idx_from ];
+			auto to_view   = rp_views[ c.renderpass_idx_to ];
+
+			glm::vec2 from_port = from_view->getPortForResource( c.resource, false );
+			glm::vec2 to_port   = to_view->getPortForResource( c.resource, true );
+
+			Transform2D from_transform = { .translation = { from_port.x, from_port.y } };
+			Transform2D to_transform   = { .translation = { to_port.x, to_port.y } };
+
+			from_transform = per_pass_transforms[ c.renderpass_idx_from ] * from_transform;
+			to_transform   = per_pass_transforms[ c.renderpass_idx_to ] * to_transform;
+
+			if ( false ) {
+				encoder_connections
+				    .transform( from_transform )
+				    .colour( le_2d_colour( 255, 0, 0, 128 ) )
+				    .path_begin( le_2d::FillStyle::NonZero )
+				    .circle( { 0, 0 }, 10 )
+				    .path_end();
+
+				encoder_connections
+				    .transform( to_transform )
+				    .colour( le_2d_colour( 255, 0, 0, 128 ) )
+				    .path_begin( le_2d::FillStyle::NonZero )
+				    .circle( { 0, 0 }, 10 )
+				    .path_end();
+			}
+
+			// now, if i want to draw a connection between the two positions,
+			// how would i do this?
+
+			// i need to draw either in from_transform space or to_transform space.
+
+			auto      pt_in_from_transform_space = ( from_transform.inverse() * to_transform );
+			glm::vec2 to_pos                     = {
+                pt_in_from_transform_space.translation[ 0 ],
+                pt_in_from_transform_space.translation[ 1 ],
+            };
+
+			float bendiness = .55f;
+
+			encoder_connections
+			    .transform( from_transform )
+			    .colour_abgr( 0xff5f711e )
+			    .path_begin( { .width = 5.f } )
+			    .move_to( { 0, 0 } )
+			    .cubic_to( { to_pos.x * bendiness, 0 }, { to_pos.x * ( 1.f - bendiness ), to_pos.y }, to_pos )
+			    .path_end();
+		}
+
+		/*
+		 * here, use Le2D methods to draw the graph into a 2d graphic;
+		 * Complete with text, even (you will have to load a font for this)
+		 *
+		 * we might want to zoom and to move around -- which means we must respond to user interface messages
+		 *
+		 * you can draw the whole thing in 2d using a certain zoom level, and then zoom in or out
+		 *
+		 */
+
+		encoder_connections.append( encoder_views );
+
+		self->canvas_image_info.image.extent.width  = self->canvas_extents.x;
+		self->canvas_image_info.image.extent.height = self->canvas_extents.y;
+
+		// encoder_connections
+		//     .transform( canvas_to_screen ) // apply canvas to screen transform
+		//     .colour_abgr( 0xff0000ff )
+		//     .path_begin( { .width = 5.f } )
+		//     .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 100 ) // we draw this in canvas space
+		//     .path_end();
+		le::Encoder2D encoder_artboard{};
+
+		encoder_artboard.append( encoder_connections );
+
+		constexpr bool USE_ARTBOARD_MAGNIFIER = true;
+
+		if ( USE_ARTBOARD_MAGNIFIER && self->io_state.should_zoom ) {
+			Transform2D artboard_to_magnified_screen;
+			{
+				float       zoom           = 2;
+				Transform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
+
+				// i need to transform from mouse space into into artboard space
+				// mouse space is where the mouse is at the centre of all things
+				// artboard space is where the artboard is centred.
+
+				Transform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
+				Transform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
+
+				// This applies zooms around where the mouse is:
+				// Read this right-to-left.
+				// 1) First we center the art board to where the mouse is - mouse_space_to_artboard.inverse()
+				// 2) Then we apply the zoom
+				// Then we undo the centering
+				// Then we move from artboard to screen.
+
+				artboard_to_magnified_screen = self->artboard_to_screen * mouse_space_to_artboard * zoom_transform * mouse_space_to_artboard.inverse();
+			}
+
+			encoder_artboard
+			    .transform( self->artboard_to_screen ) // apply canvas to screen transform
+			    .path_begin( le_2d::FillStyle::NonZero )
+			    .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 300 ) // we draw this in canvas space
+			    .path_end()
+			    .begin_clip( le_2d::BlendMode{}, 1.f )
+
+			    .colour_abgr( 0xffffffff )
+			    .path_begin( le_2d::FillStyle::NonZero )
+			    .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 300 ) // we draw this in canvas space
+			    .path_end();
+
+			encoder_artboard.append( encoder_connections, artboard_to_magnified_screen * self->artboard_to_screen.inverse() );
+			encoder_artboard.end_clip();
+		}
+
+		self->ctx_2d.update( rendergraph_to_draw_into, encoder_artboard, self->canvas_image, &self->canvas_image_info, le_2d_colour( 255, 255, 255, 128 ).to_premult_rgba_u32() );
+
+		// now, we need to draw the image into the output image -- that way we can be sure that it will be visible
+		le::RenderPass draw_visuals( "draw_visualizer" );
+
+		// All this is just to draw the image created via the 2d context into the final swapchain image:
+
+		draw_visuals
+		    .addColorAttachment( target_image, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eLoad ).build() )
+		    .sampleTexture( self->canvas_texture, self->canvas_image )
+		    .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+			    // todo: draw self->canvas_texture onto the screen
+
+			    auto                self = static_cast<le_rendergraph_visualizer_o*>( user_data );
+			    le::GraphicsEncoder encoder{ encoder_ };
+
+			    le::Extent2D extents = encoder.getRenderpassExtent();
+
+			    // Draw main scene
+
+			    static auto pipeline_draw_brush =
+			        LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+			            .addShaderStage(
+			                LeShaderModuleBuilder( encoder.getPipelineManager() )
+			                    .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.vert" )
+			                    .setShaderStage( le::ShaderStage::eVertex )
+			                    .build() )
+			            .addShaderStage(
+			                LeShaderModuleBuilder( encoder.getPipelineManager() )
+			                    .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.frag" )
+			                    .setShaderStage( le::ShaderStage::eFragment )
+			                    .build() )
+			            .withAttachmentBlendState()
+			            .usePreset( le::AttachmentBlendPreset::ePremultipliedAlpha )
+			            .end()
+			            .build();
+
+			    struct ShaderParams {
+				    glm::vec2 u_resolution;
+				    glm::vec2 u_quad_position;
+				    glm::vec2 u_quad_extents;
+			    };
+
+			    ShaderParams params{};
+
+			    params.u_resolution = {
+			        extents.width,
+			        extents.height,
+			    };
+
+			    params.u_quad_position = self->canvas_blit_pos;
+
+			    params.u_quad_extents = {
+			        self->canvas_image_info.image.extent.width,
+			        self->canvas_image_info.image.extent.height,
+			    };
+
+			    static const float vertexPositions[ 4 ][ 3 ] = {
+			        // all dimensions given in font map pixels
+			        { -0.5, 0.5, 0 },
+			        { -0.5, -0.5, 0 },
+			        { 0.5, -0.5, 0 },
+			        { 0.5, 0.5, 0 },
+			    };
+
+			    static const uint16_t indices[] = {
+			        0, 1, 2,
+			        0, 2, 3, //
+			    };
+
+			    encoder
+			        .bindGraphicsPipeline( pipeline_draw_brush )
+			        .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
+			        .setIndexData( indices, sizeof( indices ), le::IndexType::eUint16 ) //
+			        .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), self->canvas_texture );
+
+			    encoder
+			        .setPushConstantData( &params, sizeof( ShaderParams ) )
+			        .drawIndexed( 6 ) //
+			        ;
+
+			    // we don't have to do this right now, but it would be nice.
+		    } );
+
+		le_renderer_api_i->le_rendergraph_i.add_renderpass( rendergraph_to_draw_into, draw_visuals );
+	} // end if is active
+
+	// we maintain the cache whether the visualizer is active or not
+	rendergraph_visualizer_renderpass_view_cache_maintain( self );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_o* self, LeUiEvent const* events, uint32_t numEvents ) {
+
+	// CONSIDER: should this be written a state machine?
+
+	if ( false == self->is_active ) {
+		return;
+	}
+	// ----------| invariant: rendergraph visualizer is active
+
+	LeUiEvent const* const events_end = events + numEvents; // end iterator
+
+	auto is_inside_rect = []( glm::vec2 pt, glm::vec2 bottom_right ) {
+		return ( pt.x < bottom_right.x ) &&
+		       ( pt.x > 0 ) &&
+		       ( pt.y > 0 ) &&
+		       ( pt.y < bottom_right.y );
+	};
+
+	glm::vec2 cursor_delta = {};
+
+	for ( LeUiEvent const* event = events; event != events_end; event++ ) {
+		// Process events in sequence
+
+		switch ( event->event ) {
+		case LeUiEvent::Type::eKey: {
+			auto& e = event->key;
+			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+
+				switch ( e.key ) {
+				case ( LeUiEvent::NamedKey::eR ): {
+					// Reset all view transforms
+					self->artboard_to_screen = {};
+					break;
+				}
+				case ( LeUiEvent::NamedKey::eZ ): {
+					self->io_state.should_zoom ^= true;
+					break;
+				}
+				default:
+					break;
+				}
+			}
+			break;
+		}
+		case LeUiEvent::Type::eCursorPosition: {
+			auto& e = event->cursorPosition;
+
+			glm::vec2 cursor_pos        = glm::vec2{ float( e.x ), float( e.y ) };
+			glm::vec2 canvas_cursor_pos = cursor_pos - self->canvas_blit_pos;
+
+			if ( self->io_state.state == IO_STATES::eGrabbing ) {
+				cursor_delta += canvas_cursor_pos - self->io_state.last_cursor_pos;
+				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+			}
+
+			if ( is_inside_rect( canvas_cursor_pos, self->canvas_extents ) ) {
+				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+				// logger().info( "inside" );
+			} else {
+				// logger().info( "outside" );
+			}
+
+			self->io_state.last_cursor_pos = canvas_cursor_pos;
+		} break;
+		case LeUiEvent::Type::eCursorEnter: {
+			auto& e = event->cursorEnter;
+		} break;
+		case LeUiEvent::Type::eMouseButton: {
+			auto& e = event->mouseButton;
+
+			if ( self->io_state.state == IO_STATES::eInactive && // if state is inactive
+			     is_inside_rect( self->io_state.last_cursor_pos, self->canvas_extents ) &&
+			     !( self->io_state.mouse_button_pressed & ( uint32_t( 1 ) << 0 ) ) &&                            // first button not yet pressed
+			     ( e.button == 0 ) &&                                                                            // button that is being pressed it button 0 (primary mouse)
+			     ( e.action == LeUiEvent::ButtonAction::ePress || e.action == LeUiEvent::ButtonAction::eRepeat ) // button is actually being pressed
+			) {
+				// logger().info( "button pressed" );
+				self->io_state.state = IO_STATES::eGrabbing;
+				self->io_state.mouse_button_pressed |= uint32_t( 1 ) << 0;
+				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+			} else if ( self->io_state.state == IO_STATES::eGrabbing &&                     // if state is inactive
+			            ( self->io_state.mouse_button_pressed & ( uint32_t( 1 ) << 0 ) ) && // first button is currently pressed
+			            ( e.button == 0 ) &&                                                // button that is being pressed it button 0 (primary mouse)
+			            ( e.action == LeUiEvent::ButtonAction::eRelease )                   // button is actually being released
+			) {
+				// logger().info( "grab complete" );
+				self->io_state.state = IO_STATES::eInactive;
+				self->io_state.mouse_button_pressed &= ~( uint32_t( 1 ) << 0 );
+				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+			}
+
+		} break;
+		case LeUiEvent::Type::eScroll: {
+			auto& e = event->scroll;
+			if ( is_inside_rect( self->io_state.last_cursor_pos, self->canvas_extents ) ) {
+				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+
+				self->ui_zoom_level_delta = e.y_offset * 0.125 * 0.25;
+				// logger().info( "scroll: %f", self->ui_zoom_level_delta );
+			}
+		} break;
+		default:
+			break;
+		} // end switch event->event
+	}
+
+	// Apply view transforms ------------------------------------------------------------
+
+	if ( self->io_state.state == IO_STATES::eGrabbing ) {
+
+		// signal that the mouse has been captured
+		// self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+
+		Transform2D grab_transform = { .translation = { cursor_delta.x, cursor_delta.y } };
+
+		self->artboard_to_screen = grab_transform * self->artboard_to_screen;
+
+		// logger().info( "grab delta: %f,%f", cursor_delta.x, cursor_delta.y );
+	}
+
+	if ( fabsf( self->ui_zoom_level_delta ) > std::numeric_limits<float>::epsilon() ) {
+
+		float       zoom             = self->ui_zoom_level_delta;
+		Transform2D zoom_transform   = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
+
+		// i need to transform from mouse space into into artboard space
+		// mouse space is where the mouse is at the centre of all things
+		// artboard space is where the artboard is centred.
+
+		Transform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
+		Transform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
+
+		// This applies zooms around where the mouse is:
+		// Read this right-to-left.
+		// 1) First we center the art board to where the mouse is - mouse_space_to_artboard.inverse()
+		// 2) Then we apply the zoom
+		// Then we undo the centering
+		// Then we move from artboard to screen.
+
+		self->artboard_to_screen = self->artboard_to_screen * mouse_space_to_artboard * zoom_transform * mouse_space_to_artboard.inverse();
+
+		self->ui_zoom_level_delta = 0;
+	}
+
+	// self->transform = {};
+}
+
+// ----------------------------------------------------------------------
+
+static void le_rendergraph_visualizer_process_and_filter_events( le_rendergraph_visualizer_o* self, LeUiEvent* events, uint32_t* num_events ) {
+
+	if ( false == self->is_active ) {
+		return;
+	}
+	// ----------| invariant: rendergraph visualizer is active
+
+	if ( nullptr == num_events || *num_events == 0 ) {
+		return;
+	}
+	// ----------| invariant: num_events > 0
+
+	self->ui_capture_state = 0;
+
+	le_rendergraph_visualizer_process_events( self, events, *num_events );
+
+	uint32_t ioFilterFlags = 0;
+
+	if ( self->ui_capture_state & uint32_t( UI_CAPTURE_STATE_BIT::eMouse ) ) {
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eCursorEnter );
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eCursorPosition );
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eScroll );
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eMouseButton );
+	}
+
+	if ( self->ui_capture_state & uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard ) ) {
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eKey );
+		ioFilterFlags |= uint32_t( LeUiEvent::Type::eCharacter );
+	}
+
+	// Filter out events which have been captured as these
+	// should not further propagate to other ui elements.
+	//
+	// We do this by copying only events ones which pass our filter in a new
+	// events queue, which we then pass on for further processing.
+	//
+	std::vector<LeUiEvent> ev{};
+	std::copy_if( events, events + *num_events, std::back_inserter( ev ), [ &ioFilterFlags ]( LeUiEvent const& e ) -> bool {
+		// This will only return true if none of the filter flags were found
+		// in the current event type.
+		return !( uint32_t( e.event ) & ioFilterFlags );
+	} );
+	memcpy( events, ev.data(), sizeof( LeUiEvent ) * ev.size() );
+
+	*num_events = ev.size();
+}
+
+// ----------------------------------------------------------------------
+
+static bool le_rendergraph_visualizer_get_is_active( le_rendergraph_visualizer_o* self ) {
+	return self->is_active;
+};
+
+// ----------------------------------------------------------------------
+
+static void le_rendergraph_visualizer_set_is_active( le_rendergraph_visualizer_o* self, bool is_active ) {
+	self->is_active = is_active;
+};
+
+// ----------------------------------------------------------------------
+
+LE_MODULE_REGISTER_IMPL( le_rendergraph_visualizer, api ) {
+	auto &le_rendergraph_visualizer_i = static_cast<le_rendergraph_visualizer_api *>( api )->le_rendergraph_visualizer_i;
+
+	le_rendergraph_visualizer_i.create                    = le_rendergraph_visualizer_create;
+	le_rendergraph_visualizer_i.destroy                   = le_rendergraph_visualizer_destroy;
+	le_rendergraph_visualizer_i.update                    = le_rendergraph_visualizer_update;
+	le_rendergraph_visualizer_i.process_and_filter_events = le_rendergraph_visualizer_process_and_filter_events;
+	le_rendergraph_visualizer_i.process_events            = le_rendergraph_visualizer_process_events;
+	le_rendergraph_visualizer_i.get_is_active             = le_rendergraph_visualizer_get_is_active;
+	le_rendergraph_visualizer_i.set_is_active             = le_rendergraph_visualizer_set_is_active;
+
+#ifdef LE_LOAD_TRACING_LIBRARY
+	LE_LOAD_TRACING_LIBRARY;
+#endif
+}
