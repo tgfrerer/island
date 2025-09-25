@@ -210,12 +210,13 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		// LeTransform2D affine = { .transform = { 1, 0, 0, 1 }, .translation = { 0, 0 } };
 
 		self->canvas_blit_pos = { 50, 100 };
-		self->canvas_extents  = { 1080 - 100.f, 540 };
+		self->canvas_extents  = { 1920 - 100.f, 540 };
 
 		//
 		struct connection_t {
 			int32_t            renderpass_idx_from; // index of renderpass in current rendergraph, -1 means external
 			int32_t            renderpass_idx_to;
+			int32_t            extra_lane; // whether we need to go out of our current lane for this connection
 			le_resource_handle resource;
 		};
 
@@ -275,6 +276,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 							if ( n_dest.explicit_writes.test( res_idx ) ) {
 								// we have found our connecsion
 								c.renderpass_idx_from = j;
+								c.extra_lane          = j == i - 1 ? 0 : ( j - ( i - 1 ) ); // whether we have to go more than one lane
 								connections.push_back( c );
 								break;
 							}
@@ -334,48 +336,60 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			glm::vec2 from_port = from_view->getPortForResource( c.resource, false );
 			glm::vec2 to_port   = to_view->getPortForResource( c.resource, true );
 
-			LeTransform2D from_transform = { .translation = { from_port.x, from_port.y } };
-			LeTransform2D to_transform   = { .translation = { to_port.x, to_port.y } };
+			// c.extra_lane = 0;
+
+			static constexpr float h_spacing = 50.f;
+
+			LeTransform2D from_transform = { .translation = c.extra_lane ? glm::vec2{ from_port.x + h_spacing, c.extra_lane * 10.f - 20 } : from_port };
+			LeTransform2D to_transform   = { .translation = c.extra_lane ? glm::vec2{ to_port.x - h_spacing, c.extra_lane * 10.f - 20 } : to_port };
 
 			from_transform = per_pass_transforms[ c.renderpass_idx_from ] * from_transform;
 			to_transform   = per_pass_transforms[ c.renderpass_idx_to ] * to_transform;
 
-			if ( false ) {
-				encoder_connections
-				    .transform( from_transform )
-				    .colour( le_2d_colour( 255, 0, 0, 128 ) )
-				    .path_begin( le_2d::FillStyle::NonZero )
-				    .circle( { 0, 0 }, 10 )
-				    .path_end();
-
-				encoder_connections
-				    .transform( to_transform )
-				    .colour( le_2d_colour( 255, 0, 0, 128 ) )
-				    .path_begin( le_2d::FillStyle::NonZero )
-				    .circle( { 0, 0 }, 10 )
-				    .path_end();
-			}
-
-			// now, if i want to draw a connection between the two positions,
+			// Now, if i want to draw a connection between the two positions,
 			// how would i do this?
 
-			// i need to draw either in from_transform space or to_transform space.
+			// We need to draw either in from_transform space or to_transform space.
+			// we choose from_space; and therefore we must transform all points
+			// to be relative to this space.
 
-			auto      pt_in_from_transform_space = ( from_transform.inverse() * to_transform );
-			glm::vec2 to_pos                     = {
-                pt_in_from_transform_space.translation[ 0 ],
-                pt_in_from_transform_space.translation[ 1 ],
-            };
+			auto pt_in_from_transform_space = ( from_transform.inverse() * to_transform );
 
-			float bendiness = .55f;
+			// these are only needed if we have extra lanes
+			auto c0 = ( from_transform.inverse() * per_pass_transforms[ c.renderpass_idx_from ] * LeTransform2D{ .translation = from_port } ).translation;
+			auto c1 = ( from_transform.inverse() * per_pass_transforms[ c.renderpass_idx_to ] * LeTransform2D{ .translation = to_port } ).translation;
 
-			encoder_connections
-			    .transform( from_transform )
-			    .colour_abgr( 0xff5f711e )
-			    .path_begin( { .width = 5.f } )
-			    .move_to( { 0, 0 } )
-			    .cubic_to( { to_pos.x * bendiness, 0 }, { to_pos.x * ( 1.f - bendiness ), to_pos.y }, to_pos )
-			    .path_end();
+			glm::vec2 to_pos = pt_in_from_transform_space.translation;
+
+			for ( int i = 0; i != 2; i++ ) {
+
+				float bendiness = .55f;
+
+				uint32_t colour_outline = 0xff2d5016;
+
+				if ( c.extra_lane != 0 ) {
+					encoder_connections
+					    .transform( from_transform )
+					    .colour_abgr( i == 0 ? colour_outline : 0xff5f711e )
+					    .path_begin( { .width = i == 0 ? 6.f : 4.f } )
+					    .move_to( c0 )
+					    .cubic_to( c0 + ( glm::vec2{} - c0 ) * glm::vec2{ bendiness, 0. }, glm::vec2{} - ( glm::vec2{} - c0 ) * glm::vec2{ bendiness, 0. }, glm::vec2{} )
+					    .line_to( to_pos )
+					    .cubic_to( to_pos + ( c1 - to_pos ) * glm::vec2{ bendiness, 0. }, c1 - ( c1 - to_pos ) * glm::vec2{ bendiness, 0. }, c1 )
+					    .path_end();
+				} else {
+
+					encoder_connections
+					    .transform( from_transform )
+					    .colour_abgr( i == 0 ? colour_outline : 0xff5f711e )
+					    .path_begin( { .width = i == 0 ? 6.f : 4.f } )
+					    //.colour_abgr( 0xff5f711e )
+					    //.path_begin( { .width = 5.f } )
+					    .move_to( { 0, 0 } )
+					    .cubic_to( { to_pos.x * bendiness, 0 }, { to_pos.x * ( 1.f - bendiness ), to_pos.y }, to_pos )
+					    .path_end();
+				}
+			}
 		}
 
 		/*
