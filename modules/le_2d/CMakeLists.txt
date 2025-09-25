@@ -10,6 +10,7 @@ set (SOURCES ${SOURCES} "le_2d.cpp")
 set (SOURCES ${SOURCES} "le_2d_encoder.cpp")
 set (SOURCES ${SOURCES} "./private/le_2d/SpookyV2.cpp")
 set (SOURCES ${SOURCES} "./private/le_2d/SpookyV2.h")
+set (SOURCES ${SOURCES} "./public/le_2d/le_transform_2d.hpp")
 
 if (${PLUGINS_DYNAMIC})
     add_library(${TARGET} SHARED ${SOURCES})

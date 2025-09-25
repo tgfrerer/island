@@ -114,6 +114,13 @@ static void encoder_encode_colour( le_2d_encoder_o* e, uint32_t color ) {
 // ----------------------------------------------------------------------
 
 static bool encoder_encode_transform( le_2d_encoder_o* e, Transform2D const* t ) {
+
+	static constexpr Transform2D t_identity = {};
+
+	if ( t == nullptr ) {
+		t = &t_identity;
+	}
+
 	if ( ( e->flags & le_2d_encoder_o::FORCE_NEXT_TRANSFORM ) || e->transforms.empty() || e->transforms.back() != *t ) {
 
 		e->path_tags.emplace_back( PathTag::TRANSFORM );

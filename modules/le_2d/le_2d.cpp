@@ -22,6 +22,16 @@ constexpr size_t   N_GRADIENT_SAMPLES     = 512;
 
 using ExtendMode              = le_2d_api::ExtendMode;
 
+static constexpr size_t align_up( size_t n, size_t alignment ) {
+	n = n + ( -n & ( alignment - 1 ) );
+	return n;
+}
+
+static_assert( align_up( 3, 4 ) == 4, "must produce the correct alignment" );
+static_assert( align_up( 0, 4 ) == 0, "must produce the correct alignment" );
+static_assert( align_up( 12, 4 ) == 12, "must produce the correct alignment" );
+static_assert( align_up( 13, 4 ) == 16, "must produce the correct alignment" );
+
 // ----------------------------------------------------------------------
 // Decompression functions - these are used to retrieve shader code from inl strings
 static unsigned int stb_decompress( unsigned char* output, const unsigned char* i, unsigned int /*length*/ );

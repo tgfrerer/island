@@ -50,100 +50,21 @@ Usage hints:
 #include "le_core.h"
 #include <cstring>
 #include "glm/fwd.hpp"
+#include "public/le_2d/le_transform_2d.hpp"
 
 struct le_2d_o;
 struct le_rendergraph_o;
 struct le_image_resource_handle_t;
 struct le_resource_info_t;
+struct Transform2D; // declared in "public/le_2d/transform_2d.hpp"
 
 //
+
 struct le_2d_encoder_o;
 struct rasterizer_layout_data_t;
 
 //
-//
 
-static constexpr size_t align_up( size_t n, size_t alignment ) {
-	// n = ( ( n + ( alignment - 1 ) ) / alignment ) * alignment;
-	n = n + ( -n & ( alignment - 1 ) );
-	return n;
-}
-
-static_assert( align_up( 3, 4 ) == 4, "must produce the correct alignment" );
-static_assert( align_up( 0, 4 ) == 0, "must produce the correct alignment" );
-static_assert( align_up( 12, 4 ) == 12, "must produce the correct alignment" );
-static_assert( align_up( 13, 4 ) == 16, "must produce the correct alignment" );
-
-// Think of this as "first translate, then rotate(transform)"
-struct Transform2D {
-	float transform[ 4 ]   = { 1, 0, 0, 1 }; // 2x2 matrix, column major
-	float translation[ 2 ] = { 0, 0 };
-
-	/*
-	 *  Use this to create an affine rotation Transform:
-	 *
-
-	inline static Transform2D rotation_rad( float angle_rad ) {
-	    float       cosa  = cosf( angle_rad );
-	    float       sina  = sinf( angle_rad );
-	    Transform2D rot_m = { .transform = { cosa, sina, -sina, cosa }, .translation = { 0, 0 } };
-	    return rot_m;
-	};
-	 */
-
-	inline Transform2D operator*( Transform2D const& rhs ) const {
-		// Note: this has been checked against vello to make sure that we're using the same
-		// conventions.
-		auto const& t = this->transform;
-		auto const& o = rhs.transform;
-		return {
-		    {
-		        // transform
-		        t[ 0 ] * o[ 0 ] + t[ 2 ] * o[ 1 ],
-		        t[ 1 ] * o[ 0 ] + t[ 3 ] * o[ 1 ],
-		        t[ 0 ] * o[ 2 ] + t[ 2 ] * o[ 3 ],
-		        t[ 1 ] * o[ 2 ] + t[ 3 ] * o[ 3 ],
-		    },
-		    {
-		        // translation
-		        t[ 0 ] * rhs.translation[ 0 ] + t[ 2 ] * rhs.translation[ 1 ] + this->translation[ 0 ],
-		        t[ 1 ] * rhs.translation[ 0 ] + t[ 3 ] * rhs.translation[ 1 ] + this->translation[ 1 ],
-		    },
-		};
-	}
-
-	inline float determinant() const {
-		return transform[ 0 ] * transform[ 3 ] - transform[ 1 ] * transform[ 2 ];
-	}
-
-	Transform2D inverse() const {
-		float inv_det = 1.0 / determinant();
-		assert( inv_det == inv_det ); // test for NaN
-
-		auto result = Transform2D{
-		    .transform{
-		        inv_det * transform[ 3 ],
-		        -inv_det * transform[ 1 ],
-		        -inv_det * transform[ 2 ],
-		        inv_det * transform[ 0 ],
-		    },
-		    .translation{
-		        inv_det * ( transform[ 2 ] * translation[ 1 ] - transform[ 3 ] * translation[ 0 ] ),
-		        inv_det * ( transform[ 1 ] * translation[ 0 ] - transform[ 0 ] * translation[ 1 ] ),
-		    },
-		};
-
-		return result;
-	};
-
-	const bool operator==( Transform2D const& rhs ) const {
-		return ( 0 == memcmp( this, &rhs, sizeof( Transform2D ) ) );
-	}
-
-	const bool operator!=( Transform2D const& rhs ) const {
-		return !( *this == rhs );
-	}
-};
 
 struct le_2d_colour {
 
@@ -362,19 +283,6 @@ struct le_2d_api {
 		Reflect = 2, // extends image by reflecting the brush
 	};
 
-
-/*
- * 
- * INFO 
- * - the encoder is independent of the 2d context.
- * - Each encoder has a path internally that keeps track of the current 
- *   state for encoding a path.
- *   
- * TODO
- * - add a method to combine encoders (append from one onto the other, and apply last transform)
- * 
- */
-
 	// clang-format off
 
 	struct le_2d_encoder_interface_t {
@@ -493,7 +401,8 @@ class Encoder2D : NoCopy, NoMove {
 
 		Path( Encoder2D& e )
 		    : parent( e ) {
-			e.transform( {} ); // add an initial identity transform
+			// add initial identity transform
+			e.transform();
 		};
 
 	  public:
@@ -607,7 +516,12 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	}
 
-	Encoder2D& transform( Transform2D const& t = {} ) {
+	Encoder2D& transform() {
+		le_2d::le_2d_encoder_i.encode_transform( self, nullptr );
+		return *this;
+	};
+
+	Encoder2D& transform( Transform2D const& t ) {
 		le_2d::le_2d_encoder_i.encode_transform( self, &t );
 		return *this;
 	};
@@ -664,7 +578,12 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	}
 
-	Encoder2D& append( Encoder2D const& rhs, Transform2D const& optional_transform = {} ) {
+	Encoder2D& append( Encoder2D const& rhs ) {
+		le_2d::le_2d_encoder_i.append_into_encoder( self, rhs.self, nullptr );
+		return *this;
+	}
+
+	Encoder2D& append( Encoder2D const& rhs, Transform2D const& optional_transform ) {
 		le_2d::le_2d_encoder_i.append_into_encoder( self, rhs.self, &optional_transform );
 		return *this;
 	}
