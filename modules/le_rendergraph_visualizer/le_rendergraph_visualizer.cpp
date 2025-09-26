@@ -20,7 +20,10 @@
 
 #include <algorithm> // for copy_if
 
-static constexpr size_t C_VIEWS_CACHE_CAPACITY = 10; // Number of RenderpassViews to keep in the cache
+static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassViews to keep in the cache
+static constexpr size_t C_DISABLE_CACHE        = false; // Number of RenderpassViews to keep in the cache
+
+#include "private/le_rendergraph_visualizer/shared_constants.inl"
 
 static auto& logger() {
 	static le::Log logger = le::Log( "rendergraph_visualizer" );
@@ -155,15 +158,15 @@ static void rendergraph_visualizer_renderpass_view_cache_maintain( le_rendergrap
 
 	size_t num_elements_in_cache = self->rp.size();
 
-	if ( num_elements_in_cache > C_VIEWS_CACHE_CAPACITY ) {
+	if ( num_elements_in_cache > C_VIEWS_CACHE_CAPACITY || C_DISABLE_CACHE ) {
 		for ( auto it = self->rp.begin(); it != self->rp.end(); ) {
 			uint8_t age = uint32_t( self->epoch - it->second->epoch );
-			if ( age > 3 ) {
+			if ( C_DISABLE_CACHE || age > 3 ) {
 				// If an element is older than three epochs, we may evict it from the cache
 				// immediately if we need space.
 				delete it->second;         // delete the cached RenderpassView
 				it = self->rp.erase( it ); // delete the cache entry
-				if ( --num_elements_in_cache <= C_VIEWS_CACHE_CAPACITY ) {
+				if ( --num_elements_in_cache <= C_VIEWS_CACHE_CAPACITY && !C_DISABLE_CACHE ) {
 					break;
 				} else {
 					continue;
