@@ -197,7 +197,7 @@ glm::vec2 RenderPassView::getPortForResource( const le_resource_handle& resource
 
 	glm::vec2 ret;
 
-	read_or_write ? ret.x = 5 : ret.x = this->right_most_x + 5;
+	read_or_write ? ret.x = c_padding_left_right* 0.25 : ret.x = this->right_most_x + c_padding_left_right * 0.5;
 	ret.y = it->second;
 
 	return ret;
@@ -214,44 +214,35 @@ void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transfor
 	encoder
 	    .blurred_rounded_rect( transform, le_2d_colour( 0.f, 0.f, 0.f, 0.5 * ( this->is_contributing ? 1.f : 0.2f ) ), this->right_most_x + c_padding_left_right, card_height, radius, 12 )
 	    .transform( transform )
-	    .begin_clip( le_2d::BlendMode{ .mix = le_2d::BlendMode::Mix::Normal }, this->is_contributing ? 1.0 : 0.2f );
+	    .begin_clip( le_2d::BlendMode{ .mix = le_2d::BlendMode::Mix::Normal }, this->is_contributing ? 1.0 : 0.2f )
+	    // begin card clipping shape:
+	    .path_begin( le_2d::FillStyle::NonZero )
+	    .rounded_rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, card_height }, radius ) // outside clip shape
+	    .path_end();
 	{
-		le_2d_colour_stop_t cs[ 2 ] = {
-		    {
-		        .offset = 0.2f,
-		        .colour = le_2d::Colour( 1.f, 1.f, 0.f, 1.f ),
-		    },
-		    {
-		        .offset = 0.8f,
-		        .colour = le_2d::Colour( 1.f, 0.f, 0.f, 1.f ),
-		        //.colour = le_2d::Colour( 0x1e, 0x71, 0x5f, 0xff ),
-		    },
-		};
+		// inside the clipping region
 
-		le_2d_gradient_linear_t gradient = {
-		    .p0 = { 0, 0.f },
-		    .p1 = { this->right_most_x + 10, 0.f },
-		};
-
+		// draw card title + colour background
 		encoder
-		    .path_begin( le_2d::FillStyle::NonZero )
-		    // .rect( { 0, 0 }, { this->leftmost_x + 10, card_height } )
-		    .rounded_rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, card_height }, radius ) // outside clip shape
-		    .path_end()
+		    .colour_rgba( c_colour_draw )
+		    .path_begin( le_2d::FillStyle::EvenOdd )
+		    .rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, card_height } ) // background title fill
+		    .path_end();
+		// draw card light background
+		encoder
 		    .colour( 200, 200, 200 )
 		    .path_begin( le_2d::FillStyle::EvenOdd )
-		    .rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, card_height } ) // background fill
-		    .path_end()
+		    .rounded_rect( { 3, c_line_height * 1.2 + 3 - radius }, { this->right_most_x + c_padding_left_right - 3, card_height - 3 }, radius - 3 ) // background fill
+		    .path_end();
+		// draw title again, so that we don't see the rounded rect of the inner card at the top
+		encoder
 		    .colour_rgba( c_colour_draw )
-
-		    // TODO: there is something fishy going on with linear gradients -- let's check whether we are doing these correctly.
-
-		    //.linear_gradient( gradient, cs, 2, le_2d_api::ExtendMode::Repeat, 1.0f )
 		    .path_begin( le_2d::FillStyle::EvenOdd )
-		    .rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, c_line_height * 1.2 } ) // background title fill
+		    .rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, c_line_height * 1.2 + radius * 0.25 } ) // background title fill
 		    .path_end();
 
-		// now add contents inside clipping region
+		// Now add contents inside clipping region:
+		// That's all typography in one go.
 		encoder
 		    .append( this->font_cache_encoder, transform )
 		    // and end the clip shape
@@ -278,17 +269,17 @@ void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transfor
 
 			// in ports
 			for ( auto const& p : this->in_ports ) {
-				encoder.get_path().circle( p, 4 );
+				encoder.get_path().circle( p + glm::vec2{ c_padding_left_right * 0.35f, 0.f }, 4 );
 			}
 
 			// implicit out ports
 			for ( auto const& p : this->implicit_out_ports ) {
-				encoder.get_path().circle( p, 2 );
+				encoder.get_path().circle( p + glm::vec2{ c_padding_left_right * 0.125f, 0.f }, 2 );
 			}
 
 			// explicit out ports
 			for ( auto const& p : this->explicit_out_ports ) {
-				encoder.get_path().circle( p, 4 );
+				encoder.get_path().circle( p + glm::vec2{ c_padding_left_right * 0.125f, 0.f }, 4 );
 			}
 			encoder.path_end();
 		}
