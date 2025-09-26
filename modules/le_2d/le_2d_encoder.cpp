@@ -273,9 +273,9 @@ static void encoder_encode_gradient_draw_data( le_2d_encoder_o* e, T const* grad
 	e->draw_tags.push_back( draw_tag );
 
 	// Reserve a single uint32_t for (ramp_id | extend) which will be patched in `le_2d_encoder_resolve_patches`
-	e->draw_data.resize( offset + sizeof( T ) / sizeof( uint32_t ) + 1 ); // NOTE +1
-	// Zero out this placeholder uint32_t
-	memset( e->draw_data.data() + offset, 0, sizeof( uint32_t ) );
+	e->draw_data.resize( offset + sizeof( T ) / sizeof( uint32_t ) + 1, 0 ); // NOTE +1
+	// Zero out the data that we have newly allocated
+	// memset( e->draw_data.data() + offset, 0, sizeof( T ) + sizeof( uint32_t ) );
 	// Store gradient information into draw data stream at the subsequent position
 	memcpy( e->draw_data.data() + offset + 1, gradient_type, sizeof( T ) );
 }
