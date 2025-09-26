@@ -220,6 +220,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			int32_t            renderpass_idx_from; // index of renderpass in current rendergraph, -1 means external
 			int32_t            renderpass_idx_to;
 			int32_t            extra_lane; // whether we need to go out of our current lane for this connection
+			int32_t            resource_idx; // which position in the card the resource currently holds
 			le_resource_handle resource;
 		};
 
@@ -256,9 +257,12 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 				    .renderpass_idx_to   = i,
 				};
 
+				size_t resource_idx = 0;
+				size_t extra_lanes  = 0;
 				for ( auto& r : p.resources ) {
 
-					c.resource = r;
+					c.resource_idx = resource_idx;
+					c.resource     = r;
 					// we only care if the resource is a read resource
 					uint32_t res_idx = get_resource_idx( rp_src, r );
 					if ( res_idx == rp_src_unique_resources_size ) {
@@ -279,13 +283,68 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 							if ( n_dest.explicit_writes.test( res_idx ) ) {
 								// we have found our connecsion
 								c.renderpass_idx_from = j;
-								c.extra_lane          = j == i - 1 ? 0 : ( j - ( i - 1 ) ); // whether we have to go more than one lane
+								c.extra_lane          = j == i - 1 ? 0 : ++extra_lanes; // whether we have to go more than one lane
 								connections.push_back( c );
 								break;
 							}
 						}
 					}
+					resource_idx++;
 				}
+			}
+		}
+
+		// DE-SPAGHETTIFICATION
+		//
+		// Re-assign lanes for connectors to minimize path crossings.
+		//
+		// We want to have resources that come at the top use the highest lanes, and resources that
+		// are listed further down should use the lower lanes
+		// but this should only affect connections that use the extra lanes.
+		// but for this, we need to exclude any connections that are using lane 0.
+		//
+		// This looks and feels a bit hacky, and I'm sure this can be made better or more performant
+		// but for now, this will have to do. If it ever becomes too slow, we can disable this step.
+		//
+		if ( true ) {
+			auto c_end = connections.end();
+			for ( auto it = connections.begin(); it != c_end; ) {
+
+				// we must find how long the current group is
+				// the current group is all connectors that have the
+				// same renderpass_idx_to.
+
+				auto     it_group_end = it;
+				uint32_t idx_to       = it->renderpass_idx_to;
+
+				while ( it_group_end != c_end && it_group_end->renderpass_idx_to == idx_to ) {
+					it_group_end++;
+				}
+
+				// invariant - it_group_end now at one plus last element of current group
+
+				std::sort( it, it_group_end, []( connection_t const& lhs, connection_t const& rhs ) {
+					return lhs.extra_lane < rhs.extra_lane;
+				} );
+
+				// now get all lanes, and then sort the lanes
+
+				// advance it so that it only covers items that have extra lane < 0
+				while ( it != it_group_end && it->extra_lane == 0 ) {
+					it++;
+				}
+				std::vector<uint32_t> lanes;
+				lanes.reserve( it_group_end - it );
+
+				for ( auto it_tmp = it; it_tmp != it_group_end; it_tmp++ ) {
+					lanes.push_back( it_tmp->extra_lane );
+				}
+
+				for ( int i = lanes.size() - 1; it != it_group_end; it++, i-- ) {
+					it->extra_lane = lanes[ i ];
+				}
+
+				it = it_group_end;
 			}
 		}
 
@@ -294,7 +353,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		std::vector<uint64_t> renderpass_hashes;
 		le_rendergraph_visualizer_update_renderpass_view_cache( self, rp_src, renderpass_hashes );
 
-		// This is where we draw the renderpasses
+		// This is where we draw the renderpass views
 		//
 		// Connections need to be drawn before renderpasses, so that they lie underneath.
 		//
@@ -314,13 +373,13 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 				pass->draw( encoder_views, t );
 				per_pass_transforms.push_back( t );
 				rp_views.push_back( pass );
-				LeTransform2D t_local{ .translation = { pass->get_leftmost_x() + 50, 0 } };
+				LeTransform2D t_local{ .translation = { pass->get_leftmost_x() + h_spacing, 0 } };
 				t = t * t_local;
 				i++;
 			}
 		}
 
-		// we should now be able to draw the connections. we will add the connections before
+		// We should now be able to draw the connections. we will add the connections before
 		// the renderpasses, later.
 
 		le::Encoder2D encoder_connections{};
@@ -341,10 +400,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 			// c.extra_lane = 0;
 
-			static constexpr float h_spacing = 50.f;
-
-			LeTransform2D from_transform = { .translation = c.extra_lane ? glm::vec2{ from_port.x + h_spacing, c.extra_lane * 10.f - 20 } : from_port };
-			LeTransform2D to_transform   = { .translation = c.extra_lane ? glm::vec2{ to_port.x - h_spacing, c.extra_lane * 10.f - 20 } : to_port };
+			LeTransform2D from_transform = { .translation = c.extra_lane ? glm::vec2{ from_port.x + h_spacing, -c.extra_lane * c_line_height - 30.f } : from_port };
+			LeTransform2D to_transform   = { .translation = c.extra_lane ? glm::vec2{ to_port.x - h_spacing, -c.extra_lane * c_line_height - 30.f } : to_port };
 
 			from_transform = per_pass_transforms[ c.renderpass_idx_from ] * from_transform;
 			to_transform   = per_pass_transforms[ c.renderpass_idx_to ] * to_transform;
@@ -368,12 +425,10 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 				float bendiness = .55f;
 
-				uint32_t colour_outline = 0xff2d5016;
-
 				if ( c.extra_lane != 0 ) {
 					encoder_connections
 					    .transform( from_transform )
-					    .colour_abgr( i == 0 ? colour_outline : 0xff5f711e )
+					    .colour_rgba( i == 0 ? c_colour_connector_outline : c_colour_connector_fill )
 					    .path_begin( { .width = i == 0 ? 6.f : 4.f } )
 					    .move_to( c0 )
 					    .cubic_to( c0 + ( glm::vec2{} - c0 ) * glm::vec2{ bendiness, 0. }, glm::vec2{} - ( glm::vec2{} - c0 ) * glm::vec2{ bendiness, 0. }, glm::vec2{} )
@@ -384,7 +439,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 					encoder_connections
 					    .transform( from_transform )
-					    .colour_abgr( i == 0 ? colour_outline : 0xff5f711e )
+					    .colour_rgba( i == 0 ? c_colour_connector_outline : c_colour_connector_fill )
 					    .path_begin( { .width = i == 0 ? 6.f : 4.f } )
 					    //.colour_abgr( 0xff5f711e )
 					    //.path_begin( { .width = 5.f } )
@@ -410,12 +465,6 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		self->canvas_image_info.image.extent.width  = self->canvas_extents.x;
 		self->canvas_image_info.image.extent.height = self->canvas_extents.y;
 
-		// encoder_connections
-		//     .transform( canvas_to_screen ) // apply canvas to screen transform
-		//     .colour_abgr( 0xff0000ff )
-		//     .path_begin( { .width = 5.f } )
-		//     .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 100 ) // we draw this in canvas space
-		//     .path_end();
 		le::Encoder2D encoder_artboard{};
 
 		encoder_artboard.append( encoder_connections );
@@ -444,6 +493,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 				artboard_to_magnified_screen = self->artboard_to_screen * mouse_space_to_artboard * zoom_transform * mouse_space_to_artboard.inverse();
 			}
+
+			// draw magnifier glass clip circle
 
 			encoder_artboard
 			    .transform( self->artboard_to_screen ) // apply canvas to screen transform

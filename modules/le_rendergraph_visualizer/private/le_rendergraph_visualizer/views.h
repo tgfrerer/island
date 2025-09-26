@@ -20,7 +20,7 @@ class RenderPassView {
 	bool  is_visible      = false; // this can change
 	bool  is_contributing = false;
 	bool  is_root         = false;
-	float leftmost_x      = 0;  // leftmost point drawn by font renderer
+	float right_most_x      = 0;  // leftmost point drawn by font renderer
 	float required_height = 30; // height, calculated based on content
 
 	std::unordered_map<le_resource_handle, float> ports; // y-position of ports
@@ -39,7 +39,7 @@ class RenderPassView {
 	};
 
 	inline float get_leftmost_x() {
-		return leftmost_x;
+		return right_most_x;
 	}
 
 	inline float get_required_height() {

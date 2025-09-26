@@ -8,6 +8,8 @@
 #include "private/le_renderer/le_rendergraph.h"
 #include "private/le_renderer/le_resource_handle_t.inl"
 
+#include "shared_constants.inl"
+
 // ----------------------------------------------------------------------
 
 static void path_move_to( void* user_data, glm::vec2 const* p ) {
@@ -52,7 +54,6 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 	std::vector<uint32_t> codepoints_rp_name;
 	font_cache_encoder.reset();
 
-	float line_height = 20.f;
 
 	auto cp_callback = []( uint32_t cp, void* user_data ) {
 		auto& cps = *static_cast<std::vector<uint32_t>*>( user_data );
@@ -61,7 +62,10 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 
 	le_font::le_utf8_iterator( this->name.c_str(), &codepoints_rp_name, cp_callback );
 
-	glm::vec2 offset_initial = { 10, 20 };
+	float left_indent = 20.f;
+	float top_offset  = c_line_height - 4.f;
+
+	glm::vec2 offset_initial = { left_indent, top_offset };
 	glm::vec2 offset         = offset_initial;
 
 	le_path_operations_interface_t path_ops{
@@ -97,13 +101,16 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 	}
 	font_cache_encoder.path_end();
 
-	this->leftmost_x = offset.x;
+	this->right_most_x = offset.x;
 
 	offset.y += 10;
 
-	glm::vec2 pos = glm::vec2{ 0.f, line_height + 10.f };
+	glm::vec2 pos = glm::vec2{ 0.f, c_line_height + 10.f };
 
 	for ( int i = 0; i != rp->resources.size(); i++ ) {
+
+		// Draw resource names and calculate port positions
+		// based on drawn text size.
 
 		auto const& r     = rp->resources[ i ];
 		auto const& r_acc = rp->resources_access_flags[ i ];
@@ -120,12 +127,12 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 		le_font::le_utf8_iterator( resource_name.c_str(), &resource_name_cp, cp_callback );
 
 		offset.x = offset_initial.x;
-		offset.y += line_height;
+		offset.y += c_line_height;
 		uint32_t prev_cp = 0;
 
 		if ( is_root_resource ) {
 			// this resource is a root resource (a swapchain resource probably)
-			font_cache_encoder.colour( 0x71, 0x1f, 0x1f, alpha_value );
+			font_cache_encoder.colour( le_2d::Colour( 0x7101f1f0 ) );
 		} else {
 			font_cache_encoder.colour( 0, 0, 0, alpha_value );
 		}
@@ -137,11 +144,11 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 		}
 		font_cache_encoder.path_end();
 
-		if ( offset.x > this->leftmost_x ) {
-			this->leftmost_x = offset.x;
+		if ( offset.x > this->right_most_x ) {
+			this->right_most_x = offset.x;
 		}
 
-		this->ports[ r ] = offset.y - line_height * .25;
+		this->ports[ r ] = offset.y - c_line_height * .25;
 	}
 
 	for ( int i = 0; i != rp->resources.size(); i++ ) {
@@ -173,7 +180,7 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 		}
 	}
 
-	this->required_height = offset.y + 10;
+	this->required_height = offset.y;
 }
 
 // ----------------------------------------------------------------------
@@ -190,7 +197,7 @@ glm::vec2 RenderPassView::getPortForResource( const le_resource_handle& resource
 
 	glm::vec2 ret;
 
-	read_or_write ? ret.x = 5 : ret.x = this->leftmost_x + 5;
+	read_or_write ? ret.x = 5 : ret.x = this->right_most_x + 5;
 	ret.y = it->second;
 
 	return ret;
@@ -200,27 +207,48 @@ glm::vec2 RenderPassView::getPortForResource( const le_resource_handle& resource
 
 void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transform ) {
 
-	float card_height = 5 + this->required_height;
+	float card_height = c_line_height + this->required_height;
 	float radius      = 10;
 
 	// define a clip shape -- the rounded rect for the card
 	encoder
-	    .blurred_rounded_rect( transform, le_2d_colour( 0.f, 0.f, 0.f, 0.5 * ( this->is_contributing ? 1.f : 0.2f ) ), this->leftmost_x + 10, card_height, radius, 12 )
+	    .blurred_rounded_rect( transform, le_2d_colour( 0.f, 0.f, 0.f, 0.5 * ( this->is_contributing ? 1.f : 0.2f ) ), this->right_most_x + c_padding_left_right, card_height, radius, 12 )
 	    .transform( transform )
 	    .begin_clip( le_2d::BlendMode{ .mix = le_2d::BlendMode::Mix::Normal }, this->is_contributing ? 1.0 : 0.2f );
 	{
+		le_2d_colour_stop_t cs[ 2 ] = {
+		    {
+		        .offset = 0.2f,
+		        .colour = le_2d::Colour( 1.f, 1.f, 0.f, 1.f ),
+		    },
+		    {
+		        .offset = 0.8f,
+		        .colour = le_2d::Colour( 1.f, 0.f, 0.f, 1.f ),
+		        //.colour = le_2d::Colour( 0x1e, 0x71, 0x5f, 0xff ),
+		    },
+		};
+
+		le_2d_gradient_linear_t gradient = {
+		    .p0 = { 0, 0.f },
+		    .p1 = { this->right_most_x + 10, 0.f },
+		};
+
 		encoder
 		    .path_begin( le_2d::FillStyle::NonZero )
 		    // .rect( { 0, 0 }, { this->leftmost_x + 10, card_height } )
-		    .rounded_rect( { 0, 0 }, { this->leftmost_x + 10, card_height }, radius )
+		    .rounded_rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, card_height }, radius ) // outside clip shape
 		    .path_end()
 		    .colour( 200, 200, 200 )
 		    .path_begin( le_2d::FillStyle::EvenOdd )
-		    .rect( { 0, 0 }, { this->leftmost_x + 10, card_height } )
+		    .rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, card_height } ) // background fill
 		    .path_end()
-		    .colour_abgr( 0xff5f711e )
+		    .colour_rgba( c_colour_draw )
+
+		    // TODO: there is something fishy going on with linear gradients -- let's check whether we are doing these correctly.
+
+		    //.linear_gradient( gradient, cs, 2, le_2d_api::ExtendMode::Repeat, 1.0f )
 		    .path_begin( le_2d::FillStyle::EvenOdd )
-		    .rect( { 0, 0 }, { this->leftmost_x + 10, 30 } )
+		    .rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, c_line_height * 1.2 } ) // background title fill
 		    .path_end();
 
 		// now add contents inside clipping region
