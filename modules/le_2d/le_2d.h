@@ -111,6 +111,13 @@ struct le_2d_colour {
 	    , a( a ) {
 	}
 
+	explicit le_2d_colour( uint32_t rgba )
+	    : r( ( ( rgba >> 24 ) & 0xff ) / 255.f )
+	    , g( ( ( rgba >> 16 ) & 0xff ) / 255.f )
+	    , b( ( ( rgba >> 8 ) & 0xff ) / 255.f )
+	    , a( ( ( rgba >> 0 ) & 0xff ) / 255.f ) {
+	}
+
 	uint32_t to_premult_rgba_u32() const {
 		return ( ( uint32_t( saturate( a ) * 255.f + 0.5f ) << 24 ) |
 		         ( uint32_t( saturate( a * b ) * 255.0 + 0.5f ) << 16 ) |
@@ -491,6 +498,17 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	};
 
+	// Note: this colour is not pre-multiplied alpha
+	Encoder2D& colour_rgba( uint32_t colour ) {
+		uint32_t c_argb = ( ( colour >> 24 ) & 0xff );
+		c_argb |= ( ( colour >> 16 ) & 0xff ) << 8;
+		c_argb |= ( ( colour >> 8 ) & 0xff ) << 16;
+		c_argb |= ( ( colour & 0xff ) << 24 );
+		le_2d::le_2d_encoder_i.encode_colour( self, c_argb );
+		return *this;
+	};
+
+	// Note: this colour does not use pre-multiplied alpha
 	Encoder2D& colour_abgr( uint32_t colour ) {
 		le_2d::le_2d_encoder_i.encode_colour( self, colour );
 		return *this;
