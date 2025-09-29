@@ -13,28 +13,28 @@
 // ----------------------------------------------------------------------
 
 static void path_move_to( void* user_data, glm::vec2 const* p ) {
-	auto self = ( RenderPassView* )user_data;
-	le_2d::le_2d_encoder_i.path_move_to( self->get_encoder(), *p );
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_move_to( e, *p );
 };
 
 static void path_line_to( void* user_data, glm::vec2 const* p ) {
-	auto self = ( RenderPassView* )user_data;
-	le_2d::le_2d_encoder_i.path_line_to( self->get_encoder(), *p );
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_line_to( e, *p );
 };
 
 static void path_quad_bezier_to( void* user_data, glm::vec2 const* c1, glm::vec2 const* p ) {
-	auto self = ( RenderPassView* )user_data;
-	le_2d::le_2d_encoder_i.path_quad_to( self->get_encoder(), *c1, *p );
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_quad_to( e, *c1, *p );
 };
 
 static void path_cubic_bezier_to( void* user_data, glm::vec2 const* c1, glm::vec2 const* c2, glm::vec2 const* p ) {
-	auto self = ( RenderPassView* )user_data;
-	le_2d::le_2d_encoder_i.path_cubic_to( self->get_encoder(), *c1, *c2, *p );
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_cubic_to( e, *c1, *c2, *p );
 };
 
 static void path_close( void* user_data ) {
-	auto self = ( RenderPassView* )user_data;
-	le_2d::le_2d_encoder_i.path_close( self->get_encoder() );
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_close( e );
 };
 
 static void path_arc_to( void* user_data, glm::vec2 const* p, glm::vec2 const* radii, float phi, bool large_arc, bool sweep ) {
@@ -52,8 +52,11 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
     , is_root( rp->is_root ) {
 
 	std::vector<uint32_t> codepoints_rp_name;
-	font_cache_encoder.reset();
 
+	// while we have access to the original renderpass in `rp`, we get all information that
+	// we want to visualize, and render any text that we want to display into encoder_text_cache
+
+	le::Encoder2D encoder_text_cache;
 
 	auto cp_callback = []( uint32_t cp, void* user_data ) {
 		auto& cps = *static_cast<std::vector<uint32_t>*>( user_data );
@@ -77,29 +80,31 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 	    .close           = path_close,
 	};
 
-	font_cache_encoder.transform( {} );
+	// ---------- Draw / Cache renderpass title
+
+	encoder_text_cache.transform( {} );
 
 	uint8_t alpha_value = this->is_contributing ? 255 : 63;
 	alpha_value         = 255;
 
 	if ( this->is_contributing ) {
 		if ( this->is_root ) {
-			font_cache_encoder.colour( 255, 255, 255, alpha_value );
+			encoder_text_cache.colour( 255, 255, 255, alpha_value );
 		} else {
-			font_cache_encoder.colour( 0, 0, 0, alpha_value );
+			encoder_text_cache.colour( 0, 0, 0, alpha_value );
 		}
 	} else {
-		font_cache_encoder.colour( 128, 128, 128, alpha_value );
+		encoder_text_cache.colour( 128, 128, 128, alpha_value );
 	}
 
-	font_cache_encoder.path_begin( le_2d::FillStyle::EvenOdd );
+	encoder_text_cache.path_begin( le_2d::FillStyle::EvenOdd );
 
 	uint32_t prev_cp = 0;
 	for ( auto& c : codepoints_rp_name ) {
-		le_font::le_font_i.add_paths_for_glyph( *pFont, this, c, 0.125 * 0.25 * .6, &offset, prev_cp, &path_ops );
+		le_font::le_font_i.add_paths_for_glyph( *pFont, static_cast<le_2d_encoder_o*>( encoder_text_cache ), c, 0.125 * 0.25 * .6, &offset, prev_cp, &path_ops );
 		prev_cp = c;
 	}
-	font_cache_encoder.path_end();
+	encoder_text_cache.path_end();
 
 	this->right_most_x = offset.x;
 
@@ -109,6 +114,7 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 
 	for ( int i = 0; i != rp->resources.size(); i++ ) {
 
+		// ----------------------------------------------------------------------
 		// Draw resource names and calculate port positions
 		// based on drawn text size.
 
@@ -132,17 +138,17 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 
 		if ( is_root_resource ) {
 			// this resource is a root resource (a swapchain resource probably)
-			font_cache_encoder.colour( le_2d::Colour( 0x7101f1f0 ) );
+			encoder_text_cache.colour( le_2d::Colour( 0x7101f1f0 ) );
 		} else {
-			font_cache_encoder.colour( 0, 0, 0, alpha_value );
+			encoder_text_cache.colour( 0, 0, 0, alpha_value );
 		}
 
-		font_cache_encoder.path_begin( le_2d::FillStyle::EvenOdd );
+		encoder_text_cache.path_begin( le_2d::FillStyle::EvenOdd );
 		for ( auto& c : resource_name_cp ) {
-			le_font::le_font_i.add_paths_for_glyph( *pFont, this, c, 0.125 * 0.25 * .6, &offset, prev_cp, &path_ops );
+			le_font::le_font_i.add_paths_for_glyph( *pFont, static_cast<le_2d_encoder_o*>( encoder_text_cache ), c, 0.125 * 0.25 * .6, &offset, prev_cp, &path_ops );
 			prev_cp = c;
 		}
-		font_cache_encoder.path_end();
+		encoder_text_cache.path_end();
 
 		if ( offset.x > this->right_most_x ) {
 			this->right_most_x = offset.x;
@@ -150,6 +156,8 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 
 		this->ports[ r ] = offset.y - c_line_height * .25;
 	}
+
+	// Store connector positions so that they may be looked up more easily later.
 
 	for ( int i = 0; i != rp->resources.size(); i++ ) {
 
@@ -181,31 +189,17 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 	}
 
 	this->required_height = offset.y;
+
+	// Now, cache all draw commands
+	draw_into_cache( encoder_text_cache );
 }
 
 // ----------------------------------------------------------------------
 
-glm::vec2 RenderPassView::getPortForResource( const le_resource_handle& resource, bool read_or_write ) {
-	// todo: fill in --
-	auto it = this->ports.find( resource );
+void RenderPassView::draw_into_cache( le::Encoder2D& encoder_font_paths_cache ) {
 
-	if ( it == this->ports.end() ) {
-		return {};
-	}
-
-	// ----------| invariant:  port was found
-
-	glm::vec2 ret;
-
-	read_or_write ? ret.x = c_padding_left_right* 0.25 : ret.x = this->right_most_x + c_padding_left_right * 0.5;
-	ret.y = it->second;
-
-	return ret;
-}
-
-// ----------------------------------------------------------------------
-
-void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transform ) {
+	auto&                            encoder   = this->encoder_cache;
+	constexpr static le::Transform2D transform = {};
 
 	float card_height = c_line_height + this->required_height;
 	float radius      = 10;
@@ -244,7 +238,7 @@ void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transfor
 		// Now add contents inside clipping region:
 		// That's all typography in one go.
 		encoder
-		    .append( this->font_cache_encoder, transform )
+		    .append( encoder_font_paths_cache, transform )
 		    // and end the clip shape
 		    .end_clip();
 	}
@@ -284,4 +278,30 @@ void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transfor
 			encoder.path_end();
 		}
 	}
+}
+
+// ----------------------------------------------------------------------
+
+glm::vec2 RenderPassView::getPortForResource( const le_resource_handle& resource, bool read_or_write ) {
+	// todo: fill in --
+	auto it = this->ports.find( resource );
+
+	if ( it == this->ports.end() ) {
+		return {};
+	}
+
+	// ----------| invariant:  port was found
+
+	glm::vec2 ret;
+
+	read_or_write ? ret.x = c_padding_left_right* 0.125 : ret.x = this->right_most_x + c_padding_left_right * 0.375;
+	ret.y = it->second;
+
+	return ret;
+}
+
+// ----------------------------------------------------------------------
+// This is the hot path - executed once per frame
+void RenderPassView::draw( le::Encoder2D& encoder, const LeTransform2D& transform ) {
+	encoder.append( this->encoder_cache, transform );
 }

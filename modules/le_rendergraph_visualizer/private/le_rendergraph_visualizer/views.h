@@ -15,7 +15,7 @@ class RenderPassView {
 
 	std::string   name;
 	le::Font*     pFont = nullptr;    // weak, owned by rendergraph_visualizer
-	le::Encoder2D font_cache_encoder; // owning, we use this to cache path info
+	le::Encoder2D encoder_cache;      // owning, cache over all draw calls done for this view
 
 	bool  is_visible      = false; // this can change
 	bool  is_contributing = false;
@@ -29,14 +29,13 @@ class RenderPassView {
 	std::vector<glm::vec2> explicit_out_ports;
 	std::vector<glm::vec2> implicit_out_ports;
 
+	void draw_into_cache( le::Encoder2D& font_encoder );
+
   public:
 	uint8_t epoch = 0; // last time this was updated (cache control)
 
 	RenderPassView( le::Font* const font, le_renderpass_o const* rp, uint32_t epoch );
 
-	inline le::Encoder2D& get_encoder() {
-		return font_cache_encoder;
-	};
 
 	inline float get_leftmost_x() {
 		return right_most_x;
