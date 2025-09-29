@@ -21,7 +21,8 @@
 #include <algorithm> // for copy_if
 
 static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassViews to keep in the cache
-static constexpr size_t C_DISABLE_CACHE        = false; // Number of RenderpassViews to keep in the cache
+static constexpr size_t C_DISABLE_CACHE        = true;  // Number of RenderpassViews to keep in the cache
+static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 5;     // number of rendergraphs to store - max
 
 #include "private/le_rendergraph_visualizer/shared_constants.inl"
 
@@ -31,6 +32,14 @@ static auto& logger() {
 }
 
 // ----------------------------------------------------------------------
+
+enum class State : uint32_t {
+	eInactive               = 0, // don't do anything
+	eLiveVisualizeNoRecord  = 1, // visualize, do not record any data
+	eLiveVisualizeAndRecord = 2, // visualize current data
+	eRecordOnly,                 // record only
+	eVisualizeRecorded,          // visualize recorded data
+};
 
 enum class UI_CAPTURE_STATE_BIT : uint32_t {
 	eNone     = 0,
@@ -69,7 +78,10 @@ struct le_rendergraph_visualizer_o {
 	glm::vec2 canvas_extents;  // dimensions of the visualization canvas
 	glm::vec2 canvas_blit_pos; // where the visualization gets rendered on the final image
 
-	bool is_active = true; // whether we should respond to ui input and draw
+	State current_state = State::eLiveVisualizeNoRecord;
+
+	std::array<le_rendergraph_o*, C_RENDERGRAPH_STORE_RINGBUFFER_SIZE> rendergraph_store     = {}; // number of rendergraphs to store - in case we wanted to do time-travelling
+	size_t                                                             rendergraph_store_pos = 0;  // one-past position of last write into the rendergraph ring buffer (wraps around C_RENDERGRAPH_STORE_RINGBUFFER_SIZE)
 
 	uint8_t epoch; // update count, used for cache
 };
@@ -99,6 +111,12 @@ static void le_rendergraph_visualizer_destroy( le_rendergraph_visualizer_o *self
 		delete v.second;
 	}
 	self->rp.clear();
+
+	for ( auto& r : self->rendergraph_store ) {
+		if ( r ) {
+			le_renderer_api_i->le_rendergraph_i.destroy( r );
+		}
+	}
 
 	delete self;
 }
@@ -174,15 +192,459 @@ static void rendergraph_visualizer_renderpass_view_cache_maintain( le_rendergrap
 
 // ----------------------------------------------------------------------
 
+static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_o* rendergraph, le_image_resource_handle target_image, le_rendergraph_o* rp_src ) {
+	// in case we are live visualizing, we may want to record the last few renderpasses into
+	// a circular buffer of renderpasses ...
+	// in case we are showing the renderpass as it was recorded, then draw from this buffer instead
+	// of from the main renderpass.
+
+	// list_renderpasses_as_text( rp_src );
+
+	le::Encoder2D encoder_renderpass_views{};
+
+	self->canvas_blit_pos = { 50, 50 };
+	self->canvas_extents  = { 1920 - 100.f, 1080 - 100 };
+
+	//
+	struct connection_t {
+		int16_t            renderpass_idx_from; // renderpass that provides resource used for connection
+		int16_t            renderpass_idx_to;   // destination; renderpass that uses the resource in this connection
+		int16_t            extra_lane;          // which extra lane to use to route this connection if we can't route directly
+		int16_t            resource_idx;        // index in list of resources of the destination renderpass
+		le_resource_handle resource;
+	};
+
+	// ---------- Build a vector of connections ----------
+	//
+	// Connections go from target (right) forward to their original source. Only one connection may
+	// go from a target to an origin, but an origin may have multiple (outgoing) connections.
+	//
+	//
+
+	std::vector<connection_t> connections;
+
+	std::vector<connection_t> active_connections; // any connection that, on an extra lane, reaches forward
+
+	// We keep track of extra lanes that connect cards that are not immediate neighbours.
+	// - There can only be one connection per lane.
+	// - Lanes should be re-used as much as possible to avoid vertical spread of the diagram.
+	//
+	// index of this vector corresponds to lane index
+	// value in this vector corresponds to source renderpass id
+	std::vector<int16_t> occupied_lanes;
+
+	{
+		ZoneScoped;
+		auto get_resource_idx = []( le_rendergraph_o const* rg, le_resource_handle const r ) -> uint32_t {
+			// Will find resource in linear time; the more resources we have, the more time it
+			// may take; We could cache this locally; But we're effectively comparing pointers;
+			// so this should be plenty fast.
+			uint32_t i = 0;
+			for ( ; i != rg->unique_resources.size(); i++ ) {
+				if ( rg->unique_resources[ i ] == r ) {
+					break;
+				}
+			}
+			return i;
+		};
+
+		uint32_t rp_src_unique_resources_size = rp_src->unique_resources.size();
+
+		for ( int16_t i = rp_src->passes.size() - 1; i >= 0; i-- ) {
+			auto& p = *( rp_src->passes[ i ] );
+			auto& n = rp_src->nodes[ i ];
+
+			if ( false == p.is_contributing ) {
+				continue;
+			}
+
+			// Mark any lanes that have the current renderpass as its source as un-occupied.
+			// because their lanes start from the curent renderpass.
+
+			for ( auto& l : occupied_lanes ) {
+				if ( l >= i ) {
+					l = -1;
+				}
+			}
+
+			// ----------| invariant: this pass contributes
+
+			connection_t c{
+			    .renderpass_idx_from = -1,
+			    .renderpass_idx_to   = i,
+			};
+
+			int16_t resource_idx = 0;
+			int16_t extra_lanes  = 0;
+			for ( auto& r : p.resources ) {
+
+				c.resource_idx = resource_idx;
+				c.resource     = r;
+				// we only care if the resource is a read resource
+				uint32_t res_idx = get_resource_idx( rp_src, r );
+				if ( res_idx == rp_src_unique_resources_size ) {
+					// Resource could not be found for some reason
+					// this should not happen, but if it happens,
+					// we ignore this resource.
+					continue;
+				}
+				// ----------| Invariant: resource was found
+
+				if ( n.reads.test( res_idx ) ) {
+					// we have a read -- now we need to find any previous
+					// passes that might have written to this
+
+					for ( int j = i - 1; j >= 0; j-- ) {
+						auto& n_dest = rp_src->nodes[ j ];
+
+						if ( n_dest.explicit_writes.test( res_idx ) ) {
+							// we have found our connecsion
+							c.renderpass_idx_from = j;
+							if ( j == i - 1 ) {
+								// Connection goes directly to the left neighbour --
+								// We must not use an extra lane, we flag this by
+								// setting extra_lane to -1.
+								c.extra_lane = -1;
+							} else {
+
+								int16_t lane_idx           = 0;
+								int16_t occupied_lanes_end = occupied_lanes.size();
+								for ( ; lane_idx != occupied_lanes_end; lane_idx++ ) {
+									// If lane is unoccupied, then select it
+									if ( -1 == occupied_lanes[ lane_idx ] ) {
+										occupied_lanes[ lane_idx ] = c.renderpass_idx_from;
+										break;
+									}
+								}
+								if ( lane_idx == occupied_lanes_end ) {
+									// no unoccupied lane found, we must insert a new lane.
+									occupied_lanes.push_back( c.renderpass_idx_from );
+								}
+
+								// Since we use 0 as a signal to not use an extra
+								// lane, we must add 1 to indicate an extra lane
+								// is being used.
+								c.extra_lane = lane_idx;
+							}
+							connections.push_back( c );
+							break;
+						}
+					}
+				}
+				resource_idx++;
+			}
+		}
+	}
+
+	// DE-SPAGHETTIFICATION
+	//
+	// Re-assign lanes for connectors to minimize path crossings.
+	//
+	// We want to have resources that come at the top use the highest lanes, and resources that
+	// are listed further down should use the lower lanes
+	// but this should only affect connections that use the extra lanes.
+	// but for this, we need to exclude any connections that are using lane 0.
+	//
+	// This looks and feels a bit hacky, and I'm sure this can be made better or more performant
+	// but for now, this will have to do. If it ever becomes too slow, we can disable this step.
+	//
+	if ( true ) {
+		auto c_end = connections.end();
+		for ( auto it = connections.begin(); it != c_end; ) {
+
+			// we must find how long the current group is
+			// the current group is all connectors that have the
+			// same renderpass_idx_to.
+
+			auto     it_group_end = it;
+			uint32_t idx_to       = it->renderpass_idx_to;
+
+			while ( it_group_end != c_end && it_group_end->renderpass_idx_to == idx_to ) {
+				it_group_end++;
+			}
+
+			// invariant - it_group_end now at one plus last element of current group
+
+			std::sort( it, it_group_end, []( connection_t const& lhs, connection_t const& rhs ) {
+				return lhs.extra_lane < rhs.extra_lane;
+			} );
+
+			// now get all lanes, and then sort the lanes
+
+			// advance it so that it only covers items that have extra lane < 0
+			while ( it != it_group_end && it->extra_lane == -1 ) {
+				it++;
+			}
+			std::vector<uint32_t> lanes;
+			lanes.reserve( it_group_end - it );
+
+			for ( auto it_tmp = it; it_tmp != it_group_end; it_tmp++ ) {
+				lanes.push_back( it_tmp->extra_lane );
+			}
+
+			for ( int i = lanes.size() - 1; it != it_group_end; it++, i-- ) {
+				it->extra_lane = lanes[ i ];
+			}
+
+			it = it_group_end;
+		}
+	}
+
+	auto const& canvas_to_screen = self->artboard_to_screen;
+
+	std::vector<uint64_t> renderpass_hashes;
+	le_rendergraph_visualizer_update_renderpass_view_cache( self, rp_src, renderpass_hashes );
+
+	// ---------- Draw Renderpass Views ----------
+	//
+	// We first draw Renderpass Views, so that we can find out the total dimensions of our
+	// diagram, and where to place connection points.
+	//
+	std::vector<LeTransform2D>   per_pass_transforms;
+	std::vector<RenderPassView*> rp_views;
+
+	{
+		ZoneScoped;
+		int           i = 0;
+		LeTransform2D t = canvas_to_screen;
+		for ( auto const& p : rp_src->passes ) {
+			uint64_t pass_id = renderpass_hashes[ i ]; // this was updated when updating the cache
+			auto&    pass    = self->rp.at( pass_id );
+			pass->draw( encoder_renderpass_views, t );
+			per_pass_transforms.push_back( t );
+			rp_views.push_back( pass );
+			LeTransform2D t_local{ .translation = { pass->get_leftmost_x() + h_spacing, 0 } };
+			t = t * t_local;
+			i++;
+		}
+	}
+
+	// ---------- Draw Connections ----------
+	//
+	// Encode connections draw instructions into a separate encoder. We then
+	// append the renderpass views onto this encoder, which means that even though
+	// we encode connections after we encode the renderpass views in the end, connections
+	// will get drawn before the renderpass views.
+	//
+	//
+
+	le::Encoder2D encoder_connections{};
+
+	LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } }; // mouse space
+	LeTransform2D mouse_on_canvas = canvas_to_screen.inverse() * mouse_to_screen;                                           // mouse space to canvas space
+
+	for ( auto const& c : connections ) {
+
+		// first, just draw circles over the given points of connection - this is so
+		// that we can tell whether our geometry is correct.
+
+		auto from_view = rp_views[ c.renderpass_idx_from ];
+		auto to_view   = rp_views[ c.renderpass_idx_to ];
+
+		glm::vec2 from_port = from_view->getPortForResource( c.resource, false );
+		glm::vec2 to_port   = to_view->getPortForResource( c.resource, true );
+
+		LeTransform2D from_transform = { .translation = ( -1 == c.extra_lane ) ? from_port : glm::vec2{ from_port.x + h_spacing, -( c.extra_lane + 1 ) * c_line_height } };
+		LeTransform2D to_transform   = { .translation = ( -1 == c.extra_lane ) ? to_port : glm::vec2{ to_port.x - h_spacing, -( c.extra_lane + 1 ) * c_line_height } };
+
+		from_transform = per_pass_transforms[ c.renderpass_idx_from ] * from_transform;
+		to_transform   = per_pass_transforms[ c.renderpass_idx_to ] * to_transform;
+
+		// Now, if i want to draw a connection between the two positions,
+		// how would i do this?
+
+		// We need to draw either in from_transform space or to_transform space.
+		// we choose from_space; and therefore we must transform all points
+		// to be relative to this space.
+
+		auto pt_in_from_transform_space = ( from_transform.inverse() * to_transform );
+
+		// these are only needed if we have extra lanes
+		auto c0 = ( from_transform.inverse() * per_pass_transforms[ c.renderpass_idx_from ] * LeTransform2D{ .translation = from_port } ).translation;
+		auto c1 = ( from_transform.inverse() * per_pass_transforms[ c.renderpass_idx_to ] * LeTransform2D{ .translation = to_port } ).translation;
+
+		glm::vec2 to_pos = pt_in_from_transform_space.translation;
+
+		for ( int i = 0; i != 2; i++ ) {
+
+			float bendiness = .55f;
+
+			if ( c.extra_lane != -1 ) {
+				encoder_connections
+				    .transform( from_transform )
+				    .colour_rgba( i == 0 ? c_colour_connector_outline : c_colour_connector_fill )
+				    .path_begin( { .width = i == 0 ? 6.f : 4.f } )
+				    .move_to( c0 )
+				    .cubic_to( c0 + ( glm::vec2{} - c0 ) * glm::vec2{ bendiness, 0. }, glm::vec2{} - ( glm::vec2{} - c0 ) * glm::vec2{ bendiness, 0. }, glm::vec2{} )
+				    .line_to( to_pos )
+				    .cubic_to( to_pos + ( c1 - to_pos ) * glm::vec2{ bendiness, 0. }, c1 - ( c1 - to_pos ) * glm::vec2{ bendiness, 0. }, c1 )
+				    .path_end();
+			} else {
+
+				encoder_connections
+				    .transform( from_transform )
+				    .colour_rgba( i == 0 ? c_colour_connector_outline : c_colour_connector_fill )
+				    .path_begin( { .width = i == 0 ? 6.f : 4.f } )
+				    //.colour_abgr( 0xff5f711e )
+				    //.path_begin( { .width = 5.f } )
+				    .move_to( { 0, 0 } )
+				    .cubic_to( { to_pos.x * bendiness, 0 }, { to_pos.x * ( 1.f - bendiness ), to_pos.y }, to_pos )
+				    .path_end();
+			}
+		}
+	}
+
+	// ---------- Draw Cached RenderpassViews ---------
+	//
+	//
+
+	encoder_connections.append( encoder_renderpass_views );
+
+	self->canvas_image_info.image.extent.width  = self->canvas_extents.x;
+	self->canvas_image_info.image.extent.height = self->canvas_extents.y;
+
+	le::Encoder2D encoder_artboard{};
+
+	encoder_artboard.append( encoder_connections );
+
+	constexpr bool USE_ARTBOARD_MAGNIFIER = true;
+
+	if ( USE_ARTBOARD_MAGNIFIER && self->io_state.should_zoom ) {
+		LeTransform2D artboard_to_magnified_screen;
+		{
+			float         zoom           = 2;
+			LeTransform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
+
+			// i need to transform from mouse space into into artboard space
+			// mouse space is where the mouse is at the centre of all things
+			// artboard space is where the artboard is centred.
+
+			LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
+			LeTransform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
+
+			// This applies zooms around where the mouse is:
+			// Read this right-to-left.
+			// 1) First we center the art board to where the mouse is - mouse_space_to_artboard.inverse()
+			// 2) Then we apply the zoom
+			// Then we undo the centering
+			// Then we move from artboard to screen.
+
+			artboard_to_magnified_screen = self->artboard_to_screen * mouse_space_to_artboard * zoom_transform * mouse_space_to_artboard.inverse();
+		}
+
+		// draw magnifier glass clip circle
+
+		encoder_artboard
+		    .transform( self->artboard_to_screen ) // apply canvas to screen transform
+		    .path_begin( le_2d::FillStyle::NonZero )
+		    .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 300 ) // we draw this in canvas space
+		    .path_end()
+		    .begin_clip( le_2d::BlendMode{}, 1.f )
+
+		    .colour_abgr( 0xffffffff )
+		    .path_begin( le_2d::FillStyle::NonZero )
+		    .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 300 ) // we draw this in canvas space
+		    .path_end();
+
+		encoder_artboard.append( encoder_connections, artboard_to_magnified_screen * self->artboard_to_screen.inverse() );
+		encoder_artboard.end_clip();
+	}
+
+	self->ctx_2d.update( rendergraph, encoder_artboard, self->canvas_image, &self->canvas_image_info, le_2d_colour( 255, 255, 255, 128 ).to_premult_rgba_u32() );
+
+	// Now, we need to draw the image into the output image -- that way we can be sure that it will be visible
+	//
+	// All this is just to draw the image created via the 2d context into the final swapchain image:
+
+	auto draw_visuals =
+	    le::RenderPass( "draw_visualizer" )
+	        .addColorAttachment( target_image, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eLoad ).build() )
+	        .sampleTexture( self->canvas_texture, self->canvas_image )
+	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+		        auto                self = static_cast<le_rendergraph_visualizer_o*>( user_data );
+		        le::GraphicsEncoder encoder{ encoder_ };
+
+		        le::Extent2D extents = encoder.getRenderpassExtent();
+
+		        // Blit visualization onto the background image.
+
+		        static auto pipeline_draw_brush =
+		            LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+		                .addShaderStage(
+		                    LeShaderModuleBuilder( encoder.getPipelineManager() )
+		                        .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.vert" )
+		                        .setShaderStage( le::ShaderStage::eVertex )
+		                        .build() )
+		                .addShaderStage(
+		                    LeShaderModuleBuilder( encoder.getPipelineManager() )
+		                        .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.frag" )
+		                        .setShaderStage( le::ShaderStage::eFragment )
+		                        .build() )
+		                .withAttachmentBlendState()
+		                .usePreset( le::AttachmentBlendPreset::ePremultipliedAlpha )
+		                .end()
+		                .build();
+
+		        struct ShaderParams {
+			        glm::vec2 u_resolution;
+			        glm::vec2 u_quad_position;
+			        glm::vec2 u_quad_extents;
+		        };
+
+		        ShaderParams params{};
+
+		        params.u_resolution = {
+		            extents.width,
+		            extents.height,
+		        };
+
+		        params.u_quad_position = self->canvas_blit_pos;
+
+		        params.u_quad_extents = {
+		            self->canvas_image_info.image.extent.width,
+		            self->canvas_image_info.image.extent.height,
+		        };
+
+		        static const float vertexPositions[ 4 ][ 3 ] = {
+		            { -0.5, 0.5, 0 },
+		            { -0.5, -0.5, 0 },
+		            { 0.5, -0.5, 0 },
+		            { 0.5, 0.5, 0 },
+		        };
+
+		        static const uint16_t indices[] = {
+		            0, 1, 2,
+		            0, 2, 3, //
+		        };
+
+		        encoder
+		            .bindGraphicsPipeline( pipeline_draw_brush )
+		            .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
+		            .setIndexData( indices, sizeof( indices ), le::IndexType::eUint16 )
+		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), self->canvas_texture ) //
+		            ;
+
+		        encoder
+		            .setPushConstantData( &params, sizeof( ShaderParams ) )
+		            .drawIndexed( 6 ) //
+		            ;
+	        } );
+
+	le_renderer_api_i->le_rendergraph_i.add_renderpass( rendergraph, draw_visuals );
+}
+
+// ----------------------------------------------------------------------
+
 /// `target_image` tells us where to draw the visualization into.
 /// Usually you would want to set this to the current swapchain image.
-static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self, le_rendergraph_o* rendergraph_to_draw_into, le_image_resource_handle target_image, le_rendergraph_o* rp_src ) {
+static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self, le_rendergraph_o* rendergraph, le_image_resource_handle target_image ) {
 
 	ZoneScoped;
 
-	if ( self->is_active ) {
-
+	if ( self->current_state != State::eInactive ) {
 		// ----------| invariant: visualizer is active
+
+		le_rendergraph_o* rp_src = rendergraph;
 
 		// We must first evaluate the rendergraph by calling its setup callbacks.
 		//
@@ -198,440 +660,38 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		le_renderer_api_i->le_rendergraph_private_i.setup_passes( rp_src );
 		le_renderer_api_i->le_rendergraph_private_i.build( rp_src, 0 );
 
-		// list_renderpasses_as_text( rp_src );
+		if ( self->current_state == State::eLiveVisualizeAndRecord || self->current_state == State::eRecordOnly ) {
 
-		le::Encoder2D encoder_renderpass_views{};
+			auto& rg_store = self->rendergraph_store[ self->rendergraph_store_pos ];
 
-		self->canvas_blit_pos = { 50, 50 };
-		self->canvas_extents  = { 1920 - 100.f, 1080 - 100 };
+			if ( nullptr != rg_store ) {
+				// we must evict the last element from the ring buffer
+				le_renderer_api_i->le_rendergraph_i.destroy( rg_store );
+				rg_store = nullptr;
+			}
 
-		//
-		struct connection_t {
-			int16_t            renderpass_idx_from; // renderpass that provides resource used for connection
-			int16_t            renderpass_idx_to;   // destination; renderpass that uses the resource in this connection
-			int16_t            extra_lane;          // which extra lane to use to route this connection if we can't route directly
-			int16_t            resource_idx;        // index in list of resources of the destination renderpass
-			le_resource_handle resource;
-		};
+			// store a clone of the renderpass into our ring buffer
+			rg_store = le_renderer_api_i->le_rendergraph_private_i.clone( rp_src );
 
-		// ---------- Build a vector of connections ----------
-		//
-		// Connections go from target (right) forward to their original source. Only one connection may
-		// go from a target to an origin, but an origin may have multiple (outgoing) connections.
-		//
-		//
+			self->rendergraph_store_pos = ( self->rendergraph_store_pos + 1 ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
+		}
 
-		std::vector<connection_t> connections;
-
-		std::vector<connection_t> active_connections; // any connection that, on an extra lane, reaches forward
-
-		// We keep track of extra lanes that connect cards that are not immediate neighbours.
-		// - There can only be one connection per lane.
-		// - Lanes should be re-used as much as possible to avoid vertical spread of the diagram.
-		//
-		// index of this vector corresponds to lane index
-		// value in this vector corresponds to source renderpass id
-		std::vector<int16_t> occupied_lanes;
-
-		{
-			ZoneScoped;
-			auto get_resource_idx = []( le_rendergraph_o const* rg, le_resource_handle const r ) -> uint32_t {
-				// Will find resource in linear time; the more resources we have, the more time it
-				// may take; We could cache this locally; But we're effectively comparing pointers;
-				// so this should be plenty fast.
-				uint32_t i = 0;
-				for ( ; i != rg->unique_resources.size(); i++ ) {
-					if ( rg->unique_resources[ i ] == r ) {
-						break;
-					}
-				}
-				return i;
-			};
-
-			uint32_t rp_src_unique_resources_size = rp_src->unique_resources.size();
-
-			for ( int16_t i = rp_src->passes.size() - 1; i >= 0; i-- ) {
-				auto& p = *( rp_src->passes[ i ] );
-				auto& n = rp_src->nodes[ i ];
-
-				if ( false == p.is_contributing ) {
-					continue;
-				}
-
-				// Mark any lanes that have the current renderpass as its source as un-occupied.
-				// because their lanes start from the curent renderpass.
-
-				for ( auto& l : occupied_lanes ) {
-					if ( l >= i ) {
-						l = -1;
-					}
-				}
-
-				// ----------| invariant: this pass contributes
-
-				connection_t c{
-				    .renderpass_idx_from = -1,
-				    .renderpass_idx_to   = i,
-				};
-
-				int16_t resource_idx = 0;
-				int16_t extra_lanes  = 0;
-				for ( auto& r : p.resources ) {
-
-					c.resource_idx = resource_idx;
-					c.resource     = r;
-					// we only care if the resource is a read resource
-					uint32_t res_idx = get_resource_idx( rp_src, r );
-					if ( res_idx == rp_src_unique_resources_size ) {
-						// Resource could not be found for some reason
-						// this should not happen, but if it happens,
-						// we ignore this resource.
-						continue;
-					}
-					// ----------| Invariant: resource was found
-
-					if ( n.reads.test( res_idx ) ) {
-						// we have a read -- now we need to find any previous
-						// passes that might have written to this
-
-						for ( int j = i - 1; j >= 0; j-- ) {
-							auto& n_dest = rp_src->nodes[ j ];
-
-							if ( n_dest.explicit_writes.test( res_idx ) ) {
-								// we have found our connecsion
-								c.renderpass_idx_from = j;
-								if ( j == i - 1 ) {
-									// Connection goes directly to the left neighbour --
-									// We must not use an extra lane, we flag this by
-									// setting extra_lane to -1.
-									c.extra_lane = -1;
-								} else {
-
-									int16_t lane_idx           = 0;
-									int16_t occupied_lanes_end = occupied_lanes.size();
-									for ( ; lane_idx != occupied_lanes_end; lane_idx++ ) {
-										// If lane is unoccupied, then select it
-										if ( -1 == occupied_lanes[ lane_idx ] ) {
-											occupied_lanes[ lane_idx ] = c.renderpass_idx_from;
-											break;
-										}
-									}
-									if ( lane_idx == occupied_lanes_end ) {
-										// no unoccupied lane found, we must insert a new lane.
-										occupied_lanes.push_back( c.renderpass_idx_from );
-									}
-
-									// Since we use 0 as a signal to not use an extra
-									// lane, we must add 1 to indicate an extra lane
-									// is being used.
-									c.extra_lane = lane_idx;
-								}
-								connections.push_back( c );
-								break;
-							}
-						}
-					}
-					resource_idx++;
-				}
+		if ( self->current_state == State::eVisualizeRecorded ) {
+			size_t            prev_frame_idx = ( self->rendergraph_store_pos + 1 + C_RENDERGRAPH_STORE_RINGBUFFER_SIZE ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
+			le_rendergraph_o* rg             = self->rendergraph_store[ prev_frame_idx ];
+			if ( nullptr != rg ) {
+				rp_src = rg;
 			}
 		}
 
-		// DE-SPAGHETTIFICATION
-		//
-		// Re-assign lanes for connectors to minimize path crossings.
-		//
-		// We want to have resources that come at the top use the highest lanes, and resources that
-		// are listed further down should use the lower lanes
-		// but this should only affect connections that use the extra lanes.
-		// but for this, we need to exclude any connections that are using lane 0.
-		//
-		// This looks and feels a bit hacky, and I'm sure this can be made better or more performant
-		// but for now, this will have to do. If it ever becomes too slow, we can disable this step.
-		//
-		if ( true ) {
-			auto c_end = connections.end();
-			for ( auto it = connections.begin(); it != c_end; ) {
+		if ( self->current_state == State::eLiveVisualizeAndRecord ||
+		     self->current_state == State::eLiveVisualizeNoRecord ||
+		     self->current_state == State::eVisualizeRecorded ) {
 
-				// we must find how long the current group is
-				// the current group is all connectors that have the
-				// same renderpass_idx_to.
-
-				auto     it_group_end = it;
-				uint32_t idx_to       = it->renderpass_idx_to;
-
-				while ( it_group_end != c_end && it_group_end->renderpass_idx_to == idx_to ) {
-					it_group_end++;
-				}
-
-				// invariant - it_group_end now at one plus last element of current group
-
-				std::sort( it, it_group_end, []( connection_t const& lhs, connection_t const& rhs ) {
-					return lhs.extra_lane < rhs.extra_lane;
-				} );
-
-				// now get all lanes, and then sort the lanes
-
-				// advance it so that it only covers items that have extra lane < 0
-				while ( it != it_group_end && it->extra_lane == -1 ) {
-					it++;
-				}
-				std::vector<uint32_t> lanes;
-				lanes.reserve( it_group_end - it );
-
-				for ( auto it_tmp = it; it_tmp != it_group_end; it_tmp++ ) {
-					lanes.push_back( it_tmp->extra_lane );
-				}
-
-				for ( int i = lanes.size() - 1; it != it_group_end; it++, i-- ) {
-					it->extra_lane = lanes[ i ];
-				}
-
-				it = it_group_end;
-			}
+			draw_visualizer( self, rendergraph, target_image, rp_src );
 		}
 
-		auto const& canvas_to_screen = self->artboard_to_screen;
-
-		std::vector<uint64_t> renderpass_hashes;
-		le_rendergraph_visualizer_update_renderpass_view_cache( self, rp_src, renderpass_hashes );
-
-		// ---------- Draw Renderpass Views ----------
-		//
-		// We first draw Renderpass Views, so that we can find out the total dimensions of our
-		// diagram, and where to place connection points.
-		//
-		std::vector<LeTransform2D>     per_pass_transforms;
-		std::vector<RenderPassView*> rp_views;
-
-		{
-			ZoneScoped;
-			int         i = 0;
-			LeTransform2D t = canvas_to_screen;
-			for ( auto const& p : rp_src->passes ) {
-				uint64_t pass_id = renderpass_hashes[ i ]; // this was updated when updating the cache
-				auto&    pass    = self->rp.at( pass_id );
-				pass->draw( encoder_renderpass_views, t );
-				per_pass_transforms.push_back( t );
-				rp_views.push_back( pass );
-				LeTransform2D t_local{ .translation = { pass->get_leftmost_x() + h_spacing, 0 } };
-				t = t * t_local;
-				i++;
-			}
-		}
-
-		// ---------- Draw Connections ----------
-		//
-		// Encode connections draw instructions into a separate encoder. We then
-		// append the renderpass views onto this encoder, which means that even though
-		// we encode connections after we encode the renderpass views in the end, connections
-		// will get drawn before the renderpass views.
-		//
-		//
-
-		le::Encoder2D encoder_connections{};
-
-		LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } }; // mouse space
-		LeTransform2D mouse_on_canvas = canvas_to_screen.inverse() * mouse_to_screen;                                           // mouse space to canvas space
-
-		for ( auto const& c : connections ) {
-
-			// first, just draw circles over the given points of connection - this is so
-			// that we can tell whether our geometry is correct.
-
-			auto from_view = rp_views[ c.renderpass_idx_from ];
-			auto to_view   = rp_views[ c.renderpass_idx_to ];
-
-			glm::vec2 from_port = from_view->getPortForResource( c.resource, false );
-			glm::vec2 to_port   = to_view->getPortForResource( c.resource, true );
-
-			LeTransform2D from_transform = { .translation = ( -1 == c.extra_lane ) ? from_port : glm::vec2{ from_port.x + h_spacing, -( c.extra_lane + 1 ) * c_line_height } };
-			LeTransform2D to_transform   = { .translation = ( -1 == c.extra_lane ) ? to_port : glm::vec2{ to_port.x - h_spacing, -( c.extra_lane + 1 ) * c_line_height } };
-
-			from_transform = per_pass_transforms[ c.renderpass_idx_from ] * from_transform;
-			to_transform   = per_pass_transforms[ c.renderpass_idx_to ] * to_transform;
-
-			// Now, if i want to draw a connection between the two positions,
-			// how would i do this?
-
-			// We need to draw either in from_transform space or to_transform space.
-			// we choose from_space; and therefore we must transform all points
-			// to be relative to this space.
-
-			auto pt_in_from_transform_space = ( from_transform.inverse() * to_transform );
-
-			// these are only needed if we have extra lanes
-			auto c0 = ( from_transform.inverse() * per_pass_transforms[ c.renderpass_idx_from ] * LeTransform2D{ .translation = from_port } ).translation;
-			auto c1 = ( from_transform.inverse() * per_pass_transforms[ c.renderpass_idx_to ] * LeTransform2D{ .translation = to_port } ).translation;
-
-			glm::vec2 to_pos = pt_in_from_transform_space.translation;
-
-			for ( int i = 0; i != 2; i++ ) {
-
-				float bendiness = .55f;
-
-				if ( c.extra_lane != -1 ) {
-					encoder_connections
-					    .transform( from_transform )
-					    .colour_rgba( i == 0 ? c_colour_connector_outline : c_colour_connector_fill )
-					    .path_begin( { .width = i == 0 ? 6.f : 4.f } )
-					    .move_to( c0 )
-					    .cubic_to( c0 + ( glm::vec2{} - c0 ) * glm::vec2{ bendiness, 0. }, glm::vec2{} - ( glm::vec2{} - c0 ) * glm::vec2{ bendiness, 0. }, glm::vec2{} )
-					    .line_to( to_pos )
-					    .cubic_to( to_pos + ( c1 - to_pos ) * glm::vec2{ bendiness, 0. }, c1 - ( c1 - to_pos ) * glm::vec2{ bendiness, 0. }, c1 )
-					    .path_end();
-				} else {
-
-					encoder_connections
-					    .transform( from_transform )
-					    .colour_rgba( i == 0 ? c_colour_connector_outline : c_colour_connector_fill )
-					    .path_begin( { .width = i == 0 ? 6.f : 4.f } )
-					    //.colour_abgr( 0xff5f711e )
-					    //.path_begin( { .width = 5.f } )
-					    .move_to( { 0, 0 } )
-					    .cubic_to( { to_pos.x * bendiness, 0 }, { to_pos.x * ( 1.f - bendiness ), to_pos.y }, to_pos )
-					    .path_end();
-				}
-			}
-		}
-
-		// ---------- Draw Cached RenderpassViews ---------
-		//
-		//
-
-		encoder_connections.append( encoder_renderpass_views );
-
-		self->canvas_image_info.image.extent.width  = self->canvas_extents.x;
-		self->canvas_image_info.image.extent.height = self->canvas_extents.y;
-
-		le::Encoder2D encoder_artboard{};
-
-		encoder_artboard.append( encoder_connections );
-
-		constexpr bool USE_ARTBOARD_MAGNIFIER = true;
-
-		if ( USE_ARTBOARD_MAGNIFIER && self->io_state.should_zoom ) {
-			LeTransform2D artboard_to_magnified_screen;
-			{
-				float       zoom           = 2;
-				LeTransform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
-
-				// i need to transform from mouse space into into artboard space
-				// mouse space is where the mouse is at the centre of all things
-				// artboard space is where the artboard is centred.
-
-				LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
-				LeTransform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
-
-				// This applies zooms around where the mouse is:
-				// Read this right-to-left.
-				// 1) First we center the art board to where the mouse is - mouse_space_to_artboard.inverse()
-				// 2) Then we apply the zoom
-				// Then we undo the centering
-				// Then we move from artboard to screen.
-
-				artboard_to_magnified_screen = self->artboard_to_screen * mouse_space_to_artboard * zoom_transform * mouse_space_to_artboard.inverse();
-			}
-
-			// draw magnifier glass clip circle
-
-			encoder_artboard
-			    .transform( self->artboard_to_screen ) // apply canvas to screen transform
-			    .path_begin( le_2d::FillStyle::NonZero )
-			    .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 300 ) // we draw this in canvas space
-			    .path_end()
-			    .begin_clip( le_2d::BlendMode{}, 1.f )
-
-			    .colour_abgr( 0xffffffff )
-			    .path_begin( le_2d::FillStyle::NonZero )
-			    .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 300 ) // we draw this in canvas space
-			    .path_end();
-
-			encoder_artboard.append( encoder_connections, artboard_to_magnified_screen * self->artboard_to_screen.inverse() );
-			encoder_artboard.end_clip();
-		}
-
-		self->ctx_2d.update( rendergraph_to_draw_into, encoder_artboard, self->canvas_image, &self->canvas_image_info, le_2d_colour( 255, 255, 255, 128 ).to_premult_rgba_u32() );
-
-		// Now, we need to draw the image into the output image -- that way we can be sure that it will be visible
-		//
-		// All this is just to draw the image created via the 2d context into the final swapchain image:
-
-		auto draw_visuals =
-		    le::RenderPass( "draw_visualizer" )
-		        .addColorAttachment( target_image, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eLoad ).build() )
-		        .sampleTexture( self->canvas_texture, self->canvas_image )
-		        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-			        auto                self = static_cast<le_rendergraph_visualizer_o*>( user_data );
-			        le::GraphicsEncoder encoder{ encoder_ };
-
-			        le::Extent2D extents = encoder.getRenderpassExtent();
-
-			        // Blit visualization onto the background image.
-
-			        static auto pipeline_draw_brush =
-			            LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-			                .addShaderStage(
-			                    LeShaderModuleBuilder( encoder.getPipelineManager() )
-			                        .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.vert" )
-			                        .setShaderStage( le::ShaderStage::eVertex )
-			                        .build() )
-			                .addShaderStage(
-			                    LeShaderModuleBuilder( encoder.getPipelineManager() )
-			                        .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.frag" )
-			                        .setShaderStage( le::ShaderStage::eFragment )
-			                        .build() )
-			                .withAttachmentBlendState()
-			                .usePreset( le::AttachmentBlendPreset::ePremultipliedAlpha )
-			                .end()
-			                .build();
-
-			        struct ShaderParams {
-				        glm::vec2 u_resolution;
-				        glm::vec2 u_quad_position;
-				        glm::vec2 u_quad_extents;
-			        };
-
-			        ShaderParams params{};
-
-			        params.u_resolution = {
-			            extents.width,
-			            extents.height,
-			        };
-
-			        params.u_quad_position = self->canvas_blit_pos;
-
-			        params.u_quad_extents = {
-			            self->canvas_image_info.image.extent.width,
-			            self->canvas_image_info.image.extent.height,
-			        };
-
-			        static const float vertexPositions[ 4 ][ 3 ] = {
-			            { -0.5, 0.5, 0 },
-			            { -0.5, -0.5, 0 },
-			            { 0.5, -0.5, 0 },
-			            { 0.5, 0.5, 0 },
-			        };
-
-			        static const uint16_t indices[] = {
-			            0, 1, 2,
-			            0, 2, 3, //
-			        };
-
-			        encoder
-			            .bindGraphicsPipeline( pipeline_draw_brush )
-			            .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
-			            .setIndexData( indices, sizeof( indices ), le::IndexType::eUint16 )
-			            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), self->canvas_texture ) //
-			            ;
-
-			        encoder
-			            .setPushConstantData( &params, sizeof( ShaderParams ) )
-			            .drawIndexed( 6 ) //
-			            ;
-		        } );
-
-		le_renderer_api_i->le_rendergraph_i.add_renderpass( rendergraph_to_draw_into, draw_visuals );
-	} // end if is active
+	} // end if current_state != eInactive
 
 	// we maintain the cache whether the visualizer is active or not
 	rendergraph_visualizer_renderpass_view_cache_maintain( self );
@@ -643,7 +703,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 	// CONSIDER: should this be written a state machine?
 
-	if ( false == self->is_active ) {
+	if ( self->current_state == State::eInactive ) {
 		return;
 	}
 	// ----------| invariant: rendergraph visualizer is active
@@ -790,7 +850,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 static void le_rendergraph_visualizer_process_and_filter_events( le_rendergraph_visualizer_o* self, LeUiEvent* events, uint32_t* num_events ) {
 
-	if ( false == self->is_active ) {
+	if ( self->current_state == State::eInactive || self->current_state == State::eRecordOnly ) {
 		return;
 	}
 	// ----------| invariant: rendergraph visualizer is active
@@ -838,13 +898,18 @@ static void le_rendergraph_visualizer_process_and_filter_events( le_rendergraph_
 // ----------------------------------------------------------------------
 
 static bool le_rendergraph_visualizer_get_is_active( le_rendergraph_visualizer_o* self ) {
-	return self->is_active;
+	return self->current_state != State::eInactive;
 };
 
 // ----------------------------------------------------------------------
 
 static void le_rendergraph_visualizer_set_is_active( le_rendergraph_visualizer_o* self, bool is_active ) {
-	self->is_active = is_active;
+
+	if ( is_active ) {
+		self->current_state = State::eLiveVisualizeAndRecord;
+	} else {
+		self->current_state = State::eInactive;
+	}
 };
 
 // ----------------------------------------------------------------------

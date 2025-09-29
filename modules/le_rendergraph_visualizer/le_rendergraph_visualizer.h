@@ -15,12 +15,12 @@ struct le_rendergraph_visualizer_api {
 
 		le_rendergraph_visualizer_o *    ( * create                   ) ( );
 		void                 			 ( * destroy                  ) ( le_rendergraph_visualizer_o* self );
-		void                 			 ( * update                   ) ( le_rendergraph_visualizer_o* self, le_rendergraph_o* rendergraph_to_draw_into, le_image_resource_handle_t* target_image, le_rendergraph_o* rendergraph_to_visualize );
+		void                 			 ( * update                   ) ( le_rendergraph_visualizer_o* self, le_rendergraph_o* rendergraph, le_image_resource_handle_t* target_image);
 	
 		void 							 ( * set_is_active            ) (le_rendergraph_visualizer_o* self, bool is_active);
 		bool 							 ( * get_is_active            ) (le_rendergraph_visualizer_o* self);
 
-		void                ( * process_events    ) ( le_rendergraph_visualizer_o* self, LeUiEvent const * events, uint32_t num_events);
+		void                			 ( * process_events           ) ( le_rendergraph_visualizer_o* self, LeUiEvent const * events, uint32_t num_events);
         
         /// Process events, and filter out any events which have been captured
         /// 
@@ -61,9 +61,8 @@ class LeRendergraphVisualizer : NoCopy, NoMove {
 		le_rendergraph_visualizer::le_rendergraph_visualizer_i.destroy( self );
 	}
 
-	void update( le_rendergraph_o* rendergraph_to_draw_into, le_image_resource_handle_t* target_image, le_rendergraph_o* rendergraph_to_visualize = nullptr ) {
-		le_rendergraph_o* to_viz = rendergraph_to_visualize ? rendergraph_to_visualize : rendergraph_to_draw_into;
-		le_rendergraph_visualizer::le_rendergraph_visualizer_i.update( self, rendergraph_to_draw_into, target_image, to_viz );
+	void update( le_rendergraph_o* rendergraph, le_image_resource_handle_t* target_image ) {
+		le_rendergraph_visualizer::le_rendergraph_visualizer_i.update( self, rendergraph, target_image );
 	}
 
 	void processEvents( LeUiEvent const* events, uint32_t num_events ) {
