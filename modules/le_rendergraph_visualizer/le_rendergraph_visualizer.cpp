@@ -214,10 +214,10 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 		//
 		struct connection_t {
-			int32_t            renderpass_idx_from; // renderpass that provides resource used for connection
-			int32_t            renderpass_idx_to;   // destination; renderpass that uses the resource in this connection
-			int32_t            extra_lane;          // which extra lane to use to route this connection if we can't route directly
-			int32_t            resource_idx;        // index in list of resources of the destination renderpass
+			int16_t            renderpass_idx_from; // renderpass that provides resource used for connection
+			int16_t            renderpass_idx_to;   // destination; renderpass that uses the resource in this connection
+			int16_t            extra_lane;          // which extra lane to use to route this connection if we can't route directly
+			int16_t            resource_idx;        // index in list of resources of the destination renderpass
 			le_resource_handle resource;
 		};
 
@@ -229,6 +229,17 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		//
 
 		std::vector<connection_t> connections;
+
+		std::vector<connection_t> active_connections; // any connection that, on an extra lane, reaches forward
+
+		// We keep track of extra lanes that connect cards that are not immediate neighbours.
+		// - There can only be one connection per lane.
+		// - Lanes should be re-used as much as possible to avoid vertical spread of the diagram.
+		//
+		// index of this vector corresponds to lane index
+		// value in this vector corresponds to source renderpass id
+		std::vector<int16_t> occupied_lanes;
+
 		{
 			ZoneScoped;
 			auto get_resource_idx = []( le_rendergraph_o const* rg, le_resource_handle const r ) -> uint32_t {
@@ -246,12 +257,21 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 			uint32_t rp_src_unique_resources_size = rp_src->unique_resources.size();
 
-			for ( int i = rp_src->passes.size() - 1; i >= 0; i-- ) {
+			for ( int16_t i = rp_src->passes.size() - 1; i >= 0; i-- ) {
 				auto& p = *( rp_src->passes[ i ] );
 				auto& n = rp_src->nodes[ i ];
 
 				if ( false == p.is_contributing ) {
 					continue;
+				}
+
+				// Mark any lanes that have the current renderpass as its source as un-occupied.
+				// because their lanes start from the curent renderpass.
+
+				for ( auto& l : occupied_lanes ) {
+					if ( l >= i ) {
+						l = -1;
+					}
 				}
 
 				// ----------| invariant: this pass contributes
@@ -261,8 +281,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 				    .renderpass_idx_to   = i,
 				};
 
-				size_t resource_idx = 0;
-				size_t extra_lanes  = 0;
+				int16_t resource_idx = 0;
+				int16_t extra_lanes  = 0;
 				for ( auto& r : p.resources ) {
 
 					c.resource_idx = resource_idx;
@@ -288,14 +308,30 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 								// we have found our connecsion
 								c.renderpass_idx_from = j;
 								if ( j == i - 1 ) {
-									// connection goes direclty to the left neighbour
-									c.extra_lane = 0;
+									// Connection goes directly to the left neighbour --
+									// We must not use an extra lane, we flag this by
+									// setting extra_lane to -1.
+									c.extra_lane = -1;
 								} else {
 
-									// here, we would like to look at any connections that are active
-									// that is where their origin is greater than i
+									int16_t lane_idx           = 0;
+									int16_t occupied_lanes_end = occupied_lanes.size();
+									for ( ; lane_idx != occupied_lanes_end; lane_idx++ ) {
+										// If lane is unoccupied, then select it
+										if ( -1 == occupied_lanes[ lane_idx ] ) {
+											occupied_lanes[ lane_idx ] = c.renderpass_idx_from;
+											break;
+										}
+									}
+									if ( lane_idx == occupied_lanes_end ) {
+										// no unoccupied lane found, we must insert a new lane.
+										occupied_lanes.push_back( c.renderpass_idx_from );
+									}
 
-									c.extra_lane = ++extra_lanes;
+									// Since we use 0 as a signal to not use an extra
+									// lane, we must add 1 to indicate an extra lane
+									// is being used.
+									c.extra_lane = lane_idx;
 								}
 								connections.push_back( c );
 								break;
@@ -304,12 +340,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 					}
 					resource_idx++;
 				}
-
-				// here move any connections where their source is i
-				// from active connections to connections
 			}
-
-			// move any remaining active connections to connections
 		}
 
 		// DE-SPAGHETTIFICATION
@@ -348,7 +379,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 				// now get all lanes, and then sort the lanes
 
 				// advance it so that it only covers items that have extra lane < 0
-				while ( it != it_group_end && it->extra_lane == 0 ) {
+				while ( it != it_group_end && it->extra_lane == -1 ) {
 					it++;
 				}
 				std::vector<uint32_t> lanes;
@@ -420,10 +451,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			glm::vec2 from_port = from_view->getPortForResource( c.resource, false );
 			glm::vec2 to_port   = to_view->getPortForResource( c.resource, true );
 
-			// c.extra_lane = 0;
-
-			LeTransform2D from_transform = { .translation = c.extra_lane ? glm::vec2{ from_port.x + h_spacing, -c.extra_lane * c_line_height - 30.f } : from_port };
-			LeTransform2D to_transform   = { .translation = c.extra_lane ? glm::vec2{ to_port.x - h_spacing, -c.extra_lane * c_line_height - 30.f } : to_port };
+			LeTransform2D from_transform = { .translation = ( -1 == c.extra_lane ) ? from_port : glm::vec2{ from_port.x + h_spacing, -( c.extra_lane + 2 ) * c_line_height } };
+			LeTransform2D to_transform   = { .translation = ( -1 == c.extra_lane ) ? to_port : glm::vec2{ to_port.x - h_spacing, -( c.extra_lane + 2 ) * c_line_height } };
 
 			from_transform = per_pass_transforms[ c.renderpass_idx_from ] * from_transform;
 			to_transform   = per_pass_transforms[ c.renderpass_idx_to ] * to_transform;
@@ -447,7 +476,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 				float bendiness = .55f;
 
-				if ( c.extra_lane != 0 ) {
+				if ( c.extra_lane != -1 ) {
 					encoder_connections
 					    .transform( from_transform )
 					    .colour_rgba( i == 0 ? c_colour_connector_outline : c_colour_connector_fill )
