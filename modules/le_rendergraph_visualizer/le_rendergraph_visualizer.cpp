@@ -193,10 +193,6 @@ static void rendergraph_visualizer_renderpass_view_cache_maintain( le_rendergrap
 // ----------------------------------------------------------------------
 
 static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_o* rendergraph, le_image_resource_handle target_image, le_rendergraph_o* rp_src ) {
-	// in case we are live visualizing, we may want to record the last few renderpasses into
-	// a circular buffer of renderpasses ...
-	// in case we are showing the renderpass as it was recorded, then draw from this buffer instead
-	// of from the main renderpass.
 
 	// list_renderpasses_as_text( rp_src );
 
@@ -214,13 +210,6 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		le_resource_handle resource;
 	};
 
-	// ---------- Build a vector of connections ----------
-	//
-	// Connections go from target (right) forward to their original source. Only one connection may
-	// go from a target to an origin, but an origin may have multiple (outgoing) connections.
-	//
-	//
-
 	std::vector<connection_t> connections;
 
 	std::vector<connection_t> active_connections; // any connection that, on an extra lane, reaches forward
@@ -234,6 +223,13 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	std::vector<int16_t> occupied_lanes;
 
 	{
+		// ---------- Build a vector of connections ----------
+		//
+		// Connections go from target (right) forward to their original source. Only one connection may
+		// go from a target to an origin, but an origin may have multiple (outgoing) connections.
+		//
+		//
+
 		ZoneScoped;
 		auto get_resource_idx = []( le_rendergraph_o const* rg, le_resource_handle const r ) -> uint32_t {
 			// Will find resource in linear time; the more resources we have, the more time it
@@ -403,6 +399,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	std::vector<LeTransform2D>   per_pass_transforms;
 	std::vector<RenderPassView*> rp_views;
 
+	glm::vec2 right_most_point = {};
 	{
 		ZoneScoped;
 		int           i = 0;
@@ -417,6 +414,8 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 			t = t * t_local;
 			i++;
 		}
+
+		right_most_point = ( t * LeTransform2D{} ).translation;
 	}
 
 	// ---------- Draw Connections ----------
@@ -429,9 +428,6 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	//
 
 	le::Encoder2D encoder_connections{};
-
-	LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } }; // mouse space
-	LeTransform2D mouse_on_canvas = canvas_to_screen.inverse() * mouse_to_screen;                                           // mouse space to canvas space
 
 	for ( auto const& c : connections ) {
 
@@ -511,39 +507,37 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 	if ( USE_ARTBOARD_MAGNIFIER && self->io_state.should_zoom ) {
 		LeTransform2D artboard_to_magnified_screen;
-		{
-			float         zoom           = 2;
-			LeTransform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
+		float         zoom           = 2;
+		LeTransform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
 
-			// i need to transform from mouse space into into artboard space
-			// mouse space is where the mouse is at the centre of all things
-			// artboard space is where the artboard is centred.
+		// i need to transform from mouse space into into artboard space
+		// mouse space is where the mouse is at the centre of all things
+		// artboard space is where the artboard is centred.
 
-			LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
-			LeTransform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
+		LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
+		LeTransform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
 
-			// This applies zooms around where the mouse is:
-			// Read this right-to-left.
-			// 1) First we center the art board to where the mouse is - mouse_space_to_artboard.inverse()
-			// 2) Then we apply the zoom
-			// Then we undo the centering
-			// Then we move from artboard to screen.
+		// This applies zooms around where the mouse is:
+		// Read this right-to-left.
+		// 1) First we center the art board to where the mouse is - mouse_space_to_artboard.inverse()
+		// 2) Then we apply the zoom
+		// Then we undo the centering
+		// Then we move from artboard to screen.
 
-			artboard_to_magnified_screen = self->artboard_to_screen * mouse_space_to_artboard * zoom_transform * mouse_space_to_artboard.inverse();
-		}
+		artboard_to_magnified_screen = self->artboard_to_screen * mouse_space_to_artboard * zoom_transform * mouse_space_to_artboard.inverse();
 
 		// draw magnifier glass clip circle
 
 		encoder_artboard
 		    .transform( self->artboard_to_screen ) // apply canvas to screen transform
 		    .path_begin( le_2d::FillStyle::NonZero )
-		    .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 300 ) // we draw this in canvas space
+		    .circle( { mouse_space_to_artboard.translation[ 0 ], mouse_space_to_artboard.translation[ 1 ] }, 300 ) // we draw this in canvas space
 		    .path_end()
 		    .begin_clip( le_2d::BlendMode{}, 1.f )
 
 		    .colour_abgr( 0xffffffff )
 		    .path_begin( le_2d::FillStyle::NonZero )
-		    .circle( { mouse_on_canvas.translation[ 0 ], mouse_on_canvas.translation[ 1 ] }, 300 ) // we draw this in canvas space
+		    .circle( { mouse_space_to_artboard.translation[ 0 ], mouse_space_to_artboard.translation[ 1 ] }, 300 ) // we draw this in canvas space
 		    .path_end();
 
 		encoder_artboard.append( encoder_connections, artboard_to_magnified_screen * self->artboard_to_screen.inverse() );
