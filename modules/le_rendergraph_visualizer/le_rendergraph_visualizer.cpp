@@ -386,8 +386,6 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		}
 	}
 
-	auto const& canvas_to_screen = self->artboard_to_screen;
-
 	std::vector<uint64_t> renderpass_hashes;
 	le_rendergraph_visualizer_update_renderpass_view_cache( self, rp_src, renderpass_hashes );
 
@@ -403,7 +401,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	{
 		ZoneScoped;
 		int           i = 0;
-		LeTransform2D t = canvas_to_screen;
+		LeTransform2D t = {};
 		for ( auto const& p : rp_src->passes ) {
 			uint64_t pass_id = renderpass_hashes[ i ]; // this was updated when updating the cache
 			auto&    pass    = self->rp.at( pass_id );
@@ -501,7 +499,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 	le::Encoder2D encoder_artboard{};
 
-	encoder_artboard.append( encoder_connections );
+	encoder_artboard.append( encoder_connections, self->artboard_to_screen );
 
 	constexpr bool USE_ARTBOARD_MAGNIFIER = true;
 
@@ -540,7 +538,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		    .circle( { mouse_space_to_artboard.translation[ 0 ], mouse_space_to_artboard.translation[ 1 ] }, 300 ) // we draw this in canvas space
 		    .path_end();
 
-		encoder_artboard.append( encoder_connections, artboard_to_magnified_screen * self->artboard_to_screen.inverse() );
+		encoder_artboard.append( encoder_connections, artboard_to_magnified_screen );
 		encoder_artboard.end_clip();
 	}
 
