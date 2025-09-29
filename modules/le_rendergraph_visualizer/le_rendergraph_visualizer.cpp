@@ -50,13 +50,6 @@ struct io_state_t {
 	bool      should_zoom = false;
 };
 
-inline static LeTransform2D rotation_rad( float angle_rad ) {
-	float       cosa  = cosf( angle_rad );
-	float       sina  = sinf( angle_rad );
-	LeTransform2D rot_m = { .transform = { cosa, sina, -sina, cosa }, .translation = { 0, 0 } };
-	return rot_m;
-};
-
 struct le_rendergraph_visualizer_o {
 	// members
 	le_image_resource_handle canvas_image;   // the canvas onto which we draw the visualization.
@@ -71,7 +64,7 @@ struct le_rendergraph_visualizer_o {
 
 	std::unordered_map<uint64_t, RenderPassView*> rp;
 
-	LeTransform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph
+	LeTransform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph - this controls zoom and positioning of the diagram on screen
 
 	glm::vec2 canvas_extents;  // dimensions of the visualization canvas
 	glm::vec2 canvas_blit_pos; // where the visualization gets rendered on the final image
@@ -559,87 +552,83 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 		self->ctx_2d.update( rendergraph_to_draw_into, encoder_artboard, self->canvas_image, &self->canvas_image_info, le_2d_colour( 255, 255, 255, 128 ).to_premult_rgba_u32() );
 
-		// now, we need to draw the image into the output image -- that way we can be sure that it will be visible
-		le::RenderPass draw_visuals( "draw_visualizer" );
-
+		// Now, we need to draw the image into the output image -- that way we can be sure that it will be visible
+		//
 		// All this is just to draw the image created via the 2d context into the final swapchain image:
 
-		draw_visuals
-		    .addColorAttachment( target_image, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eLoad ).build() )
-		    .sampleTexture( self->canvas_texture, self->canvas_image )
-		    .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-			    // todo: draw self->canvas_texture onto the screen
+		auto draw_visuals =
+		    le::RenderPass( "draw_visualizer" )
+		        .addColorAttachment( target_image, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eLoad ).build() )
+		        .sampleTexture( self->canvas_texture, self->canvas_image )
+		        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+			        auto                self = static_cast<le_rendergraph_visualizer_o*>( user_data );
+			        le::GraphicsEncoder encoder{ encoder_ };
 
-			    auto                self = static_cast<le_rendergraph_visualizer_o*>( user_data );
-			    le::GraphicsEncoder encoder{ encoder_ };
+			        le::Extent2D extents = encoder.getRenderpassExtent();
 
-			    le::Extent2D extents = encoder.getRenderpassExtent();
+			        // Blit visualization onto the background image.
 
-			    // Draw main scene
+			        static auto pipeline_draw_brush =
+			            LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+			                .addShaderStage(
+			                    LeShaderModuleBuilder( encoder.getPipelineManager() )
+			                        .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.vert" )
+			                        .setShaderStage( le::ShaderStage::eVertex )
+			                        .build() )
+			                .addShaderStage(
+			                    LeShaderModuleBuilder( encoder.getPipelineManager() )
+			                        .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.frag" )
+			                        .setShaderStage( le::ShaderStage::eFragment )
+			                        .build() )
+			                .withAttachmentBlendState()
+			                .usePreset( le::AttachmentBlendPreset::ePremultipliedAlpha )
+			                .end()
+			                .build();
 
-			    static auto pipeline_draw_brush =
-			        LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-			            .addShaderStage(
-			                LeShaderModuleBuilder( encoder.getPipelineManager() )
-			                    .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.vert" )
-			                    .setShaderStage( le::ShaderStage::eVertex )
-			                    .build() )
-			            .addShaderStage(
-			                LeShaderModuleBuilder( encoder.getPipelineManager() )
-			                    .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.frag" )
-			                    .setShaderStage( le::ShaderStage::eFragment )
-			                    .build() )
-			            .withAttachmentBlendState()
-			            .usePreset( le::AttachmentBlendPreset::ePremultipliedAlpha )
-			            .end()
-			            .build();
+			        struct ShaderParams {
+				        glm::vec2 u_resolution;
+				        glm::vec2 u_quad_position;
+				        glm::vec2 u_quad_extents;
+			        };
 
-			    struct ShaderParams {
-				    glm::vec2 u_resolution;
-				    glm::vec2 u_quad_position;
-				    glm::vec2 u_quad_extents;
-			    };
+			        ShaderParams params{};
 
-			    ShaderParams params{};
+			        params.u_resolution = {
+			            extents.width,
+			            extents.height,
+			        };
 
-			    params.u_resolution = {
-			        extents.width,
-			        extents.height,
-			    };
+			        params.u_quad_position = self->canvas_blit_pos;
 
-			    params.u_quad_position = self->canvas_blit_pos;
+			        params.u_quad_extents = {
+			            self->canvas_image_info.image.extent.width,
+			            self->canvas_image_info.image.extent.height,
+			        };
 
-			    params.u_quad_extents = {
-			        self->canvas_image_info.image.extent.width,
-			        self->canvas_image_info.image.extent.height,
-			    };
+			        static const float vertexPositions[ 4 ][ 3 ] = {
+			            { -0.5, 0.5, 0 },
+			            { -0.5, -0.5, 0 },
+			            { 0.5, -0.5, 0 },
+			            { 0.5, 0.5, 0 },
+			        };
 
-			    static const float vertexPositions[ 4 ][ 3 ] = {
-			        // all dimensions given in font map pixels
-			        { -0.5, 0.5, 0 },
-			        { -0.5, -0.5, 0 },
-			        { 0.5, -0.5, 0 },
-			        { 0.5, 0.5, 0 },
-			    };
+			        static const uint16_t indices[] = {
+			            0, 1, 2,
+			            0, 2, 3, //
+			        };
 
-			    static const uint16_t indices[] = {
-			        0, 1, 2,
-			        0, 2, 3, //
-			    };
+			        encoder
+			            .bindGraphicsPipeline( pipeline_draw_brush )
+			            .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
+			            .setIndexData( indices, sizeof( indices ), le::IndexType::eUint16 )
+			            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), self->canvas_texture ) //
+			            ;
 
-			    encoder
-			        .bindGraphicsPipeline( pipeline_draw_brush )
-			        .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
-			        .setIndexData( indices, sizeof( indices ), le::IndexType::eUint16 ) //
-			        .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), self->canvas_texture );
-
-			    encoder
-			        .setPushConstantData( &params, sizeof( ShaderParams ) )
-			        .drawIndexed( 6 ) //
-			        ;
-
-			    // we don't have to do this right now, but it would be nice.
-		    } );
+			        encoder
+			            .setPushConstantData( &params, sizeof( ShaderParams ) )
+			            .drawIndexed( 6 ) //
+			            ;
+		        } );
 
 		le_renderer_api_i->le_rendergraph_i.add_renderpass( rendergraph_to_draw_into, draw_visuals );
 	} // end if is active
