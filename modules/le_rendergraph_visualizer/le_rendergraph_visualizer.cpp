@@ -451,8 +451,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			glm::vec2 from_port = from_view->getPortForResource( c.resource, false );
 			glm::vec2 to_port   = to_view->getPortForResource( c.resource, true );
 
-			LeTransform2D from_transform = { .translation = ( -1 == c.extra_lane ) ? from_port : glm::vec2{ from_port.x + h_spacing, -( c.extra_lane + 2 ) * c_line_height } };
-			LeTransform2D to_transform   = { .translation = ( -1 == c.extra_lane ) ? to_port : glm::vec2{ to_port.x - h_spacing, -( c.extra_lane + 2 ) * c_line_height } };
+			LeTransform2D from_transform = { .translation = ( -1 == c.extra_lane ) ? from_port : glm::vec2{ from_port.x + h_spacing, -( c.extra_lane + 1 ) * c_line_height } };
+			LeTransform2D to_transform   = { .translation = ( -1 == c.extra_lane ) ? to_port : glm::vec2{ to_port.x - h_spacing, -( c.extra_lane + 1 ) * c_line_height } };
 
 			from_transform = per_pass_transforms[ c.renderpass_idx_from ] * from_transform;
 			to_transform   = per_pass_transforms[ c.renderpass_idx_to ] * to_transform;
