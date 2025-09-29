@@ -207,22 +207,26 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 		// list_renderpasses_as_text( rp_src );
 
-		le::Encoder2D encoder_views{};
+		le::Encoder2D encoder_renderpass_views{};
 
-		// LeTransform2D affine = { .transform = { 0.5, 0, 0, 0.5 }, .translation = { 20, 100 } };
-		// LeTransform2D affine = { .transform = { 1, 0, 0, 1 }, .translation = { 0, 0 } };
-
-		self->canvas_blit_pos = { 50, 100 };
-		self->canvas_extents  = { 1920 - 100.f, 540 };
+		self->canvas_blit_pos = { 50, 50 };
+		self->canvas_extents  = { 1920 - 100.f, 1080 - 100 };
 
 		//
 		struct connection_t {
-			int32_t            renderpass_idx_from; // index of renderpass in current rendergraph, -1 means external
-			int32_t            renderpass_idx_to;
-			int32_t            extra_lane; // whether we need to go out of our current lane for this connection
-			int32_t            resource_idx; // which position in the card the resource currently holds
+			int32_t            renderpass_idx_from; // renderpass that provides resource used for connection
+			int32_t            renderpass_idx_to;   // destination; renderpass that uses the resource in this connection
+			int32_t            extra_lane;          // which extra lane to use to route this connection if we can't route directly
+			int32_t            resource_idx;        // index in list of resources of the destination renderpass
 			le_resource_handle resource;
 		};
+
+		// ---------- Build a vector of connections ----------
+		//
+		// Connections go from target (right) forward to their original source. Only one connection may
+		// go from a target to an origin, but an origin may have multiple (outgoing) connections.
+		//
+		//
 
 		std::vector<connection_t> connections;
 		{
@@ -283,7 +287,16 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 							if ( n_dest.explicit_writes.test( res_idx ) ) {
 								// we have found our connecsion
 								c.renderpass_idx_from = j;
-								c.extra_lane          = j == i - 1 ? 0 : ++extra_lanes; // whether we have to go more than one lane
+								if ( j == i - 1 ) {
+									// connection goes direclty to the left neighbour
+									c.extra_lane = 0;
+								} else {
+
+									// here, we would like to look at any connections that are active
+									// that is where their origin is greater than i
+
+									c.extra_lane = ++extra_lanes;
+								}
 								connections.push_back( c );
 								break;
 							}
@@ -291,7 +304,12 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 					}
 					resource_idx++;
 				}
+
+				// here move any connections where their source is i
+				// from active connections to connections
 			}
+
+			// move any remaining active connections to connections
 		}
 
 		// DE-SPAGHETTIFICATION
@@ -353,12 +371,10 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		std::vector<uint64_t> renderpass_hashes;
 		le_rendergraph_visualizer_update_renderpass_view_cache( self, rp_src, renderpass_hashes );
 
-		// This is where we draw the renderpass views
+		// ---------- Draw Renderpass Views ----------
 		//
-		// Connections need to be drawn before renderpasses, so that they lie underneath.
-		//
-		// We should store the transforms for all our renderpasses
-		//
+		// We first draw Renderpass Views, so that we can find out the total dimensions of our
+		// diagram, and where to place connection points.
 		//
 		std::vector<LeTransform2D>     per_pass_transforms;
 		std::vector<RenderPassView*> rp_views;
@@ -370,7 +386,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			for ( auto const& p : rp_src->passes ) {
 				uint64_t pass_id = renderpass_hashes[ i ]; // this was updated when updating the cache
 				auto&    pass    = self->rp.at( pass_id );
-				pass->draw( encoder_views, t );
+				pass->draw( encoder_renderpass_views, t );
 				per_pass_transforms.push_back( t );
 				rp_views.push_back( pass );
 				LeTransform2D t_local{ .translation = { pass->get_leftmost_x() + h_spacing, 0 } };
@@ -379,8 +395,14 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			}
 		}
 
-		// We should now be able to draw the connections. we will add the connections before
-		// the renderpasses, later.
+		// ---------- Draw Connections ----------
+		//
+		// Encode connections draw instructions into a separate encoder. We then
+		// append the renderpass views onto this encoder, which means that even though
+		// we encode connections after we encode the renderpass views in the end, connections
+		// will get drawn before the renderpass views.
+		//
+		//
 
 		le::Encoder2D encoder_connections{};
 
@@ -450,17 +472,11 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			}
 		}
 
-		/*
-		 * here, use Le2D methods to draw the graph into a 2d graphic;
-		 * Complete with text, even (you will have to load a font for this)
-		 *
-		 * we might want to zoom and to move around -- which means we must respond to user interface messages
-		 *
-		 * you can draw the whole thing in 2d using a certain zoom level, and then zoom in or out
-		 *
-		 */
+		// ---------- Draw Cached RenderpassViews ---------
+		//
+		//
 
-		encoder_connections.append( encoder_views );
+		encoder_connections.append( encoder_renderpass_views );
 
 		self->canvas_image_info.image.extent.width  = self->canvas_extents.x;
 		self->canvas_image_info.image.extent.height = self->canvas_extents.y;
