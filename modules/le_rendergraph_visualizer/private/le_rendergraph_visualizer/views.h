@@ -13,14 +13,16 @@ class Font;
 
 class RenderPassView {
 
-	std::string   name;
+	std::string   name  = {};
 	le::Font*     pFont = nullptr;    // weak, owned by rendergraph_visualizer
 	le::Encoder2D encoder_cache;      // owning, cache over all draw calls done for this view
 
-	bool  is_visible      = false; // this can change
-	bool  is_contributing = false;
-	bool  is_root         = false;
-	float right_most_x      = 0;  // leftmost point drawn by font renderer
+	const bool              is_visible             = false; // this can change
+	const bool              is_contributing        = false;
+	const bool              is_root                = false;
+	const le::QueueFlagBits renderpass_queue_flags = {}; // what "type" of renderpass we have here
+
+	float right_most_x    = 0;  // leftmost point drawn by font renderer
 	float required_height = 30; // height, calculated based on content
 
 	std::unordered_map<le_resource_handle, float> ports; // y-position of ports

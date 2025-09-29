@@ -49,7 +49,8 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
     , epoch( epoch_ )
     , name( rp->debug_name )
     , is_contributing( rp->is_contributing )
-    , is_root( rp->is_root ) {
+    , is_root( rp->is_root )
+    , renderpass_queue_flags( rp->type ) {
 
 	std::vector<uint32_t> codepoints_rp_name;
 
@@ -214,11 +215,24 @@ void RenderPassView::draw_into_cache( le::Encoder2D& encoder_font_paths_cache ) 
 	    .rounded_rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, card_height }, radius ) // outside clip shape
 	    .path_end();
 	{
+
+		uint32_t bg_colour = c_colour_pass_graphics;
+
+		if ( this->renderpass_queue_flags & le::QueueFlagBits::eCompute ) {
+			bg_colour = c_colour_pass_compute;
+		}
+		if ( this->renderpass_queue_flags & le::QueueFlagBits::eTransfer ) {
+			bg_colour = c_colour_pass_transfer;
+		}
+		if ( this->renderpass_queue_flags & le::QueueFlagBits::eVideoDecodeBitKhr ) {
+			bg_colour = c_colour_pass_video;
+		}
+
 		// inside the clipping region
 
 		// draw card title + colour background
 		encoder
-		    .colour_rgba( c_colour_draw )
+		    .colour_rgba( bg_colour )
 		    .path_begin( le_2d::FillStyle::EvenOdd )
 		    .rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, card_height } ) // background title fill
 		    .path_end();
@@ -230,7 +244,7 @@ void RenderPassView::draw_into_cache( le::Encoder2D& encoder_font_paths_cache ) 
 		    .path_end();
 		// draw title again, so that we don't see the rounded rect of the inner card at the top
 		encoder
-		    .colour_rgba( c_colour_draw )
+		    .colour_rgba( bg_colour )
 		    .path_begin( le_2d::FillStyle::EvenOdd )
 		    .rect( { 0, 0 }, { this->right_most_x + c_padding_left_right, c_line_height * 1.2 + radius * 0.25 } ) // background title fill
 		    .path_end();
