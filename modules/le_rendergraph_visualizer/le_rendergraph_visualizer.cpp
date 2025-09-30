@@ -22,7 +22,7 @@
 
 static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_DISABLE_CACHE        = true;  // Number of RenderpassViews to keep in the cache
-static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 10;    // number of rendergraphs to store - max
+static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 7;     // number of rendergraphs to store - max
 
 #include "private/le_rendergraph_visualizer/shared_constants.inl"
 
@@ -563,7 +563,11 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 			uint32_t outline_colour = 0x0;
 			uint32_t fill_colour    = 0x0;
 
-			if ( i == 0 && self->current_state == State::eLiveVisualizeAndRecord ) {
+			if ( i == 0 && self->current_state == State::eLiveVisualizeNoRecord ) {
+				// the first symbol is the record button in case we are recording
+				fill_colour    = c_colour_card_bg;
+				outline_colour = c_colour_red;
+			} else if ( i == 0 && self->current_state == State::eLiveVisualizeAndRecord ) {
 				// the first symbol is the record button in case we are recording
 				fill_colour    = c_colour_red;
 				outline_colour = c_colour_pass_video;
@@ -722,11 +726,18 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			// store the current frame number into its corresponding position
 			self->rendergraph_frame_number[ self->rendergraph_store_pos ] = ++self->recorded_frames_count;
 
+			if ( self->recorded_frames_count == C_RENDERGRAPH_STORE_RINGBUFFER_SIZE && self->current_state == State::eLiveVisualizeAndRecord ) {
+				// Stop recording after we have run an initial run of C_RENDERGRAPH_STORE_RINGBUFFER_SIZE
+				// frames -- we do this becuase the first frames are often the most interesting ones.
+				//
+				self->current_state = State::eLiveVisualizeNoRecord;
+			}
+
 			self->rendergraph_store_pos = ( self->rendergraph_store_pos + 1 ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
 		}
 
 		if ( self->current_state == State::eVisualizeRecorded ) {
-			size_t            seek_frame_idx = ( self->rendergraph_store_pos + self->recorded_frame_displayed_frame_index_offset + C_RENDERGRAPH_STORE_RINGBUFFER_SIZE ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
+			size_t            seek_frame_idx = ( self->rendergraph_store_pos + self->recorded_frame_displayed_frame_index_offset + 1 + C_RENDERGRAPH_STORE_RINGBUFFER_SIZE ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
 			le_rendergraph_o* rg             = self->rendergraph_store[ seek_frame_idx ];
 			if ( nullptr != rg ) {
 				rp_src = rg;
@@ -789,7 +800,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 					break;
 				}
 				case ( LeUiEvent::NamedKey::eSpace ): {
-					if ( self->current_state == State::eLiveVisualizeAndRecord ) {
+					if ( self->current_state == State::eLiveVisualizeAndRecord || self->current_state == State::eLiveVisualizeNoRecord ) {
 						self->current_state                               = State::eVisualizeRecorded;
 						self->recorded_frame_displayed_frame_index_offset = 0;
 					} else if ( self->current_state == State::eVisualizeRecorded ) {
