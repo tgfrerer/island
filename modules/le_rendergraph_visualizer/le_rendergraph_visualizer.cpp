@@ -22,7 +22,7 @@
 
 static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_DISABLE_CACHE        = true;  // Number of RenderpassViews to keep in the cache
-static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 5;     // number of rendergraphs to store - max
+static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 10;    // number of rendergraphs to store - max
 
 #include "private/le_rendergraph_visualizer/shared_constants.inl"
 
@@ -74,14 +74,20 @@ struct le_rendergraph_visualizer_o {
 	std::unordered_map<uint64_t, RenderPassView*> rp;
 
 	LeTransform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph - this controls zoom and positioning of the diagram on screen
+	LeTransform2D artboard_to_screen_initial; // initial transform for centering the artboard on the screen
+	bool          is_artboard_to_screen_initial_set = false;
 
 	glm::vec2 canvas_extents;  // dimensions of the visualization canvas
 	glm::vec2 canvas_blit_pos; // where the visualization gets rendered on the final image
 
 	State current_state = State::eLiveVisualizeNoRecord;
 
+	std::array<size_t, C_RENDERGRAPH_STORE_RINGBUFFER_SIZE>            rendergraph_frame_number = {}; // recorded frame number of the corresponding rendergraph in rendergraph_store
 	std::array<le_rendergraph_o*, C_RENDERGRAPH_STORE_RINGBUFFER_SIZE> rendergraph_store     = {}; // number of rendergraphs to store - in case we wanted to do time-travelling
 	size_t                                                             rendergraph_store_pos = 0;  // one-past position of last write into the rendergraph ring buffer (wraps around C_RENDERGRAPH_STORE_RINGBUFFER_SIZE)
+
+	size_t recorded_frames_count                       = 0; // total number of recorded frames, monotonically increasing
+	size_t recorded_frame_displayed_frame_index_offset = 0; // only meaningful if state is VisualizeRecorded, and then this is a negative offset to the rendergraph_store_pos
 
 	uint8_t epoch; // update count, used for cache
 };
@@ -96,7 +102,7 @@ static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create() {
 	self->canvas_blit_pos = { 50, 50 };
 	self->canvas_extents  = { 1080 - 100.f, 400.f };
 
-	self->artboard_to_screen = {};
+	self->artboard_to_screen = self->artboard_to_screen_initial = {};
 
 	self->canvas_image_info = le::ImageInfoBuilder().build();
 
@@ -199,7 +205,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	le::Encoder2D encoder_renderpass_views{};
 
 	self->canvas_blit_pos = { 50, 50 };
-	self->canvas_extents  = { 1920 - 100.f, 1080 - 100 };
+	self->canvas_extents  = { 1080 - 100, 1080 - 100 };
 
 	//
 	struct connection_t {
@@ -408,12 +414,12 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 			pass->draw( encoder_renderpass_views, t );
 			per_pass_transforms.push_back( t );
 			rp_views.push_back( pass );
-			LeTransform2D t_local{ .translation = { pass->get_leftmost_x() + h_spacing, 0 } };
+			LeTransform2D t_local{ .translation = { pass->get_right_most_x() + h_spacing, 0 } };
 			t = t * t_local;
 			i++;
 		}
 
-		right_most_point = ( t * LeTransform2D{} ).translation;
+		right_most_point = t.translation;
 	}
 
 	// ---------- Draw Connections ----------
@@ -499,6 +505,14 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 	le::Encoder2D encoder_artboard{};
 
+	if ( false == self->is_artboard_to_screen_initial_set ) {
+		//
+		float z                                 = self->canvas_extents.x / right_most_point.x;
+		self->artboard_to_screen_initial        = { .transform = { z, 0, 0, z }, .translation = glm::vec2( ( h_spacing * 0.5 - c_padding_left_right ) * z, float( self->canvas_extents.y ) * 0.5f ) };
+		self->artboard_to_screen                = self->artboard_to_screen_initial;
+		self->is_artboard_to_screen_initial_set = true;
+	}
+
 	encoder_artboard.append( encoder_connections, self->artboard_to_screen );
 
 	constexpr bool USE_ARTBOARD_MAGNIFIER = true;
@@ -540,6 +554,47 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 		encoder_artboard.append( encoder_connections, artboard_to_magnified_screen );
 		encoder_artboard.end_clip();
+	}
+
+	encoder_artboard.transform();
+	for ( int i = 0; i != C_RENDERGRAPH_STORE_RINGBUFFER_SIZE; i++ ) {
+
+		for ( int j = 0; j != 2; j++ ) {
+			uint32_t outline_colour = 0x0;
+			uint32_t fill_colour    = 0x0;
+
+			if ( i == 0 && self->current_state == State::eLiveVisualizeAndRecord ) {
+				// the first symbol is the record button in case we are recording
+				fill_colour    = c_colour_red;
+				outline_colour = c_colour_pass_video;
+			} else {
+				outline_colour = c_colour_connector_fill;
+
+				if ( self->recorded_frame_displayed_frame_index_offset == i ) {
+					fill_colour = c_colour_connector_fill;
+				} else {
+					fill_colour = c_colour_card_bg;
+				}
+				// encoder_artboard.colour_rgba(fill_colour);
+			}
+
+			encoder_artboard.colour_rgba( ( j == 0 ) ? fill_colour : outline_colour );
+
+			if ( j == 0 ) {
+				encoder_artboard.path_begin( le_2d::FillStyle::NonZero )
+				    .circle( { self->canvas_extents.x - 15 - ( i * 30 ), self->canvas_extents.y - 15 }, 10 );
+			} else {
+
+				encoder_artboard.path_begin( { .width = 2.f } )
+				    .circle( { self->canvas_extents.x - 15 - ( i * 30 ), self->canvas_extents.y - 15 }, 9 );
+			}
+
+			encoder_artboard
+			    .path_end();
+		}
+		if ( self->current_state != State::eVisualizeRecorded ) {
+			break;
+		}
 	}
 
 	self->ctx_2d.update( rendergraph, encoder_artboard, self->canvas_image, &self->canvas_image_info, le_2d_colour( 255, 255, 255, 128 ).to_premult_rgba_u32() );
@@ -664,13 +719,15 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 			// store a clone of the renderpass into our ring buffer
 			rg_store = le_renderer_api_i->le_rendergraph_private_i.clone( rp_src );
+			// store the current frame number into its corresponding position
+			self->rendergraph_frame_number[ self->rendergraph_store_pos ] = ++self->recorded_frames_count;
 
 			self->rendergraph_store_pos = ( self->rendergraph_store_pos + 1 ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
 		}
 
 		if ( self->current_state == State::eVisualizeRecorded ) {
-			size_t            prev_frame_idx = ( self->rendergraph_store_pos + 1 + C_RENDERGRAPH_STORE_RINGBUFFER_SIZE ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
-			le_rendergraph_o* rg             = self->rendergraph_store[ prev_frame_idx ];
+			size_t            seek_frame_idx = ( self->rendergraph_store_pos + self->recorded_frame_displayed_frame_index_offset + C_RENDERGRAPH_STORE_RINGBUFFER_SIZE ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
+			le_rendergraph_o* rg             = self->rendergraph_store[ seek_frame_idx ];
 			if ( nullptr != rg ) {
 				rp_src = rg;
 			}
@@ -722,11 +779,44 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 				switch ( e.key ) {
 				case ( LeUiEvent::NamedKey::eR ): {
 					// Reset all view transforms
-					self->artboard_to_screen = {};
+					self->is_artboard_to_screen_initial_set = false;
+					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
 					break;
 				}
 				case ( LeUiEvent::NamedKey::eZ ): {
 					self->io_state.should_zoom ^= true;
+					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
+					break;
+				}
+				case ( LeUiEvent::NamedKey::eSpace ): {
+					if ( self->current_state == State::eLiveVisualizeAndRecord ) {
+						self->current_state                               = State::eVisualizeRecorded;
+						self->recorded_frame_displayed_frame_index_offset = 0;
+					} else if ( self->current_state == State::eVisualizeRecorded ) {
+						self->current_state = State::eLiveVisualizeAndRecord;
+					}
+					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
+					break;
+				}
+				case ( LeUiEvent::NamedKey::eLeft ): {
+					if ( self->current_state == State::eVisualizeRecorded ) {
+						// we are navigating recorded frames.
+						if ( self->recorded_frame_displayed_frame_index_offset < C_RENDERGRAPH_STORE_RINGBUFFER_SIZE - 1 &&
+						     self->recorded_frame_displayed_frame_index_offset < self->recorded_frames_count - 1 ) {
+							self->recorded_frame_displayed_frame_index_offset++;
+						}
+					}
+					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
+					break;
+				}
+				case ( LeUiEvent::NamedKey::eRight ): {
+					if ( self->current_state == State::eVisualizeRecorded ) {
+						// we are navigating recorded frames.
+						if ( self->recorded_frame_displayed_frame_index_offset > 0 ) {
+							self->recorded_frame_displayed_frame_index_offset--;
+						}
+					}
+					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
 					break;
 				}
 				default:

@@ -238,7 +238,7 @@ void RenderPassView::draw_into_cache( le::Encoder2D& encoder_font_paths_cache ) 
 		    .path_end();
 		// draw card light background
 		encoder
-		    .colour( 200, 200, 200 )
+		    .colour_rgba( c_colour_card_bg )
 		    .path_begin( le_2d::FillStyle::EvenOdd )
 		    .rounded_rect( { 3, c_line_height * 1.2 + 3 - radius }, { this->right_most_x + c_padding_left_right - 3, card_height - 3 }, radius - 3 ) // background fill
 		    .path_end();
@@ -267,11 +267,11 @@ void RenderPassView::draw_into_cache( le::Encoder2D& encoder_font_paths_cache ) 
 
 			if ( i == 0 ) {
 				encoder
-				    .colour_abgr( 0xff5f711e )
+				    .colour_rgba( c_colour_port_fill )
 				    .path_begin( le_2d::FillStyle::NonZero );
 			} else {
 				encoder
-				    .colour_abgr( 0xff2d5016 )
+				    .colour_rgba( c_colour_port_outline )
 				    .path_begin( le_2d::Stroke{ .width = 1.f } );
 			}
 

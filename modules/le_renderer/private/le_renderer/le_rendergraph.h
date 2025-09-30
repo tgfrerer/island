@@ -154,7 +154,7 @@ struct le_rendergraph_o : NoCopy, NoMove {
 	                                                                         // Each entry represents a distinct tree which can be submitted as a
 	                                                                         // separate (and resource-isolated) queue submission.
 	                                                                         //
-	std::vector<std::string>                       root_debug_names;         // not owning: pointers to debug_names for root passes held within passes, in same order as RootPassesField indices
+	std::vector<std::string>                       root_debug_names;         // debug_names for root passes held within passes, in same order as RootPassesField indices
 	std::vector<le_on_frame_clear_callback_data_t> on_frame_clear_callbacks; // passed on to the backend: callbacks which get called once the backend frame into which this renderpass was placed gets cleared
 
 	std::vector<Node>               nodes;

@@ -39,7 +39,7 @@ class RenderPassView {
 	RenderPassView( le::Font* const font, le_renderpass_o const* rp, uint32_t epoch );
 
 
-	inline float get_leftmost_x() {
+	inline float get_right_most_x() {
 		return right_most_x;
 	}
 
