@@ -21,7 +21,7 @@
 #include <algorithm> // for copy_if
 
 static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassViews to keep in the cache
-static constexpr size_t C_DISABLE_CACHE        = true;  // Number of RenderpassViews to keep in the cache
+static constexpr size_t C_DISABLE_CACHE                     = false; // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 7;     // number of rendergraphs to store - max
 
 #include "private/le_rendergraph_visualizer/shared_constants.inl"
@@ -76,9 +76,18 @@ enum class UI_CAPTURE_STATE_BIT : uint32_t {
 	eKeyboard = uint32_t( 1 ) << 1,
 };
 
+enum class ResizeEdgeFlags : uint8_t {
+	eNone       = 0,
+	eLeftEdge   = 1 << 0,
+	eRightEdge  = 1 << 1,
+	eTopEdge    = 1 << 2,
+	eBottomEdge = 1 << 3,
+};
+
 enum class IO_STATES : uint32_t {
 	eInactive = 0,
 	eGrabbing = 1, // mouse has grabbed hold of canvas
+	eResizing,     // mouse has grabbed hold of right edge of canvas
 };
 
 struct io_state_t {
@@ -100,7 +109,7 @@ struct le_rendergraph_visualizer_o {
 	io_state_t io_state         = {};
 	float      ui_zoom_level_delta = 0; // relative zoom level, 0 means 1:1
 
-	std::unordered_map<uint64_t, RenderPassView*> rp;
+	std::unordered_map<uint64_t, RenderPassView*> renderpass_views_cache;
 
 	LeTransform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph - this controls zoom and positioning of the diagram on screen
 	LeTransform2D artboard_to_screen_initial; // initial transform for centering the artboard on the screen
@@ -119,6 +128,8 @@ struct le_rendergraph_visualizer_o {
 	size_t recorded_frame_displayed_frame_index_offset = 0; // only meaningful if state is VisualizeRecorded, and then this is a negative offset to the rendergraph_store_pos
 
 	uint8_t epoch; // update count, used for cache
+
+	uint8_t active_resize_edges = uint8_t( ResizeEdgeFlags::eNone );
 };
 
 // ----------------------------------------------------------------------
@@ -128,8 +139,8 @@ static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create() {
 
 	self->canvas_image = LE_IMG_RESOURCE( "visualizer_output_image" );
 
-	self->canvas_blit_pos = { 50, 50 };
-	self->canvas_extents  = { 1080 - 100.f, 400.f };
+	self->canvas_blit_pos = { 10, 10 };
+	self->canvas_extents  = { 1080 / 2, 1080 / 2 };
 
 	self->artboard_to_screen = self->artboard_to_screen_initial = {};
 
@@ -142,10 +153,10 @@ static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create() {
 
 static void le_rendergraph_visualizer_destroy( le_rendergraph_visualizer_o *self ) {
 
-	for ( auto& v : self->rp ) {
+	for ( auto& v : self->renderpass_views_cache ) {
 		delete v.second;
 	}
-	self->rp.clear();
+	self->renderpass_views_cache.clear();
 
 	for ( auto& r : self->rendergraph_store ) {
 		if ( r ) {
@@ -180,7 +191,7 @@ static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergra
 		// we store the renderpass hash locally, so that we don't have to re-calculate the hash again later
 		renderpass_hashes.push_back( rp_hash );
 
-		auto [ it, did_emplace ] = self->rp.emplace( rp_hash, nullptr );
+		auto [ it, did_emplace ] = self->renderpass_views_cache.emplace( rp_hash, nullptr );
 
 		if ( did_emplace ) {
 			it->second = new RenderPassView( &self->font, p, self->epoch );
@@ -202,16 +213,16 @@ static void rendergraph_visualizer_renderpass_view_cache_maintain( le_rendergrap
 	// You should then also kill any elements from the cache that have not been used/drawn for
 	// the last 10 epochs.
 
-	size_t num_elements_in_cache = self->rp.size();
+	size_t num_elements_in_cache = self->renderpass_views_cache.size();
 
 	if ( num_elements_in_cache > C_VIEWS_CACHE_CAPACITY || C_DISABLE_CACHE ) {
-		for ( auto it = self->rp.begin(); it != self->rp.end(); ) {
+		for ( auto it = self->renderpass_views_cache.begin(); it != self->renderpass_views_cache.end(); ) {
 			uint8_t age = uint32_t( self->epoch - it->second->epoch );
 			if ( C_DISABLE_CACHE || age > 3 ) {
 				// If an element is older than three epochs, we may evict it from the cache
 				// immediately if we need space.
 				delete it->second;         // delete the cached RenderpassView
-				it = self->rp.erase( it ); // delete the cache entry
+				it = self->renderpass_views_cache.erase( it ); // delete the cache entry
 				if ( --num_elements_in_cache <= C_VIEWS_CACHE_CAPACITY && !C_DISABLE_CACHE ) {
 					break;
 				} else {
@@ -245,8 +256,6 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 	le::Encoder2D encoder_renderpass_views{};
 
-	self->canvas_blit_pos = { 50, 50 };
-	self->canvas_extents  = { 1080 - 100, 1080 - 100 };
 
 	//
 	struct connection_t {
@@ -451,7 +460,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		LeTransform2D t = {};
 		for ( auto const& p : rp_src->passes ) {
 			uint64_t pass_id = renderpass_hashes[ i ]; // this was updated when updating the cache
-			auto&    pass    = self->rp.at( pass_id );
+			auto&    pass    = self->renderpass_views_cache.at( pass_id );
 			pass->draw( encoder_renderpass_views, t );
 			per_pass_transforms.push_back( t );
 			rp_views.push_back( pass );
@@ -573,7 +582,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 		float circle_scale = 300.f / circle_radius;
 
-		le::DebugPrint( "c: %4.2f,%4.2f", circle_point.x, circle_point.y );
+		// le::DebugPrint( "c: %4.2f,%4.2f", circle_point.x, circle_point.y );
 
 		float         zoom           = 2 * circle_scale;
 		LeTransform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
@@ -751,9 +760,10 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		            extents.height,
 		        };
 
-		        params.u_quad_position = self->canvas_blit_pos;
+		        // we round here, so that we don't have any edge artifacts
+		        params.u_quad_position = glm::round( self->canvas_blit_pos );
 
-		        params.u_quad_extents = {
+		        params.u_quad_extents = glm::vec2{
 		            self->canvas_image_info.image.extent.width,
 		            self->canvas_image_info.image.extent.height,
 		        };
@@ -871,10 +881,10 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 	LeUiEvent const* const events_end = events + numEvents; // end iterator
 
-	auto is_inside_rect = []( glm::vec2 pt, glm::vec2 bottom_right ) {
+	auto is_inside_rect = []( glm::vec2 pt, glm::vec2 top_left, glm::vec2 bottom_right ) {
 		return ( pt.x < bottom_right.x ) &&
-		       ( pt.x > 0 ) &&
-		       ( pt.y > 0 ) &&
+		       ( pt.x > top_left.x ) &&
+		       ( pt.y > top_left.y ) &&
 		       ( pt.y < bottom_right.y );
 	};
 
@@ -943,12 +953,13 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 			glm::vec2 cursor_pos        = glm::vec2{ float( e.x ), float( e.y ) };
 			glm::vec2 canvas_cursor_pos = cursor_pos - self->canvas_blit_pos;
 
-			if ( self->io_state.state == IO_STATES::eGrabbing ) {
+			if ( self->io_state.state == IO_STATES::eGrabbing ||
+			     self->io_state.state == IO_STATES::eResizing ) {
 				cursor_delta += canvas_cursor_pos - self->io_state.last_cursor_pos;
 				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
 			}
 
-			if ( is_inside_rect( canvas_cursor_pos, self->canvas_extents ) ) {
+			if ( is_inside_rect( canvas_cursor_pos, {}, self->canvas_extents ) ) {
 				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
 				// logger().info( "inside" );
 			} else {
@@ -964,30 +975,58 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 			auto& e = event->mouseButton;
 
 			if ( self->io_state.state == IO_STATES::eInactive && // if state is inactive
-			     is_inside_rect( self->io_state.last_cursor_pos, self->canvas_extents ) &&
+			     is_inside_rect( self->io_state.last_cursor_pos, {}, self->canvas_extents ) &&
 			     !( self->io_state.mouse_button_pressed & ( uint32_t( 1 ) << 0 ) ) &&                            // first button not yet pressed
 			     ( e.button == 0 ) &&                                                                            // button that is being pressed it button 0 (primary mouse)
 			     ( e.action == LeUiEvent::ButtonAction::ePress || e.action == LeUiEvent::ButtonAction::eRepeat ) // button is actually being pressed
 			) {
-				// logger().info( "button pressed" );
-				self->io_state.state = IO_STATES::eGrabbing;
-				self->io_state.mouse_button_pressed |= uint32_t( 1 ) << 0;
-				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
-			} else if ( self->io_state.state == IO_STATES::eGrabbing &&                     // if state is inactive
+				if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2{ 0.5 * c_grab_width }, self->canvas_extents - glm::vec2( c_grab_width ) ) ) {
+					// we are inside the grab rect.
+					self->io_state.state = IO_STATES::eGrabbing;
+					// logger().info( "grabbing begin %zu", self->recorded_frames_count );
+					self->io_state.mouse_button_pressed |= uint32_t( 1 ) << 0;
+					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+				} else if ( is_inside_rect( self->io_state.last_cursor_pos, -glm::vec2{ 0.5 * c_grab_width }, self->canvas_extents + glm::vec2( c_grab_width ) ) ) {
+					// we are inside the resize area.
+					self->io_state.state = IO_STATES::eResizing;
+					// logger().info( "resizing begin %zu", self->recorded_frames_count );
+
+					self->active_resize_edges = 0;
+
+					if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2( self->canvas_extents.x - c_grab_width * 0.5, 0 - c_grab_width * 0.5 ), self->canvas_extents + glm::vec2( c_grab_width ) ) ) {
+						self->active_resize_edges |= uint8_t( ResizeEdgeFlags::eRightEdge );
+					}
+					if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2( -c_grab_width * 0.5, self->canvas_extents.y - c_grab_width * 0.5 ), self->canvas_extents + glm::vec2( c_grab_width ) ) ) {
+						self->active_resize_edges |= uint8_t( ResizeEdgeFlags::eBottomEdge );
+					}
+					if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2( -c_grab_width * 0.5, -c_grab_width * 0.5 ), glm::vec2( self->canvas_extents.x + 0.5 * c_grab_width, 0.5 * c_grab_width ) ) ) {
+						self->active_resize_edges |= uint8_t( ResizeEdgeFlags::eTopEdge );
+					}
+					if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2( -c_grab_width * 0.5, 0 ), glm::vec2( c_grab_width * 0.5, self->canvas_extents.y + c_grab_width * 0.5 ) ) ) {
+						self->active_resize_edges |= uint8_t( ResizeEdgeFlags::eLeftEdge );
+					}
+
+					self->io_state.mouse_button_pressed |= uint32_t( 1 ) << 0;
+					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+				}
+
+			} else if ( ( self->io_state.state == IO_STATES::eGrabbing ||
+			              self->io_state.state == IO_STATES::eResizing ) &&                 // if state is not inactive
 			            ( self->io_state.mouse_button_pressed & ( uint32_t( 1 ) << 0 ) ) && // first button is currently pressed
 			            ( e.button == 0 ) &&                                                // button that is being pressed it button 0 (primary mouse)
 			            ( e.action == LeUiEvent::ButtonAction::eRelease )                   // button is actually being released
 			) {
-				// logger().info( "grab complete" );
+				// logger().info( "grab complete %zu", self->recorded_frames_count );
 				self->io_state.state = IO_STATES::eInactive;
 				self->io_state.mouse_button_pressed &= ~( uint32_t( 1 ) << 0 );
 				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+				self->active_resize_edges = 0;
 			}
 
 		} break;
 		case LeUiEvent::Type::eScroll: {
 			auto& e = event->scroll;
-			if ( is_inside_rect( self->io_state.last_cursor_pos, self->canvas_extents ) ) {
+			if ( is_inside_rect( self->io_state.last_cursor_pos, {}, self->canvas_extents ) ) {
 				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
 
 				self->ui_zoom_level_delta = e.y_offset * 0.125 * 0.25;
@@ -1011,6 +1050,34 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 		self->artboard_to_screen = grab_transform * self->artboard_to_screen;
 
 		// logger().info( "grab delta: %f,%f", cursor_delta.x, cursor_delta.y );
+	} else if ( self->io_state.state == IO_STATES::eResizing ) {
+		// logger().info( "resize delta: %f,%f", cursor_delta.x, cursor_delta.y );
+
+		glm::vec2 extents_delta  = cursor_delta;
+		glm::vec2 position_delta = cursor_delta;
+
+		if ( false == ( self->active_resize_edges & uint8_t( ResizeEdgeFlags::eLeftEdge ) ) ) {
+			position_delta.x = 0;
+			// bottom edge not active
+		}
+		if ( false == ( self->active_resize_edges & uint8_t( ResizeEdgeFlags::eTopEdge ) ) ) {
+			position_delta.y = 0;
+			// bottom edge not active
+		}
+
+		if ( false == ( self->active_resize_edges & uint8_t( ResizeEdgeFlags::eBottomEdge ) ) ) {
+			extents_delta.y = 0;
+			// bottom edge not active
+		}
+		if ( false == ( self->active_resize_edges & uint8_t( ResizeEdgeFlags::eRightEdge ) ) ) {
+			extents_delta.x = 0;
+			// right edge not active
+		}
+
+		self->canvas_extents += extents_delta;
+		self->canvas_blit_pos += position_delta;
+
+		self->io_state.last_cursor_pos -= position_delta;
 	}
 
 	if ( fabsf( self->ui_zoom_level_delta ) > std::numeric_limits<float>::epsilon() ) {
@@ -1100,7 +1167,7 @@ static bool le_rendergraph_visualizer_get_is_active( le_rendergraph_visualizer_o
 static void le_rendergraph_visualizer_set_is_active( le_rendergraph_visualizer_o* self, bool is_active ) {
 
 	if ( is_active ) {
-		self->current_state = State::eLiveVisualizeNoRecord;
+		self->current_state = State::eLiveVisualizeAndRecord;
 	} else {
 		self->current_state = State::eInactive;
 	}

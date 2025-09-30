@@ -14,6 +14,8 @@ constexpr uint32_t c_colour_red_light    = 0xe98a89ff;
 constexpr uint32_t c_colour_red          = 0xbd2e2eff;
 constexpr uint32_t c_colour_port_outline = 0x16502dff;
 
+constexpr float c_grab_width = 30.f; // grab area of canvas
+
 static constexpr float h_spacing            = 120.f;
 static constexpr float c_line_height        = 26.f;
 static constexpr float c_padding_left_right = 20.f;
