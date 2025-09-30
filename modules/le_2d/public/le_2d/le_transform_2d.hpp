@@ -39,6 +39,14 @@ struct LeTransform2D {
 		    t * rhs.translation + this->translation };
 	}
 
+	/// apply transform to a vector
+	inline glm::vec2 operator*( glm::vec2 const& rhs ) const {
+		// Note: this has been checked against vello to
+		// make sure that we're using the same conventions.
+		auto const& t = this->transform;
+		return { t * rhs + this->translation };
+	}
+
 	inline LeTransform2D inverse() const {
 
 		float inv_det = 1.f / glm::determinant( this->transform );
