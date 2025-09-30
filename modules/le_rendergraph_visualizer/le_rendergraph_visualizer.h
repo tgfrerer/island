@@ -3,6 +3,21 @@
 
 #include "le_core.h"
 
+/*
+
+    Keyboard Shortcuts:
+
+    SPACE         :	 Toggle Live/Playback state
+    LEFT  CURSOR  :  When in Playback state, move backward one frame
+    RIGHT CURSOR  :  When in Playback state, move forward  one frame
+    R             :  Reset Zoom and center the graph
+    Z             :  Toggle magnifying glass
+
+    Mouse Wheel   :  Zoom
+    Mouse grab    :  Move Diagram
+
+ */
+
 struct le_rendergraph_o;
 struct le_rendergraph_visualizer_o;
 struct le_image_resource_handle_t;

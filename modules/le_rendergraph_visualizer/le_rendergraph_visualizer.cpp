@@ -30,7 +30,36 @@ static auto& logger() {
 	static le::Log logger = le::Log( "rendergraph_visualizer" );
 	return logger;
 }
+// ----------------------------------------------------------------------
 
+static void path_move_to( void* user_data, glm::vec2 const* p ) {
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_move_to( e, *p );
+};
+
+static void path_line_to( void* user_data, glm::vec2 const* p ) {
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_line_to( e, *p );
+};
+
+static void path_quad_bezier_to( void* user_data, glm::vec2 const* c1, glm::vec2 const* p ) {
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_quad_to( e, *c1, *p );
+};
+
+static void path_cubic_bezier_to( void* user_data, glm::vec2 const* c1, glm::vec2 const* c2, glm::vec2 const* p ) {
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_cubic_to( e, *c1, *c2, *p );
+};
+
+static void path_close( void* user_data ) {
+	auto e = ( le_2d_encoder_o* )user_data;
+	le_2d::le_2d_encoder_i.path_close( e );
+};
+
+static void path_arc_to( void* user_data, glm::vec2 const* p, glm::vec2 const* radii, float phi, bool large_arc, bool sweep ) {
+	// noop
+};
 // ----------------------------------------------------------------------
 
 enum class State : uint32_t {
@@ -194,6 +223,18 @@ static void rendergraph_visualizer_renderpass_view_cache_maintain( le_rendergrap
 	}
 
 	self->epoch++;
+}
+
+// ----------------------------------------------------------------------
+
+inline static size_t seek_frame_idx( le_rendergraph_visualizer_o* self ) {
+	size_t ret =
+	    ( self->rendergraph_store_pos +
+	      -self->recorded_frame_displayed_frame_index_offset +
+	      ( C_RENDERGRAPH_STORE_RINGBUFFER_SIZE - 1 ) +
+	      C_RENDERGRAPH_STORE_RINGBUFFER_SIZE ) %
+	    C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
+	return ret;
 }
 
 // ----------------------------------------------------------------------
@@ -518,8 +559,23 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	constexpr bool USE_ARTBOARD_MAGNIFIER = true;
 
 	if ( USE_ARTBOARD_MAGNIFIER && self->io_state.should_zoom ) {
+
 		LeTransform2D artboard_to_magnified_screen;
-		float         zoom           = 2;
+
+		glm::vec2 circle_point{ 300, 0 };
+		glm::vec2 artboard_origin_point{ 0, 0 };
+
+		glm::vec2 circle_on_screen = self->artboard_to_screen * circle_point;
+		glm::vec2 origin_on_screen = self->artboard_to_screen.translation;
+
+		circle_point        = circle_on_screen - origin_on_screen;
+		float circle_radius = glm::distance( circle_on_screen, origin_on_screen );
+
+		float circle_scale = 300.f / circle_radius;
+
+		le::DebugPrint( "c: %4.2f,%4.2f", circle_point.x, circle_point.y );
+
+		float         zoom           = 2 * circle_scale;
 		LeTransform2D zoom_transform = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
 
 		// i need to transform from mouse space into into artboard space
@@ -542,19 +598,21 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 		encoder_artboard
 		    .transform( self->artboard_to_screen ) // apply canvas to screen transform
-		    .path_begin( le_2d::FillStyle::NonZero )
-		    .circle( { mouse_space_to_artboard.translation[ 0 ], mouse_space_to_artboard.translation[ 1 ] }, 300 ) // we draw this in canvas space
-		    .path_end()
-		    .begin_clip( le_2d::BlendMode{}, 1.f )
-
+		    // .transform( mouse_to_screen ) // apply canvas to screen transform
 		    .colour_abgr( 0xffffffff )
 		    .path_begin( le_2d::FillStyle::NonZero )
-		    .circle( { mouse_space_to_artboard.translation[ 0 ], mouse_space_to_artboard.translation[ 1 ] }, 300 ) // we draw this in canvas space
-		    .path_end();
+		    .circle( { mouse_space_to_artboard.translation[ 0 ], mouse_space_to_artboard.translation[ 1 ] }, 205 * circle_scale ) // we draw this in canvas space
+		    .path_end()
+		    .path_begin( le_2d::FillStyle::NonZero )
+		    .circle( { mouse_space_to_artboard.translation[ 0 ], mouse_space_to_artboard.translation[ 1 ] }, 200 * circle_scale ) // we draw this in canvas space
+		    .path_end()
+		    .begin_clip( le_2d::BlendMode{}, 1.f );
 
 		encoder_artboard.append( encoder_connections, artboard_to_magnified_screen );
 		encoder_artboard.end_clip();
 	}
+
+	// Draw indicators for recorded frame
 
 	encoder_artboard.transform();
 	for ( int i = 0; i != C_RENDERGRAPH_STORE_RINGBUFFER_SIZE; i++ ) {
@@ -565,7 +623,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 			if ( i == 0 && self->current_state == State::eLiveVisualizeNoRecord ) {
 				// the first symbol is the record button in case we are recording
-				fill_colour    = c_colour_card_bg;
+				fill_colour    = c_colour_red_light;
 				outline_colour = c_colour_red;
 			} else if ( i == 0 && self->current_state == State::eLiveVisualizeAndRecord ) {
 				// the first symbol is the record button in case we are recording
@@ -586,11 +644,11 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 
 			if ( j == 0 ) {
 				encoder_artboard.path_begin( le_2d::FillStyle::NonZero )
-				    .circle( { self->canvas_extents.x - 15 - ( i * 30 ), self->canvas_extents.y - 15 }, 10 );
+				    .circle( { self->canvas_extents.x * 0.5 - 15 - ( i * 20 ), self->canvas_extents.y - 15 }, 8 );
 			} else {
 
-				encoder_artboard.path_begin( { .width = 2.f } )
-				    .circle( { self->canvas_extents.x - 15 - ( i * 30 ), self->canvas_extents.y - 15 }, 9 );
+				encoder_artboard.path_begin( { .width = 1.f } )
+				    .circle( { self->canvas_extents.x * 0.5 - 15 - ( i * 20 ), self->canvas_extents.y - 15 }, 7.5 );
 			}
 
 			encoder_artboard
@@ -598,6 +656,50 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		}
 		if ( self->current_state != State::eVisualizeRecorded ) {
 			break;
+		}
+	}
+
+	if ( self->current_state == State::eVisualizeRecorded || self->current_state == State::eLiveVisualizeAndRecord ) {
+		std::vector<uint32_t> codepoints_frame_number;
+
+		// while we have access to the original renderpass in `rp`, we get all information that
+		// we want to visualize, and render any text that we want to display into encoder_text_cache
+
+		le::Encoder2D encoder_text_cache;
+		glm::vec2     offset = { 0, self->canvas_extents.y - 10 };
+
+		le_path_operations_interface_t path_ops{
+		    .move_to         = path_move_to,
+		    .line_to         = path_line_to,
+		    .quad_bezier_to  = path_quad_bezier_to,
+		    .cubic_bezier_to = path_cubic_bezier_to,
+		    .arc_to          = path_arc_to,
+		    .close           = path_close,
+		};
+
+		auto cp_callback = []( uint32_t cp, void* user_data ) {
+			auto& cps = *static_cast<std::vector<uint32_t>*>( user_data );
+			cps.push_back( uint32_t( cp ) );
+		};
+
+		char frame_name_str[ 100 ] = {};
+		snprintf( frame_name_str, sizeof( frame_name_str ), "Frame No: %zu", self->rendergraph_frame_number[ seek_frame_idx( self ) ] );
+
+		le_font::le_utf8_iterator( frame_name_str, &codepoints_frame_number, cp_callback );
+		// draw frame number
+		{
+			encoder_artboard
+			    .transform()
+			    .colour_rgba( 0x000000ff )
+			    .path_begin( le_2d::FillStyle::EvenOdd );
+
+			uint32_t prev_cp = 0;
+			// float    offset  = 0;
+			for ( auto& c : codepoints_frame_number ) {
+				le_font::le_font_i.add_paths_for_glyph( self->font, static_cast<le_2d_encoder_o*>( encoder_artboard ), c, 0.125 * 0.25 * .6, &offset, prev_cp, &path_ops );
+				prev_cp = c;
+			}
+			encoder_artboard.path_end();
 		}
 	}
 
@@ -724,7 +826,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 			// store a clone of the renderpass into our ring buffer
 			rg_store = le_renderer_api_i->le_rendergraph_private_i.clone( rp_src );
 			// store the current frame number into its corresponding position
-			self->rendergraph_frame_number[ self->rendergraph_store_pos ] = ++self->recorded_frames_count;
+			self->rendergraph_frame_number[ self->rendergraph_store_pos ] = self->recorded_frames_count++;
 
 			if ( self->recorded_frames_count == C_RENDERGRAPH_STORE_RINGBUFFER_SIZE && self->current_state == State::eLiveVisualizeAndRecord ) {
 				// Stop recording after we have run an initial run of C_RENDERGRAPH_STORE_RINGBUFFER_SIZE
@@ -737,8 +839,7 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 		}
 
 		if ( self->current_state == State::eVisualizeRecorded ) {
-			size_t            seek_frame_idx = ( self->rendergraph_store_pos + self->recorded_frame_displayed_frame_index_offset + 1 + C_RENDERGRAPH_STORE_RINGBUFFER_SIZE ) % C_RENDERGRAPH_STORE_RINGBUFFER_SIZE;
-			le_rendergraph_o* rg             = self->rendergraph_store[ seek_frame_idx ];
+			le_rendergraph_o* rg = self->rendergraph_store[ seek_frame_idx( self ) ];
 			if ( nullptr != rg ) {
 				rp_src = rg;
 			}
@@ -999,7 +1100,7 @@ static bool le_rendergraph_visualizer_get_is_active( le_rendergraph_visualizer_o
 static void le_rendergraph_visualizer_set_is_active( le_rendergraph_visualizer_o* self, bool is_active ) {
 
 	if ( is_active ) {
-		self->current_state = State::eLiveVisualizeAndRecord;
+		self->current_state = State::eLiveVisualizeNoRecord;
 	} else {
 		self->current_state = State::eInactive;
 	}

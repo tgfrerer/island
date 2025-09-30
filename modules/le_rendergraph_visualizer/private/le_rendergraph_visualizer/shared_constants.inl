@@ -10,6 +10,7 @@ constexpr uint32_t c_colour_connector_outline = 0x16502dff;
 constexpr uint32_t c_colour_port_fill         = 0x1e715fff;
 constexpr uint32_t c_colour_card_bg           = 0xcacacaff;
 
+constexpr uint32_t c_colour_red_light    = 0xe98a89ff;
 constexpr uint32_t c_colour_red          = 0xbd2e2eff;
 constexpr uint32_t c_colour_port_outline = 0x16502dff;
 
