@@ -118,7 +118,6 @@ struct le_rendergraph_visualizer_o {
 	std::unordered_map<uint64_t, RenderPassView*> renderpass_views_cache;
 
 	LeTransform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph - this controls zoom and positioning of the diagram on screen
-	LeTransform2D artboard_to_screen_initial; // initial transform for centering the artboard on the screen
 	bool          is_artboard_to_screen_initial_set = false;
 
 	glm::vec2 canvas_extents;  // dimensions of the visualization canvas
@@ -146,9 +145,9 @@ static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create() {
 	self->canvas_image = LE_IMG_RESOURCE( "visualizer_output_image" );
 
 	self->canvas_blit_pos = { 10, 10 };
-	self->canvas_extents  = { 1080 / 2, 1080 / 2 };
+	self->canvas_extents  = { 1080 / 2, 1080 / 4 };
 
-	self->artboard_to_screen = self->artboard_to_screen_initial = {};
+	self->artboard_to_screen = {};
 
 	self->canvas_image_info = le::ImageInfoBuilder().build();
 
@@ -189,8 +188,8 @@ static void list_renderpasses_as_text( le_rendergraph_o* rp_src ) {
 
 // ----------------------------------------------------------------------
 
-static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergraph_visualizer_o* self, le_rendergraph_o const* rp_src, std::vector<uint64_t>& renderpass_hashes ) {
-	for ( auto const& p : rp_src->passes ) {
+static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergraph_visualizer_o* self, std::vector<le_renderpass_o const*> const& passes, std::vector<uint64_t>& renderpass_hashes ) {
+	for ( auto const& p : passes ) {
 
 		uint64_t rp_hash = le_renderer_api_i->le_renderpass_i.get_hash( p );
 
@@ -256,14 +255,17 @@ inline static size_t seek_frame_idx( le_rendergraph_visualizer_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_o* rendergraph, le_image_resource_handle target_image, le_rendergraph_o* rp_src ) {
+static void draw_subgraph( le_rendergraph_visualizer_o*               self,
+                           le::Encoder2D&                             encoder_connections,
+                           std::vector<le_resource_handle> const&     unique_resources,
+                           std::vector<le_renderpass_o const*> const& passes_in_current_queue,
+                           std::vector<Node const*> const&            nodes_in_current_queue,
+                           glm::vec2&                                 right_most_point
 
-	// list_renderpasses_as_text( rp_src );
+) {
 
 	le::Encoder2D encoder_renderpass_views{};
 
-
-	//
 	struct connection_t {
 		int16_t            renderpass_idx_from; // renderpass that provides resource used for connection
 		int16_t            renderpass_idx_to;   // destination; renderpass that uses the resource in this connection
@@ -284,113 +286,119 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	// value in this vector corresponds to source renderpass id
 	std::vector<int16_t> occupied_lanes;
 
-	{
-		// ---------- Build a vector of connections ----------
-		//
-		// Connections go from target (right) forward to their original source. Only one connection may
-		// go from a target to an origin, but an origin may have multiple (outgoing) connections.
-		//
-		//
+	// ---------- Build a vector of connections ----------
+	//
+	// Connections go from target (right) forward to their original source. Only one connection may
+	// go from a target to an origin, but an origin may have multiple (outgoing) connections.
+	//
+	//
 
+	ZoneScoped;
+
+	auto get_resource_idx = []( std::vector<le_resource_handle> const& resources_haystack, le_resource_handle const r_needle ) -> uint32_t {
 		ZoneScoped;
-		auto get_resource_idx = []( le_rendergraph_o const* rg, le_resource_handle const r ) -> uint32_t {
-			// Will find resource in linear time; the more resources we have, the more time it
-			// may take; We could cache this locally; But we're effectively comparing pointers;
-			// so this should be plenty fast.
-			uint32_t i = 0;
-			for ( ; i != rg->unique_resources.size(); i++ ) {
-				if ( rg->unique_resources[ i ] == r ) {
-					break;
-				}
+		// Will find resource in linear time; the more resources we have, the more time it
+		// may take; We could cache this locally; But we're effectively comparing pointers;
+		// so this should be plenty fast.
+		uint32_t i = 0;
+		for ( auto const& r : resources_haystack ) {
+			if ( r_needle == r ) {
+				break;
 			}
-			return i;
+			i++;
+		}
+		return i;
+	};
+
+	// first, we need to separate passes onto separate queues
+	// since they might exexute on different queues based on their
+	// root passes affinity.
+
+	uint32_t rp_src_unique_resources_size = unique_resources.size();
+
+	size_t num_passes = passes_in_current_queue.size();
+	for ( int16_t i = num_passes - 1; i >= 0; i-- ) {
+		auto& p = *( passes_in_current_queue[ i ] );
+		auto& n = *nodes_in_current_queue[ i ];
+
+		if ( false == p.is_contributing ) {
+			continue;
+		}
+
+		// Mark any lanes that have the current renderpass as its source as un-occupied.
+		// because their lanes start from the curent renderpass.
+
+		for ( auto& l : occupied_lanes ) {
+			if ( l >= i ) {
+				l = -1;
+			}
+		}
+
+		// ----------| invariant: this pass contributes
+
+		connection_t c{
+		    .renderpass_idx_from = -1,
+		    .renderpass_idx_to   = i,
 		};
 
-		uint32_t rp_src_unique_resources_size = rp_src->unique_resources.size();
+		int16_t resource_idx = 0;
+		int16_t extra_lanes  = 0;
+		for ( auto& r : p.resources ) {
 
-		for ( int16_t i = rp_src->passes.size() - 1; i >= 0; i-- ) {
-			auto& p = *( rp_src->passes[ i ] );
-			auto& n = rp_src->nodes[ i ];
-
-			if ( false == p.is_contributing ) {
+			c.resource_idx = resource_idx;
+			c.resource     = r;
+			// we only care if the resource is a read resource
+			uint32_t res_idx = get_resource_idx( unique_resources, r );
+			if ( res_idx == rp_src_unique_resources_size ) {
+				// Resource could not be found for some reason
+				// this should not happen, but if it happens,
+				// we ignore this resource.
 				continue;
 			}
+			// ----------| Invariant: resource was found
 
-			// Mark any lanes that have the current renderpass as its source as un-occupied.
-			// because their lanes start from the curent renderpass.
+			if ( n.reads.test( res_idx ) ) {
+				// we have a read -- now we need to find any previous
+				// passes that might have written to this
 
-			for ( auto& l : occupied_lanes ) {
-				if ( l >= i ) {
-					l = -1;
-				}
-			}
+				for ( int j = i - 1; j >= 0; j-- ) {
+					auto& n_dest = *nodes_in_current_queue[ j ];
 
-			// ----------| invariant: this pass contributes
+					if ( n_dest.explicit_writes.test( res_idx ) ) {
+						// we have found our connecsion
+						c.renderpass_idx_from = j;
+						if ( j == i - 1 ) {
+							// Connection goes directly to the left neighbour --
+							// We must not use an extra lane, we flag this by
+							// setting extra_lane to -1.
+							c.extra_lane = -1;
+						} else {
 
-			connection_t c{
-			    .renderpass_idx_from = -1,
-			    .renderpass_idx_to   = i,
-			};
-
-			int16_t resource_idx = 0;
-			int16_t extra_lanes  = 0;
-			for ( auto& r : p.resources ) {
-
-				c.resource_idx = resource_idx;
-				c.resource     = r;
-				// we only care if the resource is a read resource
-				uint32_t res_idx = get_resource_idx( rp_src, r );
-				if ( res_idx == rp_src_unique_resources_size ) {
-					// Resource could not be found for some reason
-					// this should not happen, but if it happens,
-					// we ignore this resource.
-					continue;
-				}
-				// ----------| Invariant: resource was found
-
-				if ( n.reads.test( res_idx ) ) {
-					// we have a read -- now we need to find any previous
-					// passes that might have written to this
-
-					for ( int j = i - 1; j >= 0; j-- ) {
-						auto& n_dest = rp_src->nodes[ j ];
-
-						if ( n_dest.explicit_writes.test( res_idx ) ) {
-							// we have found our connecsion
-							c.renderpass_idx_from = j;
-							if ( j == i - 1 ) {
-								// Connection goes directly to the left neighbour --
-								// We must not use an extra lane, we flag this by
-								// setting extra_lane to -1.
-								c.extra_lane = -1;
-							} else {
-
-								int16_t lane_idx           = 0;
-								int16_t occupied_lanes_end = occupied_lanes.size();
-								for ( ; lane_idx != occupied_lanes_end; lane_idx++ ) {
-									// If lane is unoccupied, then select it
-									if ( -1 == occupied_lanes[ lane_idx ] ) {
-										occupied_lanes[ lane_idx ] = c.renderpass_idx_from;
-										break;
-									}
+							int16_t lane_idx           = 0;
+							int16_t occupied_lanes_end = occupied_lanes.size();
+							for ( ; lane_idx != occupied_lanes_end; lane_idx++ ) {
+								// If lane is unoccupied, then select it
+								if ( -1 == occupied_lanes[ lane_idx ] ) {
+									occupied_lanes[ lane_idx ] = c.renderpass_idx_from;
+									break;
 								}
-								if ( lane_idx == occupied_lanes_end ) {
-									// no unoccupied lane found, we must insert a new lane.
-									occupied_lanes.push_back( c.renderpass_idx_from );
-								}
-
-								// Since we use 0 as a signal to not use an extra
-								// lane, we must add 1 to indicate an extra lane
-								// is being used.
-								c.extra_lane = lane_idx;
 							}
-							connections.push_back( c );
-							break;
+							if ( lane_idx == occupied_lanes_end ) {
+								// no unoccupied lane found, we must insert a new lane.
+								occupied_lanes.push_back( c.renderpass_idx_from );
+							}
+
+							// Since we use 0 as a signal to not use an extra
+							// lane, we must add 1 to indicate an extra lane
+							// is being used.
+							c.extra_lane = lane_idx;
 						}
+						connections.push_back( c );
+						break;
 					}
 				}
-				resource_idx++;
 			}
+			resource_idx++;
 		}
 	}
 
@@ -449,7 +457,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	}
 
 	std::vector<uint64_t> renderpass_hashes;
-	le_rendergraph_visualizer_update_renderpass_view_cache( self, rp_src, renderpass_hashes );
+	le_rendergraph_visualizer_update_renderpass_view_cache( self, passes_in_current_queue, renderpass_hashes );
 
 	// ---------- Draw Renderpass Views ----------
 	//
@@ -459,23 +467,32 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	std::vector<LeTransform2D>   per_pass_transforms;
 	std::vector<RenderPassView*> rp_views;
 
-	glm::vec2 right_most_point = {};
 	{
 		ZoneScoped;
-		int           i = 0;
-		LeTransform2D t = {};
-		for ( auto const& p : rp_src->passes ) {
+		int           i          = 0;
+		LeTransform2D t          = { .translation{
+            0,
+            right_most_point.y, // we start drawing at the position that we were given.
+        } };
+
+		glm::vec2 bottom_right = {};
+
+		for ( auto const& p : passes_in_current_queue ) {
 			uint64_t pass_id = renderpass_hashes[ i ]; // this was updated when updating the cache
 			auto&    pass    = self->renderpass_views_cache.at( pass_id );
 			pass->draw( encoder_renderpass_views, t );
 			per_pass_transforms.push_back( t );
 			rp_views.push_back( pass );
 			LeTransform2D t_local{ .translation = { pass->get_right_most_x() + h_spacing, 0 } };
-			t = t * t_local;
+			// FIXME: we must currently replicate the calculation for when we draw the rounded rectangle for the view
+			//        -- really, the view should be able to tell us its bounding box.
+			bottom_right = glm::max( bottom_right, t * glm::vec2{ pass->get_right_most_x() + c_padding_left_right, pass->get_required_height() + c_line_height } );
+			t            = t * t_local;
+			// le::DebugPrint( "height: %4.2f\n", pass->get_required_height() );
 			i++;
 		}
 
-		right_most_point = t.translation;
+		right_most_point = bottom_right;
 	}
 
 	// ---------- Draw Connections ----------
@@ -486,8 +503,6 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	// will get drawn before the renderpass views.
 	//
 	//
-
-	le::Encoder2D encoder_connections{};
 
 	for ( auto const& c : connections ) {
 
@@ -549,27 +564,103 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 			}
 		}
 	}
+	encoder_connections.append( encoder_renderpass_views );
+}
+
+// ----------------------------------------------------------------------
+
+static void draw_visualizer( le_rendergraph_visualizer_o* self, le_rendergraph_o* rendergraph, le_image_resource_handle target_image, le_rendergraph_o const* rp_src ) {
+
+	// list_renderpasses_as_text( rp_src );
 
 	// ---------- Draw Cached RenderpassViews ---------
 	//
 	//
+	le::Encoder2D encoder_diagram;
 
-	encoder_connections.append( encoder_renderpass_views );
+	glm::vec2 bounding_box = {}; // bottom_right of the bounding box
 
-	self->canvas_image_info.image.extent.width  = self->canvas_extents.x;
-	self->canvas_image_info.image.extent.height = self->canvas_extents.y;
+	{
+		std::vector<le_resource_handle> const& unique_resources = rp_src->unique_resources;
+		glm::vec2                              subgraph_offset  = {};
 
-	le::Encoder2D encoder_artboard{};
+		for ( auto const& subgraph : rp_src->root_passes_affinity_masks ) {
+			std::vector<le_renderpass_o const*> passes_in_current_queue;
+			std::vector<Node const*>            nodes_in_current_queue;
+
+			size_t num_passes = rp_src->passes.size();
+
+			passes_in_current_queue.reserve( num_passes );
+			nodes_in_current_queue.reserve( num_passes );
+
+			// You want to effectively draw more than one rendergraph
+			// for this to work, you might need to refactor this function
+			// and make it more modular, first.
+
+			// Drawing a rendergraph should give you the bounding box -
+			// you can then draw the next rendergraph below (if there is another rendergraph that needs drawing)
+			// Then, you can indicate the affinity that this rendergraph has in terms of queues - compute/graphics
+			// video/transfer...
+			// Could it be that the video player acts outside of the rendergraph system when it enqueues the transfer?
+
+			for ( int i = 0; i != num_passes; i++ ) {
+				auto& n = rp_src->nodes[ i ];
+
+				if ( n.root_nodes_affinity & subgraph ) {
+					passes_in_current_queue.push_back( rp_src->passes[ i ] );
+					nodes_in_current_queue.push_back( &n );
+				}
+			}
+
+			//
+
+			draw_subgraph( self, encoder_diagram, unique_resources, passes_in_current_queue, nodes_in_current_queue, subgraph_offset );
+
+			// We add an extra line height of padding at the bottom so that the graph doesn't overlap the gui indicators for the current
+			// frame num etc.
+			bounding_box = glm::max( bounding_box, subgraph_offset + glm::vec2( 0, 1 * c_line_height ) );
+			subgraph_offset.y += c_line_height * 4; // leave at least 4 lanes of space
+		}
+	}
 
 	if ( false == self->is_artboard_to_screen_initial_set ) {
-		//
-		float z                                 = self->canvas_extents.x / right_most_point.x;
-		self->artboard_to_screen_initial        = { .transform = { z, 0, 0, z }, .translation = glm::vec2( ( h_spacing * 0.5 - c_padding_left_right ) * z, float( self->canvas_extents.y ) * 0.5f ) };
-		self->artboard_to_screen                = self->artboard_to_screen_initial;
+
+		// Automatically zoom and center ------------
+
+		float z   = self->canvas_extents.x / bounding_box.x;
+		float z_h = self->canvas_extents.y / ( bounding_box.y );
+
+		// Use shortest edge to guide zoom ratio, then make a little smaller, so that
+		// we don't touch the edges.
+		z = std::min( z, z_h ) * 0.95;
+
+		le::Transform2D zoom = {
+		    .transform = { z, 0, 0, z },
+		    .translation{},
+		};
+
+		le::Transform2D screen_to_centre_screen = { .translation{ 0.5 * self->canvas_extents.x, 0.5 * self->canvas_extents.y } };
+		le::Transform2D artboard_to_centre_artboard = { .translation{ 0.5 * bounding_box.x, 0.5 * bounding_box.y } };
+
+		self->artboard_to_screen                = screen_to_centre_screen * zoom * artboard_to_centre_artboard.inverse();
 		self->is_artboard_to_screen_initial_set = true;
 	}
 
-	encoder_artboard.append( encoder_connections, self->artboard_to_screen );
+	le::Encoder2D encoder_artboard{};
+
+	encoder_artboard.append( encoder_diagram, self->artboard_to_screen );
+
+	if constexpr ( false ) {
+		// DEBUG: draw a circle at the centre of the artboard
+		le::Transform2D artboard_to_centre_artboard = { .translation{ 0.5 * bounding_box.x, 0.5 * bounding_box.y } };
+
+		encoder_artboard
+		    .transform( self->artboard_to_screen )
+		    .colour_rgba( 0xff0000ff )
+		    .path_begin( le_2d::FillStyle::EvenOdd )
+		    .circle( artboard_to_centre_artboard * glm::vec2{ 0 }, 10 )
+		    .path_end();
+	}
 
 	constexpr bool USE_ARTBOARD_MAGNIFIER = true;
 
@@ -623,7 +714,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		    .path_end()
 		    .begin_clip( le_2d::BlendMode{}, 1.f );
 
-		encoder_artboard.append( encoder_connections, artboard_to_magnified_screen );
+		encoder_artboard.append( encoder_diagram, artboard_to_magnified_screen );
 		encoder_artboard.end_clip();
 	}
 
@@ -701,15 +792,15 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		snprintf( frame_name_str, sizeof( frame_name_str ), "Frame No: %zu", self->rendergraph_frame_number[ seek_frame_idx( self ) ] );
 
 		le_font::le_utf8_iterator( frame_name_str, &codepoints_frame_number, cp_callback );
-		// draw frame number
+
+		// Draw frame number into bottom left corner
 		{
 			encoder_artboard
 			    .transform()
-			    .colour_rgba( 0x000000ff )
+			    .colour_rgba( c_colour_pass_title )
 			    .path_begin( le_2d::FillStyle::EvenOdd );
 
 			uint32_t prev_cp = 0;
-			// float    offset  = 0;
 			for ( auto& c : codepoints_frame_number ) {
 				le_font::le_font_i.add_paths_for_glyph( self->font, static_cast<le_2d_encoder_o*>( encoder_artboard ), c, 0.125 * 0.25 * .6, &offset, prev_cp, &path_ops );
 				prev_cp = c;
@@ -718,6 +809,9 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 		}
 	}
 
+	self->canvas_image_info.image.extent.width  = self->canvas_extents.x;
+	self->canvas_image_info.image.extent.height = self->canvas_extents.y;
+
 	self->ctx_2d.update( rendergraph, encoder_artboard, self->canvas_image, &self->canvas_image_info, le_2d_colour( 255, 255, 255, 128 ).to_premult_rgba_u32() );
 
 	// Now, we need to draw the image into the output image -- that way we can be sure that it will be visible
@@ -725,7 +819,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o*& self, le_rendergraph_
 	// All this is just to draw the image created via the 2d context into the final swapchain image:
 
 	auto draw_visuals =
-	    le::RenderPass( "draw_visualizer" )
+	    le::RenderPass( "draw_rendergraph_visualizer" )
 	        .addColorAttachment( target_image, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eLoad ).build() )
 	        .sampleTexture( self->canvas_texture, self->canvas_image )
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
@@ -1125,6 +1219,10 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 		self->canvas_extents += extents_delta;
 		self->canvas_blit_pos += position_delta;
+
+		// Constrain canvas blit pos so that we don't end up with the grab regions outside
+		// of reach of our mouse.
+		self->canvas_blit_pos = glm::max( glm::vec2( 0 ), self->canvas_blit_pos );
 
 		self->io_state.last_cursor_pos -= position_delta;
 	}
