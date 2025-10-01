@@ -85,17 +85,10 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 
 	encoder_text_cache.transform( {} );
 
-	uint8_t alpha_value = this->is_contributing ? 255 : 63;
-	alpha_value         = 255;
-
-	if ( this->is_contributing ) {
-		if ( this->is_root ) {
-			encoder_text_cache.colour( 255, 255, 255, alpha_value );
-		} else {
-			encoder_text_cache.colour( 0, 0, 0, alpha_value );
-		}
+	if ( this->is_root ) {
+		encoder_text_cache.colour_rgba( c_colour_pass_title_root );
 	} else {
-		encoder_text_cache.colour( 128, 128, 128, alpha_value );
+		encoder_text_cache.colour_rgba( c_colour_pass_title );
 	}
 
 	encoder_text_cache.path_begin( le_2d::FillStyle::EvenOdd );
@@ -139,9 +132,14 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 
 		if ( is_root_resource ) {
 			// this resource is a root resource (a swapchain resource probably)
-			encoder_text_cache.colour( le_2d::Colour( 0x7101f1f0 ) );
+			encoder_text_cache.colour_rgba( c_colour_resource_root_image );
+
 		} else {
-			encoder_text_cache.colour( 0, 0, 0, alpha_value );
+			if ( r->data->type == LeResourceType::eImage ) {
+				encoder_text_cache.colour_rgba( c_colour_resource_image );
+			} else {
+				encoder_text_cache.colour_rgba( c_colour_resource_buffer );
+			}
 		}
 
 		encoder_text_cache.path_begin( le_2d::FillStyle::EvenOdd );
