@@ -8,6 +8,7 @@
 #include "private/le_renderer/le_rendergraph.h"
 #include "private/le_renderer/le_resource_handle_t.inl"
 
+#include <sstream>
 #include "shared_constants.inl"
 
 // ----------------------------------------------------------------------
@@ -64,7 +65,37 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 		cps.push_back( uint32_t( cp ) );
 	};
 
-	le_font::le_utf8_iterator( this->name.c_str(), &codepoints_rp_name, cp_callback );
+	{
+		std::ostringstream title;
+		title << this->name;
+
+		if ( rp->type & le::QueueFlagBits::eGraphics ) {
+
+			title << " (";
+
+			if ( rp->width ) {
+				title << rp->width;
+			} else {
+				title << "auto ";
+			}
+
+			title << "x";
+
+			if ( rp->width ) {
+				title << rp->height;
+			} else {
+				title << " auto";
+			}
+
+			title << ")";
+
+			if ( uint32_t( rp->sample_count ) != 1 ) {
+				title << " @ " << uint32_t( rp->sample_count ) << " samples";
+			}
+		}
+
+		le_font::le_utf8_iterator( title.str().c_str(), &codepoints_rp_name, cp_callback );
+	}
 
 	float left_indent = 20.f;
 	float top_offset  = c_line_height - 4.f;
