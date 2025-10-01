@@ -768,8 +768,8 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		self->rasterizer_args.base_color      = background_colour_argb;
 		self->rasterizer_args.target_width    = out_img_info->image.extent.width;
 		self->rasterizer_args.target_height   = out_img_info->image.extent.height;
-		self->rasterizer_args.width_in_tiles  = align_up( self->rasterizer_args.target_width / TILE_UNIT, TILE_UNIT );
-		self->rasterizer_args.height_in_tiles = align_up( self->rasterizer_args.target_height / TILE_UNIT, TILE_UNIT );
+		self->rasterizer_args.width_in_tiles  = ( self->rasterizer_args.target_width + TILE_UNIT - 1 ) / TILE_UNIT;
+		self->rasterizer_args.height_in_tiles = ( self->rasterizer_args.target_height + TILE_UNIT - 1 ) / TILE_UNIT;
 
 		self->wg_counts = get_work_group_counts( self->rasterizer_args.layout, self->rasterizer_args.width_in_tiles, self->rasterizer_args.height_in_tiles );
 	}
