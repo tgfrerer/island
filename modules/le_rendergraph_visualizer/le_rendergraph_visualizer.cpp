@@ -24,6 +24,12 @@ static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassV
 static constexpr size_t C_DISABLE_CACHE                     = false; // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 7;     // number of rendergraphs to store - max
 
+static constexpr auto C_KEY_ZOOM                  = LeUiEvent::NamedKey::eZ;
+static constexpr auto C_KEY_TOGGLE_RECORD         = LeUiEvent::NamedKey::eSpace;
+static constexpr auto C_KEY_SELECT_PREVIOUS_FRAME = LeUiEvent::NamedKey::eLeft;
+static constexpr auto C_KEY_SELECT_NEXT_FRAME     = LeUiEvent::NamedKey::eRight;
+static constexpr auto C_KEY_TOGGLE_ACTIVE         = LeUiEvent::NamedKey::eF12;
+
 #include "private/le_rendergraph_visualizer/shared_constants.inl"
 
 static auto& logger() {
@@ -869,17 +875,51 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 }
 
 // ----------------------------------------------------------------------
+static void le_rendergraph_visualizer_set_is_active( le_rendergraph_visualizer_o* self, bool is_active ); // ffdecl.
 
 static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_o* self, LeUiEvent const* events, uint32_t numEvents ) {
 
 	// CONSIDER: should this be written a state machine?
 
+	LeUiEvent const*       event      = events;             // first event that we will process
+	LeUiEvent const* const events_end = events + numEvents; // end iterator
+
 	if ( self->current_state == State::eInactive ) {
-		return;
+
+		// we need to test whether there is a key event that would make us active --
+		bool should_activate = false;
+		for ( ; event != events_end && should_activate == false; event++ ) {
+			// Process events in sequence
+
+			switch ( event->event ) {
+			case LeUiEvent::Type::eKey: {
+				auto& e = event->key;
+				if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+					if ( e.key == C_KEY_TOGGLE_ACTIVE ) {
+						should_activate = true;
+					}
+				}
+				break;
+			}
+			default:
+				break;
+			}
+		}
+
+		if ( false == should_activate ) {
+			return;
+		}
+
+		// Activate the visualizer if the toggle for activating
+		// has been found. `event` will be at the correct position
+		// as we are ignoring any events up to (and including)
+		// the key event wich we found that activates the
+		// visualizer
+		le_rendergraph_visualizer_set_is_active( self, true );
 	}
+
 	// ----------| invariant: rendergraph visualizer is active
 
-	LeUiEvent const* const events_end = events + numEvents; // end iterator
 
 	auto is_inside_rect = []( glm::vec2 pt, glm::vec2 top_left, glm::vec2 bottom_right ) {
 		return ( pt.x < bottom_right.x ) &&
@@ -890,8 +930,12 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 	glm::vec2 cursor_delta = {};
 
-	for ( LeUiEvent const* event = events; event != events_end; event++ ) {
+	for ( ; event != events_end; event++ ) {
 		// Process events in sequence
+
+		if ( self->current_state == State::eInactive ) {
+			break;
+		}
 
 		switch ( event->event ) {
 		case LeUiEvent::Type::eKey: {
@@ -905,12 +949,12 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
 					break;
 				}
-				case ( LeUiEvent::NamedKey::eZ ): {
+				case ( C_KEY_ZOOM ): {
 					self->io_state.should_zoom ^= true;
 					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
 					break;
 				}
-				case ( LeUiEvent::NamedKey::eSpace ): {
+				case ( C_KEY_TOGGLE_RECORD ): {
 					if ( self->current_state == State::eLiveVisualizeAndRecord || self->current_state == State::eLiveVisualizeNoRecord ) {
 						self->current_state                               = State::eVisualizeRecorded;
 						self->recorded_frame_displayed_frame_index_offset = 0;
@@ -920,7 +964,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
 					break;
 				}
-				case ( LeUiEvent::NamedKey::eLeft ): {
+				case ( C_KEY_SELECT_PREVIOUS_FRAME ): {
 					if ( self->current_state == State::eVisualizeRecorded ) {
 						// we are navigating recorded frames.
 						if ( self->recorded_frame_displayed_frame_index_offset < C_RENDERGRAPH_STORE_RINGBUFFER_SIZE - 1 &&
@@ -931,7 +975,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
 					break;
 				}
-				case ( LeUiEvent::NamedKey::eRight ): {
+				case ( C_KEY_SELECT_NEXT_FRAME ): {
 					if ( self->current_state == State::eVisualizeRecorded ) {
 						// we are navigating recorded frames.
 						if ( self->recorded_frame_displayed_frame_index_offset > 0 ) {
@@ -941,6 +985,12 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
 					break;
 				}
+				case ( C_KEY_TOGGLE_ACTIVE ): {
+					self->current_state = State::eInactive;
+					self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eKeyboard );
+					break;
+				}
+
 				default:
 					break;
 				}
@@ -1040,18 +1090,17 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 	// Apply view transforms ------------------------------------------------------------
 
-	if ( self->io_state.state == IO_STATES::eGrabbing ) {
+	// First, the two modal states: We might be either in of these modes:
+	// - Resize
+	// - Grab
 
-		// signal that the mouse has been captured
-		// self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
+	if ( self->io_state.state == IO_STATES::eGrabbing ) {
 
 		LeTransform2D grab_transform = { .translation = { cursor_delta.x, cursor_delta.y } };
 
 		self->artboard_to_screen = grab_transform * self->artboard_to_screen;
 
-		// logger().info( "grab delta: %f,%f", cursor_delta.x, cursor_delta.y );
 	} else if ( self->io_state.state == IO_STATES::eResizing ) {
-		// logger().info( "resize delta: %f,%f", cursor_delta.x, cursor_delta.y );
 
 		glm::vec2 extents_delta  = cursor_delta;
 		glm::vec2 position_delta = cursor_delta;
@@ -1080,14 +1129,17 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 		self->io_state.last_cursor_pos -= position_delta;
 	}
 
+	// Apply zoom transform -------------------------------------------------------------
+
 	if ( fabsf( self->ui_zoom_level_delta ) > std::numeric_limits<float>::epsilon() ) {
 
 		float       zoom             = self->ui_zoom_level_delta;
 		LeTransform2D zoom_transform   = { .transform = { 1.f + zoom, 0, 0, 1.f + zoom } };
 
-		// i need to transform from mouse space into into artboard space
+		// I need to transform from mouse space into into artboard space
 		// mouse space is where the mouse is at the centre of all things
-		// artboard space is where the artboard is centred.
+		// artboard space is where the artboard is centred. All drawing is
+		// done in artboard space.
 
 		LeTransform2D mouse_to_screen{ .translation = { self->io_state.last_cursor_pos.x, self->io_state.last_cursor_pos.y } };
 		LeTransform2D mouse_space_to_artboard = self->artboard_to_screen.inverse() * mouse_to_screen; // screen_to_artboard <- mouse-to-screen
@@ -1103,18 +1155,12 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 		self->ui_zoom_level_delta = 0;
 	}
-
-	// self->transform = {};
 }
 
 // ----------------------------------------------------------------------
 
 static void le_rendergraph_visualizer_process_and_filter_events( le_rendergraph_visualizer_o* self, LeUiEvent* events, uint32_t* num_events ) {
 
-	if ( self->current_state == State::eInactive || self->current_state == State::eRecordOnly ) {
-		return;
-	}
-	// ----------| invariant: rendergraph visualizer is active
 
 	if ( nullptr == num_events || *num_events == 0 ) {
 		return;
@@ -1124,6 +1170,12 @@ static void le_rendergraph_visualizer_process_and_filter_events( le_rendergraph_
 	self->ui_capture_state = 0;
 
 	le_rendergraph_visualizer_process_events( self, events, *num_events );
+
+	if ( self->current_state == State::eInactive || self->current_state == State::eRecordOnly ) {
+		return;
+	}
+
+	// ----------| invariant: rendergraph visualizer is active
 
 	uint32_t ioFilterFlags = 0;
 
