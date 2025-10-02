@@ -1075,7 +1075,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 	glm::vec2 cursor_delta = {};
 
-	bool was_window_resized = false;
+	auto previous_canvas_extents = self->canvas_extents;
 
 	for ( ; event != events_end; event++ ) {
 		// Process events in sequence
@@ -1090,7 +1090,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 			glm::vec2 new_extents( e.width, e.height );
 
 			if ( self->draw_window_extents != new_extents ) {
-				was_window_resized = true;
+				// was_window_resized = true;
 			}
 
 			self->draw_window_extents = new_extents;
@@ -1300,11 +1300,6 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 		self->canvas_extents += extents_delta;
 		self->canvas_blit_pos += position_delta;
 
-		// Constrain canvas blit pos so that we don't end up with the grab regions outside
-		// of reach of our mouse.
-		self->canvas_blit_pos = glm::min( glm::vec2( self->draw_window_extents ) - glm::vec2( c_grab_width ), glm::max( glm::vec2( 0 ), self->canvas_blit_pos ) );
-		self->canvas_extents  = glm::min( glm::max( self->canvas_extents, glm::vec2( 2 * c_grab_width ) ), self->draw_window_extents - self->canvas_blit_pos );
-
 		self->io_state.last_cursor_pos -= position_delta;
 	}
 
@@ -1333,6 +1328,17 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 		self->artboard_to_screen = self->artboard_to_screen * mouse_space_to_artboard * zoom_transform * mouse_space_to_artboard.inverse();
 
 		self->ui_zoom_level_delta = 0;
+	}
+
+	{
+		// Limit canvas position and extents so that the canvas doesn't end up outside of the visible range
+
+		self->canvas_blit_pos = glm::min( glm::vec2( self->draw_window_extents ) - glm::vec2( c_grab_width ), glm::max( glm::vec2( 0 ), self->canvas_blit_pos ) );
+		self->canvas_extents  = glm::min( glm::max( self->canvas_extents, glm::vec2( 2 * c_grab_width ) ), self->draw_window_extents - self->canvas_blit_pos );
+
+		if ( self->canvas_extents != previous_canvas_extents ) {
+			self->is_artboard_to_screen_initial_set = false;
+		};
 	}
 }
 
