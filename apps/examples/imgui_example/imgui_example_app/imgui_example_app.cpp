@@ -92,7 +92,7 @@ static void app_process_ui_events( app_o* self, std::vector<LeUiEvent> const& ev
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
-		case ( LeUiEvent::Type::eWindowResize ): {
+		case ( LeUiEvent::Type::eWindowSize ): {
 			auto& e        = event.windowSize;
 			window_extents = {
 			    .width  = e.width,

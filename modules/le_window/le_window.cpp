@@ -349,7 +349,7 @@ static void glfw_framebuffer_resize_callback( GLFWwindow* glfwWindow, int width_
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
 			auto& event   = window->eventQueue[ queueIdx ][ eventIdx ];
-			event.event   = LeUiEvent::Type::eWindowResize;
+			event.event   = LeUiEvent::Type::eWindowSize;
 			auto& resize  = event.windowSize;
 			resize.width  = w;
 			resize.height = h;

@@ -313,7 +313,7 @@ static void exr_decode_example_app_process_ui_events( exr_decode_example_app_o* 
 	for ( auto pEv = pEvents; pEv != events_end; pEv++ ) {
 		auto& event = *pEv;
 		switch ( event.event ) {
-		case ( LeUiEvent::Type::eWindowResize ): {
+		case ( LeUiEvent::Type::eWindowSize ): {
 			auto& e        = event.windowSize;
 			window_extents = {
 			    .width  = e.width,

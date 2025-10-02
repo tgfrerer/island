@@ -179,7 +179,7 @@ struct LeUiEvent {
 		eScroll,
 		eDrop,
 		eGamepad,
-		eWindowResize,
+		eWindowSize,
 	};
 
 	struct KeyEvent {
@@ -218,10 +218,11 @@ struct LeUiEvent {
 		uint64_t     paths_count;
 	};
 
-	struct WindowResizeEvent {
+	struct WindowSizeEvent {
 		uint32_t width;
 		uint32_t height;
 	};
+
 
 	struct GamepadEvent {
 		float    axes[ 6 ];  // -1 to 1 (inclusive for each axis)
@@ -260,7 +261,7 @@ struct LeUiEvent {
 		ScrollEvent         scroll;
 		DropEvent           drop;
 		GamepadEvent        gamepad;
-		WindowResizeEvent   windowSize;
+		WindowSizeEvent     windowSize;
 	};
 
 	Type event;

@@ -708,7 +708,7 @@ static void hello_world_app_process_ui_events( hello_world_app_o* self ) {
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
-		case ( LeUiEvent::Type::eWindowResize ): {
+		case ( LeUiEvent::Type::eWindowSize ): {
 			auto& e        = event.windowSize;
 			window_extents = {
 			    .width  = e.width,
