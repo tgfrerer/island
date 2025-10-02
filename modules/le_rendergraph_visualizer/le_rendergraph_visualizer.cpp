@@ -111,8 +111,8 @@ struct le_rendergraph_visualizer_o {
 	le::Font                 font = { "./resources/fonts/IBMPlexSans-Regular.otf", 8 };
 	Le2D                     ctx_2d; // 2d drawing context
 
-	uint32_t   ui_capture_state = 0;
-	io_state_t io_state         = {};
+	io_state_t io_state            = {};
+	uint32_t   ui_capture_state    = 0; /// which events to consume, and which to bubble (this applies to the full vector of events that are being processed)
 	float      ui_zoom_level_delta = 0; // relative zoom level, 0 means 1:1
 
 	std::unordered_map<uint64_t, RenderPassView*> renderpass_views_cache;
@@ -120,8 +120,11 @@ struct le_rendergraph_visualizer_o {
 	LeTransform2D artboard_to_screen; /// artboard-to-screen transform for drawing the rendergraph - this controls zoom and positioning of the diagram on screen
 	bool          is_artboard_to_screen_initial_set = false;
 
-	glm::vec2 canvas_extents;  // dimensions of the visualization canvas
+	glm::vec2 draw_window_extents = { 1080, 1080 }; // Update this by passing through a windowExtent event
+	glm::vec2 canvas_extents;                       // dimensions of the visualization canvas
 	glm::vec2 canvas_blit_pos; // where the visualization gets rendered on the final image
+
+	uint8_t active_resize_edges = uint8_t( ResizeEdgeFlags::eNone );
 
 	State current_state = State::eLiveVisualizeNoRecord;
 
@@ -133,8 +136,6 @@ struct le_rendergraph_visualizer_o {
 	size_t recorded_frame_displayed_frame_index_offset = 0; // only meaningful if state is VisualizeRecorded, and then this is a negative offset to the rendergraph_store_pos
 
 	uint8_t epoch; // update count, used for cache
-
-	uint8_t active_resize_edges = uint8_t( ResizeEdgeFlags::eNone );
 };
 
 // ----------------------------------------------------------------------
@@ -823,7 +824,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o* self, le_rendergraph_o
 	        .addColorAttachment( target_image, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eLoad ).build() )
 	        .sampleTexture( self->canvas_texture, self->canvas_image )
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-		        auto                self = static_cast<le_rendergraph_visualizer_o*>( user_data );
+		        auto                self = static_cast<le_rendergraph_visualizer_o const*>( user_data );
 		        le::GraphicsEncoder encoder{ encoder_ };
 
 		        le::Extent2D extents = encoder.getRenderpassExtent();
@@ -986,6 +987,11 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 			// Process events in sequence
 
 			switch ( event->event ) {
+			case LeUiEvent::Type::eWindowExtent: {
+				auto& e                   = event->windowExtent;
+				self->draw_window_extents = glm::vec2( e.width, e.height );
+				break;
+			}
 			case LeUiEvent::Type::eKey: {
 				auto& e = event->key;
 				if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
@@ -1024,6 +1030,8 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 	glm::vec2 cursor_delta = {};
 
+	bool was_window_resized = false;
+
 	for ( ; event != events_end; event++ ) {
 		// Process events in sequence
 
@@ -1032,6 +1040,18 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 		}
 
 		switch ( event->event ) {
+		case LeUiEvent::Type::eWindowExtent: {
+			auto&     e = event->windowExtent;
+			glm::vec2 new_extents( e.width, e.height );
+
+			if ( self->draw_window_extents != new_extents ) {
+				was_window_resized = true;
+			}
+
+			self->draw_window_extents = new_extents;
+
+			break;
+		}
 		case LeUiEvent::Type::eKey: {
 			auto& e = event->key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
@@ -1222,7 +1242,8 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 
 		// Constrain canvas blit pos so that we don't end up with the grab regions outside
 		// of reach of our mouse.
-		self->canvas_blit_pos = glm::max( glm::vec2( 0 ), self->canvas_blit_pos );
+		self->canvas_blit_pos = glm::min( glm::vec2( self->draw_window_extents ) - glm::vec2( c_grab_width ), glm::max( glm::vec2( 0 ), self->canvas_blit_pos ) );
+		self->canvas_extents  = glm::max( self->canvas_extents, glm::vec2( 2 * c_grab_width ) );
 
 		self->io_state.last_cursor_pos -= position_delta;
 	}
