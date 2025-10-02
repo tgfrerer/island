@@ -31,7 +31,7 @@ constexpr auto   GAMEPAD_SUBSCRIBERS_SINGLETON_ID = hash_64_fnv1a_const( "le_win
 constexpr auto LOGGER_LABEL = "le_window";
 
 static le::Log& logger() {
-	// Enforce lazy initialization for logger().oblect
+	// Enforce lazy initialization for logger().object
 	static auto logger = le::Log( LOGGER_LABEL );
 	return logger;
 };
