@@ -74,8 +74,8 @@ class LeRendergraphVisualizer : NoCopy, NoMove {
 	le_rendergraph_visualizer_o *self;
 
   public:
-	static constexpr uint32_t C_WINDOW_W_FALLBACK = 1080;                    /// < This is the fallback value that is used in case no initial window width is specified
-	static constexpr uint32_t C_WINDOW_H_FALLBACK = C_WINDOW_W_FALLBACK / 3; ///< fallback value in case no initial window height is specified
+	static constexpr uint32_t C_WINDOW_W_FALLBACK = 800; /// < This is the fallback value that is used in case no initial window width is specified
+	static constexpr uint32_t C_WINDOW_H_FALLBACK = 600; ///< fallback value in case no initial window height is specified
 
 	LeRendergraphVisualizer( bool active_by_default = true, uint32_t const& initial_window_w = C_WINDOW_W_FALLBACK, uint32_t const& initial_window_h = C_WINDOW_H_FALLBACK )
 	    : self( le_rendergraph_visualizer::le_rendergraph_visualizer_i.create( initial_window_w, initial_window_h ) ) {

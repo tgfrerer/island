@@ -152,8 +152,8 @@ static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create( uint32_t i
 		initial_window_h = le::RendergraphVisualizer::C_WINDOW_W_FALLBACK;
 	}
 
-	self->canvas_blit_pos     = { c_grab_width * 2, c_grab_width * 2 };
-	self->canvas_extents      = { initial_window_w - c_grab_width * 4, initial_window_h - c_grab_width * 4 };
+	self->canvas_blit_pos     = { c_grab_width * 1, c_grab_width * 1 };
+	self->canvas_extents      = { initial_window_w - c_grab_width * 2, ( initial_window_h / 2 ) - c_grab_width * 2 };
 	self->draw_window_extents = { initial_window_w, initial_window_h };
 
 	self->artboard_to_screen = {};
