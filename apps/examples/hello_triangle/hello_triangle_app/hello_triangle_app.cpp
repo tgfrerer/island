@@ -134,10 +134,10 @@ static void app_process_ui_events( app_o* self ) {
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
-		case ( LeUiEvent::Type::eWindowSize ): {
+		case ( LeUiEvent::Type::eWindowExtent ): {
 			window_size = {
-			    .width  = event.windowSize.width,
-			    .height = event.windowSize.height,
+			    .width  = event.windowExtent.width,
+			    .height = event.windowExtent.height,
 			};
 			was_resized = true;
 		} break;

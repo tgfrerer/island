@@ -292,8 +292,8 @@ static void compute_example_app_process_ui_events( compute_example_app_o* self )
 	for ( auto pEv = pEvents; pEv != events_end; pEv++ ) {
 		auto& event = *pEv;
 		switch ( event.event ) {
-		case ( LeUiEvent::Type::eWindowSize ): {
-			auto& e        = event.windowSize;
+		case ( LeUiEvent::Type::eWindowExtent ): {
+			auto& e        = event.windowExtent;
 			window_extents = {
 			    .width  = e.width,
 			    .height = e.height,

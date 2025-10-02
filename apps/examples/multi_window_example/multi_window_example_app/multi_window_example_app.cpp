@@ -374,8 +374,8 @@ static void app_process_ui_events( app_o* app, window_and_swapchain_t& window ) 
 
 	for ( auto& event : events ) {
 		switch ( event.event ) {
-		case ( LeUiEvent::Type::eWindowSize ): {
-			auto& e        = event.windowSize;
+		case ( LeUiEvent::Type::eWindowExtent ): {
+			auto& e        = event.windowExtent;
 			window_extents = {
 			    .width  = e.width,
 			    .height = e.height,
