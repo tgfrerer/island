@@ -17,6 +17,11 @@
     Mouse Wheel   :  Zoom
     Mouse grab    :  Move Diagram
 
+
+    Note that the visualizer is stateful, and will respond to
+    windowExtent events.
+
+
  */
 
 struct le_rendergraph_o;
