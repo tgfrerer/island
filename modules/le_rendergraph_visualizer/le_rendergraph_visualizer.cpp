@@ -140,13 +140,21 @@ struct le_rendergraph_visualizer_o {
 
 // ----------------------------------------------------------------------
 
-static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create() {
+static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create( uint32_t initial_window_w, uint32_t initial_window_h ) {
 	auto self = new le_rendergraph_visualizer_o();
 
 	self->canvas_image = LE_IMG_RESOURCE( "visualizer_output_image" );
 
-	self->canvas_blit_pos = { 10, 10 };
-	self->canvas_extents  = { 1080 / 2, 1080 / 4 };
+	if ( initial_window_w == 0 ) {
+		initial_window_w = le::RendergraphVisualizer::C_WINDOW_W_FALLBACK;
+	}
+	if ( initial_window_h == 0 ) {
+		initial_window_h = le::RendergraphVisualizer::C_WINDOW_W_FALLBACK;
+	}
+
+	self->canvas_blit_pos     = { c_grab_width * 2, c_grab_width * 2 };
+	self->canvas_extents      = { initial_window_w - c_grab_width * 4, initial_window_h - c_grab_width * 4 };
+	self->draw_window_extents = { initial_window_w, initial_window_h };
 
 	self->artboard_to_screen = {};
 
