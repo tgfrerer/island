@@ -5496,9 +5496,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 		size_t num_invocation_keys = frame.queue_submission_keys.size();
 
-		for ( size_t i = 0; i != num_invocation_keys; i++ ) {
-
-			auto const& key = frame.queue_submission_keys[ i ];
+		for ( auto const& key : frame.queue_submission_keys ) {
 
 			BackendFrameData::PerQueueSubmissionData submission_data{};
 
@@ -7600,7 +7598,9 @@ static void backend_queue_submit( BackendQueueInfo* queue, uint32_t submission_c
 
 	// --------- the actual queue submission happens here
 
-	vkQueueSubmit2( queue->queue, submission_count, submitInfo, fence );
+	// test this for result == okay
+	auto result = vkQueueSubmit2( queue->queue, submission_count, submitInfo, fence );
+	assert( result == VK_SUCCESS );
 };
 
 // ----------------------------------------------------------------------
