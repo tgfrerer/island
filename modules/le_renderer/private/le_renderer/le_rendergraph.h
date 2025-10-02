@@ -145,9 +145,12 @@ struct Node {
 
 struct le_rendergraph_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o*>    passes;                                 // owning
+	std::vector<Node>                nodes;                                  // one node per pass
+
 	size_t                           num_contributing_passes = 0;            // number of passes which are contributing (the count of all passes where is_contributing is true, set when building the rendergraph)
 	std::vector<le_resource_handle>  declared_resources_id;                  // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t>  declared_resources_info;                // | pre-declared resources infos (declared via module)
+
 	std::vector<le::RootPassesField> root_passes_affinity_masks;             // vector of masks, one per distinct subgraph within the rendergraph,
 	                                                                         // each mask represents a filter: passes whose root_passes_affinity
 	                                                                         // match via OR are contributing to the distinct tree whose key it was tested against.
@@ -155,9 +158,8 @@ struct le_rendergraph_o : NoCopy, NoMove {
 	                                                                         // separate (and resource-isolated) queue submission.
 	                                                                         //
 	std::vector<std::string>                       root_debug_names;         // debug_names for root passes held within passes, in same order as RootPassesField indices
-	std::vector<le_on_frame_clear_callback_data_t> on_frame_clear_callbacks; // passed on to the backend: callbacks which get called once the backend frame into which this renderpass was placed gets cleared
+	std::vector<le_resource_handle>                unique_resources;         // unique resource handles, field indices in Node::ResourceField refer to resource index
 
-	std::vector<Node>               nodes;
-	std::vector<le_resource_handle> unique_resources; // unique resource handles, field indices in Node::ResourceField refer to resource index
+	std::vector<le_on_frame_clear_callback_data_t> on_frame_clear_callbacks; // passed on to the backend: callbacks which get called once the backend frame into which this renderpass was placed gets cleared
 };
 #endif
