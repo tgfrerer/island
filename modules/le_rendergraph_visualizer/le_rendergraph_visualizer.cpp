@@ -727,50 +727,85 @@ static void draw_visualizer( le_rendergraph_visualizer_o* self, le_rendergraph_o
 		encoder_artboard.end_clip();
 	}
 
-	// Draw indicators for recorded frame
+	if ( self->active_resize_edges ) {
+		// Draw grab edges
+		// draw canvas border
 
-	encoder_artboard.transform();
-	for ( int i = 0; i != C_RENDERGRAPH_STORE_RINGBUFFER_SIZE; i++ ) {
+		float line_thickness = c_grab_width * 0.5;
 
-		for ( int j = 0; j != 2; j++ ) {
-			uint32_t outline_colour = 0x0;
-			uint32_t fill_colour    = 0x0;
+		encoder_artboard
+		    .transform()
+		    .colour_rgba( 0xffffffaa )
+		    .path_begin( { .width = line_thickness } );
 
-			if ( i == 0 && self->current_state == State::eLiveVisualizeNoRecord ) {
-				// the first symbol is the record button in case we are recording
-				fill_colour    = c_colour_red_light;
-				outline_colour = c_colour_red;
-			} else if ( i == 0 && self->current_state == State::eLiveVisualizeAndRecord ) {
-				// the first symbol is the record button in case we are recording
-				fill_colour    = c_colour_red;
-				outline_colour = c_colour_pass_video;
-			} else {
-				outline_colour = c_colour_connector_fill;
-
-				if ( self->recorded_frame_displayed_frame_index_offset == i ) {
-					fill_colour = c_colour_connector_fill;
-				} else {
-					fill_colour = c_colour_card_bg;
-				}
-				// encoder_artboard.colour_rgba(fill_colour);
-			}
-
-			encoder_artboard.colour_rgba( ( j == 0 ) ? fill_colour : outline_colour );
-
-			if ( j == 0 ) {
-				encoder_artboard.path_begin( le_2d::FillStyle::NonZero )
-				    .circle( { self->canvas_extents.x * 0.5 - 15 - ( i * 20 ), self->canvas_extents.y - 15 }, 8 );
-			} else {
-
-				encoder_artboard.path_begin( { .width = 1.f } )
-				    .circle( { self->canvas_extents.x * 0.5 - 15 - ( i * 20 ), self->canvas_extents.y - 15 }, 7.5 );
-			}
-
-			encoder_artboard
-			    .path_end();
+		if ( ( self->active_resize_edges & uint8_t( ResizeEdgeFlags::eLeftEdge ) ) ) {
+			encoder_artboard.get_path()
+			    .move_to( { line_thickness * 0.5, 0 } )
+			    .line_to( { line_thickness * 0.5, self->canvas_extents.y } );
 		}
-		if ( self->current_state != State::eVisualizeRecorded ) {
-			break;
+		if ( ( self->active_resize_edges & uint8_t( ResizeEdgeFlags::eTopEdge ) ) ) {
+			encoder_artboard.get_path()
+			    .move_to( { 0, line_thickness * 0.5 } )
+			    .line_to( { self->canvas_extents.x, line_thickness * 0.5 } );
+		}
+
+		if ( ( self->active_resize_edges & uint8_t( ResizeEdgeFlags::eBottomEdge ) ) ) {
+			encoder_artboard.get_path()
+			    .move_to( { 0, self->canvas_extents.y - line_thickness * 0.5 } )
+			    .line_to( { self->canvas_extents.x, self->canvas_extents.y - line_thickness * 0.5 } );
+		}
+		if ( ( self->active_resize_edges & uint8_t( ResizeEdgeFlags::eRightEdge ) ) ) {
+			encoder_artboard.get_path()
+			    .move_to( { self->canvas_extents.x - line_thickness * 0.5, 0 } )
+			    .line_to( { self->canvas_extents.x - line_thickness * 0.5, self->canvas_extents.y } );
+		}
+
+		encoder_artboard.get_path().path_end();
+	}
+	{
+		// Draw indicators for recorded frame
+
+		for ( int i = 0; i != C_RENDERGRAPH_STORE_RINGBUFFER_SIZE; i++ ) {
+			encoder_artboard.transform();
+
+			for ( int j = 0; j != 2; j++ ) {
+				uint32_t outline_colour = 0x0;
+				uint32_t fill_colour    = 0x0;
+
+				if ( i == 0 && self->current_state == State::eLiveVisualizeNoRecord ) {
+					// the first symbol is the record button in case we are recording
+					fill_colour    = c_colour_red_light;
+					outline_colour = c_colour_red;
+				} else if ( i == 0 && self->current_state == State::eLiveVisualizeAndRecord ) {
+					// the first symbol is the record button in case we are recording
+					fill_colour    = c_colour_red;
+					outline_colour = c_colour_pass_video;
+				} else {
+					outline_colour = c_colour_connector_fill;
+
+					if ( self->recorded_frame_displayed_frame_index_offset == i ) {
+						fill_colour = c_colour_connector_fill;
+					} else {
+						fill_colour = c_colour_card_bg;
+					}
+					// encoder_artboard.colour_rgba(fill_colour);
+				}
+
+				encoder_artboard.colour_rgba( ( j == 0 ) ? fill_colour : outline_colour );
+
+				if ( j == 0 ) {
+					encoder_artboard.path_begin( le_2d::FillStyle::NonZero )
+					    .circle( { self->canvas_extents.x * 0.5 - 15 - ( i * 20 ), self->canvas_extents.y - 15 }, 8 );
+				} else {
+					encoder_artboard.path_begin( { .width = 1.f } )
+					    .circle( { self->canvas_extents.x * 0.5 - 15 - ( i * 20 ), self->canvas_extents.y - 15 }, 7.5 );
+				}
+
+				encoder_artboard.path_end();
+			}
+			if ( self->current_state != State::eVisualizeRecorded ) {
+				break;
+			}
 		}
 	}
 
@@ -781,7 +816,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o* self, le_rendergraph_o
 		// we want to visualize, and render any text that we want to display into encoder_text_cache
 
 		le::Encoder2D encoder_text_cache;
-		glm::vec2     offset = { 0, self->canvas_extents.y - 10 };
+		glm::vec2     offset = { 10, self->canvas_extents.y - 10 };
 
 		le_path_operations_interface_t path_ops{
 		    .move_to         = path_move_to,
@@ -821,7 +856,7 @@ static void draw_visualizer( le_rendergraph_visualizer_o* self, le_rendergraph_o
 	self->canvas_image_info.image.extent.width  = self->canvas_extents.x;
 	self->canvas_image_info.image.extent.height = self->canvas_extents.y;
 
-	self->ctx_2d.update( rendergraph, encoder_artboard, self->canvas_image, &self->canvas_image_info, le_2d_colour( 255, 255, 255, 128 ).to_premult_rgba_u32() );
+	self->ctx_2d.update( rendergraph, encoder_artboard, self->canvas_image, &self->canvas_image_info, le_2d_colour( 255, 255, 255, 127 ).to_premult_rgba_u32() );
 
 	// Now, we need to draw the image into the output image -- that way we can be sure that it will be visible
 	//
@@ -915,6 +950,8 @@ static void le_rendergraph_visualizer_update( le_rendergraph_visualizer_o* self,
 
 	if ( self->current_state != State::eInactive ) {
 		// ----------| invariant: visualizer is active
+
+		// le::DebugPrint( "Resize edges: %x", self->active_resize_edges );
 
 		le_rendergraph_o* rp_src = rendergraph;
 
@@ -1129,15 +1166,31 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 			     self->io_state.state == IO_STATES::eResizing ) {
 				cursor_delta += canvas_cursor_pos - self->io_state.last_cursor_pos;
 				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
-			}
-
-			if ( is_inside_rect( canvas_cursor_pos, {}, self->canvas_extents ) ) {
-				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
-				// logger().info( "inside" );
 			} else {
-				// logger().info( "outside" );
-			}
 
+				// we are neither grabbing now resizing
+				self->active_resize_edges = 0;
+
+				if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2{ 0.5 * c_grab_width }, self->canvas_extents - glm::vec2( c_grab_width ) ) ) {
+					// inside the grab rect
+				} else if ( is_inside_rect( self->io_state.last_cursor_pos, -glm::vec2{ 0.5 * c_grab_width }, self->canvas_extents + glm::vec2( c_grab_width ) ) ) {
+
+					if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2( self->canvas_extents.x - c_grab_width * 0.5, 0 - c_grab_width * 0.5 ), self->canvas_extents + glm::vec2( c_grab_width ) ) ) {
+						self->active_resize_edges |= uint8_t( ResizeEdgeFlags::eRightEdge );
+					}
+					if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2( -c_grab_width * 0.5, self->canvas_extents.y - c_grab_width * 0.5 ), self->canvas_extents + glm::vec2( c_grab_width ) ) ) {
+						self->active_resize_edges |= uint8_t( ResizeEdgeFlags::eBottomEdge );
+					}
+					if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2( -c_grab_width * 0.5, -c_grab_width * 0.5 ), glm::vec2( self->canvas_extents.x + 0.5 * c_grab_width, 0.5 * c_grab_width ) ) ) {
+						self->active_resize_edges |= uint8_t( ResizeEdgeFlags::eTopEdge );
+					}
+					if ( is_inside_rect( self->io_state.last_cursor_pos, glm::vec2( -c_grab_width * 0.5, 0 ), glm::vec2( c_grab_width * 0.5, self->canvas_extents.y + c_grab_width * 0.5 ) ) ) {
+						self->active_resize_edges |= uint8_t( ResizeEdgeFlags::eLeftEdge );
+					}
+					// inside the resize grab area
+				} else {
+				}
+			}
 			self->io_state.last_cursor_pos = canvas_cursor_pos;
 		} break;
 		case LeUiEvent::Type::eCursorEnter: {
@@ -1192,7 +1245,6 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 				self->io_state.state = IO_STATES::eInactive;
 				self->io_state.mouse_button_pressed &= ~( uint32_t( 1 ) << 0 );
 				self->ui_capture_state |= uint32_t( UI_CAPTURE_STATE_BIT::eMouse );
-				self->active_resize_edges = 0;
 			}
 
 		} break;
@@ -1251,7 +1303,7 @@ static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_
 		// Constrain canvas blit pos so that we don't end up with the grab regions outside
 		// of reach of our mouse.
 		self->canvas_blit_pos = glm::min( glm::vec2( self->draw_window_extents ) - glm::vec2( c_grab_width ), glm::max( glm::vec2( 0 ), self->canvas_blit_pos ) );
-		self->canvas_extents  = glm::max( self->canvas_extents, glm::vec2( 2 * c_grab_width ) );
+		self->canvas_extents  = glm::min( glm::max( self->canvas_extents, glm::vec2( 2 * c_grab_width ) ), self->draw_window_extents - self->canvas_blit_pos );
 
 		self->io_state.last_cursor_pos -= position_delta;
 	}
