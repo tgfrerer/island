@@ -12,6 +12,7 @@
     RIGHT CURSOR  :  When in Playback state, move forward  one frame
     R             :  Reset Zoom and center the graph
     Z             :  Toggle magnifying glass
+    F12           :  Toggle show / hide (deactivated when hidden)
 
     Mouse Wheel   :  Zoom
     Mouse grab    :  Move Diagram
