@@ -692,8 +692,11 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
 
-	self->unique_resources.clear();
 	self->nodes.clear();
+
+	self->root_passes_affinity_masks.clear();
+	self->root_debug_names.clear();
+	self->unique_resources.clear();
 
 	auto& nodes                = self->nodes; // There is exactly one Node per `pass` - their indices correspond
 	auto& known_unique_handles = self->unique_resources;
