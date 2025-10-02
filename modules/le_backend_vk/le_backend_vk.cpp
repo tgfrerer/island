@@ -1154,6 +1154,8 @@ static size_t backend_get_data_frames_count( le_backend_o* self ) {
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
 static bool backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handle swapchain_handle, uint32_t* p_width, uint32_t* p_height ) {
 
+	ZoneScoped;
+
 	auto swp = swapchain_handle
 	               ? self->swapchains.find( reinterpret_cast<uint64_t>( swapchain_handle ) )
 	               : get_default_swapchain_it( self->swapchains );
@@ -1169,6 +1171,8 @@ static bool backend_get_swapchain_extent( le_backend_o* self, le_swapchain_handl
 // ----------------------------------------------------------------------
 
 bool backend_get_swapchains_infos( le_backend_o* self, uint32_t frame_index, uint32_t* count, uint32_t* p_width, uint32_t* p_height, le_image_resource_handle* p_handle ) {
+
+	ZoneScoped;
 
 	auto const& frame = self->mFrames[ frame_index ];
 
