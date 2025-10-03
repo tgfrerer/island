@@ -1,5 +1,6 @@
 #include "test_log_app.h"
 #include "le_log.h"
+#include "le_tracy.h"
 
 #include <chrono>
 #include <thread>
@@ -75,4 +76,8 @@ LE_MODULE_REGISTER_IMPL( test_log_app, api ) {
 	test_log_app_i.create  = test_log_app_create;
 	test_log_app_i.destroy = test_log_app_destroy;
 	test_log_app_i.update  = test_log_app_update;
+
+#ifdef LE_LOAD_TRACYNG_LIBRARY
+	LE_LOAD_TRACYNG_LIBRARY;
+#endif
 }

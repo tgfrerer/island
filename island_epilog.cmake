@@ -22,7 +22,7 @@ while(REQUESTED_MODULES_LIST)
     # message(STATUS "requested modules 2: ${REQUESTED_MODULES_LIST}")
     list(REMOVE_ITEM REQUESTED_MODULES_LIST ${LOADED_MODULES_LIST})
     # store requested modules list back to global
-    set( REQUESTED_MODULES_LIST ${REQUESTED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "requested modules_list" )  
+    set( REQUESTED_MODULES_LIST ${REQUESTED_MODULES_LIST} CACHE INTERNAL "requested modules_list" )
     # repeat this until no more modules are requested.
     
     # message(STATUS "requested modules 3: ${REQUESTED_MODULES_LIST}")

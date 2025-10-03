@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7.2)
+cmake_minimum_required(VERSION 3.21)
 set (CMAKE_CXX_STANDARD 20)
 
 set (PROJECT_NAME "Island-TestLog")
@@ -11,6 +11,7 @@ project (${PROJECT_NAME})
 
 # set to number of worker threads if you wish to use multi-threaded rendering
 # add_compile_definitions( LE_MT=4 )
+# add_compile_definitions( TRACY_ENABLE )
 
 # Vulkan Validation layers are enabled by default for Debug builds.
 # Uncomment the next line to disable loading Vulkan Validation Layers for Debug builds.

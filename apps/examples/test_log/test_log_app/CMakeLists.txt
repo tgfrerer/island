@@ -1,6 +1,8 @@
-depends_on_island_module(le_log)
-
 set (TARGET test_log_app)
+
+depends_on_island_module(le_log)
+depends_on_island_module(le_tracy)
+# depends_on_island_module(le_2d)
 
 set (SOURCES "test_log_app.cpp")
 set (SOURCES ${SOURCES} "test_log_app.h")
