@@ -91,7 +91,7 @@ static void app_process_ui_events( lut_grading_example_app_o* self ) {
 
 	for ( auto e = events_begin; e != events_end; e++ ) {
 		if ( e->event == LeUiEvent::Type::eWindowExtent ) {
-			auto& ev       = e->windowSize;
+			auto& ev       = e->windowExtent;
 			window_extents = {
 			    .width  = ev.width,
 			    .height = ev.height,
