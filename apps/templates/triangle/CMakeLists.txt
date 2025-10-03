@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7.2)
+cmake_minimum_required(VERSION 3.29)
 set (CMAKE_CXX_STANDARD 20)
 
 set (PROJECT_NAME "Island-Triangle")
@@ -24,7 +24,7 @@ set(REQUIRES_ISLAND_LOADER ON )
 set(REQUIRES_ISLAND_CORE ON )
 
 # Loads Island framework, based on selected Island modules from above
-include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
+include ("${ISLAND_BASE_DIR}/island_prolog.cmake")
 
 # Add custom module search paths
 # add_island_module_location(${CMAKE_CURRENT_SOURCE_DIR}/modules)
@@ -37,7 +37,7 @@ set (SOURCES main.cpp)
 add_subdirectory (triangle_app)
 
 # Sets up Island framework linkage and housekeeping, based on user selections
-include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")
+include ("${ISLAND_BASE_DIR}/island_epilog.cmake")
 
 # (optional) create a link to local resources
 link_resources("${PROJECT_SOURCE_DIR}/resources" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/local_resources")

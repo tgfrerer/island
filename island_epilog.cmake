@@ -3,30 +3,47 @@ foreach( M IN LISTS MODULES_LIST )
     request_island_module(${M})
 endforeach()
 
+get_global_var(GLOBAL_REQUESTED_MODULES_LIST REQUESTED_MODULES_LIST)
 
 while(REQUESTED_MODULES_LIST)
+
+	get_global_var(GLOBAL_REQUESTED_MODULES_LIST REQUESTED_MODULES_LIST)
+
+    # append current name of the module to the list of modules
+    append_to_global_var(GLOBAL_REQUESTED_MODULES_LIST "${MODULE_NAME}")
+
     # remove any duplicates from requested modules 
-    list(REMOVE_DUPLICATES REQUESTED_MODULES_LIST)
+    remove_duplicates_from_global_var(GLOBAL_REQUESTED_MODULES_LIST)
+
+	# get the currently loaded modules list
+	get_global_var(GLOBAL_LOADED_MODULES_LIST LOADED_MODULES_LIST)
+		
     # remove any modules from the requested list which are already in the loaded list
-    list(REMOVE_ITEM REQUESTED_MODULES_LIST ${LOADED_MODULES_LIST})
-    # store the requested_modules_list back to global
-    set( REQUESTED_MODULES_LIST ${REQUESTED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "requested modules_list" )  
-    
-    # message(STATUS "requested modules 1: ${REQUESTED_MODULES_LIST}")
+    remove_from_global_var(GLOBAL_REQUESTED_MODULES_LIST "${LOADED_MODULES_LIST}")
+
+    get_global_var(GLOBAL_REQUESTED_MODULES_LIST REQUESTED_MODULES_LIST)
+    message(STATUS "requested modules 1: ${REQUESTED_MODULES_LIST}")
     
     # Load all modules which where requested and which were not yet loaded
     foreach( M IN LISTS REQUESTED_MODULES_LIST )
+		message(STATUS "requesting modules: ${M}")
         load_island_module(${M})
     endforeach()
     
-    # message(STATUS "requested modules 2: ${REQUESTED_MODULES_LIST}")
-    list(REMOVE_ITEM REQUESTED_MODULES_LIST ${LOADED_MODULES_LIST})
-    # store requested modules list back to global
-    set( REQUESTED_MODULES_LIST ${REQUESTED_MODULES_LIST} CACHE INTERNAL "requested modules_list" )
+	# get the currently loaded modules list
+	get_global_var(GLOBAL_LOADED_MODULES_LIST LOADED_MODULES_LIST)
+
+	message(STATUS "loaded modules list: ${LOADED_MODULES_LIST}")
+    remove_from_global_var(GLOBAL_REQUESTED_MODULES_LIST "${LOADED_MODULES_LIST}")
+
     # repeat this until no more modules are requested.
     
-    # message(STATUS "requested modules 3: ${REQUESTED_MODULES_LIST}")
     # remove any elements from requested modules which are now present in loaded modules
+
+    get_global_var(GLOBAL_REQUESTED_MODULES_LIST REQUESTED_MODULES_LIST)
+    message(STATUS "requested modules (atend): ${REQUESTED_MODULES_LIST}")
+
+
 endwhile(REQUESTED_MODULES_LIST)
 
 # print_current_includes()
@@ -61,6 +78,8 @@ endif()
 
 
 message(STATUS "Static libraries : $CACHE{STATIC_LIBRARIES}")
+
+get_global_var(GLOBAL_LOADED_MODULES_LIST LOADED_MODULES_LIST)
 message(STATUS "Loaded modules   : ${LOADED_MODULES_LIST}")
 
 # Libraries against which we dynamically link our main application:

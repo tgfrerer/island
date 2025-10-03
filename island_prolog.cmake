@@ -1,61 +1,8 @@
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
-# Set a global variable
-function(set_global_var name value)
-  if (value)
-    set_property(GLOBAL PROPERTY "${name}" "${value}")
-  endif()
-endfunction()
+include("${ISLAND_BASE_DIR}/island_globals_utils.cmake")
 
-# Get a global variable
-function(get_global_var name out_var)
-    get_property(current GLOBAL PROPERTY "${name}" SET)
-    if (current)
-        # message(STATUS ">>>>> ${name} was set: ${current}")
-        get_property(current GLOBAL PROPERTY "${name}")
-    else()
-        # message(STATUS ">>>>> ${NAME} was not set: ${current}")
-    endif()
-
-    # message(STATUS "***** append local current: ${current}")
-
-    set(${out_var} "${current}" PARENT_SCOPE)
-endfunction()
-
-# Append a value to a global list variable
-function(append_to_global_var name value)
-    get_global_var(${name} current)
-
-    message(STATUS ">>>>> appending ${value}")
-
-
-    if(current)
-        list(APPEND current "${value}")
-    else()
-        set (current "${value}")
-    endif()
-
-    set_property(GLOBAL PROPERTY "${name}" "${current}")
-
-endfunction()
-
-# Append a value to a global list variable
-function(remove_from_global_var name value)
-    get_global_var(name current)
-    list(REMOVE_ITEM current "${value}")
-    set_property(GLOBAL PROPERTY "${name}" "${current}")
-endfunction()
-
-
-# set_global_var(test_var "hello")
-# append_to_global_var(test_var "world;building;relationship")
-
-# get_global_var(test_var test_var_local)
-# message(STATUS "***** TEST VAR: ${test_var_local}")
-
-
-
-# Hot-reloading is enabled by default for debug target, 
+# Hot-reloading is enabled by default for debug target,
 # whilst release target are built as statically linked 
 # binaries by default. 
 # This can be changed on a project-by-project basis, as
@@ -160,11 +107,11 @@ set ( MODULE_LOCATIONS_LIST CACHE INTERNAL "module_locations_list")
 add_island_module_location("${ISLAND_BASE_DIR}/modules")
 
 # We will store all loaded module names in this global list, so that we can make sure that modules don't get loaded more than once.
-set ( LOADED_MODULES_LIST CACHE INTERNAL "loaded_modules_list" )
+set_global_var( GLOBAL_LOADED_MODULES_LIST "" )
 
 # We will store all requested module names in this global list, to keep track of all modules which have been requested.
 # once this list is empty we know there are no more modules which need to be loaded.
-set_global_var( REQUESTED_MODULES_LIST "")
+set_global_var( GLOBAL_REQUESTED_MODULES_LIST "")
 
 
 # These modules are always loaded - they control the plugin system.
@@ -207,16 +154,14 @@ if (REQUIRES_ISLAND_CORE)
 endif()
 
 
-    append_to_global_var(REQUESTED_MODULES_LIST "${ISLAND_LOADER_MODULES}")
-
 # Add required modules to modules list based on user flags
 #
 if (REQUIRES_ISLAND_LOADER)
-    append_to_global_var(REQUESTED_MODULES_LIST "${ISLAND_LOADER_MODULES}")
+    append_to_global_var(GLOBAL_REQUESTED_MODULES_LIST "${ISLAND_LOADER_MODULES}")
 endif()
  
 if (REQUIRES_ISLAND_CORE)
-    append_to_global_var(REQUESTED_MODULES_LIST "${CORE_ISLAND_MODULES}")
+    append_to_global_var(GLOBAL_REQUESTED_MODULES_LIST "${CORE_ISLAND_MODULES}")
 endif()
 
 # ----------------------------------------------------------------------
@@ -303,9 +248,11 @@ endmacro()
 # checks whether a module was already requested to prevent duplicates.
 macro(request_island_module MODULE_NAME)
 
+	get_global_var(GLOBAL_LOADED_MODULES_LIST LOADED_MODULES_LIST)
+
     if (NOT ${MODULE_NAME} IN_LIST LOADED_MODULES_LIST)
         # prepend module name to loaded_modules_list in global scope
-        append_to_global_var(REQUESTED_MODULES_LIST ${MODULE_NAME})
+        append_to_global_var(GLOBAL_REQUESTED_MODULES_LIST ${MODULE_NAME})
         include_island_module( ${MODULE_NAME} FALSE )
     else()
         include_island_module( ${MODULE_NAME} FALSE )
@@ -319,10 +266,12 @@ endmacro(request_island_module)
 # Adds a module name to list of requested modules, 
 # checks whether a module was already requested to prevent duplicates.
 macro(load_island_module MODULE_NAME)
+
+	get_global_var(GLOBAL_LOADED_MODULES_LIST LOADED_MODULES_LIST)
     
-    if (NOT ${MODULE_NAME} IN_LIST LOADED_MODULES_LIST)
+    if (NOT ${MODULE_NAME} IN_LIST "${LOADED_MODULES_LIST}")
         # prepend module name to loaded_modules_list in global scope
-        set( LOADED_MODULES_LIST ${LOADED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "loaded_modules_list" )     
+		append_to_global_var(GLOBAL_LOADED_MODULES_LIST "${MODULE_NAME}")
         include_island_module( ${MODULE_NAME} TRUE )
     else()
         include_island_module( ${MODULE_NAME} FALSE )
@@ -429,10 +378,10 @@ endmacro(add_dynamic_linker_flags)
 # ----------------------------------------------------------------------
 
 if(${MODULE_NAME})
-  append_to_global_var(REQUESTED_MODULES_LIST ${MODULE_NAME})
+  append_to_global_var(GLOBAL_REQUESTED_MODULES_LIST "${MODULE_NAME}")
 endif()
 
-get_global_var(REQUESTED_MODULES_LIST REQUESTED_MODULES)
+get_global_var(GLOBAL_REQUESTED_MODULES_LIST REQUESTED_MODULES)
 message(STATUS "----- requested modules: ${REQUESTED_MODULES}")
 
 
