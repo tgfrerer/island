@@ -142,6 +142,14 @@ struct Extent2D {
 	uint32_t height;
 };
 
+static inline constexpr bool operator==( const Extent2D& lhs, const Extent2D& rhs ) noexcept {
+	return ( lhs.width == rhs.width && lhs.height == rhs.height );
+}
+
+static inline constexpr bool operator!=( const Extent2D& lhs, const Extent2D& rhs ) noexcept {
+	return !( lhs == rhs );
+}
+
 struct Extent3D {
 	uint32_t width;
 	uint32_t height;
