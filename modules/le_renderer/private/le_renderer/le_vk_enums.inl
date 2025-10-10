@@ -682,45 +682,45 @@ inline constexpr ColorComponentFlags operator&( ColorComponentFlags const& lhs, 
 // ----------------------------------------------------------------------
 
 enum class ColorSpaceKHR : uint32_t {
-	eVkColorSpaceSrgbNonlinearKhr         = 0,
-	eVkColorSpaceDisplayP3NonlinearExt    = 1000104001,
-	eVkColorSpaceExtendedSrgbLinearExt    = 1000104002,
-	eVkColorSpaceDisplayP3LinearExt       = 1000104003,
-	eVkColorSpaceDciP3NonlinearExt        = 1000104004,
-	eVkColorSpaceBt709LinearExt           = 1000104005,
-	eVkColorSpaceBt709NonlinearExt        = 1000104006,
-	eVkColorSpaceBt2020LinearExt          = 1000104007,
-	eVkColorSpaceHdr10St2084Ext           = 1000104008,
-	eVkColorSpaceDolbyvisionExt           = 1000104009,
-	eVkColorSpaceHdr10HlgExt              = 1000104010,
-	eVkColorSpaceAdobergbLinearExt        = 1000104011,
-	eVkColorSpaceAdobergbNonlinearExt     = 1000104012,
-	eVkColorSpacePassThroughExt           = 1000104013,
-	eVkColorSpaceExtendedSrgbNonlinearExt = 1000104014,
-	eVkColorSpaceDisplayNativeAmd         = 1000213000,
-	eVkColorSpaceDciP3LinearExt           = eVkColorSpaceDisplayP3LinearExt,
-	eVkColorspaceSrgbNonlinearKhr         = eVkColorSpaceSrgbNonlinearKhr,
+	eSrgbNonlinearKhr             = 0,
+	eDisplayP3NonlinearExt        = 1000104001,
+	eExtendedSrgbLinearExt        = 1000104002,
+	eDisplayP3LinearExt           = 1000104003,
+	eDciP3NonlinearExt            = 1000104004,
+	eBt709LinearExt               = 1000104005,
+	eBt709NonlinearExt            = 1000104006,
+	eBt2020LinearExt              = 1000104007,
+	eHdr10St2084Ext               = 1000104008,
+	eDolbyvisionExt               = 1000104009,
+	eHdr10HlgExt                  = 1000104010,
+	eAdobergbLinearExt            = 1000104011,
+	eAdobergbNonlinearExt         = 1000104012,
+	ePassThroughExt               = 1000104013,
+	eExtendedSrgbNonlinearExt     = 1000104014,
+	eDisplayNativeAmd             = 1000213000,
+	eDciP3LinearExt               = eDisplayP3LinearExt,
+	eVkColorspaceSrgbNonlinearKhr = eSrgbNonlinearKhr,
 };
 
 static constexpr char const* to_str( const ColorSpaceKHR& tp ) {
 	switch ( static_cast<uint32_t>( tp ) ) {
 		// clang-format off
-		case          0: return "VkColorSpaceSrgbNonlinearKhr";
-		case 1000104001: return "VkColorSpaceDisplayP3NonlinearExt";
-		case 1000104002: return "VkColorSpaceExtendedSrgbLinearExt";
-		case 1000104003: return "VkColorSpaceDisplayP3LinearExt";
-		case 1000104004: return "VkColorSpaceDciP3NonlinearExt";
-		case 1000104005: return "VkColorSpaceBt709LinearExt";
-		case 1000104006: return "VkColorSpaceBt709NonlinearExt";
-		case 1000104007: return "VkColorSpaceBt2020LinearExt";
-		case 1000104008: return "VkColorSpaceHdr10St2084Ext";
-		case 1000104009: return "VkColorSpaceDolbyvisionExt";
-		case 1000104010: return "VkColorSpaceHdr10HlgExt";
-		case 1000104011: return "VkColorSpaceAdobergbLinearExt";
-		case 1000104012: return "VkColorSpaceAdobergbNonlinearExt";
-		case 1000104013: return "VkColorSpacePassThroughExt";
-		case 1000104014: return "VkColorSpaceExtendedSrgbNonlinearExt";
-		case 1000213000: return "VkColorSpaceDisplayNativeAmd";
+		case          0: return "SrgbNonlinearKhr";
+		case 1000104001: return "DisplayP3NonlinearExt";
+		case 1000104002: return "ExtendedSrgbLinearExt";
+		case 1000104003: return "DisplayP3LinearExt";
+		case 1000104004: return "DciP3NonlinearExt";
+		case 1000104005: return "Bt709LinearExt";
+		case 1000104006: return "Bt709NonlinearExt";
+		case 1000104007: return "Bt2020LinearExt";
+		case 1000104008: return "Hdr10St2084Ext";
+		case 1000104009: return "DolbyvisionExt";
+		case 1000104010: return "Hdr10HlgExt";
+		case 1000104011: return "AdobergbLinearExt";
+		case 1000104012: return "AdobergbNonlinearExt";
+		case 1000104013: return "PassThroughExt";
+		case 1000104014: return "ExtendedSrgbNonlinearExt";
+		case 1000213000: return "DisplayNativeAmd";
 		default: return "Unknown";
 		// clang-format on
 	};
