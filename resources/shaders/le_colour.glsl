@@ -52,35 +52,6 @@ const float cie_std_illum_d65[38] =
       78.2842, 69.7213, 71.6091, 74.349, 61.604, 69.8856, 
       75.087, 63.5927 };
 
-// convert CIE XYZ to linear rgb 
-vec3 xyz_to_linear_rgb(in vec3 c){
-	return  mat3(  
-			 3.2404542, -0.9692660,  0.0556434,  // column 1
-			-1.5371385,  1.8760108, -0.2040259,  // column 2
-			-0.4985314,  0.0415560,  1.0572252   // column 3
-			) 
-		* c;
-}
-
-// Converts a color from linear light gamma to sRGB gamma
-vec3 linear_rgb_to_srgb(vec3 linearRGB)
-{
-    bvec3 cutoff = lessThan(linearRGB, vec3(0.0031308));
-    vec3 higher = vec3(1.055)*pow(linearRGB, vec3(1.0/2.4)) - vec3(0.055);
-    vec3 lower = linearRGB * vec3(12.92);
-
-    return mix(higher, lower, cutoff);
-}
-
-// Converts a color from sRGB gamma to linear light gamma
-vec3 srgb_to_linear_rgb(vec3 sRGB)
-{
-    bvec3 cutoff = lessThan(sRGB, vec3(0.04045));
-    vec3 higher = pow((sRGB + vec3(0.055))/vec3(1.055), vec3(2.4));
-    vec3 lower = sRGB/vec3(12.92);
-
-    return mix(higher, lower, cutoff);
-}
 
 // Returns vec4 float color from 8 digit hex color
 // parameter hexVal given as: 0xRRGGBBAA
@@ -94,4 +65,111 @@ vec4 rgba_linear_color_from_hex(in uint hexVal ){
 	result.r = (hexVal >> 24) & 0xff;
 
 	return (result/255.f);
+}
+
+// we're setting white point to what we expect our hdr 
+// screen to have as default brightness, given in nits.
+// we assume 350 or 400 for now.
+
+// This is adapted from: <https://panoskarabelas.com/blog/posts/hdr_in_under_10_minutes/>
+vec3 linear_srgb_to_hdr10( in vec3 color, in const float white_point)
+{
+    // Convert Rec.709 to Rec.2020 color space to broaden the palette
+    const mat3 from709to2020 =
+    {
+        { 0.6274040f, 0.3292820f, 0.0433136f },
+        { 0.0690970f, 0.9195400f, 0.0113612f },
+        { 0.0163916f, 0.0880132f, 0.8955950f }
+    };   
+    // color = color * from709to2020 ;
+    // color = color * from709to2020 ;
+
+    // Normalize HDR scene values ([0..>1] to [0..1]) for ST.2084 curve
+    const float st2084_max = 10000.0f;
+    color *= white_point / st2084_max;
+
+    // Apply ST.2084 (PQ curve) for HDR10 standard
+    const float m1 = 2610.0 / 4096.0 / 4;
+    const float m2 = 2523.0 / 4096.0 * 128;
+    const float c1 = 3424.0 / 4096.0;
+    const float c2 = 2413.0 / 4096.0 * 32;
+    const float c3 = 2392.0 / 4096.0 * 32;
+	vec3 cp             = pow(abs(color), vec3(m1));
+    color               = pow((c1 + c2 * cp) / (1 + c3 * cp), vec3(m2));
+
+    return color;
+}
+
+
+// via http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+// note that we pre-multiply because this is equivalent to a transpose
+// D65 Reference White 
+vec3 xyz_to_linear_srgb(in vec3 c){
+	return c * mat3(
+	3.2404542, -1.5371385, -0.4985314,
+	-0.9692660,  1.8760108,  0.0415560,
+ 	0.0556434, -0.2040259,  1.0572252
+	) ;
+}
+
+// via http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+// note that we pre-multiply because this is equivalent to a transpose
+// E Reference White = Equal energy Spectrum 
+vec3 xyz_to_cie_rgb(in vec3 c){
+	return c * mat3(
+ 		2.3706743, -0.9000405, -0.4706338,
+		-0.5138850,  1.4253036,  0.0885814,
+ 		0.0052982, -0.0146949,  1.0093968
+	) ;
+}
+
+// this can also be found here: 
+// https://antlerpost.com/colour-spaces/ST2084.html
+vec3 xyz_to_rec_2020(in vec3 c){
+	return c * mat3(
+		vec3( 1.71666343, -0.35567332, -0.25336809 ),
+		vec3( -0.66667384, 1.61645574, 0.0157683 ), 
+		vec3( 0.01764248, -0.04277698, 0.94224328 )
+	);
+}
+
+// this can also be found here: 
+// https://antlerpost.com/colour-spaces/ST2084.html
+vec3 xyz_to_p3(in vec3 c){
+	return c * mat3(
+        vec3(2.49349691, -0.93138362, -0.40271078),
+        vec3(-0.82948897, 1.76266406, 0.02362469),
+        vec3(0.03584583, -0.07617239, 0.95688452)
+	);
+}
+
+// sRGB defines a color space - a gamut.
+// see also: <https://en.wikipedia.org/wiki/Rec._709>
+//
+// A color gamut can have a transfer function ("gamma")
+//
+// The opto-electronic transfer function (OETF) is the transfer function having the scene light as input and converting into the picture or video signal as output. 
+// The electro-optical transfer function (EOTF) is the transfer function having the picture or video signal as input and converting it into the linear light output of the display.
+
+// Converts a color from linear sRGB to non-linear sRGB gamma
+// this uses the correct OETF (opto-electrical transfer function)
+// based on the bt.709 standard: <https://en.wikipedia.org/wiki/Rec._709>
+//
+vec3 linear_srgb_to_non_linear_srgb(vec3 linear_sRGB)
+{
+    bvec3 cutoff = lessThan(linear_sRGB, vec3(0.0031308));
+    vec3 higher = vec3(1.055)*pow(linear_sRGB, vec3(1.0/2.4)) - vec3(0.055);
+    vec3 lower = linear_sRGB * vec3(12.92);
+
+    return mix(higher, lower, cutoff);
+}
+
+// Converts a color from sRGB gamma to linear light gamma
+vec3 non_linear_srgb_to_linear_srgb(vec3 sRGB)
+{
+    bvec3 cutoff = lessThan(sRGB, vec3(0.04045));
+    vec3 higher = pow((sRGB + vec3(0.055))/vec3(1.055), vec3(2.4));
+    vec3 lower = sRGB/vec3(12.92);
+
+    return mix(higher, lower, cutoff);
 }
