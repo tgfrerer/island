@@ -93,6 +93,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 
 	size_t selectedSurfaceFormatIndex = 0;
 	auto   preferredSurfaceFormat     = VkFormat( self->mSettings.format_hint );
+	auto   preferredColorSpace        = VkColorSpaceKHR( self->mSettings.color_space_hint );
 
 	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) &&
 	     ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].surfaceFormat.format == VK_FORMAT_UNDEFINED ) ) {
@@ -109,7 +110,8 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 		// Select the first available color format if the preferredSurfaceFormat cannot be found.
 
 		for ( size_t i = 0; i != surfaceProperties.availableSurfaceFormats.size(); ++i ) {
-			if ( surfaceProperties.availableSurfaceFormats[ i ].surfaceFormat.format == preferredSurfaceFormat ) {
+			if ( surfaceProperties.availableSurfaceFormats[ i ].surfaceFormat.format == preferredSurfaceFormat &&
+			     surfaceProperties.availableSurfaceFormats[ i ].surfaceFormat.colorSpace == VkColorSpaceKHR( preferredColorSpace ) ) {
 				selectedSurfaceFormatIndex = i;
 				break;
 			}
@@ -610,8 +612,10 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_request_backend_capabilities( const le_swapchain_settings_t* ) {
+static bool swapchain_request_backend_capabilities( const le_swapchain_settings_t* settings_base ) {
 	using namespace le_backend_vk;
+	assert( settings_base->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN );
+	auto settings = reinterpret_cast<le_swapchain_windowed_settings_t const*>( settings_base );
 
 	static VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT swapchain_maintenance_features = {
 	    .sType                 = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT, // VkStructureType
@@ -626,7 +630,13 @@ static bool swapchain_request_backend_capabilities( const le_swapchain_settings_
 
 	p_maintenance_features->swapchainMaintenance1 = true;
 
-	return api->le_backend_settings_i.add_required_device_extension( VK_KHR_SWAPCHAIN_EXTENSION_NAME ) &&
+	bool result = true;
+
+	if ( settings->color_space_hint != le::ColorSpaceKHR::eSrgbNonlinearKhr ) {
+		result = api->le_backend_settings_i.add_required_instance_extension( VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME );
+	}
+
+	return result && api->le_backend_settings_i.add_required_device_extension( VK_KHR_SWAPCHAIN_EXTENSION_NAME ) &&
 	       api->le_backend_settings_i.add_required_device_extension( VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME ) &&
 	       api->le_backend_settings_i.add_required_instance_extension( VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME ) &&
 	       api->le_backend_settings_i.add_required_instance_extension( VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME ) &&

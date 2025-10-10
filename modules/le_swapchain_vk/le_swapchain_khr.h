@@ -23,6 +23,7 @@ struct le_swapchain_windowed_settings_t {
 	uint32_t            width_hint       = 640;
 	uint32_t            height_hint      = 480;
 	le::Format          format_hint      = le::Format::eB8G8R8A8Unorm; // preferred surface format
+	le::ColorSpaceKHR   color_space_hint = le::ColorSpaceKHR::eSrgbNonlinearKhr; // default colour space - other colour spaces require ext_colourspace
 	Presentmode         presentmode_hint = Presentmode::eDefault;
 	struct le_window_o* window           = nullptr;
 
