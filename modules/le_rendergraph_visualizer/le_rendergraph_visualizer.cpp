@@ -13,12 +13,14 @@
 #include "le_path.h"
 #include "le_ui_event.h"
 #include "le_log.h"
+#include <array>
 
 #include "private/le_rendergraph_visualizer/views.h"
 
 #include "private/le_renderer/le_resource_handle_t.inl"
 
 #include <algorithm> // for copy_if
+#include <iterator>
 
 static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_DISABLE_CACHE                     = false; // Number of RenderpassViews to keep in the cache
