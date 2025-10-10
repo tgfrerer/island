@@ -11,6 +11,7 @@ VkBorderColor, yes
 VkBufferUsageFlagBits, yes
 VkBuildAccelerationStructureFlagBitsKHR, yes
 VkColorComponentFlagBits
+VkColorSpaceKHR, yes
 VkCompareOp, yes
 VkComponentSwizzle, 
 VkCullModeFlagBits

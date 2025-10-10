@@ -681,6 +681,53 @@ inline constexpr ColorComponentFlags operator&( ColorComponentFlags const& lhs, 
 
 // ----------------------------------------------------------------------
 
+enum class ColorSpaceKHR : uint32_t {
+	eVkColorSpaceSrgbNonlinearKhr         = 0,
+	eVkColorSpaceDisplayP3NonlinearExt    = 1000104001,
+	eVkColorSpaceExtendedSrgbLinearExt    = 1000104002,
+	eVkColorSpaceDisplayP3LinearExt       = 1000104003,
+	eVkColorSpaceDciP3NonlinearExt        = 1000104004,
+	eVkColorSpaceBt709LinearExt           = 1000104005,
+	eVkColorSpaceBt709NonlinearExt        = 1000104006,
+	eVkColorSpaceBt2020LinearExt          = 1000104007,
+	eVkColorSpaceHdr10St2084Ext           = 1000104008,
+	eVkColorSpaceDolbyvisionExt           = 1000104009,
+	eVkColorSpaceHdr10HlgExt              = 1000104010,
+	eVkColorSpaceAdobergbLinearExt        = 1000104011,
+	eVkColorSpaceAdobergbNonlinearExt     = 1000104012,
+	eVkColorSpacePassThroughExt           = 1000104013,
+	eVkColorSpaceExtendedSrgbNonlinearExt = 1000104014,
+	eVkColorSpaceDisplayNativeAmd         = 1000213000,
+	eVkColorSpaceDciP3LinearExt           = eVkColorSpaceDisplayP3LinearExt,
+	eVkColorspaceSrgbNonlinearKhr         = eVkColorSpaceSrgbNonlinearKhr,
+};
+
+static constexpr char const* to_str( const ColorSpaceKHR& tp ) {
+	switch ( static_cast<uint32_t>( tp ) ) {
+		// clang-format off
+		case          0: return "VkColorSpaceSrgbNonlinearKhr";
+		case 1000104001: return "VkColorSpaceDisplayP3NonlinearExt";
+		case 1000104002: return "VkColorSpaceExtendedSrgbLinearExt";
+		case 1000104003: return "VkColorSpaceDisplayP3LinearExt";
+		case 1000104004: return "VkColorSpaceDciP3NonlinearExt";
+		case 1000104005: return "VkColorSpaceBt709LinearExt";
+		case 1000104006: return "VkColorSpaceBt709NonlinearExt";
+		case 1000104007: return "VkColorSpaceBt2020LinearExt";
+		case 1000104008: return "VkColorSpaceHdr10St2084Ext";
+		case 1000104009: return "VkColorSpaceDolbyvisionExt";
+		case 1000104010: return "VkColorSpaceHdr10HlgExt";
+		case 1000104011: return "VkColorSpaceAdobergbLinearExt";
+		case 1000104012: return "VkColorSpaceAdobergbNonlinearExt";
+		case 1000104013: return "VkColorSpacePassThroughExt";
+		case 1000104014: return "VkColorSpaceExtendedSrgbNonlinearExt";
+		case 1000213000: return "VkColorSpaceDisplayNativeAmd";
+		default: return "Unknown";
+		// clang-format on
+	};
+}
+
+// ----------------------------------------------------------------------
+
 enum class CompareOp : uint32_t {
 	eNever          = 0,
 	eLess           = 1,
