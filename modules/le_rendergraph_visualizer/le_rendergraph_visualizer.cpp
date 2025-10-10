@@ -30,7 +30,7 @@ static constexpr auto C_KEY_ZOOM                  = LeUiEvent::NamedKey::eZ;
 static constexpr auto C_KEY_TOGGLE_RECORD         = LeUiEvent::NamedKey::eSpace;
 static constexpr auto C_KEY_SELECT_PREVIOUS_FRAME = LeUiEvent::NamedKey::eLeft;
 static constexpr auto C_KEY_SELECT_NEXT_FRAME     = LeUiEvent::NamedKey::eRight;
-static constexpr auto C_KEY_TOGGLE_ACTIVE         = LeUiEvent::NamedKey::eF12;
+static constexpr auto C_KEY_TOGGLE_ACTIVE         = LeUiEvent::NamedKey::eF10;
 
 #include "private/le_rendergraph_visualizer/shared_constants.inl"
 
