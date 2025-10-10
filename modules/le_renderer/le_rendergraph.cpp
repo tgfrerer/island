@@ -162,15 +162,15 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 	// le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debug_name.c_str(), resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
 
-	bool detectRead  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
-	bool detectWrite = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
+	// bool detectRead  = bool( access_flags & LE_ALL_READ_ACCESS_FLAGS );
+	bool detectWrite = bool( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
 
 	// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
 	// this means that some reads to image resources are implicit read/writes.
 	// we can only get rid of this if we can prove that resources will not undergo a layout transform.
 	//
 	if ( resource_id->data->type == LeResourceType::eImage ) {
-		detectWrite |= ( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
+		detectWrite |= bool( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 	}
 
 	// update access flags
@@ -719,8 +719,8 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			auto const& resource_handle = p->resources[ i ];
 			auto        access_flags    = p->resources_access_flags[ i ];
 
-			bool detect_read  = ( access_flags & LE_ALL_READ_ACCESS_FLAGS );
-			bool detect_write = ( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
+			bool detect_read           = bool( access_flags & LE_ALL_READ_ACCESS_FLAGS );
+			bool detect_write          = bool( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
 			bool detect_explicit_write = detect_write;
 
 			// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
@@ -728,7 +728,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			// we can only get rid of this if we can prove that resources will not undergo a layout transform.
 			//
 			if ( resource_handle->data->type == LeResourceType::eImage ) {
-				detect_write |= ( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
+				detect_write |= bool( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 			}
 
 			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
