@@ -72,7 +72,7 @@ vec4 rgba_linear_color_from_hex(in uint hexVal ){
 // we assume 350 or 400 for now.
 
 // This is adapted from: <https://panoskarabelas.com/blog/posts/hdr_in_under_10_minutes/>
-vec3 linear_srgb_to_hdr10( in vec3 color, in const float white_point)
+vec3 linear_srgb_to_hdr10( in vec3 color, in const float white_point_in_nits)
 {
     // Convert Rec.709 to Rec.2020 color space to broaden the palette
     const mat3 from709to2020 =
@@ -86,9 +86,12 @@ vec3 linear_srgb_to_hdr10( in vec3 color, in const float white_point)
 
     // Normalize HDR scene values ([0..>1] to [0..1]) for ST.2084 curve
     const float st2084_max = 10000.0f;
-    color *= white_point / st2084_max;
+    color *= white_point_in_nits / st2084_max;
 
     // Apply ST.2084 (PQ curve) for HDR10 standard
+    //
+	// The original inverse-EOTF spec is Equation 5.2, pg.8 in: 
+	// <https://pub.smpte.org/latest/st2084/st2084-2014.pdf>
     const float m1 = 2610.0 / 4096.0 / 4;
     const float m2 = 2523.0 / 4096.0 * 128;
     const float c1 = 3424.0 / 4096.0;
