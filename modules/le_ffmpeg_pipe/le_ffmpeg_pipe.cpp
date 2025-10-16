@@ -152,6 +152,12 @@ static bool le_image_encoder_write_pixels( le_image_encoder_o* self, uint8_t con
 		case ( le::Format::eB8G8R8A8Unorm ):
 			pix_fmt = "bgra";
 			break;
+		case ( le::Format::eR16G16B16A16Unorm ):
+			pix_fmt = "rgba64le";
+			break;
+		case ( le::Format::eR16G16B16A16Sfloat ):
+			pix_fmt = "rgbaf16le";
+			break;
 		default:
 			pix_fmt = "rgba";
 		}
