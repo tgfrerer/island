@@ -203,3 +203,37 @@ vec3 inverse_eotf_srgb(in const vec3 linear_rgb) {
 	vec3 higher = vec3(1.055)*pow(linear_rgb, vec3(1.0/2.4)) - vec3(0.055);
     return mix(higher, lower, cutoff);
 }
+
+/// alias for inverse eotf
+vec3 oetf_srgb(in const vec3 linear_rgb){
+	return inverse_eotf_srgb(linear_rgb);
+}
+
+// ----------------------------------------------------------------------
+// ITU Transfer functions -- These apply to BT.601, BT.709, and BT.2020
+// ----------------------------------------------------------------------
+
+
+// non-linear to linear
+// Converts a color from non-linear R'G'B' to linear RGB encoding.
+vec3 eotf_itu(in const vec3 non_linear_rgb) {
+    bvec3 cutoff = lessThan(non_linear_rgb, vec3(0.0181));
+	vec3 lower = non_linear_rgb / vec3(4.5);
+    vec3 higher = pow((non_linear_rgb+vec3(1.0993)) / vec3(1.0993), vec3(1.f/0.45f));
+    return mix(higher, lower, cutoff);
+}
+
+// linear to non-linear
+// Converts a color from linear RGB to non-linear R'G'B' encoding.
+vec3 inverse_eotf_itu(in const vec3 linear_rgb) {
+    bvec3 cutoff = lessThan(linear_rgb, vec3(0.0181));
+	vec3 lower = linear_rgb * vec3(4.5);
+    vec3 higher = 1.0993 * pow(linear_rgb, vec3(0.45))- vec3(1.0993 - 1.);
+    return mix(higher, lower, cutoff);
+}
+
+/// alias for inverse_eotf_itu
+vec3 oetf_itu(in const vec3 linear_rgb){
+	return inverse_eotf_itu(linear_rgb);
+}
+
