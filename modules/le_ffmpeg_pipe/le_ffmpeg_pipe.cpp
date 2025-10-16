@@ -37,6 +37,7 @@ static std::string get_error_string( DWORD error_no ) {
 
 struct le_image_encoder_format_o {
 	le::Format format;
+	le::ColorSpaceKHR color_space;
 };
 
 // ----------------------------------------------------------------------

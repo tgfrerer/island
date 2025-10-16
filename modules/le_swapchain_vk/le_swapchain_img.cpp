@@ -535,6 +535,7 @@ static void swapchain_img_release( le_swapchain_o* base ) {
 // ----------------------------------------------------------------------
 struct le_image_encoder_format_o {
 	le::Format format;
+	le::ColorSpaceKHR color_space;
 };
 
 // ----------------------------------------------------------------------
