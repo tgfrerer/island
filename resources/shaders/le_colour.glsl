@@ -213,7 +213,6 @@ vec3 oetf_srgb(in const vec3 linear_rgb){
 // ITU Transfer functions -- These apply to BT.601, BT.709, and BT.2020
 // ----------------------------------------------------------------------
 
-
 // non-linear to linear
 // Converts a color from non-linear R'G'B' to linear RGB encoding.
 vec3 eotf_itu(in const vec3 non_linear_rgb) {
@@ -235,5 +234,36 @@ vec3 inverse_eotf_itu(in const vec3 linear_rgb) {
 /// alias for inverse_eotf_itu
 vec3 oetf_itu(in const vec3 linear_rgb){
 	return inverse_eotf_itu(linear_rgb);
+}
+
+// ---------------------------------------------------------------------- 
+// HLG (Hybrid Log Gamma) Normalized
+// ----------------------------------------------------------------------
+
+// bt.2100-2: non-linear normalized R'G'B' to linear normalized RGB
+vec3 eotf_hlg_normalized(in const vec3 non_linear_rgb){
+    bvec3 cutoff = lessThan(non_linear_rgb, vec3(0.5));
+	vec3 lower = (non_linear_rgb * non_linear_rgb) / vec3(3.f);
+	const vec3 a = vec3(0.17883277);
+	const vec3 b = vec3(1) - vec3(4) * a;
+	const vec3 c = vec3(0.5) - a * log(vec3(4) * a);
+    vec3 higher = 1/12. * (b + exp((non_linear_rgb - c) / a));
+    return mix(higher, lower, cutoff);
+}
+
+// bt.2100-2: linear normalized RGB to non-linear normalized R'G'B'
+vec3 inverse_eotf_hlg_normalized(in const vec3 linear_rgb){
+    bvec3 cutoff = lessThan(linear_rgb, vec3(1.f/12.f));
+	vec3 lower = pow(3 * linear_rgb, vec3(0.5));
+	const vec3 a = vec3(0.17883277);
+	const vec3 b = vec3(1) - vec3(4) * a;
+	const vec3 c = vec3(0.5) - a * log(vec3(4) * a);
+    vec3 higher = a * log((vec3(12)*linear_rgb) - b) + c;
+    return mix(higher, lower, cutoff);
+}
+
+// alias for inverse_eotf_hlg_normalized
+vec3 oetf_hlg_normalized(in const vec3 linear_rgb){
+	return inverse_eotf_hlg_normalized(linear_rgb);
 }
 
