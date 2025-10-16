@@ -67,41 +67,41 @@ vec4 rgba_linear_color_from_hex(in uint hexVal ){
 	return (result/255.f);
 }
 
-// we're setting white point to what we expect our hdr 
-// screen to have as default brightness, given in nits.
-// we assume 350 or 400 for now.
+// // we're setting white point to what we expect our hdr 
+// // screen to have as default brightness, given in nits.
+// // we assume 350 or 400 for now.
 
-// This is adapted from: <https://panoskarabelas.com/blog/posts/hdr_in_under_10_minutes/>
-vec3 linear_srgb_to_hdr10( in vec3 color, in const float white_point_in_nits)
-{
-    // Convert Rec.709 to Rec.2020 color space to broaden the palette
-    const mat3 from709to2020 =
-    {
-        { 0.6274040f, 0.3292820f, 0.0433136f },
-        { 0.0690970f, 0.9195400f, 0.0113612f },
-        { 0.0163916f, 0.0880132f, 0.8955950f }
-    };   
-    // color = color * from709to2020 ;
-    // color = color * from709to2020 ;
+// // This is adapted from: <https://panoskarabelas.com/blog/posts/hdr_in_under_10_minutes/>
+// vec3 linear_srgb_to_hdr10( in vec3 color, in const float white_point_in_nits)
+// {
+//     // Convert Rec.709 to Rec.2020 color space to broaden the palette
+//     const mat3 from709to2020 =
+//     {
+//         { 0.6274040f, 0.3292820f, 0.0433136f },
+//         { 0.0690970f, 0.9195400f, 0.0113612f },
+//         { 0.0163916f, 0.0880132f, 0.8955950f }
+//     };   
+//     // color = color * from709to2020 ;
+//     // color = color * from709to2020 ;
 
-    // Normalize HDR scene values ([0..>1] to [0..1]) for ST.2084 curve
-    const float st2084_max = 10000.0f;
-    color *= white_point_in_nits / st2084_max;
+//     // Normalize HDR scene values ([0..>1] to [0..1]) for ST.2084 curve
+//     const float st2084_max = 10000.0f;
+//     color *= white_point_in_nits / st2084_max;
 
-    // Apply ST.2084 (PQ curve) for HDR10 standard
-    //
-	// The original inverse-EOTF spec is Equation 5.2, pg.8 in: 
-	// <https://pub.smpte.org/latest/st2084/st2084-2014.pdf>
-    const float m1 = 2610.0 / 4096.0 / 4;
-    const float m2 = 2523.0 / 4096.0 * 128;
-    const float c1 = 3424.0 / 4096.0;
-    const float c2 = 2413.0 / 4096.0 * 32;
-    const float c3 = 2392.0 / 4096.0 * 32;
-	vec3 cp             = pow(abs(color), vec3(m1));
-    color               = pow((c1 + c2 * cp) / (1 + c3 * cp), vec3(m2));
+//     // Apply ST.2084 (PQ curve) for HDR10 standard
+//     //
+// 	// The original inverse-EOTF spec is Equation 5.2, pg.8 in: 
+// 	// <https://pub.smpte.org/latest/st2084/st2084-2014.pdf>
+//     const float m1 = 2610.0 / 4096.0 / 4;
+//     const float m2 = 2523.0 / 4096.0 * 128;
+//     const float c1 = 3424.0 / 4096.0;
+//     const float c2 = 2413.0 / 4096.0 * 32;
+//     const float c3 = 2392.0 / 4096.0 * 32;
+// 	vec3 cp             = pow(abs(color), vec3(m1));
+//     color               = pow((c1 + c2 * cp) / (1 + c3 * cp), vec3(m2));
 
-    return color;
-}
+//     return color;
+// }
 
 
 // via http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
@@ -112,7 +112,7 @@ vec3 xyz_to_linear_srgb(in vec3 c){
 	3.2404542, -1.5371385, -0.4985314,
 	-0.9692660,  1.8760108,  0.0415560,
  	0.0556434, -0.2040259,  1.0572252
-	) ;
+	);
 }
 
 // via http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
@@ -123,7 +123,7 @@ vec3 xyz_to_cie_rgb(in vec3 c){
  		2.3706743, -0.9000405, -0.4706338,
 		-0.5138850,  1.4253036,  0.0885814,
  		0.0052982, -0.0146949,  1.0093968
-	) ;
+	);
 }
 
 // this can also be found here: 
