@@ -124,7 +124,9 @@ static void swapchain_query_surface_capabilities( le_swapchain_o* base ) {
 		logger().warn( "Swapchain surface format was adapted to: %s", to_str( le::Format( surfaceProperties.windowSurfaceFormat.surfaceFormat.format ) ) );
 	}
 
-	logger().info( "** Surface queried Extents: %d x %d",
+	logger().info( "Swapchain surface image format: %s", to_str( le::Format( surfaceProperties.windowSurfaceFormat.surfaceFormat.format ) ) );
+	logger().info( "Swapchain surface color space : %s", to_str( le::ColorSpaceKHR( surfaceProperties.windowSurfaceFormat.surfaceFormat.colorSpace ) ) );
+	logger().info( "Swapchain surface queried extents: %d x %d",
 	               surfaceProperties.surfaceCapabilities.surfaceCapabilities.currentExtent.width,
 	               surfaceProperties.surfaceCapabilities.surfaceCapabilities.currentExtent.height );
 
