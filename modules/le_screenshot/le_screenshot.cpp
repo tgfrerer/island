@@ -220,6 +220,11 @@ static bool le_screenshot_record( le_screenshot_o* self, le_rendergraph_o* rg, l
 
 		{
 
+			if ( self->swapchain_settings.image_filename_template == nullptr ) {
+				logger.warn( "Missing image filename template. Cannot save screenshot." );
+				return false;
+			}
+
 			// We scan the target directory for existing screenshots - if screenshots exist,
 			// then we will try to find the one with the highest number matching our labelling scheme
 			// and start our new screenshots at this offset.
