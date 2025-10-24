@@ -239,9 +239,7 @@ static void le_compute_pipeline_builder_destroy( le_compute_pipeline_builder_o* 
 // state objects with given settings.
 static le_cpso_handle le_compute_pipeline_builder_build( le_compute_pipeline_builder_o* self ) {
 	using namespace le_backend_vk;
-	le_cpso_handle pipeline_handle;
-	le_pipeline_manager_i.introduce_compute_pipeline_state( self->pipelineCache, self->obj, &pipeline_handle );
-	return pipeline_handle;
+	return le_pipeline_manager_i.introduce_compute_pipeline_state( self->pipelineCache, self->obj );
 }
 
 // ----------------------------------------------------------------------
@@ -341,23 +339,12 @@ void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_bu
 	self->obj->shaderGroups.emplace_back( info );
 }
 // ----------------------------------------------------------------------
-// Builds a hash value from the pipeline state object, that is:
-//	+ pipeline shader stages,
-//  + and associated settings,
-// so that we have a unique fingerprint for this pipeline.
-// The handle contains the hash value and is unique for pipeline
-// state objects with given settings.
+// Stores the current pipeline state into the pipeline cache and returns
+// a handle with which we can retrieve it.
 static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o* self ) {
-
-	le_rtxpso_handle pipeline_handle = {};
-
 	using namespace le_backend_vk;
-
 	// Introduce pipeline state object to manager so that it may be cached.
-
-	le_pipeline_manager_i.introduce_rtx_pipeline_state( self->pipelineCache, self->obj, &pipeline_handle );
-
-	return pipeline_handle;
+	return le_pipeline_manager_i.introduce_rtx_pipeline_state( self->pipelineCache, self->obj );
 }
 
 // ----------------------------------------------------------------------
@@ -564,20 +551,11 @@ static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o
 
 // ----------------------------------------------------------------------
 
-// Calculate pipeline info hash, and add pipeline info to shared store if not yet seen.
-// Return pipeline hash
+// Store the current pipeline state into the cache and return a handle to the cache entry
+// so that we may retrieve it.
 static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o* self ) {
-
-	le_gpso_handle pipeline_handle;
-
-	// Note that the pipeline_manager makes a copy of the pso object before returning
-	// from `introduce_graphics_pipeline_state` if it wants to keep it, which means
-	// we don't have to worry about keeping self->obj alife.
-
 	using namespace le_backend_vk;
-	le_pipeline_manager_i.introduce_graphics_pipeline_state( self->pipelineCache, self->obj, &pipeline_handle );
-
-	return pipeline_handle;
+	return le_pipeline_manager_i.introduce_graphics_pipeline_state( self->pipelineCache, self->obj );
 }
 
 // ----------------------------------------------------------------------

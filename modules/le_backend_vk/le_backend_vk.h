@@ -271,9 +271,9 @@ struct le_backend_vk_api {
 
 		void                                     ( *add_shader_include_directory      ) ( le_pipeline_manager_o* self, char const * path );
 
-		bool                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_gpso_handle *gpsoHandle);
-		bool                                     ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso, le_cpso_handle *cpsoHandle);
-		bool                                     ( *introduce_rtx_pipeline_state      ) ( le_pipeline_manager_o *self, rtx_pipeline_state_o* cpso, le_rtxpso_handle *cpsoHandle);
+		le_gpso_handle  						 ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso );
+		le_cpso_handle							 ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso);
+		le_rtxpso_handle                         ( *introduce_rtx_pipeline_state      ) ( le_pipeline_manager_o *self, rtx_pipeline_state_o* rtx_pso);
 
 		le_pipeline_and_layout_info_t            ( *produce_graphics_pipeline         ) ( le_pipeline_manager_o *self, le_gpso_handle gpsoHandle, const BackendRenderPass &pass, uint32_t subpass ) ;
 		le_pipeline_and_layout_info_t            ( *produce_rtx_pipeline              ) ( le_pipeline_manager_o *self, le_rtxpso_handle rtxpsoHandle, char ** shader_group_data);
