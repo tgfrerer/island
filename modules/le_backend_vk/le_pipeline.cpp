@@ -1475,7 +1475,7 @@ static le_shader_module_handle le_shader_manager_produce_shader_module(
 /// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
 /// ideally, this method is only allowed to be called in the setup phase.
 ///
-static le_shader_module_handle le_shader_manager_create_shader_module(
+static le_shader_module_handle le_shader_manager_create_shader_module_from_file(
     le_shader_manager_o*              self,
     char const*                       path,
     const LeShaderSourceLanguageEnum& shader_source_language,
@@ -2633,7 +2633,7 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module(
     uint32_t                          specialization_map_entries_count,
     void*                             specialization_map_data,
     uint32_t                          specialization_map_data_num_bytes ) {
-	return le_shader_manager_create_shader_module(
+	return le_shader_manager_create_shader_module_from_file(
 	    self->shaderManager,
 	    path,
 	    shader_source_language,
