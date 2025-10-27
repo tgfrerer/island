@@ -1411,11 +1411,10 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 /// ideally, this method is only allowed to be called in the setup phase.
 ///
 static le_shader_module_handle le_shader_manager_produce_shader_module(
-    le_shader_manager_o*            self,
-    uint32_t const*                 spirv_code,
-    uint32_t                        spirv_code_length,
-    const le::ShaderStage&          moduleType,
-    le_shader_module_handle         handle,
+    le_shader_manager_o*   self,
+    uint32_t const*        spirv_code,
+    uint32_t               spirv_code_length,
+    const le::ShaderStage& moduleType,
     VkSpecializationMapEntry const* specialization_map_entries,
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
@@ -1425,16 +1424,11 @@ static le_shader_module_handle le_shader_manager_produce_shader_module(
     std::filesystem::path const&    optional_file_path          = "" ) {
 
 	le_shader_module_o* module{};
-	bool                module_was_created = false;
 
-	if ( handle != nullptr ) {
-		module = self->shaderModules.try_find( handle );
-	}
+	le_shader_module_handle handle = nullptr;
 
-	if ( module == nullptr ) {
-		module             = new le_shader_module_o{};
-		module_was_created = true;
-	}
+
+	module = new le_shader_module_o{};
 
 	// ---------| invariant: module exists
 
@@ -1453,10 +1447,8 @@ static le_shader_module_handle le_shader_manager_produce_shader_module(
 	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ),
 	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
 
-	if ( module_was_created ) {
 		handle = reinterpret_cast<le_shader_module_handle>( self->shaderModules.try_insert( module ) );
 		delete module;
-	}
 
 	// you must not use module from here on!
 
@@ -1481,21 +1473,19 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_file(
     const LeShaderSourceLanguageEnum& shader_source_language,
     const le::ShaderStage&            moduleType,
     char const*                       macro_defines_,
-    le_shader_module_handle           handle,
-    VkSpecializationMapEntry const*   specialization_map_entries,
-    uint32_t                          specialization_map_entries_count,
-    void*                             specialization_map_data,
-    uint32_t                          specialization_map_data_num_bytes ) {
+    VkSpecializationMapEntry const* specialization_map_entries,
+    uint32_t                        specialization_map_entries_count,
+    void*                           specialization_map_data,
+    uint32_t                        specialization_map_data_num_bytes ) {
 
 	std::string shader_defines      = macro_defines_ ? std::string( macro_defines_ ) : "";
 	uint64_t    hash_shader_defines = SpookyHash::Hash64( shader_defines.data(), shader_defines.size(), 0 );
 
-	handle = le_shader_manager_produce_shader_module(
+	le_shader_module_handle handle = le_shader_manager_produce_shader_module(
 	    self,
 	    nullptr,
 	    0,
 	    moduleType,
-	    handle,
 	    specialization_map_entries,
 	    specialization_map_entries_count,
 	    specialization_map_data,
@@ -2596,18 +2586,16 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
     const LeShaderSourceLanguageEnum& shader_source_language,
     const le::ShaderStage&            moduleType,
     char const*                       macro_definitions,
-    le_shader_module_handle           handle,
-    VkSpecializationMapEntry const*   specialization_map_entries,
-    uint32_t                          specialization_map_entries_count,
-    void*                             specialization_map_data,
-    uint32_t                          specialization_map_data_num_bytes ) {
+    VkSpecializationMapEntry const* specialization_map_entries,
+    uint32_t                        specialization_map_entries_count,
+    void*                           specialization_map_data,
+    uint32_t                        specialization_map_data_num_bytes ) {
 	return le_shader_manager_create_shader_module_from_file(
 	    self->shaderManager,
 	    path,
 	    shader_source_language,
 	    moduleType,
 	    macro_definitions,
-	    handle,
 	    specialization_map_entries,
 	    specialization_map_entries_count,
 	    specialization_map_data,
@@ -2615,11 +2603,10 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
 }
 
 static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spirv(
-    le_pipeline_manager_o*          self,
-    uint32_t const*                 spirv_code,
-    uint32_t                        spirv_code_length,
-    const le::ShaderStage&          moduleType,
-    le_shader_module_handle         handle,
+    le_pipeline_manager_o* self,
+    uint32_t const*        spirv_code,
+    uint32_t               spirv_code_length,
+    const le::ShaderStage& moduleType,
     VkSpecializationMapEntry const* specialization_map_entries,
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
@@ -2629,7 +2616,6 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spi
 	    spirv_code,
 	    spirv_code_length,
 	    moduleType,
-	    handle,
 	    specialization_map_entries,
 	    specialization_map_entries_count,
 	    specialization_map_data,

@@ -48,6 +48,9 @@ struct le_imgui_o {
 	le_mouse_event_data_o mouse_state             = {};
 	le_texture_handle     texture_font            = {};
 	bool                  areResourcesInitialised = false; // whether resources were initialised
+	le_gpso_handle          imgui_pipeline          = nullptr;
+	le_shader_module_handle shader_frag             = nullptr;
+	le_shader_module_handle shader_vert             = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -205,28 +208,37 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 		//	  ImU32   col;
 		// };
 		//
-		static auto psoImgui =
-		    LeGraphicsPipelineBuilder( pipelineManager )
-		        .addShaderStage(
-		            LeShaderModuleBuilder( pipelineManager )
-		                .setShaderStage( le::ShaderStage::eVertex )
-		                .setSpirvCode( SPIRV_SOURCE_IMGUI_VERT, sizeof( SPIRV_SOURCE_IMGUI_VERT ) / sizeof( uint32_t ) )
-		                .setHandle( LE_SHADER_MODULE_HANDLE( "imgui_vert_shader" ) )
-		                .build() )
-		        .addShaderStage(
-		            LeShaderModuleBuilder( pipelineManager )
-		                .setShaderStage( le::ShaderStage::eFragment )
-		                .setSpirvCode( SPIRV_SOURCE_IMGUI_FRAG, sizeof( SPIRV_SOURCE_IMGUI_FRAG ) / sizeof( uint32_t ) )
-		                .setHandle( LE_SHADER_MODULE_HANDLE( "imgui_frag_shader" ) )
-		                .build() )
-		        .withAttributeBindingState()
-		        .addBinding( sizeof( ImDrawVert ) )
-		        .addAttribute( offsetof( ImDrawVert, pos ), le_num_type::eFloat, 2 )
-		        .addAttribute( offsetof( ImDrawVert, uv ), le_num_type::eFloat, 2 )
-		        .addAttribute( offsetof( ImDrawVert, col ), le_num_type::eChar, 4, true )
-		        .end()
-		        .end()
-		        .build();
+
+		if ( imgui->shader_vert == nullptr ) {
+			imgui->shader_vert =
+			    LeShaderModuleBuilder( pipelineManager )
+			        .setShaderStage( le::ShaderStage::eVertex )
+			        .setSpirvCode( SPIRV_SOURCE_IMGUI_VERT, sizeof( SPIRV_SOURCE_IMGUI_VERT ) / sizeof( uint32_t ) )
+			        .build();
+		}
+
+		if ( imgui->shader_frag == nullptr ) {
+			imgui->shader_frag =
+			    LeShaderModuleBuilder( pipelineManager )
+			        .setShaderStage( le::ShaderStage::eFragment )
+			        .setSpirvCode( SPIRV_SOURCE_IMGUI_FRAG, sizeof( SPIRV_SOURCE_IMGUI_FRAG ) / sizeof( uint32_t ) )
+			        .build();
+		}
+
+		if ( imgui->imgui_pipeline == nullptr ) {
+			imgui->imgui_pipeline =
+			    LeGraphicsPipelineBuilder( pipelineManager )
+			        .addShaderStage( imgui->shader_vert )
+			        .addShaderStage( imgui->shader_frag )
+			        .withAttributeBindingState()
+			        .addBinding( sizeof( ImDrawVert ) )
+			        .addAttribute( offsetof( ImDrawVert, pos ), le_num_type::eFloat, 2 )
+			        .addAttribute( offsetof( ImDrawVert, uv ), le_num_type::eFloat, 2 )
+			        .addAttribute( offsetof( ImDrawVert, col ), le_num_type::eChar, 4, true )
+			        .end()
+			        .end()
+			        .build();
+		}
 
 		auto extents = encoder.getRenderpassExtent();
 
@@ -248,7 +260,7 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 			ImVec2 display_pos = drawData->DisplayPos;
 
 			encoder
-			    .bindGraphicsPipeline( psoImgui )
+			    .bindGraphicsPipeline( imgui->imgui_pipeline )
 			    .setViewports( 0, 1, &viewports[ 0 ] )
 			    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &ortho_projection, sizeof( glm::mat4 ) )
 			    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), imgui->texture_font, 0 ) //

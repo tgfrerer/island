@@ -84,10 +84,9 @@ static le_shader_module_handle get_shader_vert( le_pipeline_manager_o* pm ) {
 	}
 
 	s = LeShaderModuleBuilder( pm )
-			.setSpirvCode( SPIRV_SOURCE_FULLSCREEN_VERT, sizeof( SPIRV_SOURCE_FULLSCREEN_VERT ) / sizeof( uint32_t ) )
-			.setShaderStage( le::ShaderStage::eVertex )
-			.setHandle( s )
-			.build();
+	        .setSpirvCode( SPIRV_SOURCE_FULLSCREEN_VERT, sizeof( SPIRV_SOURCE_FULLSCREEN_VERT ) / sizeof( uint32_t ) )
+	        .setShaderStage( le::ShaderStage::eVertex )
+	        .build();
 
 	return s;
 }
@@ -102,10 +101,9 @@ static le_shader_module_handle get_shader_frag_blit( le_pipeline_manager_o* pm )
 	}
 
 	s = LeShaderModuleBuilder( pm )
-			.setSpirvCode( SPIRV_SOURCE_BLIT_FRAG, sizeof( SPIRV_SOURCE_BLIT_FRAG ) / sizeof( uint32_t ) )
-			.setShaderStage( le::ShaderStage::eFragment )
-			.setHandle( s )
-			.build();
+	        .setSpirvCode( SPIRV_SOURCE_BLIT_FRAG, sizeof( SPIRV_SOURCE_BLIT_FRAG ) / sizeof( uint32_t ) )
+	        .setShaderStage( le::ShaderStage::eFragment )
+	        .build();
 
 	return s;
 }

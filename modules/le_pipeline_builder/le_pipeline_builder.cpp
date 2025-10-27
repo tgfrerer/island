@@ -99,7 +99,6 @@ struct le_shader_module_builder_o {
 	uint32_t const* spirv_code;        // non-owning
 	uint32_t        spirv_code_length; // number of uint32_t elements in spirv_code array
 
-	le_shader_module_handle               previous_handle = nullptr;
 	std::map<uint32_t, std::vector<char>> specialisation_map;
 };
 
@@ -147,9 +146,6 @@ static void le_shader_module_builder_set_shader_stage( le_shader_module_builder_
 static void le_shader_module_builder_set_source_language( le_shader_module_builder_o* self, le::ShaderSourceLanguage const& shader_source_language ) {
 	self->shader_source_language = shader_source_language;
 }
-static void le_shader_module_builder_set_handle( le_shader_module_builder_o* self, le_shader_module_handle previous_handle ) {
-	self->previous_handle = previous_handle;
-}
 
 static void le_shader_module_builder_set_specialization_constant( le_shader_module_builder_o* self, uint32_t id, void const* value, uint32_t size ) {
 	auto& entry = self->specialisation_map[ id ];
@@ -186,7 +182,6 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 		    { self->shader_source_language },
 		    { self->shader_stage },
 		    self->source_defines_string.c_str(),
-		    self->previous_handle,
 		    sp_info.data(),
 		    sp_info.size(),
 		    sp_data.data(),
@@ -197,7 +192,6 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 		    self->spirv_code,
 		    self->spirv_code_length,
 		    { self->shader_stage },
-		    self->previous_handle,
 		    sp_info.data(),
 		    sp_info.size(),
 		    sp_data.data(),
@@ -932,7 +926,6 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 		i.set_shader_stage            = le_shader_module_builder_set_shader_stage;
 		i.set_source_language         = le_shader_module_builder_set_source_language;
 		i.set_specialization_constant = le_shader_module_builder_set_specialization_constant;
-		i.set_handle                  = le_shader_module_builder_set_handle;
-		i.build                       = le_shader_module_builder_build;
+		i.build = le_shader_module_builder_build;
 	}
 }

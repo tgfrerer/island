@@ -7262,7 +7262,6 @@ static le_shader_module_handle backend_create_shader_module(
 	    shader_source_language,
 	    moduleType,
 	    macro_definitions,
-	    handle,
 	    specialization_map_entries,
 	    specialization_map_entries_count,
 	    specialization_map_data,
