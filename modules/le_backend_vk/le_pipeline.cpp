@@ -30,6 +30,10 @@
 
 static constexpr auto LOGGER_LABEL = "le_pipeline";
 
+static constexpr auto GPSO_MARKER    = 0xA000000000000000; // markers used for Tables
+static constexpr auto CPSO_MARKER    = 0xB000000000000000;
+static constexpr auto RTX_PSO_MARKER = 0xC000000000000000;
+
 static le::Log& logger() {
 	// Enforce lazy initialization for logger().oblect
 	static auto logger = le::Log( LOGGER_LABEL );
@@ -46,7 +50,8 @@ struct specialization_map_info_t {
 static constexpr auto TEXTURE_NAME_YCBCR_REQUEST_STRING = "__ycbcr__"; // add this string to a shader texture name to signal that we require an immutable YcBcR conversion sampler for this binding
 
 struct le_shader_module_o {
-	uint64_t                                       hash                = 0;     ///< hash taken from spirv code + hash_shader_defines
+	uint64_t                                       hash                = 0;     ///< hash taken from spirv code + specialization map entries
+	uint64_t                                       hash_spirv          = 0;     ///< hash taken from spirv code
 	uint64_t                                       hash_shader_defines = 0;     ///< hash taken from shader defines string
 	uint64_t                                       hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
 	std::string                                    macro_defines       = "";    ///< #defines to pass to shader compiler
@@ -75,14 +80,14 @@ struct le_shader_module_o {
 //
 // Entries cannot be removed from this table, but you can
 // clear the table in bulk.
-template <typename U>
+template <typename U, size_t MARKER>
 class Table : NoCopy, NoMove {
 
 	std::shared_mutex mtx;
 	size_t            num_objects;
 	std::vector<U*>   objects; // owning, object is copied on add_entry
 
-	static constexpr size_t HANDLE_MARKER = 0x8000000000000000; // light up the highest bit to signal that this is a handle
+	// static constexpr size_t HANDLE_MARKER = 0x8000000000000000; // light up the highest bit to signal that this is a handle
 
   public:
 	// Insert a new obj into table, object is copied.
@@ -94,13 +99,13 @@ class Table : NoCopy, NoMove {
 		objects.emplace_back( new U( *obj ) ); // make a copy
 		size_t obj_count = num_objects++;
 		mtx.unlock();
-		return obj_count | HANDLE_MARKER;
+		return obj_count | MARKER;
 	}
 
 	// Looks up table entry under `needle`,
 	// returns nullptr if not found.
 	U* const try_find( void* index_ ) {
-		size_t index = ( ( reinterpret_cast<size_t>( index_ ) ) & ~HANDLE_MARKER );
+		size_t index = ( ( reinterpret_cast<size_t>( index_ ) ) & ~MARKER );
 		mtx.lock_shared();
 		if ( index <= num_objects ) {
 			U* const obj = objects.at( index );
@@ -308,9 +313,9 @@ struct le_pipeline_manager_o {
 
 	le_shader_manager_o* shaderManager = nullptr; // owning: does it make sense to have a shader manager additionally to the pipeline manager?
 
-	Table<graphics_pipeline_state_o> graphics_pso_table;
-	Table<compute_pipeline_state_o>  compute_pso_table;
-	Table<rtx_pipeline_state_o>      rtx_pso_table;
+	Table<graphics_pipeline_state_o, GPSO_MARKER> graphics_pso_table;
+	Table<compute_pipeline_state_o, CPSO_MARKER>  compute_pso_table;
+	Table<rtx_pipeline_state_o, RTX_PSO_MARKER>   rtx_pso_table;
 
 	HashMap<uint64_t, VkPipeline>              pipelines;             // indexed by pipeline_hash
 	HashTable<uint64_t, char*>                 rtx_shader_group_data; // indexed by pipeline_hash
@@ -1245,6 +1250,8 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 		// spirv code identical, no update needed, bail out.
 		return;
 	}
+
+	// ---------| Invariant: new spir-v code detected.
 
 	le_shader_module_o previous_module = *module; // create backup copy
 
