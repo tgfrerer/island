@@ -1487,41 +1487,13 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_file(
     void*                             specialization_map_data,
     uint32_t                          specialization_map_data_num_bytes ) {
 
-	if ( !std::filesystem::exists( path ) ) {
-		logger().error( "Could not open file: %s", path );
-	}
-	// We use the canonical path to store a fingerprint of the file
-	if ( !std::filesystem::exists( path ) ) {
-		logger().error( "File not found : '%s'", path );
-		return nullptr;
-	}
-
-	std::string canonical_path_as_string = std::filesystem::canonical( path ).string();
-
 	std::string shader_defines      = macro_defines_ ? std::string( macro_defines_ ) : "";
 	uint64_t    hash_shader_defines = SpookyHash::Hash64( shader_defines.data(), shader_defines.size(), 0 );
 
-	std::vector<char> raw_file_data;
-
-	if ( !load_file( canonical_path_as_string, raw_file_data ) ) {
-		logger().error( "Could not load shader file: '%s'", canonical_path_as_string.c_str() );
-		assert( false && "file loading was unsuccessful" );
-		return nullptr;
-	}
-
-	// ---------| invariant: load was successful
-
-	// -- Make sure the file contains spir-v code.
-
-	std::vector<uint32_t>    spirv_code;
-	std::vector<std::string> included_files = { canonical_path_as_string }; // this is where we collect any files that contribute to this compilation unit
-
-	// translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, shader_defines, spirv_code, included_files );
-
 	handle = le_shader_manager_produce_shader_module(
 	    self,
-	    spirv_code.data(),
-	    spirv_code.size(),
+	    nullptr,
+	    0,
 	    moduleType,
 	    handle,
 	    specialization_map_entries,
@@ -1538,10 +1510,6 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_file(
 		logger().error( "could not create shader module from file: '%s'", path );
 		return nullptr;
 	}
-
-	// -- add all source files for this file to the list of watched
-	//    files that point back to this module
-	// le_pipeline_cache_set_module_dependencies_for_watched_files( self, handle, included_files );
 
 	return handle;
 }
