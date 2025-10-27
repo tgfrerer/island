@@ -306,7 +306,8 @@ struct le_shader_manager_o {
 
 	ProtectedModuleDependencies protected_module_dependencies; // must lock mutex before using.
 
-	std::set<le_shader_module_handle> modified_shader_modules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
+	std::mutex                        mtx_modified_shader_modules; // mutex protecting modified shader modules;
+	std::set<le_shader_module_handle> modified_shader_modules;     // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
 	le_shader_compiler_o* shader_compiler   = nullptr; // owning
 	le_file_watcher_o*    shaderFileWatcher = nullptr; // owning
@@ -689,8 +690,12 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_m
 
 	// -- add all affected modules to the set of modules which depend on this shader source file.
 
-	for ( auto const& m : moduleDependencies ) {
-		self->modified_shader_modules.insert( m );
+	if ( !moduleDependencies.empty() ) {
+		self->mtx_modified_shader_modules.lock();
+		for ( auto const& m : moduleDependencies ) {
+			self->modified_shader_modules.insert( m );
+		}
+		self->mtx_modified_shader_modules.unlock();
 	}
 };
 
@@ -1336,10 +1341,12 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o* self )
 	// that need to be compiled and don't call shader compilation ad-hoc?
 
 	if ( !self->modified_shader_modules.empty() ) {
+		self->mtx_modified_shader_modules.lock();
 		for ( auto& s : self->modified_shader_modules ) {
 			le_shader_manager_shader_module_update( self, s );
 		}
 		self->modified_shader_modules.clear();
+		self->mtx_modified_shader_modules.unlock();
 	}
 }
 
@@ -1446,8 +1453,12 @@ static le_shader_module_handle le_shader_manager_produce_shader_module(
 
 	// you must not use module from here on!
 
-	// mark this shader as modified.
-	self->modified_shader_modules.insert( handle );
+	{
+		// mark this shader as modified.
+		self->mtx_modified_shader_modules.lock();
+		self->modified_shader_modules.insert( handle );
+		self->mtx_modified_shader_modules.unlock();
+	}
 
 	return handle;
 }
