@@ -85,9 +85,9 @@ struct le_shader_module_builder_o {
 	le::ShaderStage        shader_stage     = le::ShaderStage{};
 
 	enum shader_module_builder_type_t {
-		eUndefined  = 0,
-		eFromSource = 1,
-		eFromSpirV  = 2,
+		eUndefined = 0,
+		eFromFile  = 1,
+		eFromSpirV = 2,
 	} type = eUndefined;
 
 	// Only used when builder type is eFromSource
@@ -128,14 +128,14 @@ static void le_shader_module_builder_set_spirv_code( le_shader_module_builder_o*
 	}
 }
 static void le_shader_module_builder_set_source_file_path( le_shader_module_builder_o* self, char const* source_file_path ) {
-	if ( set_type( self, le_shader_module_builder_o::eFromSource ) ) {
+	if ( set_type( self, le_shader_module_builder_o::eFromFile ) ) {
 		self->source_file_path = source_file_path;
 	} else {
 		logger().error( "Cannot set shader module to compile from source as it was set to use spir-v previously." );
 	}
 }
 static void le_shader_module_builder_set_source_defines_string( le_shader_module_builder_o* self, char const* source_defines_string ) {
-	if ( set_type( self, le_shader_module_builder_o::eFromSource ) ) {
+	if ( set_type( self, le_shader_module_builder_o::eFromFile ) ) {
 		self->source_defines_string = source_defines_string;
 	} else {
 		logger().error( "Cannot set source defines for a shader module that is not compiled from source. \n(Consider using specialization constants if you want precompiled shader code, yet still to be able to set shader constants at runtime.)" );
@@ -179,7 +179,7 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 	// call the correct builder function based on type
 
 	switch ( self->type ) {
-	case le_shader_module_builder_o::eFromSource:
+	case le_shader_module_builder_o::eFromFile:
 		return le_pipeline_manager_i.create_shader_module_from_file(
 		    self->pipeline_manager,
 		    self->source_file_path.c_str(),
