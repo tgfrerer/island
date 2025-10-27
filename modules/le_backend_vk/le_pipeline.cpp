@@ -2540,7 +2540,12 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
 	std::string shader_defines      = macro_definitions ? std::string( macro_definitions ) : "";
 	uint64_t    hash_shader_defines = SpookyHash::Hash64( shader_defines.data(), shader_defines.size(), 0 );
 
-	le_shader_module_handle handle = le_shader_manager_produce_shader_module(
+	if ( !std::filesystem::exists( path ) ) {
+		logger().error( "Could not find shader file: '%s'", path );
+		return nullptr;
+	}
+
+	return le_shader_manager_produce_shader_module(
 	    self->shaderManager,
 	    nullptr,
 	    0,
@@ -2551,33 +2556,16 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
 	    specialization_map_data_num_bytes,
 	    shader_defines,
 	    hash_shader_defines,
-	    std::filesystem::canonical( path )
-	    //
-	);
-
-	if ( handle == nullptr ) {
-		logger().error( "could not create shader module from file: '%s'", path );
-		return nullptr;
-	}
-
-	return handle;
-	// return le_shader_manager_create_shader_module_from_file(
-	//     self->shaderManager,
-	//     path,
-	//     shader_source_language,
-	//     moduleType,
-	//     macro_definitions,
-	//     specialization_map_entries,
-	//     specialization_map_entries_count,
-	//     specialization_map_data,
-	//     specialization_map_data_num_bytes );
+	    std::filesystem::canonical( path ) );
 }
 
+// ----------------------------------------------------------------------
+
 static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spirv(
-    le_pipeline_manager_o* self,
-    uint32_t const*        spirv_code,
-    uint32_t               spirv_code_length,
-    const le::ShaderStage& moduleType,
+    le_pipeline_manager_o*          self,
+    uint32_t const*                 spirv_code,
+    uint32_t                        spirv_code_length,
+    const le::ShaderStage&          moduleType,
     VkSpecializationMapEntry const* specialization_map_entries,
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
