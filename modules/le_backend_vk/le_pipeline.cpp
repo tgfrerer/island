@@ -69,6 +69,65 @@ struct le_shader_module_o {
 	};
 };
 
+// A table from index -> `object*`, protected by mutex.
+//
+// Access is internally synchronised.
+//
+// Entries cannot be removed from this table, but you can
+// clear the table in bulk.
+template <typename U>
+class Table : NoCopy, NoMove {
+
+	std::shared_mutex mtx;
+	size_t            num_objects;
+	std::vector<U*>   objects; // owning, object is copied on add_entry
+
+	static constexpr size_t HANDLE_MARKER = 0x8000000000000000; // light up the highest bit to signal that this is a handle
+
+  public:
+	// Insert a new obj into table, object is copied.
+	// return true if successful, false if entry aready existed.
+	// in case return value is false, object was not copied.
+	size_t try_insert( U* obj ) {
+		mtx.lock();
+		// -------| invariant: i == handles.size()
+		objects.emplace_back( new U( *obj ) ); // make a copy
+		size_t obj_count = num_objects++;
+		mtx.unlock();
+		return obj_count | HANDLE_MARKER;
+	}
+
+	// Looks up table entry under `needle`,
+	// returns nullptr if not found.
+	U* const try_find( void* index_ ) {
+		size_t index = ( ( reinterpret_cast<size_t>( index_ ) ) & ~HANDLE_MARKER );
+		mtx.lock_shared();
+		if ( index <= num_objects ) {
+			U* const obj = objects.at( index );
+			mtx.unlock();
+			return obj;
+		} else {
+			// --------| Invariant: no handle matching needle found
+			mtx.unlock();
+			return nullptr;
+		}
+	}
+
+	void clear() {
+		mtx.lock();
+		for ( auto& obj : objects ) {
+			delete obj;
+		}
+		objects.clear();
+		num_objects = 0;
+		mtx.unlock();
+	}
+
+	~Table() {
+		clear();
+	}
+};
+
 // A table from `handle` -> `object*`, protected by mutex.
 //
 // Access is internally synchronised.
@@ -249,13 +308,13 @@ struct le_pipeline_manager_o {
 
 	le_shader_manager_o* shaderManager = nullptr; // owning: does it make sense to have a shader manager additionally to the pipeline manager?
 
-	std::atomic<uint64_t> graphics_pso_count;
-	std::atomic<uint64_t> compute_pso_count;
-	std::atomic<uint64_t> rtx_pso_count;
+	// std::atomic<uint64_t> graphics_pso_count;
+	// std::atomic<uint64_t> compute_pso_count;
+	// std::atomic<uint64_t> rtx_pso_count;
 
-	HashTable<le_gpso_handle, graphics_pipeline_state_o> graphics_pso_table;
-	HashTable<le_cpso_handle, compute_pipeline_state_o>  compute_pso_table;
-	HashTable<le_rtxpso_handle, rtx_pipeline_state_o>    rtx_pso_table;
+	Table<graphics_pipeline_state_o> graphics_pso_table;
+	Table<compute_pipeline_state_o>  compute_pso_table;
+	Table<rtx_pipeline_state_o>      rtx_pso_table;
 
 	HashMap<uint64_t, VkPipeline>              pipelines;             // indexed by pipeline_hash
 	HashTable<uint64_t, char*>                 rtx_shader_group_data; // indexed by pipeline_hash
@@ -2523,8 +2582,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 // Note: This will unconditionally store the given pso into the graphics pso table
 // You should store this handle on the application side.
 le_gpso_handle le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o* self, graphics_pipeline_state_o* pso ) {
-	le_gpso_handle handle = reinterpret_cast<le_gpso_handle>( ++self->graphics_pso_count );
-	self->graphics_pso_table.try_insert( handle, pso );
+	le_gpso_handle handle = reinterpret_cast<le_gpso_handle>( self->graphics_pso_table.try_insert( pso ) );
 	return handle;
 };
 
@@ -2536,8 +2594,7 @@ le_gpso_handle le_pipeline_manager_introduce_graphics_pipeline_state( le_pipelin
 // Note: This will unconditionally store the given pso into the compute pso table.
 // You should store this handle on the application side.
 le_cpso_handle le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o* self, compute_pipeline_state_o* pso ) {
-	auto handle = reinterpret_cast<le_cpso_handle>( ++self->compute_pso_count );
-	self->compute_pso_table.try_insert( handle, pso );
+	auto handle = reinterpret_cast<le_cpso_handle>( self->compute_pso_table.try_insert( pso ) );
 	return handle;
 };
 
@@ -2548,8 +2605,7 @@ le_cpso_handle le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline
 // Note: This will unconditionally store the given pso into the rtx pso table.
 // You should store this handle on the application side.
 le_rtxpso_handle le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o* self, rtx_pipeline_state_o* pso ) {
-	auto handle = reinterpret_cast<le_rtxpso_handle>( ++self->rtx_pso_count );
-	self->rtx_pso_table.try_insert( handle, pso );
+	auto handle = reinterpret_cast<le_rtxpso_handle>( self->rtx_pso_table.try_insert( pso ) );
 	return handle;
 };
 
