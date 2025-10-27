@@ -1169,6 +1169,27 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 }
 
 // ----------------------------------------------------------------------
+// Calculate hash of the current shader module via its spirv code and
+// specialisation constants.
+//
+// Note: We don't include the macro defines in the hash calculation as their effects
+// are fully expressed through the generated spirv code.
+//
+uint64_t calculate_shader_module_hash( uint32_t const* spirv_code, uint32_t spirv_code_length, VkSpecializationMapEntry const* specialization_map_entries, uint32_t specialization_map_entries_count, void* specialization_map_data, uint32_t specialization_map_data_num_bytes ) {
+
+	uint64_t hash_specialization_constants = 0;
+
+	if ( specialization_map_entries_count != 0 ) {
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_data, specialization_map_data_num_bytes, hash_specialization_constants );
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( VkSpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
+	}
+
+	uint64_t hash = SpookyHash::Hash64( spirv_code, spirv_code_length * sizeof( uint32_t ), hash_specialization_constants );
+
+	return hash;
+}
+
+// ----------------------------------------------------------------------
 
 static void le_shader_manager_shader_module_update( le_shader_manager_o* self, le_shader_module_handle handle ) {
 
@@ -1213,9 +1234,14 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
 
 	// -- check spirv code hash against module spirv hash
-	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_shader_defines );
+	uint64_t shader_module_hash = calculate_shader_module_hash(
+	    spirv_code.data(), spirv_code.size(),
+	    module->specialization_map_info.entries.data(),
+	    module->specialization_map_info.entries.size(),
+	    module->specialization_map_info.data.data(),
+	    module->specialization_map_info.data.size() );
 
-	if ( hash_of_module == module->hash ) {
+	if ( shader_module_hash == module->hash ) {
 		// spirv code identical, no update needed, bail out.
 		return;
 	}
@@ -1223,7 +1249,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	le_shader_module_o previous_module = *module; // create backup copy
 
 	// -- update module hash
-	module->hash = hash_of_module;
+	module->hash = shader_module_hash;
 
 	le_pipeline_cache_remove_module_from_dependencies( self, handle );
 
@@ -1344,26 +1370,6 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 	delete self;
 }
 
-// ----------------------------------------------------------------------
-// Calculate hash of the current shader module via its spirv code and
-// specialisation constants.
-//
-// Note: We don't include the macro defines in the hash calculation as their effects
-// are fully expressed through the generated spirv code.
-//
-uint64_t calculate_shader_module_hash( uint32_t const* spirv_code, uint32_t spirv_code_length, VkSpecializationMapEntry const* specialization_map_entries, uint32_t specialization_map_entries_count, void* specialization_map_data, uint32_t specialization_map_data_num_bytes ) {
-
-	uint64_t hash_specialization_constants = 0;
-
-	if ( specialization_map_entries_count != 0 ) {
-		hash_specialization_constants = SpookyHash::Hash64( specialization_map_data, specialization_map_data_num_bytes, hash_specialization_constants );
-		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( VkSpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
-	}
-
-	uint64_t hash = SpookyHash::Hash64( spirv_code, spirv_code_length * sizeof( uint32_t ), hash_specialization_constants );
-
-	return hash;
-}
 // ----------------------------------------------------------------------
 
 /// \brief create vulkan shader module based on spirv code
