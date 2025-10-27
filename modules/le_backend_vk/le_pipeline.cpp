@@ -1433,7 +1433,7 @@ static le_shader_module_handle le_shader_manager_produce_shader_module(
 
 	module->stage               = moduleType;
 	module->filepath            = optional_file_path;
-	module->macro_defines       = "";
+	module->macro_defines       = optional_macro_defines;
 	module->hash_shader_defines = optional_hash_macro_defines;
 
 	module->hash = 0;
