@@ -52,8 +52,8 @@ struct specialization_map_info_t {
 static constexpr auto TEXTURE_NAME_YCBCR_REQUEST_STRING = "__ycbcr__"; // add this string to a shader texture name to signal that we require an immutable YcBcR conversion sampler for this binding
 
 struct le_shader_module_o {
+	le::ShaderStageFlagBits                        stage               = {};
 	uint64_t                                       hash                = 0;     ///< hash taken from spirv code + specialization map entries
-	uint64_t                                       hash_spirv          = 0;     ///< hash taken from spirv code
 	uint64_t                                       hash_shader_defines = 0;     ///< hash taken from shader defines string
 	uint64_t                                       hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
 	std::string                                    macro_defines       = "";    ///< #defines to pass to shader compiler
@@ -64,7 +64,6 @@ struct le_shader_module_o {
 	std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
 	std::vector<VkVertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
 	VkShaderModule                                 module                    = nullptr;
-	le::ShaderStageFlagBits                        stage                     = {};
 	uint64_t                                       push_constant_buffer_size = 0; ///< number of bytes for push constant buffer, zero indicates no push constant buffer in use.
 	le::ShaderSourceLanguage                       source_language           = le::ShaderSourceLanguage::eDefault;
 	specialization_map_info_t                      specialization_map_info; ///< information concerning specialization constants for this shader stage
@@ -1423,34 +1422,22 @@ static le_shader_module_handle le_shader_manager_produce_shader_module(
     uint64_t                        optional_hash_macro_defines = 0,
     std::filesystem::path const&    optional_file_path          = "" ) {
 
-	le_shader_module_o* module{};
-
 	le_shader_module_handle handle = nullptr;
 
-
-	module = new le_shader_module_o{};
+	le_shader_module_o module = le_shader_module_o{};
 
 	// ---------| invariant: module exists
 
-	module->stage               = moduleType;
-	module->filepath            = optional_file_path;
-	module->macro_defines       = optional_macro_defines;
-	module->hash_shader_defines = optional_hash_macro_defines;
+	module.stage               = moduleType;
+	module.filepath            = optional_file_path;
+	module.macro_defines       = optional_macro_defines;
+	module.hash_shader_defines = optional_hash_macro_defines;
+	module.spirv.assign( spirv_code, spirv_code + spirv_code_length );
+	module.source_language = le::ShaderSourceLanguage::eSpirv;
+	module.specialization_map_info.data.assign( static_cast<char*>( specialization_map_data ), static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
+	module.specialization_map_info.entries.assign( reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ), reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
 
-	module->hash = 0;
-	module->spirv.assign( spirv_code, spirv_code + spirv_code_length );
-	module->source_language = le::ShaderSourceLanguage::eSpirv;
-	module->specialization_map_info.data.assign(
-	    static_cast<char*>( specialization_map_data ),
-	    static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
-	module->specialization_map_info.entries.assign(
-	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ),
-	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
-
-		handle = reinterpret_cast<le_shader_module_handle>( self->shaderModules.try_insert( module ) );
-		delete module;
-
-	// you must not use module from here on!
+	handle = reinterpret_cast<le_shader_module_handle>( self->shaderModules.try_insert( &module ) );
 
 	{
 		// mark this shader as modified.
