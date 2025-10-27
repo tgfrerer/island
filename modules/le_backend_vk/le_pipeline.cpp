@@ -308,10 +308,6 @@ struct le_pipeline_manager_o {
 
 	le_shader_manager_o* shaderManager = nullptr; // owning: does it make sense to have a shader manager additionally to the pipeline manager?
 
-	// std::atomic<uint64_t> graphics_pso_count;
-	// std::atomic<uint64_t> compute_pso_count;
-	// std::atomic<uint64_t> rtx_pso_count;
-
 	Table<graphics_pipeline_state_o> graphics_pso_table;
 	Table<compute_pipeline_state_o>  compute_pso_table;
 	Table<rtx_pipeline_state_o>      rtx_pso_table;
@@ -1250,7 +1246,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 		return;
 	}
 
-	// -- delete old vulkan shader module object
+	// -- Delete old vulkan shader module object
 	// Q: Should we rather defer deletion? In case that this module is in use?
 	// A: Not really - according to spec module must only be alife while pipeline is being compiled.
 	//    If we can guarantee that no other process is using this module at the moment to compile a
@@ -1285,7 +1281,7 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o* self )
 
 	// There is an opportunity here - we could re-use the session
 	// for all of the modified modules and cache build artifacts --
-	// can we tell the shader manager in bulk which wiles need to
+	// can we tell the shader manager in bulk which files need to
 	// be re-compiled, instead of doing this one-by one?
 	//
 	// Would it make sense to have shader compilation happen deferred -
@@ -1293,11 +1289,12 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o* self )
 	// cycle so that we could use a single compiler session for all shaders
 	// that need to be compiled and don't call shader compilation ad-hoc?
 
-	for ( auto& s : self->modifiedShaderModules ) {
-		le_shader_manager_shader_module_update( self, s );
+	if ( !self->modifiedShaderModules.empty() ) {
+		for ( auto& s : self->modifiedShaderModules ) {
+			le_shader_manager_shader_module_update( self, s );
+		}
+		self->modifiedShaderModules.clear();
 	}
-
-	self->modifiedShaderModules.clear();
 }
 
 // ----------------------------------------------------------------------
@@ -1346,7 +1343,29 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 	self->shaderModules.clear();
 	delete self;
 }
+
 // ----------------------------------------------------------------------
+// Calculate hash of the current shader module via its spirv code and
+// specialisation constants.
+//
+// Note: We don't include the macro defines in the hash calculation as their effects
+// are fully expressed through the generated spirv code.
+//
+uint64_t calculate_shader_module_hash( uint32_t const* spirv_code, uint32_t spirv_code_length, VkSpecializationMapEntry const* specialization_map_entries, uint32_t specialization_map_entries_count, void* specialization_map_data, uint32_t specialization_map_data_num_bytes ) {
+
+	uint64_t hash_specialization_constants = 0;
+
+	if ( specialization_map_entries_count != 0 ) {
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_data, specialization_map_data_num_bytes, hash_specialization_constants );
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( VkSpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
+	}
+
+	uint64_t hash = SpookyHash::Hash64( spirv_code, spirv_code_length * sizeof( uint32_t ), hash_specialization_constants );
+
+	return hash;
+}
+// ----------------------------------------------------------------------
+
 /// \brief create vulkan shader module based on spirv code
 /// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
 /// ideally, this method is only allowed to be called in the setup phase.
@@ -1369,14 +1388,10 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv
 	// We include specialization data into hash calculation for this module, because specialization data
 	// is stored with the module, and therefore it contributes to the module's phenotype.
 	//
-	uint64_t hash_specialization_constants = 0;
-
-	if ( specialization_map_entries_count != 0 ) {
-		hash_specialization_constants = SpookyHash::Hash64( specialization_map_data, specialization_map_data_num_bytes, hash_specialization_constants );
-		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( VkSpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
-	}
-
-	uint64_t hash_input_parameters = SpookyHash::Hash64( spirv_code, spirv_code_length * sizeof( uint32_t ), hash_specialization_constants );
+	uint64_t shader_module_hash = calculate_shader_module_hash(
+	    spirv_code, spirv_code_length,
+	    specialization_map_entries, specialization_map_entries_count,
+	    specialization_map_data, specialization_map_data_num_bytes );
 
 	// If no explicit handle is given, we create one by hashing
 	// input parameters.
@@ -1390,7 +1405,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv
 	// engine-internal shaders, such as imgui shaders, for which we know that there
 	// will only ever be one unique module per shader source and usage.
 	if ( handle == nullptr ) {
-		handle = reinterpret_cast<le_shader_module_handle>( hash_input_parameters );
+		handle = reinterpret_cast<le_shader_module_handle>( shader_module_hash );
 	}
 
 	// ---------| invariant: load was successful
@@ -1403,7 +1418,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv
 	module.macro_defines       = "";
 	module.hash_shader_defines = optional_hash_macro_defines;
 
-	module.hash = hash_input_parameters;
+	module.hash = shader_module_hash;
 	module.spirv.assign( spirv_code, spirv_code + spirv_code_length );
 	module.source_language = le::ShaderSourceLanguage::eSpirv;
 	module.specialization_map_info.data.assign(
@@ -2350,12 +2365,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 	uint64_t pipeline_layout_hash{};
 	le_pipeline_manager_produce_pipeline_layout_info( self, pso->shaderModules.data(), pso->shaderModules.size(),
 	                                                  &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
-
 	// -- 2. get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
-
-	// TODO: here, we require / apply the module hash again - this means we should not use
-	// it as part of the gpso, as it is not yet useful then.
 
 	uint64_t pipeline_hash = 0;
 	{
