@@ -34,6 +34,8 @@ static constexpr auto GPSO_MARKER    = 0xA000000000000000; // markers used for T
 static constexpr auto CPSO_MARKER    = 0xB000000000000000;
 static constexpr auto RTX_PSO_MARKER = 0xC000000000000000;
 
+static constexpr auto SHADER_MODULE_MARKER = 0x1000000000000000;
+
 static le::Log& logger() {
 	// Enforce lazy initialization for logger().oblect
 	static auto logger = le::Log( LOGGER_LABEL );
@@ -116,6 +118,16 @@ class Table : NoCopy, NoMove {
 			mtx.unlock();
 			return nullptr;
 		}
+	}
+	typedef void ( *iterator_fun )( U* e, void* user_data );
+
+	// do something on all objects
+	void iterator( iterator_fun fun, void* user_data ) {
+		mtx.lock();
+		for ( auto& e : objects ) {
+			fun( e, user_data );
+		}
+		mtx.unlock();
 	}
 
 	void clear() {
@@ -290,11 +302,11 @@ struct ProtectedModuleDependencies {
 struct le_shader_manager_o {
 	VkDevice device = nullptr;
 
-	HashMap<le_shader_module_handle, le_shader_module_o> shaderModules; // OWNING. Stores all shader modules used in backend, indexed via shader_module_handle
+	Table<le_shader_module_o, SHADER_MODULE_MARKER> shaderModules; // OWNING. Stores all shader modules used in backend, indexed via shader_module_handle
 
 	ProtectedModuleDependencies protected_module_dependencies; // must lock mutex before using.
 
-	std::set<le_shader_module_handle> modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
+	std::set<le_shader_module_handle> modified_shader_modules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
 	le_shader_compiler_o* shader_compiler   = nullptr; // owning
 	le_file_watcher_o*    shaderFileWatcher = nullptr; // owning
@@ -678,7 +690,7 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_m
 	// -- add all affected modules to the set of modules which depend on this shader source file.
 
 	for ( auto const& m : moduleDependencies ) {
-		self->modifiedShaderModules.insert( m );
+		self->modified_shader_modules.insert( m );
 	}
 };
 
@@ -1263,7 +1275,6 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	// -- update additional include paths, if necessary.
 	le_pipeline_cache_set_module_dependencies_for_watched_files( self, handle, included_files );
 
-	// ---------| Invariant: new spir-v code detected.
 
 	// -- if hash doesn't match, delete old vk module, create new vk module
 
@@ -1324,11 +1335,11 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o* self )
 	// cycle so that we could use a single compiler session for all shaders
 	// that need to be compiled and don't call shader compilation ad-hoc?
 
-	if ( !self->modifiedShaderModules.empty() ) {
-		for ( auto& s : self->modifiedShaderModules ) {
+	if ( !self->modified_shader_modules.empty() ) {
+		for ( auto& s : self->modified_shader_modules ) {
 			le_shader_manager_shader_module_update( self, s );
 		}
-		self->modifiedShaderModules.clear();
+		self->modified_shader_modules.clear();
 	}
 }
 
@@ -1385,7 +1396,7 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 /// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
 /// ideally, this method is only allowed to be called in the setup phase.
 ///
-static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv(
+static le_shader_module_handle le_shader_manager_produce_shader_module(
     le_shader_manager_o*            self,
     uint32_t const*                 spirv_code,
     uint32_t                        spirv_code_length,
@@ -1395,109 +1406,48 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
     uint32_t                        specialization_map_data_num_bytes,
+    std::string const&              optional_macro_defines      = "",
     uint64_t                        optional_hash_macro_defines = 0,
     std::filesystem::path const&    optional_file_path          = "" ) {
 
-	// We use the canonical path to store a fingerprint of the file
+	le_shader_module_o* module{};
+	bool                module_was_created = false;
 
-	// We include specialization data into hash calculation for this module, because specialization data
-	// is stored with the module, and while it does not affect the vk shader module, it affects the pipeline
-	// that is generated from this module with the given specialization map.
-	//
-	//
-	uint64_t shader_module_hash = calculate_shader_module_hash(
-	    spirv_code, spirv_code_length,
-	    specialization_map_entries, specialization_map_entries_count,
-	    specialization_map_data, specialization_map_data_num_bytes );
-
-	// If no explicit handle is given, we create one by hashing
-	// input parameters.
-	//
-	// We do this so that the same input parameters give us the same handle,
-	// this means that if the shader source changes, we can update the corresponding
-	// module.
-	//
-	// If an explicit handle is given, then we will attempt to update the module
-	// regardless of whether input parameters have changed. This can make sense for
-	// engine-internal shaders, such as imgui shaders, for which we know that there
-	// will only ever be one unique module per shader source and usage.
-	if ( handle == nullptr ) {
-		handle = reinterpret_cast<le_shader_module_handle>( shader_module_hash );
+	if ( handle != nullptr ) {
+		module = self->shaderModules.try_find( handle );
 	}
 
-	// ---------| invariant: load was successful
+	if ( module == nullptr ) {
+		module             = new le_shader_module_o{};
+		module_was_created = true;
+	}
 
-	// -- Make sure the file contains spir-v code.
+	// ---------| invariant: module exists
 
-	le_shader_module_o module{};
-	module.stage               = moduleType;
-	module.filepath            = optional_file_path;
-	module.macro_defines       = "";
-	module.hash_shader_defines = optional_hash_macro_defines;
+	module->stage               = moduleType;
+	module->filepath            = optional_file_path;
+	module->macro_defines       = "";
+	module->hash_shader_defines = optional_hash_macro_defines;
 
-	module.hash = shader_module_hash;
-	module.spirv.assign( spirv_code, spirv_code + spirv_code_length );
-	module.source_language = le::ShaderSourceLanguage::eSpirv;
-	module.specialization_map_info.data.assign(
+	module->hash = 0;
+	module->spirv.assign( spirv_code, spirv_code + spirv_code_length );
+	module->source_language = le::ShaderSourceLanguage::eSpirv;
+	module->specialization_map_info.data.assign(
 	    static_cast<char*>( specialization_map_data ),
 	    static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
-	module.specialization_map_info.entries.assign(
+	module->specialization_map_info.entries.assign(
 	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ),
 	    reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
 
-	le_shader_module_o* cached_module = self->shaderModules.try_find( handle );
-
-	if ( cached_module && cached_module->hash == module.hash ) {
-		// A module with the same handle already exists, and the cached
-		// version has the same hash as our new version: no more work to do.
-		logger().info( "Found cached shader module for binary shader '%x'.", handle );
-		return handle;
+	if ( module_was_created ) {
+		handle = reinterpret_cast<le_shader_module_handle>( self->shaderModules.try_insert( module ) );
+		delete module;
 	}
 
-	//----------| Invariant: there is either no old module, or the old module does not match our new module.
+	// you must not use module from here on!
 
-	shader_module_update_reflection( &module );
-
-	if ( false == shader_module_check_bindings_valid( module.bindings.data(), module.bindings.size() ) ) {
-		// we must clean up, and report an error
-		logger().error( "Shader module reports invalid bindings" );
-		assert( false );
-		return nullptr;
-	}
-	// ----------| invariant: bindings sanity check passed
-
-	VkShaderModuleCreateInfo createInfo = {
-	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-	    .pNext    = nullptr, // optional
-	    .flags    = 0,       // optional
-	    .codeSize = module.spirv.size() * sizeof( uint32_t ),
-	    .pCode    = module.spirv.data(),
-	};
-
-	vkCreateShaderModule( self->device, &createInfo, nullptr, &module.module );
-	logger().info( "Vk shader module created %p", module.module );
-
-	if ( cached_module == nullptr ) {
-		// there is no prior module - let's create a module and try to retain it in shader manager
-		bool insert_successful = self->shaderModules.try_insert( handle, &module );
-		if ( !insert_successful ) {
-			logger().error( "Could not retain shader module" );
-			vkDestroyShaderModule( self->device, module.module, nullptr );
-			logger().debug( "Vk shader module destroyed %p", module.module );
-			return nullptr;
-		}
-	} else {
-
-		le_pipeline_cache_remove_module_from_dependencies( self, handle );
-
-		// -- invariant: the old module has a different hash than our new module.
-		// we must swap the two ...
-		auto old_module = *cached_module;
-		*cached_module  = module;
-		// ... and delete the old module
-		vkDestroyShaderModule( self->device, old_module.module, nullptr );
-		logger().debug( "Vk shader module destroyed %p", old_module.module );
-	}
+	// mark this shader as modified.
+	self->modified_shader_modules.insert( handle );
 
 	return handle;
 }
@@ -1548,9 +1498,9 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	std::vector<uint32_t>    spirv_code;
 	std::vector<std::string> included_files = { canonical_path_as_string }; // this is where we collect any files that contribute to this compilation unit
 
-	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, shader_defines, spirv_code, included_files );
+	// translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, shader_defines, spirv_code, included_files );
 
-	handle = le_shader_manager_create_shader_module_from_spirv(
+	handle = le_shader_manager_produce_shader_module(
 	    self,
 	    spirv_code.data(),
 	    spirv_code.size(),
@@ -1560,6 +1510,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	    specialization_map_entries_count,
 	    specialization_map_data,
 	    specialization_map_data_num_bytes,
+	    shader_defines,
 	    hash_shader_defines,
 	    std::filesystem::canonical( path )
 	    //
@@ -1572,7 +1523,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	// -- add all source files for this file to the list of watched
 	//    files that point back to this module
-	le_pipeline_cache_set_module_dependencies_for_watched_files( self, handle, included_files );
+	// le_pipeline_cache_set_module_dependencies_for_watched_files( self, handle, included_files );
 
 	return handle;
 }
@@ -2687,7 +2638,7 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spi
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
     uint32_t                        specialization_map_data_num_bytes ) {
-	return le_shader_manager_create_shader_module_from_spirv(
+	return le_shader_manager_produce_shader_module(
 	    self->shaderManager,
 	    spirv_code,
 	    spirv_code_length,

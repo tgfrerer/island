@@ -943,7 +943,6 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 	} else {
 
 		// render on the main thread
-		vk_backend_i.update_shader_modules( self->backend );
 
 		size_t recorded_frame_index = 0;
 		{
@@ -952,6 +951,8 @@ static void renderer_update( le_renderer_o* self, le_rendergraph_o* graph_ ) {
 			// logger.info( "+++ [%5d] RECO", frameIndex );
 			renderer_record_frame( self, recorded_frame_index, graph_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 		}
+
+		vk_backend_i.update_shader_modules( self->backend );
 
 		{
 			// DISPATCH FRAME
