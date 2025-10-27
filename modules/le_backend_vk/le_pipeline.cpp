@@ -1228,25 +1228,32 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	auto module = self->shaderModules.try_find( handle );
 	assert( module && "module not found" );
 
-	// -- get module spirv code
-	std::vector<char> source_text;
-
-	if ( !load_file( module->filepath, source_text ) ) {
-		// file could not be loaded. bail out.
-		return;
-	}
-
 	std::vector<uint32_t>    spirv_code;
 	std::vector<std::string> included_files = { module->filepath.string() }; // let first element be the original source file path
 
-	translate_to_spirv_code( self->shader_compiler,
-	                         source_text.data(), source_text.size(),
-	                         { module->source_language },
-	                         module->stage,
-	                         module->filepath.string().c_str(),
-	                         module->macro_defines,
-	                         spirv_code,
-	                         included_files );
+	if ( !module->spirv.empty() && module->hash == 0 ) {
+		// There is already some spirv code
+		// and this module has never been updated before
+		// as the hash is 0
+		spirv_code = std::move( module->spirv );
+	} else {
+		// -- get module spirv code
+		std::vector<char> source_text;
+
+		if ( !load_file( module->filepath, source_text ) ) {
+			// file could not be loaded. bail out.
+			return;
+		}
+
+		translate_to_spirv_code( self->shader_compiler,
+		                         source_text.data(), source_text.size(),
+		                         { module->source_language },
+		                         module->stage,
+		                         module->filepath.string().c_str(),
+		                         module->macro_defines,
+		                         spirv_code,
+		                         included_files );
+	}
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
