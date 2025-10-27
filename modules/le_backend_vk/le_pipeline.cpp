@@ -1272,13 +1272,15 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 		return;
 	}
 
-	// -- Delete old vulkan shader module object
-	// Q: Should we rather defer deletion? In case that this module is in use?
-	// A: Not really - according to spec module must only be alife while pipeline is being compiled.
-	//    If we can guarantee that no other process is using this module at the moment to compile a
-	//    Pipeline, we can safely delete it.
-	vkDestroyShaderModule( self->device, module->module, nullptr );
-	module->module = nullptr;
+	if ( module->module ) {
+		// -- Delete old vulkan shader module object
+		// Q: Should we rather defer deletion? In case that this module is in use?
+		// A: Not really - according to spec module must only be alive while pipeline is being compiled.
+		//    If we can guarantee that no other process is using this module at the moment to compile a
+		//    Pipeline, we can safely delete it.
+		vkDestroyShaderModule( self->device, module->module, nullptr );
+		module->module = nullptr;
+	}
 
 	// -- create new vulkan shader module object
 
@@ -1392,7 +1394,9 @@ static le_shader_module_handle le_shader_manager_create_shader_module_from_spirv
 	// We use the canonical path to store a fingerprint of the file
 
 	// We include specialization data into hash calculation for this module, because specialization data
-	// is stored with the module, and therefore it contributes to the module's phenotype.
+	// is stored with the module, and while it does not affect the vk shader module, it affects the pipeline
+	// that is generated from this module with the given specialization map.
+	//
 	//
 	uint64_t shader_module_hash = calculate_shader_module_hash(
 	    spirv_code, spirv_code_length,
