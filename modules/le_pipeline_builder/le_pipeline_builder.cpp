@@ -180,7 +180,7 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 
 	switch ( self->type ) {
 	case le_shader_module_builder_o::eFromSource:
-		return le_pipeline_manager_i.create_shader_module(
+		return le_pipeline_manager_i.create_shader_module_from_file(
 		    self->pipeline_manager,
 		    self->source_file_path.c_str(),
 		    { self->shader_source_language },

@@ -7256,7 +7256,7 @@ static le_shader_module_handle backend_create_shader_module(
     uint32_t                          specialization_map_data_num_bytes ) {
 
 	using namespace le_backend_vk;
-	return le_pipeline_manager_i.create_shader_module(
+	return le_pipeline_manager_i.create_shader_module_from_file(
 	    self->pipelineCache,
 	    path,
 	    shader_source_language,

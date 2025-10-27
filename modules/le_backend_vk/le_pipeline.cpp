@@ -2622,7 +2622,7 @@ static const le_descriptor_set_layout_t* le_pipeline_manager_get_descriptor_set_
 
 // ----------------------------------------------------------------------
 
-static le_shader_module_handle le_pipeline_manager_create_shader_module(
+static le_shader_module_handle le_pipeline_manager_create_shader_module_from_file(
     le_pipeline_manager_o*            self,
     char const*                       path,
     const LeShaderSourceLanguageEnum& shader_source_language,
@@ -2795,7 +2795,7 @@ void register_le_pipeline_vk_api( void* api_ ) {
 		i.destroy                      = le_pipeline_manager_destroy;
 		i.add_shader_include_directory = le_pipeline_add_shader_include_directory;
 
-		i.create_shader_module              = le_pipeline_manager_create_shader_module;
+		i.create_shader_module_from_file    = le_pipeline_manager_create_shader_module_from_file;
 		i.create_shader_module_from_spirv   = le_pipeline_manager_create_shader_module_from_spirv;
 		i.update_shader_modules             = le_pipeline_manager_update_shader_modules;
 		i.introduce_graphics_pipeline_state = le_pipeline_manager_introduce_graphics_pipeline_state;
