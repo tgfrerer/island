@@ -682,19 +682,31 @@ static bool le_shader_compiler_compile_source(
 // ---------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
-	auto  le_shader_compiler_api_i = static_cast<le_shader_compiler_api*>( api_ );
-	auto& compiler_i               = le_shader_compiler_api_i->compiler_i;
 
-	compiler_i.create                       = le_shader_compiler_create;
-	compiler_i.destroy                      = le_shader_compiler_destroy;
-	compiler_i.add_shader_include_directory = le_shader_compiler_add_shader_include_directory;
-	compiler_i.compile_source               = le_shader_compiler_compile_source;
+	auto& compiler_i = static_cast<le_shader_compiler_api*>( api_ )->compiler_i;
 
-	compiler_i.result_create             = le_shader_compilation_result_create;
-	compiler_i.result_get_bytes          = le_shader_compilation_result_get_result_bytes;
-	compiler_i.result_get_success        = le_shader_compilation_result_get_result_success;
-	compiler_i.result_get_included_files = le_shader_compilation_result_get_next_included_file_path;
-	compiler_i.result_destroy            = le_shader_compilation_result_destroy;
+	if ( compiler_i == nullptr ) {
+		compiler_i = new le_shader_compiler_interface_t{};
+	} else {
+		// The interface already existed - we have been reloaded and only just need to update
+		// function pointer addresses.
+		//
+		// This is important as by not re-allocating a new interface object
+		// but by updating the existing interface object by-value, we keep the *public
+		// address for the interface*, while updating its function pointers.
+		*compiler_i = le_shader_compiler_interface_t();
+	}
+
+	compiler_i->create                       = le_shader_compiler_create;
+	compiler_i->destroy                      = le_shader_compiler_destroy;
+	compiler_i->add_shader_include_directory = le_shader_compiler_add_shader_include_directory;
+	compiler_i->compile_source               = le_shader_compiler_compile_source;
+
+	compiler_i->result_create             = le_shader_compilation_result_create;
+	compiler_i->result_get_bytes          = le_shader_compilation_result_get_result_bytes;
+	compiler_i->result_get_success        = le_shader_compilation_result_get_result_success;
+	compiler_i->result_get_included_files = le_shader_compilation_result_get_next_included_file_path;
+	compiler_i->result_destroy            = le_shader_compilation_result_destroy;
 
 #ifdef PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libshaderc_shared.so" );

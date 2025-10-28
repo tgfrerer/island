@@ -297,6 +297,13 @@ struct ProtectedModuleDependencies {
 	std::unordered_map<std::string, file_watcher_callback_fun_t>       moduleWatchCallbackAddrs; // we store this so that we can release the callback forwarder when resetting the watcher.
 };
 
+struct le_shader_compiler_session_o; // ffdecl.
+
+struct shader_compiler_instance_t {
+	le_shader_compiler_interface_t* interface = nullptr;
+	le_shader_compiler_o*           obj       = nullptr;
+};
+
 struct le_shader_manager_o {
 	VkDevice device = nullptr;
 
@@ -307,8 +314,10 @@ struct le_shader_manager_o {
 	std::mutex                        mtx_modified_shader_modules; // mutex protecting modified shader modules;
 	std::set<le_shader_module_handle> modified_shader_modules;     // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
-	le_shader_compiler_o* shader_compiler   = nullptr; // owning
 	le_file_watcher_o*    shaderFileWatcher = nullptr; // owning
+
+	std::vector<shader_compiler_instance_t>   shader_compilers;
+	std::unordered_map<std::string, uint32_t> available_shader_compiler_instances; // map from hash of lowercase file extension (`glsl`, `hlsl`, `slang`... ) to shader compiler inferface index that can deal with this extension
 };
 
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
@@ -605,15 +614,15 @@ static bool check_is_data_spirv( const void* raw_data, size_t data_size ) {
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
 static bool translate_to_spirv_code(
-    le_shader_compiler_o*      shader_compiler,
-    void*                      raw_data,
-    size_t                     numBytes,
-    LeShaderSourceLanguageEnum shader_source_language,
-    le::ShaderStage            moduleType,
-    const char*                original_file_name,
-    std::string const&         shaderDefines,
-    std::vector<uint32_t>&     spirvCode,
-    std::vector<std::string>&  included_files ) {
+    shader_compiler_instance_t& compiler, // currently active shader compiler
+    void*                       raw_data,
+    size_t                      numBytes,
+    LeShaderSourceLanguageEnum  shader_source_language,
+    le::ShaderStage             moduleType,
+    const char*                 original_file_name,
+    std::string const&          shaderDefines,
+    std::vector<uint32_t>&      spirvCode,
+    std::vector<std::string>&   included_files ) {
 
 	ZoneScoped;
 
@@ -626,22 +635,18 @@ static bool translate_to_spirv_code(
 	} else {
 
 		// ----------| Invariant: Data is not SPIRV, it still needs to be compiled
+		auto compilation_result = compiler.interface->result_create();
 
-		using namespace le_shader_compiler;
+		compiler.interface->compile_source( compiler.obj,
+		                                    static_cast<const char*>( raw_data ), numBytes,
+		                                    shader_source_language, moduleType, original_file_name,
+		                                    shaderDefines.c_str(), shaderDefines.size(),
+		                                    compilation_result );
 
-		auto compilation_result = compiler_i.result_create();
-
-		compiler_i.compile_source(
-		    shader_compiler,
-		    static_cast<const char*>( raw_data ), numBytes,
-		    shader_source_language, moduleType, original_file_name,
-		    shaderDefines.c_str(), shaderDefines.size(),
-		    compilation_result );
-
-		if ( compiler_i.result_get_success( compilation_result ) == true ) {
+		if ( compiler.interface->result_get_success( compilation_result ) == true ) {
 			const char* addr;
 			size_t      res_sz;
-			compiler_i.result_get_bytes( compilation_result, &addr, &res_sz );
+			compiler.interface->result_get_bytes( compilation_result, &addr, &res_sz );
 			spirvCode.resize( res_sz / 4 );
 			memcpy( spirvCode.data(), addr, res_sz );
 
@@ -650,7 +655,7 @@ static bool translate_to_spirv_code(
 
 			void* it = nullptr; // will get updated by result_get_includes
 
-			while ( compiler_i.result_get_included_files( compilation_result, &pStr, &it ) ) {
+			while ( compiler.interface->result_get_included_files( compilation_result, &pStr, &it ) ) {
 				// -- update set of includes for this module
 				included_files.emplace_back( pStr );
 			}
@@ -660,7 +665,7 @@ static bool translate_to_spirv_code(
 		}
 
 		// Release compile result object
-		compiler_i.result_destroy( compilation_result );
+		compiler.interface->result_destroy( compilation_result );
 	}
 	return result;
 }
@@ -1243,7 +1248,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 			return;
 		}
 
-		translate_to_spirv_code( self->shader_compiler,
+		translate_to_spirv_code( self->shader_compilers[ 0 ],
 		                         source_text.data(), source_text.size(),
 		                         { module->source_language },
 		                         module->stage,
@@ -1323,7 +1328,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 }
 
 // ----------------------------------------------------------------------
-// this method is called via renderer::update - before frame processing.
+// this method is called immediately after RECORD
 static void le_shader_manager_update_shader_modules( le_shader_manager_o* self ) {
 
 	// -- find out which shader modules have been tainted
@@ -1346,9 +1351,15 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o* self )
 
 	if ( !self->modified_shader_modules.empty() ) {
 		self->mtx_modified_shader_modules.lock();
+		// we need to start a compilation session for the shader compiler here
+		// TODO: auto s = le_shader_manager_create_shader_compilation_session( self );
+		// if ( s ) {
 		for ( auto& s : self->modified_shader_modules ) {
 			le_shader_manager_shader_module_update( self, s );
 		}
+		// we need to dispose of our compilation session for the shader compiler here.
+		// TODO: le_shader_manager_destroy_shader_compilation_session( self, s );
+		//}
 		self->modified_shader_modules.clear();
 		self->mtx_modified_shader_modules.unlock();
 	}
@@ -1363,7 +1374,15 @@ le_shader_manager_o* le_shader_manager_create( VkDevice_T* device ) {
 
 	// -- create shader compiler
 	using namespace le_shader_compiler;
-	self->shader_compiler = compiler_i.create();
+
+	// Add a default interface for compiling shaders
+
+	// FIXME: this should be added externally, so that we can add custom
+	// shader compilers ...
+
+	self->shader_compilers.emplace_back( le_shader_compiler::api->compiler_i, le_shader_compiler::api->compiler_i->create() );
+	self->available_shader_compiler_instances[ "glsl" ] = 0; // refers to first available shader compiler
+	self->available_shader_compiler_instances[ "hlsl" ] = 0; // refers to first available shader compiler
 
 	// -- create file watcher for shader files so that changes can be detected
 	self->shaderFileWatcher = le_file_watcher::le_file_watcher_i.create();
@@ -1384,11 +1403,13 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 		self->shaderFileWatcher = nullptr;
 	}
 
-	if ( self->shader_compiler ) {
-		// -- destroy shader compiler
-		compiler_i.destroy( self->shader_compiler );
-		self->shader_compiler = nullptr;
+	self->available_shader_compiler_instances.clear();
+
+	// -- destroy any shader compilers
+	for ( auto& compiler : self->shader_compilers ) {
+		compiler.interface->destroy( compiler.obj );
 	}
+	self->shader_compilers.clear();
 
 	// -- destroy retained shader modules
 	self->shaderModules.iterator( []( le_shader_module_o* module, void* user_data ) {
@@ -2577,8 +2598,10 @@ static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o* se
 // ----------------------------------------------------------------------
 
 static void le_pipeline_add_shader_include_directory( le_pipeline_manager_o* self, char const* path ) {
-	if ( self->shaderManager && self->shaderManager->shader_compiler ) {
-		le_shader_compiler::compiler_i.add_shader_include_directory( self->shaderManager->shader_compiler, path );
+	if ( self->shaderManager ) {
+		for ( auto& s : self->shaderManager->shader_compilers ) {
+			s.interface->add_shader_include_directory( s.obj, path );
+		}
 	}
 }
 
