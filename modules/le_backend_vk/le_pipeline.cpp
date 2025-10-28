@@ -1405,15 +1405,13 @@ static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 
 // ----------------------------------------------------------------------
 
-/// \brief create vulkan shader module based on spirv code
-/// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
-/// ideally, this method is only allowed to be called in the setup phase.
+/// \brief create shader module and set it up for deferred compilation
 ///
-static le_shader_module_handle le_shader_manager_produce_shader_module(
-    le_shader_manager_o*   self,
-    uint32_t const*        spirv_code,
-    uint32_t               spirv_code_length,
-    const le::ShaderStage& moduleType,
+static le_shader_module_handle le_shader_manager_create_shader_module(
+    le_shader_manager_o*            self,
+    uint32_t const*                 spirv_code,
+    uint32_t                        spirv_code_length,
+    const le::ShaderStage&          moduleType,
     VkSpecializationMapEntry const* specialization_map_entries,
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
@@ -1422,24 +1420,20 @@ static le_shader_module_handle le_shader_manager_produce_shader_module(
     uint64_t                        optional_hash_macro_defines = 0,
     std::filesystem::path const&    optional_file_path          = "" ) {
 
-	le_shader_module_handle handle = nullptr;
-
 	le_shader_module_o module = le_shader_module_o{};
-
-	// ---------| invariant: module exists
 
 	module.stage               = moduleType;
 	module.filepath            = optional_file_path;
 	module.macro_defines       = optional_macro_defines;
 	module.hash_shader_defines = optional_hash_macro_defines;
+	module.source_language     = le::ShaderSourceLanguage::eSpirv;
 	module.spirv.assign( spirv_code, spirv_code + spirv_code_length );
-	module.source_language = le::ShaderSourceLanguage::eSpirv;
 	module.specialization_map_info.data.assign( static_cast<char*>( specialization_map_data ), static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
 	module.specialization_map_info.entries.assign( reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ), reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
 
-	handle = reinterpret_cast<le_shader_module_handle>( self->shaderModules.try_insert( &module ) );
+	le_shader_module_handle handle = reinterpret_cast<le_shader_module_handle>( self->shaderModules.try_insert( &module ) );
 
-	{
+	if ( handle ) {
 		// mark this shader as modified.
 		self->mtx_modified_shader_modules.lock();
 		self->modified_shader_modules.insert( handle );
@@ -1448,7 +1442,6 @@ static le_shader_module_handle le_shader_manager_produce_shader_module(
 
 	return handle;
 }
-
 
 // ----------------------------------------------------------------------
 // Cold path.
@@ -1516,8 +1509,8 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 		    .flags               = 0,
 		    .stage               = VkShaderStageFlagBits( s->stage ),
 		    .module              = s->module,
-		    .pName               = "main",
-		    .pSpecializationInfo = p_specialization_info, // optional
+		    .pName               = "main", // entry point name
+		    .pSpecializationInfo = p_specialization_info,
 		};
 
 		pipelineStages.emplace_back( info );
@@ -1708,7 +1701,7 @@ static VkPipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager
 	    .flags               = 0,
 	    .stage               = VkShaderStageFlagBits( s->stage ),
 	    .module              = s->module,
-	    .pName               = "main",
+	    .pName               = "main", // entry point name
 	    .pSpecializationInfo = p_specialization_info,
 	};
 
@@ -1775,7 +1768,7 @@ static VkPipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o* 
 		    .flags               = 0,       // optional
 		    .stage               = le_to_vk( s->stage ),
 		    .module              = s->module,
-		    .pName               = "main",
+		    .pName               = "main", // entry point name
 		    .pSpecializationInfo = nullptr,
 		};
 
@@ -2532,10 +2525,10 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
     const LeShaderSourceLanguageEnum& shader_source_language,
     const le::ShaderStage&            moduleType,
     char const*                       macro_definitions,
-    VkSpecializationMapEntry const* specialization_map_entries,
-    uint32_t                        specialization_map_entries_count,
-    void*                           specialization_map_data,
-    uint32_t                        specialization_map_data_num_bytes ) {
+    VkSpecializationMapEntry const*   specialization_map_entries,
+    uint32_t                          specialization_map_entries_count,
+    void*                             specialization_map_data,
+    uint32_t                          specialization_map_data_num_bytes ) {
 
 	std::string shader_defines      = macro_definitions ? std::string( macro_definitions ) : "";
 	uint64_t    hash_shader_defines = SpookyHash::Hash64( shader_defines.data(), shader_defines.size(), 0 );
@@ -2545,10 +2538,10 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
 		return nullptr;
 	}
 
-	return le_shader_manager_produce_shader_module(
+	return le_shader_manager_create_shader_module(
 	    self->shaderManager,
-	    nullptr,
-	    0,
+	    nullptr, // spirv-code
+	    0,       // spirv-code-length
 	    moduleType,
 	    specialization_map_entries,
 	    specialization_map_entries_count,
@@ -2570,7 +2563,7 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spi
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
     uint32_t                        specialization_map_data_num_bytes ) {
-	return le_shader_manager_produce_shader_module(
+	return le_shader_manager_create_shader_module(
 	    self->shaderManager,
 	    spirv_code,
 	    spirv_code_length,
