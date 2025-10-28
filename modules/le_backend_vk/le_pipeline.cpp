@@ -617,7 +617,7 @@ static bool translate_to_spirv_code(
     shader_compiler_instance_t& compiler, // currently active shader compiler
     void*                       raw_data,
     size_t                      numBytes,
-    LeShaderSourceLanguageEnum  shader_source_language,
+    uint32_t                    shader_source_language,
     le::ShaderStage             moduleType,
     const char*                 original_file_name,
     std::string const&          shaderDefines,
@@ -1215,6 +1215,13 @@ uint64_t calculate_shader_module_hash( uint32_t const* spirv_code, uint32_t spir
 }
 
 // ----------------------------------------------------------------------
+le_shader_compiler_session_o* le_shader_manager_create_shader_compiler_session( le_shader_manager_o* self, le_shader_compiler_session_o* session ) {
+	// TODO: destroy shader compilation session
+	return nullptr;
+}
+static void le_shader_manager_destroy_shader_compiler_session( le_shader_manager_o* self, le_shader_compiler_session_o* session ) {
+	// TODO: destroy shader compilation session
+}
 
 static void le_shader_manager_shader_module_update( le_shader_manager_o* self, le_shader_module_handle handle ) {
 
@@ -1250,7 +1257,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 
 		translate_to_spirv_code( self->shader_compilers[ 0 ],
 		                         source_text.data(), source_text.size(),
-		                         { module->source_language },
+		                         uint32_t( module->source_language ),
 		                         module->stage,
 		                         module->filepath.string().c_str(),
 		                         module->macro_defines,

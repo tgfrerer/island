@@ -14,11 +14,13 @@ struct LeShaderSourceLanguageEnum;
 
 struct le_shader_compiler_interface_t {
 
+	static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 1ull << 16 | 0ull << 0;
+
 	le_shader_compiler_o* ( *create )();
 	void ( *destroy )( le_shader_compiler_o* self );
 	void ( *add_shader_include_directory )( le_shader_compiler_o* self, char const* path );
 
-	bool ( *compile_source )( le_shader_compiler_o* compiler, const char* sourceText, size_t sourceTextSize, const LeShaderSourceLanguageEnum& shader_source_language, const le::ShaderStageFlagBits& shaderType, const char* original_file_path, char const* macroDefinitionsStr, size_t macroDefinitionsStrSz, le_shader_compilation_result_o* result );
+	bool ( *compile_source )( le_shader_compiler_o* compiler, const char* sourceText, size_t sourceTextSize, const uint32_t& shader_source_language, const le::ShaderStageFlagBits& shaderType, const char* original_file_path, char const* compile_defines, size_t compile_defines_sz, le_shader_compilation_result_o* result );
 
 	// create a compilation result object - this is needed for compile_source
 	le_shader_compilation_result_o* ( *result_create )();
