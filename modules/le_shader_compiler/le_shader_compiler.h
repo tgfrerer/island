@@ -10,11 +10,9 @@ struct le_shader_compilation_result_o;
 namespace le {
 enum class ShaderStageFlagBits : uint32_t; // defined in renderer_types.h
 }
-struct LeShaderSourceLanguageEnum;
-
 struct le_shader_compiler_interface_t {
 
-	static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 1ull << 16 | 0ull << 0;
+	static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 2ull << 16 | 0ull << 0;
 
 	le_shader_compiler_o* ( *create )();
 	void ( *destroy )( le_shader_compiler_o* self );
