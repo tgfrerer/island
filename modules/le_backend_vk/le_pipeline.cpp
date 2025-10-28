@@ -625,7 +625,7 @@ static bool le_shader_manager_translate_to_spirv_code(
 
 	bool result = false;
 
-	if ( check_is_data_spirv( raw_data, numBytes ) ) {
+	if ( module->source_language == le::ShaderSourceLanguage::eSpirv && check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
 		memcpy( spirvCode.data(), raw_data, numBytes );
 		result = true;
@@ -636,6 +636,7 @@ static bool le_shader_manager_translate_to_spirv_code(
 		auto it = self->available_shader_compiler_instances.find( module->source_language );
 
 		if ( it == self->available_shader_compiler_instances.end() ) {
+			logger().warn( "No shader compiler available for shader language: %x", module->source_language );
 			return false;
 		}
 
