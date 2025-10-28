@@ -613,16 +613,13 @@ static bool check_is_data_spirv( const void* raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-static bool translate_to_spirv_code(
-    shader_compiler_instance_t& compiler, // currently active shader compiler
-    void*                       raw_data,
-    size_t                      numBytes,
-    uint32_t                    shader_source_language,
-    le::ShaderStage             moduleType,
-    const char*                 original_file_name,
-    std::string const&          shaderDefines,
-    std::vector<uint32_t>&      spirvCode,
-    std::vector<std::string>&   included_files ) {
+static bool le_shader_manager_translate_to_spirv_code(
+    le_shader_manager_o*      self,
+    void*                     raw_data,
+    size_t                    numBytes,
+    le_shader_module_o*       module,
+    std::vector<uint32_t>&    spirvCode,
+    std::vector<std::string>& included_files ) {
 
 	ZoneScoped;
 
@@ -635,13 +632,25 @@ static bool translate_to_spirv_code(
 	} else {
 
 		// ----------| Invariant: Data is not SPIRV, it still needs to be compiled
+
+		auto it = self->available_shader_compiler_instances.find( module->source_language );
+
+		if ( it == self->available_shader_compiler_instances.end() ) {
+			return false;
+		}
+
+		// ----------| invariant: there exists a compiler for the given language
+
+		auto& compiler = self->shader_compilers.at( it->second );
+
 		auto compilation_result = compiler.interface->result_create();
 
-		compiler.interface->compile_source( compiler.obj,
-		                                    static_cast<const char*>( raw_data ), numBytes,
-		                                    shader_source_language, moduleType, original_file_name,
-		                                    shaderDefines.c_str(), shaderDefines.size(),
-		                                    compilation_result );
+		compiler.interface->compile_source(
+		    compiler.obj,
+		    static_cast<const char*>( raw_data ), numBytes,
+		    uint32_t( module->source_language ), module->stage, module->filepath.c_str(),
+		    module->macro_defines.c_str(), module->macro_defines.size(),
+		    compilation_result );
 
 		if ( compiler.interface->result_get_success( compilation_result ) == true ) {
 			const char* addr;
@@ -1255,20 +1264,16 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 			return;
 		}
 
-		auto it = self->available_shader_compiler_instances.find( module->source_language );
+		// we found a shader compiler that can deal with the given source language.
+		bool result = le_shader_manager_translate_to_spirv_code(
+		    self,
+		    source_text.data(), source_text.size(),
+		    module,
+		    spirv_code,
+		    included_files );
 
-		if ( it != self->available_shader_compiler_instances.end() ) {
-			// we found a shader copiler that can deal with the given source language.
-			translate_to_spirv_code( self->shader_compilers[ it->second ],
-			                         source_text.data(), source_text.size(),
-			                         uint32_t( module->source_language ),
-			                         module->stage,
-			                         module->filepath.string().c_str(),
-			                         module->macro_defines,
-			                         spirv_code,
-			                         included_files );
-		} else {
-			logger().error( "Could not find shader compiler for source language: '%x' for file: '%s'", ( module->source_language ), module->filepath.c_str() );
+		if ( result == false ) {
+			return;
 		}
 	}
 
