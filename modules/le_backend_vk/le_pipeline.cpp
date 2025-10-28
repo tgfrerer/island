@@ -317,7 +317,7 @@ struct le_shader_manager_o {
 	le_file_watcher_o*    shaderFileWatcher = nullptr; // owning
 
 	std::vector<shader_compiler_instance_t>   shader_compilers;
-	std::unordered_map<std::string, uint32_t> available_shader_compiler_instances; // map from hash of lowercase file extension (`glsl`, `hlsl`, `slang`... ) to shader compiler inferface index that can deal with this extension
+	std::unordered_map<le::ShaderSourceLanguage, uint32_t> available_shader_compiler_instances; // map from shader source language to shader compiler inferface index that can deal with this extension
 };
 
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
@@ -1255,14 +1255,21 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 			return;
 		}
 
-		translate_to_spirv_code( self->shader_compilers[ 0 ],
-		                         source_text.data(), source_text.size(),
-		                         uint32_t( module->source_language ),
-		                         module->stage,
-		                         module->filepath.string().c_str(),
-		                         module->macro_defines,
-		                         spirv_code,
-		                         included_files );
+		auto it = self->available_shader_compiler_instances.find( module->source_language );
+
+		if ( it != self->available_shader_compiler_instances.end() ) {
+			// we found a shader copiler that can deal with the given source language.
+			translate_to_spirv_code( self->shader_compilers[ it->second ],
+			                         source_text.data(), source_text.size(),
+			                         uint32_t( module->source_language ),
+			                         module->stage,
+			                         module->filepath.string().c_str(),
+			                         module->macro_defines,
+			                         spirv_code,
+			                         included_files );
+		} else {
+			logger().error( "Could not find shader compiler for source language: '%x' for file: '%s'", ( module->source_language ), module->filepath.c_str() );
+		}
 	}
 
 	if ( spirv_code.empty() ) {
@@ -1388,8 +1395,8 @@ le_shader_manager_o* le_shader_manager_create( VkDevice_T* device ) {
 	// shader compilers ...
 
 	self->shader_compilers.emplace_back( le_shader_compiler::api->compiler_i, le_shader_compiler::api->compiler_i->create() );
-	self->available_shader_compiler_instances[ "glsl" ] = 0; // refers to first available shader compiler
-	self->available_shader_compiler_instances[ "hlsl" ] = 0; // refers to first available shader compiler
+	self->available_shader_compiler_instances[ le::ShaderSourceLanguage::eGlsl ] = 0; // refers to first available shader compiler
+	self->available_shader_compiler_instances[ le::ShaderSourceLanguage::eHlsl ] = 0; // refers to first available shader compiler
 
 	// -- create file watcher for shader files so that changes can be detected
 	self->shaderFileWatcher = le_file_watcher::le_file_watcher_i.create();
@@ -1442,15 +1449,16 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
     uint32_t                        specialization_map_data_num_bytes,
+    le::ShaderSourceLanguage        source_language,
     std::string const&              optional_macro_defines = "",
-    std::filesystem::path const& optional_file_path = "" ) {
+    std::filesystem::path const&    optional_file_path     = "" ) {
 
 	le_shader_module_o module = le_shader_module_o{};
 
 	module.stage               = moduleType;
 	module.filepath            = optional_file_path;
 	module.macro_defines       = optional_macro_defines;
-	module.source_language = le::ShaderSourceLanguage::eSpirv;
+	module.source_language     = source_language;
 	module.spirv.assign( spirv_code, spirv_code + spirv_code_length );
 	module.specialization_map_info.data.assign( static_cast<char*>( specialization_map_data ), static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
 	module.specialization_map_info.entries.assign( reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ), reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
@@ -2570,6 +2578,7 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
 	    specialization_map_entries_count,
 	    specialization_map_data,
 	    specialization_map_data_num_bytes,
+	    shader_source_language,
 	    shader_defines,
 	    std::filesystem::canonical( path ) );
 }
@@ -2593,7 +2602,8 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spi
 	    specialization_map_entries,
 	    specialization_map_entries_count,
 	    specialization_map_data,
-	    specialization_map_data_num_bytes );
+	    specialization_map_data_num_bytes,
+	    le::ShaderSourceLanguage::eSpirv );
 }
 
 // ----------------------------------------------------------------------
