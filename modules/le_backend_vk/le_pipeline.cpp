@@ -54,7 +54,6 @@ static constexpr auto TEXTURE_NAME_YCBCR_REQUEST_STRING = "__ycbcr__"; // add th
 struct le_shader_module_o {
 	le::ShaderStageFlagBits                        stage               = {};
 	uint64_t                                       hash                = 0;     ///< hash taken from spirv code + specialization map entries
-	uint64_t                                       hash_shader_defines = 0;     ///< hash taken from shader defines string
 	uint64_t                                       hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
 	std::string                                    macro_defines       = "";    ///< #defines to pass to shader compiler
 	std::vector<le_shader_binding_info>            bindings;                    ///< info for each binding, sorted asc.
@@ -1259,7 +1258,6 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 		return;
 	}
 
-	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
 
 	// -- check spirv code hash against module spirv hash
 	uint64_t shader_module_hash = calculate_shader_module_hash(
@@ -1416,17 +1414,15 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
     uint32_t                        specialization_map_data_num_bytes,
-    std::string const&              optional_macro_defines      = "",
-    uint64_t                        optional_hash_macro_defines = 0,
-    std::filesystem::path const&    optional_file_path          = "" ) {
+    std::string const&              optional_macro_defines = "",
+    std::filesystem::path const& optional_file_path = "" ) {
 
 	le_shader_module_o module = le_shader_module_o{};
 
 	module.stage               = moduleType;
 	module.filepath            = optional_file_path;
 	module.macro_defines       = optional_macro_defines;
-	module.hash_shader_defines = optional_hash_macro_defines;
-	module.source_language     = le::ShaderSourceLanguage::eSpirv;
+	module.source_language = le::ShaderSourceLanguage::eSpirv;
 	module.spirv.assign( spirv_code, spirv_code + spirv_code_length );
 	module.specialization_map_info.data.assign( static_cast<char*>( specialization_map_data ), static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
 	module.specialization_map_info.entries.assign( reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ), reinterpret_cast<VkSpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
@@ -2531,7 +2527,6 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
     uint32_t                          specialization_map_data_num_bytes ) {
 
 	std::string shader_defines      = macro_definitions ? std::string( macro_definitions ) : "";
-	uint64_t    hash_shader_defines = SpookyHash::Hash64( shader_defines.data(), shader_defines.size(), 0 );
 
 	if ( !std::filesystem::exists( path ) ) {
 		logger().error( "Could not find shader file: '%s'", path );
@@ -2548,7 +2543,6 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_fil
 	    specialization_map_data,
 	    specialization_map_data_num_bytes,
 	    shader_defines,
-	    hash_shader_defines,
 	    std::filesystem::canonical( path ) );
 }
 
