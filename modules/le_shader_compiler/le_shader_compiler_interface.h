@@ -1,0 +1,34 @@
+#pragma once
+
+#include <cstddef>
+#include <stdint.h>
+
+struct le_shader_compiler_o;
+struct le_shader_compilation_result_o;
+
+namespace le {
+enum class ShaderStageFlagBits : uint32_t; // defined in renderer_types.h
+}
+struct le_shader_compiler_interface_t {
+
+	static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 2ull << 16 | 0ull << 0;
+
+	le_shader_compiler_o* ( *create )();
+	void ( *destroy )( le_shader_compiler_o* self );
+	void ( *add_shader_include_directory )( le_shader_compiler_o* self, char const* path );
+
+	bool ( *compile_source )( le_shader_compiler_o* compiler, const char* sourceText, size_t sourceTextSize, const uint32_t& shader_source_language, const le::ShaderStageFlagBits& shaderType, const char* original_file_path, char const* compile_defines, size_t compile_defines_sz, le_shader_compilation_result_o* result );
+
+	// create a compilation result object - this is needed for compile_source
+	le_shader_compilation_result_o* ( *result_create )();
+	void ( *result_destroy )( le_shader_compilation_result_o* res );
+
+	/// \brief  iterate over include paths in current compilation result
+	/// \return false if no more paths, otherwise: true, and updates to pPath and pStrSz as side-effect
+	/// \note   lifetime of any pointers is tied to life-time of result object
+	bool ( *result_get_included_files )( le_shader_compilation_result_o* res, const char** pPath, void** it );
+	bool ( *result_get_success )( le_shader_compilation_result_o* res );
+
+	// pAddr receives a pointer to spir-v binary code - this is guaranteed to be castable to uint32_t.
+	void ( *result_get_bytes )( le_shader_compilation_result_o* res, const char** p_spir_v_bytes, size_t* pNumBytes );
+};

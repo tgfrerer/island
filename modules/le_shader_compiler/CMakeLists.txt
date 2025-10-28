@@ -6,6 +6,7 @@ depends_on_island_module(le_renderer)
 
 
 set (SOURCES "le_shader_compiler.cpp")
+set (SOURCES ${SOURCES} "le_shader_compiler_interface.h")
 set (SOURCES ${SOURCES} "le_shader_compiler.h")
 
 if (${PLUGINS_DYNAMIC})
