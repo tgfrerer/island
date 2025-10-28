@@ -106,9 +106,9 @@ struct le_on_frame_clear_callback_data_t {
 
 namespace le {
 enum class ShaderSourceLanguage : uint32_t {
-	eGlsl    = 0,
-	eHlsl    = 1,
-	eSpirv   = 2,
+	eGlsl    = hash_32_fnv1a_const( "glsl" ),
+	eHlsl    = hash_32_fnv1a_const( "hlsl" ),
+	eSpirv   = hash_32_fnv1a_const( "spirv" ),
 	eDefault = eGlsl,
 };
 } // namespace le
