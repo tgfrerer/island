@@ -313,10 +313,9 @@ struct le_shader_manager_o {
 
 	std::mutex                        mtx_modified_shader_modules; // mutex protecting modified shader modules;
 	std::set<le_shader_module_handle> modified_shader_modules;     // non-owning pointers to shader modules which need recompiling (used by file watcher)
+	le_file_watcher_o*                shaderFileWatcher = nullptr; // owning
 
-	le_file_watcher_o*    shaderFileWatcher = nullptr; // owning
-
-	std::vector<shader_compiler_instance_t>   shader_compilers;
+	std::vector<shader_compiler_instance_t>                shader_compilers;
 	std::unordered_map<le::ShaderSourceLanguage, uint32_t> available_shader_compiler_instances; // map from shader source language to shader compiler inferface index that can deal with this extension
 };
 
@@ -1387,7 +1386,30 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o* self )
 
 // ----------------------------------------------------------------------
 
-le_shader_manager_o* le_shader_manager_create( VkDevice_T* device ) {
+static void le_shader_manager_set_shader_compiler_interface_for_language( le_shader_manager_o* self, le::ShaderSourceLanguage const& language, le_shader_compiler_interface_t* interface ) {
+
+	// First try to see if we have already seen this shader iterface.
+	// if yes, then re-use the existing version of the shader interface.
+
+	size_t idx = 0;
+	for ( ; idx != self->shader_compilers.size(); idx++ ) {
+		if ( self->shader_compilers[ idx ].interface == interface ) {
+			break;
+		}
+	}
+
+	if ( idx == self->shader_compilers.size() ) {
+		self->shader_compilers.emplace_back( interface, interface->create() );
+	}
+
+	// ---------| invariant: idx points at the correct shader interface
+
+	self->available_shader_compiler_instances[ language ] = idx; // refers to first available shader compiler
+}
+
+// ----------------------------------------------------------------------
+
+static le_shader_manager_o* le_shader_manager_create( VkDevice_T* device ) {
 	auto self = new le_shader_manager_o();
 
 	self->device = device;
@@ -1395,14 +1417,10 @@ le_shader_manager_o* le_shader_manager_create( VkDevice_T* device ) {
 	// -- create shader compiler
 	using namespace le_shader_compiler;
 
-	// Add a default interface for compiling shaders
+	// Add a default interface for compiling shaders -- hlsl, and glsl
 
-	// FIXME: this should be added externally, so that we can add custom
-	// shader compilers ...
-
-	self->shader_compilers.emplace_back( le_shader_compiler::api->compiler_i, le_shader_compiler::api->compiler_i->create() );
-	self->available_shader_compiler_instances[ le::ShaderSourceLanguage::eGlsl ] = 0; // refers to first available shader compiler
-	self->available_shader_compiler_instances[ le::ShaderSourceLanguage::eHlsl ] = 0; // refers to first available shader compiler
+	le_shader_manager_set_shader_compiler_interface_for_language( self, le::ShaderSourceLanguage::eHlsl, le_shader_compiler::api->compiler_i );
+	le_shader_manager_set_shader_compiler_interface_for_language( self, le::ShaderSourceLanguage::eGlsl, le_shader_compiler::api->compiler_i );
 
 	// -- create file watcher for shader files so that changes can be detected
 	self->shaderFileWatcher = le_file_watcher::le_file_watcher_i.create();
@@ -2620,6 +2638,12 @@ static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o* se
 
 // ----------------------------------------------------------------------
 
+static void le_pipeline_set_compiler_interface_for_shader_language( le_pipeline_manager_o* self, LeShaderSourceLanguageEnum const& shader_language, le_shader_compiler_interface_t* interface ) {
+	le_shader_manager_set_shader_compiler_interface_for_language( self->shaderManager, shader_language, interface );
+}
+
+// ----------------------------------------------------------------------
+
 static void le_pipeline_add_shader_include_directory( le_pipeline_manager_o* self, char const* path ) {
 	if ( self->shaderManager ) {
 		for ( auto& s : self->shaderManager->shader_compilers ) {
@@ -2740,6 +2764,7 @@ void register_le_pipeline_vk_api( void* api_ ) {
 		i.create                       = le_pipeline_manager_create;
 		i.destroy                      = le_pipeline_manager_destroy;
 		i.add_shader_include_directory = le_pipeline_add_shader_include_directory;
+		i.set_compiler_interface_for_shader_language = le_pipeline_set_compiler_interface_for_shader_language;
 
 		i.create_shader_module_from_file    = le_pipeline_manager_create_shader_module_from_file;
 		i.create_shader_module_from_spirv   = le_pipeline_manager_create_shader_module_from_spirv;

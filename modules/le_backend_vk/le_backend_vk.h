@@ -104,6 +104,7 @@ struct LeShaderSourceLanguageEnum;
 // enum class LeResourceType : uint8_t;
 
 struct le_resource_info_t;
+struct le_shader_compiler_interface_t;
 
 struct le_backend_vk_settings_o; // global settings for backend singleton
 
@@ -270,6 +271,7 @@ struct le_backend_vk_api {
 		void                                     ( *destroy                           ) ( le_pipeline_manager_o* self );
 
 		void                                     ( *add_shader_include_directory      ) ( le_pipeline_manager_o* self, char const * path );
+		void 									 ( *set_compiler_interface_for_shader_language)(le_pipeline_manager_o* self, LeShaderSourceLanguageEnum const & shader_language, le_shader_compiler_interface_t* interface);
 
 		le_gpso_handle  						 ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso );
 		le_cpso_handle							 ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso);
