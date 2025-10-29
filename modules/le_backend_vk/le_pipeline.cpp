@@ -1369,16 +1369,18 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o* self )
 	// that need to be compiled and don't call shader compilation ad-hoc?
 
 	if ( !self->modified_shader_modules.empty() ) {
+
 		self->mtx_modified_shader_modules.lock();
-		// we need to start a compilation session for the shader compiler here
-		// TODO: auto s = le_shader_manager_create_shader_compilation_session( self );
-		// if ( s ) {
+
 		for ( auto& s : self->modified_shader_modules ) {
 			le_shader_manager_shader_module_update( self, s );
 		}
-		// we need to dispose of our compilation session for the shader compiler here.
-		// TODO: le_shader_manager_destroy_shader_compilation_session( self, s );
-		//}
+
+		// Maintain cache on all shader compilers
+		for ( auto& c : self->shader_compilers ) {
+			c.interface->maintain_cache( c.obj );
+		}
+
 		self->modified_shader_modules.clear();
 		self->mtx_modified_shader_modules.unlock();
 	}
