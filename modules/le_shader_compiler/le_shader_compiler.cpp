@@ -211,6 +211,10 @@ static void le_shader_compiler_destroy( le_shader_compiler_o* self ) {
 	delete self;
 }
 
+static void le_shader_compiler_maintain_cache( le_shader_compiler_o* self ) {
+	// noop
+}
+
 // ----------------------------------------------------------------------
 /// \brief   file loader utility method
 /// \details loads file given by filepath and returns a vector of chars if successful
@@ -701,6 +705,7 @@ LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
 	compiler_i->destroy                      = le_shader_compiler_destroy;
 	compiler_i->add_shader_include_directory = le_shader_compiler_add_shader_include_directory;
 	compiler_i->compile_source               = le_shader_compiler_compile_source;
+	compiler_i->maintain_cache               = le_shader_compiler_maintain_cache;
 
 	compiler_i->result_create             = le_shader_compilation_result_create;
 	compiler_i->result_get_bytes          = le_shader_compilation_result_get_result_bytes;

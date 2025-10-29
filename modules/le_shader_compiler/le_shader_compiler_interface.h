@@ -11,7 +11,7 @@ enum class ShaderStageFlagBits : uint32_t; // defined in renderer_types.h
 }
 struct le_shader_compiler_interface_t {
 
-	static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 2ull << 16 | 0ull << 0;
+	static constexpr uint64_t API_VERSION = 0ull << 48 | 0ull << 32 | 3ull << 16 | 0ull << 0;
 
 	le_shader_compiler_o* ( *create )();
 	void ( *destroy )( le_shader_compiler_o* self );
@@ -31,4 +31,6 @@ struct le_shader_compiler_interface_t {
 
 	// pAddr receives a pointer to spir-v binary code - this is guaranteed to be castable to uint32_t.
 	void ( *result_get_bytes )( le_shader_compilation_result_o* res, const char** p_spir_v_bytes, size_t* pNumBytes );
+
+	void ( *maintain_cache )( le_shader_compiler_o* self );
 };
