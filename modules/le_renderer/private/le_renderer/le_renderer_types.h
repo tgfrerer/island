@@ -108,6 +108,7 @@ namespace le {
 enum class ShaderSourceLanguage : uint32_t {
 	eGlsl    = hash_32_fnv1a_const( "glsl" ),
 	eHlsl    = hash_32_fnv1a_const( "hlsl" ),
+	eSlang   = hash_32_fnv1a_const( "slang" ),
 	eSpirv   = hash_32_fnv1a_const( "spirv" ),
 	eDefault = eGlsl,
 };
