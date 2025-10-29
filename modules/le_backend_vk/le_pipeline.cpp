@@ -1350,13 +1350,13 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 // this method is called immediately after RECORD
 static void le_shader_manager_update_shader_modules( le_shader_manager_o* self ) {
 
-	// -- find out which shader modules have been tainted
+	// -- Find out which shader modules have been tainted
 
 	// this will call callbacks on any watched file objects as a side effect
 	// callbacks will modify le_backend->modifiedShaderModules
 	le_file_watcher::le_file_watcher_i.poll_notifications( self->shaderFileWatcher );
 
-	// -- update only modules which have been tainted
+	// -- Update only modules which have been tainted
 
 	// There is an opportunity here - we could re-use the session
 	// for all of the modified modules and cache build artifacts --
