@@ -246,7 +246,7 @@ listed here:
 | `le_font` | [stb truetype][link-stb_truetype] | truetype glyph sdf, geometry and texture atlas based typesetting |
 | `le_pipeline_builder` | - | build graphics, and compute pipelines | 
 | `le_rtx_pipeline_builder` | - | build Khronos RTX raytracing pipelines | 
-| `le_2d` | - | simplified 2d drawing context |
+| `le_2d` | - | a fully gpu accelerated 2d drawing context based on vello shaders|
 | `le_timebase` | - | timekeeping, canonical clock for animations | 
 | `le_jobs` | - | fiber-based job system | 
 | `le_ecs` | - | entity-component-system | 
