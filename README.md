@@ -6,7 +6,8 @@ Project Island is an experimental **Vulkan** Renderer for Linux (Desktop, [Raspb
 
 Island is written for **rapid protoyping and tweaking**. That's why it
 allows **hot-reloading** wherever possible: for **C/C++** application
-code, **GLSL** or **HLSL** shader code, **image assets**, and even the renderer's own core modules. 
+code, **SLANG**, **GLSL** or **HLSL** shader code, **image assets**, and
+even the renderer's own core modules.
 
 Island is **fast to compile**. A full rebuild should take < 5s on
 a moderate multicore machine, and incremental builds often take < 1s. 
@@ -25,13 +26,15 @@ can build a single, statically linked and optimised binary.
   modules, each of which can be tweaked, re-compiled at runtime, and
   automatically hot-reloaded.
 
-* **Shader hot-reloading**: Island supports shader code hot-reloading
-  for HLSL, GLSL, or SPIR-V shader source files. Shader files are
+* **Shader hot-reloading**: Island supports shader code hot-reloading for
+  [SLANG](https://shader-slang.org/), HLSL, GLSL, or SPIR-V shader source files. Shader files are
   automatically watched, and any change triggers a recompile, with
-  (Vulkan) pipelines automatically rebuilt if needed. HLSL/GLSL
-  Shaders may use `#include` directives. Error messages (if any) will
-  point at shader file and line number, and include a brief listing
-  with problematic lines highlighted in context.
+  (Vulkan) pipelines automatically rebuilt if needed. HLSL/GLSL Shaders
+  may use `#include` directives; SLANG shaders can make full use of their
+  `import` directives. Error messages (if any) will point at shader file
+  and line number, and include a brief listing with problematic lines
+  highlighted in context; dependencies are automatically watched for
+  changes.
 
 <img width="350" src="https://github.com/tgfrerer/island/assets/423509/b97ef461-42b1-4fbd-b3a0-c4051bb6e8d7" align="right" />
 
@@ -43,20 +46,20 @@ can build a single, statically linked and optimised binary.
   a recompilation & reload cycle typically takes less than 1 second,
   while the application keeps running. Compiling the whole codebase
   from scratch should take less than 5 seconds when using LLVM on an
-  average multi-core machine. And on Raspberry Pi 5, a typical project takes about 27s of wall-clock-time to compile from scratch.
+  average multi-core machine. And on Raspberry Pi 5, a typical 
+  project takes about 27s of wall-clock-time to compile from scratch.
 
 * **Code tweaks**: Near-instant in-code parameter tweaks for Debug
   builds (no need to recompile) by using a special `LE_TWEAK()` macro.
 
-* **Vulkan backend**: Island has a Vulkan rendering backend, which, on
-  Linux, allows access to new and experimental GPU features soon after
-  they are released. The renderer takes care of most of the
-  bureaucracy which comes with modern APIs: Vulkan **resources are
-  automatically synchronised**, and only allocated when needed. Most
-  resource properties are *inferred* automatically based on the
-  context of how the resource is being used. Pipelines are compiled
-  and recompiled on demand. When compiled in Debug mode, Vulkan
-  validation layers are loaded by default.
+* **Vulkan backend**: Island has a Vulkan rendering backend, which allows
+  access to new and experimental GPU features soon after they are
+  released. The renderer takes care of most of the bureaucracy which comes
+  with modern APIs: Vulkan **resources are automatically synchronised**,
+  and allocated when needed. Most resource properties are *inferred*
+  automatically based on the context of how the resource is being used.
+  Pipelines are compiled and recompiled on demand. When compiled in Debug
+  mode, Vulkan validation layers are loaded by default.
 
 * **Rendergraph based architecture**: Rendering is structured using
   passes. Passes are executed on-demand and synchronised
@@ -237,26 +240,27 @@ listed here:
 
 | Module | Wraps | Description | 
 | --- | :---: | --- | 
-| `le_camera` | - | interactive, mouse controlled camera |
-| `le_path` | - | draw svg-style paths, parse simplified SVG-style path command lists | 
-| `le_imgui` | [imgui][link-imgui] | graphical user interface |
-| `le_pixels` | [stb image][link-stb_image] | load image files |
-| `le_png` | [lodepng][link-lodepeng] | image codec: load and store png files, supports fpnge on linux |
-| `le_exr` | [openEXR][link-openexr] | image codec: load and store exr files, support for f16 f32 images |
-| `le_font` | [stb truetype][link-stb_truetype] | truetype glyph sdf, geometry and texture atlas based typesetting |
-| `le_pipeline_builder` | - | build graphics, and compute pipelines | 
-| `le_rtx_pipeline_builder` | - | build Khronos RTX raytracing pipelines | 
-| `le_2d` | - | a fully gpu accelerated 2d drawing context based on vello shaders|
-| `le_timebase` | - | timekeeping, canonical clock for animations | 
-| `le_jobs` | - | fiber-based job system | 
-| `le_ecs` | - | entity-component-system | 
-| `le_shader_compiler` | [shaderc][link-shaderc] | compile GLSL, and HLSL shader source to SPIR-V | 
-| `le_window` | [glfw][glfw] | window i/o system | 
-| `le_swapchain` | - | windowed, direct, or straight-to-video output | 
-| `le_renderer` | - | record command buffers, evaluate rendergraphs |
-| `le_video_decoder` | - | hardware accelerated video decoding using Vulkan Video API |
-| `le_backend` | - | interact with GPU via Vulkan, manage GPU resources |
-| `le_screenshot` | - | save renderpass images to disk, supports image sequences, and any file format for which there is an image encoder, notably exr, png |
+| [le_camera](modules/le_camera) | - | interactive, mouse controlled camera |
+| [le_path](modules/le_path) | - | draw svg-style paths, parse simplified SVG-style path command lists | 
+| [le_imgui](modules/le_imgui) | [imgui][link-imgui] | graphical user interface |
+| [le_pixels](modules/le_pixels) | [stb image][link-stb_image] | load image files |
+| [le_png](modules/le_png) | [lodepng][link-lodepeng] | image codec: load and store png files, supports fpnge on linux |
+| [le_exr](modules/le_exr) | [openEXR][link-openexr] | image codec: load and store exr files, support for f16 f32 images |
+| [le_font](modules/le_font) | [stb truetype][link-stb_truetype] | truetype glyph sdf, geometry and texture atlas based typesetting |
+| [le_pipeline_builder](modules/le_pipeline_builder) | - | build graphics, and compute pipelines | 
+| [le_rtx_pipeline_builder](modules/le_rtx_pipeline_builder) | - | build Khronos RTX raytracing pipelines | 
+| [le_2d](modules/le_2d) | [vello-shaders][link-vello-shaders] | a fully gpu accelerated 2d drawing context based on [vello shaders][link-vello-shaders]|
+| [le_timebase](modules/le_timebase) | - | timekeeping, canonical clock for animations | 
+| [le_jobs](modules/le_jobs) | - | fiber-based job system | 
+| [le_ecs](modules/le_ecs) | - | entity-component-system | 
+| [le_shader_compiler](modules/le_shader_compiler) | [shaderc][link-shaderc] | compile GLSL, and HLSL shader source to SPIR-V | 
+| [le_slang_shader_compiler](modules/le_slang_shader_compiler) | [slang][link-slang] | compile GLSL, and HLSL shader source to SPIR-V | 
+| [le_window](modules/le_window) | [glfw][glfw] | window i/o system | 
+| [le_swapchain](modules/le_swapchain) | - | windowed, direct, or straight-to-video output | 
+| [le_renderer](modules/le_renderer) | - | record command buffers, evaluate rendergraphs |
+| [le_video_decoder](modules/le_video_decoder) | - | hardware accelerated video decoding using Vulkan Video API |
+| [le_backend](modules/le_backend) | - | interact with GPU via Vulkan, manage GPU resources |
+| [le_screenshot](modules/le_screenshot) | - | save renderpass images to disk, supports image sequences, and any file format for which there is an image encoder, notably exr, png |
 
 > [!TIP]
 >
@@ -278,6 +282,8 @@ listed here:
 [link-shaderc]: https://github.com/google/shaderc/
 [glfw]: https://github.com/glfw/glfw
 [link-openexr]: https://github.com/AcademySoftwareFoundation/openexr
+[link-slang]: https://shader-slang.org/
+[link-vello-shaders]: https://github.com/linebender/vello/tree/main/vello_shaders
 
 # Setup instructions
 
