@@ -648,7 +648,7 @@ static bool le_shader_manager_translate_to_spirv_code(
 		compiler.interface->compile_source(
 		    compiler.obj,
 		    static_cast<const char*>( raw_data ), numBytes,
-		    uint32_t( module->source_language ), module->stage, module->filepath.c_str(),
+		    uint32_t( module->source_language ), module->stage, module->filepath.string().c_str(),
 		    module->macro_defines.c_str(), module->macro_defines.size(),
 		    compilation_result );
 
