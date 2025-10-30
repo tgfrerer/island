@@ -296,6 +296,7 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	// See <https://docs.vulkan.org/spec/latest/appendices/roadmap.html#roadmap-2022>
 
 	vk_11_features->samplerYcbcrConversion = VK_TRUE; // needed for video decoding pipeline
+	vk_11_features->shaderDrawParameters   = VK_TRUE; // needed for spir-v shaders
 	vk_12_features->timelineSemaphore      = VK_TRUE; // needed for cross-queue synchronisation
 	vk_13_features->synchronization2       = VK_TRUE; // use synchronisation2 by default
 
