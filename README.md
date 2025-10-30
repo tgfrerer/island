@@ -71,6 +71,10 @@ can build a single, statically linked and optimised binary.
 
   <img width="350" src="resources/readme/graph_screenshot.png" align="right" />
   
+* **Rendergraph visualizer** `le_rendergraph_visualizer` interactively
+  visualizes the current state of the renderer -- it displays active and
+  inactive renderpasses, and their resource dependencies in real-time.
+
 * **Automatic GPU multiqueue**: renderpasses are automatically
   distributed onto any avaliable render queues - if resources need to
   be transferred between queue families, this happens automatically.
@@ -124,17 +128,20 @@ can build a single, statically linked and optimised binary.
 * Load and Save **OpenEXR** images, in 16bit float, 32bit float
   variants via the core `le_exr` module
 
-* **2D drawing context**: Draw thick lines and curves using
-  `le_path`, which specialises in 2D meshes. This module implements
-  a useful subset of the SVG command palette, and includes some extras
-  like for example a command to smoothen open or closed Bézier curves
-  by applying the [Hobby algorithm][hobby]. Thick Bézier curves are
-  drawn using [an algorithm after T. F. Hain][hain].
+* **2D paths**: operate with curves using `le_path`, which
+  includes a useful subset of the SVG command palette, and includes some
+  extras, like functions to smoothen open or closed Bézier curves by
+  applying the [Hobby algorithm][hobby], or by using natural cubic
+  splines. 
 
+* **2D drawing** draw fully GPU accelerated thick 2d curves with
+  transparency, fills, gradients even, thanks to [vello
+  shaders][link-vello-shaders], which form the core of `le_2d`.
+  
 * **Job-system**: Cooperatively parallel workloads can be implemented
   using the `le_jobs` module, which implements a job system using
-  coroutine-like fibers. Both backend and render modules are designed
-  to minimise resource contention.
+  coroutine-like fibers. Both backend and render modules are designed to
+  minimise resource contention.
 
 * **GPU ray tracing** Island supports RTX via the *Khronos Vulkan
   raytracing extensions*. Creating acceleration structures and shader
@@ -143,6 +150,8 @@ can build a single, statically linked and optimised binary.
 
 * **Debug print to screen** print-to-screen that is fast, textureless
   and simple to use with `le_debug_print_text`
+
+* And much more...
 
 [hain]: https://doi.org/10.1016/j.cag.2005.08.002
 [hobby]: http://weitz.de/hobby/
