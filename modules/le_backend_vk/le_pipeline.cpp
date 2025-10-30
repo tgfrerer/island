@@ -1008,7 +1008,11 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			if ( (info.type == le::DescriptorType::eUniformBufferDynamic ||
 			     info.type == le::DescriptorType::eStorageBufferDynamic) &&
 				binding->type_description->type_name != nullptr) {
-				info.name_hash = hash_64_fnv1a( binding->type_description->type_name );
+				if ( std::string( binding->name ).empty() ) {
+					info.name_hash = hash_64_fnv1a( binding->type_description->type_name );
+				} else {
+					info.name_hash = hash_64_fnv1a( binding->name );
+				}
 			} else {
 				info.name_hash = hash_64_fnv1a( binding->name );
 			}
