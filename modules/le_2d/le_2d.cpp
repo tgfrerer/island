@@ -834,7 +834,7 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 //
 // We do this so that we can embed shader code directly into this
 // compilation unit.
-static le_cpso_handle create_cpso_from_compressed_and_encoded_spirv_code( le_pipeline_manager_o* pm, char const* compressed_shader_code ) {
+static le_cpso_handle create_cpso_from_compressed_and_encoded_spirv_code( le_pipeline_manager_o* pm, char const* compressed_shader_code, char const* debug_name = "" ) {
 	int  compressed_size = ( ( ( int )strlen( compressed_shader_code ) + 4 ) / 5 ) * 4;
 	auto decoded_data    = ( uint8_t* )malloc( compressed_size );
 	decode_85( ( unsigned char const* )compressed_shader_code, decoded_data );
@@ -851,6 +851,7 @@ static le_cpso_handle create_cpso_from_compressed_and_encoded_spirv_code( le_pip
 	            .setShaderStage( le::ShaderStage::eCompute )
 	            .setSpirvCode( ( uint32_t* )buf_spv_code.data(), buf_spv_code.size() )
 	            .setSourceLanguage( le::ShaderSourceLanguage::eSpirv )
+	            .setSourceFilePath( debug_name )
 	            .build() )
 	    .build();
 };
@@ -1209,7 +1210,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            ctx->buf_vello_scene );
 
 			        static auto pso_pathtag_reduce =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce_compressed_data_base85, "pathtag_reduce" );
 
 			        encoder.bindComputePipeline( pso_pathtag_reduce )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1227,7 +1228,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			        {
 
 				        static auto pso_pathtag_reduce2 =
-				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce2_compressed_data_base85 );
+				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce2_compressed_data_base85, "pathtag_reduce2" );
 
 				        encoder.bindComputePipeline( pso_pathtag_reduce2 )
 				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced_in" ), ctx->buf_reduced, 0 ) // r
@@ -1245,7 +1246,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 				            ctx->buf_reduced2 );
 
 				        static auto pso_pathtag_scan1 =
-				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan1_compressed_data_base85 );
+				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan1_compressed_data_base85, "pathtag_scan1" );
 
 				        encoder.bindComputePipeline( pso_pathtag_scan1 )
 				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_reduced, 0 )          // r
@@ -1281,9 +1282,9 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            ctx->buf_tagmonoid);
 
 			        static auto pso_pathtag_scan_large =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_large_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_large_compressed_data_base85, "pathtag_scan_large" );
 			        static auto pso_pathtag_scan_small =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_small_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_small_compressed_data_base85, "pathtag_scan_small" );
 
 			        encoder.bindComputePipeline( wg.use_large_path_scan ? pso_pathtag_scan_large : pso_pathtag_scan_small )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1298,7 +1299,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 		        {
 			        static auto pso_path_bbox_clear =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, bbox_clear_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, bbox_clear_compressed_data_base85, "bbox_clear" );
 
 			        encoder.bindComputePipeline( pso_path_bbox_clear )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1322,7 +1323,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            ctx->buf_path_bbox );
 
 			        static auto pso_flatten =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, flatten_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, flatten_compressed_data_base85, "flatten" );
 
 			        encoder.bindComputePipeline( pso_flatten )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1336,7 +1337,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        //
 		        {
 			        static auto pso_draw_reduce =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_reduce_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_reduce_compressed_data_base85, "draw_reduce" );
 
 			        encoder.bindComputePipeline( pso_draw_reduce )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1363,7 +1364,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 		        {
 			        static auto pso_draw_leaf =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_leaf_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_leaf_compressed_data_base85, "draw_leaf" );
 
 			        encoder.bindComputePipeline( pso_draw_leaf )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1379,7 +1380,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        if ( wg.clip_reduce[ 0 ] > 0 ) {
 			        // clip_reduce
 			        static auto pso_clip_reduce =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_reduce_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_reduce_compressed_data_base85, "clip_reduce" );
 
 			        encoder.bindComputePipeline( pso_clip_reduce )
 			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_inp" ), ctx->buf_clip_inp, 0 )     // r
@@ -1406,7 +1407,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        if ( wg.clip_leaf[ 0 ] > 0 ) {
 			        // clip_leaf
 			        static auto pso_clip_leaf =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_leaf_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_leaf_compressed_data_base85, "clip_leaf" );
 
 			        encoder.bindComputePipeline( pso_clip_leaf )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1441,7 +1442,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		            ctx->buf_draw_monoid );
 		        {
 			        static auto pso_binning =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, binning_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, binning_compressed_data_base85, "binning" );
 
 			        encoder.bindComputePipeline( pso_binning )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1472,7 +1473,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        {
 
 			        static auto pso_tile_alloc =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, tile_alloc_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, tile_alloc_compressed_data_base85, "tile_alloc" );
 
 			        encoder.bindComputePipeline( pso_tile_alloc )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1494,7 +1495,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        {
 
 			        static auto pso_path_count_setup =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_setup_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_setup_compressed_data_base85, "path_count_setup" );
 
 			        encoder.bindComputePipeline( pso_path_count_setup )
 			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                  // rw
@@ -1536,7 +1537,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        {
 
 			        static auto pso_path_count =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_compressed_data_base85, "path_count" );
 
 			        encoder.bindComputePipeline( pso_path_count )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1564,7 +1565,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        {
 
 			        static auto pso_backdrop_dyn =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, backdrop_dyn_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, backdrop_dyn_compressed_data_base85, "backdrop_dyn" );
 
 			        encoder.bindComputePipeline( pso_backdrop_dyn )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1606,7 +1607,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        {
 
 			        static auto pso_coarse =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, coarse_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, coarse_compressed_data_base85, "coarse" );
 
 			        encoder.bindComputePipeline( pso_coarse )
 			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
@@ -1639,7 +1640,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        {
 
 			        static auto pso_path_tiling_setup =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_setup_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_setup_compressed_data_base85, "path_tiling_setup" );
 
 			        encoder.bindComputePipeline( pso_path_tiling_setup )
 			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                  // rw
@@ -1680,7 +1681,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        {
 
 			        static auto pso_path_tiling =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_compressed_data_base85, "path_tiling" );
 
 			        encoder.bindComputePipeline( pso_path_tiling )
 			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                // rw
@@ -1709,10 +1710,10 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        {
 
 			        static auto pso_fine_msaa_16 =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_msaa16_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_msaa16_compressed_data_base85, "fine_msaa16" );
 
 			        static auto pso_fine_area =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_area_compressed_data_base85 );
+			            create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_area_compressed_data_base85, "fine_area" );
 
 			        bool should_use_msaa = false;
 
