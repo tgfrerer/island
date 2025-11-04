@@ -1213,9 +1213,9 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce_compressed_data_base85, "pathtag_reduce" );
 
 			        encoder.bindComputePipeline( pso_pathtag_reduce )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_reduced, 0 )
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 )
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_reduced, 0 )
 			            .dispatch( wg.path_reduce[ 0 ], wg.path_reduce[ 1 ], wg.path_reduce[ 2 ] );
 			        //
 		        }
@@ -1231,8 +1231,8 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce2_compressed_data_base85, "pathtag_reduce2" );
 
 				        encoder.bindComputePipeline( pso_pathtag_reduce2 )
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced_in" ), ctx->buf_reduced, 0 ) // r
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_reduced2, 0 )   // rw
+				            .bindArgumentBufferExplicit( 0, 0, ctx->buf_reduced, 0 )  // r
+				            .bindArgumentBufferExplicit( 0, 1, ctx->buf_reduced2, 0 ) // rw
 				            .dispatch( wg.path_reduce2[ 0 ], wg.path_reduce2[ 1 ], wg.path_reduce2[ 2 ] );
 				        //
 			        }
@@ -1249,9 +1249,9 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan1_compressed_data_base85, "pathtag_scan1" );
 
 				        encoder.bindComputePipeline( pso_pathtag_scan1 )
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_reduced, 0 )          // r
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced2" ), ctx->buf_reduced2, 0 )        // r
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tag_monoids" ), ctx->buf_reduced_scan, 0 ) // rw
+				            .bindArgumentBufferExplicit( 0, 0, ctx->buf_reduced, 0 )      // r
+				            .bindArgumentBufferExplicit( 0, 1, ctx->buf_reduced2, 0 )     // r
+				            .bindArgumentBufferExplicit( 0, 2, ctx->buf_reduced_scan, 0 ) // rw
 				            .dispatch( wg.path_scan1[ 0 ], wg.path_scan1[ 1 ], wg.path_scan1[ 2 ] );
 				        //
 			        }
@@ -1287,10 +1287,10 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_small_compressed_data_base85, "pathtag_scan_small" );
 
 			        encoder.bindComputePipeline( wg.use_large_path_scan ? pso_pathtag_scan_large : pso_pathtag_scan_small )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )     // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), reduced_buf, 0 )            // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tag_monoids" ), ctx->buf_tagmonoid, 0 ) // w
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // r
+			            .bindArgumentBufferExplicit( 0, 2, reduced_buf, 0 )          // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_tagmonoid, 0 )   // w
 
 			            .dispatch( wg.path_scan[ 0 ], wg.path_scan[ 1 ], wg.path_scan[ 2 ] );
 		        }
@@ -1302,8 +1302,8 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, bbox_clear_compressed_data_base85, "bbox_clear" );
 
 			        encoder.bindComputePipeline( pso_path_bbox_clear )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox ) // w
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_path_bbox ) // w
 			            .dispatch( wg.bbox_clear[ 0 ], wg.bbox_clear[ 1 ], wg.bbox_clear[ 2 ] );
 		        }
 
@@ -1326,12 +1326,12 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, flatten_compressed_data_base85, "flatten" );
 
 			        encoder.bindComputePipeline( pso_flatten )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene )     // readonly
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tag_monoids" ), ctx->buf_tagmonoid ) // readonly
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox ) // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )             // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "lines" ), ctx->buf_lines )           // w
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene ) // readonly
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_tagmonoid )   // readonly
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path_bbox )   // rw
+			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_bump )        // rw
+			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_lines )       // w
 			            .dispatch( wg.flatten[ 0 ], wg.flatten[ 1 ], wg.flatten[ 2 ] );
 		        }
 		        //
@@ -1340,9 +1340,9 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_reduce_compressed_data_base85, "draw_reduce" );
 
 			        encoder.bindComputePipeline( pso_draw_reduce )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 ) // readonly
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_draw_reduced ) // w
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // readonly
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_reduced )   // w
 			            .dispatch( wg.draw_reduce[ 0 ], wg.draw_reduce[ 1 ], wg.draw_reduce[ 2 ] );
 		        }
 
@@ -1367,13 +1367,13 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_leaf_compressed_data_base85, "draw_leaf" );
 
 			        encoder.bindComputePipeline( pso_draw_leaf )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )       // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_draw_reduced )       // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bbox" ), ctx->buf_path_bbox, 0 )     // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_monoid" ), ctx->buf_draw_monoid, 0 ) // w
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "info" ), ctx->buf_info_bin_data, 0 )      // w
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_inp" ), ctx->buf_clip_inp, 0 )       // w
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 )   // r
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_reduced )     // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path_bbox, 0 )     // r
+			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_draw_monoid, 0 )   // w
+			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_info_bin_data, 0 ) // w
+			            .bindArgumentBufferExplicit( 0, 6, ctx->buf_clip_inp, 0 )      // w
 			            .dispatch( wg.draw_leaf[ 0 ], wg.draw_leaf[ 1 ], wg.draw_leaf[ 2 ] );
 		        }
 
@@ -1383,10 +1383,10 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_reduce_compressed_data_base85, "clip_reduce" );
 
 			        encoder.bindComputePipeline( pso_clip_reduce )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_inp" ), ctx->buf_clip_inp, 0 )     // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox, 0 ) // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_clip_bic, 0 )      // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_out" ), ctx->buf_clip_el, 0 )      // rw
+			            .bindArgumentBufferExplicit( 0, 0, ctx->buf_clip_inp, 0 )  // r
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_path_bbox, 0 ) // r
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_clip_bic, 0 )  // rw
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_el, 0 )   // rw
 			            .dispatch( wg.clip_reduce[ 0 ], wg.clip_reduce[ 1 ], wg.clip_reduce[ 2 ] );
 
 			        encoder.bufferMemoryBarrier(
@@ -1410,13 +1410,13 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_leaf_compressed_data_base85, "clip_leaf" );
 
 			        encoder.bindComputePipeline( pso_clip_leaf )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_inp" ), ctx->buf_clip_inp, 0 )        // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bboxes" ), ctx->buf_path_bbox, 0 )    // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "reduced" ), ctx->buf_clip_bic, 0 )         // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_els" ), ctx->buf_clip_el, 0 )         // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_monoids" ), ctx->buf_draw_monoid, 0 ) // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_bboxes" ), ctx->buf_clip_bbox, 0 )    // rw
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_clip_inp, 0 )    // r
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_path_bbox, 0 )   // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_bic, 0 )    // r
+			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_clip_el, 0 )     // r
+			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_draw_monoid, 0 ) // rw
+			            .bindArgumentBufferExplicit( 0, 6, ctx->buf_clip_bbox, 0 )   // rw
 
 			            .dispatch( wg.clip_leaf[ 0 ], wg.clip_leaf[ 1 ], wg.clip_leaf[ 2 ] );
 		        }
@@ -1445,14 +1445,14 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, binning_compressed_data_base85, "binning" );
 
 			        encoder.bindComputePipeline( pso_binning )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_monoids" ), ctx->buf_draw_monoid, 0 )   // w
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "path_bbox_buf" ), ctx->buf_path_bbox, 0 )    // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "clip_bbox_buf" ), ctx->buf_clip_bbox, 0 )    // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "intersected_bbox" ), ctx->buf_draw_bbox, 0 ) // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                     // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bin_data" ), ctx->buf_info_bin_data, 0 )     // w
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bin_header" ), ctx->buf_bin_header, 0 )      // w
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_draw_monoid, 0 )   // w
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_path_bbox, 0 )     // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_bbox, 0 )     // r
+			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_draw_bbox, 0 )     // r
+			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_bump )             // rw
+			            .bindArgumentBufferExplicit( 0, 6, ctx->buf_info_bin_data, 0 ) // w
+			            .bindArgumentBufferExplicit( 0, 7, ctx->buf_bin_header, 0 )    // w
 			            .dispatch( wg.binning[ 0 ], wg.binning[ 1 ], wg.binning[ 2 ] );
 		        }
 		        encoder.bufferMemoryBarrier(
@@ -1476,12 +1476,12 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, tile_alloc_compressed_data_base85, "tile_alloc" );
 
 			        encoder.bindComputePipeline( pso_tile_alloc )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene, 0 )     // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_bboxes" ), ctx->buf_draw_bbox, 0 ) // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path, 0 )            // w
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tiles" ), ctx->buf_tile, 0 )            // w
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // r
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_bbox, 0 )   // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_bump )           // rw
+			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_path, 0 )        // w
+			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_tile, 0 )        // w
 			            .dispatch( wg.tile_alloc[ 0 ], wg.tile_alloc[ 1 ], wg.tile_alloc[ 2 ] );
 		        }
 
@@ -1498,8 +1498,8 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_setup_compressed_data_base85, "path_count_setup" );
 
 			        encoder.bindComputePipeline( pso_path_count_setup )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                  // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "indirect" ), ctx->buf_indirect_count, 0 ) // w
+			            .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )              // rw
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_indirect_count, 0 ) // w
 			            .dispatch( wg.path_count_setup[ 0 ], wg.path_count_setup[ 1 ], wg.path_count_setup[ 2 ] );
 		        }
 
@@ -1540,12 +1540,12 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_compressed_data_base85, "path_count" );
 
 			        encoder.bindComputePipeline( pso_path_count )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )             // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "lines" ), ctx->buf_lines )           // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path )            // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tile" ), ctx->buf_tile )             // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "seg_counts" ), ctx->buf_seg_counts ) // rw
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_bump )       // rw
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_lines )      // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path )       // r
+			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_tile )       // rw
+			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_seg_counts ) // rw
 			            .dispatchIndirect( ctx->buf_indirect_count );
 		        }
 		        encoder.bufferMemoryBarrier(
@@ -1568,10 +1568,10 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, backdrop_dyn_compressed_data_base85, "backdrop_dyn" );
 
 			        encoder.bindComputePipeline( pso_backdrop_dyn )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path ) // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )  // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tiles" ), ctx->buf_tile ) // rw
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_bump ) // rw
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_path ) // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_tile ) // rw
 			            .dispatch( wg.backdrop[ 0 ], wg.backdrop[ 1 ], wg.backdrop[ 2 ] );
 		        }
 
@@ -1610,15 +1610,15 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, coarse_compressed_data_base85, "coarse" );
 
 			        encoder.bindComputePipeline( pso_coarse )
-			            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "scene" ), ctx->buf_vello_scene )           // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "draw_monoids" ), ctx->buf_draw_monoid )    // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bin_headers" ), ctx->buf_bin_header )      // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "info_bin_data" ), ctx->buf_info_bin_data ) // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path )                  // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tiles" ), ctx->buf_tile )                  // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                   // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "ptcl" ), ctx->buf_ptcl )                   // rw
+			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene )   // r
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_monoid )   // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_bin_header )    // r
+			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_info_bin_data ) // r
+			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_path )          // r
+			            .bindArgumentBufferExplicit( 0, 6, ctx->buf_tile )          // rw
+			            .bindArgumentBufferExplicit( 0, 7, ctx->buf_bump )          // rw
+			            .bindArgumentBufferExplicit( 0, 8, ctx->buf_ptcl )          // rw
 			            .dispatch( wg.coarse[ 0 ], wg.coarse[ 1 ], wg.coarse[ 2 ] );
 		        }
 
@@ -1643,9 +1643,9 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_setup_compressed_data_base85, "path_tiling_setup" );
 
 			        encoder.bindComputePipeline( pso_path_tiling_setup )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                  // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "indirect" ), ctx->buf_indirect_count, 0 ) // w
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "ptcl" ), ctx->buf_ptcl )                  // rw
+			            .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )              // rw
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_indirect_count, 0 ) // w
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )              // rw
 			            .dispatch( wg.path_tiling_setup[ 0 ], wg.path_tiling_setup[ 1 ], wg.path_tiling_setup[ 2 ] );
 		        }
 
@@ -1684,13 +1684,13 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_compressed_data_base85, "path_tiling" );
 
 			        encoder.bindComputePipeline( pso_path_tiling )
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "bump" ), ctx->buf_bump )                // rw
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "seg_counts" ), ctx->buf_seg_counts, 0 ) // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "lines" ), ctx->buf_lines )              // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "paths" ), ctx->buf_path )               // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "tiles" ), ctx->buf_tile )               // r
-			            .bindArgumentBuffer( LE_ARGUMENT_NAME( "segments" ), ctx->buf_segments )        // rw
-			            .dispatchIndirect( ctx->buf_indirect_count );                                   // r
+			            .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )          // rw
+			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_seg_counts, 0 ) // r
+			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_lines )         // r
+			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path )          // r
+			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_tile )          // r
+			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_segments )      // rw
+			            .dispatchIndirect( ctx->buf_indirect_count );               // r
 		        }
 		        encoder.bufferMemoryBarrier(
 		            le::PipelineStageFlagBits2::eComputeShader,
@@ -1719,26 +1719,26 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 			        if ( should_use_msaa ) {
 				        encoder.bindComputePipeline( pso_fine_msaa_16 )
-				            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "segments" ), ctx->buf_segments )        // rw
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "ptcl" ), ctx->buf_ptcl )                // rw
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "info" ), ctx->buf_info_bin_data )       // r
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "blend_spill" ), ctx->buf_blend_spill )  // r
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "mask_lut" ), ctx->buf_mask_lut )        // rw
-				            .setArgumentImage( LE_ARGUMENT_NAME( "output" ), ctx->img_output, 0 )           // w
-				            .setArgumentImage( LE_ARGUMENT_NAME( "gradients" ), ctx->img_gradients, 0 )     // r
-				            .setArgumentImage( LE_ARGUMENT_NAME( "image_atlas" ), ctx->img_image_atlas, 0 ) // r
+				            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+				            .bindArgumentBufferExplicit( 0, 1, ctx->buf_segments )      // rw
+				            .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )          // rw
+				            .bindArgumentBufferExplicit( 0, 3, ctx->buf_info_bin_data ) // r
+				            .bindArgumentBufferExplicit( 0, 4, ctx->buf_blend_spill )   // r
+				            .setArgumentImageExplicit( 0, 5, ctx->img_output, 0 )       // w
+				            .setArgumentImageExplicit( 0, 6, ctx->img_gradients, 0 )    // r
+				            .setArgumentImageExplicit( 0, 7, ctx->img_image_atlas, 0 )  // r
+				            .bindArgumentBufferExplicit( 0, 8, ctx->buf_mask_lut )      // rw
 				            .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
 			        } else {
 				        encoder.bindComputePipeline( pso_fine_area )
-				            .setArgumentData( LE_ARGUMENT_NAME( "config" ), &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "segments" ), ctx->buf_segments )        // rw
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "ptcl" ), ctx->buf_ptcl )                // rw
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "info" ), ctx->buf_info_bin_data )       // r
-				            .bindArgumentBuffer( LE_ARGUMENT_NAME( "blend_spill" ), ctx->buf_blend_spill )  // r
-				            .setArgumentImage( LE_ARGUMENT_NAME( "output" ), ctx->img_output, 0 )           // w
-				            .setArgumentImage( LE_ARGUMENT_NAME( "gradients" ), ctx->img_gradients, 0 )     // r
-				            .setArgumentImage( LE_ARGUMENT_NAME( "image_atlas" ), ctx->img_image_atlas, 0 ) // r
+				            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+				            .bindArgumentBufferExplicit( 0, 1, ctx->buf_segments )      // rw
+				            .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )          // rw
+				            .bindArgumentBufferExplicit( 0, 3, ctx->buf_info_bin_data ) // r
+				            .bindArgumentBufferExplicit( 0, 4, ctx->buf_blend_spill )   // r
+				            .setArgumentImageExplicit( 0, 5, ctx->img_output, 0 )       // w
+				            .setArgumentImageExplicit( 0, 6, ctx->img_gradients, 0 )    // r
+				            .setArgumentImageExplicit( 0, 7, ctx->img_image_atlas, 0 )  // r
 				            .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
 			        }
 		        }
