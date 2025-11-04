@@ -14,16 +14,19 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 #include <iostream>
-#include <memory>
 #include <sstream>
 #include <vector>
 #include <stdlib.h> // for random
+#include "le_rendergraph_visualizer.h"
 
 // Wrapper for format enum so that we can pass this around in a c-style api without
 // completely losing type safety.
 struct le_image_decoder_format_o {
 	le::Format format;
 };
+
+constexpr uint32_t C_WINDOW_WIDTH  = 1024;
+constexpr uint32_t C_WINDOW_HEIGHT = 512;
 
 struct pixels_data_t {
 	le_buffer_resource_handle handle;
@@ -55,6 +58,7 @@ struct bitonic_merge_sort_example_app_o {
 	slow_mo_t      slow_mo;
 	DataSourceType data_source_type; // whether data should come from random noise, or a loaded image.
 	bool           source_dirty;     // whether source needs an update
+	le::RendergraphVisualizer rendergraph_visualizer{ false, C_WINDOW_WIDTH, C_WINDOW_HEIGHT };
 };
 
 typedef bitonic_merge_sort_example_app_o app_o;
@@ -78,8 +82,8 @@ static bitonic_merge_sort_example_app_o* bitonic_merge_sort_example_app_create()
 
 	le::Window::Settings settings;
 	settings
-	    .setWidth( 1024 )
-	    .setHeight( 512 )
+	    .setWidth( C_WINDOW_WIDTH )
+	    .setHeight( C_WINDOW_HEIGHT )
 	    .setTitle( "Island // BitonicMergeSortExampleApp" );
 
 	// Create a new window
@@ -89,8 +93,8 @@ static bitonic_merge_sort_example_app_o* bitonic_merge_sort_example_app_create()
 
 	app->pixels_data                    = new pixels_data_t{};
 	app->pixels_data->handle            = LE_BUF_RESOURCE( "sort_data" );
-	app->pixels_data->w                 = 1024;
-	app->pixels_data->h                 = 512;
+	app->pixels_data->w                 = C_WINDOW_WIDTH;
+	app->pixels_data->h                 = C_WINDOW_HEIGHT;
 	app->pixels_data->num_channels      = 1;
 	app->pixels_data->bytes_per_channel = 4;
 
@@ -126,6 +130,12 @@ static void app_process_ui_events( app_o* self ) {
 	LeLog logger( "app" );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
+
+	self->rendergraph_visualizer.processAndFilterEvents( events.data(), &numEvents );
+
+	// We resize numEvents to remove any events that have been filtered out
+	// by rendergraph_visualizer
+	events.resize( numEvents );
 
 	bool         wants_toggle = false;
 	bool         was_resized  = false;
@@ -591,6 +601,8 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 		            .addUsageFlags( le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst )
 		            .build() );
 	}
+
+	self->rendergraph_visualizer.update( renderGraph, LE_SWAPCHAIN_IMAGE_HANDLE );
 
 	self->renderer.update( renderGraph );
 
