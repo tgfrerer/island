@@ -425,6 +425,19 @@ static void cbe_set_index_data( le_command_buffer_encoder_o*                    
 
 // ----------------------------------------------------------------------
 
+static void cbe_bind_argument_buffer_explicit( le_command_buffer_encoder_o* self, le_buffer_resource_handle const bufferId, uint32_t set_idx, uint32_t binding_idx, uint64_t offset, uint64_t range ) {
+
+	auto cmd = self->mCommandStream->emplace_cmd<le::CommandBindArgumentBufferExplicit>();
+
+	cmd->info.set       = set_idx;
+	cmd->info.binding   = binding_idx;
+	cmd->info.buffer_id = bufferId;
+	cmd->info.offset    = offset;
+	cmd->info.range     = range;
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_bind_argument_buffer( le_command_buffer_encoder_o* self, le_buffer_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
 
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandBindArgumentBuffer>();
@@ -436,6 +449,45 @@ static void cbe_bind_argument_buffer( le_command_buffer_encoder_o* self, le_buff
 }
 
 // ----------------------------------------------------------------------
+
+static void cbe_set_argument_data_explicit( le_command_buffer_encoder_o* self,
+                                            uint32_t                     set_idx,
+                                            uint32_t                     binding_idx,
+                                            void const*                  data,
+                                            size_t                       numBytes ) {
+
+	using namespace le_backend_vk; // for le_allocator_linear_i
+
+	if ( data == nullptr || numBytes == 0 )
+		return;
+
+	// --------| invariant: there are some bytes to set
+
+	void*    memAddr;
+	uint64_t bufferOffset = 0;
+
+	le_allocator_o*           allocator = fetch_allocator( self->ppAllocator );
+	le_buffer_resource_handle allocatorBuffer;
+	// -- Allocate memory on scratch buffer for ubo
+	//
+	// Note that we might want to have specialised ubo memory eventually if that
+	// made a performance difference.
+	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset, &allocatorBuffer ) ) {
+
+		// -- Store ubo data to scratch allocator
+		memcpy( memAddr, data, numBytes );
+
+		cbe_bind_argument_buffer_explicit( self, allocatorBuffer, set_idx, binding_idx, uint32_t( bufferOffset ), uint32_t( numBytes ) );
+
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
+		return;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_set_argument_data( le_command_buffer_encoder_o* self,
                                    uint64_t                     argumentNameId, // hash id of argument name
                                    void const*                  data,
@@ -472,6 +524,28 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o* self,
 }
 
 // ----------------------------------------------------------------------
+
+static void cbe_set_argument_texture_explicit( le_command_buffer_encoder_o* self, le_texture_handle const textureId, uint32_t set_idx, uint32_t binding_idx, uint64_t arrayIndex ) {
+
+	auto cmd = self->mCommandStream->emplace_cmd<le::CommandSetArgumentTextureExplicit>();
+
+	cmd->info.set         = set_idx;
+	cmd->info.binding     = binding_idx;
+	cmd->info.texture_id  = textureId;
+	cmd->info.array_index = arrayIndex;
+}
+
+// ----------------------------------------------------------------------
+
+static void cbe_set_argument_image_explicit( le_command_buffer_encoder_o* self, le_image_resource_handle const imageId, uint32_t set_idx, uint32_t binding_idx, uint64_t arrayIndex ) {
+
+	auto cmd = self->mCommandStream->emplace_cmd<le::CommandSetArgumentImageExplicit>();
+
+	cmd->info.set         = set_idx;
+	cmd->info.binding     = binding_idx;
+	cmd->info.image_id    = imageId;
+	cmd->info.array_index = arrayIndex;
+}
 
 static void cbe_set_argument_texture( le_command_buffer_encoder_o* self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
 
@@ -1058,8 +1132,14 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	cbe_graphics_i = {
 	    .get_pipeline_manager   = cbe_get_pipeline_manager,
 	    .set_push_constant_data = cbe_set_push_constant_data,
-	    .bind_argument_buffer   = cbe_bind_argument_buffer,
 	    .buffer_memory_barrier  = cbe_buffer_memory_barrier,
+
+	    .bind_argument_buffer_explicit = cbe_bind_argument_buffer_explicit,
+	    .set_argument_data_explicit    = cbe_set_argument_data_explicit,
+	    .set_argument_texture_explicit = cbe_set_argument_texture_explicit,
+	    .set_argument_image_explicit   = cbe_set_argument_image_explicit,
+
+	    .bind_argument_buffer   = cbe_bind_argument_buffer,
 	    .set_argument_data      = cbe_set_argument_data,
 	    .set_argument_texture   = cbe_set_argument_texture,
 	    .set_argument_image     = cbe_set_argument_image,
@@ -1079,17 +1159,21 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	};
 
 	cbe_compute_i = {
-	    .get_pipeline_manager   = cbe_get_pipeline_manager,
-	    .bind_compute_pipeline  = cbe_bind_compute_pipeline,
-	    .set_push_constant_data = cbe_set_push_constant_data,
-	    .bind_argument_buffer   = cbe_bind_argument_buffer,
-	    .set_argument_data      = cbe_set_argument_data,
-	    .set_argument_texture   = cbe_set_argument_texture,
-	    .set_argument_image     = cbe_set_argument_image,
-	    .dispatch               = cbe_dispatch,
-	    .dispatch_indirect      = cbe_dispatch_indirect,
-	    .buffer_memory_barrier  = cbe_buffer_memory_barrier,
-	    .fill_buffer           = cbe_fill_buffer,
+	    .get_pipeline_manager          = cbe_get_pipeline_manager,
+	    .bind_compute_pipeline         = cbe_bind_compute_pipeline,
+	    .set_push_constant_data        = cbe_set_push_constant_data,
+	    .bind_argument_buffer_explicit = cbe_bind_argument_buffer_explicit,
+	    .set_argument_data_explicit    = cbe_set_argument_data_explicit,
+	    .set_argument_texture_explicit = cbe_set_argument_texture_explicit,
+	    .set_argument_image_explicit   = cbe_set_argument_image_explicit,
+	    .bind_argument_buffer          = cbe_bind_argument_buffer,
+	    .set_argument_data             = cbe_set_argument_data,
+	    .set_argument_texture          = cbe_set_argument_texture,
+	    .set_argument_image            = cbe_set_argument_image,
+	    .dispatch                      = cbe_dispatch,
+	    .dispatch_indirect             = cbe_dispatch_indirect,
+	    .buffer_memory_barrier         = cbe_buffer_memory_barrier,
+	    .fill_buffer                   = cbe_fill_buffer,
 	};
 
 	cbe_transfer_i = {

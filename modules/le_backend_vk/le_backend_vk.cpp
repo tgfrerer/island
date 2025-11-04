@@ -4933,6 +4933,9 @@ static void debug_print_command( void*& cmd ) {
                 case (le::CommandType::eBindArgumentBuffer): os << "eBindArgumentBuffer"; break;
                 case (le::CommandType::eSetArgumentTexture): os << "eSetArgumentTexture"; break;
                 case (le::CommandType::eSetArgumentImage): os << "eSetArgumentImage"; break;
+                case (le::CommandType::eBindArgumentBufferExplicit): os << "eBindArgumentBufferExplicit"; break;
+                case (le::CommandType::eSetArgumentTextureExplicit): os << "eSetArgumentTextureExplicit"; break;
+                case (le::CommandType::eSetArgumentImageExplicit): os << "eSetArgumentImageExplicit"; break;
                 case (le::CommandType::eBindIndexBuffer): os << "eBindIndexBuffer"; break;
                 case (le::CommandType::eBindVertexBuffers): os << "eBindVertexBuffers"; break;
                 case (le::CommandType::eBindGraphicsPipeline): os << "eBindGraphicsPipeline"; break;
@@ -6323,6 +6326,64 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						break;
 					}
 
+					case le::CommandType::eBindArgumentBufferExplicit: {
+						// we need to store the data for the dynamic binding which was set as an argument to the ubo
+						// this alters our internal state
+						auto* le_cmd = static_cast<le::CommandBindArgumentBufferExplicit*>( dataIt );
+
+						// ---------| invariant: we found an argument name that matches
+
+						DescriptorData* descriptor_data =
+						    find_descriptor_with_binding_number_and_array_idx(
+						        argumentState.setData[ le_cmd->info.set ], le_cmd->info.binding );
+
+						if ( descriptor_data ) {
+
+							// Matching binding found
+
+							DescriptorData::BufferInfo& buffer_info = descriptor_data->bufferInfo;
+
+							buffer_info.buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer_id );
+							buffer_info.range  = le_cmd->info.range;
+
+							if ( buffer_info.range == 0 ) {
+
+								// If no range was specified, we must default to VK_WHOLE_SIZE,
+								// as a range setting of 0 is not allowed in Vulkan.
+
+								buffer_info.range = VK_WHOLE_SIZE;
+							}
+
+							// If binding is in fact a dynamic binding, set the corresponding dynamic offset
+							// and set the buffer offset to 0.
+							if ( descriptor_data->type == le::DescriptorType::eStorageBufferDynamic ||
+							     descriptor_data->type == le::DescriptorType::eUniformBufferDynamic ) {
+
+								uint32_t const set_id     = le_cmd->info.set;
+								uint32_t const binding_id = le_cmd->info.binding;
+
+								size_t dynamic_offset_idx = 0;
+
+								// FIXME: This is annoying: Even though we have set and binding, we must
+								// search through all bindings to find the correct dynamic offset...
+								//
+								for ( auto const& b_i : argumentState.binding_infos ) {
+									if ( b_i.setIndex == set_id && b_i.binding == binding_id ) {
+										dynamic_offset_idx = b_i.dynamic_offset_idx;
+										break;
+									}
+								}
+
+								auto dynamicOffset                            = dynamic_offset_idx;
+								buffer_info.offset                            = 0;
+								argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );
+							} else {
+								buffer_info.offset = le_cmd->info.offset;
+							}
+						}
+
+					} break;
+
 					case le::CommandType::eBindArgumentBuffer: {
 						// we need to store the data for the dynamic binding which was set as an argument to the ubo
 						// this alters our internal state
@@ -6389,6 +6450,47 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 					} break;
 
+					case le::CommandType::eSetArgumentTextureExplicit: {
+
+						auto* le_cmd = static_cast<le::CommandSetArgumentTextureExplicit*>( dataIt );
+
+						// Descriptors are stored as flat arrays; we cannot assume that binding number matches
+						// index of descriptor in set, because some types of uniforms may be arrays, and these
+						// arrays will be stored flat in the vector of per-set descriptors.
+						//
+						// Imagine these were bindings for a set: a b c0 c1 c2 c3 c4 d
+						// a(0), b(1), would have their own binding number, but c0(2), c1(2), c2(2), c3(2), c4(2)
+						// would share a single binding number, 2, until d(3), which would have binding number 3.
+						//
+						// To find the correct descriptor, we must therefore iterate over descriptors in-set
+						// until we find one that matches the correct array index.
+						//
+
+						auto bindingData =
+						    find_descriptor_with_binding_number_and_array_idx(
+						        argumentState.setData[ le_cmd->info.set ], le_cmd->info.binding, le_cmd->info.array_index );
+
+						if ( bindingData ) {
+							// fetch texture information based on texture id from command
+
+							auto foundTex = frame.textures_per_pass[ passIndex ].find( le_cmd->info.texture_id );
+							if ( foundTex == frame.textures_per_pass[ passIndex ].end() ) {
+								using namespace le_renderer;
+								logger().error( "Could not find requested texture: '%s', ignoring texture binding command",
+								                renderer_i.texture_handle_get_name( le_cmd->info.texture_id ) );
+								break;
+							}
+
+							// ----------| invariant: texture has been found
+
+							bindingData->imageInfo.sampler   = foundTex->second.sampler;
+							bindingData->imageInfo.imageView = foundTex->second.imageView;
+						} else {
+							logger().error( "Could not find texture binding at set: %d, binding: %d, array_index: %d", le_cmd->info.set, le_cmd->info.binding, le_cmd->info.array_index );
+							assert( bindingData && "could not find specified binding." );
+						}
+					} break;
+
 					case le::CommandType::eSetArgumentTexture: {
 						auto*    le_cmd           = static_cast<le::CommandSetArgumentTexture*>( dataIt );
 						uint64_t argument_name_id = le_cmd->info.argument_name_id;
@@ -6448,11 +6550,40 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 							bindingData->imageInfo.sampler     = foundTex->second.sampler;
 							bindingData->imageInfo.imageView   = foundTex->second.imageView;
 						} else {
-							logger().error( "Could not find binding at set: %d, binding: %d, array index: %d.", b->setIndex, b->binding, arrayIndex );
+							logger().error( "Could not find texture binding at set: %d, binding: %d, array index: %d.", b->setIndex, b->binding, arrayIndex );
 							assert( bindingData && "could not find specified binding." );
 						}
 					} break;
 
+					case le::CommandType::eSetArgumentImageExplicit: {
+
+						auto* le_cmd = static_cast<le::CommandSetArgumentImageExplicit*>( dataIt );
+
+						auto bindingData =
+						    find_descriptor_with_binding_number_and_array_idx(
+						        argumentState.setData[ le_cmd->info.set ], le_cmd->info.binding, le_cmd->info.array_index );
+
+						// Fetch image view information based on image_id from command
+						if ( bindingData ) {
+
+							auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
+							if ( foundImgView == frame.imageViews.end() ) {
+								logger().error( "Could not find image view for image: '%s', ignoring image binding command.",
+								                le_cmd->info.image_id->data->debug_name );
+								break;
+							}
+
+							// ----------| invariant: image view has been found
+
+							bindingData->imageInfo.imageView = foundImgView->second;
+							bindingData->arrayIndex          = uint32_t( le_cmd->info.array_index );
+
+						} else {
+							logger().error( "Could not find image binding at set: %d, binding: %d, array_index: %d", le_cmd->info.set, le_cmd->info.binding, le_cmd->info.array_index );
+							assert( bindingData && "Could not find specified binding" );
+						}
+
+					} break;
 					case le::CommandType::eSetArgumentImage: {
 						auto*    le_cmd           = static_cast<le::CommandSetArgumentImage*>( dataIt );
 						uint64_t argument_name_id = le_cmd->info.argument_name_id;

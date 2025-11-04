@@ -809,6 +809,9 @@ enum class CommandType : uint32_t {
 	eBindArgumentBuffer,
 	eSetArgumentTexture,
 	eSetArgumentImage,
+	eBindArgumentBufferExplicit,
+	eSetArgumentTextureExplicit,
+	eSetArgumentImageExplicit,
 	eSetArgumentTlas,
 	eSetPushConstantData,
 	eBindIndexBuffer,
@@ -965,6 +968,38 @@ struct CommandSetScissor {
 	} info;
 };
 
+struct CommandSetArgumentTextureExplicit {
+	CommandHeader header = { { { CommandType::eSetArgumentTextureExplicit, sizeof( CommandSetArgumentTextureExplicit ) } } };
+	struct {
+		uint32_t          set;         // set number
+		uint32_t          binding;     // binding number
+		le_texture_handle texture_id;  // texture id, hash of texture name
+		uint64_t          array_index; // argument array index (default is 0)
+	} info;
+};
+
+struct CommandSetArgumentImageExplicit {
+	CommandHeader header = { { { CommandType::eSetArgumentImageExplicit, sizeof( CommandSetArgumentImageExplicit ) } } };
+	struct {
+		uint32_t                 set;         // set number
+		uint32_t                 binding;     // binding number
+		le_image_resource_handle image_id;    // image resource id,
+		uint64_t                 array_index; // argument array index (default is 0)
+	} info;
+};
+
+// -- bind a buffer to a ssbo shader argument
+struct CommandBindArgumentBufferExplicit {
+	CommandHeader header = { { { CommandType::eBindArgumentBufferExplicit, sizeof( CommandBindArgumentBufferExplicit ) } } };
+	struct {
+		uint32_t                  set;       // set number
+		uint32_t                  binding;   // binding number
+		le_buffer_resource_handle buffer_id; // id of buffer that holds data
+		uint64_t                  offset;    // offset into buffer
+		uint64_t                  range;     // size of argument data in bytes
+	} info;
+};
+
 struct CommandSetArgumentTexture {
 	CommandHeader header = { { { CommandType::eSetArgumentTexture, sizeof( CommandSetArgumentTexture ) } } };
 	struct {
@@ -982,16 +1017,6 @@ struct CommandSetArgumentImage {
 		uint64_t                 array_index;      // argument array index (default is 0)
 	} info;
 };
-
-struct CommandSetArgumentTlas {
-	CommandHeader header = { { { CommandType::eSetArgumentTlas, sizeof( CommandSetArgumentTlas ) } } };
-	struct {
-		uint64_t                argument_name_id; // const_char_hash id of argument name
-		le_tlas_resource_handle tlas_id;          // top level acceleration structure resource id,
-		uint64_t                array_index;      // argument array index (default is 0)
-	} info;
-};
-
 // -- bind a buffer to a ssbo shader argument
 struct CommandBindArgumentBuffer {
 	CommandHeader header = { { { CommandType::eBindArgumentBuffer, sizeof( CommandBindArgumentBuffer ) } } };
@@ -1000,6 +1025,15 @@ struct CommandBindArgumentBuffer {
 		le_buffer_resource_handle buffer_id;        // id of buffer that holds data
 		uint64_t                  offset;           // offset into buffer
 		uint64_t                  range;            // size of argument data in bytes
+	} info;
+};
+
+struct CommandSetArgumentTlas {
+	CommandHeader header = { { { CommandType::eSetArgumentTlas, sizeof( CommandSetArgumentTlas ) } } };
+	struct {
+		uint64_t                argument_name_id; // const_char_hash id of argument name
+		le_tlas_resource_handle tlas_id;          // top level acceleration structure resource id,
+		uint64_t                array_index;      // argument array index (default is 0)
 	} info;
 };
 

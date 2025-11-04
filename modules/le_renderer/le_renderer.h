@@ -163,9 +163,14 @@ struct le_renderer_api {
 	struct command_buffer_graphics_encoder_interface_t{
 		le_pipeline_manager_o*		 ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self);
         void                         ( *set_push_constant_data )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes);
-		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
 		void                         ( *buffer_memory_barrier  )( le_command_buffer_encoder_o *self, le::PipelineStageFlags2 const srcStageMask, le::PipelineStageFlags2 const dstStageMask, le::AccessFlags2 const  srcAccessMask, le::AccessFlags2 const  dstAccessMask, le_buffer_resource_handle const buffer, uint64_t const  offset, uint64_t const  range );
 
+		void                         ( *bind_argument_buffer_explicit   )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const bufferId, uint32_t set_id, uint32_t binding_id, uint64_t offset, uint64_t range );
+		void                         ( *set_argument_data_explicit      )( le_command_buffer_encoder_o *self, uint32_t set_idx, uint32_t binding_idx, void const * data, size_t numBytes);
+		void                         ( *set_argument_texture_explicit   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint32_t set_idx, uint32_t binding_idx, uint64_t arrayIndex);
+		void                         ( *set_argument_image_explicit     )( le_command_buffer_encoder_o *self, le_image_resource_handle const imageId, uint32_t set_idx, uint32_t binding_idx, uint64_t arrayIndex );
+
+		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_image_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex );
@@ -193,6 +198,12 @@ struct le_renderer_api {
 		le_pipeline_manager_o*		 ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self);
 		void                         ( *bind_compute_pipeline  )( le_command_buffer_encoder_o *self, le_cpso_handle pipelineHandle);
         void                         ( *set_push_constant_data )( le_command_buffer_encoder_o* self, void const *data, uint64_t numBytes);
+
+		void                         ( *bind_argument_buffer_explicit   )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const bufferId, uint32_t set_id, uint32_t binding_id, uint64_t offset, uint64_t range );
+		void                         ( *set_argument_data_explicit      )( le_command_buffer_encoder_o *self, uint32_t set_idx, uint32_t binding_idx, void const * data, size_t numBytes);
+		void                         ( *set_argument_texture_explicit   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint32_t set_idx, uint32_t binding_idx, uint64_t arrayIndex);
+		void                         ( *set_argument_image_explicit     )( le_command_buffer_encoder_o *self, le_image_resource_handle const imageId, uint32_t set_idx, uint32_t binding_idx, uint64_t arrayIndex );
+
 		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_buffer_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);

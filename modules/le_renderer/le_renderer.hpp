@@ -582,6 +582,26 @@ class GraphicsEncoder {
 		return *this;
 	}
 
+	GraphicsEncoder& bindArgumentBufferExplicit( uint32_t const& set_idx, uint32_t const& binding_idx, le_buffer_resource_handle const& bufferId, uint64_t const& offset = 0, uint64_t const& range = ( ~0ULL ) ) {
+		le_renderer::encoder_compute_i.bind_argument_buffer_explicit( self, bufferId, set_idx, binding_idx, offset, range );
+		return *this;
+	}
+
+	GraphicsEncoder& setArgumentDataExplicit( uint32_t const& set_idx, uint32_t const& binding_idx, void const* data, size_t const& numBytes ) {
+		le_renderer::encoder_compute_i.set_argument_data_explicit( self, set_idx, binding_idx, data, numBytes );
+		return *this;
+	}
+
+	GraphicsEncoder& setArgumentTextureExplicit( uint32_t const& set_idx, uint32_t const& binding_idx, le_texture_handle const& textureId, uint64_t const& arrayIndex = 0 ) {
+		le_renderer::encoder_compute_i.set_argument_texture_explicit( self, textureId, set_idx, binding_idx, arrayIndex );
+		return *this;
+	}
+
+	GraphicsEncoder& setArgumentImageExplicit( uint32_t const& set_idx, uint32_t const& binding_idx, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
+		le_renderer::encoder_compute_i.set_argument_image_explicit( self, imageId, set_idx, binding_idx, arrayIndex );
+		return *this;
+	}
+
 	GraphicsEncoder& setArgumentData( uint64_t const& argumentNameId, void const* data, size_t const& numBytes ) {
 		le_renderer::encoder_graphics_i.set_argument_data( self, argumentNameId, data, numBytes );
 		return *this;
@@ -705,6 +725,26 @@ class ComputeEncoder {
 
 	ComputeEncoder& setPushConstantData( void const* data, uint64_t const& numBytes ) {
 		le_renderer::encoder_compute_i.set_push_constant_data( self, data, numBytes );
+		return *this;
+	}
+
+	ComputeEncoder& bindArgumentBufferExplicit( uint32_t const& set_idx, uint32_t const& binding_idx, le_buffer_resource_handle const& bufferId, uint64_t const& offset = 0, uint64_t const& range = ( ~0ULL ) ) {
+		le_renderer::encoder_compute_i.bind_argument_buffer_explicit( self, bufferId, set_idx, binding_idx, offset, range );
+		return *this;
+	}
+
+	ComputeEncoder& setArgumentDataExplicit( uint32_t const& set_idx, uint32_t const& binding_idx, void const* data, size_t const& numBytes ) {
+		le_renderer::encoder_compute_i.set_argument_data_explicit( self, set_idx, binding_idx, data, numBytes );
+		return *this;
+	}
+
+	ComputeEncoder& setArgumentTextureExplicit( uint32_t const& set_idx, uint32_t const& binding_idx, le_texture_handle const& textureId, uint64_t const& arrayIndex = 0 ) {
+		le_renderer::encoder_compute_i.set_argument_texture_explicit( self, textureId, set_idx, binding_idx, arrayIndex );
+		return *this;
+	}
+
+	ComputeEncoder& setArgumentImageExplicit( uint32_t const& set_idx, uint32_t const& binding_idx, le_image_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
+		le_renderer::encoder_compute_i.set_argument_image_explicit( self, imageId, set_idx, binding_idx, arrayIndex );
 		return *this;
 	}
 
