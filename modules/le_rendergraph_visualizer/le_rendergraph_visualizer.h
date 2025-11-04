@@ -22,6 +22,29 @@
     windowExtent events.
 
 
+// API USE
+
+    1) Add a le::RendergraphVisualizer object to your app_o
+
+    ```
+    le::RendergraphVisualizer rendergraph_visualizer;
+    ```
+
+    2) In the app's update method, just before updating the rendergraph, call:
+
+    ```
+    app->rendergraph_visualizer.upate(rendergraph);
+    ```
+
+    3) Add to the ui event loop:
+
+    ```
+    app->rendergraph_visualizer.processAndFilterEvents(events.data(), &events_sz);
+    events.resize(events_sz);
+    ```
+
+
+
  */
 
 struct le_rendergraph_o;
