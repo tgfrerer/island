@@ -70,7 +70,6 @@ static le_shader_module_handle get_shader_vert( le_pipeline_manager_o* pm ) {
 	        //.setSourceFilePath( "./local_resources/shaders/fullscreen.vert" )
 	        .setSpirvCode( spv.data(), spv.size() )
 	        .setShaderStage( le::ShaderStage::eVertex )
-	        .setHandle( s )
 	        .build();
 
 	return s;
@@ -91,7 +90,6 @@ static le_shader_module_handle get_shader_frag_blit( le_pipeline_manager_o* pm )
 	        //.setSourceFilePath( "./local_resources/shaders/blit.frag" )
 	        .setSpirvCode( spv.data(), spv.size() )
 	        .setShaderStage( le::ShaderStage::eFragment )
-	        .setHandle( s )
 	        .build();
 
 	return s;
@@ -113,7 +111,6 @@ static le_shader_module_handle get_shader_frag_blur_h( le_pipeline_manager_o* pm
 	        .setSpirvCode( spv.data(), spv.size() )
 	        .setShaderStage( le::ShaderStage::eFragment )
 	        .setSpecializationConstant( 0, 1.f )
-	        .setHandle( s )
 	        .build();
 
 	return s;
@@ -135,7 +132,6 @@ static le_shader_module_handle get_shader_frag_blur_v( le_pipeline_manager_o* pm
 	        .setSpirvCode( spv.data(), spv.size() )
 	        .setShaderStage( le::ShaderStage::eFragment )
 	        .setSpecializationConstant( 1, 1.f )
-	        .setHandle( s )
 	        .build();
 
 	return s;
