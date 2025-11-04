@@ -142,12 +142,16 @@ static VkBool32 debugUtilsMessengerCallback(
 		// keep logger == error
 	}
 
-	if ( pCallbackData && ( 0 == strcmp( pCallbackData->pMessageIdName, "VUID-StandaloneSpirv-None-10684" ) ) ) {
-		// this is a message that we ignore for now.
-		log_fun = le_log_api_i->le_log_channel_i.warn;
-		log_fun( logger, " *** THIS VALIDATION ERROR IS IGNORED FOR NOW -- REMOVE THE IGNORE ONCE THE ERROR IS FIXED *** " );
-		shouldBailout = false;
-	}
+	// If you need to ignore any validation layer errors, uncomment this and name them here.
+	// if ( pCallbackData &&
+	//      ( ( 0 == strcmp( pCallbackData->pMessageIdName, "VUID-StandaloneSpirv-None-10684" ) )               // because of le_2d
+	//        || ( 0 == strcmp( pCallbackData->pMessageIdName, "VUID-StandaloneSpirv-MemorySemantics-10871" ) ) // because of le_2d
+	//        ) ) {
+	// 	// this is a message that we ignore for now.
+	// 	log_fun = le_log_api_i->le_log_channel_i.warn;
+	// 	log_fun( logger, " *** THIS VALIDATION ERROR IS IGNORED FOR NOW -- REMOVE THE IGNORE ONCE THE ERROR IS FIXED *** " );
+	// 	shouldBailout = false;
+	// }
 
 	log_fun( logger, "vk validation: {%10s | %7s} %s", msgType.c_str(), logLevel.c_str(), pCallbackData->pMessage );
 
