@@ -123,11 +123,20 @@ static void le_shader_module_builder_set_spirv_code( le_shader_module_builder_o*
 		self->spirv_code        = spirv_code;
 		self->spirv_code_length = spirv_code_length;
 	} else {
-		logger().error( "Cannot set shader module to compile from source as it was set to use spir-v previously." );
+		logger().error( "Cannot set shader module to compile from source as it was set to load a file previously." );
 	}
 }
 static void le_shader_module_builder_set_source_file_path( le_shader_module_builder_o* self, char const* source_file_path ) {
-	self->source_file_path = source_file_path;
+	if ( set_type( self, le_shader_module_builder_o::eFromFile ) ) {
+		self->source_file_path = source_file_path;
+	} else if ( self->type == le_shader_module_builder_o::eFromSpirV ) {
+		// setting filename as a debug name -- this will not hot-reload the file
+		// but it helps to place a label on any shader code that we load form
+		// inline code blobs
+		self->source_file_path = source_file_path;
+	} else {
+		logger().error( "Cannot set shader module to compile from file as it was set to use spir-v previously..." );
+	};
 }
 static void le_shader_module_builder_set_source_defines_string( le_shader_module_builder_o* self, char const* source_defines_string ) {
 	if ( set_type( self, le_shader_module_builder_o::eFromFile ) ) {
