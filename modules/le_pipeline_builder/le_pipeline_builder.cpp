@@ -127,11 +127,7 @@ static void le_shader_module_builder_set_spirv_code( le_shader_module_builder_o*
 	}
 }
 static void le_shader_module_builder_set_source_file_path( le_shader_module_builder_o* self, char const* source_file_path ) {
-	if ( set_type( self, le_shader_module_builder_o::eFromFile ) ) {
-		self->source_file_path = source_file_path;
-	} else {
-		logger().error( "Cannot set shader module to compile from source as it was set to use spir-v previously." );
-	}
+	self->source_file_path = source_file_path;
 }
 static void le_shader_module_builder_set_source_defines_string( le_shader_module_builder_o* self, char const* source_defines_string ) {
 	if ( set_type( self, le_shader_module_builder_o::eFromFile ) ) {
@@ -195,7 +191,8 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 		    sp_info.data(),
 		    sp_info.size(),
 		    sp_data.data(),
-		    sp_data.size() );
+		    sp_data.size(),
+		    self->source_file_path.c_str() );
 	default:
 		logger().error( "Could not generate shader module - shader module type not set." );
 		return nullptr;

@@ -1008,7 +1008,7 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			if ( (info.type == le::DescriptorType::eUniformBufferDynamic ||
 			     info.type == le::DescriptorType::eStorageBufferDynamic) &&
 				binding->type_description->type_name != nullptr) {
-				if ( std::string( binding->name ).empty() ) {
+				if ( std::string( binding->name ? binding->name : "" ).empty() ) {
 					info.name_hash = hash_64_fnv1a( binding->type_description->type_name );
 				} else {
 					info.name_hash = hash_64_fnv1a( binding->name );
@@ -1252,7 +1252,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 	assert( module && "module not found" );
 
 	std::vector<uint32_t>    spirv_code;
-	std::vector<std::string> included_files = { module->filepath.string() }; // let first element be the original source file path
+	std::vector<std::string> included_files;
 
 	if ( !module->spirv.empty() && module->hash == 0 ) {
 		// There is already some spirv code
@@ -1260,6 +1260,9 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o* self, l
 		// as the hash is 0
 		spirv_code = std::move( module->spirv );
 	} else {
+
+		included_files.push_back( module->filepath.string() ); // let first element be the original source file path
+
 		// -- get module spirv code
 		std::vector<char> source_text;
 
@@ -2623,7 +2626,8 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spi
     VkSpecializationMapEntry const* specialization_map_entries,
     uint32_t                        specialization_map_entries_count,
     void*                           specialization_map_data,
-    uint32_t                        specialization_map_data_num_bytes ) {
+    uint32_t                        specialization_map_data_num_bytes,
+    char const*                     maybe_debug_name ) {
 	return le_shader_manager_create_shader_module(
 	    self->shaderManager,
 	    spirv_code,
@@ -2633,7 +2637,9 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module_from_spi
 	    specialization_map_entries_count,
 	    specialization_map_data,
 	    specialization_map_data_num_bytes,
-	    le::ShaderSourceLanguage::eSpirv );
+	    le::ShaderSourceLanguage::eSpirv,
+	    "",
+	    maybe_debug_name );
 }
 
 // ----------------------------------------------------------------------

@@ -282,7 +282,7 @@ struct le_backend_vk_api {
 		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle cpsoHandle);
 
 		le_shader_module_handle                  ( *create_shader_module_from_file    ) ( le_pipeline_manager_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const le::ShaderStageFlagBits& moduleType, char const *macro_definitions, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
-		le_shader_module_handle                  ( *create_shader_module_from_spirv   ) ( le_pipeline_manager_o* self, uint32_t const * spirv_code, uint32_t spirv_code_length, const le::ShaderStageFlagBits& moduleType, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes);
+		le_shader_module_handle                  ( *create_shader_module_from_spirv   ) ( le_pipeline_manager_o* self, uint32_t const * spirv_code, uint32_t spirv_code_length, const le::ShaderStageFlagBits& moduleType, VkSpecializationMapEntry const * specialization_map_entries, uint32_t specialization_map_entries_count, void * specialization_map_data, uint32_t specialization_map_data_num_bytes, char const* maybe_debug_name);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 
         bool                                     ( *graphics_pipeline_add_shader_stage )(le_pipeline_manager_o* self, le_gpso_handle gpsoHandle, le_shader_module_handle shader_stage);
