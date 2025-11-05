@@ -12,15 +12,21 @@
 
 #include "le_mesh_generator.h"
 #include "le_mesh.h"
+#include "le_rendergraph_visualizer.h"
+#include "le_ui_event.h"
+
+#include <chrono>
+#include "le_timebase.h"
+#include "private/le_timebase/le_timebase_ticks_type.h"
 
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <vector>
 
-#include "le_ui_event.h"
-
 constexpr size_t cNumDataElements = 64;
+constexpr size_t C_SHOULD_USE_FIXED_FPS = false;
+constexpr size_t FIXED_FPS              = 60; // set to a fixed fps frame rate if you render out image sequences, for example
 
 struct GpuMeshData {
 	le_buffer_resource_handle vertex_handle;
@@ -34,14 +40,16 @@ struct compute_example_app_o {
 	le::Renderer renderer;
 
 	uint64_t frame_counter = 0;
-	uint32_t anim_frame    = 0;
-	int32_t  anim_speed    = 1;
+	float    anim_t        = 0;
+	int32_t  anim_speed    = 1.f;
 
 	GpuMeshData* gpu_mesh     = nullptr; // owning
 	bool         meshUploaded = false;
 
-	LeCamera           camera;
-	LeCameraController cameraController;
+	le::Camera                camera;
+	le::CameraController      cameraController;
+	le::RendergraphVisualizer rendergraph_visualizer{ false, 1024, 1024 }; // don't show initially, window_width, window_height
+	le::Timebase              timebase;
 };
 
 // ----------------------------------------------------------------------
@@ -84,6 +92,10 @@ static compute_example_app_o* compute_example_app_create() {
 	    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * sizeof( glm::vec4 ),    // vertex_num_bytes
 	    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * 6 * sizeof( uint16_t ), // indices_num_bytes
 	};
+
+	// WHY DOES THIS CRASH?
+	// And how can we make sure that the visualizer does record the first 6 frames and then goes dormant?
+	app->rendergraph_visualizer.show();
 
 	return app;
 }
@@ -184,7 +196,7 @@ static void pass_compute_exec( le_command_buffer_encoder_o* encoder_, void* user
 
 	// The only uniform we want to upload to the shader is the current time tick value, so we
 	// don't really need to set up a separate struct for our uniforms.
-	float t_val = ( app->anim_frame % ( 240 * 10 ) ) / 240.f;
+	float t_val = app->anim_t;
 
 	encoder
 	    .bindComputePipeline( psoCompute )
@@ -282,14 +294,17 @@ static void compute_example_app_process_ui_events( compute_example_app_o* self )
 
 	window_i.get_ui_event_queue( self->window, &pEvents, &numEvents );
 
-	auto const events_end = pEvents + numEvents;
+	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
+
+	self->rendergraph_visualizer.processAndFilterEvents( events.data(), &numEvents );
+	// remove any events that were consumed by rendergraph_visualizer
+	events.resize( numEvents );
 
 	bool         wants_toggle = false;
 	bool         was_resized  = false;
 	le::Extent2D window_extents;
 
-	for ( auto pEv = pEvents; pEv != events_end; pEv++ ) {
-		auto& event = *pEv;
+	for ( auto& event : events ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eWindowExtent ): {
 			auto& e        = event.windowExtent;
@@ -363,6 +378,17 @@ static void compute_example_app_process_ui_events( compute_example_app_o* self )
 
 static bool compute_example_app_update( compute_example_app_o* self ) {
 
+	if constexpr ( C_SHOULD_USE_FIXED_FPS ) {
+		self->timebase.update(
+		    std::chrono::duration_cast<le::Ticks>(
+		        std::chrono::duration<float, std::ratio<1, FIXED_FPS>>( 1 ) )
+		        .count() );
+	} else {
+		self->timebase.update();
+	}
+
+	self->anim_t += self->timebase.getSecondsSinceLastFrame() * 0.25 * self->anim_speed;
+
 	// Polls events for all windows
 	le::Window::pollEvents();
 
@@ -410,10 +436,10 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 		    ;
 	}
 
+	self->rendergraph_visualizer.update( renderGraph, self->renderer.getSwapchainResource() );
 	self->renderer.update( renderGraph );
 
 	self->frame_counter++;
-	self->anim_frame += self->anim_speed;
 
 	return true; // keep app alive
 }

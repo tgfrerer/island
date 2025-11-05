@@ -11,6 +11,8 @@ depends_on_island_module(le_pipeline_builder)
 depends_on_island_module(le_camera)
 depends_on_island_module(le_mesh)
 depends_on_island_module(le_mesh_generator)
+depends_on_island_module(le_rendergraph_visualizer)
+depends_on_island_module(le_timebase)
 
 set (SOURCES "compute_example_app.cpp")
 set (SOURCES ${SOURCES} "compute_example_app.h")
