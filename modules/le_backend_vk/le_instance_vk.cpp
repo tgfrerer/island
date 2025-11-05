@@ -59,7 +59,9 @@ static const std::vector<VkValidationFeatureDisableEXT> disabledValidationFeatur
 
 // ----------------------------------------------------------------------
 
-static bool instance_is_extension_available( le_backend_vk_instance_o* self, char const* extension_name ); // ffdecl// ----------------------------------------------------------------------
+static bool instance_is_extension_available( le_backend_vk_instance_o* self, char const* extension_name ); // ffdecl
+
+// ----------------------------------------------------------------------
 
 static void patchExtProcAddrs( le_backend_vk_instance_o* obj ) {
 
