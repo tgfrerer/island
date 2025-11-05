@@ -43,6 +43,7 @@ static bool should_use_validation_layers() {
  *
  */
 static const std::vector<VkValidationFeatureEnableEXT> enabledValidationFeatures = {
+    // VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
     // VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
 };
 
