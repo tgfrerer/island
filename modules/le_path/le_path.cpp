@@ -285,7 +285,7 @@ static void le_path_clear( le_path_o* self ) {
 // ----------------------------------------------------------------------
 
 static void trace_move_to( Polyline& polyline, glm::vec2 const& p ) {
-	polyline.distances.emplace_back( 0 );
+	polyline.distances.emplace_back( 0.f );
 	polyline.vertices.emplace_back( p );
 	// NOTE: we dont insert a tangent here, as we need at least two
 	// points to calculate tangents. In an open path, there will be n-1
