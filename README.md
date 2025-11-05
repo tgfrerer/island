@@ -235,7 +235,7 @@ options:
 ## Modules
 
 Island projects can be built by combining any number of island
-modules. Each module aims to do **one thing well**, and to play nice
+modules. Each module aims to **do one thing well**, and to play nice
 with others. Modules are automatically hot-reloaded, if a change is
 detected and hot-reloading is active. Some modules provide their
 functionality by wrapping well-known external libraries, some are
@@ -257,8 +257,8 @@ listed here:
 | [le_timebase](modules/le_timebase) | - | timekeeping, canonical clock for animations | 
 | [le_jobs](modules/le_jobs) | - | fiber-based job system | 
 | [le_ecs](modules/le_ecs) | - | entity-component-system | 
-| [le_shader_compiler](modules/le_shader_compiler) | [shaderc][link-shaderc] | compile GLSL, and HLSL shader source to SPIR-V | 
-| [le_slang_shader_compiler](modules/le_slang_shader_compiler) | [slang][link-slang] | compile GLSL, and HLSL shader source to SPIR-V | 
+| [le_shader_compiler](modules/le_shader_compiler) | [shaderc][link-shaderc] | compile GLSL, and HLSL shaders | 
+| [le_slang_shader_compiler](modules/le_slang_shader_compiler) | [slang][link-slang] | compile and hot-reload Slang shaders and modules | 
 | [le_window](modules/le_window) | [glfw][glfw] | window i/o system | 
 | [le_swapchain](modules/le_swapchain) | - | windowed, direct, or straight-to-video output | 
 | [le_renderer](modules/le_renderer) | - | record command buffers, evaluate rendergraphs |
