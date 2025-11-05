@@ -16,9 +16,7 @@ To achieve this, Island is structured into strictly separated modules,
 which can be dropped in or out during Debug, while for Release, you
 can build a single, statically linked and optimised binary.
 
-
 [![C/C++ CI](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml)
-
 
 ## Main Features:
 
@@ -27,14 +25,14 @@ can build a single, statically linked and optimised binary.
   automatically hot-reloaded.
 
 * **Shader hot-reloading**: Island supports shader code hot-reloading for
-  [SLANG](https://shader-slang.org/), HLSL, GLSL, or SPIR-V shader source files. Shader files are
-  automatically watched, and any change triggers a recompile, with
-  (Vulkan) pipelines automatically rebuilt if needed. HLSL/GLSL Shaders
-  may use `#include` directives; SLANG shaders can make full use of their
-  `import` directives. Error messages (if any) will point at shader file
-  and line number, and include a brief listing with problematic lines
-  highlighted in context; dependencies are automatically watched for
-  changes.
+  [SLANG](https://shader-slang.org/), HLSL, GLSL, or SPIR-V shader source
+  files. Shader files are automatically watched, and any change triggers
+  a recompile, with (Vulkan) pipelines automatically rebuilt if needed.
+  HLSL/GLSL Shaders may use `#include` directives; SLANG shaders can make
+  full use of their `import` directives. Error messages (if any) will
+  point at shader file and line number, and include a brief listing with
+  problematic lines highlighted in context; dependencies are automatically
+  watched for changes.
 
 <img width="350" src="https://github.com/tgfrerer/island/assets/423509/b97ef461-42b1-4fbd-b3a0-c4051bb6e8d7" align="right" />
 
@@ -69,7 +67,7 @@ can build a single, statically linked and optimised binary.
   which can be drawn using graphviz. More about how Island builds its
   rendergraph in [this blog post][rendergraph_blog].
 
-  <img width="350" src="resources/readme/graph_screenshot.png" align="right" />
+  <img width="350" src="resources/readme/rendergraph_visualizer.png" align="right" />
   
 * **Rendergraph visualizer** `le_rendergraph_visualizer` interactively
   visualizes the current state of the renderer -- it displays active and
@@ -85,54 +83,51 @@ can build a single, statically linked and optimised binary.
   the new Vulkan Video api, and no external decoding dependencies,
   synchronising video images implicitly and simply.  
 
-* **Static release binaries**: While Island is highly modular and
-  dynamic when compiled for Debug, it can compile into a single,
-  optimised static binary for Release. 
+* **Static release binaries**: While Island is highly modular and dynamic
+  when compiled for Debug, it can compile into a single, optimised static
+  binary for Release. 
 
-* **Interactive Console** if you add the `le_console` module to your
-  app, it will listen on localhost port 3535 and, if you connect to it
-  via telnet or similar, if will provide you with an interactive
-  console. You can use this to change settings on a running
-  application, and to filter and monitor log messages. Use
-  reverse-ssh or similar to forward localhost::3535 and you can
-  remotely connect to a running app from all over the world.
+* **Interactive Console** if you add the `le_console` module to your app,
+  it will listen on localhost port 3535 and, if you connect to it via
+  telnet or similar, if will provide you with an interactive console. You
+  can use this to change settings on a running application, and to filter
+  and monitor log messages. Use reverse-ssh or similar to forward
+  localhost::3535 and you can remotely connect to a running app from all
+  over the world.
 
 * **Gamepad** support: the default camera can be steered with
-  a gamepad-just connect your gamepad and you are set; application
-  windows can decide whether they want to subscribe to gamepad events- 
-  and to which gamepads to subscribe to. 
+  a gamepad-just connect your gamepad and you are set; application windows
+  can decide whether they want to subscribe to gamepad events- and to
+  which gamepads to subscribe to. 
 
   <img width="350" src="modules/le_tracy/tracy.png" align="right" />
 
-* **Tracy intergation** nano-second-resolution profiling via 
-  [Tracy](https://github.com/wolfpld/tracy) - enable this by 
-  [uncommenting a single line](modules/le_tracy/README.md) in the 
-  app CMakeLists file. Profiling works with both hot-reloading and 
-  optimised static builds.
+* **Tracy intergation** nano-second-resolution profiling via
+  [Tracy](https://github.com/wolfpld/tracy) - enable this by [uncommenting
+  a single line](modules/le_tracy/README.md) in the app CMakeLists file.
+  Profiling works with both hot-reloading and optimised static builds.
 
 * **Multi-Window** Island allows you to hook up multiple swapchains to
   a single application. You can dynamically add and remove swapchains
   while your Island application is running. This is particularly useful
   for multi-window scenarios. See [example][example-multiwindow]
   
-* **Straight to video**: Island can render straight to screen using
-  the direct rendering swapchain, or use any number of available
-  options for a window-based vulkan swapchain. It's also easy to
-  render straight to an mp4 file (via ffmpeg), or an image sequence
-  without showing a window, by selecting the appropriate
-  `le_swapchain` specialisation.
+* **Straight to video**: Island can render straight to screen using the
+  direct rendering swapchain, or use any number of available options for
+  a window-based vulkan swapchain. It's also easy to render straight to an
+  mp4 file (via ffmpeg), or an image sequence without showing a window, by
+  selecting the appropriate `le_swapchain` specialisation.
 
 * **Helpers**: minimal effort to enable multisampling, import images,
   import, display and use fonts
 
-* Load and Save **OpenEXR** images, in 16bit float, 32bit float
-  variants via the core `le_exr` module
+* Load and Save **OpenEXR** images, in 16bit float, 32bit float variants
+  via the core `le_exr` module
 
-* **2D paths**: operate with curves using `le_path`, which
-  includes a useful subset of the SVG command palette, and includes some
-  extras, like functions to smoothen open or closed Bézier curves by
-  applying the [Hobby algorithm][hobby], or by using natural cubic
-  splines. 
+* **2D paths**: operate with curves using `le_path`, which includes
+  a useful subset of the SVG command palette, and includes some extras,
+  like functions to smoothen open or closed Bézier curves by applying the
+  [Hobby algorithm][hobby], or by using natural cubic splines. 
 
 * **2D drawing** draw fully GPU accelerated thick 2d curves with
   transparency, fills, gradients even, thanks to [vello
@@ -308,7 +303,7 @@ depends on the Vulkan SDK.
 
 ## Install Vulkan SDK 
 
-### Vulkan SDK >= `1.3.211`
+### Vulkan SDK >= `1.4.328`
 
 I recommend to install the latest Vulkan SDK via a package manager.
 Follow the installation instructions via:
@@ -321,7 +316,7 @@ pacman: `shaderc vulkan-devel ninja cmake`.
 
 ### Fedora Linux 
 
-On Fedora, I recommend installing these packages:
+On Fedora, I recommend installing these package dependencies:
 
 ```bash
 dnf install -y wayland-scanner libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel libdrm-devel ninja-build cmake 
@@ -409,10 +404,14 @@ instructions etc. are tracked in a [separate readme][readme-win].
 > for any purpose, and the code here is released in the hope that you
 > might find it interesting. 
 
+# But ... Why?
+
 The initial motivation for writing Island was to experiment with
 a modern rendering API (Vulkan), to learn by trying out ideas around
 modern realtime-rendering, and to have a framework to create [visual
 experiments](http://instagram.com/tgfrerer) with.
+
+Island has been used for work, too; for example, it helped make an Official Visualizer for [OK Go's Once More With Feeling](https://www.youtube.com/watch?v=7tSVLwEOjdU) -- Here's a little [making of](https://poniesandlight.co.uk/work/ok_go_once_more/).
 
 [readme-win]: README_WINDOWS.md 
 [struct-generator]: scripts/codegen/gen_vk_structs.py
