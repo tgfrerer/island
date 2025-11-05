@@ -1505,7 +1505,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 		        encoder.bufferMemoryBarrier(
 		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eAllCommands,
+		            le::PipelineStageFlagBits2::eDrawIndirect,
 		            le::AccessFlagBits2::eShaderWrite,
 		            le::AccessFlagBits2::eIndirectCommandRead,
 		            ctx->buf_indirect_count,
@@ -1651,7 +1651,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 
 		        encoder.bufferMemoryBarrier(
 		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eAllCommands,
+		            le::PipelineStageFlagBits2::eDrawIndirect,
 		            le::AccessFlagBits2::eShaderWrite,
 		            le::AccessFlagBits2::eIndirectCommandRead,
 		            ctx->buf_indirect_count,
