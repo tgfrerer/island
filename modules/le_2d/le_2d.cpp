@@ -1377,6 +1377,14 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            .dispatch( wg.draw_leaf[ 0 ], wg.draw_leaf[ 1 ], wg.draw_leaf[ 2 ] );
 		        }
 
+		        // make sure that buf_clip_inp is available
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eShaderWrite,
+		            le::AccessFlagBits2::eShaderRead,
+		            ctx->buf_clip_inp );
+
 		        if ( wg.clip_reduce[ 0 ] > 0 ) {
 			        // clip_reduce
 			        static auto pso_clip_reduce =
