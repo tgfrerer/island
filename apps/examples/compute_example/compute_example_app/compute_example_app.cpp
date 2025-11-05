@@ -18,6 +18,7 @@
 #include <chrono>
 #include "le_timebase.h"
 #include "private/le_timebase/le_timebase_ticks_type.h"
+#include "le_backend_vk.h"
 
 #include <iostream>
 #include <memory>
@@ -48,13 +49,19 @@ struct compute_example_app_o {
 
 	le::Camera                camera;
 	le::CameraController      cameraController;
-	le::RendergraphVisualizer rendergraph_visualizer{ false, 1024, 1024 }; // don't show initially, window_width, window_height
+	le::RendergraphVisualizer rendergraph_visualizer{ true, 1024, 1024 }; // don't show initially, window_width, window_height
 	le::Timebase              timebase;
 };
 
 // ----------------------------------------------------------------------
 
 static void app_initialize() {
+
+	// If you do not want validation layers active in a debug build, you can
+	// override validation layer usage here:
+	//
+	// LE_SETTING( const bool, LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS, false );
+
 	le::Window::init();
 };
 
@@ -92,10 +99,6 @@ static compute_example_app_o* compute_example_app_create() {
 	    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * sizeof( glm::vec4 ),    // vertex_num_bytes
 	    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * 6 * sizeof( uint16_t ), // indices_num_bytes
 	};
-
-	// WHY DOES THIS CRASH?
-	// And how can we make sure that the visualizer does record the first 6 frames and then goes dormant?
-	app->rendergraph_visualizer.show();
 
 	return app;
 }
