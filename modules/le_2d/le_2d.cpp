@@ -1198,6 +1198,12 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			        zero_out_buffer( ctx->buf_bump );
 			        zero_out_buffer( ctx->buf_lines );
 			        zero_out_buffer( ctx->buf_clip_bbox );
+
+			        // zero out clip buffers --
+			        // zero_out_buffer( ctx->buf_clip_bbox );
+			        // zero_out_buffer( ctx->buf_clip_bic );
+			        // zero_out_buffer( ctx->buf_clip_el );
+			        // zero_out_buffer( ctx->buf_clip_inp );
 		        }
 
 		        {
@@ -1291,7 +1297,6 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // r
 			            .bindArgumentBufferExplicit( 0, 2, reduced_buf, 0 )          // r
 			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_tagmonoid, 0 )   // w
-
 			            .dispatch( wg.path_scan[ 0 ], wg.path_scan[ 1 ], wg.path_scan[ 2 ] );
 		        }
 
@@ -1354,7 +1359,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
 		            ctx->buf_path_bbox );
 
-		        // make sure that  buf_reduced is available
+		        // make sure that buf_reduced is available
 		        encoder.bufferMemoryBarrier(
 		            le::PipelineStageFlagBits2::eComputeShader,
 		            le::PipelineStageFlagBits2::eComputeShader,
@@ -1471,12 +1476,12 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		            ctx->buf_bump );
 
 				// last possible time to wait on buf path to be cleared.
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eTransfer,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            ctx->buf_path );
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eTransfer,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eTransferWrite,
+		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_path );
 
 		        {
 
@@ -1518,6 +1523,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		            le::AccessFlagBits2::eIndirectCommandRead,
 		            ctx->buf_indirect_count,
 		            0 );
+
 		        encoder.bufferMemoryBarrier(
 		            le::PipelineStageFlagBits2::eComputeShader,
 		            le::PipelineStageFlagBits2::eComputeShader,
@@ -1554,7 +1560,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path )       // r
 			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_tile )       // rw
 			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_seg_counts ) // rw
-			            .dispatchIndirect( ctx->buf_indirect_count );
+			            .dispatchIndirect( ctx->buf_indirect_count );            // r
 		        }
 		        encoder.bufferMemoryBarrier(
 		            le::PipelineStageFlagBits2::eComputeShader,
@@ -1645,6 +1651,14 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		            ctx->buf_ptcl,
 		            0 );
 
+		        // protect indirect buffer from write while it is still being used for dispatch
+		        encoder.bufferMemoryBarrier(
+		            le::PipelineStageFlagBits2::eDrawIndirect,
+		            le::PipelineStageFlagBits2::eComputeShader,
+		            le::AccessFlagBits2::eIndirectCommandRead,
+		            le::AccessFlagBits2::eShaderWrite,
+		            ctx->buf_indirect_count,
+		            0 );
 		        {
 
 			        static auto pso_path_tiling_setup =
