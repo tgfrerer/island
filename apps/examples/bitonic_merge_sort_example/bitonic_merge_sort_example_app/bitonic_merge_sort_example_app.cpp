@@ -17,7 +17,6 @@
 #include <sstream>
 #include <vector>
 #include <stdlib.h> // for random
-#include "le_rendergraph_visualizer.h"
 
 // Wrapper for format enum so that we can pass this around in a c-style api without
 // completely losing type safety.
@@ -58,7 +57,6 @@ struct bitonic_merge_sort_example_app_o {
 	slow_mo_t      slow_mo;
 	DataSourceType data_source_type; // whether data should come from random noise, or a loaded image.
 	bool           source_dirty;     // whether source needs an update
-	le::RendergraphVisualizer rendergraph_visualizer{ false, C_WINDOW_WIDTH, C_WINDOW_HEIGHT };
 };
 
 typedef bitonic_merge_sort_example_app_o app_o;
@@ -131,7 +129,6 @@ static void app_process_ui_events( app_o* self ) {
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
-	self->rendergraph_visualizer.processAndFilterEvents( events.data(), &numEvents );
 
 	// We resize numEvents to remove any events that have been filtered out
 	// by rendergraph_visualizer
@@ -601,8 +598,6 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 		            .addUsageFlags( le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst )
 		            .build() );
 	}
-
-	self->rendergraph_visualizer.update( renderGraph, LE_SWAPCHAIN_IMAGE_HANDLE );
 
 	self->renderer.update( renderGraph );
 

@@ -11,7 +11,6 @@ depends_on_island_module(le_pipeline_builder)
 depends_on_island_module(le_camera)
 depends_on_island_module(le_pixels)
 depends_on_island_module(le_log)
-depends_on_island_module(le_rendergraph_visualizer)
 
 set (SOURCES "bitonic_merge_sort_example_app.cpp")
 set (SOURCES ${SOURCES} "bitonic_merge_sort_example_app.h")
