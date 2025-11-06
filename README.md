@@ -163,7 +163,7 @@ would be complete without a
 
 | [Hello Triangle](apps/examples/hello_triangle/) | and a [Hello World](apps/examples/hello_world/) example |
 | --- | --- | 
-|<img width="350" src="apps/examples/hello_triangle/screenshot.png" />|<img width="350" align="right" src="apps/examples/hello_world/screenshot.jpg" />|
+|<img width="350" height="350" src="apps/examples/hello_triangle/screenshot.png" />|<img width="350" height="350" src="apps/examples/hello_world/screenshot.jpg" />|
 
 > [!TIP]
 > 
