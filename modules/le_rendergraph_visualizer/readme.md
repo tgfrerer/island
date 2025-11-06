@@ -1,6 +1,6 @@
 ## Rendergraph Visualizer 
 
-<img width="350" src="resources/readme/rendergraph_visualizer.png" align="right" />
+<img width="350" src="/resources/readme/rendergraph_visualizer.png" align="right" />
 
 An interactive display for the current rendergraph state of the Island renderer.
 
