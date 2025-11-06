@@ -1,6 +1,6 @@
 # Le2D
 
-<img width="800" height="435" alt="a drawing done with le_2d" src="https://github.com/user-attachments/assets/4a80e9cf-95f0-4701-893e-d4bfda21c669" />
+<img width="1012" height="550" alt="le_2d illustration" src="https://github.com/user-attachments/assets/b76eae09-ee5a-481b-aee6-e58fdda27268" />
 
 Le2D is a fully GPU-accelerated 2D drawing context. It supports drawing thick lines, fills, quadratic and cubic bezier curves, rounded rectangles (optionally with soft shadows). 2d commands are recorded into specialized command lists, which can be cached, and concatenated, and finally drawn via the 2d context.
 
