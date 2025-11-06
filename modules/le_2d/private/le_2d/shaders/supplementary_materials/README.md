@@ -1,10 +1,16 @@
 # Vello shaders 
 
-The original shaders from vello were written in wgsl - which we need to convert into vulkan-flavoured spirv for Island. 
+The original shaders from vello were written in wgsl - which we need to convert
+into vulkan-flavoured spirv for Island. 
 
-Unfortunately, at the time of writing, Naga, the rust-based WGSL shader compiler, produces sub-par spir-v output; this causes validation layers when loading the shaders.
+Unfortunately, at the time of writing, Naga, the rust-based WGSL shader
+compiler, produces sub-par spir-v output; this causes validation issues when
+loading the shaders.
 
-There is another WGSL shader compiler available, which is part of Google Dawn, the reference implementation for webgpu. It is quite cumbersome to compile this but it's possible.
+Fortunately, there is another WGSL shader compiler available: Tint, which is
+part of [Google Dawn](https://github.com/google/dawn), a reference
+implementation for WebGPU. This is quite cumbersome to compile this but it's
+possible.
 
 Here is what we had to do:
 
