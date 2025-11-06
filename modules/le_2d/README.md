@@ -13,7 +13,7 @@ Le2D is used to draw the user interface of [le_rendergraph_visualizer](/modules/
 
 `Le2D` works as a 2d drawing context with its own command encoder, `Encoder2D`. 2d command encoders are temporary, freestanding objects.
 
-You issue drawing commands into a 2d command encoder. Once finished recorcing commands, you pass the encoder to the 2d drawing context for drawing via its `update` method.
+You issue drawing commands into a 2d command encoder. Once finished recording commands, you pass the encoder to the 2d drawing context for drawing via its `update` method.
 
 Add a 2d drawing context to your app object:
 
