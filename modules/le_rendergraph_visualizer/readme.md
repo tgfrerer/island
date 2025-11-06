@@ -1,13 +1,16 @@
 ## Rendergraph Visualizer 
 
-an interactive display for the current rendergraph state of the Island renderer
+<img width="350" src="resources/readme/rendergraph_visualizer.png" align="right" />
+
+An interactive display for the current rendergraph state of the Island renderer.
 
 ## Keyboard Shortcuts
 
-|-|-|
-|SPACE         |  Toggle Live/Playback state
-|LEFT  CURSOR  |  When in Playback state, move backward one frame
-|RIGHT CURSOR  |  When in Playback state, move forward  one frame
+| Key          | Action 
+|--------------|------------ 
+|SPACE         |  Toggle Live/Playback state 
+|LEFT  CURSOR  |  When in Playback state, move backward one frame 
+|RIGHT CURSOR  |  When in Playback state, move forward  one frame 
 |R             |  Reset Zoom and center the graph
 |Z             |  Toggle magnifying glass
 |F12           |  Toggle show / hide (deactivated when hidden)
@@ -16,9 +19,7 @@ an interactive display for the current rendergraph state of the Island renderer
 |Mouse grab    |  Move Diagram
 
 
-Note that the visualizer is stateful, and will respond to
-`windowExtent` events, if hooked up to the window event loop 
-(see below)
+Note that the visualizer is stateful, and will respond to `windowExtent` events, if hooked up to the window event loop (see below)
 
 
 ## API Use 
@@ -43,4 +44,4 @@ Note that the visualizer is stateful, and will respond to
 	```
 
 
-You can see an example of how to use the rendergraph visualizer in [bitonic_merge_sort_example](../apps/examples/bitonic_merge_sort_example).
+You can see an example of how to use the rendergraph visualizer in [compute_example](/apps/examples/compute_example).
