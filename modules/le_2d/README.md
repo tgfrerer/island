@@ -12,9 +12,8 @@ You can find the original vello renderer implementation here:
 <https://github.com/linebender/vello/blob/main/vello_shaders/LICENSE-MIT>
 <https://github.com/linebender/vello/blob/main/vello_shaders/LICENSE-APACHE>
 
-GPU rasterizer shaders are taken verbatim (in spirv-compiled form)
-from vello_shaders.
-<https://github.com/linebender/vello/tree/main/vello_shaders>
+GPU rasterizer shaders are taken from vello_shaders <https://github.com/linebender/vello/tree/main/vello_shaders> and translated to SPIR-V using tint, the shader compiler which is part of Dawn, the WebGPU reference implementation. You can find the compilation instructions and scripts under: [private/le_2d/shaders/supplementary_materials](/island/modules/le_2d/private/le_2d/shaders/supplementary_materials).
+
 
 Vello shaders are licensed under Apache License, Version 2.0, MIT, or Unilicense.
 <https://github.com/linebender/vello/blob/main/vello_shaders/shader/UNLICENSE>
