@@ -34,6 +34,7 @@ struct TransferFrame {
 	VkFence           frameFence           = nullptr;
 	VkCommandBuffer   cmdPresent           = nullptr; // copies from image to buffer
 	VkCommandBuffer   cmdAcquire           = nullptr; // transfers image back to correct layout
+	VkSemaphore       vk_render_complete_semaphore = nullptr; // Owned.
 	bool              in_flight            = false;   // whether this frame is currently rendering on the queue
 };
 
@@ -115,7 +116,18 @@ static void swapchain_img_reset( le_swapchain_o* base, le_swapchain_img_settings
 
 	self->transferFrames.resize( numFrames, {} );
 
+	VkSemaphoreCreateInfo const semaphore_create_info = {
+	    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+	    .pNext = nullptr, // optional
+	    .flags = 0,       // optional
+	};
+
 	for ( auto& frame : self->transferFrames ) {
+
+		{
+			// create semaphore for render complete - we want to have one of these per image
+			vkCreateSemaphore( self->device, &semaphore_create_info, nullptr, &frame.vk_render_complete_semaphore );
+		}
 
 		{
 			// Allocate space for an image which can hold a render surface
@@ -484,6 +496,10 @@ static void swapchain_img_destroy( le_swapchain_o* base ) {
 		// Destroy buffer allocation for this frame.
 		private_backend_vk_i.destroy_buffer( self->backend, f.buffer, f.bufferAllocation );
 
+		if ( f.vk_render_complete_semaphore ) {
+			vkDestroySemaphore( self->device, f.vk_render_complete_semaphore, nullptr );
+		}
+
 		if ( f.frameFence ) {
 			vkDestroyFence( self->device, f.frameFence, nullptr );
 			f.frameFence = nullptr;
@@ -580,7 +596,7 @@ static void write_image( img_data_o* self, const TransferFrame& frame, uint32_t 
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphore_present_complete, uint32_t* imageIndex ) {
+static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphore_present_complete, VkSemaphore* p_semaphore_render_complete, uint32_t* imageIndex ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto self = static_cast<img_data_o* const>( base->data );
@@ -599,6 +615,11 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 
 	self->transferFrames[ *imageIndex ].in_flight = false;
 	vkResetFences( self->device, 1, &self->transferFrames[ *imageIndex ].frameFence );
+
+	// set the external semaphore for render complete -- we keep one render_complete_semaphore
+	// per transferFrame. Since we know that this frame is available again, we can hand out
+	// the semaphore that is associated with the current frame.
+	*p_semaphore_render_complete = self->transferFrames[ *imageIndex ].vk_render_complete_semaphore;
 
 	self->current_image_idx = *imageIndex;
 

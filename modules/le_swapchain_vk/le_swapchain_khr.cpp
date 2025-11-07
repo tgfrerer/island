@@ -31,6 +31,7 @@ struct SurfaceProperties {
 struct khr_data_o {
 	le_swapchain_windowed_settings_t mSettings                      = {};
 	std::vector<VkFence>             vk_present_fences              = {}; // one fence for each presentable image - we use these to protect ourselves by delaying destroying the present semaphores until any in-flight present has completed.
+	std::vector<VkSemaphore>         vk_render_complete_semaphores  = {}; // one for each presentable image
 	VkSurfaceKHR                     vk_surface                     = nullptr;
 	le_backend_o*                    backend                        = nullptr;
 	uint32_t                         mImagecount                    = 2;
@@ -150,10 +151,19 @@ static void swapchain_attach_images( le_swapchain_o* base ) {
 		    .pNext = nullptr,                             // void *, optional
 		    .flags = VK_FENCE_CREATE_SIGNALED_BIT,        // VkFenceCreateFlags, optional
 		};
+		VkSemaphoreCreateInfo const semaphore_create_info = {
+		    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		    .pNext = nullptr, // optional
+		    .flags = 0,       // optional
+		};
 		self->vk_present_fences.resize( self->mImagecount, {} );
+		self->vk_render_complete_semaphores.resize( self->mImagecount, {} );
+
 		for ( int i = 0; i != self->mImagecount; i++ ) {
 			vkCreateFence( self->device, &fence_create_info, nullptr, &self->vk_present_fences[ i ] );
+			vkCreateSemaphore( self->device, &semaphore_create_info, nullptr, &self->vk_render_complete_semaphores[ i ] );
 		}
+
 		result = vkGetSwapchainImagesKHR( self->device, self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
 		assert( result == VK_SUCCESS );
 
@@ -442,6 +452,11 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
 	swapchain_khr_release( base );
 
+	for ( auto& s : self->vk_render_complete_semaphores ) {
+		vkDestroySemaphore( self->device, s, nullptr );
+	}
+	self->vk_render_complete_semaphores.clear();
+
 	for ( auto& f : self->vk_present_fences ) {
 		vkDestroyFence( self->device, f, nullptr );
 	}
@@ -455,7 +470,7 @@ static void swapchain_khr_destroy( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore present_complete_semaphore, uint32_t* image_index ) {
+static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore present_complete_semaphore, VkSemaphore* p_semaphore_render_complete, uint32_t* image_index ) {
 
 	auto self = static_cast<khr_data_o* const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
@@ -473,6 +488,10 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	}
 
 	self->lastError = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, present_complete_semaphore, nullptr, image_index );
+
+	// set the external semaphore for present complete -- we know that it is available
+	// for being waited on again because the corresponding image index is agailable.
+	*p_semaphore_render_complete = self->vk_render_complete_semaphores.at( *image_index );
 
 	switch ( self->lastError ) {
 	case VK_SUCCESS: {
@@ -577,11 +596,14 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 	vkWaitForFences( self->device, 1, present_fence_info.pFences, true, 1'000'000'000 );
 	vkResetFences( self->device, 1, present_fence_info.pFences );
 
+	// TODO: render complete semaphore needs to be internal, and indexed to the image that
+	// was acquired.
+
 	VkPresentInfoKHR presentInfo{
 	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 	    .pNext              = &present_fence_info,
 	    .waitSemaphoreCount = 1,
-	    .pWaitSemaphores    = &render_complete_semaphore, // --> we don't know whether this semaphore is still being waited on
+	    .pWaitSemaphores    = &render_complete_semaphore, // signalled by the backend on queue submit --> we don't know whether this semaphore is still being waited on
 	    .swapchainCount     = 1,
 	    .pSwapchains        = &self->swapchainKHR,
 	    .pImageIndices      = pImageIndex,

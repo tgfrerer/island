@@ -85,9 +85,9 @@ static le_swapchain_o* swapchain_create_from_old_swapchain( le_swapchain_o* old_
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_acquire_next_image( le_swapchain_o* self, VkSemaphore_T* semaphorePresentComplete_, uint32_t* imageIndex_ ) {
+static bool swapchain_acquire_next_image( le_swapchain_o* self, VkSemaphore_T* semaphore_present_complete, VkSemaphore_T** p_semaphore_render_complete, uint32_t* imageIndex_ ) {
 	ZoneScoped;
-	return self->vtable.acquire_next_image( self, semaphorePresentComplete_, imageIndex_ );
+	return self->vtable.acquire_next_image( self, semaphore_present_complete, p_semaphore_render_complete, imageIndex_ );
 }
 
 // ----------------------------------------------------------------------
