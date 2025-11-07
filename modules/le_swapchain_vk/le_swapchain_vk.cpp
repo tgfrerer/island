@@ -236,7 +236,7 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 
 	register_le_swapchain_khr_api( api );
 	register_le_swapchain_img_api( api );
-	register_le_swapchain_direct_api( api );
+	// register_le_swapchain_direct_api( api );
 
 #ifdef PLUGINS_DYNAMIC
 	// in case we're running this as a dynamic module, we must patch all vulkan methods as soon as the module gets reloaded
