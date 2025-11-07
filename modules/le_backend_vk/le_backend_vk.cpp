@@ -5138,7 +5138,7 @@ static void backend_acquire_swapchain_resources( le_backend_o* self, size_t fram
 			};
 
 			// We must re-create semaphores as they might be in signalled state.
-			// for binary semaphores, there is unfortunately way to reset them.
+			// for binary semaphores, there is unfortunately no way to reset them.
 			//
 			// Unfortunately, we cannot directly destroy the old semaphores.
 			// But we can retire them, which means they will get destroyed
@@ -8282,7 +8282,7 @@ static bool backend_dispatch_frame( le_backend_o* self, size_t frameIndex ) {
 			    } );
 		}
 
-		// On default draw queue, wait for all timeline semaphores before signalling render complete.
+		// On default draw queue, wait for all present_complete semaphores to be signalled
 
 		VkSubmitInfo2 submitInfo{
 		    .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,

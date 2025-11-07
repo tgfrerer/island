@@ -552,7 +552,7 @@ static size_t swapchain_khr_get_swapchain_images_count( le_swapchain_o* base ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemaphore renderCompleteSemaphore, uint32_t* pImageIndex ) {
+static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemaphore render_complete_semaphore, uint32_t* pImageIndex ) {
 
 	auto self = static_cast<khr_data_o* const>( base->data );
 
@@ -579,9 +579,9 @@ static bool swapchain_khr_present( le_swapchain_o* base, VkQueue queue_, VkSemap
 
 	VkPresentInfoKHR presentInfo{
 	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-	    .pNext              = &present_fence_info, // optional
-	    .waitSemaphoreCount = 1,                   // optional
-	    .pWaitSemaphores    = &renderCompleteSemaphore,
+	    .pNext              = &present_fence_info,
+	    .waitSemaphoreCount = 1,
+	    .pWaitSemaphores    = &render_complete_semaphore, // --> we don't know whether this semaphore is still being waited on
 	    .swapchainCount     = 1,
 	    .pSwapchains        = &self->swapchainKHR,
 	    .pImageIndices      = pImageIndex,

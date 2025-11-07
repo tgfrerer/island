@@ -580,7 +580,7 @@ static void write_image( img_data_o* self, const TransferFrame& frame, uint32_t 
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete, uint32_t* imageIndex ) {
+static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphore_present_complete, uint32_t* imageIndex ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto self = static_cast<img_data_o* const>( base->data );
@@ -629,15 +629,15 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 	// std::array<VkPipelineStageFlags, 1> wait_dst_stage_mask = { VkPipelineStageFlagBits::eTransfer };
 
 	VkSubmitInfo submitInfo{
-		.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.pNext                = nullptr, // optional
-		.waitSemaphoreCount   = 0,       // optional
-		.pWaitSemaphores      = 0,
-		.pWaitDstStageMask    = 0,
-		.commandBufferCount   = 1, // optional
-		.pCommandBuffers      = &self->transferFrames[ *imageIndex ].cmdAcquire,
-		.signalSemaphoreCount = 1, // optional
-		.pSignalSemaphores    = &semaphorePresentComplete,
+	    .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+	    .pNext                = nullptr, // optional
+	    .waitSemaphoreCount   = 0,       // optional
+	    .pWaitSemaphores      = 0,
+	    .pWaitDstStageMask    = 0,
+	    .commandBufferCount   = 1, // optional
+	    .pCommandBuffers      = &self->transferFrames[ *imageIndex ].cmdAcquire,
+	    .signalSemaphoreCount = 1, // optional
+	    .pSignalSemaphores    = &semaphore_present_complete,
 	};
 
 	{
@@ -661,22 +661,22 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore 
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue, VkSemaphore renderCompleteSemaphore_, uint32_t* pImageIndex ) {
+static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue, VkSemaphore render_complete_semaphore, uint32_t* pImageIndex ) {
 
 	auto self = static_cast<img_data_o* const>( base->data );
 
 	VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 
 	VkSubmitInfo submitInfo{
-		.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.pNext                = nullptr, // optional
-		.waitSemaphoreCount   = 1,
-		.pWaitSemaphores      = &renderCompleteSemaphore_, // tells us that the image has been written
-		.pWaitDstStageMask    = &wait_dst_stage_mask,
-		.commandBufferCount   = 1,
-		.pCommandBuffers      = &self->transferFrames[ *pImageIndex ].cmdPresent, // copies image to buffer
-		.signalSemaphoreCount = 0,                                                // optional
-		.pSignalSemaphores    = 0,
+	    .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+	    .pNext                = nullptr, // optional
+	    .waitSemaphoreCount   = 1,
+	    .pWaitSemaphores      = &render_complete_semaphore, // tells us that the image has been written
+	    .pWaitDstStageMask    = &wait_dst_stage_mask,
+	    .commandBufferCount   = 1,
+	    .pCommandBuffers      = &self->transferFrames[ *pImageIndex ].cmdPresent, // copies image to buffer
+	    .signalSemaphoreCount = 0,                                                // optional
+	    .pSignalSemaphores    = 0,
 	};
 
 	vkQueueSubmit( queue, 1, &submitInfo, self->transferFrames[ *pImageIndex ].frameFence );
