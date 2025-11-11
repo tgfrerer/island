@@ -62,14 +62,14 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 
 	// Provide additional information for 3D LUT Image:
 	// ImageType, Dimensions need to be explicit.
-	auto image_info_color_lut_texture =
+	auto image_info_color_lut_image_info =
 	    le::ImageInfoBuilder()
 	        .setImageType( le::ImageType::e3D )
 	        .setExtent( 64, 64, 64 )
 	        .build();
 
 	// Instruct resource manager to load data for images from given path
-	app->resource_manager.add_item( app->COLOR_LUT_IMG_HANDLE, image_info_color_lut_texture, &hald_lut, true );
+	app->resource_manager.add_item( app->COLOR_LUT_IMG_HANDLE, image_info_color_lut_image_info, &hald_lut, true );
 	app->resource_manager.add_item( app->SRC_IMG_HANDLE, le::ImageInfoBuilder().build(), &src_image_path, true );
 
 	return app;
@@ -164,8 +164,8 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 
 	static le_image_resource_handle SWAPCHAIN_IMG = self->renderer.getSwapchainResource();
 
-	static auto src_image_texture = LE_TEXTURE( "src_image_texture" );
-	static auto lut_image_texture = LE_TEXTURE( "lut_image_texture" );
+	static auto const src_image_texture = LE_TEXTURE( "src_image_texture" );
+	static auto const lut_image_texture = LE_TEXTURE( "lut_image_texture" );
 
 	// Note that callbacks for renderpasses are given inline here - but
 	// you could just as well pass function pointers instead of lambdas.
@@ -174,8 +174,8 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	auto renderPassMain =
 	    le::RenderPass( "main" )
 	        .addColorAttachment( SWAPCHAIN_IMG )
-	        .sampleTexture( lut_image_texture, lut_tex_info )      // Declare texture name: color lut image
-	        .sampleTexture( src_image_texture, src_imag_tex_info ) // Declare texture name: src image
+	        .sampleTexture( lut_image_texture, lut_tex_info )      // Declare texture name to this pass: color lut image
+	        .sampleTexture( src_image_texture, src_imag_tex_info ) // Declare texture name to this pass: src image
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	            auto                app = static_cast<lut_grading_example_app_o*>( user_data );
 		        le::GraphicsEncoder encoder{ encoder_ };
