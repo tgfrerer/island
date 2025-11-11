@@ -222,18 +222,19 @@ struct le_sampler_info_t {
 	bool                   unnormalizedCoordinates = false;
 };
 
+struct le_image_view_info_t {
+	le_image_resource_handle imageId{}; // le image resource id
+	le::Format               format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
+	le::ImageViewType        image_view_type{ le::ImageViewType::e2D };
+	uint32_t                 base_array_layer{ 0 };
+	uint32_t                 layer_count{ 1 };
+	le::ComponentSwizzle     r_swizzle{ 0 }; // zero means identity
+	le::ComponentSwizzle     g_swizzle{ 0 };
+	le::ComponentSwizzle     b_swizzle{ 0 };
+	le::ComponentSwizzle     a_swizzle{ 0 };
+};
+
 struct le_image_sampler_info_t {
-	struct le_image_view_info_t {
-		le_image_resource_handle imageId{}; // le image resource id
-		le::Format               format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
-		le::ImageViewType        image_view_type{ le::ImageViewType::e2D };
-		uint32_t                 base_array_layer{ 0 };
-		uint32_t                 layer_count{ 1 };
-		le::ComponentSwizzle     r_swizzle{ 0 }; // zero means identity
-		le::ComponentSwizzle     g_swizzle{ 0 };
-		le::ComponentSwizzle     b_swizzle{ 0 };
-		le::ComponentSwizzle     a_swizzle{ 0 };
-	};
 	le_sampler_info_t    sampler{};
 	le_image_view_info_t imageView{};
 };

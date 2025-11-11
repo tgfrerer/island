@@ -55,7 +55,7 @@ class ImageSamplerInfoBuilder {
 
 	class ImageViewInfoBuilder {
 		ImageSamplerInfoBuilder&                       parent;
-		le_image_sampler_info_t::le_image_view_info_t& self = parent.info.imageView;
+		le_image_view_info_t&                          self = parent.info.imageView;
 
 	  public:
 		ImageViewInfoBuilder( ImageSamplerInfoBuilder& parent_ )
