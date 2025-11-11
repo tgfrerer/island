@@ -2925,8 +2925,8 @@ static void backend_create_descriptor_pools( BackendFrameData& frame, VkDevice& 
 
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{
 		    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-		    .pNext         = nullptr, // optional
-		    .flags         = 0,       // optional
+		    .pNext         = nullptr,
+		    .flags         = 0,
 		    .maxSets       = 2000,
 		    .poolSizeCount = uint32_t( descriptorPoolSizes.size() ),
 		    .pPoolSizes    = descriptorPoolSizes.data(),
@@ -4295,11 +4295,11 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 		auto& p = passes[ pass_idx ];
 
 		// Get all texture names for this pass
-		const le_texture_handle* textureIds     = nullptr;
+		le_texture_handle const* textureIds     = nullptr;
 		size_t                   textureIdCount = 0;
 		renderpass_i.get_texture_ids( p, &textureIds, &textureIdCount );
 
-		const le_image_sampler_info_t* textureInfos     = nullptr;
+		le_image_sampler_info_t const* textureInfos     = nullptr;
 		size_t                         textureInfoCount = 0;
 		renderpass_i.get_texture_infos( p, &textureInfos, &textureInfoCount );
 
@@ -4307,7 +4307,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 
 		for ( size_t i = 0; i != textureIdCount; i++ ) {
 
-			// -- find out if texture with this name has already been alloacted.
+			// -- find out if texture with this name has already been allocated.
 			// -- if not, allocate
 
 			const le_texture_handle textureId = textureIds[ i ];
@@ -4332,10 +4332,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // Fixme: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
 					};
 
-					// TODO: fill in additional image view create info based on info from pass...
-					VkImageViewCreateInfo imageViewCreateInfo;
-
-					imageViewCreateInfo = {
+					VkImageViewCreateInfo imageViewCreateInfo = {
 					    .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 					    .pNext      = nullptr, // optional
 					    .flags      = 0,       // optional
@@ -4814,7 +4811,6 @@ static bool updateArguments( const VkDevice&                    device,
 				if ( /* DISABLES CODE */ ( false ) ) {
 					// I wish that this would work - but it appears that accelerator decriptors cannot be updated using templates.
 					vkUpdateDescriptorSetWithTemplate( device, descriptorSets[ setId ], argumentState.updateTemplates[ setId ], argumentState.setData[ setId ].data() );
-
 				} else {
 
 					std::vector<VkWriteDescriptorSet> write_descriptor_sets;
