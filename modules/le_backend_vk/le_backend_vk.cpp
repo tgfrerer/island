@@ -4564,7 +4564,7 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 				// Create VkSampler object on device in case we don't use an
 				// immutable sampler
 
-				if ( VkFormat( imageFormat ) != VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
+				if ( VkFormat( imageFormat ) == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
 					assert( false && "we can't create a sampler for a yuv 420 image" );
 				}
 
