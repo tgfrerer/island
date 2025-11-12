@@ -4512,8 +4512,8 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 	// we should compare the current version of the descriptors to the ones in the previous frame -
 	// anything that's different has been updated.
 
-	for ( auto& u : frame.bindless_textures_data_update_list ) {
-		auto& texInfo = frame.bindless_textures_data[ u ].data;
+	for ( auto& idx : frame.bindless_textures_data_update_list ) {
+		auto& texInfo = frame.bindless_textures_data[ idx ].data;
 
 		// TODO: create new elements for sampler, view.
 
@@ -4594,13 +4594,13 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 			}
 		}
 
-		if ( u < self->bindless_textures_image_views.size() ) {
+		if ( idx < self->bindless_textures_image_views.size() ) {
 			// This update refers to an existing item --
 			// this means we must retire the old sampler before creating a new one
 
 			// replace exiting entry with new objects
-			std::swap( self->bindless_textures_samplers[ u ], sampler );
-			std::swap( self->bindless_textures_image_views[ u ], image_view );
+			std::swap( self->bindless_textures_samplers[ idx ], sampler );
+			std::swap( self->bindless_textures_image_views[ idx ], image_view );
 
 			// move (old) image view and sampler to frame owned resources
 			// the effect is that they will be kept alife for until
@@ -4613,7 +4613,7 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 			self->bindless_textures_image_views.emplace_back( image_view );
 
 			assert( self->bindless_textures_image_views.size() == self->bindless_textures_samplers.size() &&
-			        self->bindless_textures_image_views.size() == u + 1 );
+			        self->bindless_textures_image_views.size() == idx + 1 );
 		}
 	}
 
