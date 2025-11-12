@@ -217,6 +217,10 @@ class Renderer {
 		return le_renderer::renderer_i.get_swapchain_extent( self, swapchain, pWidth, pHeight );
 	}
 
+	le_bindless_texture_handle allocateBindlessTexture( le_image_sampler_info_t const& image_sampler ) {
+		return le_renderer::renderer_i.allocate_bindless_texture( self, &image_sampler );
+	}
+
 	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {
 		le::Extent2D result{};
 		le_renderer::renderer_i.get_swapchain_extent( self, swapchain, &result.width, &result.height );
@@ -375,6 +379,11 @@ class RenderPass {
 		le_renderer::renderpass_i.set_is_root( self, isRoot );
 		return *this;
 	}
+
+	// RenderPass& sampleBindlessTextures( le_bindless_texture_handle const* const textures, size_t texture_handles_count ) {
+	// 	le_renderer::renderpass_i.sample_bindless_textures( self, textures, texture_handles_count );
+	// 	return *this;
+	// }
 
 	RenderPass& sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t& imageSamplerInfo ) {
 		le_renderer::renderpass_i.sample_texture( self, textureName, &imageSamplerInfo );

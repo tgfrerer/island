@@ -118,6 +118,7 @@ static inline bool resource_is_a_swapchain_handle( const le_image_resource_handl
 static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags ) {
 	ZoneScoped;
 
+
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	if ( nullptr == resource_id ) {
@@ -205,6 +206,23 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
 	// -- Mark image resource referenced by texture as used for reading
 	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags );
+}
+
+// ----------------------------------------------------------------------
+static void renderpass_sample_bindless_textures( le_renderpass_o* self, le_bindless_texture_data_t const* const textures, uint32_t num_textures ) {
+	ZoneScoped;
+
+	// -- store texture info so that backend can create resources
+
+	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
+
+	// -- Mark all image resources referenced by textures as used for reading
+
+	le_bindless_texture_data_t const* const t_end = textures + num_textures;
+
+	for ( auto t = textures; t != t_end; t++ ) {
+		renderpass_use_resource( self, t->data.imageView.imageId, access_flags );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -1265,6 +1283,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.use_resource                 = renderpass_use_resource;
 	le_renderpass_i.get_used_resources           = renderpass_get_used_resources;
 	le_renderpass_i.sample_texture               = renderpass_sample_texture;
+	le_renderpass_i.sample_bindless_textures     = renderpass_sample_bindless_textures;
 	le_renderpass_i.get_texture_ids              = renderpass_get_texture_ids;
 	le_renderpass_i.get_texture_infos            = renderpass_get_texture_infos;
 	le_renderpass_i.get_hash                     = renderpass_get_hash;

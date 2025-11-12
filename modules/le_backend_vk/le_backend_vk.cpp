@@ -531,6 +531,9 @@ struct BackendFrameData {
 	VkFence  frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
 	uint64_t frameNumber = 0;       // current frame number
 
+	std::vector<le_bindless_texture_data_t> bindless_textures_data;             // pushed through by renderer, once setup has completed; this is the current state for all bindless textures
+	std::set<uint32_t>                      bindless_textures_data_update_list; // list of all indices that have changes since the last frame; this list is calculated in set_bindless_textures_data
+
 	std::vector<le_on_frame_clear_callback_data_t> on_clear_callbacks; // callbacks to call on frame clear
 
 	struct CommandPool {
@@ -579,7 +582,7 @@ struct BackendFrameData {
 	// A: It must not: as it is used to map external resources as well.
 	std::unordered_map<le_resource_handle, AbstractPhysicalResource> physicalResources;
 
-	/// \brief vk resources retained and destroyed with BackendFrameData.
+	/// \brief vk resources retained and destroyed with BackendFrameData or on clear().
 	/// These resources (such as samplers, imageviews, framebuffers) are transient,
 	/// and lifetime of these resources is tied to the frame fence.
 	std::forward_list<AbstractPhysicalResource> ownedResources;
@@ -632,6 +635,7 @@ struct BackendFrameData {
 /// \brief backend data object
 struct le_backend_o {
 
+	le_renderer_o*              renderer; // parent, non-owning (must be valid for the duration of the backend's existence)
 	le_backend_vk_instance_o*   instance;
 	std::unique_ptr<le::Device> device;
 
@@ -655,6 +659,9 @@ struct le_backend_o {
 	VkSamplerYcbcrConversionInfo vk_sampler_ycbcr_conversion_info;
 
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
+
+	std::vector<AbstractPhysicalResource> bindless_textures_samplers;    // indexed by bindless_texture_idx
+	std::vector<AbstractPhysicalResource> bindless_textures_image_views; // indexed by bindless_texture_idx
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
@@ -773,8 +780,9 @@ static VkBufferUsageFlags defaults_get_buffer_usage_scratch() {
 
 // ----------------------------------------------------------------------
 
-static le_backend_o* backend_create() {
+static le_backend_o* backend_create( le_renderer_o* renderer ) {
 	auto self = new le_backend_o;
+	self->renderer = renderer;
 	return self;
 }
 
@@ -806,6 +814,20 @@ static void backend_destroy( le_backend_o* self ) {
 	if ( self->vk_sampler_ycbcr_conversion ) {
 		vkDestroySamplerYcbcrConversion( device, self->vk_sampler_ycbcr_conversion, nullptr );
 		self->vk_sampler_ycbcr_conversion = nullptr;
+	}
+
+	{
+		for ( auto& s : self->bindless_textures_samplers ) {
+			vkDestroySampler( device, s.asSampler, nullptr );
+		}
+		self->bindless_textures_samplers.clear();
+	}
+
+	{
+		for ( auto& s : self->bindless_textures_image_views ) {
+			vkDestroyImageView( device, s.asImageView, nullptr );
+		}
+		self->bindless_textures_image_views.clear();
 	}
 
 	for ( auto& frameData : self->mFrames ) {
@@ -2339,6 +2361,9 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	}
 
 	frame.frameNumber = self->mFramesCount++; // note post-increment
+
+	frame.bindless_textures_data.clear();
+	frame.bindless_textures_data_update_list.clear();
 
 	return true;
 };
@@ -3920,6 +3945,35 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 }
 
 // ----------------------------------------------------------------------
+
+// This tells all bindless resources that use or are a subresource of a particular resource
+// to update their temporary objects
+static void frame_taint_all_bindless_sub_resources_that_use_resources( BackendFrameData& frame, std::vector<le_resource_handle>& resources ) {
+
+	if ( resources.empty() ) {
+		return;
+	}
+
+	// ---------| invariant resources is not empty
+
+	// We test all bindless resources whether they are derived from a parent resource
+	// that has been re-allocated. if so, then we must flag the bindless resouce as
+	// tainted.
+
+	for ( size_t i = 0; i != frame.bindless_textures_data.size(); i++ ) {
+
+		auto const& needle = frame.bindless_textures_data[ i ].data.imageView.imageId;
+
+		for ( const auto& r : resources ) {
+			if ( needle == r ) {
+				frame.bindless_textures_data_update_list.insert( i );
+				break;
+			}
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
 // towards the start of backend_acquire_physical_resources
 //
@@ -3993,6 +4047,8 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 	{
 
+		std::vector<le_resource_handle> updated_resources;
+
 		auto [ backendResources, backend_resources_lock ] = self->get_allocated_resources();
 
 		for ( auto const& ar : active_resources ) {
@@ -4041,6 +4097,8 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 				// Add resource to map of available resources for this frame
 				frame.availableResources.insert_or_assign( resource, allocatedResource );
 
+				updated_resources.push_back( resource );
+
 				// Add this newly allocated resource to the backend so that the following frames
 				// may use it, too
 				backendResources.insert_or_assign( resource, allocatedResource );
@@ -4084,6 +4142,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 						printResourceInfo( resource, allocatedResource.info, "RE-ALLOC" );
 					}
 
+					updated_resources.push_back( resource );
 					// Add a copy of old resource to recycling bin for this frame, so that
 					// these resources get freed when this frame comes round again.
 					//
@@ -4103,6 +4162,10 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger().info( "" );
 		}
+
+		// We must check on our bindless resources and make sure to update them in case
+		// they depend on any of the resources that we did just update.
+		frame_taint_all_bindless_sub_resources_that_use_resources( frame, updated_resources );
 	}
 
 	// -- Create rtx acceleration structure scratch buffer
@@ -4416,6 +4479,148 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 }
 
 // ----------------------------------------------------------------------
+
+// create any objects that are associated with bindless descriptors
+// this means to create imageviews and samplers for each *new* bindless texture
+// and to recycle any imageviews and samplers
+
+static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameData& frame, VkDevice const& device, le_renderer_o* renderer ) {
+
+	// We keep one "bindless" descriptor set per frame.
+	// this means that for each frame, descriptors will always point at the correct version of a resource
+	// and descriptors will point at temporary objects which have the same lifetime as the resource
+	// if a temporary object gets recycled, it gets added to the frame bin
+	// and will get destroyed once the frame is cleared after render.
+
+	// what can change?
+	// - the texture can be deleted
+	// - the texture subresources may have changed
+	// - the texture resource may have changed
+
+	// how can we detect a change?
+	// how do we propagate change?
+	//
+	//
+
+	// for now, we can create descriptors for all bindless textures
+	// and also create samplers, and views.
+	//
+	//
+	// At this point bindless_textures_data holds the state of currently
+	// available bindless textures.
+
+	// we should compare the current version of the descriptors to the ones in the previous frame -
+	// anything that's different has been updated.
+
+	for ( auto& u : frame.bindless_textures_data_update_list ) {
+		auto& texInfo = frame.bindless_textures_data[ u ].data;
+
+		// TODO: create new elements for sampler, view.
+
+		AbstractPhysicalResource sampler{ .asRawData = 0, .type = AbstractPhysicalResource::eSampler };
+		AbstractPhysicalResource image_view{ .asRawData = 0, .type = AbstractPhysicalResource::eImageView };
+
+		{
+
+			auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( &frame, &texInfo ) );
+			{
+				// Set or create vkImageview
+
+				VkImageSubresourceRange subresourceRange{
+				    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
+				    .baseMipLevel   = 0,
+				    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+				    .baseArrayLayer = texInfo.imageView.base_array_layer,
+				    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // Fixme: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
+				};
+
+				VkImageViewCreateInfo imageViewCreateInfo = {
+				    .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+				    .pNext      = nullptr, // optional
+				    .flags      = 0,       // optional
+				    .image      = frame_data_get_image_from_le_resource_id( &frame, texInfo.imageView.imageId ),
+				    .viewType   = VkImageViewType( texInfo.imageView.image_view_type ),
+				    .format     = VkFormat( imageFormat ),
+				    .components = {
+				        .r = VkComponentSwizzle( texInfo.imageView.r_swizzle ),
+				        .g = VkComponentSwizzle( texInfo.imageView.g_swizzle ),
+				        .b = VkComponentSwizzle( texInfo.imageView.b_swizzle ),
+				        .a = VkComponentSwizzle( texInfo.imageView.a_swizzle ),
+
+				    }, // default component mapping
+				    .subresourceRange = subresourceRange,
+				};
+
+				// if ( VkFormat( imageFormat ) == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
+				// 	// if image is a planar image - we must create an image view with a sampler that can
+				// 	// convert such an image
+				// 	imageViewCreateInfo.pNext = ycbcr_conversion_info;
+				// }
+
+				vkCreateImageView( device, &imageViewCreateInfo, nullptr, &image_view.asImageView );
+			}
+
+			{
+				// Create VkSampler object on device in case we don't use an
+				// immutable sampler
+
+				if ( VkFormat( imageFormat ) != VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
+					assert( false && "we can't create a sampler for a yuv 420 image" );
+				}
+
+				VkSamplerCreateInfo samplerCreateInfo{
+				    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+				    .pNext                   = nullptr, // optional
+				    .flags                   = 0,       // optional
+				    .magFilter               = VkFilter( texInfo.sampler.magFilter ),
+				    .minFilter               = VkFilter( texInfo.sampler.minFilter ),
+				    .mipmapMode              = VkSamplerMipmapMode( texInfo.sampler.mipmapMode ),
+				    .addressModeU            = VkSamplerAddressMode( texInfo.sampler.addressModeU ),
+				    .addressModeV            = VkSamplerAddressMode( texInfo.sampler.addressModeV ),
+				    .addressModeW            = VkSamplerAddressMode( texInfo.sampler.addressModeW ),
+				    .mipLodBias              = texInfo.sampler.mipLodBias,
+				    .anisotropyEnable        = texInfo.sampler.anisotropyEnable,
+				    .maxAnisotropy           = texInfo.sampler.maxAnisotropy,
+				    .compareEnable           = texInfo.sampler.compareEnable,
+				    .compareOp               = VkCompareOp( texInfo.sampler.compareOp ),
+				    .minLod                  = texInfo.sampler.minLod,
+				    .maxLod                  = texInfo.sampler.maxLod,
+				    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
+				    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
+				};
+				vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler.asSampler );
+				// Now store vk object references with frame-owned resources, so that
+				// the vk objects can be destroyed when frame crosses the fence.
+			}
+		}
+
+		if ( u < self->bindless_textures_image_views.size() ) {
+			// This update refers to an existing item --
+			// this means we must retire the old sampler before creating a new one
+
+			// replace exiting entry with new objects
+			std::swap( self->bindless_textures_samplers[ u ], sampler );
+			std::swap( self->bindless_textures_image_views[ u ], image_view );
+
+			// move (old) image view and sampler to frame owned resources
+			// the effect is that they will be kept alife for until
+			// this frame is cleared, and then deleted.
+			frame.ownedResources.emplace_front( sampler );
+			frame.ownedResources.emplace_front( image_view );
+		} else {
+			// this is a new element
+			self->bindless_textures_samplers.emplace_back( sampler );
+			self->bindless_textures_image_views.emplace_back( image_view );
+
+			assert( self->bindless_textures_image_views.size() == self->bindless_textures_samplers.size() &&
+			        self->bindless_textures_image_views.size() == u + 1 );
+		}
+	}
+
+	// le_renderer::renderer_i.get_bindless_textures();
+}
+
+// ----------------------------------------------------------------------
 // Must execute on the DISPATCH FRAME
 //
 // This is one of the most important methods of backend -
@@ -4487,6 +4692,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	}
 
 	// Note: this consumes frame.declared_resources
+	// Note: this will taint any bindless (sub)resources that are affected by resources that are allocated or re-allocated.
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
 	{
@@ -4559,6 +4765,9 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_transient_resources( frame, device, passes, numRenderPasses, &self->vk_sampler_ycbcr_conversion_info );
+
+	// -- update temporary objects (image_views, samplers) and descriptors for bindless textures
+	frame_update_bindless_descriptors( self, frame, device, self->renderer );
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	backend_create_renderpasses( frame, device );
@@ -5037,6 +5246,21 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 
 	return cache_entry.first->second;
 }
+
+// This is triggered in RECORD stage after recording the frame
+// ----------------------------------------------------------------------
+static void backend_frame_set_bindless_textures_data( le_backend_o* self, uint32_t frame_index, le_bindless_texture_data_t const* const texture_data, size_t texture_data_count, uint32_t const* const updated_indices, size_t updated_indices_count ) {
+	ZoneScoped;
+	auto& current_frame = self->mFrames[ frame_index ];
+
+	// This copies the latest complete state of all bindless textures.
+	current_frame.bindless_textures_data.assign( texture_data, texture_data + texture_data_count );
+	// This contains a list of all the indices in the above state that have been changed
+	// (a new entry is considered a change; nothing is ever deleted, but deleted entries may get
+	// re-used, in which case they will have a different version number, and they will show as a change)
+	current_frame.bindless_textures_data_update_list.insert( updated_indices, updated_indices + updated_indices_count );
+}
+
 // ----------------------------------------------------------------------
 static void backend_frame_add_on_clear_callbacks( le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count ) {
 	ZoneScoped;
@@ -8541,6 +8765,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.free_gpu_memory                           = backend_free_gpu_memory;
 	private_backend_i.get_default_graphics_queue_info           = backend_get_default_graphics_queue_info;
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
+	private_backend_i.frame_set_bindless_textures_data          = backend_frame_set_bindless_textures_data;
 	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
 	private_backend_i.frame_data_get_image_from_le_resource_id  = frame_data_get_image_from_le_resource_id;
 	private_backend_i.get_sampler_ycbcr_conversion_info         = backend_get_sampler_ycbcr_conversion_info;

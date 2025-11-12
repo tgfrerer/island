@@ -10,6 +10,7 @@ struct le_backend_vk_api;
 struct le_swapchain_settings_t;
 struct le_window_o;
 
+struct le_renderer_o;
 struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_device_o;              // defined in le_device_vk.cpp
 struct le_renderpass_o;
@@ -141,7 +142,7 @@ struct le_backend_vk_api {
 
 	// clang-format off
 	struct backend_vk_interface_t {
-		le_backend_o *         ( *create                     ) ( );
+		le_backend_o *         ( *create                     ) ( le_renderer_o* renderer);
 		void                   ( *destroy                    ) ( le_backend_o *self );
 
 		void 				   ( *initialise 				 ) ( le_backend_o* self);
@@ -229,6 +230,10 @@ struct le_backend_vk_api {
 		void    (* free_gpu_memory  ) ( le_backend_o* self, VmaAllocation_T* allocation );
 
 		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
+		
+		// Push the current state of bindless textures data from the renderer into the current frame
+ 		void (*frame_set_bindless_textures_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_texture_data_t const* const texture_data, size_t texture_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+
 		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
 	
 		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_image_resource_handle img );
@@ -399,8 +404,8 @@ class Backend : NoCopy,
 		return self;
 	}
 
-	Backend()
-	    : self( le_backend_vk::vk_backend_i.create() )
+	Backend( le_renderer_o* renderer )
+	    : self( le_backend_vk::vk_backend_i.create( renderer ) )
 	    , is_reference( false ) {
 	}
 

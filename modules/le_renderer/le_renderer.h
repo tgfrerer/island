@@ -79,6 +79,9 @@ struct le_renderer_api {
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const* flags);
 
+
+		le_bindless_texture_handle (* allocate_bindless_texture )(le_renderer_o* self, le_image_sampler_info_t const * image_sampler_info);
+
 	};
 
 	struct helpers_interface_t {
@@ -115,6 +118,13 @@ struct le_renderer_api {
 		// Reference counting
 		void (*ref_inc)(le_renderpass_o* self);
 		void (*ref_dec)(le_renderpass_o* self);
+
+
+		// Tell the rendergraph that we will sample from bindless textures -- this is necessary so that we can keep track of resource
+		// dependencies.
+		// So that the rendergraph can track (pass) dependencies you must tell it about any resources that you would like to use 
+		// in a pass.
+		void 						(*sample_bindless_textures)( le_renderpass_o* self, le_bindless_texture_data_t const* const textures, uint32_t num_textures );
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.

@@ -27,6 +27,7 @@ static_assert( sizeof( RootPassesField ) == LE_MAX_NUM_GRAPH_ROOTS / 8, "LeRootP
 	}
 
 LE_OPAQUE_HANDLE( le_texture_handle );
+LE_OPAQUE_HANDLE( le_bindless_texture_handle );
 
 enum class LeResourceType : uint32_t {
 	eUndefined = 0,
@@ -237,6 +238,15 @@ struct le_image_view_info_t {
 struct le_image_sampler_info_t {
 	le_sampler_info_t    sampler{};
 	le_image_view_info_t imageView{};
+};
+
+// ----------------------------------------------------------------------
+// each of these gets turned into a descriptor
+// for now, we're just handing out descriptor indices in sequence
+// TODO: this type should not be publicly available; only shared among backend and renderer internally
+struct le_bindless_texture_data_t {
+	le_image_sampler_info_t data; // image_view (image), and sampler
+	uint32_t                version;
 };
 
 struct le_renderer_settings_t {

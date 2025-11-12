@@ -16,6 +16,7 @@ set (SOURCES ${SOURCES} "private/le_renderer/le_renderer_types.h")
 set (SOURCES ${SOURCES} "private/le_renderer/le_vk_enums.inl")
 set (SOURCES ${SOURCES} "private/le_renderer/le_resource_handle_t.inl")
 set (SOURCES ${SOURCES} "private/le_renderer/le_rendergraph.h")
+set (SOURCES ${SOURCES} "private/le_renderer/bindless_texture_handle_getters.inl")
 set (SOURCES ${SOURCES} "le_rendergraph.cpp")
 set (SOURCES ${SOURCES} "le_command_buffer_encoder.cpp")
 
