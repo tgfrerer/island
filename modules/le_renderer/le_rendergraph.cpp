@@ -118,6 +118,24 @@ static inline bool resource_is_a_swapchain_handle( const le_image_resource_handl
 static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags ) {
 	ZoneScoped;
 
+	/*
+	 * For each resource, we must track how it ENTERS and
+	 * how it LEAVES the pass.
+	 *
+	 * ENTER: first read
+	 * LEAVE: last write
+	 *
+	 * These two aspects are what counts for synchronisation so that we can make sure that the
+	 * resource is in the right state when it enters the renderpass.
+	 *
+	 * If you write and read to the resource repeatedly inside the renderpass that is fine as long
+	 * as you manually synchronise access, and you leave the resource in the state that was promised
+	 * in LEAVE, last write.
+	 *
+	 * Only the last write operation will get correctly synchronised with
+	 * the rest of the rendergraph.
+	 *
+	 */
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
