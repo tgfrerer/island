@@ -310,7 +310,6 @@ static le_bindless_texture_handle renderer_allocate_bindless_texture( le_rendere
 	return reinterpret_cast<le_bindless_texture_handle>( ( uint64_t( idx ) << 8 ) | ( uint64_t( version ) & 0xFF ) );
 };
 
-
 // ----------------------------------------------------------------------
 
 static char const* texture_handle_get_name( le_texture_handle texture ) {
@@ -794,7 +793,6 @@ static void renderer_record_frame( le_renderer_o* self, size_t frameIndex, le_re
 }
 
 // ----------------------------------------------------------------------
-
 /*
  * push the renderer's current state for bindless textures to the backend
  * this will push into the current backend render frame.
@@ -811,9 +809,8 @@ static void renderer_push_bindless_textures_data( le_renderer_o* self, size_t fr
 
 	auto& frame = self->frames[ frameIndex ];
 
-	/// TODO: we might need to lock textures data
-	/// so that nobody can write into it while we transfer the current state into
-	/// the backend.
+	/// TODO: we might need to lock textures data so that nobody can write into it
+	/// while we transfer the current state into the backend.
 	le_backend_vk::private_backend_vk_i.frame_set_bindless_textures_data(
 	    self->backend, frameIndex,
 	    self->bindless_textures.data(), self->bindless_textures.size(),
