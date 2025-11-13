@@ -29,6 +29,8 @@ struct le_shader_binding_info {
 	VkSampler immutable_sampler; // optional: immutable sampler
 	uint64_t  name_hash;         // fnv64_hash of parameter name as given in shader.
 
+	uint32_t is_bindless_texture; // whether this binding is used as a bindpoint for an unsized array of bindless textures (if yes, this must be the only binding in its set)
+
 	static_assert( sizeof( type ) == sizeof( uint32_t ), "type: vk::DescriptorType must be 32bit of size." );
 
 	bool operator<( le_shader_binding_info const& lhs ) const noexcept {
@@ -46,14 +48,17 @@ struct le_shader_binding_info {
 		       range == lhs.range &&
 		       immutable_sampler == lhs.immutable_sampler &&
 		       stage_bits == lhs.stage_bits &&
-		       name_hash == lhs.name_hash;
+		       name_hash == lhs.name_hash &&
+		       is_bindless_texture == lhs.is_bindless_texture;
 	}
 };
+
 // ----------------------------------------------------------------------
 struct le_descriptor_set_layout_t {
 	std::vector<VkSampler*>             immutable_samplers;            // may be empty - if set, owns this VkSampler
 	std::vector<le_shader_binding_info> binding_info;                  // binding info for this set
-	VkDescriptorSetLayout               vk_descriptor_set_layout;      // vk object
+	bool                                is_descriptor_set_layout_borrowed = false; // false if this object owns vk_descriptor_set_layout
+	VkDescriptorSetLayout               vk_descriptor_set_layout;                  // maybe owned, check `is_descriptor_set_layout_borrowed`
 	VkDescriptorUpdateTemplate          vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
 };
 // ----------------------------------------------------------------------

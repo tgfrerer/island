@@ -26,6 +26,12 @@ struct le_pipeline_manager_o;
 constexpr uint8_t LE_MAX_BOUND_DESCRIPTOR_SETS = 8;
 constexpr uint8_t LE_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
 
+// total number (and at the same maximum number) of bindless texture descriptors
+// the full number of descriptors will get allocated with each frame once on
+// backend frame creation. We expect descriptors to be lightweight, and this
+// a pretty fast operation.
+static constexpr uint32_t LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT = 1 << 16;
+
 static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS = "le.backend_vk.should_use_validation_layers";
 static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_CHECK_ARGUMENT_STATE  = "le.backend_vk.should_check_argument_state";
 
@@ -70,6 +76,7 @@ struct VkMemoryAllocateInfo;
 struct VkSpecializationMapEntry;
 struct VkPhysicalDeviceFeatures2;
 struct BackendFrameData;
+struct VkDescriptorSetLayout_T;
 
 struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 struct BackendRenderPass;
@@ -115,6 +122,7 @@ struct le_pipeline_layout_info {
 	uint64_t set_layout_count        = 0;  // number of actually used DescriptorSetLayouts for this layout
 	uint32_t active_vk_shader_stages = 0;  // bitfield of VkShaderStageFlagBits
 	uint32_t push_constants_enabled  = 0;  // whether push constant buffers are enabled or not: They might be disabled unintentionally if not used in shader and optimised away
+	uint32_t bindless_textures_enabled = 0;  // whether this pipeline layout uses bindless textures
 };
 
 struct le_pipeline_and_layout_info_t {
@@ -239,6 +247,7 @@ struct le_backend_vk_api {
 		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_image_resource_handle img );
 
 		VkSamplerYcbcrConversionInfo* (*get_sampler_ycbcr_conversion_info)(le_backend_o* self);
+		VkDescriptorSetLayout_T* 		  (*get_bindless_descrpiptor_set_layout)(le_backend_o* self);
 	};
 
 	struct instance_interface_t {

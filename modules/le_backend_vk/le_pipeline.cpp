@@ -340,6 +340,7 @@ struct le_pipeline_manager_o {
 	HashTable<uint64_t, char*>                 rtx_shader_group_data; // indexed by pipeline_hash
 	HashMap<uint64_t, le_pipeline_layout_info> pipelineLayoutInfos;
 
+	std::vector<VkDescriptorSetLayout>            owned_descriptor_set_layouts;
 	HashMap<uint64_t, le_descriptor_set_layout_t> descriptorSetLayouts;
 	HashMap<uint64_t, VkPipelineLayout>           pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 };
@@ -954,7 +955,7 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 
 #ifndef NDEBUG
 		constexpr bool CHECK_LOCATIONS_ARE_CONSECUTIVE = false;
-		if ( CHECK_LOCATIONS_ARE_CONSECUTIVE ) {
+		if constexpr ( CHECK_LOCATIONS_ARE_CONSECUTIVE ) {
 			// Ensure that locations are sorted asc, and there are no holes.
 			if ( vertexAttributeDescriptions.size() > 1 ) {
 				auto prev_l = vertexAttributeDescriptions.begin();
@@ -986,11 +987,23 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			info.stage_bits = uint32_t( module->stage );
 			info.count      = binding->count;
 
-			assert( info.count > 0 );
+			//			assert( info.count > 0 );
+
+			// TODO: we might need to detect that a binding is used for bindless ...
 
 			// Dynamic uniform buffers need to specify a range given in bytes.
 			if ( info.type == le::DescriptorType::eUniformBufferDynamic ) {
 				info.range = binding->block.size;
+			}
+
+			if ( binding->name && std::string::npos != std::string( binding->name ).find( "bindless" ) ) {
+
+				// If the binding name contains the special string value "bindless", then
+				// we activate is_bindless_texture. this special unsized array binding must
+				// be the only binding in its set.
+
+				logger().info( "Detected immutable sampler: [%s]", binding->name );
+				info.is_bindless_texture = 1;
 			}
 
 			if ( binding->name && std::string::npos != std::string( binding->name ).find( TEXTURE_NAME_YCBCR_REQUEST_STRING ) ) {
@@ -1912,9 +1925,30 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 	if ( foundLayout ) {
 
 		// -- Layout was found in cache, reuse it.
-
 		*layout = foundLayout->vk_descriptor_set_layout;
 
+	} else if ( bindings.size() == 1 && bindings.front().is_bindless_texture ) {
+
+		// -- Layout was not found in cache, but this is a bindless binding,
+		// and bindless means that the Layout for this binding is held centrally
+		// and immutably in the backend.
+
+		le_descriptor_set_layout_t le_layout_info{};
+		le_layout_info.vk_descriptor_set_layout      = le_backend_vk::private_backend_vk_i.get_bindless_descrpiptor_set_layout( self->backend );
+		le_layout_info.binding_info                  = bindings;
+		le_layout_info.vk_descriptor_update_template = nullptr;
+		le_layout_info.immutable_samplers            = {};
+
+		// We must use the shared layout for these bindless bindings, and
+		// signal that we have borrowed it, so that it does not accidentally
+		// get deleted once this le_pipeline gets destroyed.
+		le_layout_info.is_descriptor_set_layout_borrowed = true;
+
+		*layout = le_layout_info.vk_descriptor_set_layout;
+
+		bool result = descriptorSetLayouts.try_insert( set_layout_hash, &le_layout_info );
+
+		assert( result && "descriptorSetLayout insertion must be successful" );
 	} else {
 
 		// -- Layout was not found in cache, we must create vk objects.
@@ -2163,6 +2197,12 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 					if ( current_set.size() == b.binding ) {
 						// we can add the real thing
 						current_set.push_back( b );
+
+						if ( b.is_bindless_texture ) {
+							current_set.back().count       = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT;
+							info.bindless_textures_enabled = 1; // TODO: we could use a flag for each bindless type of content
+						}
+
 					} else {
 						// we must add a placeholder binding
 						le_shader_binding_info new_binding = {};
@@ -2198,7 +2238,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		}
 
 		for ( size_t i = 0; i != sets.size(); ++i ) {
-			info.set_layout_keys[ i ] = le_pipeline_cache_produce_descriptor_set_layout( self, sets[ i ], vkLayouts + i );
+			info.set_layout_keys[ i ] = le_pipeline_cache_produce_descriptor_set_layout( self, sets[ i ], &vkLayouts[ i ] );
 		}
 	}
 
@@ -2714,7 +2754,9 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o* self ) {
 			    vkDestroySampler( device, *s, nullptr );
 			    delete s;
 		    }
-		    if ( e->vk_descriptor_set_layout ) {
+		    if ( e->vk_descriptor_set_layout && false == e->is_descriptor_set_layout_borrowed ) {
+			    // note that we check whether the descriptor_set_layout is owned by us -
+			    // in case we have a bindless descriptor_set_layout in here, it was borrowed from the backend.
 			    vkDestroyDescriptorSetLayout( device, e->vk_descriptor_set_layout, nullptr );
 			    logger().info( "Destroyed VkDescriptorSetLayout: %p", e->vk_descriptor_set_layout );
 		    }

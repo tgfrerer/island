@@ -38,12 +38,6 @@
 
 #include "private/le_backend_vk/le_backend_vk_instance.inl"
 
-// total number (and at the same maximum number) of bindless texture descriptors
-// the full number of descriptors will get allocated with each frame once on
-// backend frame creation. We expect descriptors to be lightweight, and this
-// a pretty fast operation.
-static constexpr uint32_t C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT = 1 << 16;
-
 static constexpr auto LOGGER_LABEL = "le_backend_vk";
 
 static le::Log& logger() {
@@ -639,9 +633,8 @@ struct BackendFrameData {
 
 	// ------ "bindless"
 
-	VkDescriptorPool      bindless_descriptors_pool      = nullptr; ///< owning, needs to be destroyed with frame
-	VkDescriptorSet       bindless_descriptor_set        = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
-	VkDescriptorSetLayout bindless_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with frame
+	VkDescriptorPool bindless_descriptors_pool = nullptr; ///< owning, needs to be destroyed with frame
+	VkDescriptorSet  bindless_descriptor_set   = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
 
 	bool must_create_queues_dot_graph = false;
 };
@@ -676,6 +669,7 @@ struct le_backend_o {
 
 	std::vector<AbstractPhysicalResource> bindless_textures_samplers;    // indexed by bindless_texture_idx
 	std::vector<AbstractPhysicalResource> bindless_textures_image_views; // indexed by bindless_texture_idx
+	VkDescriptorSetLayout                 bindless_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with backend
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
@@ -844,6 +838,11 @@ static void backend_destroy( le_backend_o* self ) {
 		self->bindless_textures_image_views.clear();
 	}
 
+	if ( self->bindless_descriptor_set_layout ) {
+		vkDestroyDescriptorSetLayout( device, self->bindless_descriptor_set_layout, nullptr );
+		self->bindless_descriptor_set_layout = nullptr;
+	}
+
 	for ( auto& frameData : self->mFrames ) {
 
 		using namespace le_backend_vk;
@@ -856,11 +855,6 @@ static void backend_destroy( le_backend_o* self ) {
 		}
 
 		// -- destroy per-frame data
-
-		if ( frameData.bindless_descriptor_set_layout ) {
-			vkDestroyDescriptorSetLayout( device, frameData.bindless_descriptor_set_layout, nullptr );
-			frameData.bindless_descriptor_set_layout = nullptr;
-		}
 
 		if ( frameData.bindless_descriptors_pool ) {
 
@@ -1337,6 +1331,10 @@ static VkSamplerYcbcrConversionInfo* backend_get_sampler_ycbcr_conversion_info( 
 	return &self->vk_sampler_ycbcr_conversion_info;
 }
 
+static VkDescriptorSetLayout backend_get_bindless_descriptor_set_layout( le_backend_o* self ) {
+	return self->bindless_descriptor_set_layout;
+}
+
 // ----------------------------------------------------------------------
 // ffdecl.
 static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators );
@@ -1593,7 +1591,42 @@ static void backend_setup( le_backend_o* self ) {
 			backend_create_transient_allocators( self, i, num_allocators );
 		}
 	}
+	{
 
+		// ---- Create a SetLayout for bindless textures
+
+		VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {
+		    .binding            = 0,                                           // uint32_t
+		    .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,   // VkDescriptorType
+		    .descriptorCount    = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT, // uint32_t, optional
+		    .stageFlags         = VK_SHADER_STAGE_ALL,                         // VkShaderStageFlags
+		    .pImmutableSamplers = nullptr,                                     // VkSampler const *, optional
+		};
+
+		VkDescriptorBindingFlags binding_flags = {
+		    // VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+		    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
+		        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+		        VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
+		};
+
+		VkDescriptorSetLayoutBindingFlagsCreateInfo set_layout_binding_flags_create_info = {
+		    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, // VkStructureType
+		    .pNext         = nullptr,                                                           // void *, optional
+		    .bindingCount  = 1,                                                                 // uint32_t, optional
+		    .pBindingFlags = &binding_flags,                                                    // VkDescriptorBindingFlags const *
+		};
+
+		VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+		    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
+		    .pNext        = &set_layout_binding_flags_create_info,               // void *, optional
+		    .flags        = 0,                                                   // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+		    .bindingCount = 1,                                                   // uint32_t, optional
+		    .pBindings    = &descriptor_set_layout_binding,                      // VkDescriptorSetLayoutBinding const *
+		};
+
+		vkCreateDescriptorSetLayout( vkDevice, &descriptor_set_layout_create_info, nullptr, &self->bindless_descriptor_set_layout );
+	}
 	{
 
 		// Create YcBcR conversion sampler - we use this to derive samplers that can deal with images
@@ -4511,7 +4544,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 // Each frame has space for a full complement of bindless descriptors.
 // These descriptors are valid for the duration of the frame
 // and can only be re-used once the frame has cycled through clear()
-static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame, const VkDevice& device ) {
+static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame, const VkDevice& device, VkDescriptorSetLayout set_layout ) {
 
 	if ( nullptr != frame.bindless_descriptors_pool ) {
 		return;
@@ -4521,7 +4554,7 @@ static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame,
 	ZoneScopedS( "Create bindless descriptor Pool" );
 
 	VkDescriptorPoolSize descriptorPoolSizes[] = {
-	    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT },
+	    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT },
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{
@@ -4535,45 +4568,11 @@ static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame,
 
 	auto result = vkCreateDescriptorPool( device, &descriptorPoolCreateInfo, nullptr, &frame.bindless_descriptors_pool );
 
-	// ---- now allocate a full set of bindless descriptors
-
-	VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {
-	    .binding            = 0,                                         // uint32_t
-	    .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // VkDescriptorType
-	    .descriptorCount    = C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT,  // uint32_t, optional
-	    .stageFlags         = VK_SHADER_STAGE_ALL,                       // VkShaderStageFlags
-	    .pImmutableSamplers = nullptr,                                   // VkSampler const *, optional
-	};
-
-	VkDescriptorBindingFlags binding_flags = {
-	    // VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
-	    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
-	        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-	        VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
-	};
-
-	VkDescriptorSetLayoutBindingFlagsCreateInfo set_layout_binding_flags_create_info = {
-	    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, // VkStructureType
-	    .pNext         = nullptr,                                                           // void *, optional
-	    .bindingCount  = 1,                                                                 // uint32_t, optional
-	    .pBindingFlags = &binding_flags,                                                    // VkDescriptorBindingFlags const *
-	};
-
-	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
-	    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
-	    .pNext        = &set_layout_binding_flags_create_info,               // void *, optional
-	    .flags        = 0,                                                   // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-	    .bindingCount = 1,                                                   // uint32_t, optional
-	    .pBindings    = &descriptor_set_layout_binding,                      // VkDescriptorSetLayoutBinding const *
-	};
-
-	vkCreateDescriptorSetLayout( device, &descriptor_set_layout_create_info, nullptr, &frame.bindless_descriptor_set_layout );
-
 	VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
 	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
 	    .pNext              = nullptr,                                                                  // void *, optional
 	    .descriptorSetCount = 1,                                                                        // uint32_t, optional
-	    .pDescriptorCounts  = &C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT,                                // uint32_t const *
+	    .pDescriptorCounts  = &LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT,                             // uint32_t const *
 	};
 
 	VkDescriptorSetAllocateInfo allocateInfo = {
@@ -4581,7 +4580,7 @@ static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame,
 	    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
 	    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
 	    .descriptorSetCount = 1,                                                       // uint32_t
-	    .pSetLayouts        = &frame.bindless_descriptor_set_layout,                   // VkDescriptorSetLayout const *
+	    .pSetLayouts        = &set_layout,                                             // VkDescriptorSetLayout const *
 	};
 	vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_descriptor_set );
 
@@ -4733,7 +4732,7 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 	// once descriptors are allocated, they stay around
 	// for the duration of the program
 	//
-	frame_allocate_bindless_descriptors( frame, device );
+	frame_allocate_bindless_descriptors( frame, device, self->bindless_descriptor_set_layout );
 
 	/*
 	 * copy descriptorsets from last frame in bulk
@@ -5089,7 +5088,7 @@ static bool updateArguments( const VkDevice&                    device,
                              const VkDescriptorPool&            descriptorPool_,
                              const ArgumentState&               argumentState,
                              std::array<DescriptorSetState, 8>& previousSetData,
-                             VkDescriptorSet*                   descriptorSets ) {
+                             VkDescriptorSet* descriptorSets, le_backend_o* self, BackendFrameData const& frame ) {
 
 	// -- allocate descriptors from descriptorpool based on set layout info
 
@@ -5116,6 +5115,8 @@ static bool updateArguments( const VkDevice&                    device,
 	// -- write data from descriptorSetData into freshly allocated DescriptorSets
 	for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
 
+		// FIXME -- NOOP if this is a layout for bindless
+
 		// If argumentState contains invalid information (for example if an uniform has not been set yet)
 		// this will lead to SEGFAULT. You must ensure that argumentState contains valid information.
 		//
@@ -5125,6 +5126,11 @@ static bool updateArguments( const VkDevice&                    device,
 		static constexpr auto NULL_VK_BUFFER                     = VkBuffer( nullptr );
 		static constexpr auto NULL_VK_IMAGE_VIEW                 = VkImageView( nullptr );
 		static constexpr auto NULL_VK_ACCELERATION_STRUCTURE_KHR = VkAccelerationStructureKHR( nullptr );
+
+		if ( argumentState.layouts[ setId ] == self->bindless_descriptor_set_layout ) {
+			descriptorSets[ setId ] = frame.bindless_descriptor_set;
+			continue;
+		}
 
 		// Whether to test that that arguments are set correctly
 		// - we don't do this check by default if we're running a release build
@@ -5825,41 +5831,43 @@ static void bind_pipeline(
 				}
 
 				// ----------| invariant: b.count > 0
+				if ( 0 == b.is_bindless_texture ) {
 
-				// add an entry for each array element with this binding to setData
-				for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-					DescriptorData descriptorData{};
+					// add an entry for each array element with this binding to setData
+					for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
+						DescriptorData descriptorData{};
 
-					descriptorData.type          = b.type;
-					descriptorData.bindingNumber = uint32_t( b.binding );
-					descriptorData.arrayIndex    = uint32_t( arrayIndex );
+						descriptorData.type          = b.type;
+						descriptorData.bindingNumber = uint32_t( b.binding );
+						descriptorData.arrayIndex    = uint32_t( arrayIndex );
 
-					if ( b.type == le::DescriptorType::eStorageBuffer ||
-					     b.type == le::DescriptorType::eUniformBuffer ||
-					     b.type == le::DescriptorType::eStorageBufferDynamic ||
-					     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+						if ( b.type == le::DescriptorType::eStorageBuffer ||
+						     b.type == le::DescriptorType::eUniformBuffer ||
+						     b.type == le::DescriptorType::eStorageBufferDynamic ||
+						     b.type == le::DescriptorType::eUniformBufferDynamic ) {
 
-						descriptorData.bufferInfo.range = b.range;
-					} else if ( b.type == le::DescriptorType::eSampledImage ||
-					            b.type == le::DescriptorType::eCombinedImageSampler ) {
-						descriptorData.imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
-					} else if ( b.type == le::DescriptorType::eStorageImage ) {
-						// Layout must be general for a rw storage image
-						descriptorData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
+							descriptorData.bufferInfo.range = b.range;
+						} else if ( b.type == le::DescriptorType::eSampledImage ||
+						            b.type == le::DescriptorType::eCombinedImageSampler ) {
+							descriptorData.imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
+						} else if ( b.type == le::DescriptorType::eStorageImage ) {
+							// Layout must be general for a rw storage image
+							descriptorData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
+						}
+
+						setData.emplace_back( descriptorData );
 					}
 
-					setData.emplace_back( descriptorData );
-				}
+					if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+					     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+						assert( b.count != 0 ); // count cannot be 0
 
-				if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
-				     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-					assert( b.count != 0 ); // count cannot be 0
+						// store dynamic offset index for this element
+						b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
 
-					// store dynamic offset index for this element
-					b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
-
-					// increase dynamic offset count by number of elements in this binding
-					argumentState.dynamicOffsetCount += b.count;
+						// increase dynamic offset count by number of elements in this binding
+						argumentState.dynamicOffsetCount += b.count;
+					}
 				}
 
 				// add this binding to list of current bindings
@@ -6444,7 +6452,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandTraceRays*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6503,7 +6511,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDispatchIndirect*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6532,7 +6540,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDispatch*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6590,7 +6598,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDraw*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6618,7 +6626,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDrawIndexed*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6651,7 +6659,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDrawMeshTasks*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6678,7 +6686,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDrawMeshTasksNV*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -8978,6 +8986,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
 	private_backend_i.frame_data_get_image_from_le_resource_id  = frame_data_get_image_from_le_resource_id;
 	private_backend_i.get_sampler_ycbcr_conversion_info         = backend_get_sampler_ycbcr_conversion_info;
+	private_backend_i.get_bindless_descrpiptor_set_layout       = backend_get_bindless_descriptor_set_layout;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;

@@ -332,7 +332,7 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	vk_12_features->descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
 	vk_12_features->descriptorBindingPartiallyBound           = VK_TRUE;
 	vk_12_features->descriptorBindingVariableDescriptorCount  = VK_TRUE;
-	// vk_12_features->runtimeDescriptorArray                             = VK_TRUE;
+	vk_12_features->runtimeDescriptorArray                    = VK_TRUE; // we need this so that we can have unsized arrays in shaders
 
 #ifdef LE_FEATURE_RTX
 
