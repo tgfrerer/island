@@ -996,13 +996,22 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 				info.range = binding->block.size;
 			}
 
-			if ( binding->name && std::string::npos != std::string( binding->name ).find( "bindless" ) ) {
+			if ( set.binding_count == 1 &&                                        // If there is exactly one binding per set
+			     binding_idx == 0 &&                                              // and the binding is at position 0
+			     binding->type_description->op == SpvOp::SpvOpTypeRuntimeArray && // and it is an array
+			     binding->count == 0                                              // and it is unsized
+			) {
+				/* This binding refers to a bindless descriptorset bind point:
+				 *
+				 * - there must only be a single binding
+				 * - the binding must be at position 0
+				 * - the binding must be an array type
+				 * - the array must be unsized
+				 *
+				 */
 
-				// If the binding name contains the special string value "bindless", then
-				// we activate is_bindless_texture. this special unsized array binding must
-				// be the only binding in its set.
-
-				logger().info( "Detected immutable sampler: [%s]", binding->name );
+				logger().info( "Inferred bindless descriptorset bind point: [%s]", binding->name );
+				// TODO: we could set a flag instead of just a boolean to tell us what type of descriptor this refers to
 				info.is_bindless_texture = 1;
 			}
 
