@@ -142,7 +142,7 @@ struct le_renderer_o {
 	le_backend_o* backend = nullptr; // Owned, created in setup
 
 	std::forward_list<le_bindless_texture_handle> bindless_textures_free_list; // list of textures that can be re-used: this gets populated by frame.clear()
-	std::vector<le_bindless_texture_data_t>       bindless_textures;           // each index corresponds to a descriptor index
+	std::vector<le_bindless_texture_data_t>       bindless_textures;           // each element's index corresponds to a descriptor index
 	std::vector<uint32_t>                         bindless_textures_updates;   // idx (unique, sorted) of any bindless textures that have updates in the current frame
 
 	std::vector<FrameData>           frames;
