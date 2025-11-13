@@ -38,8 +38,13 @@
 
 #include "private/le_backend_vk/le_backend_vk_instance.inl"
 
-static constexpr auto LEGACY_SWAPCHAIN = false;
-static constexpr auto LOGGER_LABEL     = "le_backend_vk";
+// total number (and at the same maximum number) of bindless texture descriptors
+// the full number of descriptors will get allocated with each frame once on
+// backend frame creation. We expect descriptors to be lightweight, and this
+// a pretty fast operation.
+static constexpr uint32_t C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT = 1 << 16;
+
+static constexpr auto LOGGER_LABEL = "le_backend_vk";
 
 static le::Log& logger() {
 	// Enforce lazy initialization for logger().oblect
@@ -602,7 +607,6 @@ struct BackendFrameData {
 
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
-	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass
 
 	typedef std::unordered_map<le_resource_handle, AllocatedResourceVk> ResourceMap_T;
 
@@ -628,6 +632,16 @@ struct BackendFrameData {
 	le_staging_allocator_o* stagingAllocator; // owning: allocator for large objects to GPU memory
 
 	std::vector<le_command_stream_t*> command_streams; // owning; these must be destroyed when frame gets destroyed.
+
+	// ------ "bindful"
+
+	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass
+
+	// ------ "bindless"
+
+	VkDescriptorPool      bindless_descriptors_pool      = nullptr; ///< owning, needs to be destroyed with frame
+	VkDescriptorSet       bindless_descriptor_set        = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
+	VkDescriptorSetLayout bindless_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with frame
 
 	bool must_create_queues_dot_graph = false;
 };
@@ -842,6 +856,17 @@ static void backend_destroy( le_backend_o* self ) {
 		}
 
 		// -- destroy per-frame data
+
+		if ( frameData.bindless_descriptor_set_layout ) {
+			vkDestroyDescriptorSetLayout( device, frameData.bindless_descriptor_set_layout, nullptr );
+			frameData.bindless_descriptor_set_layout = nullptr;
+		}
+
+		if ( frameData.bindless_descriptors_pool ) {
+
+			vkDestroyDescriptorPool( device, frameData.bindless_descriptors_pool, nullptr );
+			frameData.bindless_descriptors_pool = nullptr;
+		}
 
 		vkDestroyFence( device, frameData.frameFence, nullptr );
 
@@ -4479,11 +4504,95 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 }
 
 // ----------------------------------------------------------------------
+// Allocate bindless descriptors for the frame
+//
+// Each frame has space for a full complement of bindless descriptors.
+// These descriptors are valid for the duration of the frame
+// and can only be re-used once the frame has cycled through clear()
+static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame, const VkDevice& device ) {
 
-// create any objects that are associated with bindless descriptors
-// this means to create imageviews and samplers for each *new* bindless texture
-// and to recycle any imageviews and samplers
+	if ( nullptr != frame.bindless_descriptors_pool ) {
+		return;
+	}
 
+	// we must create a descriptorpool for bindless descriptors
+	ZoneScopedS( "Create bindless descriptor Pool" );
+
+	VkDescriptorPoolSize descriptorPoolSizes[] = {
+	    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT },
+	};
+
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{
+	    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+	    .pNext         = nullptr,
+	    .flags         = 0, // VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+	    .maxSets       = 1,
+	    .poolSizeCount = sizeof( descriptorPoolSizes ) / sizeof( VkDescriptorPoolSize ),
+	    .pPoolSizes    = descriptorPoolSizes,
+	};
+
+	auto result = vkCreateDescriptorPool( device, &descriptorPoolCreateInfo, nullptr, &frame.bindless_descriptors_pool );
+
+	// ---- now allocate a full set of bindless descriptors
+
+	VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {
+	    .binding            = 0,                                         // uint32_t
+	    .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // VkDescriptorType
+	    .descriptorCount    = C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT,  // uint32_t, optional
+	    .stageFlags         = VK_SHADER_STAGE_ALL,                       // VkShaderStageFlags
+	    .pImmutableSamplers = nullptr,                                   // VkSampler const *, optional
+	};
+
+	VkDescriptorBindingFlags binding_flags = {
+	    // VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+	    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
+	        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+	        VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
+	};
+
+	VkDescriptorSetLayoutBindingFlagsCreateInfo set_layout_binding_flags_create_info = {
+	    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, // VkStructureType
+	    .pNext         = nullptr,                                                           // void *, optional
+	    .bindingCount  = 1,                                                                 // uint32_t, optional
+	    .pBindingFlags = &binding_flags,                                                    // VkDescriptorBindingFlags const *
+	};
+
+	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+	    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
+	    .pNext        = &set_layout_binding_flags_create_info,               // void *, optional
+	    .flags        = 0,                                                   // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+	    .bindingCount = 1,                                                   // uint32_t, optional
+	    .pBindings    = &descriptor_set_layout_binding,                      // VkDescriptorSetLayoutBinding const *
+	};
+
+	VkDescriptorSetLayout tmpLayout = nullptr;
+	vkCreateDescriptorSetLayout( device, &descriptor_set_layout_create_info, nullptr, &tmpLayout );
+
+	VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
+	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
+	    .pNext              = nullptr,                                                                  // void *, optional
+	    .descriptorSetCount = 1,                                                                        // uint32_t, optional
+	    .pDescriptorCounts  = &C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT,                                // uint32_t const *
+	};
+
+	VkDescriptorSetAllocateInfo allocateInfo = {
+	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,          // VkStructureType
+	    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
+	    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
+	    .descriptorSetCount = 1,                                                       // uint32_t
+	    .pSetLayouts        = &tmpLayout,                                              // VkDescriptorSetLayout const *
+	};
+	vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_descriptor_set );
+
+	// destroy set layout which we only created in order to allocate descriptors
+	vkDestroyDescriptorSetLayout( device, tmpLayout, nullptr );
+	tmpLayout = nullptr;
+
+	// now that we have the descriptor pool, create a layout
+	// with which we can create some descriptors
+
+	assert( result == VK_SUCCESS );
+}
 static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameData& frame, VkDevice const& device, le_renderer_o* renderer ) {
 
 	// We keep one "bindless" descriptor set per frame.
@@ -4617,7 +4726,27 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 		}
 	}
 
-	// le_renderer::renderer_i.get_bindless_textures();
+	// in case this frame has no bindless descriptors yet, we must allocate them here
+	frame_allocate_bindless_descriptors( frame, device );
+
+	/*
+	 * copy descriptorsets from last frame in bulk
+	 *
+	 * We can read fearlessly from the last frame since:
+	 *
+	 * - descriptorsets have the same lifetime as the backendframe
+	 *   and will otherwise never deleted.
+	 *
+	 * - the only function which writes to descriptorsets is
+	 *   this function, and there is only ever one frame
+	 *   using this function at the same time.
+	 *
+	 * - it should be fine to read-only from descriptorsets even if
+	 *   they are used for rendering
+	 *
+	 */
+
+	// copy_descriptor_set_from_previous_frame();
 }
 
 // ----------------------------------------------------------------------
