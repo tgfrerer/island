@@ -22,6 +22,7 @@ struct lut_grading_example_app_o {
 	le_image_resource_handle SRC_IMG_HANDLE       = LE_IMG_RESOURCE( "source_image" );
 	le_image_resource_handle COLOR_LUT_IMG_HANDLE = LE_IMG_RESOURCE( "lut_image" );
 	le::Extent2D             window_extents;
+	le_bindless_texture_handle bindless_texture = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -167,6 +168,15 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	static auto const src_image_texture = LE_TEXTURE( "src_image_texture" );
 	static auto const lut_image_texture = LE_TEXTURE( "lut_image_texture" );
 
+	if ( self->bindless_texture == nullptr ) {
+		self->bindless_texture = self->renderer.allocateBindlessTexture(
+		    le::ImageSamplerInfoBuilder()
+		        .withImageViewInfo()
+		        .setImage( self->SRC_IMG_HANDLE )
+		        .end()
+		        .build() );
+	}
+
 	// Note that callbacks for renderpasses are given inline here - but
 	// you could just as well pass function pointers instead of lambdas.
 	//
@@ -176,6 +186,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	        .addColorAttachment( SWAPCHAIN_IMG )
 	        .sampleTexture( lut_image_texture, lut_tex_info )      // Declare texture name to this pass: color lut image
 	        .sampleTexture( src_image_texture, src_imag_tex_info ) // Declare texture name to this pass: src image
+
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	            auto                app = static_cast<lut_grading_example_app_o*>( user_data );
 		        le::GraphicsEncoder encoder{ encoder_ };
@@ -198,7 +209,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 
 		        encoder
 		            .bindGraphicsPipeline( pipelineLutGradingExample )
-		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), src_image_texture )
+		            // .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), src_image_texture )
 		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_1" ), lut_image_texture )
 		            .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &app->mouse_x_normalised, sizeof( float ) )
 		            .draw( 4 );
