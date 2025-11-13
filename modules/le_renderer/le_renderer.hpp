@@ -380,10 +380,9 @@ class RenderPass {
 		return *this;
 	}
 
-	// RenderPass& sampleBindlessTextures( le_bindless_texture_handle const* const textures, size_t texture_handles_count ) {
-	// 	le_renderer::renderpass_i.sample_bindless_textures( self, textures, texture_handles_count );
-	// 	return *this;
-	// }
+	// the important thing here is that we mark the linked image resource as being used with this renderpass-
+	// we don't really care about the resource being used bindless; and the lookup will be faster if we can
+	// just pass an array of image resources
 
 	RenderPass& sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t& imageSamplerInfo ) {
 		le_renderer::renderpass_i.sample_texture( self, textureName, &imageSamplerInfo );
