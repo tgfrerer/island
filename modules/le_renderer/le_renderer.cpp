@@ -223,25 +223,37 @@ static inline void le_bindless_texture_handle_get_idx_and_version( le_bindless_t
 
 // ----------------------------------------------------------------------
 
-// we want to keep the store of bindless textures available to the renderer
-// so that the rendergraph can keep track of used resources
-//
+// Allocate a bindless texture
 static le_bindless_texture_handle renderer_allocate_bindless_texture( le_renderer_o* self, le_image_sampler_info_t const* image_sampler_info ) {
 
-	// this should go into the backend  - it's the backend that should deal with this
-
 	/*
-
-	 - we must allocate descriptors once we have allocated physical resources (because then we are able to link to the correct images for the descriptors)
-	 - image names link to the same image, yes?
-	 - oh but what happens if an image gets re-allocated? (this can happen with swapchain images a lot)
-	 - we would have to invalidate/update all the descriptors that go to the old image
-
+	 *  le_bindless_texture_handle is a versioned handle that contains an
+	 *  offset into the table of backend descriptors
+	 *
+	 *  the offset is mirrored by the backend, which keeps track of descriptors
+	 *  in its per-resource-type descriptor tables currently, there is only a
+	 *  descriptor table for bindless textures
+	 *
+	 *  this is how bindless works - you bind the full descriptor table, and
+	 *  access the resource via it's offset into the descriptor table.
+	 *
+	 * NOTE that resource names in island  link to the same resource - even if
+	 * a resource gets re-allocated (which may happen if an image gets resized)
+	 *
+	 * the backend keeps track of this, and will update descriptors accordingly,
+	 * if a parent resource gets reallocated.
+	 *
+	 * ------- OPEN QUESTIONS: ---------------------------
+	 *
+	 * Q: what should we do if the source resource (image) gets freed?
+	 *
+	 * - in this case, any bindless textures referring to the freed object
+	 *   should be considered invalid.
+	 *
+	 * - bindless textures might point at the old position, which may cause
+	 *   use-after-free issues.
+	 *
 	 */
-
-	// We want this to return an id that can be used as a texture offset
-	// the id is mirrored in the local store of descriptors --
-	// that way we can look up the contents of the descriptor if we need to.
 
 	uint32_t idx     = 0;
 	uint8_t  version = 0;
