@@ -4481,7 +4481,9 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 						    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
 						    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
 						};
+
 						vkCreateSampler( device, &samplerCreateInfo, nullptr, &tex.sampler );
+
 						// Now store vk object references with frame-owned resources, so that
 						// the vk objects can be destroyed when frame crosses the fence.
 
@@ -4565,8 +4567,7 @@ static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame,
 	    .pBindings    = &descriptor_set_layout_binding,                      // VkDescriptorSetLayoutBinding const *
 	};
 
-	VkDescriptorSetLayout tmpLayout = nullptr;
-	vkCreateDescriptorSetLayout( device, &descriptor_set_layout_create_info, nullptr, &tmpLayout );
+	vkCreateDescriptorSetLayout( device, &descriptor_set_layout_create_info, nullptr, &frame.bindless_descriptor_set_layout );
 
 	VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
 	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
@@ -4580,20 +4581,21 @@ static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame,
 	    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
 	    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
 	    .descriptorSetCount = 1,                                                       // uint32_t
-	    .pSetLayouts        = &tmpLayout,                                              // VkDescriptorSetLayout const *
+	    .pSetLayouts        = &frame.bindless_descriptor_set_layout,                   // VkDescriptorSetLayout const *
 	};
 	vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_descriptor_set );
-
-	// destroy set layout which we only created in order to allocate descriptors
-	vkDestroyDescriptorSetLayout( device, tmpLayout, nullptr );
-	tmpLayout = nullptr;
 
 	// now that we have the descriptor pool, create a layout
 	// with which we can create some descriptors
 
 	assert( result == VK_SUCCESS );
 }
-static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameData& frame, VkDevice const& device, le_renderer_o* renderer ) {
+
+// ----------------------------------------------------------------------
+
+static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameData& frame, VkDevice const& device, le_renderer_o* renderer, VkDescriptorSet previous_frame_descriptor_set ) {
+
+	ZoneScoped;
 
 	// We keep one "bindless" descriptor set per frame.
 	// this means that for each frame, descriptors will always point at the correct version of a resource
@@ -4726,7 +4728,11 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 		}
 	}
 
-	// in case this frame has no bindless descriptors yet, we must allocate them here
+	// in case this frame has no bindless descriptors yet,
+	// we pre-allocate a full arena of them.
+	// once descriptors are allocated, they stay around
+	// for the duration of the program
+	//
 	frame_allocate_bindless_descriptors( frame, device );
 
 	/*
@@ -4737,16 +4743,88 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 	 * - descriptorsets have the same lifetime as the backendframe
 	 *   and will otherwise never deleted.
 	 *
-	 * - the only function which writes to descriptorsets is
-	 *   this function, and there is only ever one frame
-	 *   using this function at the same time.
+	 * - the only function which **writes** to descriptorsets is
+	 *   this function, and there is only ever one backend frame
+	 *   using this function at the same time, and backend frames
+	 *   execute in sequence (it is guaranteed that the previous
+	 *   backend frame has completed this function before the next
+	 *   backend frame begins executing this function).
 	 *
 	 * - it should be fine to read-only from descriptorsets even if
 	 *   they are used for rendering
 	 *
 	 */
 
-	// copy_descriptor_set_from_previous_frame();
+	if ( previous_frame_descriptor_set ) {
+
+		// Last frame had a descriptor set, we want to copy its contents into this descriptor pool
+		// so that we can use the state of the last frame as the starting point for applying any
+		// updates. This is so that updates propagate through all frames.
+
+		ZoneScopedS( "Copy previous frame descriptors" );
+
+		// We don't want to copy the full DescriptorSet,
+		// but we could just as well. we do know that the
+		// maximum number of used descriptors is, and so
+		// we try to be economical and only copy over that
+		// number.
+		uint32_t max_used_descriptors_count = self->bindless_textures_samplers.size();
+
+		VkCopyDescriptorSet copy_set = {
+		    .sType           = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET, // VkStructureType
+		    .pNext           = nullptr,                               // void *, optional
+		    .srcSet          = previous_frame_descriptor_set,         // VkDescriptorSet
+		    .srcBinding      = 0,                                     // uint32_t
+		    .srcArrayElement = 0,                                     // uint32_t
+		    .dstSet          = frame.bindless_descriptor_set,         // VkDescriptorSet
+		    .dstBinding      = 0,                                     // uint32_t
+		    .dstArrayElement = 0,                                     // uint32_t
+		    .descriptorCount = max_used_descriptors_count,            // uint32_t
+		};
+
+		vkUpdateDescriptorSets( device, 0, nullptr, 1, &copy_set );
+	}
+
+	size_t num_write_descriptors = frame.bindless_textures_data_update_list.size();
+
+	if ( num_write_descriptors ) {
+		ZoneScopedS( "Update current frame descriptors" );
+
+		// Update any changed descriptors --
+		std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+		write_descriptor_sets.reserve( num_write_descriptors );
+		std::vector<VkDescriptorImageInfo> img_infos;
+		img_infos.reserve( num_write_descriptors );
+
+		// First, we have to collect all our image views, and samplers
+		for ( auto& idx : frame.bindless_textures_data_update_list ) {
+			img_infos.emplace_back(
+			    self->bindless_textures_samplers[ idx ].asSampler,
+			    self->bindless_textures_image_views[ idx ].asImageView,
+			    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+		}
+
+		int img_info_idx = 0;
+		for ( auto& idx : frame.bindless_textures_data_update_list ) {
+			VkWriteDescriptorSet w{
+			    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			    .pNext            = nullptr, // optional
+			    .dstSet           = frame.bindless_descriptor_set,
+			    .dstBinding       = idx,
+			    .dstArrayElement  = 0, //
+			    .descriptorCount  = 1,
+			    .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			    .pImageInfo       = &img_infos[ img_info_idx++ ],
+			    .pBufferInfo      = 0,
+			    .pTexelBufferView = 0,
+			};
+			write_descriptor_sets.push_back( w );
+		}
+		vkUpdateDescriptorSets( device, uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
+	}
+
+	// Now the descriptorset should be updated, and you may use bindless handles to address
+	// bindless textures
 }
 
 // ----------------------------------------------------------------------
@@ -4896,7 +4974,9 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	frame_allocate_transient_resources( frame, device, passes, numRenderPasses, &self->vk_sampler_ycbcr_conversion_info );
 
 	// -- update temporary objects (image_views, samplers) and descriptors for bindless textures
-	frame_update_bindless_descriptors( self, frame, device, self->renderer );
+	// note that we pass in the bindless descriptors pool from the last frame --
+	uint32_t previous_frame_index = ( frameIndex + self->mFrames.size() - 1 ) % self->mFrames.size();
+	frame_update_bindless_descriptors( self, frame, device, self->renderer, self->mFrames[ previous_frame_index ].bindless_descriptor_set );
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	backend_create_renderpasses( frame, device );
