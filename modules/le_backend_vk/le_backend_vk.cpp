@@ -1598,31 +1598,32 @@ static void backend_setup( le_backend_o* self ) {
 		VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {
 		    .binding            = 0,                                           // uint32_t
 		    .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,   // VkDescriptorType
-		    .descriptorCount    = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT, // uint32_t, optional
+		    .descriptorCount    = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT, // uint32_t
 		    .stageFlags         = VK_SHADER_STAGE_ALL,                         // VkShaderStageFlags
 		    .pImmutableSamplers = nullptr,                                     // VkSampler const *, optional
 		};
 
-		VkDescriptorBindingFlags binding_flags = {
+		VkDescriptorBindingFlags binding_flags =
 		    // VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
 		    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
-		        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-		        VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
-		};
+		    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+		    VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 
 		VkDescriptorSetLayoutBindingFlagsCreateInfo set_layout_binding_flags_create_info = {
 		    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, // VkStructureType
 		    .pNext         = nullptr,                                                           // void *, optional
-		    .bindingCount  = 1,                                                                 // uint32_t, optional
+		    .bindingCount  = 1,                                                                 // uint32_t
 		    .pBindingFlags = &binding_flags,                                                    // VkDescriptorBindingFlags const *
 		};
 
 		VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
-		    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
-		    .pNext        = &set_layout_binding_flags_create_info,               // void *, optional
-		    .flags        = 0,                                                   // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-		    .bindingCount = 1,                                                   // uint32_t, optional
-		    .pBindings    = &descriptor_set_layout_binding,                      // VkDescriptorSetLayoutBinding const *
+		    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
+		    .pNext = &set_layout_binding_flags_create_info,               // void *, optional
+		    .flags = 0,
+		    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
+		    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
+		    .bindingCount = 1,                              // uint32_t
+		    .pBindings    = &descriptor_set_layout_binding, // VkDescriptorSetLayoutBinding const *
 		};
 
 		vkCreateDescriptorSetLayout( vkDevice, &descriptor_set_layout_create_info, nullptr, &self->bindless_descriptor_set_layout );
@@ -4809,8 +4810,8 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 			    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			    .pNext            = nullptr, // optional
 			    .dstSet           = frame.bindless_descriptor_set,
-			    .dstBinding       = idx,
-			    .dstArrayElement  = 0, //
+			    .dstBinding       = 0,
+			    .dstArrayElement  = idx, //
 			    .descriptorCount  = 1,
 			    .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			    .pImageInfo       = &img_infos[ img_info_idx++ ],
