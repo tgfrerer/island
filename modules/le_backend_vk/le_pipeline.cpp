@@ -2074,88 +2074,10 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 		vkCreateDescriptorSetLayout( self->device, &setLayoutInfo, nullptr, layout );
 
-		// -- Create descriptorUpdateTemplate
-		//
-		// The template needs to be created so that data for a VkDescriptorSet
-		// can be read from a vector of tightly packed DescriptorData elements.
-		//
-
-		VkDescriptorUpdateTemplate updateTemplate;
-		{
-			std::vector<VkDescriptorUpdateTemplateEntry> entries;
-
-			entries.reserve( bindings.size() );
-
-			size_t base_offset = 0; // offset in bytes into DescriptorData vector, assuming vector is tightly packed.
-			for ( const auto& b : bindings ) {
-
-				VkDescriptorUpdateTemplateEntry entry = {
-				    .dstBinding      = b.binding,
-				    .dstArrayElement = 0, // starting element at this binding to update - always 0
-				    .descriptorCount = b.count,
-				    .descriptorType  = VkDescriptorType( b.type ),
-				    .offset          = 0,
-				    .stride          = 0,
-				};
-
-				// set offset based on type of binding, so that template reads from correct data
-
-				switch ( b.type ) {
-				case le::DescriptorType::eAccelerationStructureKhr:
-					entry.offset = base_offset + offsetof( DescriptorData, accelerationStructureInfo );
-					break;
-				case le::DescriptorType::eUniformTexelBuffer:
-					assert( false ); // not implemented
-					break;
-				case le::DescriptorType::eStorageTexelBuffer:
-					assert( false ); // not implemented
-					break;
-				case le::DescriptorType::eInputAttachment:
-					assert( false ); // not implemented
-					break;
-				case le::DescriptorType::eCombinedImageSampler:                          // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case le::DescriptorType::eSampledImage:                                  // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case le::DescriptorType::eStorageImage:                                  // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case le::DescriptorType::eSampler:                                       // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-					entry.offset = base_offset + offsetof( DescriptorData, imageInfo );  // <- point to first field of ImageInfo
-					break;                                                               //
-				case le::DescriptorType::eUniformBuffer:                                 // fall-through as this kind of descriptor uses BufferInfo
-				case le::DescriptorType::eStorageBuffer:                                 // fall-through as this kind of descriptor uses BufferInfo
-				case le::DescriptorType::eUniformBufferDynamic:                          // fall-through as this kind of descriptor uses BufferInfo
-				case le::DescriptorType::eStorageBufferDynamic:                          //
-					entry.offset = base_offset + offsetof( DescriptorData, bufferInfo ); // <- point to first element of BufferInfo
-					break;
-				default:
-					assert( false && "invalid descriptor type" );
-				}
-
-				entry.stride = sizeof( DescriptorData );
-
-				entries.emplace_back( std::move( entry ) );
-
-				base_offset += sizeof( DescriptorData );
-			}
-
-			VkDescriptorUpdateTemplateCreateInfo info = {
-			    .sType                      = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,
-			    .pNext                      = nullptr, // optional
-			    .flags                      = 0,       // optional
-			    .descriptorUpdateEntryCount = uint32_t( entries.size() ),
-			    .pDescriptorUpdateEntries   = entries.data(),
-			    .templateType               = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET,
-			    .descriptorSetLayout        = *layout,
-			    .pipelineBindPoint          = {}, // ignored as template type is not push_descriptors
-			    .pipelineLayout             = {}, // ignored as template type is not push_descriptors
-			    .set                        = {}, // ignored as template type is not push_descriptors
-			};
-
-			vkCreateDescriptorUpdateTemplate( self->device, &info, nullptr, &updateTemplate );
-		}
-
 		le_descriptor_set_layout_t le_layout_info;
 		le_layout_info.vk_descriptor_set_layout      = *layout;
 		le_layout_info.binding_info                  = bindings;
-		le_layout_info.vk_descriptor_update_template = updateTemplate;
+		le_layout_info.vk_descriptor_update_template = nullptr;
 		le_layout_info.immutable_samplers            = immutable_samplers;
 
 		bool result = descriptorSetLayouts.try_insert( set_layout_hash, &le_layout_info );

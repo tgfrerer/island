@@ -712,7 +712,7 @@ struct ArgumentState {
 	uint32_t                                   setCount           = 0;  // current count of bound descriptorSets (max: 8)
 	std::array<std::vector<DescriptorData>, 8> setData;                 // data per-set
 
-	std::array<VkDescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
+	// std::array<VkDescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
 	std::array<VkDescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
 	std::vector<le_shader_binding_info>       binding_infos;
 };
@@ -5232,10 +5232,7 @@ static bool updateArguments( const VkDevice&                    device,
 
 				assert( result == VK_SUCCESS && "failed to allocate descriptor set" );
 
-				if ( /* DISABLES CODE */ ( false ) ) {
-					// I wish that this would work - but it appears that accelerator decriptors cannot be updated using templates.
-					vkUpdateDescriptorSetWithTemplate( device, descriptorSets[ setId ], argumentState.updateTemplates[ setId ], argumentState.setData[ setId ].data() );
-				} else {
+				{
 
 					std::vector<VkWriteDescriptorSet> write_descriptor_sets;
 
@@ -5817,7 +5814,6 @@ static void bind_pipeline(
 			auto& setData = argumentState.setData[ setId ];
 
 			argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
-			argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
 
 			setData.clear();
 			setData.reserve( setLayoutInfo->binding_info.size() );
@@ -6368,7 +6364,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 									auto& setData = argumentState.setData[ setId ];
 
 									argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
-									argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
 
 									setData.clear();
 									setData.reserve( setLayoutInfo->binding_info.size() );
