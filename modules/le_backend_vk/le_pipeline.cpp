@@ -1089,8 +1089,8 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const* bi
 
 		if ( b->setIndex == b_prev->setIndex &&
 		     b->binding == b_prev->binding ) {
-			logger().error( "Illegal shader bindings detected, rejecting shader." );
-			logger().error( "Duplicate bindings for set: %d, binding %d", b->setIndex, b->binding );
+			logger().warn( "Illegal shader bindings detected, rejecting shader." );
+			logger().warn( "Duplicate bindings for set: %d, binding %d", b->setIndex, b->binding );
 			return false;
 		}
 
