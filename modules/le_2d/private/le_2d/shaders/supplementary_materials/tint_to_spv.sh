@@ -1,5 +1,9 @@
 #!/bin/sh
 
+pushd vello_shaders
+
+mkdir spv
+
 for file in *.wgsl;do
 	file_name=$(basename "$file" .wgsl)
 	
@@ -38,4 +42,15 @@ for file in *.wgsl;do
 
 done
 
+pushd spv
+	
+for file in *.spv; do
+	filename=$(basename "$file" .main.spv)
+	cp $file "../../../vello/${filename}.spv"
+	echo "copied ../../../vello/${filename}.spv"
+done
 
+popd
+
+
+popd
