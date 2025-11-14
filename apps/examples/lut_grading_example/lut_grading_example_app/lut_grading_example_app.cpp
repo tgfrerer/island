@@ -9,6 +9,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <math.h>
 
 struct lut_grading_example_app_o {
 	le::Window   window;
@@ -19,9 +20,11 @@ struct lut_grading_example_app_o {
 	uint32_t mouse_button_state = 0;   // state of all mouse buttons - this uint32 is used as an array of 32 bools, really.
 
 	LeResourceManager      resource_manager;
-	le_image_resource_handle SRC_IMG_HANDLE       = LE_IMG_RESOURCE( "source_image" );
+	le_image_resource_handle image_0              = LE_IMG_RESOURCE( "image_0" );
+	le_image_resource_handle image_1              = LE_IMG_RESOURCE( "image_1" );
 	le_image_resource_handle COLOR_LUT_IMG_HANDLE = LE_IMG_RESOURCE( "lut_image" );
-	le::Extent2D             window_extents;
+
+	le::Extent2D               window_extents;
 	le_bindless_texture_handle bindless_texture = nullptr;
 };
 
@@ -58,8 +61,11 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 	    "./local_resources/images/night_from_day.png";
 	//	    "./local_resources/images/hald_8_identity.png";  // pass-through
 
-	char const* src_image_path =
+	char const* src_image_0_path =
 	    "./local_resources/images/revolt-97ZPiaJbDuA-unsplash.jpg";
+
+	char const* src_image_1_path =
+	    "./local_resources/images/helena-lopes-7FC4WpyYcfQ-unsplash.jpg";
 
 	// Provide additional information for 3D LUT Image:
 	// ImageType, Dimensions need to be explicit.
@@ -71,7 +77,8 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 
 	// Instruct resource manager to load data for images from given path
 	app->resource_manager.add_item( app->COLOR_LUT_IMG_HANDLE, image_info_color_lut_image_info, &hald_lut, true );
-	app->resource_manager.add_item( app->SRC_IMG_HANDLE, le::ImageInfoBuilder().build(), &src_image_path, true );
+	app->resource_manager.add_item( app->image_0, le::ImageInfoBuilder().build(), &src_image_0_path, true );
+	app->resource_manager.add_item( app->image_1, le::ImageInfoBuilder().build(), &src_image_1_path, true );
 
 	return app;
 }
@@ -159,7 +166,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	auto src_imag_tex_info =
 	    le::ImageSamplerInfoBuilder()
 	        .withImageViewInfo()
-	        .setImage( self->SRC_IMG_HANDLE )
+	        .setImage( self->image_0 )
 	        .end()
 	        .build();
 
@@ -172,10 +179,16 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 		self->bindless_texture = self->renderer.allocateBindlessTexture(
 		    le::ImageSamplerInfoBuilder()
 		        .withImageViewInfo()
-		        .setImage( self->SRC_IMG_HANDLE )
+		        .setImage( self->image_0 )
 		        .end()
 		        .build() );
 	}
+	static auto img_1 = self->renderer.allocateBindlessTexture(
+	    le::ImageSamplerInfoBuilder()
+	        .withImageViewInfo()
+	        .setImage( self->image_1 )
+	        .end()
+	        .build() );
 
 	// Note that callbacks for renderpasses are given inline here - but
 	// you could just as well pass function pointers instead of lambdas.
@@ -184,8 +197,9 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	auto renderPassMain =
 	    le::RenderPass( "main" )
 	        .addColorAttachment( SWAPCHAIN_IMG )
-	        .sampleTexture( lut_image_texture, lut_tex_info )      // Declare texture name to this pass: color lut image
-	        .sampleTexture( src_image_texture, src_imag_tex_info ) // Declare texture name to this pass: src image
+	        .sampleTexture( lut_image_texture, lut_tex_info ) // Declare texture name to this pass: color lut image
+	        .useImageResource( self->image_0 )
+	        .useImageResource( self->image_1 )
 
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	            auto                app = static_cast<lut_grading_example_app_o*>( user_data );
@@ -207,11 +221,14 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 		                        .build() )
 		                .build();
 
+		        float progress = app->mouse_x_normalised;
+
+		        // progress = 0.5 + 0.5 * sinf( std::numbers::pi * 2 * ( app->frame_counter % ( 240 * 4 ) ) / float( 240 * 4 ) );
+
 		        encoder
 		            .bindGraphicsPipeline( pipelineLutGradingExample )
-		            // .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), src_image_texture )
 		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_1" ), lut_image_texture )
-		            .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &app->mouse_x_normalised, sizeof( float ) )
+		            .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &progress, sizeof( float ) )
 		            .draw( 4 );
 	        } ) //
 	    ;
