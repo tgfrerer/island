@@ -723,17 +723,20 @@ static void le_2d_destroy( le_2d_o* self ) {
 static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_resource_info_t* out_img_info, uint32_t background_colour_argb ) {
 
 	if ( nullptr == out_img_info ) {
+		logger().warn( "out_img_info not set" );
 		return false;
 	}
 	// ---------| invariant: resource is valid
 
 	if ( out_img_info->type != LeResourceType::eImage ) {
+		logger().error( "out_img_info is not of resource type Image" );
 		return false;
 	}
 
 	// ---------| resource type is image
 
 	if ( 0 == out_img_info->image.extent.width * out_img_info->image.extent.height * out_img_info->image.extent.depth ) {
+		logger().warn( "out_img_info has no area (one or more of width, height, depth is zero)" );
 		return false;
 	}
 
