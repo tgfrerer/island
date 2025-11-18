@@ -29,6 +29,12 @@ Vello shaders are licensed under Unilicense.
 
 Usage hints:
 
++ add a Le2D object to your class.
++ use an le::Encoder2D to record 2d draw commands
++ once per frame, update the Le2D object by passing it the current rendergraph,
+  and the encoder that you used to record 2d drawing commands into.
+
+
 - you must issue a TRANSFORM instruction before each path
 - you must issue a COLOUR instruction before each new path
 - Colours must be PREMULTIPLIED ALPHA (i.e. if colours use alpha, then alpha must be applied to colours; use the provided `premult` colour functions if in doubt)
