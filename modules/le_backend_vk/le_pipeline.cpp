@@ -1103,7 +1103,8 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 static bool shader_module_check_bindings_valid( le_shader_binding_info const* bindings, size_t numBindings ) {
 
 	// -- perform sanity check on bindings - bindings must be unique:
-	// (location+binding cannot be shared between shader uniforms)
+	//
+	// (location+binding should not overlap)
 
 	auto b_start = bindings;
 	auto b_end   = b_start + numBindings;
@@ -1115,18 +1116,19 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const* bi
 			continue;
 		}
 
-		// We only reject overlapping bindings if they refer to non-bindless resources.
-		//
-		// Bindless combined image sampler resource arrays are allowed to overlap because
-		// that's how we allow access a to a combined image sampler resource via aliased
-		// sampler2D or sampler3D.
-		//
 
 		if ( b->setIndex == b_prev->setIndex &&
 		     b->binding == b_prev->binding ) {
 
 			if ( b->is_bindless_resource && b->type == le::DescriptorType::eCombinedImageSampler ) {
-				//	b_prev = b;
+				// We only reject overlapping bindings if they refer to non-bindless resources.
+				//
+				// Bindless combined image sampler resource arrays are allowed to overlap because
+				// that's how we allow access a to a combined image sampler resource via aliased
+				// sampler2D or sampler3D.
+				//
+				// If the binding was detected to be bindless and a combined image sampler,
+				// then we accept it even if it's overlapping an existing binding.
 				continue;
 			}
 
