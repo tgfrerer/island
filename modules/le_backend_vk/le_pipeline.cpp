@@ -1116,7 +1116,6 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const* bi
 			continue;
 		}
 
-
 		if ( b->setIndex == b_prev->setIndex &&
 		     b->binding == b_prev->binding ) {
 
@@ -1985,7 +1984,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 		// and immutably in the backend.
 
 		le_descriptor_set_layout_t le_layout_info{};
-		le_layout_info.vk_descriptor_set_layout      = le_backend_vk::private_backend_vk_i.get_bindless_textures_descrpiptor_set_layout( self->backend );
+		le_layout_info.vk_descriptor_set_layout      = le_backend_vk::private_backend_vk_i.get_bindless_textures_descriptor_set_layout( self->backend );
 		le_layout_info.binding_info                  = bindings;
 		le_layout_info.vk_descriptor_update_template = nullptr;
 		le_layout_info.immutable_samplers            = {};

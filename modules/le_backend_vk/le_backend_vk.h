@@ -249,8 +249,8 @@ struct le_backend_vk_api {
 
 		VkSamplerYcbcrConversionInfo* (*get_sampler_ycbcr_conversion_info)(le_backend_o* self);
 
-		VkDescriptorSetLayout_T* 		  (*get_bindless_textures_descrpiptor_set_layout)(le_backend_o* self);
-		VkDescriptorSetLayout_T* 		  (*get_bindless_samplers_descrpiptor_set_layout)(le_backend_o* self);
+		VkDescriptorSetLayout_T* 		  (*get_bindless_textures_descriptor_set_layout)(le_backend_o* self);
+		VkDescriptorSetLayout_T* 		  (*get_bindless_samplers_descriptor_set_layout)(le_backend_o* self);
 	};
 
 	struct instance_interface_t {
