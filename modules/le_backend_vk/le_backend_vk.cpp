@@ -530,10 +530,10 @@ struct BackendFrameData {
 	VkFence  frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
 	uint64_t frameNumber = 0;       // current frame number
 
-	std::vector<le_bindless_texture_data_t> bindless_textures_data;             // pushed through by renderer, once setup has completed; this is the current state for all bindless textures
+	std::vector<le_bindless_texture_data_t> bindless_textures_data;             // pushed through by renderer, once setup has completed; this is the current table for all bindless textures for this frame
 	std::set<uint32_t>                      bindless_textures_data_update_list; // list of all indices that have changes since the last frame; this list is calculated in set_bindless_textures_data
 
-	std::vector<le_bindless_sampler_data_t> bindless_samplers_data;             // pushed through by renderer, once setup has completed; this is the current state for all bindless samplers
+	std::vector<le_bindless_sampler_data_t> bindless_samplers_data;             // pushed through by renderer, once setup has completed; this is the current table for all bindless samplers for this frame
 	std::set<uint32_t>                      bindless_samplers_data_update_list; // list of all indices that have changes since the last frame; this list is calculated in set_bindless_samplers_data
 
 	std::vector<le_on_frame_clear_callback_data_t> on_clear_callbacks; // callbacks to call on frame clear
