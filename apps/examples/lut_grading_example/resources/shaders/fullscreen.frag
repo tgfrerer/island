@@ -21,8 +21,11 @@ layout( push_constant ) uniform tex_handles {
 	uint tex_lut;
 };
 
-// it's possible to overlap registers in vulkan -- this means i
-// can access a descriptor in different ways:
+// It's possible to overlap bindings in Vulkan -- this means we can access a
+// Descriptor in different ways, depending on which alias we choose for
+// accessing it. The DescriptorSet for the following aliased binding contains
+// exclusively CombinesImageSamplers; and we can access them as 2d or 3d
+// samplers depending on which alias we use.
 layout( set = 2, binding = 0 ) uniform sampler3D bindless_textures3D[];
 layout( set = 2, binding = 0 ) uniform sampler2D bindless_textures[];
 
