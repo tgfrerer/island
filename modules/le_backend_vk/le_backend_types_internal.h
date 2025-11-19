@@ -29,7 +29,7 @@ struct le_shader_binding_info {
 	VkSampler immutable_sampler; // optional: immutable sampler
 	uint64_t  name_hash;         // fnv64_hash of parameter name as given in shader.
 
-	uint32_t is_bindless_texture; // whether this binding is used as a bindpoint for an unsized array of bindless textures (if yes, this must be the only binding in its set)
+	uint32_t is_bindless_resource; // whether this binding is used as a bindpoint for an unsized array of bindless resources (if yes, this must be the only binding in its set, but it may be overlapped (for example it may be declared twice, once fo shader2d, once for shader3d))
 
 	static_assert( sizeof( type ) == sizeof( uint32_t ), "type: vk::DescriptorType must be 32bit of size." );
 
@@ -49,7 +49,7 @@ struct le_shader_binding_info {
 		       immutable_sampler == lhs.immutable_sampler &&
 		       stage_bits == lhs.stage_bits &&
 		       name_hash == lhs.name_hash &&
-		       is_bindless_texture == lhs.is_bindless_texture;
+		       is_bindless_resource == lhs.is_bindless_resource;
 	}
 };
 

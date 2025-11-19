@@ -20,6 +20,40 @@ namespace le {
 
 // ----------------------------------------------------------------------
 
+class SamplerInfoBuilder {
+	le_sampler_info_t info{};
+
+	le_sampler_info_t& self = info;
+
+  public:
+	SamplerInfoBuilder()  = default;
+	~SamplerInfoBuilder() = default;
+
+	SamplerInfoBuilder( le_sampler_info_t const& info_ )
+	    : info( info_ ) {
+	}
+
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMagFilter, le::Filter, magFilter, = le::Filter::eLinear )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMinFilter, le::Filter, minFilter, = le::Filter::eLinear )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMipmapMode, le::SamplerMipmapMode, mipmapMode, = le::SamplerMipmapMode::eLinear )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeU, le::SamplerAddressMode, addressModeU, = le::SamplerAddressMode::eClampToBorder )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeV, le::SamplerAddressMode, addressModeV, = le::SamplerAddressMode::eClampToBorder )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeW, le::SamplerAddressMode, addressModeW, = le::SamplerAddressMode::eRepeat )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMipLodBias, float, mipLodBias, = 0.f )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setAnisotropyEnable, bool, anisotropyEnable, = false )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMaxAnisotropy, float, maxAnisotropy, = 0.f )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setCompareEnable, bool, compareEnable, = false )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setCompareOp, le::CompareOp, compareOp, = le::CompareOp::eLess )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMinLod, float, minLod, = 0.f )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMaxLod, float, maxLod, = 1.f )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setBorderColor, le::BorderColor, borderColor, = le::BorderColor::eFloatTransparentBlack )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setUnnormalizedCoordinates, bool, unnormalizedCoordinates, = false )
+
+	le_sampler_info_t const& build() {
+		return info;
+	}
+};
+
 class ImageSamplerInfoBuilder {
 	le_image_sampler_info_t info{};
 
@@ -219,6 +253,10 @@ class Renderer {
 
 	le_bindless_texture_handle allocateBindlessTexture( le_image_sampler_info_t const& image_sampler ) {
 		return le_renderer::renderer_i.allocate_bindless_texture( self, &image_sampler );
+	}
+
+	le_bindless_sampler_handle allocateBindlessSampler( le_sampler_info_t const& sampler ) {
+		return le_renderer::renderer_i.allocate_bindless_sampler( self, &sampler );
 	}
 
 	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {

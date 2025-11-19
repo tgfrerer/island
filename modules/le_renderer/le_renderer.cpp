@@ -135,15 +135,147 @@ static le_resource_handle_store_t* get_resource_handle_library( bool erase = fal
 	return resource_handle_library;
 }
 
+// -----------
+
+template <typename H, typename I, typename D>
+class bindless_resources_store_t {
+
+	// Currently, the maximum number of possible handles is 1048575 --
+	// we allow 256 different versions.
+	// we keep 8 bits to encode the type of a resource
+
+	inline H make_handle( uint64_t idx, uint64_t version ) {
+		assert( idx <= ( 0xfffff ) );
+		return reinterpret_cast<H>( ( uint64_t( idx ) << 12 ) | ( std::remove_pointer<H>::type::resource_type_id << 8 ) | ( uint64_t( version ) & 0xFF ) );
+	};
+
+	inline void handle_get_idx_and_version( H const& handle, uint32_t* idx, uint8_t* version ) {
+		assert( ( ( uint64_t( handle ) >> 8 ) & 0xF ) == std::remove_pointer<H>::type::resource_type_id && "handle type must match" );
+		*idx      = uint32_t( ( reinterpret_cast<uint64_t const&>( handle ) >> 12 ) & 0xfffff );
+		auto type = ( ( reinterpret_cast<uint64_t const&>( handle ) >> 8 ) & 0xf );
+		*version = uint8_t( reinterpret_cast<uint64_t const&>( handle ) & 0xff );
+	}
+
+  public:
+	// Allocate a bindless resource and return the handle
+	H allocate( I const* info ) {
+
+		/*
+		 *  H is a versioned handle that contains an
+		 *  offset into the table of backend descriptors
+		 *
+		 *  the offset is mirrored by the backend, which keeps track of descriptors
+		 *  in its per-resource-type descriptor tables currently, there is only a
+		 *  descriptor table for bindless textures
+		 *
+		 *  this is how bindless works - you bind the full descriptor table, and
+		 *  access the resource via it's offset into the descriptor table.
+		 *
+		 * NOTE that resource names in island  link to the same resource - even if
+		 * a resource gets re-allocated (which may happen if an image gets resized)
+		 *
+		 * the backend keeps track of this, and will update descriptors accordingly,
+		 * if a parent resource gets reallocated.
+		 *
+		 * ------- OPEN QUESTIONS: ---------------------------
+		 *
+		 * Q: what should we do if the source resource (image) gets freed?
+		 *
+		 * - in this case, any bindless textures referring to the freed object
+		 *   should be considered invalid.
+		 *
+		 * - bindless textures might point at the old position, which may cause
+		 *   use-after-free issues.
+		 *
+		 */
+
+		uint32_t idx     = 0;
+		uint8_t  version = 0;
+
+		// we should probably lock the free list for the duration of this operation.
+
+		if ( !this->bindless_textures_free_list.empty() ) {
+
+			// if there are any elements on the free list, then we should re-use these
+			// otherwise, we need to create a new element.
+			auto last_handle = this->bindless_textures_free_list.front();
+
+			handle_get_idx_and_version( last_handle, &idx, &version );
+
+			size_t num_el = this->bindless_textures.size();
+
+			if ( idx >= num_el ) {
+				assert( false && "idx cannot be larger than current number of elements in bindless textures" );
+				return nullptr;
+			}
+
+			// ---------| invariant idx < num_el
+
+			auto& data = this->bindless_textures.at( idx );
+			assert( data.version == version );
+
+			// If we were successfull, then we can remove this element from the front
+			this->bindless_textures_free_list.pop_front();
+			// we can unlock the free list now
+
+			// Update data
+			data.data = *info;
+			// Update version
+			version = ++data.version;
+
+			// Make sure that the version on the free list matches the version that is currently in
+			// store.
+
+			this->bindless_textures_updates.push_back( idx );
+			return make_handle( idx, version );
+		}
+
+		// ---------| invariant: the free list is empty
+
+		// if the free list is empty, we must add a new element to our bindless textures.
+
+		version = 1;
+		idx     = this->bindless_textures.size();
+		this->bindless_textures.emplace_back( *info, version );
+
+		// We use version so that we can test whether this descriptor is stale.
+		// if we lookup a descriptor and the version in the handle does not match
+		// the version in the data, then we know that the handle is stale.
+		this->bindless_textures_updates.push_back( idx );
+		return make_handle( idx, version );
+	};
+
+	// --------------
+
+	typedef void ( *backend_push_fn_t )( le_backend_o* self, uint32_t frame_index, D const* const texture_data, size_t texture_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+
+	void push_to_backend( le_backend_o* backend, uint32_t frame_index, backend_push_fn_t backend_push_fn ) {
+
+		if ( this->bindless_textures_updates.empty() ) {
+			return;
+		}
+
+		// ---------| invariant: there are updates to propagate
+
+		backend_push_fn( backend, frame_index, this->bindless_textures.data(), this->bindless_textures.size(), this->bindless_textures_updates.data(), this->bindless_textures_updates.size() );
+
+		// reset update list now that we have pushed it
+		this->bindless_textures_updates.clear();
+	}
+
+  private:
+	std::forward_list<H>                          bindless_textures_free_list; // list of textures that can be re-used: this gets populated by frame.clear()
+	std::vector<D>                                bindless_textures;           // each element's index corresponds to a descriptor index
+	std::vector<uint32_t>                         bindless_textures_updates;   // idx (unique, sorted) of any bindless textures that have updates in the current frame
+};
 
 // ----------------------------------------------------------------------
 
 struct le_renderer_o {
 	le_backend_o* backend = nullptr; // Owned, created in setup
 
-	std::forward_list<le_bindless_texture_handle> bindless_textures_free_list; // list of textures that can be re-used: this gets populated by frame.clear()
-	std::vector<le_bindless_texture_data_t>       bindless_textures;           // each element's index corresponds to a descriptor index
-	std::vector<uint32_t>                         bindless_textures_updates;   // idx (unique, sorted) of any bindless textures that have updates in the current frame
+	bindless_resources_store_t<le_bindless_texture_handle, le_image_sampler_info_t, le_bindless_texture_data_t> bindless_texture_store;
+	bindless_resources_store_t<le_bindless_sampler_handle, le_sampler_info_t, le_bindless_sampler_data_t>       bindless_sampler_store;
 
 	std::vector<FrameData>           frames;
 	size_t                           backendDataFramesCount = 0;
@@ -208,107 +340,17 @@ static le_texture_handle renderer_produce_texture_handle( char const* maybe_name
 
 // ----------------------------------------------------------------------
 
-static inline uint8_t le_bindless_texture_handle_get_version( le_bindless_texture_handle const& handle ) {
-	return reinterpret_cast<uint64_t const&>( handle ) & 0xff;
-}
-
-static inline uint32_t le_bindless_texture_handle_get_idx( le_bindless_texture_handle const& handle ) {
-	return uint32_t( reinterpret_cast<uint64_t const&>( handle ) >> 16 );
-}
-
-static inline void le_bindless_texture_handle_get_idx_and_version( le_bindless_texture_handle const& handle, uint32_t* idx, uint8_t* version ) {
-	*idx     = uint32_t( reinterpret_cast<uint64_t const&>( handle ) >> 16 );
-	*version = uint8_t( reinterpret_cast<uint64_t const&>( handle ) & 0xff );
-}
-
 // ----------------------------------------------------------------------
 
 // Allocate a bindless texture
 static le_bindless_texture_handle renderer_allocate_bindless_texture( le_renderer_o* self, le_image_sampler_info_t const* image_sampler_info ) {
+	return self->bindless_texture_store.allocate( image_sampler_info );
+}
 
-	/*
-	 *  le_bindless_texture_handle is a versioned handle that contains an
-	 *  offset into the table of backend descriptors
-	 *
-	 *  the offset is mirrored by the backend, which keeps track of descriptors
-	 *  in its per-resource-type descriptor tables currently, there is only a
-	 *  descriptor table for bindless textures
-	 *
-	 *  this is how bindless works - you bind the full descriptor table, and
-	 *  access the resource via it's offset into the descriptor table.
-	 *
-	 * NOTE that resource names in island  link to the same resource - even if
-	 * a resource gets re-allocated (which may happen if an image gets resized)
-	 *
-	 * the backend keeps track of this, and will update descriptors accordingly,
-	 * if a parent resource gets reallocated.
-	 *
-	 * ------- OPEN QUESTIONS: ---------------------------
-	 *
-	 * Q: what should we do if the source resource (image) gets freed?
-	 *
-	 * - in this case, any bindless textures referring to the freed object
-	 *   should be considered invalid.
-	 *
-	 * - bindless textures might point at the old position, which may cause
-	 *   use-after-free issues.
-	 *
-	 */
-
-	uint32_t idx     = 0;
-	uint8_t  version = 0;
-
-	// we should probably lock the free list for the duration of this operation.
-
-	if ( !self->bindless_textures_free_list.empty() ) {
-		// if there are any elements on the free list, then we should re-use these
-		// otherwise, we need to create a new element.
-		auto last_handle = self->bindless_textures_free_list.front();
-
-		le_bindless_texture_handle_get_idx_and_version( last_handle, &idx, &version );
-
-		size_t num_el = self->bindless_textures.size();
-
-		if ( idx >= num_el ) {
-			assert( false && "idx cannot be larger than current number of elements in bindless textures" );
-			return nullptr;
-		}
-
-		// ---------| invariant idx < num_el
-
-		auto& data = self->bindless_textures.at( idx );
-		assert( data.version == version );
-
-		// if we were successfull, then we can remove this element from the front
-		self->bindless_textures_free_list.pop_front();
-		// we can unlock the free list now
-
-		// update data
-		data.data = *image_sampler_info;
-		// update version
-		version = ++data.version;
-
-		// make sure that the version on the free list matches the version that is currently in
-		// store.
-
-		self->bindless_textures_updates.push_back( idx );
-		return reinterpret_cast<le_bindless_texture_handle>( ( uint64_t( idx ) << 8 ) | ( uint64_t( version ) & 0xFF ) );
-	}
-
-	// ---------| invariant: the free list is empty
-
-	// if the free list is empty, we must add a new element to our bindless textures.
-
-	version = 1;
-	idx     = self->bindless_textures.size();
-	self->bindless_textures.emplace_back( *image_sampler_info, version );
-
-	// We use version so that we can test whether this descriptor is stale.
-	// if we lookup a descriptor and the version in the handle does not match
-	// the version in the data, then we know that the handle is stale.
-	self->bindless_textures_updates.push_back( idx );
-	return reinterpret_cast<le_bindless_texture_handle>( ( uint64_t( idx ) << 8 ) | ( uint64_t( version ) & 0xFF ) );
-};
+// Allocate a bindless texture
+static le_bindless_sampler_handle renderer_allocate_bindless_sampler( le_renderer_o* self, le_sampler_info_t const* sampler_info ) {
+	return self->bindless_sampler_store.allocate( sampler_info );
+}
 
 // ----------------------------------------------------------------------
 
@@ -809,15 +851,8 @@ static void renderer_push_bindless_textures_data( le_renderer_o* self, size_t fr
 
 	auto& frame = self->frames[ frameIndex ];
 
-	/// TODO: we might need to lock textures data so that nobody can write into it
-	/// while we transfer the current state into the backend.
-	le_backend_vk::private_backend_vk_i.frame_set_bindless_textures_data(
-	    self->backend, frameIndex,
-	    self->bindless_textures.data(), self->bindless_textures.size(),
-	    self->bindless_textures_updates.data(), self->bindless_textures_updates.size() );
-
-	// reset update list now that we have pushed it
-	self->bindless_textures_updates.clear();
+	self->bindless_texture_store.push_to_backend( self->backend, frameIndex, le_backend_vk_api_i->private_backend_vk_i.frame_set_bindless_textures_data );
+	self->bindless_sampler_store.push_to_backend( self->backend, frameIndex, le_backend_vk_api_i->private_backend_vk_i.frame_set_bindless_samplers_data );
 }
 
 // ----------------------------------------------------------------------
@@ -1189,6 +1224,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.create_rtx_blas_info           = renderer_create_rtx_blas_info_handle;
 	le_renderer_i.create_rtx_tlas_info           = renderer_create_rtx_tlas_info_handle;
 	le_renderer_i.allocate_bindless_texture      = renderer_allocate_bindless_texture;
+	le_renderer_i.allocate_bindless_sampler      = renderer_allocate_bindless_sampler;
 
 	auto& helpers_i = le_renderer_api_i->helpers_i;
 

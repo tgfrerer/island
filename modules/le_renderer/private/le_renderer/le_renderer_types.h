@@ -28,6 +28,22 @@ static_assert( sizeof( RootPassesField ) == LE_MAX_NUM_GRAPH_ROOTS / 8, "LeRootP
 
 LE_OPAQUE_HANDLE( le_texture_handle );
 LE_OPAQUE_HANDLE( le_bindless_texture_handle );
+LE_OPAQUE_HANDLE( le_bindless_sampler_handle );
+
+enum class le_bindless_resource_type : uint32_t {
+	eUndefined            = 0,
+	eCombinedImageSampler = 1,
+	eTexture              = eCombinedImageSampler, // texture and sampled image are the same thing
+	eSampler              = 2,
+};
+
+struct le_bindless_texture_handle_t {
+	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eCombinedImageSampler );
+};
+
+struct le_bindless_sampler_handle_t {
+	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eSampler );
+};
 
 enum class LeResourceType : uint32_t {
 	eUndefined = 0,
@@ -247,6 +263,11 @@ struct le_image_sampler_info_t {
 struct le_bindless_texture_data_t {
 	le_image_sampler_info_t data; // image_view (image), and sampler
 	uint32_t                version;
+};
+
+struct le_bindless_sampler_data_t {
+	le_sampler_info_t data; // sampler
+	uint32_t          version;
 };
 
 struct le_renderer_settings_t {

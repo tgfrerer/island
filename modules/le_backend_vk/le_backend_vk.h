@@ -31,6 +31,7 @@ constexpr uint8_t LE_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color 
 // backend frame creation. We expect descriptors to be lightweight, and this
 // a pretty fast operation.
 static constexpr uint32_t LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT = 1 << 16;
+static constexpr uint32_t LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT = 1 << 9;
 
 static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS = "le.backend_vk.should_use_validation_layers";
 static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_CHECK_ARGUMENT_STATE  = "le.backend_vk.should_check_argument_state";
@@ -109,7 +110,6 @@ struct BuildAccelerationStructureFlagsKHR;
 } // namespace le
 
 struct LeShaderSourceLanguageEnum;
-// enum class LeResourceType : uint8_t;
 
 struct le_resource_info_t;
 struct le_shader_compiler_interface_t;
@@ -241,13 +241,16 @@ struct le_backend_vk_api {
 		
 		// Push the current state of bindless textures data from the renderer into the current frame
  		void (*frame_set_bindless_textures_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_texture_data_t const* const texture_data, size_t texture_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+ 		void (*frame_set_bindless_samplers_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_sampler_data_t const* const sampler_data, size_t sampler_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
 
 		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
 	
 		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_image_resource_handle img );
 
 		VkSamplerYcbcrConversionInfo* (*get_sampler_ycbcr_conversion_info)(le_backend_o* self);
-		VkDescriptorSetLayout_T* 		  (*get_bindless_descrpiptor_set_layout)(le_backend_o* self);
+
+		VkDescriptorSetLayout_T* 		  (*get_bindless_textures_descrpiptor_set_layout)(le_backend_o* self);
+		VkDescriptorSetLayout_T* 		  (*get_bindless_samplers_descrpiptor_set_layout)(le_backend_o* self);
 	};
 
 	struct instance_interface_t {

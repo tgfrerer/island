@@ -533,6 +533,9 @@ struct BackendFrameData {
 	std::vector<le_bindless_texture_data_t> bindless_textures_data;             // pushed through by renderer, once setup has completed; this is the current state for all bindless textures
 	std::set<uint32_t>                      bindless_textures_data_update_list; // list of all indices that have changes since the last frame; this list is calculated in set_bindless_textures_data
 
+	std::vector<le_bindless_sampler_data_t> bindless_samplers_data;             // pushed through by renderer, once setup has completed; this is the current state for all bindless samplers
+	std::set<uint32_t>                      bindless_samplers_data_update_list; // list of all indices that have changes since the last frame; this list is calculated in set_bindless_samplers_data
+
 	std::vector<le_on_frame_clear_callback_data_t> on_clear_callbacks; // callbacks to call on frame clear
 
 	struct CommandPool {
@@ -634,7 +637,8 @@ struct BackendFrameData {
 	// ------ "bindless"
 
 	VkDescriptorPool bindless_descriptors_pool = nullptr; ///< owning, needs to be destroyed with frame
-	VkDescriptorSet  bindless_descriptor_set   = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
+	VkDescriptorSet  bindless_textures_descriptor_set = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
+	VkDescriptorSet  bindless_samplers_descriptor_set = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
 
 	bool must_create_queues_dot_graph = false;
 };
@@ -669,7 +673,11 @@ struct le_backend_o {
 
 	std::vector<AbstractPhysicalResource> bindless_textures_samplers;    // indexed by bindless_texture_idx
 	std::vector<AbstractPhysicalResource> bindless_textures_image_views; // indexed by bindless_texture_idx
-	VkDescriptorSetLayout                 bindless_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with backend
+
+	VkDescriptorSetLayout bindless_textures_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with backend
+
+	std::vector<AbstractPhysicalResource> bindless_samplers;                                 // indexed by bindless_texture_idx
+	VkDescriptorSetLayout bindless_samplers_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with backend
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
@@ -825,6 +833,15 @@ static void backend_destroy( le_backend_o* self ) {
 	}
 
 	{
+		// destroy bindless samplers
+		for ( auto& s : self->bindless_samplers ) {
+			vkDestroySampler( device, s.asSampler, nullptr );
+		}
+		self->bindless_samplers.clear();
+	}
+
+	{
+		// destroy samplers used for bindless textures
 		for ( auto& s : self->bindless_textures_samplers ) {
 			vkDestroySampler( device, s.asSampler, nullptr );
 		}
@@ -832,15 +849,21 @@ static void backend_destroy( le_backend_o* self ) {
 	}
 
 	{
+		// destroy image views used for bindless textures
 		for ( auto& s : self->bindless_textures_image_views ) {
 			vkDestroyImageView( device, s.asImageView, nullptr );
 		}
 		self->bindless_textures_image_views.clear();
 	}
 
-	if ( self->bindless_descriptor_set_layout ) {
-		vkDestroyDescriptorSetLayout( device, self->bindless_descriptor_set_layout, nullptr );
-		self->bindless_descriptor_set_layout = nullptr;
+	if ( self->bindless_textures_descriptor_set_layout ) {
+		vkDestroyDescriptorSetLayout( device, self->bindless_textures_descriptor_set_layout, nullptr );
+		self->bindless_textures_descriptor_set_layout = nullptr;
+	}
+
+	if ( self->bindless_samplers_descriptor_set_layout ) {
+		vkDestroyDescriptorSetLayout( device, self->bindless_samplers_descriptor_set_layout, nullptr );
+		self->bindless_samplers_descriptor_set_layout = nullptr;
 	}
 
 	for ( auto& frameData : self->mFrames ) {
@@ -1331,8 +1354,12 @@ static VkSamplerYcbcrConversionInfo* backend_get_sampler_ycbcr_conversion_info( 
 	return &self->vk_sampler_ycbcr_conversion_info;
 }
 
-static VkDescriptorSetLayout backend_get_bindless_descriptor_set_layout( le_backend_o* self ) {
-	return self->bindless_descriptor_set_layout;
+static VkDescriptorSetLayout backend_get_bindless_textures_descriptor_set_layout( le_backend_o* self ) {
+	return self->bindless_textures_descriptor_set_layout;
+}
+
+static VkDescriptorSetLayout backend_get_bindless_samplers_descriptor_set_layout( le_backend_o* self ) {
+	return self->bindless_samplers_descriptor_set_layout;
 }
 
 // ----------------------------------------------------------------------
@@ -1593,16 +1620,6 @@ static void backend_setup( le_backend_o* self ) {
 	}
 	{
 
-		// ---- Create a SetLayout for bindless textures
-
-		VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {
-		    .binding            = 0,                                           // uint32_t
-		    .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,   // VkDescriptorType
-		    .descriptorCount    = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT, // uint32_t
-		    .stageFlags         = VK_SHADER_STAGE_ALL,                         // VkShaderStageFlags
-		    .pImmutableSamplers = nullptr,                                     // VkSampler const *, optional
-		};
-
 		VkDescriptorBindingFlags binding_flags =
 		    // VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
 		    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
@@ -1616,17 +1633,54 @@ static void backend_setup( le_backend_o* self ) {
 		    .pBindingFlags = &binding_flags,                                                    // VkDescriptorBindingFlags const *
 		};
 
-		VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
-		    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
-		    .pNext = &set_layout_binding_flags_create_info,               // void *, optional
-		    .flags = 0,
-		    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
-		    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
-		    .bindingCount = 1,                              // uint32_t
-		    .pBindings    = &descriptor_set_layout_binding, // VkDescriptorSetLayoutBinding const *
-		};
+		{
 
-		vkCreateDescriptorSetLayout( vkDevice, &descriptor_set_layout_create_info, nullptr, &self->bindless_descriptor_set_layout );
+			// ---- Create a SetLayout for bindless textures
+
+			VkDescriptorSetLayoutBinding textures_set_layout_binding = {
+			    .binding            = 0,                                           // uint32_t
+			    .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,   // VkDescriptorType
+			    .descriptorCount    = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT, // uint32_t
+			    .stageFlags         = VK_SHADER_STAGE_ALL,                         // VkShaderStageFlags
+			    .pImmutableSamplers = nullptr,                                     // VkSampler const *, optional
+			};
+
+			VkDescriptorSetLayoutCreateInfo textures_set_layout_create_info = {
+			    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
+			    .pNext = &set_layout_binding_flags_create_info,               // void *, optional
+			    .flags = 0,
+			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
+			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
+			    .bindingCount = 1,                            // uint32_t
+			    .pBindings    = &textures_set_layout_binding, // VkDescriptorSetLayoutBinding const *
+			};
+
+			vkCreateDescriptorSetLayout( vkDevice, &textures_set_layout_create_info, nullptr, &self->bindless_textures_descriptor_set_layout );
+		}
+
+		// ---- Create a SetLayout for bindless samplers
+		{
+
+			VkDescriptorSetLayoutBinding samplers_set_layout_binding = {
+			    .binding            = 0,                                           // uint32_t
+			    .descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,                  // VkDescriptorType
+			    .descriptorCount    = LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT, // uint32_t
+			    .stageFlags         = VK_SHADER_STAGE_ALL,                         // VkShaderStageFlags
+			    .pImmutableSamplers = nullptr,                                     // VkSampler const *, optional
+			};
+
+			VkDescriptorSetLayoutCreateInfo samplers_set_layout_create_info = {
+			    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
+			    .pNext = &set_layout_binding_flags_create_info,               // void *, optional
+			    .flags = 0,
+			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
+			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
+			    .bindingCount = 1,                            // uint32_t
+			    .pBindings    = &samplers_set_layout_binding, // VkDescriptorSetLayoutBinding const *
+			};
+
+			vkCreateDescriptorSetLayout( vkDevice, &samplers_set_layout_create_info, nullptr, &self->bindless_samplers_descriptor_set_layout );
+		}
 	}
 	{
 
@@ -2423,6 +2477,9 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	frame.bindless_textures_data.clear();
 	frame.bindless_textures_data_update_list.clear();
+
+	frame.bindless_samplers_data.clear();
+	frame.bindless_samplers_data_update_list.clear();
 
 	return true;
 };
@@ -4019,6 +4076,9 @@ static void frame_taint_all_bindless_sub_resources_that_use_resources( BackendFr
 	// that has been re-allocated. if so, then we must flag the bindless resouce as
 	// tainted.
 
+	// this only applies to bindless image resoures and to bindless buffer resources
+	// but not to samplers, as samplers won't be chaged by any resource update.
+
 	for ( size_t i = 0; i != frame.bindless_textures_data.size(); i++ ) {
 
 		auto const& needle = frame.bindless_textures_data[ i ].data.imageView.imageId;
@@ -4545,55 +4605,81 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 // Each frame has space for a full complement of bindless descriptors.
 // These descriptors are valid for the duration of the frame
 // and can only be re-used once the frame has cycled through clear()
-static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame, const VkDevice& device, VkDescriptorSetLayout set_layout ) {
+static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame, const VkDevice& device, VkDescriptorSetLayout textures_set_layout, VkDescriptorSetLayout samplers_set_layout ) {
 
 	if ( nullptr != frame.bindless_descriptors_pool ) {
 		return;
 	}
+
+	// -----------| invariant: this frame has not yet got a descriptor pool
 
 	// we must create a descriptorpool for bindless descriptors
 	ZoneScopedS( "Create bindless descriptor Pool" );
 
 	VkDescriptorPoolSize descriptorPoolSizes[] = {
 	    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT },
+	    { VK_DESCRIPTOR_TYPE_SAMPLER, LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT },
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{
 	    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 	    .pNext         = nullptr,
 	    .flags         = 0, // VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-	    .maxSets       = 1,
+	    .maxSets       = 2,
 	    .poolSizeCount = sizeof( descriptorPoolSizes ) / sizeof( VkDescriptorPoolSize ),
 	    .pPoolSizes    = descriptorPoolSizes,
 	};
 
 	auto result = vkCreateDescriptorPool( device, &descriptorPoolCreateInfo, nullptr, &frame.bindless_descriptors_pool );
-
-	VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
-	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
-	    .pNext              = nullptr,                                                                  // void *, optional
-	    .descriptorSetCount = 1,                                                                        // uint32_t, optional
-	    .pDescriptorCounts  = &LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT,                             // uint32_t const *
-	};
-
-	VkDescriptorSetAllocateInfo allocateInfo = {
-	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,          // VkStructureType
-	    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
-	    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
-	    .descriptorSetCount = 1,                                                       // uint32_t
-	    .pSetLayouts        = &set_layout,                                             // VkDescriptorSetLayout const *
-	};
-	vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_descriptor_set );
-
-	// now that we have the descriptor pool, create a layout
-	// with which we can create some descriptors
-
 	assert( result == VK_SUCCESS );
+
+	{
+		VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
+		    .pNext              = nullptr,                                                                  // void *, optional
+		    .descriptorSetCount = 1,                                                                        // uint32_t, optional
+		    .pDescriptorCounts  = &LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT,                             // uint32_t const *
+		};
+
+		VkDescriptorSetAllocateInfo allocateInfo = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,          // VkStructureType
+		    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
+		    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
+		    .descriptorSetCount = 1,                                                       // uint32_t
+		    .pSetLayouts        = &textures_set_layout,                                    // VkDescriptorSetLayout const *
+		};
+		auto r = vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_textures_descriptor_set );
+		assert( r == VK_SUCCESS );
+	}
+
+	//
+
+	{
+		VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
+		    .pNext              = nullptr,                                                                  // void *, optional
+		    .descriptorSetCount = 1,                                                                        // uint32_t, optional
+		    .pDescriptorCounts  = &LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT,                             // uint32_t const *
+		};
+
+		VkDescriptorSetAllocateInfo allocateInfo = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,          // VkStructureType
+		    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
+		    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
+		    .descriptorSetCount = 1,                                                       // uint32_t
+		    .pSetLayouts        = &samplers_set_layout,                                    // VkDescriptorSetLayout const *
+		};
+		auto r = vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_samplers_descriptor_set );
+		assert( r == VK_SUCCESS );
+	}
+
 }
 
 // ----------------------------------------------------------------------
 
-static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameData& frame, VkDevice const& device, le_renderer_o* renderer, VkDescriptorSet previous_frame_descriptor_set ) {
+static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameData& frame, VkDevice const& device, le_renderer_o* renderer,
+                                               VkDescriptorSet previous_frame_textures_descriptor_set,
+                                               VkDescriptorSet previous_frame_samplers_descriptor_set ) {
 
 	ZoneScoped;
 
@@ -4623,17 +4709,69 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 	// we should compare the current version of the descriptors to the ones in the previous frame -
 	// anything that's different has been updated.
 
-	for ( auto& idx : frame.bindless_textures_data_update_list ) {
-		auto& texInfo = frame.bindless_textures_data[ idx ].data;
+	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - update all bindless samplers
 
-		// TODO: create new elements for sampler, view.
+	for ( auto& idx : frame.bindless_samplers_data_update_list ) {
+		auto& sampler_data = frame.bindless_samplers_data[ idx ].data;
+
+		AbstractPhysicalResource sampler{ .asRawData = 0, .type = AbstractPhysicalResource::eSampler };
+
+		{
+
+			VkSamplerCreateInfo samplerCreateInfo{
+			    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			    .pNext                   = nullptr, // optional
+			    .flags                   = 0,       // optional
+			    .magFilter               = VkFilter( sampler_data.magFilter ),
+			    .minFilter               = VkFilter( sampler_data.minFilter ),
+			    .mipmapMode              = VkSamplerMipmapMode( sampler_data.mipmapMode ),
+			    .addressModeU            = VkSamplerAddressMode( sampler_data.addressModeU ),
+			    .addressModeV            = VkSamplerAddressMode( sampler_data.addressModeV ),
+			    .addressModeW            = VkSamplerAddressMode( sampler_data.addressModeW ),
+			    .mipLodBias              = sampler_data.mipLodBias,
+			    .anisotropyEnable        = sampler_data.anisotropyEnable,
+			    .maxAnisotropy           = sampler_data.maxAnisotropy,
+			    .compareEnable           = sampler_data.compareEnable,
+			    .compareOp               = VkCompareOp( sampler_data.compareOp ),
+			    .minLod                  = sampler_data.minLod,
+			    .maxLod                  = sampler_data.maxLod,
+			    .borderColor             = VkBorderColor( sampler_data.borderColor ),
+			    .unnormalizedCoordinates = sampler_data.unnormalizedCoordinates,
+			};
+
+			vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler.asSampler );
+		}
+
+		if ( idx < self->bindless_samplers.size() ) {
+			// This update refers to an existing item --
+			// this means we must retire the old sampler before creating a new one
+
+			// replace exiting entry with new objects
+			std::swap( self->bindless_samplers[ idx ], sampler );
+
+			// move (old) sampler to frame owned resources
+			// the effect is that they will be kept alife for until
+			// this frame is cleared, and then deleted.
+			frame.ownedResources.emplace_front( sampler );
+		} else {
+			// this is a new element
+			self->bindless_samplers.emplace_back( sampler );
+
+			assert( self->bindless_samplers.size() == idx + 1 );
+		}
+	}
+
+	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - update all bindless textures (thats sampled images)
+
+	for ( auto& idx : frame.bindless_textures_data_update_list ) {
+		auto& tex_data = frame.bindless_textures_data[ idx ].data;
 
 		AbstractPhysicalResource sampler{ .asRawData = 0, .type = AbstractPhysicalResource::eSampler };
 		AbstractPhysicalResource image_view{ .asRawData = 0, .type = AbstractPhysicalResource::eImageView };
 
 		{
 
-			auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( &frame, &texInfo ) );
+			auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( &frame, &tex_data ) );
 			{
 				// Set or create vkImageview
 
@@ -4641,7 +4779,7 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 				    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
 				    .baseMipLevel   = 0,
 				    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
-				    .baseArrayLayer = texInfo.imageView.base_array_layer,
+				    .baseArrayLayer = tex_data.imageView.base_array_layer,
 				    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // Fixme: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
 				};
 
@@ -4649,14 +4787,14 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 				    .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 				    .pNext      = nullptr, // optional
 				    .flags      = 0,       // optional
-				    .image      = frame_data_get_image_from_le_resource_id( &frame, texInfo.imageView.imageId ),
-				    .viewType   = VkImageViewType( texInfo.imageView.image_view_type ),
+				    .image      = frame_data_get_image_from_le_resource_id( &frame, tex_data.imageView.imageId ),
+				    .viewType   = VkImageViewType( tex_data.imageView.image_view_type ),
 				    .format     = VkFormat( imageFormat ),
 				    .components = {
-				        .r = VkComponentSwizzle( texInfo.imageView.r_swizzle ),
-				        .g = VkComponentSwizzle( texInfo.imageView.g_swizzle ),
-				        .b = VkComponentSwizzle( texInfo.imageView.b_swizzle ),
-				        .a = VkComponentSwizzle( texInfo.imageView.a_swizzle ),
+				        .r = VkComponentSwizzle( tex_data.imageView.r_swizzle ),
+				        .g = VkComponentSwizzle( tex_data.imageView.g_swizzle ),
+				        .b = VkComponentSwizzle( tex_data.imageView.b_swizzle ),
+				        .a = VkComponentSwizzle( tex_data.imageView.a_swizzle ),
 
 				    }, // default component mapping
 				    .subresourceRange = subresourceRange,
@@ -4683,21 +4821,21 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 				    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 				    .pNext                   = nullptr, // optional
 				    .flags                   = 0,       // optional
-				    .magFilter               = VkFilter( texInfo.sampler.magFilter ),
-				    .minFilter               = VkFilter( texInfo.sampler.minFilter ),
-				    .mipmapMode              = VkSamplerMipmapMode( texInfo.sampler.mipmapMode ),
-				    .addressModeU            = VkSamplerAddressMode( texInfo.sampler.addressModeU ),
-				    .addressModeV            = VkSamplerAddressMode( texInfo.sampler.addressModeV ),
-				    .addressModeW            = VkSamplerAddressMode( texInfo.sampler.addressModeW ),
-				    .mipLodBias              = texInfo.sampler.mipLodBias,
-				    .anisotropyEnable        = texInfo.sampler.anisotropyEnable,
-				    .maxAnisotropy           = texInfo.sampler.maxAnisotropy,
-				    .compareEnable           = texInfo.sampler.compareEnable,
-				    .compareOp               = VkCompareOp( texInfo.sampler.compareOp ),
-				    .minLod                  = texInfo.sampler.minLod,
-				    .maxLod                  = texInfo.sampler.maxLod,
-				    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
-				    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
+				    .magFilter               = VkFilter( tex_data.sampler.magFilter ),
+				    .minFilter               = VkFilter( tex_data.sampler.minFilter ),
+				    .mipmapMode              = VkSamplerMipmapMode( tex_data.sampler.mipmapMode ),
+				    .addressModeU            = VkSamplerAddressMode( tex_data.sampler.addressModeU ),
+				    .addressModeV            = VkSamplerAddressMode( tex_data.sampler.addressModeV ),
+				    .addressModeW            = VkSamplerAddressMode( tex_data.sampler.addressModeW ),
+				    .mipLodBias              = tex_data.sampler.mipLodBias,
+				    .anisotropyEnable        = tex_data.sampler.anisotropyEnable,
+				    .maxAnisotropy           = tex_data.sampler.maxAnisotropy,
+				    .compareEnable           = tex_data.sampler.compareEnable,
+				    .compareOp               = VkCompareOp( tex_data.sampler.compareOp ),
+				    .minLod                  = tex_data.sampler.minLod,
+				    .maxLod                  = tex_data.sampler.maxLod,
+				    .borderColor             = VkBorderColor( tex_data.sampler.borderColor ),
+				    .unnormalizedCoordinates = tex_data.sampler.unnormalizedCoordinates,
 				};
 				vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler.asSampler );
 				// Now store vk object references with frame-owned resources, so that
@@ -4728,12 +4866,14 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 		}
 	}
 
-	// in case this frame has no bindless descriptors yet,
+	// In case this frame has no bindless descriptors yet,
 	// we pre-allocate a full arena of them.
 	// once descriptors are allocated, they stay around
 	// for the duration of the program
 	//
-	frame_allocate_bindless_descriptors( frame, device, self->bindless_descriptor_set_layout );
+	frame_allocate_bindless_descriptors( frame, device,
+	                                     self->bindless_textures_descriptor_set_layout,
+	                                     self->bindless_samplers_descriptor_set_layout );
 
 	/*
 	 * copy descriptorsets from last frame in bulk
@@ -4755,7 +4895,43 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 	 *
 	 */
 
-	if ( previous_frame_descriptor_set ) {
+	std::vector<VkCopyDescriptorSet> set_copies;
+
+	// copy samplers from last frame
+
+	if ( previous_frame_samplers_descriptor_set ) {
+
+		// Last frame had a descriptor set, we want to copy its contents into this descriptor pool
+		// so that we can use the state of the last frame as the starting point for applying any
+		// updates. This is so that updates propagate through all frames.
+
+		ZoneScopedS( "Copy previous frame descriptors" );
+
+		// We don't want to copy the full DescriptorSet,
+		// but we could just as well. we do know that the
+		// maximum number of used descriptors is, and so
+		// we try to be economical and only copy over that
+		// number.
+		uint32_t max_used_descriptors_count = self->bindless_samplers.size();
+
+		VkCopyDescriptorSet copy_set = {
+		    .sType           = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,  // VkStructureType
+		    .pNext           = nullptr,                                // void *, optional
+		    .srcSet          = previous_frame_samplers_descriptor_set, // VkDescriptorSet
+		    .srcBinding      = 0,                                      // uint32_t
+		    .srcArrayElement = 0,                                      // uint32_t
+		    .dstSet          = frame.bindless_samplers_descriptor_set, // VkDescriptorSet
+		    .dstBinding      = 0,                                      // uint32_t
+		    .dstArrayElement = 0,                                      // uint32_t
+		    .descriptorCount = max_used_descriptors_count,             // uint32_t
+		};
+
+		set_copies.emplace_back( copy_set );
+	}
+
+	// copy textures from last frame
+
+	if ( previous_frame_textures_descriptor_set ) {
 
 		// Last frame had a descriptor set, we want to copy its contents into this descriptor pool
 		// so that we can use the state of the last frame as the starting point for applying any
@@ -4771,56 +4947,105 @@ static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameD
 		uint32_t max_used_descriptors_count = self->bindless_textures_samplers.size();
 
 		VkCopyDescriptorSet copy_set = {
-		    .sType           = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET, // VkStructureType
-		    .pNext           = nullptr,                               // void *, optional
-		    .srcSet          = previous_frame_descriptor_set,         // VkDescriptorSet
-		    .srcBinding      = 0,                                     // uint32_t
-		    .srcArrayElement = 0,                                     // uint32_t
-		    .dstSet          = frame.bindless_descriptor_set,         // VkDescriptorSet
-		    .dstBinding      = 0,                                     // uint32_t
-		    .dstArrayElement = 0,                                     // uint32_t
-		    .descriptorCount = max_used_descriptors_count,            // uint32_t
+		    .sType           = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,  // VkStructureType
+		    .pNext           = nullptr,                                // void *, optional
+		    .srcSet          = previous_frame_textures_descriptor_set, // VkDescriptorSet
+		    .srcBinding      = 0,                                      // uint32_t
+		    .srcArrayElement = 0,                                      // uint32_t
+		    .dstSet          = frame.bindless_textures_descriptor_set, // VkDescriptorSet
+		    .dstBinding      = 0,                                      // uint32_t
+		    .dstArrayElement = 0,                                      // uint32_t
+		    .descriptorCount = max_used_descriptors_count,             // uint32_t
 		};
 
-		vkUpdateDescriptorSets( device, 0, nullptr, 1, &copy_set );
+		set_copies.emplace_back( copy_set );
 	}
 
-	size_t num_write_descriptors = frame.bindless_textures_data_update_list.size();
+	if ( !set_copies.empty() ) {
+		vkUpdateDescriptorSets( device, 0, nullptr, set_copies.size(), set_copies.data() );
+	}
 
-	if ( num_write_descriptors ) {
-		ZoneScopedS( "Update current frame descriptors" );
+	{
+		// update sampler descriptors
 
-		// Update any changed descriptors --
-		std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-		write_descriptor_sets.reserve( num_write_descriptors );
-		std::vector<VkDescriptorImageInfo> img_infos;
-		img_infos.reserve( num_write_descriptors );
+		size_t num_write_descriptors = frame.bindless_samplers_data_update_list.size();
 
-		// First, we have to collect all our image views, and samplers
-		for ( auto& idx : frame.bindless_textures_data_update_list ) {
-			img_infos.emplace_back(
-			    self->bindless_textures_samplers[ idx ].asSampler,
-			    self->bindless_textures_image_views[ idx ].asImageView,
-			    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+		if ( num_write_descriptors ) {
+			ZoneScopedS( "Update current sampler descriptors" );
+
+			// Update any changed descriptors --
+			std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+			write_descriptor_sets.reserve( num_write_descriptors );
+			std::vector<VkDescriptorImageInfo> img_infos;
+			img_infos.reserve( num_write_descriptors );
+
+			// First, we have to collect all our image views, and samplers
+			for ( auto& idx : frame.bindless_samplers_data_update_list ) {
+				img_infos.emplace_back(
+				    self->bindless_samplers[ idx ].asSampler,
+				    nullptr,
+				    VK_IMAGE_LAYOUT_UNDEFINED );
+			}
+
+			int img_info_idx = 0;
+			for ( auto& idx : frame.bindless_samplers_data_update_list ) {
+				VkWriteDescriptorSet w{
+				    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				    .pNext            = nullptr, // optional
+				    .dstSet           = frame.bindless_samplers_descriptor_set,
+				    .dstBinding       = 0,
+				    .dstArrayElement  = idx, //
+				    .descriptorCount  = 1,
+				    .descriptorType   = VK_DESCRIPTOR_TYPE_SAMPLER,
+				    .pImageInfo       = &img_infos[ img_info_idx++ ],
+				    .pBufferInfo      = 0,
+				    .pTexelBufferView = 0,
+				};
+				write_descriptor_sets.push_back( w );
+			}
+			vkUpdateDescriptorSets( device, uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
 		}
+	}
+	{
+		// update texture descriptors
 
-		int img_info_idx = 0;
-		for ( auto& idx : frame.bindless_textures_data_update_list ) {
-			VkWriteDescriptorSet w{
-			    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			    .pNext            = nullptr, // optional
-			    .dstSet           = frame.bindless_descriptor_set,
-			    .dstBinding       = 0,
-			    .dstArrayElement  = idx, //
-			    .descriptorCount  = 1,
-			    .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			    .pImageInfo       = &img_infos[ img_info_idx++ ],
-			    .pBufferInfo      = 0,
-			    .pTexelBufferView = 0,
-			};
-			write_descriptor_sets.push_back( w );
+		size_t num_write_descriptors = frame.bindless_textures_data_update_list.size();
+
+		if ( num_write_descriptors ) {
+			ZoneScopedS( "Update current texture descriptors" );
+
+			// Update any changed descriptors --
+			std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+			write_descriptor_sets.reserve( num_write_descriptors );
+			std::vector<VkDescriptorImageInfo> img_infos;
+			img_infos.reserve( num_write_descriptors );
+
+			// First, we have to collect all our image views, and samplers
+			for ( auto& idx : frame.bindless_textures_data_update_list ) {
+				img_infos.emplace_back(
+				    self->bindless_textures_samplers[ idx ].asSampler,
+				    self->bindless_textures_image_views[ idx ].asImageView,
+				    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+			}
+
+			int img_info_idx = 0;
+			for ( auto& idx : frame.bindless_textures_data_update_list ) {
+				VkWriteDescriptorSet w{
+				    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				    .pNext            = nullptr, // optional
+				    .dstSet           = frame.bindless_textures_descriptor_set,
+				    .dstBinding       = 0,
+				    .dstArrayElement  = idx, //
+				    .descriptorCount  = 1,
+				    .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				    .pImageInfo       = &img_infos[ img_info_idx++ ],
+				    .pBufferInfo      = 0,
+				    .pTexelBufferView = 0,
+				};
+				write_descriptor_sets.push_back( w );
+			}
+			vkUpdateDescriptorSets( device, uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
 		}
-		vkUpdateDescriptorSets( device, uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
 	}
 
 	// Now the descriptorset should be updated, and you may use bindless handles to address
@@ -4976,7 +5201,9 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	// -- update temporary objects (image_views, samplers) and descriptors for bindless textures
 	// note that we pass in the bindless descriptors pool from the last frame --
 	uint32_t previous_frame_index = ( frameIndex + self->mFrames.size() - 1 ) % self->mFrames.size();
-	frame_update_bindless_descriptors( self, frame, device, self->renderer, self->mFrames[ previous_frame_index ].bindless_descriptor_set );
+	frame_update_bindless_descriptors( self, frame, device, self->renderer,
+	                                   self->mFrames[ previous_frame_index ].bindless_textures_descriptor_set,
+	                                   self->mFrames[ previous_frame_index ].bindless_samplers_descriptor_set );
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	backend_create_renderpasses( frame, device );
@@ -5116,8 +5343,6 @@ static bool updateArguments( const VkDevice&                    device,
 	// -- write data from descriptorSetData into freshly allocated DescriptorSets
 	for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
 
-		// FIXME -- NOOP if this is a layout for bindless
-
 		// If argumentState contains invalid information (for example if an uniform has not been set yet)
 		// this will lead to SEGFAULT. You must ensure that argumentState contains valid information.
 		//
@@ -5128,8 +5353,13 @@ static bool updateArguments( const VkDevice&                    device,
 		static constexpr auto NULL_VK_IMAGE_VIEW                 = VkImageView( nullptr );
 		static constexpr auto NULL_VK_ACCELERATION_STRUCTURE_KHR = VkAccelerationStructureKHR( nullptr );
 
-		if ( argumentState.layouts[ setId ] == self->bindless_descriptor_set_layout ) {
-			descriptorSets[ setId ] = frame.bindless_descriptor_set;
+		// If we're binding a DescriptorSet that is used for bindless, this implies that
+		// we should not do any updates on this descriptorset.
+		if ( argumentState.layouts[ setId ] == self->bindless_textures_descriptor_set_layout ) {
+			descriptorSets[ setId ] = frame.bindless_textures_descriptor_set;
+			continue;
+		} else if ( argumentState.layouts[ setId ] == self->bindless_samplers_descriptor_set_layout ) {
+			descriptorSets[ setId ] = frame.bindless_samplers_descriptor_set;
 			continue;
 		}
 
@@ -5472,6 +5702,20 @@ static void backend_frame_set_bindless_textures_data( le_backend_o* self, uint32
 	// (a new entry is considered a change; nothing is ever deleted, but deleted entries may get
 	// re-used, in which case they will have a different version number, and they will show as a change)
 	current_frame.bindless_textures_data_update_list.insert( updated_indices, updated_indices + updated_indices_count );
+}
+
+// This is triggered in RECORD stage after recording the frame
+// ----------------------------------------------------------------------
+static void backend_frame_set_bindless_samplers_data( le_backend_o* self, uint32_t frame_index, le_bindless_sampler_data_t const* const sampler_data, size_t sampler_data_count, uint32_t const* const updated_indices, size_t updated_indices_count ) {
+	ZoneScoped;
+	auto& current_frame = self->mFrames[ frame_index ];
+
+	// This copies the latest complete state of all bindless samplers.
+	current_frame.bindless_samplers_data.assign( sampler_data, sampler_data + sampler_data_count );
+	// This contains a list of all the indices in the above state that have been changed
+	// (a new entry is considered a change; nothing is ever deleted, but deleted entries may get
+	// re-used, in which case they will have a different version number, and they will show as a change)
+	current_frame.bindless_samplers_data_update_list.insert( updated_indices, updated_indices + updated_indices_count );
 }
 
 // ----------------------------------------------------------------------
@@ -5828,7 +6072,7 @@ static void bind_pipeline(
 				}
 
 				// ----------| invariant: b.count > 0
-				if ( 0 == b.is_bindless_texture ) {
+				if ( 0 == b.is_bindless_resource ) {
 
 					// add an entry for each array element with this binding to setData
 					for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
@@ -8978,11 +9222,16 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.free_gpu_memory                           = backend_free_gpu_memory;
 	private_backend_i.get_default_graphics_queue_info           = backend_get_default_graphics_queue_info;
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
-	private_backend_i.frame_set_bindless_textures_data          = backend_frame_set_bindless_textures_data;
+
+	private_backend_i.frame_set_bindless_textures_data = backend_frame_set_bindless_textures_data;
+	private_backend_i.frame_set_bindless_samplers_data = backend_frame_set_bindless_samplers_data;
+
 	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
 	private_backend_i.frame_data_get_image_from_le_resource_id  = frame_data_get_image_from_le_resource_id;
 	private_backend_i.get_sampler_ycbcr_conversion_info         = backend_get_sampler_ycbcr_conversion_info;
-	private_backend_i.get_bindless_descrpiptor_set_layout       = backend_get_bindless_descriptor_set_layout;
+
+	private_backend_i.get_bindless_textures_descrpiptor_set_layout = backend_get_bindless_textures_descriptor_set_layout;
+	private_backend_i.get_bindless_samplers_descrpiptor_set_layout = backend_get_bindless_samplers_descriptor_set_layout;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;
