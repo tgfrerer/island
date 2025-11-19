@@ -996,10 +996,10 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 				info.range = binding->block.size;
 			}
 
-			if ( set.binding_count == 1 &&                                        // If there is exactly one binding per set
-			     binding_idx == 0 &&                                              // and the binding is at position 0
-			     binding->type_description->op == SpvOp::SpvOpTypeRuntimeArray && // and it is an array
-			     binding->count == 0                                              // and it is unsized
+			if (                                                                 // set.binding_count == 1 &&                                        // If there is exactly one binding per set
+			    binding->binding == 0 &&                                         // and the binding is at position 0
+			    binding->type_description->op == SpvOp::SpvOpTypeRuntimeArray && // and it is an array
+			    binding->count == 0                                              // and it is unsized
 			) {
 				/* This binding refers to a bindless descriptorset bind point:
 				 *
@@ -1010,9 +1010,37 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 				 *
 				 */
 
-				logger().info( "Inferred bindless descriptorset bind point: [%s]", binding->name );
 				// TODO: we could set a flag instead of just a boolean to tell us what type of descriptor this refers to
-				info.is_bindless_texture = 1;
+				switch ( info.type ) {
+				case le::DescriptorType::eSampler:
+					info.is_bindless_resource = uint32_t( le_bindless_resource_type::eSampler );
+					break;
+				case le::DescriptorType::eCombinedImageSampler:
+					info.is_bindless_resource = uint32_t( le_bindless_resource_type::eTexture );
+					break;
+				case le::DescriptorType::eSampledImage:
+				case le::DescriptorType::eStorageImage:
+				case le::DescriptorType::eUniformTexelBuffer:
+				case le::DescriptorType::eStorageTexelBuffer:
+					break;
+				case le::DescriptorType::eUniformBuffer:
+				case le::DescriptorType::eStorageBuffer:
+				case le::DescriptorType::eUniformBufferDynamic:
+				case le::DescriptorType::eStorageBufferDynamic:
+				case le::DescriptorType::eInputAttachment:
+				case le::DescriptorType::eInlineUniformBlock:
+				case le::DescriptorType::eAccelerationStructureKhr:
+				case le::DescriptorType::eAccelerationStructureNv:
+				case le::DescriptorType::eMutableExt:
+				case le::DescriptorType::eSampleWeightImageQcom:
+				case le::DescriptorType::eBlockMatchImageQcom:
+				case le::DescriptorType::ePartitionedAccelerationStructureNv:
+					break;
+				}
+
+				if ( info.is_bindless_resource ) {
+					logger().info( "Inferred BINDLESS DescriptorSet [%lu] bind point: [%s]", binding->set, binding->name );
+				}
 			}
 
 			if ( binding->name && std::string::npos != std::string( binding->name ).find( TEXTURE_NAME_YCBCR_REQUEST_STRING ) ) {
@@ -1080,21 +1108,33 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const* bi
 	auto b_start = bindings;
 	auto b_end   = b_start + numBindings;
 
-	for ( auto b = b_start, b_prev = b_start; b != b_end; b++ ) {
+	for ( auto b = b_start, b_prev = b_start; b != b_end; b_prev = b++ ) {
 
 		if ( b == b_prev ) {
 			// first iteration
 			continue;
 		}
 
+		// We only reject overlapping bindings if they refer to non-bindless resources.
+		//
+		// Bindless combined image sampler resource arrays are allowed to overlap because
+		// that's how we allow access a to a combined image sampler resource via aliased
+		// sampler2D or sampler3D.
+		//
+
 		if ( b->setIndex == b_prev->setIndex &&
 		     b->binding == b_prev->binding ) {
+
+			if ( b->is_bindless_resource && b->type == le::DescriptorType::eCombinedImageSampler ) {
+				//	b_prev = b;
+				continue;
+			}
+
 			logger().warn( "Illegal shader bindings detected, rejecting shader." );
 			logger().warn( "Duplicate bindings for set: %d, binding %d", b->setIndex, b->binding );
 			return false;
 		}
 
-		b_prev = b;
 	}
 
 	return true;
@@ -1196,7 +1236,7 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 				if ( b.name_hash != last_binding->name_hash ) {
 
 					// If name hash is not equal, then try to recover
-					// by choosing the namehash which has the lowest stage
+					// by choosing the name hash which has the lowest stage
 					// flag bits set. This ensures that names in vert shaders
 					// have precedence over names in frag shaders for example.
 
@@ -1936,14 +1976,14 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 		// -- Layout was found in cache, reuse it.
 		*layout = foundLayout->vk_descriptor_set_layout;
 
-	} else if ( bindings.size() == 1 && bindings.front().is_bindless_texture ) {
+	} else if ( bindings.size() == 1 && bindings.front().is_bindless_resource ) {
 
 		// -- Layout was not found in cache, but this is a bindless binding,
 		// and bindless means that the Layout for this binding is held centrally
 		// and immutably in the backend.
 
 		le_descriptor_set_layout_t le_layout_info{};
-		le_layout_info.vk_descriptor_set_layout      = le_backend_vk::private_backend_vk_i.get_bindless_descrpiptor_set_layout( self->backend );
+		le_layout_info.vk_descriptor_set_layout      = le_backend_vk::private_backend_vk_i.get_bindless_textures_descrpiptor_set_layout( self->backend );
 		le_layout_info.binding_info                  = bindings;
 		le_layout_info.vk_descriptor_update_template = nullptr;
 		le_layout_info.immutable_samplers            = {};
@@ -2129,7 +2169,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 						// we can add the real thing
 						current_set.push_back( b );
 
-						if ( b.is_bindless_texture ) {
+						if ( b.is_bindless_resource ) {
 							current_set.back().count       = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT;
 							info.bindless_textures_enabled = 1; // TODO: we could use a flag for each bindless type of content
 						}
