@@ -2002,8 +2002,9 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 	using namespace le_renderer;
 	le_resource_handle const* resources        = nullptr;
 	le::AccessFlags2 const*   resources_access = nullptr;
+	uint32_t const*           usage_flags      = nullptr;
 	size_t                    resources_count  = 0;
-	renderpass_i.get_used_resources( pass, &resources, &resources_access, &resources_count );
+	renderpass_i.get_used_resources( pass, &resources, &resources_access, &usage_flags, &resources_count );
 
 	currentPass.resources.assign( resources, resources + resources_count );
 
@@ -3749,9 +3750,10 @@ static void collect_resource_infos_per_resource(
 
 		le_resource_handle const* p_resources              = nullptr;
 		le::AccessFlags2 const*   p_resources_access_flags = nullptr;
+		uint32_t const*           p_usage_flags            = nullptr;
 		size_t                    resources_count          = 0;
 
-		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_access_flags, &resources_count );
+		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_access_flags, &p_usage_flags, &resources_count );
 
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
@@ -4402,84 +4404,92 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 		// fetch pass type from this passes' queue sumbission info
 		renderpass_i.get_queue_sumbission_info( *p, &pass_type, nullptr, nullptr );
 
-		if ( pass_type != le::QueueFlagBits::eCompute ) {
-			continue;
-		}
+		// if ( pass_type != le::QueueFlagBits::eCompute ) {
+		// 	continue;
+		// }
 
 		const le_resource_handle* resources        = nullptr;
 		const le::AccessFlags2*   resources_access = nullptr;
+		uint32_t const*           usage_flags      = nullptr;
 		size_t                    resource_count   = 0;
 
-		renderpass_i.get_used_resources( *p, &resources, &resources_access, &resource_count );
+		renderpass_i.get_used_resources( *p, &resources, &resources_access, &usage_flags, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
+
+			if ( usage_flags[ i ] != 1 ) {
+				continue;
+			}
+
+			// ----------| invariant usage_flags == 1
+			// usage_flags are only ever 1 if this resource requested a transient image view for this pass.
+
 			auto const& r = static_cast<le_image_resource_handle>( resources[ i ] );
 
-			if ( r->data->type == LeResourceType::eImage ) {
+			assert( r->data->type == LeResourceType::eImage && "resource must be an image" );
 
-				// We create a default image view for this image and store it with the frame. If no explicit image view
-				// for a particular operation has been specified, this default image view is used.
+			// We create a default image view for this image and store it with the frame. If no explicit image view
+			// for a particular operation has been specified, this default image view is used.
 
-				if ( frame.imageViews.find( r ) != frame.imageViews.end() ) {
-					continue;
-				}
-
-				// ---------| Invariant: ImageView for this image not yet stored with frame.
-
-				// attempt to look up format via available resources - this is important for
-				// unspecified formats which get automatically inferred, in which case we want
-				// to set the format to whatever was inferred when the image was allocated and placed
-				// in available resources.
-
-				AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( &frame, r );
-
-				auto const& imageFormat = le::Format( vk_resource_info.info.imageInfo.format );
-
-				// If the format is still undefined at this point, we can only throw our hands up in the air...
-				//
-				if ( imageFormat == le::Format::eUndefined ) {
-					logger().warn( "Cannot create default view for image: '%s', as format is unspecified", r->data->debug_name );
-					continue;
-				}
-
-				VkImageSubresourceRange subresourceRange{
-				    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
-				    .baseMipLevel   = 0,
-				    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
-				    .baseArrayLayer = 0,
-				    .layerCount     = 1,
-				};
-
-				VkImageViewCreateInfo imageViewCreateInfo{
-				    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-				    .pNext            = nullptr, // optional
-				    .flags            = 0,       // optional
-				    .image            = vk_resource_info.as.image,
-				    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-				    .format           = VkFormat( imageFormat ),
-				    .components       = {}, // default component mapping
-				    .subresourceRange = subresourceRange,
-				};
-
-				VkImageView imageView = nullptr;
-				vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
-
-				// Store image view object with frame, indexed by image resource id,
-				// so that it can be found quickly if need be.
-				frame.imageViews[ r ] = imageView;
-
-				AbstractPhysicalResource imgView{};
-				imgView.type        = AbstractPhysicalResource::Type::eImageView;
-				imgView.asImageView = imageView;
-
-				frame.ownedResources.emplace_front( std::move( imgView ) );
+			if ( frame.imageViews.find( r ) != frame.imageViews.end() ) {
+				continue;
 			}
-		}
+
+			// ---------| Invariant: ImageView for this image not yet stored with frame.
+
+			// attempt to look up format via available resources - this is important for
+			// unspecified formats which get automatically inferred, in which case we want
+			// to set the format to whatever was inferred when the image was allocated and placed
+			// in available resources.
+
+			AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( &frame, r );
+
+			auto const& imageFormat = le::Format( vk_resource_info.info.imageInfo.format );
+
+			// If the format is still undefined at this point, we can only throw our hands up in the air...
+			//
+			if ( imageFormat == le::Format::eUndefined ) {
+				logger().warn( "Cannot create default view for image: '%s', as format is unspecified", r->data->debug_name );
+				continue;
+			}
+
+			VkImageSubresourceRange subresourceRange{
+			    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
+			    .baseMipLevel   = 0,
+			    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+			    .baseArrayLayer = 0,
+			    .layerCount     = 1,
+			};
+
+			VkImageViewCreateInfo imageViewCreateInfo{
+			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			    .pNext            = nullptr, // optional
+			    .flags            = 0,       // optional
+			    .image            = vk_resource_info.as.image,
+			    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+			    .format           = VkFormat( imageFormat ),
+			    .components       = {}, // default component mapping
+			    .subresourceRange = subresourceRange,
+			};
+
+			VkImageView imageView = nullptr;
+			vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
+
+			// Store image view object with frame, indexed by image resource id,
+			// so that it can be found quickly if need be.
+			frame.imageViews[ r ] = imageView;
+
+			AbstractPhysicalResource imgView{};
+			imgView.type        = AbstractPhysicalResource::Type::eImageView;
+			imgView.asImageView = imageView;
+
+			frame.ownedResources.emplace_front( std::move( imgView ) );
+			}
 	}
 
 	frame.textures_per_pass.resize( numRenderPasses );
 
-	// Create Samplers for all images which are used as Textures
+	// Create Combined Image Samplers for all Textures
 	//
 	for ( size_t pass_idx = 0; pass_idx != numRenderPasses; ++pass_idx ) {
 

@@ -19,6 +19,7 @@
 #include "private/le_renderer/le_resource_handle_t.inl"
 
 static constexpr auto LOGGER_LABEL = "le_rendergraph";
+static constexpr uint32_t C_REQUIRES_TRANSIENT_IMAGE_VIEW = 1;
 
 #ifdef _MSC_VER
 #	include <Windows.h>
@@ -113,9 +114,8 @@ static inline bool resource_is_a_swapchain_handle( const le_image_resource_handl
 
 // ----------------------------------------------------------------------
 // Associate a resource with a renderpass.
-// Data containted in `resource_info` decides whether the resource
-// is used for read, write, or read/write.
-static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags ) {
+// access_flags tell us whether resource is used for read, write, or read/write.
+static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags, uint32_t usage_flags = 0 ) {
 	ZoneScoped;
 
 	/*
@@ -144,28 +144,30 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		return;
 	}
 
-	size_t resource_idx    = 0; // index of matching resource
-	size_t resources_count = self->resources.size();
-	for ( le_resource_handle* res = self->resources.data(); resource_idx != resources_count; res++ ) {
-		if ( *res == resource_id ) {
-			// found a match
-			break;
-		}
-		resource_idx++;
-	}
+	auto   it           = std::lower_bound( self->resources.begin(), self->resources.end(), resource_id );
+	size_t resource_idx = it - self->resources.begin(); // index of matching resource
 
-	if ( resource_idx == resources_count ) {
-		// not found, add resource and resource info
-		self->resources.push_back( resource_id );
+	// If the `lower_bound` element is equal to the key, then that means that the element did already exist
+	bool did_exist = ( it != self->resources.end() && *it == resource_id );
+
+	if ( !did_exist ) {
+		// Not found, add resource and resource info
+		self->resources.insert( it, resource_id );
 		// Note that we don't immediately set the access flag,
 		// as the correct access flag is calculated based on resource_info
 		// after this block.
-		self->resources_access_flags.push_back( access_flags );
+		self->resources_access_flags.insert( self->resources_access_flags.begin() + resource_idx, access_flags );
+		// Signal whether we would like transient image views for this resource
+		// (this only applies to images, and only if the image is not used bindless)
+		self->resources_usage_flags.insert( self->resources_usage_flags.begin() + resource_idx, usage_flags );
 
 	} else {
 
 		// Resource was already used : this should be fine if declared with identical access_flags,
 		// otherwise it is an error.
+
+		self->resources_usage_flags[ resource_idx ] |= usage_flags;
+
 		auto current_flags = self->resources_access_flags[ resource_idx ];
 		auto new_flags     = access_flags;
 
@@ -204,6 +206,11 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 	}
 }
 
+static void renderpass_use_resources( le_renderpass_o* self, uint32_t num_resources, le_resource_handle const* p_resource_ids, le::AccessFlags2 const* p_access_flags, uint32_t const* p_usage_flags = nullptr ) {
+
+	// 	TODO: should we set default access flags if none set?
+}
+
 // ----------------------------------------------------------------------
 static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle texture, le_image_sampler_info_t const* textureInfo ) {
 	ZoneScoped;
@@ -223,25 +230,25 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 
 	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags );
+	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags, C_REQUIRES_TRANSIENT_IMAGE_VIEW );
 }
 
 // ----------------------------------------------------------------------
-static void renderpass_sample_bindless_textures( le_renderpass_o* self, le_bindless_texture_data_t const* const textures, uint32_t num_textures ) {
-	ZoneScoped;
-
-	// -- store texture info so that backend can create resources
-
-	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
-
-	// -- Mark all image resources referenced by textures as used for reading
-
-	le_bindless_texture_data_t const* const t_end = textures + num_textures;
-
-	for ( auto t = textures; t != t_end; t++ ) {
-		renderpass_use_resource( self, t->data.imageView.imageId, access_flags );
-	}
-}
+// static void renderpass_sample_bindless_textures( le_renderpass_o* self, le_bindless_texture_data_t const* const textures, uint32_t num_textures ) {
+// 	ZoneScoped;
+//
+// 	// -- store texture info so that backend can create resources
+//
+// 	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
+//
+// 	// -- Mark all image resources referenced by textures as used for reading
+//
+// 	le_bindless_texture_data_t const* const t_end = textures + num_textures;
+//
+// 	for ( auto t = textures; t != t_end; t++ ) {
+// 		renderpass_use_resource( self, t->data.imageView.imageId, access_flags );
+// 	}
+// }
 
 // ----------------------------------------------------------------------
 
@@ -264,7 +271,7 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_image_res
 		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentWrite );
 	}
 
-	renderpass_use_resource( self, image_id, access_flags );
+	renderpass_use_resource( self, image_id, access_flags, C_REQUIRES_TRANSIENT_IMAGE_VIEW );
 }
 
 // ----------------------------------------------------------------------
@@ -287,7 +294,7 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 	if ( attachmentInfo->storeOp == le::AttachmentStoreOp::eStore ) {
 		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eDepthStencilAttachmentWrite );
 	}
-	renderpass_use_resource( self, image_id, access_flags );
+	renderpass_use_resource( self, image_id, access_flags, C_REQUIRES_TRANSIENT_IMAGE_VIEW );
 }
 
 // ----------------------------------------------------------------------
@@ -345,10 +352,11 @@ static void renderpass_get_queue_submission_info( const le_renderpass_o* self, l
 	}
 }
 
-static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, le::AccessFlags2 const** pResourcesAccess, size_t* count ) {
+static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, le::AccessFlags2 const** pResourcesAccess, uint32_t const** usage_flags, size_t* count ) {
 	assert( self->resources_access_flags.size() == self->resources.size() );
 
 	*count            = self->resources.size();
+	*usage_flags      = self->resources_usage_flags.data();
 	*pResources       = self->resources.data();
 	*pResourcesAccess = self->resources_access_flags.data();
 }
@@ -1301,7 +1309,6 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.use_resource                 = renderpass_use_resource;
 	le_renderpass_i.get_used_resources           = renderpass_get_used_resources;
 	le_renderpass_i.sample_texture               = renderpass_sample_texture;
-	le_renderpass_i.sample_bindless_textures     = renderpass_sample_bindless_textures;
 	le_renderpass_i.get_texture_ids              = renderpass_get_texture_ids;
 	le_renderpass_i.get_texture_infos            = renderpass_get_texture_infos;
 	le_renderpass_i.get_hash                     = renderpass_get_hash;

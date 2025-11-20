@@ -293,6 +293,10 @@ class Renderer {
 		return le_renderer::renderer_i.allocate_bindless_storage_image( self, &storage_image );
 	}
 
+	void resolveResourcesForBindlessResources( le_bindless_resource_handle const* p_bindless_resources, uint32_t num_bindless_resources, le_resource_handle* p_resource_handles ) {
+		le_renderer::renderer_i.get_resources_for_bindless_resources( self, p_bindless_resources, num_bindless_resources, p_resource_handles );
+	}
+
 	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {
 		le::Extent2D result{};
 		le_renderer::renderer_i.get_swapchain_extent( self, swapchain, &result.width, &result.height );
@@ -428,22 +432,22 @@ class RenderPass {
 	}
 
 	RenderPass& useImageResource( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, 1 );
 		return *this;
 	}
 
 	RenderPass& useBufferResource( le_buffer_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, 0 );
 		return *this;
 	}
 
 	RenderPass& useRtxBlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags, 0 );
 		return *this;
 	}
 
 	RenderPass& useRtxTlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags, 0 );
 		return *this;
 	}
 

@@ -149,13 +149,6 @@ class bindless_resources_store_t {
 		return reinterpret_cast<H>( ( uint64_t( idx ) << 12 ) | ( std::remove_pointer<H>::type::resource_type_id << 8 ) | ( uint64_t( version ) & 0xFF ) );
 	};
 
-	inline void handle_get_idx_and_version( H const& handle, uint32_t* idx, uint8_t* version ) {
-		assert( ( ( uint64_t( handle ) >> 8 ) & 0xF ) == std::remove_pointer<H>::type::resource_type_id && "handle type must match" );
-		*idx      = uint32_t( ( reinterpret_cast<uint64_t const&>( handle ) >> 12 ) & 0xfffff );
-		auto type = ( ( reinterpret_cast<uint64_t const&>( handle ) >> 8 ) & 0xf );
-		*version = uint8_t( reinterpret_cast<uint64_t const&>( handle ) & 0xff );
-	}
-
   public:
 	// Allocate a bindless resource and return the handle
 	H allocate( I const* info ) {
@@ -179,12 +172,14 @@ class bindless_resources_store_t {
 		 *
 		 * ------- OPEN QUESTIONS: ---------------------------
 		 *
-		 * Q: what should we do if the source resource (image) gets freed?
+		 * Q: what should we do if the source resource (say an image) gets freed?
 		 *
-		 * - in this case, any bindless textures referring to the freed object
-		 *   should be considered invalid.
+		 * - in this case, any bindless resources referring to the freed object
+		 *   should be considered invalid. this should happen in the backend
+		 *   automatically where we update image views for example that have
+		 *   been tainted once an image gets re-allocated or reloaded.
 		 *
-		 * - bindless textures might point at the old position, which may cause
+		 * - bindless resources might point at the old position, which may cause
 		 *   use-after-free issues.
 		 *
 		 */
@@ -200,7 +195,8 @@ class bindless_resources_store_t {
 			// otherwise, we need to create a new element.
 			auto last_handle = this->bindless_resources_free_list.front();
 
-			handle_get_idx_and_version( last_handle, &idx, &version );
+			idx     = last_handle->get_idx();
+			version = last_handle->get_version();
 
 			size_t num_el = this->bindless_resources.size();
 
@@ -220,13 +216,13 @@ class bindless_resources_store_t {
 
 			// Update data
 			data.data = *info;
+
 			// Update version
 			version = ++data.version;
 
-			// Make sure that the version on the free list matches the version that is currently in
-			// store.
-
+			// Mark this resource entry as tainted
 			this->bindless_resource_updates.push_back( idx );
+
 			return make_handle( idx, version );
 		}
 
@@ -261,6 +257,14 @@ class bindless_resources_store_t {
 
 		// reset update list now that we have pushed it
 		this->bindless_resource_updates.clear();
+	}
+
+	I const& get_data( le_bindless_resource_handle const& handle ) {
+		assert( handle->get_type() == le_bindless_resource_type( std::remove_pointer<H>::type::resource_type_id ) ); // enforce that the handle is the correct type
+		uint32_t idx   = handle->get_idx();
+		auto&    entry = bindless_resources.at( idx );
+		assert( entry.version == handle->get_version() && "version must match" );
+		return entry.data;
 	}
 
   private:
@@ -356,6 +360,33 @@ static le_bindless_sampler_handle renderer_allocate_bindless_sampler( le_rendere
 // Allocate a bindless texture
 static le_bindless_storage_image_handle renderer_allocate_bindless_storage_image( le_renderer_o* self, le_image_view_info_t const* storage_image_info ) {
 	return self->bindless_storage_image_store.allocate( storage_image_info );
+}
+
+// Fetches the actual resources that are being referenced by bindless resources
+// given an array of bindless resource handles and store this into the out_array.
+// the out array is assumed to be the same size as the input array, namely
+// `num_bindless_resources`.
+static void renderer_get_resources_for_bindless_resources( le_renderer_o* self, le_bindless_resource_handle const* bindless_resources, uint32_t num_bindless_resources, le_resource_handle* p_out ) {
+
+	auto bindless_resources_end = bindless_resources + num_bindless_resources;
+
+	for ( le_bindless_resource_handle const* r = bindless_resources; r != bindless_resources_end; r++, p_out++ ) {
+		le_bindless_resource_handle const& res = *r;
+		le_resource_handle&                out = *p_out;
+
+		switch ( res->get_type() ) {
+		case le_bindless_resource_type::eCombinedImageSampler:
+			out = self->bindless_texture_store.get_data( res ).imageView.imageId;
+			break;
+		case le_bindless_resource_type::eStorageImage:
+			out = self->bindless_storage_image_store.get_data( res ).imageId;
+			break;
+		case le_bindless_resource_type::eSampler:
+		case le_bindless_resource_type::eUndefined:
+		default:
+			assert( false && "cannot resolve " );
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -1233,6 +1264,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.allocate_bindless_texture      = renderer_allocate_bindless_texture;
 	le_renderer_i.allocate_bindless_sampler       = renderer_allocate_bindless_sampler;
 	le_renderer_i.allocate_bindless_storage_image = renderer_allocate_bindless_storage_image;
+	le_renderer_i.get_resources_for_bindless_resources = renderer_get_resources_for_bindless_resources;
 
 	auto& helpers_i = le_renderer_api_i->helpers_i;
 
