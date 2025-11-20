@@ -99,25 +99,21 @@ enum class LeResourceType : uint32_t {
 	eRtxTlas, // top level acceleration structure
 };
 
-LE_OPAQUE_HANDLE( le_texture_handle );
-LE_OPAQUE_HANDLE( le_resource_handle );
-LE_OPAQUE_HANDLE( le_image_resource_handle );
-LE_OPAQUE_HANDLE( le_buffer_resource_handle );
-LE_OPAQUE_HANDLE( le_blas_resource_handle );
-LE_OPAQUE_HANDLE( le_tlas_resource_handle );
+LE_OPAQUE_HANDLE( le_resource_handle );        // generic resource handle
+LE_OPAQUE_HANDLE( le_texture_handle );         // combined sampler image
+LE_OPAQUE_HANDLE( le_image_resource_handle );  // image
+LE_OPAQUE_HANDLE( le_buffer_resource_handle ); // buffer
+LE_OPAQUE_HANDLE( le_blas_resource_handle );   // ray tracing bottom level acceleration structure
+LE_OPAQUE_HANDLE( le_tlas_resource_handle );   // ray tracing top level acceleration structure
 
 struct le_resource_handle_t {
 	struct le_resource_handle_data_t* data;
 };
 
-struct le_image_resource_handle_t : le_resource_handle_t {
-};
-struct le_buffer_resource_handle_t : le_resource_handle_t {
-};
-struct le_blas_resource_handle_t : le_resource_handle_t {
-};
-struct le_tlas_resource_handle_t : le_resource_handle_t {
-};
+struct le_image_resource_handle_t : le_resource_handle_t {};
+struct le_buffer_resource_handle_t : le_resource_handle_t {};
+struct le_blas_resource_handle_t : le_resource_handle_t {};
+struct le_tlas_resource_handle_t : le_resource_handle_t {};
 
 // A graphics pipeline handle is an opaque handle to a *pipeline state* object.
 // Note that the pipeline state is different from the actual pipeline, as the
