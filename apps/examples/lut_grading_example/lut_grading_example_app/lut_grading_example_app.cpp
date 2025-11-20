@@ -155,6 +155,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	if ( nullptr == self->swapchain_handle ) {
 		self->swapchain_handle = self->renderer.getSwapchainResource();
 	}
+	auto t = self->tex_0->get_type();
 
 	if ( self->tex_0 == nullptr ) {
 		self->tex_0 = self->renderer.allocateBindlessTexture(
@@ -236,9 +237,11 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 			        uint32_t tex_lut;
 		        } push_constant_data;
 
-		        push_constant_data.tex_0   = ( uint32_t& )app->tex_0;
-		        push_constant_data.tex_1   = ( uint32_t& )app->tex_1;
-		        push_constant_data.tex_lut = ( uint32_t& )app->lut_0;
+		        push_constant_data.tex_0   = app->tex_0->as_uint32();
+		        push_constant_data.tex_1   = app->tex_1->as_uint32();
+		        push_constant_data.tex_lut = app->lut_0->as_uint32();
+
+		        auto t = app->tex_0->get_type();
 
 		        encoder
 		            .bindGraphicsPipeline( pipelineLutGradingExample )
