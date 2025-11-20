@@ -45,11 +45,26 @@ enum class le_bindless_resource_type : uint32_t {
 struct le_bindless_resource_handle_t {
 	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eUndefined );
 
-	uint32_t as_uint32() {
-		// BEWARE: `this` is not a real pointer, but an opaque handle - we do know that
-		// it is confined to the range of uint32_t values
+	/*
+	 * BEWARE: for all of these "member fucntions", `this` is not a real pointer,
+	 * but an opaque handle containing an unsigned integer - of which we do know
+	 * that it is confined to the range of uint32_t values
+	 */
+
+	inline uint32_t as_uint32() {
 		void const* p = this;
 		return reinterpret_cast<uint32_t&>( p );
+	}
+
+	inline le_bindless_resource_type get_type() {
+		void const* p       = this;
+		uint32_t    type_id = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 8 ) & 0xf );
+		return le_bindless_resource_type( type_id );
+	}
+
+	inline uint32_t get_version() {
+		void const* p = this;
+		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) ) & 0xff );
 	}
 
 	explicit operator uint32_t() {
