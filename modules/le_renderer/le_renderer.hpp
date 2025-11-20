@@ -139,6 +139,36 @@ class ImageSamplerInfoBuilder {
 	}
 };
 
+// TODO: refactor this -- so that this is not declared as a sub-object of ImageSamplerInfoBuilder anymore
+
+class ImageViewInfoBuilder {
+	le_image_view_info_t info{};
+
+	le_image_view_info_t& self = info;
+
+  public:
+	ImageViewInfoBuilder()  = default;
+	~ImageViewInfoBuilder() = default;
+
+	ImageViewInfoBuilder( le_image_view_info_t const& info_ )
+	    : info( info_ ) {
+	}
+
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_image_resource_handle, imageId, = {} )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImageViewType, le::ImageViewType, image_view_type, = le::ImageViewType::e2D )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setFormat, le::Format, format, = le::Format::eUndefined )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setBaseArrayLayer, uint32_t, base_array_layer, = 0 )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setLayerCount, uint32_t, layer_count, = 1 )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleR, le::ComponentSwizzle, r_swizzle, = {} )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleG, le::ComponentSwizzle, g_swizzle, = {} )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleB, le::ComponentSwizzle, b_swizzle, = {} )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleA, le::ComponentSwizzle, a_swizzle, = {} )
+
+	le_image_view_info_t const& build() {
+		return info;
+	}
+};
+
 class ImageAttachmentInfoBuilder {
 	le_image_attachment_info_t self{};
 
@@ -257,6 +287,10 @@ class Renderer {
 
 	le_bindless_sampler_handle allocateBindlessSampler( le_sampler_info_t const& sampler ) {
 		return le_renderer::renderer_i.allocate_bindless_sampler( self, &sampler );
+	}
+
+	le_bindless_storage_image_handle allocateBindlessStorageImage( le_image_view_info_t const& storage_image ) {
+		return le_renderer::renderer_i.allocate_bindless_storage_image( self, &storage_image );
 	}
 
 	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {

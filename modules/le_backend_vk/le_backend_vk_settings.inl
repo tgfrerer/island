@@ -319,13 +319,13 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	// vk_12_features->shaderUniformBufferArrayNonUniformIndexing         = VK_TRUE;
 	vk_12_features->shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 	// vk_12_features->shaderStorageBufferArrayNonUniformIndexing         = VK_TRUE;
-	// vk_12_features->shaderStorageImageArrayNonUniformIndexing          = VK_TRUE;
+	vk_12_features->shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
 	// vk_12_features->shaderInputAttachmentArrayNonUniformIndexing       = VK_TRUE;
 	// vk_12_features->shaderUniformTexelBufferArrayNonUniformIndexing    = VK_TRUE;
 	// vk_12_features->shaderStorageTexelBufferArrayNonUniformIndexing    = VK_TRUE;
 	// vk_12_features->descriptorBindingUniformBufferUpdateAfterBind      = VK_TRUE;
 	vk_12_features->descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-	// vk_12_features->descriptorBindingStorageImageUpdateAfterBind       = VK_TRUE;
+	vk_12_features->descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
 	// vk_12_features->descriptorBindingStorageBufferUpdateAfterBind      = VK_TRUE;
 	// vk_12_features->descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE;
 	// vk_12_features->descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE;

@@ -1018,11 +1018,12 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 				case le::DescriptorType::eCombinedImageSampler:
 					info.is_bindless_resource = uint32_t( le_bindless_resource_type::eTexture );
 					break;
-				case le::DescriptorType::eSampledImage:
 				case le::DescriptorType::eStorageImage:
+					info.is_bindless_resource = uint32_t( le_bindless_resource_type::eStorageImage );
+					break;
+				case le::DescriptorType::eSampledImage:
 				case le::DescriptorType::eUniformTexelBuffer:
 				case le::DescriptorType::eStorageTexelBuffer:
-					break;
 				case le::DescriptorType::eUniformBuffer:
 				case le::DescriptorType::eStorageBuffer:
 				case le::DescriptorType::eUniformBufferDynamic:
@@ -1119,7 +1120,9 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const* bi
 		if ( b->setIndex == b_prev->setIndex &&
 		     b->binding == b_prev->binding ) {
 
-			if ( b->is_bindless_resource && b->type == le::DescriptorType::eCombinedImageSampler ) {
+			if ( b->is_bindless_resource &&
+			     ( b->type == le::DescriptorType::eCombinedImageSampler ||
+			       b->type == le::DescriptorType::eStorageImage ) ) {
 				// We only reject overlapping bindings if they refer to non-bindless resources.
 				//
 				// Bindless combined image sampler resource arrays are allowed to overlap because
@@ -1984,7 +1987,24 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 		// and immutably in the backend.
 
 		le_descriptor_set_layout_t le_layout_info{};
-		le_layout_info.vk_descriptor_set_layout      = le_backend_vk::private_backend_vk_i.get_bindless_textures_descriptor_set_layout( self->backend );
+
+		switch ( bindings.front().is_bindless_resource ) {
+		case uint32_t( le_bindless_resource_type::eCombinedImageSampler ):
+			le_layout_info.vk_descriptor_set_layout = le_backend_vk::private_backend_vk_i.get_bindless_textures_descriptor_set_layout( self->backend );
+			break;
+		case uint32_t( le_bindless_resource_type::eSampler ):
+			le_layout_info.vk_descriptor_set_layout = le_backend_vk::private_backend_vk_i.get_bindless_samplers_descriptor_set_layout( self->backend );
+			break;
+		case uint32_t( le_bindless_resource_type::eStorageImage ):
+			le_layout_info.vk_descriptor_set_layout = le_backend_vk::private_backend_vk_i.get_bindless_storage_images_descriptor_set_layout( self->backend );
+			break;
+		case uint32_t( le_bindless_resource_type::eUndefined ):
+		default:
+			le_layout_info.vk_descriptor_set_layout = nullptr;
+			logger().error( "bindless resource type was not recognized: %lu", bindings.front().is_bindless_resource );
+			break;
+		}
+
 		le_layout_info.binding_info                  = bindings;
 		le_layout_info.vk_descriptor_update_template = nullptr;
 		le_layout_info.immutable_samplers            = {};

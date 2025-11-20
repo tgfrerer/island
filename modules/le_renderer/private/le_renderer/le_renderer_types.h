@@ -26,24 +26,50 @@ static_assert( sizeof( RootPassesField ) == LE_MAX_NUM_GRAPH_ROOTS / 8, "LeRootP
 		}                                                             \
 	}
 
-LE_OPAQUE_HANDLE( le_texture_handle );
+// ------------ bindless handles
+
+LE_OPAQUE_HANDLE( le_bindless_resource_handle );
 LE_OPAQUE_HANDLE( le_bindless_texture_handle );
 LE_OPAQUE_HANDLE( le_bindless_sampler_handle );
+LE_OPAQUE_HANDLE( le_bindless_storage_image_handle );
+
 
 enum class le_bindless_resource_type : uint32_t {
 	eUndefined            = 0,
 	eCombinedImageSampler = 1,
 	eTexture              = eCombinedImageSampler, // texture and sampled image are the same thing
 	eSampler              = 2,
+	eStorageImage         = 3,
 };
 
-struct le_bindless_texture_handle_t {
+struct le_bindless_resource_handle_t {
+	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eUndefined );
+
+	uint32_t as_uint32() {
+		// BEWARE: `this` is not a real pointer, but an opaque handle - we do know that
+		// it is confined to the range of uint32_t values
+		void const* p = this;
+		return reinterpret_cast<uint32_t&>( p );
+	}
+
+	explicit operator uint32_t() {
+		return as_uint32();
+	}
+};
+
+struct le_bindless_texture_handle_t : le_bindless_resource_handle_t {
 	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eCombinedImageSampler );
 };
 
-struct le_bindless_sampler_handle_t {
+struct le_bindless_sampler_handle_t : le_bindless_resource_handle_t {
 	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eSampler );
 };
+
+struct le_bindless_storage_image_handle_t : le_bindless_resource_handle_t {
+	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eStorageImage );
+};
+
+// ------------ handles
 
 enum class LeResourceType : uint32_t {
 	eUndefined = 0,
@@ -53,6 +79,7 @@ enum class LeResourceType : uint32_t {
 	eRtxTlas, // top level acceleration structure
 };
 
+LE_OPAQUE_HANDLE( le_texture_handle );
 LE_OPAQUE_HANDLE( le_resource_handle );
 LE_OPAQUE_HANDLE( le_image_resource_handle );
 LE_OPAQUE_HANDLE( le_buffer_resource_handle );
@@ -79,6 +106,8 @@ struct le_tlas_resource_handle_t : le_resource_handle_t {
 LE_OPAQUE_HANDLE( le_gpso_handle );   // Opaque graphics pipeline state object handle
 LE_OPAQUE_HANDLE( le_cpso_handle );   // Opaque compute pipeline state object handle
 LE_OPAQUE_HANDLE( le_rtxpso_handle ); // Opaque rtx pipeline state object handle
+
+// ------------
 
 #include "le_vk_enums.inl"
 
@@ -268,6 +297,11 @@ struct le_bindless_texture_data_t {
 struct le_bindless_sampler_data_t {
 	le_sampler_info_t data; // sampler
 	uint32_t          version;
+};
+
+struct le_bindless_storage_image_data_t {
+	le_image_view_info_t data; // image view -- image must have been created with STORAGE usage flag
+	uint32_t             version;
 };
 
 struct le_renderer_settings_t {

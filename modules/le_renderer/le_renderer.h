@@ -82,6 +82,7 @@ struct le_renderer_api {
 
 		le_bindless_texture_handle (* allocate_bindless_texture )(le_renderer_o* self, le_image_sampler_info_t const * image_sampler_info);
 		le_bindless_sampler_handle (* allocate_bindless_sampler )(le_renderer_o* self, le_sampler_info_t const * sampler_info);
+		le_bindless_storage_image_handle (* allocate_bindless_storage_image )(le_renderer_o* self, le_image_view_info_t const * storage_image_info);
 
 	};
 

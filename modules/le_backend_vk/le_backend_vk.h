@@ -30,7 +30,8 @@ constexpr uint8_t LE_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color 
 // the full number of descriptors will get allocated with each frame once on
 // backend frame creation. We expect descriptors to be lightweight, and this
 // a pretty fast operation.
-static constexpr uint32_t LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT = 1 << 16;
+static constexpr uint32_t LE_C_BINDLESS_STORAGE_IMAGES_DESCRIPTORS_MAX_COUNT = 1 << 16;
+static constexpr uint32_t LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT        = 1 << 16;
 static constexpr uint32_t LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT = 1 << 9;
 
 static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS = "le.backend_vk.should_use_validation_layers";
@@ -242,6 +243,7 @@ struct le_backend_vk_api {
 		// Push the current state of bindless textures data from the renderer into the current frame
  		void (*frame_set_bindless_textures_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_texture_data_t const* const texture_data, size_t texture_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
  		void (*frame_set_bindless_samplers_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_sampler_data_t const* const sampler_data, size_t sampler_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+ 		void (*frame_set_bindless_storage_images_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_storage_image_data_t const* const storage_image_data, size_t storage_image_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
 
 		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
 	
@@ -251,6 +253,7 @@ struct le_backend_vk_api {
 
 		VkDescriptorSetLayout_T* 		  (*get_bindless_textures_descriptor_set_layout)(le_backend_o* self);
 		VkDescriptorSetLayout_T* 		  (*get_bindless_samplers_descriptor_set_layout)(le_backend_o* self);
+		VkDescriptorSetLayout_T* 		  (*get_bindless_storage_images_descriptor_set_layout)(le_backend_o* self);
 	};
 
 	struct instance_interface_t {
