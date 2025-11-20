@@ -1642,90 +1642,51 @@ static void backend_setup( le_backend_o* self ) {
 	}
 	{
 
-		VkDescriptorBindingFlags binding_flags =
-		    // VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
-		    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
-		    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-		    VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+		auto create_descriptor_set_layout =
+		    [ &vkDevice ](
+		        uint32_t const          descriptor_count,
+		        VkDescriptorType const& descriptor_type,
+		        VkDescriptorSetLayout*  p_descriptor_set_layout ) {
+			    VkDescriptorBindingFlags binding_flags =
+			        // VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+			        VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
+			        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+			        VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 
-		VkDescriptorSetLayoutBindingFlagsCreateInfo set_layout_binding_flags_create_info = {
-		    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, // VkStructureType
-		    .pNext         = nullptr,                                                           // void *, optional
-		    .bindingCount  = 1,                                                                 // uint32_t
-		    .pBindingFlags = &binding_flags,                                                    // VkDescriptorBindingFlags const *
-		};
+			    VkDescriptorSetLayoutBindingFlagsCreateInfo set_layout_binding_flags_create_info = {
+			        .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, // VkStructureType
+			        .pNext         = nullptr,                                                           // void *, optional
+			        .bindingCount  = 1,                                                                 // uint32_t
+			        .pBindingFlags = &binding_flags,                                                    // VkDescriptorBindingFlags const *
+			    };
+			    VkDescriptorSetLayoutBinding set_layout_binding = {
+			        .binding            = 0,                   // uint32_t
+			        .descriptorType     = descriptor_type,     // VkDescriptorType
+			        .descriptorCount    = descriptor_count,    // uint32_t
+			        .stageFlags         = VK_SHADER_STAGE_ALL, // VkShaderStageFlags
+			        .pImmutableSamplers = nullptr,             // VkSampler const *, optional
+			    };
 
-		// ---- Create a SetLayout for bindless storage_images
-		{
+			    VkDescriptorSetLayoutCreateInfo set_layout_create_info = {
+			        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
+			        .pNext = &set_layout_binding_flags_create_info,               // void *, optional
+			        .flags = 0,
+			        // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
+			        // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
+			        .bindingCount = 1,                   // uint32_t
+			        .pBindings    = &set_layout_binding, // VkDescriptorSetLayoutBinding const *
+			    };
 
-			VkDescriptorSetLayoutBinding storage_images_set_layout_binding = {
-			    .binding            = 0,                                                  // uint32_t
-			    .descriptorType     = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,                   // VkDescriptorType
-			    .descriptorCount    = LE_C_BINDLESS_STORAGE_IMAGES_DESCRIPTORS_MAX_COUNT, // uint32_t
-			    .stageFlags         = VK_SHADER_STAGE_ALL,                                // VkShaderStageFlags
-			    .pImmutableSamplers = nullptr,                                            // VkSampler const *, optional
-			};
+			    vkCreateDescriptorSetLayout( vkDevice, &set_layout_create_info, nullptr, p_descriptor_set_layout );
+		    };
 
-			VkDescriptorSetLayoutCreateInfo storage_images_set_layout_create_info = {
-			    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
-			    .pNext = &set_layout_binding_flags_create_info,               // void *, optional
-			    .flags = 0,
-			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
-			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
-			    .bindingCount = 1,                                  // uint32_t
-			    .pBindings    = &storage_images_set_layout_binding, // VkDescriptorSetLayoutBinding const *
-			};
-
-			vkCreateDescriptorSetLayout( vkDevice, &storage_images_set_layout_create_info, nullptr, &self->bindless_storage_images_descriptor_set_layout );
-		}
-		{
-
-			// ---- Create a SetLayout for bindless textures
-
-			VkDescriptorSetLayoutBinding textures_set_layout_binding = {
-			    .binding            = 0,                                           // uint32_t
-			    .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,   // VkDescriptorType
-			    .descriptorCount    = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT, // uint32_t
-			    .stageFlags         = VK_SHADER_STAGE_ALL,                         // VkShaderStageFlags
-			    .pImmutableSamplers = nullptr,                                     // VkSampler const *, optional
-			};
-
-			VkDescriptorSetLayoutCreateInfo textures_set_layout_create_info = {
-			    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
-			    .pNext = &set_layout_binding_flags_create_info,               // void *, optional
-			    .flags = 0,
-			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
-			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
-			    .bindingCount = 1,                            // uint32_t
-			    .pBindings    = &textures_set_layout_binding, // VkDescriptorSetLayoutBinding const *
-			};
-
-			vkCreateDescriptorSetLayout( vkDevice, &textures_set_layout_create_info, nullptr, &self->bindless_textures_descriptor_set_layout );
-		}
-
-		// ---- Create a SetLayout for bindless samplers
-		{
-
-			VkDescriptorSetLayoutBinding samplers_set_layout_binding = {
-			    .binding            = 0,                                           // uint32_t
-			    .descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,                  // VkDescriptorType
-			    .descriptorCount    = LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT, // uint32_t
-			    .stageFlags         = VK_SHADER_STAGE_ALL,                         // VkShaderStageFlags
-			    .pImmutableSamplers = nullptr,                                     // VkSampler const *, optional
-			};
-
-			VkDescriptorSetLayoutCreateInfo samplers_set_layout_create_info = {
-			    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
-			    .pNext = &set_layout_binding_flags_create_info,               // void *, optional
-			    .flags = 0,
-			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
-			    // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
-			    .bindingCount = 1,                            // uint32_t
-			    .pBindings    = &samplers_set_layout_binding, // VkDescriptorSetLayoutBinding const *
-			};
-
-			vkCreateDescriptorSetLayout( vkDevice, &samplers_set_layout_create_info, nullptr, &self->bindless_samplers_descriptor_set_layout );
-		}
+		// ---- Create a SetLayout each for:
+		// - bindless storage images
+		// - bindless combined image samplers
+		// - bindless samplers
+		create_descriptor_set_layout( LE_C_BINDLESS_STORAGE_IMAGES_DESCRIPTORS_MAX_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &self->bindless_storage_images_descriptor_set_layout );
+		create_descriptor_set_layout( LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &self->bindless_textures_descriptor_set_layout );
+		create_descriptor_set_layout( LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT, VK_DESCRIPTOR_TYPE_SAMPLER, &self->bindless_samplers_descriptor_set_layout );
 	}
 	{
 
