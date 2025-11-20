@@ -62,6 +62,11 @@ struct le_bindless_resource_handle_t {
 		return le_bindless_resource_type( type_id );
 	}
 
+	inline uint32_t get_idx() {
+		void const* p = this;
+		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 12 ) & 0xfffff );
+	}
+
 	inline uint32_t get_version() {
 		void const* p = this;
 		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) ) & 0xff );
