@@ -70,9 +70,9 @@ struct le_texture_handle_store_t {
 };
 
 struct le_resource_handle_store_t {
-	// Todo: make this something simpler -- we want this bo be debuggable.
-	std::unordered_multimap<le_resource_handle_data_t, le_resource_handle_t, le_resource_handle_data_hash> resource_handles;
-	std::mutex                                                                                             mtx;
+	// this is the ultimate owner of the handle and the handle owns its data.
+	std::vector<le_resource_handle_t*> resource_handles;
+	std::mutex                         mtx;
 };
 
 static le_texture_handle_store_t* get_texture_handle_library( bool erase = false ) {
@@ -441,44 +441,31 @@ le_resource_handle renderer_produce_resource_handle(
 
 	static uint32_t& unique_id = *get_unique_id_store();
 
-	le_resource_handle handle;
-
 	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
 	p_data->flags                     = flags;
 	p_data->num_samples               = num_samples;
 	p_data->reference_handle          = reference_handle;
 	p_data->type                      = resource_type;
 	p_data->index                     = index;
-	p_data->unique_id                 = ++unique_id;
+	p_data->unique_id                 = unique_id++;
 
-	if ( maybe_name && maybe_name[ 0 ] != '\0' ) {
-		memcpy( p_data->debug_name, maybe_name, sizeof( p_data->debug_name ) );
-		// if a string was given, search for multimap and see if we can find something.
-		auto it = resource_handle_library->resource_handles.find( *p_data );
-		if ( it == resource_handle_library->resource_handles.end() ) {
-			// not found, insert a new element
-			handle = &resource_handle_library->resource_handles.emplace( *p_data, le_resource_handle_t{ p_data } )->second;
-		} else {
-			// found, return a pointer to the found element
-			handle = &it->second;
-			delete ( p_data );
-		}
-	} else {
-		// no name given: handle is set to address of newly inserted element
-		// As this is a multimap, there can be any number of textures with the same
-		// key "unnamed" in the map.
-		handle = &resource_handle_library->resource_handles.emplace( *p_data, le_resource_handle_t{ p_data } )->second;
-		// we tag the element with a debug name that contains the handle so that
-		// the debug name is unique.
-		sprintf( handle->data->debug_name, "[%p]", handle );
-	}
+	/*
+	 * TODO: we want the unique id to be an index so that we can easily
+	 * look up the handle at this position.
+	 *
+	 * we would also want to encode other information in the handle
+	 * and we would like to make sure that the index of the handle
+	 * does not need more than 24 bits. this should leave us enough
+	 * address space for 16M resources.
+	 *
+	 */
 
-	// handle is a pointer to the element in the container, and as such it is
-	// guaranteed to stay valid, even through rehashes of the resource_handle_library
-	// container, because that's a guarantee that maps give us in c++, until
-	// the element gets erased.
+	snprintf( p_data->debug_name, sizeof( p_data->debug_name ), "[%6x] %s", p_data->unique_id, maybe_name );
 
-	return handle;
+	le_resource_handle resource_handle = new le_resource_handle_t{ p_data };
+	resource_handle_library->resource_handles.emplace_back( resource_handle );
+
+	return resource_handle;
 }
 
 // ----------------------------------------------------------------------
@@ -530,7 +517,8 @@ static void renderer_destroy( le_renderer_o* self ) {
 		if ( resource_handle_library ) {
 			// we must deallocate manually allocated data for resource handles
 			for ( auto& e : resource_handle_library->resource_handles ) {
-				delete ( e.second.data );
+				delete ( e->data );
+				delete ( e );
 			}
 			// Delete static pointer to resource handle library
 			get_resource_handle_library( true );
