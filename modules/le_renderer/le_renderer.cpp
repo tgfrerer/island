@@ -70,6 +70,7 @@ struct le_texture_handle_store_t {
 };
 
 struct le_resource_handle_store_t {
+	// Todo: make this something simpler -- we want this bo be debuggable.
 	std::unordered_multimap<le_resource_handle_data_t, le_resource_handle_t, le_resource_handle_data_hash> resource_handles;
 	std::mutex                                                                                             mtx;
 };
@@ -103,6 +104,29 @@ static le_texture_handle_store_t* get_texture_handle_library( bool erase = false
 	}
 
 	return texture_handle_library;
+}
+
+static uint32_t* get_unique_id_store( bool erase = false ) {
+	static uint32_t* p_unique_id_store = nullptr;
+
+	if ( erase ) {
+		delete p_unique_id_store;
+		void** unique_id_store_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "unique_id_store_library" ) );
+		*unique_id_store_ptr       = nullptr;
+		p_unique_id_store          = nullptr;
+		return nullptr;
+	}
+
+	// ---------| invariant: erase is false
+
+	if ( p_unique_id_store == nullptr ) {
+		void** unique_id_store_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "unique_id_store_library" ) );
+		if ( *unique_id_store_ptr == nullptr ) {
+			*unique_id_store_ptr = new ( uint32_t ){};
+		}
+		p_unique_id_store = static_cast<uint32_t*>( *unique_id_store_ptr );
+	}
+	return p_unique_id_store;
 }
 
 static le_resource_handle_store_t* get_resource_handle_library( bool erase = false ) {
@@ -411,8 +435,11 @@ le_resource_handle renderer_produce_resource_handle(
     le_resource_handle    reference_handle = nullptr ) {
 
 	static le_resource_handle_store_t* resource_handle_library = get_resource_handle_library();
+
 	// lock handle library for reading/writing
 	std::scoped_lock lock( resource_handle_library->mtx );
+
+	static uint32_t& unique_id = *get_unique_id_store();
 
 	le_resource_handle handle;
 
@@ -422,6 +449,7 @@ le_resource_handle renderer_produce_resource_handle(
 	p_data->reference_handle          = reference_handle;
 	p_data->type                      = resource_type;
 	p_data->index                     = index;
+	p_data->unique_id                 = ++unique_id;
 
 	if ( maybe_name && maybe_name[ 0 ] != '\0' ) {
 		memcpy( p_data->debug_name, maybe_name, sizeof( p_data->debug_name ) );
@@ -508,6 +536,9 @@ static void renderer_destroy( le_renderer_o* self ) {
 			get_resource_handle_library( true );
 		}
 	}
+
+	// Erase the unique id store so that we're not leaking that uint32_t...
+	get_unique_id_store( true );
 
 	if ( self->backend ) {
 		// Destroy the backend, as it is owned by the renderer

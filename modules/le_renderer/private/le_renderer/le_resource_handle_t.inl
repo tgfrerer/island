@@ -25,23 +25,28 @@ struct le_resource_handle_data_t {
 	uint8_t               flags            = 0;        // bitfield of either buffer - or img_resource_usage_flags;
 	uint16_t              index            = 0;        // allocator index if virtual buffer
 	le_resource_handle_t *reference_handle = nullptr;  // if auto-generated from another handle, we keep a reference to the parent.
-	char                  debug_name[ 48 ] = { '\0' }; // space for 47 chars + \0
+	uint32_t              unique_id        = 0;        // unique id for this handle -- we use this to identify the handle
+	char                  debug_name[ 44 ] = { '\0' }; // space for 47 chars + \0
 
-	bool
-	operator==( le_resource_handle_data_t const &rhs ) const noexcept {
-
-		for ( char const *c = debug_name, *d = rhs.debug_name; *c != 0; c++, d++ ) {
-			if ( *c != *d ) {
-				return false;
-			}
-		}
-
-		return type == rhs.type &&
-		       num_samples == rhs.num_samples &&
-		       flags == rhs.flags &&
-		       index == rhs.index &&
-		       reference_handle == rhs.reference_handle;
+	bool operator==( le_resource_handle_data_t const& rhs ) const noexcept {
+		return unique_id == rhs.unique_id;
 	}
+
+	// bool operator==( le_resource_handle_data_t const &rhs ) const noexcept {
+
+	// 	for ( char const *c = debug_name, *d = rhs.debug_name; *c != 0; c++, d++ ) {
+	// 		if ( *c != *d ) {
+	// 			return false;
+	// 		}
+	// 	}
+
+	// 	return type == rhs.type &&
+	// 	       num_samples == rhs.num_samples &&
+	// 	       flags == rhs.flags &&
+	// 	       index == rhs.index &&
+	// 	       reference_handle == rhs.reference_handle &&
+	// 	       unique_id == rhs.unique_id;
+	// }
 	bool operator!=( le_resource_handle_data_t const &rhs ) const noexcept {
 		return !operator==( rhs );
 	}
@@ -49,25 +54,28 @@ struct le_resource_handle_data_t {
 
 struct le_resource_handle_data_hash {
 
-	inline uint64_t operator()( le_resource_handle_data_t const &key ) const noexcept {
-		uint64_t hash = FNV1A_VAL_64_CONST;
+	// inline uint64_t operator()( le_resource_handle_data_t const &key ) const noexcept {
+	// 	uint64_t hash = FNV1A_VAL_64_CONST;
 
-		uint8_t     value;
-		char const *key_data_begin = reinterpret_cast<char const *>( &key );
-		char const *key_data_end   = key_data_begin + offsetof( le_resource_handle_data_t, debug_name );
+	// 	uint8_t     value;
+	// 	char const *key_data_begin = reinterpret_cast<char const *>( &key );
+	// 	char const *key_data_end   = key_data_begin + offsetof( le_resource_handle_data_t, debug_name );
 
-		for ( char const *i = key_data_begin; i != key_data_end; ++i ) {
-			value = static_cast<uint8_t const &>( *i );
-			hash  = hash ^ ( *i );
-			hash  = hash * FNV1A_PRIME_64_CONST;
-		}
+	// 	for ( char const *i = key_data_begin; i != key_data_end; ++i ) {
+	// 		value = static_cast<uint8_t const &>( *i );
+	// 		hash  = hash ^ ( *i );
+	// 		hash  = hash * FNV1A_PRIME_64_CONST;
+	// 	}
 
-		for ( char const *i = key_data_end; *i != 0; ++i ) {
-			value = static_cast<uint8_t const &>( *i );
-			hash  = hash ^ value;
-			hash  = hash * FNV1A_PRIME_64_CONST;
-		}
-		return hash;
+	// 	for ( char const *i = key_data_end; *i != 0; ++i ) {
+	// 		value = static_cast<uint8_t const &>( *i );
+	// 		hash  = hash ^ value;
+	// 		hash  = hash * FNV1A_PRIME_64_CONST;
+	// 	}
+	// 	return hash;
+	// }
+	inline uint64_t operator()( le_resource_handle_data_t const& key ) const noexcept {
+		return key.unique_id;
 	}
 };
 
