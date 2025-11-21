@@ -206,10 +206,6 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 	}
 }
 
-static void renderpass_use_resources( le_renderpass_o* self, uint32_t num_resources, le_resource_handle const* p_resource_ids, le::AccessFlags2 const* p_access_flags, uint32_t const* p_usage_flags = nullptr ) {
-
-	// 	TODO: should we set default access flags if none set?
-}
 
 // ----------------------------------------------------------------------
 static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle texture, le_image_sampler_info_t const* textureInfo ) {

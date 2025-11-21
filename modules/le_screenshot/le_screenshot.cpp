@@ -40,22 +40,21 @@ static le_swapchain_img_settings_t get_default_swapchain_img_settings() {
 // ----------------------------------------------------------------------
 
 struct le_screenshot_o {
+	le_renderer_o* const renderer = nullptr; // non-owning
 	// members
 	le_pipeline_manager_o*      pipeline_manager   = nullptr; // non-owning
 	le_texture_handle           tex_blit_source    = nullptr; // non-owning
 	le_swapchain_handle         swapchain          = nullptr; // opaque handle to a swapchain owned by the renderer
 	le_image_resource_handle    fallback_src_image = nullptr; // source image used if no source image was given explicitly (this is resolved to the image of the first available swapchain)
 	le_swapchain_img_settings_t swapchain_settings = {};
-	le_renderer_o*              renderer           = nullptr; // non-owning
 };
 
 // ----------------------------------------------------------------------
 
 static le_screenshot_o* le_screenshot_create( le_renderer_o* renderer ) {
-	auto self                = new le_screenshot_o{};
+	auto self                = new le_screenshot_o{ renderer };
 	self->pipeline_manager   = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
-	self->tex_blit_source    = le::Renderer::produceTextureHandle( "fx_blit_source" );
-	self->renderer           = renderer;
+	self->tex_blit_source    = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "fx_blit_source" );
 	self->swapchain_settings = get_default_swapchain_img_settings();
 	return self;
 }

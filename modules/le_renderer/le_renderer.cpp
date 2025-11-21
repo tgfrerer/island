@@ -334,7 +334,7 @@ static le_renderer_o* renderer_create() {
 // ----------------------------------------------------------------------
 
 // creates a new handle if no name was given, or given name was not found in list of current handles.
-static le_texture_handle renderer_produce_texture_handle( char const* maybe_name ) {
+static le_texture_handle renderer_produce_texture_handle( le_renderer_o* renderer, char const* maybe_name ) {
 
 	// lock handle library for reading/writing
 	static le_texture_handle_store_t* texture_handle_library = get_texture_handle_library();
@@ -427,6 +427,7 @@ static char const* texture_handle_get_name( le_texture_handle texture ) {
 
 // creates a new resource if no name was given, or given name was not found in list of current handles.
 le_resource_handle renderer_produce_resource_handle(
+    le_renderer_o*        renderer,
     char const*           maybe_name,
     LeResourceType const& resource_type,
     uint8_t               num_samples      = 0,
@@ -470,29 +471,26 @@ le_resource_handle renderer_produce_resource_handle(
 
 // ----------------------------------------------------------------------
 
-static le_image_resource_handle renderer_produce_img_resource_handle( char const* maybe_name, uint8_t num_samples,
-                                                                      le_image_resource_handle reference_handle, uint8_t flags ) {
-	return static_cast<le_image_resource_handle>(
-	    renderer_produce_resource_handle( maybe_name, LeResourceType::eImage, num_samples, flags, 0,
-	                                      static_cast<le_resource_handle>( reference_handle ) ) );
+static le_image_resource_handle renderer_produce_img_resource_handle( le_renderer_o* renderer, char const* maybe_name, uint8_t num_samples, le_image_resource_handle reference_handle, uint8_t flags ) {
+	return static_cast<le_image_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eImage, num_samples, flags, 0, static_cast<le_resource_handle>( reference_handle ) ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_buffer_resource_handle renderer_produce_buf_resource_handle( char const* maybe_name, uint8_t flags, uint16_t index ) {
-	return static_cast<le_buffer_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
+static le_buffer_resource_handle renderer_produce_buf_resource_handle( le_renderer_o* renderer, char const* maybe_name, uint8_t flags, uint16_t index ) {
+	return static_cast<le_buffer_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_tlas_resource_handle renderer_produce_tlas_resource_handle( char const* maybe_name ) {
-	return static_cast<le_tlas_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eRtxTlas ) );
+static le_tlas_resource_handle renderer_produce_tlas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
+	return static_cast<le_tlas_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eRtxTlas ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_blas_resource_handle renderer_produce_blas_resource_handle( char const* maybe_name ) {
-	return static_cast<le_blas_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eRtxBlas ) );
+static le_blas_resource_handle renderer_produce_blas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
+	return static_cast<le_blas_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eRtxBlas ) );
 }
 // ----------------------------------------------------------------------
 

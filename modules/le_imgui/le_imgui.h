@@ -3,6 +3,7 @@
 
 #include "le_core.h"
 
+struct le_renderer_o; // ffdecl
 struct le_imgui_o;
 struct le_renderpass_o;  // declared in le_renderer.h
 struct le_rendergraph_o; // declared in le_renderer.h
@@ -13,14 +14,14 @@ struct le_imgui_api {
 
 	struct le_imgui_interface_t {
 
-		le_imgui_o *    ( * create            ) ( );
+		le_imgui_o *    ( * create            ) ( le_renderer_o* renderer );
 		void            ( * destroy           ) ( le_imgui_o* self );
 
-		void            ( * begin_frame             ) ( le_imgui_o* self);
-		void            ( * end_frame               ) ( le_imgui_o* self);
+		void            ( * begin_frame       ) ( le_imgui_o* self);
+		void            ( * end_frame         ) ( le_imgui_o* self);
 
-		void            ( * setup_resources )( le_imgui_o *self, le_rendergraph_o *p_rendergraph, float display_width, float display_height );
-		void            ( * draw            )( le_imgui_o* self, le_renderpass_o* renderpass);
+		void            ( * setup_resources   ) ( le_imgui_o *self, le_rendergraph_o *p_rendergraph, float display_width, float display_height );
+		void            ( * draw              ) ( le_imgui_o* self, le_renderpass_o* renderpass);
 
 		void            ( * process_events    ) ( le_imgui_o* self, LeUiEvent const * events, uint32_t num_events);
         

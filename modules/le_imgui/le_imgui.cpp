@@ -23,7 +23,6 @@ namespace {
 #include "shaders/imgui_vert.h"
 } // namespace
 
-static le_image_resource_handle IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 
 namespace {
 // anonymous namespace so that we can forward-declare
@@ -43,7 +42,9 @@ struct le_mouse_event_data_o {
 };
 
 struct le_imgui_o {
-	ImGuiContext*         imguiContext            = nullptr;
+	le_renderer_o* const     renderer;
+	le_image_resource_handle img_imgui_font          = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
+	ImGuiContext*            imguiContext            = nullptr;
 	FontTextureInfo       imguiTexture            = {};
 	le_mouse_event_data_o mouse_state             = {};
 	le_texture_handle     texture_font            = {};
@@ -55,11 +56,11 @@ struct le_imgui_o {
 
 // ----------------------------------------------------------------------
 
-static le_imgui_o* le_imgui_create() {
-	auto self = new le_imgui_o();
+static le_imgui_o* le_imgui_create( le_renderer_o* renderer ) {
+	auto self = new le_imgui_o{ renderer };
 
 	self->imguiContext = ImGui::CreateContext( nullptr );
-	self->texture_font = le::Renderer::produceTextureHandle( "ImguiDefaultFontTexture" );
+	self->texture_font = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "ImguiDefaultFontTexture" );
 
 	return self;
 }
@@ -110,7 +111,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 		                       .setFormat( le::Format::eR8G8B8A8Unorm )
 		                       .build(); // create resource for imgui font texture if it does not yet exist.
 
-		module.declareResource( IMGUI_IMG_HANDLE, fontImgInfo );
+		module.declareResource( self->img_imgui_font, fontImgInfo );
 
 		return;
 	}
@@ -134,14 +135,14 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 	        .setFormat( le::Format::eR8G8B8A8Unorm )
 	        .build(); // create resource for imgui font texture if it does not yet exist.
 
-	module.declareResource( IMGUI_IMG_HANDLE, fontImgInfo );
+	module.declareResource( self->img_imgui_font, fontImgInfo );
 
 	// Upload resources
 
 	le::RenderPass pass{ "imguiSetup", le::QueueFlagBits::eTransfer };
 
 	pass
-	    .useImageResource( IMGUI_IMG_HANDLE, le::AccessFlagBits2::eTransferWrite )
+	    .useImageResource( self->img_imgui_font, le::AccessFlagBits2::eTransferWrite )
 	    .setExecuteCallback( self, []( le_command_buffer_encoder_o* p_encoder, void* user_data ) {
 		    auto imgui = static_cast<le_imgui_o*>( user_data );
 
@@ -156,7 +157,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 			                         .setImageH( int32_t( imgui->imguiTexture.height ) )
 			                         .build();
 
-			    encoder.writeToImage( IMGUI_IMG_HANDLE, writeInfo, imgui->imguiTexture.pixels, numBytes );
+			    encoder.writeToImage( imgui->img_imgui_font, writeInfo, imgui->imguiTexture.pixels, numBytes );
 			    imgui->imguiTexture.wasUploaded = true;
 		    }
 	    } );
@@ -186,7 +187,7 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 	// TODO: We must implement a safeguard in renderpass which checks
 	// resources, and makes sure that each resource is declared consistently.
 	//
-	rp.sampleTexture( self->texture_font, { { le::Filter::eLinear, le::Filter::eLinear }, { IMGUI_IMG_HANDLE, {} } } );
+	rp.sampleTexture( self->texture_font, { { le::Filter::eLinear, le::Filter::eLinear }, { self->img_imgui_font, {} } } );
 
 	rp.setExecuteCallback( self, []( le_command_buffer_encoder_o* p_encoder, void* user_data ) {
 		auto encoder = le::GraphicsEncoder{ p_encoder };

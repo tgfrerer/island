@@ -440,6 +440,7 @@ struct AllocatedResourceVk {
 };
 
 struct le_staging_allocator_o {
+	le_renderer_o* const           renderer;
 	VmaAllocator                   allocator;      // non-owning, refers to backend allocator object
 	VkDevice                       device;         // non-owning, refers to vulkan device object
 	std::mutex                     mtx;            // protects all staging* elements
@@ -673,7 +674,6 @@ struct le_backend_o {
 	VkSamplerYcbcrConversion     vk_sampler_ycbcr_conversion = nullptr;
 	VkSamplerYcbcrConversionInfo vk_sampler_ycbcr_conversion_info;
 
-	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
 
 	std::vector<AbstractPhysicalResource> bindless_textures_samplers;    // indexed by bindless_texture_idx
 	std::vector<AbstractPhysicalResource> bindless_textures_image_views; // indexed by bindless_texture_idx
@@ -693,11 +693,16 @@ struct le_backend_o {
 
 	VmaAllocator mAllocator = nullptr;
 
-	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
+	// --- rtx
 
-	KillList<le_rtx_blas_info_o> rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
-	KillList<le_rtx_tlas_info_o> rtx_tlas_info_kill_list; // used to keep track rtx_blas_infos.
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
+	le_buffer_resource_handle                       rtx_scratch_buffer_handle = nullptr;
+	KillList<le_rtx_blas_info_o>                    rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
+	KillList<le_rtx_tlas_info_o>                    rtx_tlas_info_kill_list; // used to keep track rtx_blas_infos.
 
+	// ---
+
+	uint32_t                                         queueFamilyIndexGraphics = 0;         // inferred during setup
 	std::unordered_map<le_resource_handle, uint64_t> resource_queue_family_ownership[ 2 ]; // per-resource queue family ownership - we use this to detect queue family ownership change for resources
 
   private:
@@ -1097,7 +1102,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	swapchain_data.width                    = swapchain_i.get_image_width( swapchain );
 	swapchain_data.image_count              = uint32_t( swapchain_i.get_image_count( swapchain ) );
 	swapchain_data.swapchain_image =
-	    le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot );
+	    le_renderer::renderer_i.produce_img_resource_handle( self->renderer, swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot );
 
 	if ( swapchain_data.image_count != backend_settings->data_frames_count ) {
 		// If this is called between when the backend_initialize and setup, this
@@ -1336,10 +1341,10 @@ static le_image_resource_handle backend_get_swapchain_resource_default( le_backe
 /// Vulkan buffer backing. Instead, they use their Frame's buffer for storage. Virtual buffers
 /// are used to store Frame-local transient data such as values for shader parameters.
 /// Each Encoder uses its own virtual buffer for such purposes.
-static le_buffer_resource_handle declare_resource_virtual_buffer( uint8_t index ) {
+static inline le_buffer_resource_handle declare_resource_virtual_buffer( le_backend_o* self, uint8_t index ) {
 
 	le_buffer_resource_handle resource =
-	    le_renderer::renderer_i.produce_buf_resource_handle( "Encoder-Virtual", le_buf_resource_usage_flags_t::eIsVirtual, index );
+	    le_renderer::renderer_i.produce_buf_resource_handle( self->renderer, "Encoder-Virtual", le_buf_resource_usage_flags_t::eIsVirtual, index );
 
 	return resource;
 }
@@ -1520,6 +1525,8 @@ static void backend_initialise( le_backend_o* self ) {
 		}
 	}
 
+	self->rtx_scratch_buffer_handle = le_renderer_api_i->le_renderer_i.produce_buf_resource_handle( self->renderer, "le_rtx_scratch_buffer_handle", 0, 0 ); // opaque handle for rtx scratch buffer
+
 	if ( self->must_track_resources_queue_family_ownership ) {
 		le::Log( LOGGER_LABEL ).info( "Multiple queue families detected - tracking queue ownership per-resource." );
 	}
@@ -1624,7 +1631,7 @@ static void backend_setup( le_backend_o* self ) {
 
 		// -- create a staging allocator for this frame
 		using namespace le_backend_vk;
-		frameData.stagingAllocator = le_staging_allocator_i.create( self->mAllocator, vkDevice );
+		frameData.stagingAllocator = le_staging_allocator_i.create( self->mAllocator, vkDevice, self->renderer );
 
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
@@ -1747,7 +1754,7 @@ static void backend_setup( le_backend_o* self ) {
 // ----------------------------------------------------------------------
 // Add image attachments to leRenderPass
 // Update syncchain for images affected.
-static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendRenderPass& currentPass, BackendFrameData& frame, le::SampleCountFlagBits const& sampleCount ) {
+static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendRenderPass& currentPass, BackendFrameData& frame, le::SampleCountFlagBits const& sampleCount, le_renderer_o* renderer ) {
 
 	using namespace le_renderer;
 
@@ -2110,7 +2117,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 static void frame_track_resource_state(
     BackendFrameData& frame, le_renderpass_o** pp_passes,
-    size_t num_renderpasses, const std::vector<le_image_resource_handle>& swapchain_images ) {
+    size_t num_renderpasses, const std::vector<le_image_resource_handle>& swapchain_images, le_renderer_o* renderer ) {
 
 	ZoneScoped;
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
@@ -2183,7 +2190,7 @@ static void frame_track_resource_state(
 		le_renderpass_add_explicit_sync( pass, currentPass, syncChainTable );
 
 		// Iterate over all image attachments
-		le_renderpass_add_attachments( pass, currentPass, frame, currentPass.sampleCount );
+		le_renderpass_add_attachments( pass, currentPass, frame, currentPass.sampleCount, renderer );
 
 		frame.passes.emplace_back( std::move( currentPass ) );
 	} // end for all passes
@@ -3480,9 +3487,9 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 
 // Creates a new staging allocator
 // Typically, there is one staging allocator associated to each frame.
-static le_staging_allocator_o* staging_allocator_create( VmaAllocator const vmaAlloc, VkDevice const device ) {
+static le_staging_allocator_o* staging_allocator_create( VmaAllocator const vmaAlloc, VkDevice const device, le_renderer_o* renderer ) {
 	ZoneScoped;
-	auto self       = new le_staging_allocator_o{};
+	auto self       = new le_staging_allocator_o{ renderer };
 	self->allocator = vmaAlloc;
 	self->device    = device;
 	return self;
@@ -3570,9 +3577,9 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 		while ( staging_buffers.size() < self->allocations.size() ) {
 			size_t index = staging_buffers.size();
 			staging_buffers.emplace_back(
-			    le_renderer::renderer_i.produce_buf_resource_handle(
-			        "Le-Staging-Buffer",
-			        le_buf_resource_usage_flags_t::eIsStaging, uint32_t( index ) ) );
+			    le_renderer::renderer_i.produce_buf_resource_handle( self->renderer,
+			                                                         "Le-Staging-Buffer",
+			                                                         le_buf_resource_usage_flags_t::eIsStaging, uint32_t( index ) ) );
 		}
 
 		*resource_handle = staging_buffers[ allocationIndex ];
@@ -3853,8 +3860,8 @@ static void collect_resource_infos_per_resource(
 
 // ----------------------------------------------------------------------
 
-static void insert_msaa_versions(
-    std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
+static void insert_msaa_versions( le_backend_o*                                               self,
+                                  std::unordered_map<le_resource_handle, le_resource_info_t>& active_resources ) {
 	ZoneScoped;
 	// For each image resource which is specified with versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
@@ -3878,9 +3885,16 @@ static void insert_msaa_versions(
 
 			if ( samples_flags.test( 0 ) ) {
 				// we must create a resource copy with this sample count
+
+				// we need to create an extra multisampling resource for this given resource - but only
+				// if the multisampling resource does not yet exist.
+				// we then need a method to find the resource again
+
 				le_resource_handle resource_copy =
 				    le_renderer::renderer_i.produce_img_resource_handle(
+				        self->renderer,
 				        ar.first->data->debug_name, sample_count_log_2, static_cast<le_image_resource_handle>( ar.first ), 0 );
+
 				le_resource_info_t resource_info_copy      = ar.second;
 				resource_info_copy.image.sample_count_log2 = sample_count_log_2;
 
@@ -4131,7 +4145,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	- "Acquire" therefore means we create local copies of backend-wide resource handles.
 	*/
 
-	static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
+	// static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
 	// -- first it is our holy duty to drop any binned resources which
 	// were condemned the last time this frame was active.
@@ -4168,7 +4182,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 	// For each image resource which has versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
-	insert_msaa_versions( active_resources );
+	insert_msaa_versions( self, active_resources );
 
 	// Check if all resources declared in this frame are already available in backend.
 	// If a resource is not available yet, this resource must be allocated.
@@ -4330,7 +4344,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 			resourceInfo.buffer.usage             = le::BufferUsageFlags( le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eShaderDeviceAddress );
 			resourceInfo.type                     = LeResourceType::eBuffer;
 			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo );
-			auto               resource_id        = LE_RTX_SCRATCH_BUFFER_HANDLE;
+			auto               resource_id        = self->rtx_scratch_buffer_handle;
 			auto               allocated_resource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 			frame.availableResources.insert_or_assign( resource_id, allocated_resource );
 
@@ -5330,7 +5344,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 			tmp_swapchain_resources.push_back( swp.swapchain_data.swapchain_image );
 		}
 
-		frame_track_resource_state( frame, passes, numRenderPasses, tmp_swapchain_resources );
+		frame_track_resource_state( frame, passes, numRenderPasses, tmp_swapchain_resources, self->renderer );
 
 		// At this point we know the state for each resource at the end of the sync chain.
 		// this state will be the initial state for the resource
@@ -5339,7 +5353,6 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 			// Update final sync state for each pre-existing backend resource.
 			// fixme: this breaks the promise that no-one but allocate resources is writing to allocatedResources.
 
-			static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
 			auto [ backend_resources, lock ] = self->get_allocated_resources();
 
@@ -5362,7 +5375,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 					    std::find( tmp_swapchain_resources.begin(),
 					               tmp_swapchain_resources.end(), resId ) !=
 					        tmp_swapchain_resources.end() ||
-					    resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
+					    resId == self->rtx_scratch_buffer_handle );
 
 					// Frame local resource must be available as a backend resource,
 					// unless the resource is the swapchain image handle, which is owned and managed
@@ -5445,7 +5458,7 @@ static le_allocator_o** backend_create_transient_allocators( le_backend_o* self,
 		createInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 		createInfo.pool  = frame.allocationPool; // Since we're allocating from a pool all fields but .flags will be taken from the pool
 
-		le_buffer_resource_handle res = declare_resource_virtual_buffer( uint8_t( i ) );
+		le_buffer_resource_handle res = declare_resource_virtual_buffer( self, uint8_t( i ) );
 
 		createInfo.pUserData = res;
 
@@ -6616,8 +6629,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			std::array<DescriptorSetState, 8> previousSetState; // currently bound descriptorSetLayout+Data for each set
 			ArgumentState                     argumentState{};  //
 			RtxState                          rtx_state{};      // used to keep track of shader binding tables bound with rtx pipelines.
-
-			static le_buffer_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
 			void*  commandsDataStream = nullptr;
 			size_t dataSize           = 0;
@@ -7897,7 +7908,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						auto const blas_end = blas_handle_begin + num_blas_handles;
 
-						VkBuffer scratchBuffer = frame_data_get_buffer_from_le_resource_id( &frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
+						VkBuffer scratchBuffer = frame_data_get_buffer_from_le_resource_id( &frame, self->rtx_scratch_buffer_handle );
 
 						for ( auto blas_handle = blas_handle_begin; blas_handle != blas_end; blas_handle++ ) {
 
@@ -8105,7 +8116,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						// instances information is encoded via buffer, but that buffer is also available as host memory,
 						// because it is held in staging_buffer_mapped_memory...
 						VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.staging_buffer_id );
-						VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( &frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
+						VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( &frame, self->rtx_scratch_buffer_handle );
 
 						VkDeviceOrHostAddressConstKHR instanceBufferDeviceAddress = {};
 

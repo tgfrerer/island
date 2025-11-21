@@ -307,18 +307,6 @@ class Renderer {
 		return le_renderer::renderer_i.get_pipeline_manager( self );
 	}
 
-	static le_texture_handle produceTextureHandle( char const* maybe_name ) {
-		return le_renderer::renderer_i.produce_texture_handle( maybe_name );
-	}
-
-	static le_image_resource_handle produceImageHandle( char const* maybe_name ) {
-		return le_renderer::renderer_i.produce_img_resource_handle( maybe_name, 0, nullptr, 0 );
-	}
-
-	static le_buffer_resource_handle produceBufferHandle( char const* maybe_name ) {
-		return le_renderer::renderer_i.produce_buf_resource_handle( maybe_name, 0, 0 );
-	}
-
 	operator auto() {
 		return self;
 	}

@@ -106,12 +106,13 @@ struct io_state_t {
 };
 
 struct le_rendergraph_visualizer_o {
+	le_renderer_o* const renderer;
 	// members
 	le_image_resource_handle canvas_image;   // the canvas onto which we draw the visualization.
 	le_resource_info_t       canvas_image_info; // resource image information
 	le_texture_handle        canvas_texture;    // the texture which we use to sample the canvas
 	le::Font                 font = { "./resources/fonts/IBMPlexSans-Regular.otf", 8 };
-	Le2D                     ctx_2d; // 2d drawing context
+	Le2D                     ctx_2d{ renderer }; // 2d drawing context
 
 	io_state_t io_state            = {};
 	uint32_t   ui_capture_state    = 0; /// which events to consume, and which to bubble (this applies to the full vector of events that are being processed)
@@ -142,8 +143,8 @@ struct le_rendergraph_visualizer_o {
 
 // ----------------------------------------------------------------------
 
-static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create( uint32_t initial_window_w, uint32_t initial_window_h ) {
-	auto self = new le_rendergraph_visualizer_o();
+static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create( le_renderer_o* renderer, uint32_t initial_window_w, uint32_t initial_window_h ) {
+	auto self = new le_rendergraph_visualizer_o( renderer );
 
 	self->canvas_image = LE_IMG_RESOURCE( "visualizer_output_image" );
 

@@ -627,6 +627,8 @@ struct le_2d_o {
 	static constexpr uint8_t transfer_scene_mask = 0x2;
 	static constexpr uint8_t transfer_gradient_cache_mask = 0x4;
 
+	le_renderer_o* const renderer; // non-owning
+
 	uint8_t rasterizer_xfer_flags = transfer_lut_mask | transfer_scene_mask | transfer_gradient_cache_mask; // masked by one of the masks above
 
 	std::vector<uint8_t> scene_bytes;
@@ -704,8 +706,8 @@ struct le_2d_o {
 
 // ----------------------------------------------------------------------
 
-static le_2d_o* le_2d_create() {
-	auto self = new le_2d_o();
+static le_2d_o* le_2d_create( le_renderer_o* renderer ) {
+	auto self = new le_2d_o( renderer );
 	return self;
 }
 
