@@ -327,6 +327,7 @@ class Renderer {
 class RenderPass {
 
 	le_renderpass_o* self;
+	using resource_usage_flags = le_renderer_api::renderpass_interface_t::resource_usage_flags;
 
   public:
 	// We must allow for this constructor to be called with no name, so that it can be used with initializer lists
@@ -431,23 +432,35 @@ class RenderPass {
 		return *this;
 	}
 
+	// TODO: not super happy with this -- it feels a bit cumbersome,
+	//
+	// The intent is to have a way to signal to the renderer that we are using an image resource in a bindless manner
+	// and that the renderer does not need to create a transient view for this image for this frame.
+	//
+	// It would be better if we could directly declare the resource via the bindless handle and would
+	// not have go go through the parent resource.
+	RenderPass& useImageResourceNoTransient( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eNone );
+		return *this;
+	}
+
 	RenderPass& useImageResource( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, 1 );
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eRequiresTransient );
 		return *this;
 	}
 
 	RenderPass& useBufferResource( le_buffer_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, 0 );
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eNone );
 		return *this;
 	}
 
 	RenderPass& useRtxBlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags, 0 );
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags, resource_usage_flags::eNone );
 		return *this;
 	}
 
 	RenderPass& useRtxTlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags, 0 );
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags, resource_usage_flags::eNone );
 		return *this;
 	}
 

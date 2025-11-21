@@ -2002,9 +2002,8 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 	using namespace le_renderer;
 	le_resource_handle const* resources        = nullptr;
 	le::AccessFlags2 const*   resources_access = nullptr;
-	uint32_t const*           usage_flags      = nullptr;
 	size_t                    resources_count  = 0;
-	renderpass_i.get_used_resources( pass, &resources, &resources_access, &usage_flags, &resources_count );
+	renderpass_i.get_used_resources( pass, &resources, &resources_access, nullptr, &resources_count );
 
 	currentPass.resources.assign( resources, resources + resources_count );
 
@@ -3750,10 +3749,9 @@ static void collect_resource_infos_per_resource(
 
 		le_resource_handle const* p_resources              = nullptr;
 		le::AccessFlags2 const*   p_resources_access_flags = nullptr;
-		uint32_t const*           p_usage_flags            = nullptr;
 		size_t                    resources_count          = 0;
 
-		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_access_flags, &p_usage_flags, &resources_count );
+		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_access_flags, nullptr, &resources_count );
 
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
@@ -4393,36 +4391,31 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses, VkSamplerYcbcrConversionInfo* ycbcr_conversion_info = nullptr ) {
 	ZoneScoped;
 	using namespace le_renderer;
+	using rp_resource_usage_flags = le_renderer_api::renderpass_interface_t::resource_usage_flags;
 	le::QueueFlagBits pass_type{};
 
-	// Only for compute passes: Create imageviews for all available
-	// resources which are of type image and which have usage
-	// sampled or storage.
+	// Create imageviews for all available resources which are of
+	// type image and which require a temporary image view.
 	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 
 		// fetch pass type from this passes' queue sumbission info
 		renderpass_i.get_queue_sumbission_info( *p, &pass_type, nullptr, nullptr );
 
-		// if ( pass_type != le::QueueFlagBits::eCompute ) {
-		// 	continue;
-		// }
-
-		const le_resource_handle* resources        = nullptr;
-		const le::AccessFlags2*   resources_access = nullptr;
-		uint32_t const*           usage_flags      = nullptr;
-		size_t                    resource_count   = 0;
+		le_resource_handle const*      resources        = nullptr;
+		le::AccessFlags2 const*        resources_access = nullptr;
+		rp_resource_usage_flags const* usage_flags      = nullptr;
+		size_t                         resource_count   = 0;
 
 		renderpass_i.get_used_resources( *p, &resources, &resources_access, &usage_flags, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
 
-			if ( usage_flags[ i ] != 1 ) {
+			if ( usage_flags[ i ] != rp_resource_usage_flags::eRequiresTransient ) {
 				continue;
 			}
 
-			// ----------| invariant usage_flags == 1
-			// usage_flags are only ever 1 if this resource requested a transient image view for this pass.
+			// ----------| invariant: Requires Transient
 
 			auto const& r = static_cast<le_image_resource_handle>( resources[ i ] );
 
@@ -4437,7 +4430,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 
 			// ---------| Invariant: ImageView for this image not yet stored with frame.
 
-			// attempt to look up format via available resources - this is important for
+			// Attempt to look up format via available resources - this is important for
 			// unspecified formats which get automatically inferred, in which case we want
 			// to set the format to whatever was inferred when the image was allocated and placed
 			// in available resources.

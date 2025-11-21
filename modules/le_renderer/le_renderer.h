@@ -41,6 +41,7 @@ struct le_shader_binding_table_o;
 // clang-format off
 struct le_renderer_api {
 
+
 	struct renderer_interface_t {
 		le_renderer_o *                ( *create                  )( );
 		void                           ( *destroy                 )( le_renderer_o *obj );
@@ -97,6 +98,12 @@ struct le_renderer_api {
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
+
+		enum resource_usage_flags : uint32_t {
+			eNone              = 0,
+			eRequiresTransient = 1 << 0, // whether this resource requires a transient image view to be created for it for each pass
+		};
+
 		le_renderpass_o *               ( *create               )( const char *renderpass_name, const le::QueueFlagBits &type_ );
 		void                            ( *destroy              )( le_renderpass_o *obj );
 		le_renderpass_o *               ( *clone                )( const le_renderpass_o *obj );
@@ -112,7 +119,7 @@ struct le_renderer_api {
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);
-		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds,  le::AccessFlags2 const ** pResourcesAccess, uint32_t const ** usage_flags, size_t *count );
+		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds,  le::AccessFlags2 const ** pResourcesAccess, resource_usage_flags const ** usage_flags, size_t *count );
 		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
 		void                            ( *get_queue_sumbission_info)( const le_renderpass_o* obj, le::QueueFlagBits* pass_type, le::RootPassesField * queue_submission_id, bool *has_commands);
@@ -122,9 +129,7 @@ struct le_renderer_api {
 		void (*ref_inc)(le_renderpass_o* self);
 		void (*ref_dec)(le_renderpass_o* self);
 
-
-
-		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id,  le::AccessFlags2 const& access_flags, uint32_t usage_flags);
+		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id,  le::AccessFlags2 const& access_flags, resource_usage_flags const& usage_flags);
 
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
 		void                         ( *sample_texture        )(le_renderpass_o* obj, le_texture_handle texture, const le_image_sampler_info_t* info);

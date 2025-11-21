@@ -115,7 +115,7 @@ static inline bool resource_is_a_swapchain_handle( const le_image_resource_handl
 // ----------------------------------------------------------------------
 // Associate a resource with a renderpass.
 // access_flags tell us whether resource is used for read, write, or read/write.
-static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags, uint32_t usage_flags = 0 ) {
+static void renderpass_use_resource( le_renderpass_o* self, const le_resource_handle& resource_id, le::AccessFlags2 const& access_flags, rp_resource_usage_flags const& usage_flags = {} ) {
 	ZoneScoped;
 
 	/*
@@ -166,7 +166,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		// Resource was already used : this should be fine if declared with identical access_flags,
 		// otherwise it is an error.
 
-		self->resources_usage_flags[ resource_idx ] |= usage_flags;
+		self->resources_usage_flags[ resource_idx ] = rp_resource_usage_flags( self->resources_usage_flags[ resource_idx ] | usage_flags );
 
 		auto current_flags = self->resources_access_flags[ resource_idx ];
 		auto new_flags     = access_flags;
@@ -230,7 +230,7 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 
 	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags, C_REQUIRES_TRANSIENT_IMAGE_VIEW );
+	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags, rp_resource_usage_flags::eRequiresTransient );
 }
 
 // ----------------------------------------------------------------------
@@ -271,7 +271,7 @@ static void renderpass_add_color_attachment( le_renderpass_o* self, le_image_res
 		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eColorAttachmentWrite );
 	}
 
-	renderpass_use_resource( self, image_id, access_flags, C_REQUIRES_TRANSIENT_IMAGE_VIEW );
+	renderpass_use_resource( self, image_id, access_flags, rp_resource_usage_flags::eRequiresTransient );
 }
 
 // ----------------------------------------------------------------------
@@ -294,7 +294,7 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o* self, le_i
 	if ( attachmentInfo->storeOp == le::AttachmentStoreOp::eStore ) {
 		access_flags = access_flags | le::AccessFlags2( le::AccessFlagBits2::eDepthStencilAttachmentWrite );
 	}
-	renderpass_use_resource( self, image_id, access_flags, C_REQUIRES_TRANSIENT_IMAGE_VIEW );
+	renderpass_use_resource( self, image_id, access_flags, rp_resource_usage_flags::eRequiresTransient );
 }
 
 // ----------------------------------------------------------------------
@@ -352,13 +352,19 @@ static void renderpass_get_queue_submission_info( const le_renderpass_o* self, l
 	}
 }
 
-static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, le::AccessFlags2 const** pResourcesAccess, uint32_t const** usage_flags, size_t* count ) {
+static void renderpass_get_used_resources( le_renderpass_o const* self, le_resource_handle const** pResources, le::AccessFlags2 const** pResourcesAccess, rp_resource_usage_flags const** usage_flags, size_t* count ) {
 	assert( self->resources_access_flags.size() == self->resources.size() );
 
 	*count            = self->resources.size();
-	*usage_flags      = self->resources_usage_flags.data();
-	*pResources       = self->resources.data();
-	*pResourcesAccess = self->resources_access_flags.data();
+	if ( usage_flags ) {
+		*usage_flags = self->resources_usage_flags.data();
+	}
+	if ( pResources ) {
+		*pResources = self->resources.data();
+	}
+	if ( pResourcesAccess ) {
+		*pResourcesAccess = self->resources_access_flags.data();
+	}
 }
 
 static const char* renderpass_get_debug_name( le_renderpass_o const* self ) {
