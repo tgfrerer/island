@@ -439,6 +439,11 @@ class RenderPass {
 	//
 	// It would be better if we could directly declare the resource via the bindless handle and would
 	// not have go go through the parent resource.
+	//
+	// Furthermore, it is not much use to just declare that the renderer must create a transient view without specifying
+	// the view required for this image (you can't assume images are all 2d, for example) -- this is much better solved
+	// with bindless resources where there is a 1:1 correspondence of a bindless handle to an image+view.
+	//
 	RenderPass& useImageResourceNoTransient( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eNone );
 		return *this;

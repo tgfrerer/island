@@ -230,7 +230,7 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 
 	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags, rp_resource_usage_flags::eRequiresTransient );
+	renderpass_use_resource( self, textureInfo->imageView.imageId, access_flags, rp_resource_usage_flags::eNone );
 }
 
 // ----------------------------------------------------------------------

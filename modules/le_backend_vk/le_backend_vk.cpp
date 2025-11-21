@@ -4407,6 +4407,20 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 		rp_resource_usage_flags const* usage_flags      = nullptr;
 		size_t                         resource_count   = 0;
 
+		/*
+		 * NOTE: creating transient image views like this feels very wasteful, and it's also guessing what's going to
+		 * happen with the image without really knowing how it is going to be used in the renderpass.
+		 *
+		 * For example, are we using the image resource as a cube, a 2d Array, or a 3D image? Right now, it's 3D image
+		 * by default for any image that is declared as a 3D image...
+		 *
+		 * It's much better to use bindless resource handles because these are automatically associated with
+		 * views, view+sampler for images and textures, respectively.
+		 *
+		 * We should get rid of all this in a future refactor once we fully migrate over to bindless.
+		 *
+		 */
+
 		renderpass_i.get_used_resources( *p, &resources, &resources_access, &usage_flags, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
@@ -4459,7 +4473,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 			    .pNext            = nullptr, // optional
 			    .flags            = 0,       // optional
 			    .image            = vk_resource_info.as.image,
-			    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+			    .viewType         = VkImageViewType( vk_resource_info.info.imageInfo.imageType ), // this is very crude, but at least it gets the dimensionality right
 			    .format           = VkFormat( imageFormat ),
 			    .components       = {}, // default component mapping
 			    .subresourceRange = subresourceRange,
