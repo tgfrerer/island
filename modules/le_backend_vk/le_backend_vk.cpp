@@ -1778,12 +1778,18 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		// to "virtual" image resources which share everything with the original image resource
 		// apart from the sample count.
 		//
+		// This would automatically retrieve the msaa resource at the correct sample level via the
+		// resource manager -- we need to render into the msaa image at the correct sample count level,
+		// and then resolve into the parent image.
+		//
 		// The "original" image resource will then be mapped to a resolve attachment further down.
 		//
-		if ( numSamplesLog2 != 0 ) {
-			img_resource = le_renderer::renderer_i.produce_img_resource_handle(
-			    img_resource->data->debug_name, uint8_t( numSamplesLog2 ), img_resource, 0 );
-		}
+
+		// if ( numSamplesLog2 != 0 ) {
+		// 	img_resource = le_renderer::renderer_i.produce_img_resource_handle(
+		// 	    renderer,
+		// 	    img_resource->data->debug_name, uint8_t( numSamplesLog2 ), img_resource, 0 );
+		// }
 
 		auto& syncChain = frame.syncChainTable[ img_resource ];
 
@@ -3889,6 +3895,9 @@ static void insert_msaa_versions( le_backend_o*                                 
 				// we need to create an extra multisampling resource for this given resource - but only
 				// if the multisampling resource does not yet exist.
 				// we then need a method to find the resource again
+
+				// instead of creating a handle, we should place the resource into an array of msaa
+				// extra resources per frame.
 
 				le_resource_handle resource_copy =
 				    le_renderer::renderer_i.produce_img_resource_handle(
