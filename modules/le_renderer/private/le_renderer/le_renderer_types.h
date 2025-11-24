@@ -199,8 +199,7 @@ struct le_image_resource_handle_t : le_resource_handle_t {
 	}
 
 	inline uint32_t get_is_root() {
-		// return get_usage_flags() == UsageFlagBits::eIsRoot;
-		return 0;
+		return get_usage_flags() == UsageFlagBits::eIsRoot;
 	}
 
 	// this may also be used for buffer flags in case we have a buffer handle
