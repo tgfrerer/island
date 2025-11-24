@@ -424,44 +424,29 @@ le_resource_handle renderer_produce_resource_handle(
 
 	uint32_t idx = index;
 
+	le_resource_handle resource_handle{};
+	uint32_t           version = 0; // FIXME: use proper versioning of resources
+
 	if ( resource_type == LeResourceType::eBuffer && ( flags != le_buffer_resource_handle_t::eIsUnset ) ) {
 		// this is a virtual resource
 		idx = index;
-	} else {
-
-		le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
-		p_data->flags                     = flags;
-		p_data->num_samples               = num_samples;
-		p_data->reference_handle          = reference_handle;
-		p_data->type                      = resource_type;
-		p_data->index                     = index;
-		p_data->unique_id                 = unique_id++;
-
-		/*
-		 * TODO: we want the unique id to be an index so that we can easily
-		 * look up the handle at this position.
-		 *
-		 * we would also want to encode other information in the handle
-		 * and we would like to make sure that the index of the handle
-		 * does not need more than 24 bits. this should leave us enough
-		 * address space for 16M resources.
-		 *
-		 */
-
-		// FIXME: Careful: in case we have a buffer, we might have a virtual resource,
-		// the virtual resource will take the index that was set at allocation
-		// this needs to be fixed later...
-
-		snprintf( p_data->debug_name, sizeof( p_data->debug_name ), "[%6x] %s", p_data->unique_id, maybe_name );
-
-		idx = resource_handle_library->resource_handles.size();
-		resource_handle_library->resource_handles.emplace_back( p_data );
+		resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
+		// a virtual resource does not need to be stored with the resource handle library
+		return resource_handle;
 	}
 
-	uint32_t version = 0; // FIXME: use proper versioning of resources
+	// ---------| invariant: resource is not virtual
 
-	le_resource_handle resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
+	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
+	p_data->debug_name                = maybe_name;
 
+	idx = resource_handle_library->resource_handles.size();
+
+	resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
+	p_data->handle  = resource_handle;
+
+	// Store the resource handle with our array of resource handles
+	resource_handle_library->resource_handles.emplace_back( p_data );
 	return resource_handle;
 }
 
