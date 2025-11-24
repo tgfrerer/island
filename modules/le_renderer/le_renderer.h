@@ -142,7 +142,7 @@ struct le_renderer_api {
 
 	// Graph builder builds a graph for a rendergraph
 	struct rendergraph_interface_t {
-		le_rendergraph_o *   ( *create           ) ( );
+		le_rendergraph_o *   ( *create           ) ();
 		void                 ( *destroy          ) ( le_rendergraph_o *self );
 		void                 ( *reset            ) ( le_rendergraph_o *self );
 		void                 ( *add_renderpass   ) ( le_rendergraph_o *self, le_renderpass_o *rp );

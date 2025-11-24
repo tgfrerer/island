@@ -71,7 +71,7 @@ struct le_texture_handle_store_t {
 
 struct le_resource_handle_store_t {
 	// this is the ultimate owner of the handle and the handle owns its data.
-	std::vector<le_resource_handle_t*> resource_handles;
+	std::vector<le_resource_handle_data_t*> resource_handles;
 	std::mutex                         mtx;
 };
 
@@ -442,29 +442,42 @@ le_resource_handle renderer_produce_resource_handle(
 
 	static uint32_t& unique_id = *get_unique_id_store();
 
-	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
-	p_data->flags                     = flags;
-	p_data->num_samples               = num_samples;
-	p_data->reference_handle          = reference_handle;
-	p_data->type                      = resource_type;
-	p_data->index                     = index;
-	p_data->unique_id                 = unique_id++;
+	uint32_t idx = index;
 
-	/*
-	 * TODO: we want the unique id to be an index so that we can easily
-	 * look up the handle at this position.
-	 *
-	 * we would also want to encode other information in the handle
-	 * and we would like to make sure that the index of the handle
-	 * does not need more than 24 bits. this should leave us enough
-	 * address space for 16M resources.
-	 *
-	 */
+	if ( resource_type != LeResourceType::eBuffer && flags == le_buffer_resource_handle_t::eIsUnset ) {
 
-	snprintf( p_data->debug_name, sizeof( p_data->debug_name ), "[%6x] %s", p_data->unique_id, maybe_name );
+		le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
+		p_data->flags                     = flags;
+		p_data->num_samples               = num_samples;
+		p_data->reference_handle          = reference_handle;
+		p_data->type                      = resource_type;
+		p_data->index                     = index;
+		p_data->unique_id                 = unique_id++;
 
-	le_resource_handle resource_handle = new le_resource_handle_t{ p_data };
-	resource_handle_library->resource_handles.emplace_back( resource_handle );
+		/*
+		 * TODO: we want the unique id to be an index so that we can easily
+		 * look up the handle at this position.
+		 *
+		 * we would also want to encode other information in the handle
+		 * and we would like to make sure that the index of the handle
+		 * does not need more than 24 bits. this should leave us enough
+		 * address space for 16M resources.
+		 *
+		 */
+
+		// FIXME: Careful: in case we have a buffer, we might have a virtual resource,
+		// the virtual resource will take the index that was set at allocation
+		// this needs to be fixed later...
+
+		snprintf( p_data->debug_name, sizeof( p_data->debug_name ), "[%6x] %s", p_data->unique_id, maybe_name );
+
+		idx = resource_handle_library->resource_handles.size();
+		resource_handle_library->resource_handles.emplace_back( p_data );
+	}
+
+	uint32_t version = 0; // FIXME: use proper versioning of resources
+
+	le_resource_handle resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
 
 	return resource_handle;
 }
@@ -515,7 +528,6 @@ static void renderer_destroy( le_renderer_o* self ) {
 		if ( resource_handle_library ) {
 			// we must deallocate manually allocated data for resource handles
 			for ( auto& e : resource_handle_library->resource_handles ) {
-				delete ( e->data );
 				delete ( e );
 			}
 			// Delete static pointer to resource handle library

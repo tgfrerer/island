@@ -109,7 +109,8 @@ static inline bool vector_contains( const std::vector<T>& haystack, const T& nee
 }
 
 static inline bool resource_is_a_swapchain_handle( const le_image_resource_handle& handle ) {
-	return handle->data->flags == le_img_resource_usage_flags_t::eIsRoot;
+	return handle->get_is_root();
+	// return handle->data->flags == le_img_resource_usage_flags_t::eIsRoot;
 }
 
 // ----------------------------------------------------------------------
@@ -176,7 +177,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 			logger.error( "Resource '%s' declared more than once for Renderpass '%s'.\n\n"
 			              "\tHINT: Check if you didn't accidentally sample from this resource (via a texture) "
 			              "while it is already bound as a ColorAttachment.",
-			              self->resources[ resource_idx ]->data->debug_name,
+			              self->resources[ resource_idx ]->get_debug_name(),
 			              self->debug_name.c_str() );
 		}
 	}
@@ -190,7 +191,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 	// this means that some reads to image resources are implicit read/writes.
 	// we can only get rid of this if we can prove that resources will not undergo a layout transform.
 	//
-	if ( resource_id->data->type == LeResourceType::eImage ) {
+	if ( resource_id->get_type() == LeResourceType::eImage ) {
 		detectWrite |= bool( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 	}
 
@@ -198,7 +199,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 
 	if ( detectWrite ) {
 
-		if ( resource_id->data->type == LeResourceType::eImage &&
+		if ( resource_id->get_type() == LeResourceType::eImage &&
 		     resource_is_a_swapchain_handle( static_cast<le_image_resource_handle>( resource_id ) ) ) {
 			// A request to write to swapchain image automatically turns a pass into a root pass.
 			self->is_root = true;
@@ -523,7 +524,7 @@ static void rendergraph_generate_dot_diagram( le_rendergraph_o* self, char const
 		for ( size_t j = 0; j != p->resources.size(); j++ ) {
 			os << "<td cellpadding='3' port=\"";
 			auto const& r = p->resources[ j ];
-			os << r->data->debug_name << "\">";
+			os << r->get_debug_name() << "\">";
 			auto const& r_access = p->resources_access_flags[ j ];
 
 			{
@@ -558,9 +559,9 @@ static void rendergraph_generate_dot_diagram( le_rendergraph_o* self, char const
 
 				// if resource is being written to, then underline resource name
 				if ( is_explicit_write ) {
-					os << "<u>" << r->data->debug_name << "</u>";
+					os << "<u>" << r->get_debug_name() << "</u>";
 				} else {
-					os << " " << r->data->debug_name << "";
+					os << " " << r->get_debug_name() << "";
 				}
 			}
 
@@ -608,10 +609,10 @@ static void rendergraph_generate_dot_diagram( le_rendergraph_o* self, char const
 				     ( nodes[ k ].writes & nodes[ k ].reads & res_filter ).any() ) {
 
 					os << "\"" << nodes[ i ].debug_name << "_" << nodes[ i ].unique_id << "\":"
-					   << "\"" << needle->data->debug_name << "\""
+					   << "\"" << needle->get_debug_name() << "\""
 					   << ":s"
 					   << " -> \"" << nodes[ k ].debug_name << "_" << nodes[ k ].unique_id << "\":"
-					   << "\"" << needle->data->debug_name << "\""
+					   << "\"" << needle->get_debug_name() << "\""
 					   << ":n"
 					   << ( nodes[ k ].is_contributing == false ? "[style=dashed]" : "" )
 					   << ";" << std::endl;
@@ -773,7 +774,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			// this means that some reads to image resources are implicit read/writes.
 			// we can only get rid of this if we can prove that resources will not undergo a layout transform.
 			//
-			if ( resource_handle->data->type == LeResourceType::eImage ) {
+			if ( resource_handle->get_type() == LeResourceType::eImage ) {
 				detect_write |= bool( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 			}
 
@@ -870,7 +871,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 			{
 				logger.info( "Unique resources:" );
 				for ( size_t i = 0; i != known_unique_handles.size(); i++ ) {
-					logger.info( "%3d : %s", i, known_unique_handles[ i ]->data->debug_name );
+					logger.info( "%3d : %s", i, known_unique_handles[ i ]->get_debug_name() );
 				}
 			}
 			for ( size_t i = 0; i < root_count; i++ ) {
@@ -1036,7 +1037,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 
 			for ( size_t i = 0; i != numImageAttachments; ++i ) {
 				logger.info( "\t Attachment: '%s' [%10s | %10s]",
-				             pResources[ i ]->data->debug_name, //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
+				             pResources[ i ]->get_debug_name(), //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
 				             to_str( pImageAttachments[ i ].loadOp ),
 				             to_str( pImageAttachments[ i ].storeOp ) );
 			}

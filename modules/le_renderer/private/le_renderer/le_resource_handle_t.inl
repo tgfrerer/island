@@ -4,20 +4,6 @@
 #include <stdint.h>
 #include "le_renderer.h"
 
-struct le_buf_resource_usage_flags_t {
-	enum FlagBits : uint8_t {
-		eIsUnset   = 0,
-		eIsVirtual = 1u << 0,
-		eIsStaging = 1u << 1,
-	};
-};
-
-struct le_img_resource_usage_flags_t {
-	enum FlagBits : uint8_t {
-		eIsUnset = 0,
-		eIsRoot  = 1u << 0, // whether image, when used as a render target, is flagged as a root resource to the rendergraph
-	};
-};
 
 struct le_resource_handle_data_t {
 	LeResourceType        type;                        // type controls which of the following fields are used.

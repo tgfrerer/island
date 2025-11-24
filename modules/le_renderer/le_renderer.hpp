@@ -496,7 +496,8 @@ class RenderPass {
 class RenderGraph : NoCopy, NoMove {
 
 	le_rendergraph_o* self;
-	const bool        is_reference = false;
+
+	const bool is_reference = false;
 
   public:
 	RenderGraph()
