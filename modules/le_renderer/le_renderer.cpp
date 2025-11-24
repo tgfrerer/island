@@ -374,6 +374,12 @@ static le_bindless_storage_image_handle renderer_allocate_bindless_storage_image
 // `num_bindless_resources`.
 static void renderer_get_resources_for_bindless_resources( le_renderer_o* self, le_bindless_resource_handle const* bindless_resources, uint32_t num_bindless_resources, le_resource_handle* p_out ) {
 
+	/*
+	 * TODO: we should be able to make this simpler now, if we make the bindless resource
+	 * hold the reference to the parent resource in the low 32 bits of its handle
+	 * then this should be just a mask operation.
+	 */
+
 	auto bindless_resources_end = bindless_resources + num_bindless_resources;
 
 	for ( le_bindless_resource_handle const* r = bindless_resources; r != bindless_resources_end; r++, p_out++ ) {
@@ -1258,6 +1264,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.allocate_bindless_texture      = renderer_allocate_bindless_texture;
 	le_renderer_i.allocate_bindless_sampler       = renderer_allocate_bindless_sampler;
 	le_renderer_i.allocate_bindless_storage_image = renderer_allocate_bindless_storage_image;
+
 	le_renderer_i.get_resources_for_bindless_resources = renderer_get_resources_for_bindless_resources;
 
 	auto& helpers_i = le_renderer_api_i->helpers_i;
