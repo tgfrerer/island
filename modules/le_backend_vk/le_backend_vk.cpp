@@ -2877,7 +2877,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 /// - stagingAllocator.buffers[index] if staging,
 /// otherwise, fetch from frame available resources based on an id lookup.
 static inline VkBuffer frame_data_get_buffer_from_le_resource_id( BackendFrameData const* frame, le_buffer_resource_handle const buffer ) {
-	if ( buffer->get_usage_flags() == uint8_t( le_buffer_resource_handle_t::eIsVirtual ) ) {
+	if ( buffer->get_usage_flags() == le_buffer_resource_handle_t::eIsVirtual ) {
 		return frame->allocatorBuffers[ buffer->get_idx() ];
 	} else if ( buffer->get_usage_flags() == uint8_t( le_buffer_resource_handle_t::eIsStaging ) ) {
 		return frame->stagingAllocator->buffers[ buffer->get_idx() ];
