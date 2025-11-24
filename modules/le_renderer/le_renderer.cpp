@@ -170,7 +170,7 @@ class bindless_resources_store_t {
 
 	inline H make_handle( uint64_t idx, uint64_t version ) {
 		assert( idx <= ( 0xfffff ) );
-		return reinterpret_cast<H>( ( uint64_t( idx ) << 12 ) | ( std::remove_pointer<H>::type::resource_type_id << 8 ) | ( uint64_t( version ) & 0xFF ) );
+		return reinterpret_cast<H>( ( uint64_t( idx ) << 12 ) | ( uint64_t( std::remove_pointer<H>::type::resource_type_id ) << 8 ) | ( uint64_t( version ) & 0xFF ) );
 	};
 
   public:

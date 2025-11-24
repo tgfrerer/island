@@ -43,7 +43,7 @@ enum class le_bindless_resource_type : uint32_t {
 };
 
 struct le_bindless_resource_handle_t {
-	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eUndefined );
+	static constexpr auto resource_type_id = le_bindless_resource_type::eUndefined;
 
 	/*
 	 * BEWARE: for all of these "member fucntions", `this` is not a real pointer,
@@ -78,15 +78,15 @@ struct le_bindless_resource_handle_t {
 };
 
 struct le_bindless_texture_handle_t : le_bindless_resource_handle_t {
-	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eCombinedImageSampler );
+	static constexpr auto resource_type_id = le_bindless_resource_type::eCombinedImageSampler;
 };
 
 struct le_bindless_sampler_handle_t : le_bindless_resource_handle_t {
-	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eSampler );
+	static constexpr auto resource_type_id = le_bindless_resource_type::eSampler;
 };
 
 struct le_bindless_storage_image_handle_t : le_bindless_resource_handle_t {
-	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eStorageImage );
+	static constexpr auto resource_type_id = le_bindless_resource_type::eStorageImage;
 };
 
 // ------------ handles
