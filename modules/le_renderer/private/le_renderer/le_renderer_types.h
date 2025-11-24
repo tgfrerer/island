@@ -100,7 +100,6 @@ enum class LeResourceType : uint32_t {
 };
 
 LE_OPAQUE_HANDLE( le_resource_handle );        // generic resource handle
-LE_OPAQUE_HANDLE( le_texture_handle );         // combined sampler image
 LE_OPAQUE_HANDLE( le_image_resource_handle );  // image
 LE_OPAQUE_HANDLE( le_buffer_resource_handle ); // buffer
 LE_OPAQUE_HANDLE( le_blas_resource_handle );   // ray tracing bottom level acceleration structure
@@ -114,6 +113,10 @@ struct le_image_resource_handle_t : le_resource_handle_t {};
 struct le_buffer_resource_handle_t : le_resource_handle_t {};
 struct le_blas_resource_handle_t : le_resource_handle_t {};
 struct le_tlas_resource_handle_t : le_resource_handle_t {};
+// A texture handle is different from image or resource handles in so far
+// as that it is purely symbolic. Only when used with a renderpass, it
+// references info for ImageView + Sampler, and then only for this renderpass.
+LE_OPAQUE_HANDLE( le_texture_handle );
 
 // A graphics pipeline handle is an opaque handle to a *pipeline state* object.
 // Note that the pipeline state is different from the actual pipeline, as the
