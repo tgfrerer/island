@@ -150,9 +150,9 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 		bool is_implicit_write = ( r_acc & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 		bool is_explicit_write = ( r_acc & LE_ALL_WRITE_ACCESS_FLAGS );
 		bool is_write          = is_implicit_write | is_explicit_write;
-		bool is_root_resource  = r->data->type == LeResourceType::eImage && ( r->data->flags & le_img_resource_usage_flags_t::eIsRoot );
+		bool is_root_resource  = r->get_type() == LeResourceType::eImage && ( reinterpret_cast<le_image_resource_handle>( r )->get_is_root() );
 
-		std::string resource_name = std::string( r->data->debug_name );
+		std::string resource_name = std::string( r->get_debug_name() );
 
 		std::vector<uint32_t> resource_name_cp;
 		le_font::le_utf8_iterator( resource_name.c_str(), &resource_name_cp, cp_callback );
@@ -166,7 +166,7 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 			encoder_text_cache.colour_rgba( c_colour_resource_root_image );
 
 		} else {
-			if ( r->data->type == LeResourceType::eImage ) {
+			if ( r->get_type() == LeResourceType::eImage ) {
 				encoder_text_cache.colour_rgba( c_colour_resource_image );
 			} else {
 				encoder_text_cache.colour_rgba( c_colour_resource_buffer );
@@ -205,7 +205,7 @@ RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp,
 		bool is_implicit_write = ( r_acc & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 		bool is_explicit_write = ( r_acc & LE_ALL_WRITE_ACCESS_FLAGS );
 		bool is_write          = is_implicit_write | is_explicit_write;
-		bool is_root_resource  = r->data->type == LeResourceType::eImage && ( r->data->flags & le_img_resource_usage_flags_t::eIsRoot );
+		bool is_root_resource  = r->get_type() == LeResourceType::eImage && ( reinterpret_cast<le_image_resource_handle>( r )->get_is_root() );
 
 		if ( is_read ) {
 			in_ports.push_back( getPortForResource( r, true ) );
