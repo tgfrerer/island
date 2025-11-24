@@ -5,7 +5,6 @@
 #include "le_renderer.h"
 #include "le_renderer.hpp"
 #include "le_2d.h"
-#include "le_shader_compiler.h"
 #include "le_pipeline_builder.h"
 #include "glm/glm.hpp"
 #include "le_font.h"
@@ -209,7 +208,7 @@ static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergra
 		auto [ it, did_emplace ] = self->renderpass_views_cache.emplace( rp_hash, nullptr );
 
 		if ( did_emplace ) {
-			it->second = new RenderPassView( &self->font, p, self->epoch );
+			it->second = new RenderPassView( self->renderer, &self->font, p, self->epoch );
 		} else {
 			// Mark this RenderpassView as being used in this epoch -
 			// this means that cache control should not delete it yet...
