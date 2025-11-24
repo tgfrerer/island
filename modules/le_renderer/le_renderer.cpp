@@ -444,7 +444,10 @@ le_resource_handle renderer_produce_resource_handle(
 
 	uint32_t idx = index;
 
-	if ( resource_type != LeResourceType::eBuffer && flags == le_buffer_resource_handle_t::eIsUnset ) {
+	if ( resource_type == LeResourceType::eBuffer && ( flags != le_buffer_resource_handle_t::eIsUnset ) ) {
+		// this is a virtual resource
+		idx = index;
+	} else {
 
 		le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
 		p_data->flags                     = flags;
