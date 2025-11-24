@@ -212,7 +212,7 @@ class WriteToImageSettingsBuilder {
 
 // ---------
 
-class Renderer {
+class Renderer : NoMove, NoCopy {
 
 	le_renderer_o* self;
 
