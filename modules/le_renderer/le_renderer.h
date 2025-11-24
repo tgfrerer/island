@@ -72,7 +72,7 @@ struct le_renderer_api {
         char const *                   ( *texture_handle_get_name )(le_texture_handle handle);
 
         le_buffer_resource_handle (*produce_buf_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t flags, uint16_t index);
-        le_image_resource_handle (*produce_img_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t num_samples, le_image_resource_handle reference_handle, uint8_t flags);
+        le_image_resource_handle  (*produce_img_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t num_samples, le_image_resource_handle reference_handle, uint8_t flags);
 
         le_tlas_resource_handle (*produce_tlas_resource_handle)(le_renderer_o* self, char const * maybe_name);
         le_blas_resource_handle (*produce_blas_resource_handle)(le_renderer_o* self, char const * maybe_name);
