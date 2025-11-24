@@ -16,8 +16,6 @@
 #include "le_backend_vk.h"
 #include "le_tracy.h"
 
-#include "private/le_renderer/le_resource_handle_t.inl"
-
 static constexpr auto LOGGER_LABEL = "le_rendergraph";
 static constexpr uint32_t C_REQUIRES_TRANSIENT_IMAGE_VIEW = 1;
 

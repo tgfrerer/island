@@ -17,8 +17,6 @@
 
 #include "private/le_rendergraph_visualizer/views.h"
 
-#include "private/le_renderer/le_resource_handle_t.inl"
-
 #include <algorithm> // for copy_if
 #include <iterator>
 

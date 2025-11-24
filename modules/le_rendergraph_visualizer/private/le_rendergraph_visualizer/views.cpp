@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 #include "private/le_renderer/le_rendergraph.h"
-#include "private/le_renderer/le_resource_handle_t.inl"
 
 #include <sstream>
 #include "shared_constants.inl"
@@ -45,8 +44,9 @@ static void path_arc_to( void* user_data, glm::vec2 const* p, glm::vec2 const* r
 
 // ----------------------------------------------------------------------
 
-RenderPassView::RenderPassView( le::Font* const font, le_renderpass_o const* rp, uint32_t epoch_ )
-    : pFont( font )
+RenderPassView::RenderPassView( le_renderer_o* renderer, le::Font* const font, le_renderpass_o const* rp, uint32_t epoch_ )
+    : renderer( renderer )
+    , pFont( font )
     , epoch( epoch_ )
     , name( rp->debug_name )
     , is_contributing( rp->is_contributing )

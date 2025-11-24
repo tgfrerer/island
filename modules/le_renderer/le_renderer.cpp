@@ -21,7 +21,11 @@
 // #include <bitset>
 #include <forward_list>
 
-#include "private/le_renderer/le_resource_handle_t.inl"
+struct le_resource_handle_data_t {
+	le_resource_handle handle     = {}; // original handle -- so that we can compare versions
+	std::string        debug_name = {}; // space for 47 chars + \0
+};
+
 #include "private/le_renderer/le_rendergraph.h"
 
 #include "le_tracy.h"

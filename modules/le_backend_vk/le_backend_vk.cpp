@@ -7,7 +7,6 @@
 #include "le_swapchain_vk.h"
 // #include "le_window.h"
 #include "le_renderer.h"
-#include "private/le_renderer/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
 #include "le_tracy.h"

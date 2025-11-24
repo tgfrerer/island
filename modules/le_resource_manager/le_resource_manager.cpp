@@ -11,9 +11,6 @@
 
 #include <unordered_map>
 
-// only used to print debug messages:
-#include "private/le_renderer/le_resource_handle_t.inl"
-
 #include "shared/interfaces/le_image_decoder_interface.h"
 
 static le::Log& logger() {
