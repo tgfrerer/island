@@ -31,6 +31,7 @@ struct le_image_decoder_format_o {
 
 struct le_resource_manager_o {
 
+	le_renderer_o* const renderer;
 	le_file_watcher_o* file_watcher = nullptr;
 
 	struct image_data_layer_t {
@@ -254,8 +255,8 @@ static void le_resource_manager_file_watcher_callback( char const* path, void* u
 
 // ----------------------------------------------------------------------
 
-static le_resource_manager_o* le_resource_manager_create() {
-	auto self = new le_resource_manager_o{};
+static le_resource_manager_o* le_resource_manager_create( le_renderer_o* renderer ) {
+	auto self = new le_resource_manager_o{ renderer };
 
 	// Register default file types with resource manager -
 	// the decoder for these files is provided by le_pixels

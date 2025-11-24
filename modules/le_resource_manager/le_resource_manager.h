@@ -108,6 +108,7 @@ If you want to load a 3D image, say, for a LUT, you can do the following:
 
 #include "le_core.h"
 
+struct le_renderer_o;
 struct le_resource_manager_o;
 struct le_rendergraph_o;             // ffdecl. (from le_renderer)
 struct le_resource_info_t;           // ffdecl. (from le_renderer)
@@ -120,7 +121,7 @@ struct le_resource_manager_api {
 
 	struct le_resource_manager_interface_t {
 
-		le_resource_manager_o *  ( * create    ) ( );
+		le_resource_manager_o *  ( * create    ) ( le_renderer_o* renderer);
 		void                     ( * destroy   ) ( le_resource_manager_o* self );
 		void                     ( * update    ) ( le_resource_manager_o* self, le_rendergraph_o* rendergraph);
 		void                     ( * add_item  ) ( le_resource_manager_o* self, le_image_resource_handle const image_handle, le_resource_info_t const * image_info, char const ** arr_image_paths, bool should_watch);
@@ -153,8 +154,8 @@ class LeResourceManager : NoCopy, NoMove {
 	le_resource_manager_o* self;
 
   public:
-	LeResourceManager()
-	    : self( le_resource_manager::le_resource_manager_i.create() ) {
+	LeResourceManager( le_renderer_o* renderer )
+	    : self( le_resource_manager::le_resource_manager_i.create( renderer ) ) {
 	}
 
 	~LeResourceManager() {
