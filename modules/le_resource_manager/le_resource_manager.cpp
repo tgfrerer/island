@@ -438,7 +438,7 @@ static void le_resource_manager_add_item( le_resource_manager_o*         self,
 		        item.image_info.image.extent.depth != 0 &&
 		        "Image extents for resource are not valid." );
 	} else {
-		logger().error( "Resource '%s' was added more than once.", image_handle->data->debug_name );
+		logger().error( "Resource '%s' was added more than once.", image_handle->get_debug_name() );
 	}
 }
 
@@ -459,7 +459,7 @@ static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_ima
 	auto it = self->resources.find( resource_handle );
 
 	if ( it == self->resources.end() ) {
-		logger().warn( "Could not remove resource. Resource '%s' not found.", resource_handle->data->debug_name );
+		logger().warn( "Could not remove resource. Resource '%s' not found.", resource_handle->get_debug_name() );
 		return false;
 	}
 
