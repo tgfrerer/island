@@ -49,7 +49,7 @@ struct compute_example_app_o {
 
 	le::Camera                camera;
 	le::CameraController      cameraController;
-	le::RendergraphVisualizer rendergraph_visualizer{ true, 1024, 1024 }; // don't show initially, window_width, window_height
+	le::RendergraphVisualizer rendergraph_visualizer{ renderer, true, 1024, 1024 }; // don't show initially, window_width, window_height
 	le::Timebase              timebase;
 };
 
@@ -92,6 +92,8 @@ static compute_example_app_o* compute_example_app_create() {
 
 	// Set up the camera
 	reset_camera( app );
+
+	auto& renderer = app->renderer; // TODO: fixme - this is needed for the LE_BUF_RESOURCE macro -- and very ugly.
 
 	app->gpu_mesh = new GpuMeshData{
 	    LE_BUF_RESOURCE( "vertex_buffer" ),
