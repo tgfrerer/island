@@ -1785,11 +1785,9 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		// The "original" image resource will then be mapped to a resolve attachment further down.
 		//
 
-		// if ( numSamplesLog2 != 0 ) {
-		// 	img_resource = le_renderer::renderer_i.produce_img_resource_handle(
-		// 	    renderer,
-		// 	    img_resource->data->debug_name, uint8_t( numSamplesLog2 ), img_resource, 0 );
-		// }
+		if ( numSamplesLog2 != 0 ) {
+			img_resource = img_resource->clone_with_num_samples( numSamplesLog2 );
+		}
 
 		auto& syncChain = frame.syncChainTable[ img_resource ];
 
@@ -3894,15 +3892,11 @@ static void insert_msaa_versions( le_backend_o*                                 
 
 				// we need to create an extra multisampling resource for this given resource - but only
 				// if the multisampling resource does not yet exist.
-				// we then need a method to find the resource again
 
-				// instead of creating a handle, we should place the resource into an array of msaa
-				// extra resources per frame.
-
-				le_resource_handle resource_copy =
-				    le_renderer::renderer_i.produce_img_resource_handle(
-				        self->renderer,
-				        ar.first->get_debug_name(), sample_count_log_2, static_cast<le_image_resource_handle>( ar.first ), 0 );
+				// the handle for the msaa image is the same as for it's parent image with the
+				// distinciton that it has a different sample count. that way we can retrieve
+				// the parent image from the derived image down the line.
+				auto resource_copy = reinterpret_cast<le_image_resource_handle>( ar.first )->clone_with_num_samples( sample_count_log_2 );
 
 				le_resource_info_t resource_info_copy      = ar.second;
 				resource_info_copy.image.sample_count_log2 = sample_count_log_2;

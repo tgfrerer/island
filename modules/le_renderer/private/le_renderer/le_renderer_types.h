@@ -202,6 +202,13 @@ struct le_image_resource_handle_t : le_resource_handle_t {
 		return get_usage_flags() == UsageFlagBits::eIsRoot;
 	}
 
+	inline le_image_resource_handle_t* clone_with_num_samples( uint8_t num_samples ) {
+		void const* p      = this;
+		uint64_t    handle = reinterpret_cast<uint64_t&>( p );
+		handle |= ( uint64_t( num_samples ) & 0x3 ) << 32; // 2 bits = 34
+		return reinterpret_cast<le_image_resource_handle_t*>( handle );
+	};
+
 	// this may also be used for buffer flags in case we have a buffer handle
 	inline uint32_t get_num_samples() { // 2 bits (max: 3)
 		void const* p           = this;
