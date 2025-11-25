@@ -1101,7 +1101,7 @@ static le_swapchain_handle backend_add_swapchain( le_backend_o* self, le_swapcha
 	swapchain_data.width                    = swapchain_i.get_image_width( swapchain );
 	swapchain_data.image_count              = uint32_t( swapchain_i.get_image_count( swapchain ) );
 	swapchain_data.swapchain_image =
-	    le_renderer::renderer_i.produce_img_resource_handle( self->renderer, swapchain_name, 0, nullptr, le_image_resource_handle_t::eIsRoot );
+	    le_renderer::renderer_i.create_img_resource_handle( self->renderer, swapchain_name, 0, le_image_resource_handle_t::eIsRoot );
 
 	if ( swapchain_data.image_count != backend_settings->data_frames_count ) {
 		// If this is called between when the backend_initialize and setup, this
@@ -1343,7 +1343,7 @@ static le_image_resource_handle backend_get_swapchain_resource_default( le_backe
 static inline le_buffer_resource_handle declare_resource_virtual_buffer( le_backend_o* self, uint8_t index ) {
 
 	le_buffer_resource_handle resource =
-	    le_renderer::renderer_i.produce_buf_resource_handle( self->renderer, "Encoder-Virtual", le_buffer_resource_handle_t::eIsVirtual, index );
+	    le_renderer::renderer_i.create_buf_resource_handle( self->renderer, "Encoder-Virtual", le_buffer_resource_handle_t::eIsVirtual, index );
 
 	return resource;
 }
@@ -1524,7 +1524,7 @@ static void backend_initialise( le_backend_o* self ) {
 		}
 	}
 
-	self->rtx_scratch_buffer_handle = le_renderer_api_i->le_renderer_i.produce_buf_resource_handle( self->renderer, "le_rtx_scratch_buffer_handle", 0, 0 ); // opaque handle for rtx scratch buffer
+	self->rtx_scratch_buffer_handle = le_renderer_api_i->le_renderer_i.create_buf_resource_handle( self->renderer, "le_rtx_scratch_buffer_handle", 0, 0 ); // opaque handle for rtx scratch buffer
 
 	if ( self->must_track_resources_queue_family_ownership ) {
 		le::Log( LOGGER_LABEL ).info( "Multiple queue families detected - tracking queue ownership per-resource." );
@@ -3587,9 +3587,9 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 		while ( staging_buffers.size() < self->allocations.size() ) {
 			size_t index = staging_buffers.size();
 			staging_buffers.emplace_back(
-			    le_renderer::renderer_i.produce_buf_resource_handle( self->renderer,
-			                                                         "Le-Staging-Buffer",
-			                                                         le_buffer_resource_handle_t::eIsStaging, uint32_t( index ) ) );
+			    le_renderer::renderer_i.create_buf_resource_handle( self->renderer,
+			                                                        "Le-Staging-Buffer",
+			                                                        le_buffer_resource_handle_t::eIsStaging, uint32_t( index ) ) );
 		}
 
 		*resource_handle = staging_buffers[ allocationIndex ];

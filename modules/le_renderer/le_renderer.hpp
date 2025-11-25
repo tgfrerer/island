@@ -281,6 +281,10 @@ class Renderer : NoMove, NoCopy {
 		return le_renderer::renderer_i.get_swapchain_extent( self, swapchain, pWidth, pHeight );
 	}
 
+	le_image_resource_handle createImageResourceHandle() {
+		// return le_renderer::renderer_i.create_img_resource_handle(self, name, num_samples,)
+	}
+
 	le_bindless_texture_handle allocateBindlessTexture( le_image_sampler_info_t const& image_sampler ) {
 		return le_renderer::renderer_i.allocate_bindless_texture( self, &image_sampler );
 	}

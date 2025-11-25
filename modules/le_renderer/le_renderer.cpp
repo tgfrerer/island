@@ -219,8 +219,13 @@ class bindless_resources_store_t {
 
 	// --------------
 
-	typedef void ( *backend_push_fn_t )( le_backend_o* self, uint32_t frame_index, D const* const texture_data, size_t texture_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+	typedef void ( *backend_push_fn_t )( le_backend_o* self, uint32_t frame_index, D const* const bindless_resource_data, size_t bindless_resource_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
 
+	// This method gets called from the renderer just after RECORD
+	// and allows us to push any updates that have happened to the
+	// local store of bindless resources to the backend, so that the
+	// backend can update its bindless resources for the current
+	// frame accordingly.
 	void push_to_backend( le_backend_o* backend, uint32_t frame_index, backend_push_fn_t backend_push_fn ) {
 
 		if ( this->bindless_resource_updates.empty() ) {
@@ -399,10 +404,9 @@ le_resource_handle renderer_produce_resource_handle(
     le_renderer_o*        renderer,
     char const*           maybe_name,
     LeResourceType const& resource_type,
-    uint8_t               num_samples      = 0,
-    uint8_t               flags            = 0,
-    uint16_t              index            = 0,
-    le_resource_handle    reference_handle = nullptr ) {
+    uint8_t               num_samples = 0,
+    uint8_t               flags       = 0,
+    uint16_t              index       = 0 ) {
 
 	le_resource_handle_store_t& resource_handle_library = renderer->resource_handle_store;
 
@@ -445,25 +449,25 @@ le_resource_handle renderer_produce_resource_handle(
 
 // ----------------------------------------------------------------------
 
-static le_image_resource_handle renderer_produce_img_resource_handle( le_renderer_o* renderer, char const* maybe_name, uint8_t num_samples, le_image_resource_handle reference_handle, uint8_t flags ) {
-	return static_cast<le_image_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eImage, num_samples, flags, 0, static_cast<le_resource_handle>( reference_handle ) ) );
+static le_image_resource_handle renderer_create_img_resource_handle( le_renderer_o* renderer, char const* maybe_name, uint8_t num_samples, uint8_t flags ) {
+	return static_cast<le_image_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eImage, num_samples, flags, 0 ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_buffer_resource_handle renderer_produce_buf_resource_handle( le_renderer_o* renderer, char const* maybe_name, uint8_t flags, uint16_t index ) {
+static le_buffer_resource_handle renderer_create_buf_resource_handle( le_renderer_o* renderer, char const* maybe_name, uint8_t flags, uint16_t index ) {
 	return static_cast<le_buffer_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_tlas_resource_handle renderer_produce_tlas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
+static le_tlas_resource_handle renderer_create_tlas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
 	return static_cast<le_tlas_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eRtxTlas ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_blas_resource_handle renderer_produce_blas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
+static le_blas_resource_handle renderer_create_blas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
 	return static_cast<le_blas_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eRtxBlas ) );
 }
 
@@ -1306,10 +1310,10 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
 	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
 
-	le_renderer_i.produce_img_resource_handle      = renderer_produce_img_resource_handle;
-	le_renderer_i.produce_buf_resource_handle      = renderer_produce_buf_resource_handle;
-	le_renderer_i.produce_tlas_resource_handle     = renderer_produce_tlas_resource_handle;
-	le_renderer_i.produce_blas_resource_handle     = renderer_produce_blas_resource_handle;
+	le_renderer_i.create_img_resource_handle  = renderer_create_img_resource_handle;
+	le_renderer_i.create_buf_resource_handle  = renderer_create_buf_resource_handle;
+	le_renderer_i.create_tlas_resource_handle = renderer_create_tlas_resource_handle;
+	le_renderer_i.create_blas_resource_handle = renderer_create_blas_resource_handle;
 
 	le_renderer_i.clone_resource_data_into = renderer_clone_resource_data_into;
 	le_renderer_i.get_resource_debug_name  = renderer_get_resource_debug_name;

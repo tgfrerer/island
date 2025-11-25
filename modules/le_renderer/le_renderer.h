@@ -29,10 +29,10 @@ LE_OPAQUE_HANDLE( le_shader_module_handle );
 LE_OPAQUE_HANDLE( le_swapchain_handle );
 
 #define LE_BUF_RESOURCE( x ) \
-	le_renderer::renderer_i.produce_buf_resource_handle( renderer, ( x ), 0, 0 )
+	le_renderer::renderer_i.create_buf_resource_handle( renderer, ( x ), 0, 0 )
 
 #define LE_IMG_RESOURCE( x ) \
-	le_renderer::renderer_i.produce_img_resource_handle( renderer, ( x ), 0, 0, 0 )
+	le_renderer::renderer_i.create_img_resource_handle( renderer, ( x ), 0, 0 )
 
 #define LE_TEXTURE( x ) \
 	le_renderer::renderer_i.produce_texture_handle( renderer, ( x ) )
@@ -72,11 +72,11 @@ struct le_renderer_api {
         le_texture_handle              ( *produce_texture_handle  )(le_renderer_o* self, char const * maybe_name );
         char const *                   ( *texture_handle_get_name )(le_texture_handle handle);
 
-        le_buffer_resource_handle (*produce_buf_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t flags, uint16_t index);
-        le_image_resource_handle  (*produce_img_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t num_samples, le_image_resource_handle reference_handle, uint8_t flags);
+        le_buffer_resource_handle (*create_buf_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t flags, uint16_t index);
+        le_image_resource_handle  (*create_img_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t num_samples, uint8_t flags);
 
-        le_tlas_resource_handle (*produce_tlas_resource_handle)(le_renderer_o* self, char const * maybe_name);
-        le_blas_resource_handle (*produce_blas_resource_handle)(le_renderer_o* self, char const * maybe_name);
+        le_tlas_resource_handle (*create_tlas_resource_handle)(le_renderer_o* self, char const * maybe_name);
+        le_blas_resource_handle (*create_blas_resource_handle)(le_renderer_o* self, char const * maybe_name);
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const* flags);
