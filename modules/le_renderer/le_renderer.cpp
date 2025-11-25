@@ -429,7 +429,7 @@ le_resource_handle renderer_produce_resource_handle(
 	// ---------| invariant: resource is not virtual
 
 	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
-	p_data->debug_name                = maybe_name;
+	p_data->debug_name                = maybe_name ? maybe_name : "";
 
 	idx = resource_handle_library.resource_handles.size();
 
