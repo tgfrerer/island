@@ -289,6 +289,12 @@ class Renderer : NoMove, NoCopy {
 		return le_renderer::renderer_i.create_buf_resource_handle( self, name, flags, index );
 	}
 
+	le_texture_handle produceTextureHandle( const char* name = nullptr ) {
+		return le_renderer::renderer_i.produce_texture_handle( self, name );
+	}
+
+	//
+
 	le_bindless_texture_handle allocateBindlessTexture( le_image_sampler_info_t const& image_sampler ) {
 		return le_renderer::renderer_i.allocate_bindless_texture( self, &image_sampler );
 	}
