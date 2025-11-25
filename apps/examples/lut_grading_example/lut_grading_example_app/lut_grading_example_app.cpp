@@ -19,10 +19,10 @@ struct lut_grading_example_app_o {
 	float    mouse_x_normalised = 0.5; // current mouse x control point, normalised over width of window
 	uint32_t mouse_button_state = 0;   // state of all mouse buttons - this uint32 is used as an array of 32 bools, really.
 
-	LeResourceManager      resource_manager;
-	le_image_resource_handle image_0              = LE_IMG_RESOURCE( "image_0" );
-	le_image_resource_handle image_1              = LE_IMG_RESOURCE( "image_1" );
-	le_image_resource_handle image_lut            = LE_IMG_RESOURCE( "lut_image" );
+	LeResourceManager        resource_manager{ renderer };
+	le_image_resource_handle image_0   = renderer.createImageResourceHandle( "image_0" );
+	le_image_resource_handle image_1   = renderer.createImageResourceHandle( "image_1" );
+	le_image_resource_handle image_lut = renderer.createImageResourceHandle( "lut_image" );
 
 	le::Extent2D               window_extents;
 	le_bindless_texture_handle tex_0 = nullptr;
@@ -155,7 +155,6 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	if ( nullptr == self->swapchain_handle ) {
 		self->swapchain_handle = self->renderer.getSwapchainResource();
 	}
-	auto t = self->tex_0->get_type();
 
 	if ( self->tex_0 == nullptr ) {
 		self->tex_0 = self->renderer.allocateBindlessTexture(
@@ -240,8 +239,6 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 		        push_constant_data.tex_0   = app->tex_0->as_uint32();
 		        push_constant_data.tex_1   = app->tex_1->as_uint32();
 		        push_constant_data.tex_lut = app->lut_0->as_uint32();
-
-		        auto t = app->tex_0->get_type();
 
 		        encoder
 		            .bindGraphicsPipeline( pipelineLutGradingExample )

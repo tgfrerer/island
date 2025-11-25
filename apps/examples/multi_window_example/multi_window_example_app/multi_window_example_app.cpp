@@ -484,6 +484,11 @@ static bool app_update( multi_window_example_app_o* self ) {
 	    nullptr,
 	};
 
+	static le_image_resource_handle DEPTH_BUFFER[ 2 ]{
+	    self->renderer.createImageResourceHandle( "DEPTH_BUFFER_0" ),
+	    self->renderer.createImageResourceHandle( "DEPTH_BUFFER_1" ),
+	};
+
 	for ( auto& [ idx, window ] : self->windows ) {
 		IMG_SWAP[ idx ] = self->renderer.getSwapchainResource( window.swapchain );
 	}
@@ -503,14 +508,14 @@ static bool app_update( multi_window_example_app_o* self ) {
 		auto renderPassMain =
 		    le::RenderPass( "to_window_0", le::QueueFlagBits::eGraphics )
 		        .addColorAttachment( IMG_SWAP[ 0 ], attachmentInfo[ 0 ] ) // IMG_SWAP_0 == swapchain 0 attachment
-		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ) )
+		        .addDepthStencilAttachment( DEPTH_BUFFER[ 0 ] )
 		        .setSampleCount( le::SampleCountFlagBits::e4 ) //
 		        .setExecuteCallback( self, pass_to_window_0 )  //
 		    ;
 
 		renderGraph
 		    .addRenderPass( renderPassMain )
-		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_0" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    .declareResource( DEPTH_BUFFER[ 0 ], le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 
 		// Define a renderpass, which outputs to window_1. Note that it uses
@@ -518,14 +523,14 @@ static bool app_update( multi_window_example_app_o* self ) {
 		auto renderPassSecond =
 		    le::RenderPass( "to_window_1" )
 		        .addColorAttachment( IMG_SWAP[ 1 ], attachmentInfo[ 1 ] ) // IMG_SWAP_1 == swapchain 1 attachment
-		        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ) )
+		        .addDepthStencilAttachment( DEPTH_BUFFER[ 1 ] )
 		        .setSampleCount( le::SampleCountFlagBits::e4 ) //
 		        .setExecuteCallback( self, pass_to_window_1 )  //
 		    ;
 
 		renderGraph
 		    .addRenderPass( renderPassSecond )
-		    .declareResource( LE_IMG_RESOURCE( "DEPTH_BUFFER_1" ), le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
+		    .declareResource( DEPTH_BUFFER[ 1 ], le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 	}
 

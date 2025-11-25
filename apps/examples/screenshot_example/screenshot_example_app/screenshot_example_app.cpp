@@ -19,8 +19,6 @@
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/quaternion.hpp"
-
-#define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/easing.hpp"
 
 #include <iostream>
@@ -54,7 +52,7 @@ struct screenshot_example_app_o {
 	le_texture_handle        map_texture;
 	bool                     hide_help_text = false;
 	bool                     hide_grid      = false;
-	le::ResourceManager      resource_manager;
+	le::ResourceManager      resource_manager{ renderer };
 
 	le_screenshot_o* screen_grabber; // Object to easily save screenshots
 };
@@ -103,7 +101,7 @@ static screenshot_example_app_o* screenshot_example_app_create() {
 	{
 		// Load the map image via the resource manager
 
-		app->map_image   = LE_IMG_RESOURCE( "map_image" );
+		app->map_image   = app->renderer.createImageResourceHandle( "map_image" );
 		char const* path = "./local_resources/images/world_winter.jpg";
 		auto        image_info =
 		    le::ImageInfoBuilder()
@@ -111,7 +109,7 @@ static screenshot_example_app_o* screenshot_example_app_create() {
 		        .setImageType( le::ImageType::e2D )
 		        .build();
 
-		app->map_texture = LE_TEXTURE( "map_texture" );
+		app->map_texture = app->renderer.produceTextureHandle( "map_texture" );
 		app->resource_manager.add_item( app->map_image, image_info, &path, true );
 	}
 

@@ -96,8 +96,8 @@ static compute_example_app_o* compute_example_app_create() {
 	auto& renderer = app->renderer; // TODO: fixme - this is needed for the LE_BUF_RESOURCE macro -- and very ugly.
 
 	app->gpu_mesh = new GpuMeshData{
-	    LE_BUF_RESOURCE( "vertex_buffer" ),
-	    LE_BUF_RESOURCE( "index_buffer" ),
+	    renderer.createBufferResourceHandle( "vertex_buffer" ),
+	    renderer.createBufferResourceHandle( "index_buffer" ),
 	    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * sizeof( glm::vec4 ),    // vertex_num_bytes
 	    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * 6 * sizeof( uint16_t ), // indices_num_bytes
 	};
