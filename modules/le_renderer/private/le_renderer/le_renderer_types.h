@@ -280,6 +280,10 @@ struct le_tlas_resource_handle_t : le_resource_handle_t {
 // A texture handle is different from image or resource handles in so far
 // as that it is purely symbolic. Only when used with a renderpass, it
 // references info for ImageView + Sampler, and then only for this renderpass.
+//
+// Prefer using bindless resources over textures, as bindless resources
+// don't require the renderer to create temporary vulkan objects for each
+// pass, but persist their image views, and/or samplers.
 LE_OPAQUE_HANDLE( le_texture_handle );
 
 // A graphics pipeline handle is an opaque handle to a *pipeline state* object.
