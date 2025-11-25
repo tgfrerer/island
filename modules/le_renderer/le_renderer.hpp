@@ -281,8 +281,12 @@ class Renderer : NoMove, NoCopy {
 		return le_renderer::renderer_i.get_swapchain_extent( self, swapchain, pWidth, pHeight );
 	}
 
-	le_image_resource_handle createImageResourceHandle() {
-		// return le_renderer::renderer_i.create_img_resource_handle(self, name, num_samples,)
+	le_image_resource_handle createImageResourceHandle( const char* name = nullptr, uint8_t num_samples = 0, le_image_resource_handle_t::UsageFlagBits flags = {} ) {
+		return le_renderer::renderer_i.create_img_resource_handle( self, name, num_samples, flags );
+	}
+
+	le_buffer_resource_handle createBufferResourceHandle( const char* name = nullptr, le_buffer_resource_handle_t::UsageFlags flags = {}, uint16_t index = 0 ) {
+		return le_renderer::renderer_i.create_buf_resource_handle( self, name, flags, index );
 	}
 
 	le_bindless_texture_handle allocateBindlessTexture( le_image_sampler_info_t const& image_sampler ) {
