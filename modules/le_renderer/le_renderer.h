@@ -88,6 +88,8 @@ struct le_renderer_api {
 
 		void                            ( *get_resources_for_bindless_resources)(le_renderer_o * self, le_bindless_resource_handle const* bindless_resources, uint32_t num_bindless_resources, le_resource_handle* pp_out_resource_handles);
 
+		bool                           (*clone_resource_data_into)(le_renderer_o* self, le_resource_handle_data_t const ** p_resource_handle_data_t, size_t *num_elements);
+
 	};
 
 	struct helpers_interface_t {

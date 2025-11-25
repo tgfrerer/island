@@ -458,6 +458,39 @@ static le_tlas_resource_handle renderer_produce_tlas_resource_handle( le_rendere
 static le_blas_resource_handle renderer_produce_blas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
 	return static_cast<le_blas_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eRtxBlas ) );
 }
+
+// ----------------------------------------------------------------------
+// This copies an array of pointers pointing to debug data.
+// Internally, these pointers are owned by the renderer, and kept alive
+// for the duration of the lifetime of the program, and therefore you can
+// assume that they will never dangle, as long as the renderer is alive.
+//
+// It's possible that a resource gets reallocated and that the *content*
+// to which the pointer points to changes, but (the address of) the pointer
+// will remain constant throughout.
+//
+// In case a resource gets re-used, the pointer will not change, but the
+// content of the data pointed to by the pointer; most notably the version
+// will be different, which is how you can tell whether a handle is stale
+// or not - if the version inside the handle matches the version held in-
+// side the data, then the handle is valid, otherwise it is stale.
+static bool renderer_clone_resource_data_into( le_renderer_o* self, le_resource_handle_data_t const** p_resource_handle_data_t, size_t* num_elements ) {
+	std::unique_lock lock( self->resource_handle_store.mtx );
+
+	if ( *num_elements < self->resource_handle_store.resource_handles.size() ) {
+		*num_elements = self->resource_handle_store.resource_handles.size();
+		return false;
+
+	} else {
+		*num_elements = self->resource_handle_store.resource_handles.size();
+	}
+
+	// ----------| there are enough elements in the target vector to store all our data pointers
+
+	memcpy( p_resource_handle_data_t, self->resource_handle_store.resource_handles.data(), *num_elements * sizeof( le_resource_handle_data_t* ) );
+
+	return true;
+}
 // ----------------------------------------------------------------------
 
 static void renderer_destroy( le_renderer_o* self ) {
@@ -1248,11 +1281,13 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 
 	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
 	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
+
 	le_renderer_i.produce_img_resource_handle      = renderer_produce_img_resource_handle;
 	le_renderer_i.produce_buf_resource_handle      = renderer_produce_buf_resource_handle;
 	le_renderer_i.produce_tlas_resource_handle     = renderer_produce_tlas_resource_handle;
 	le_renderer_i.produce_blas_resource_handle     = renderer_produce_blas_resource_handle;
 
+	le_renderer_i.clone_resource_data_into = renderer_clone_resource_data_into;
 	// register sub-components of this api
 	register_le_rendergraph_api( api );
 
