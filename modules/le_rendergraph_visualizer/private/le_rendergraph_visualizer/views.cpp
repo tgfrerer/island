@@ -10,6 +10,13 @@
 #include <sstream>
 #include "shared_constants.inl"
 
+// THIS NEEDS TO BE KEPT IN SYNC WITH THE INTERNAL DATA TYPE USED BY THE RENDERER:
+//
+struct le_resource_handle_data_t {
+	le_resource_handle handle     = {}; // original handle -- so that we can compare versions
+	std::string        debug_name = {}; // space for 47 chars + \0
+};
+
 // ----------------------------------------------------------------------
 
 static void path_move_to( void* user_data, glm::vec2 const* p ) {
@@ -44,8 +51,9 @@ static void path_arc_to( void* user_data, glm::vec2 const* p, glm::vec2 const* r
 
 // ----------------------------------------------------------------------
 
-RenderPassView::RenderPassView( le_renderer_o* renderer, le::Font* const font, le_renderpass_o const* rp, uint32_t epoch_ )
-    : renderer( renderer )
+RenderPassView::RenderPassView( le_resource_handle_data_t const** data_arr_, size_t data_sz_, le::Font* const font, le_renderpass_o const* rp, uint32_t epoch_ )
+    : data_arr( data_arr_ )
+    , data_sz( data_sz_ )
     , pFont( font )
     , epoch( epoch_ )
     , name( rp->debug_name )
@@ -152,7 +160,14 @@ RenderPassView::RenderPassView( le_renderer_o* renderer, le::Font* const font, l
 		bool is_write          = is_implicit_write | is_explicit_write;
 		bool is_root_resource  = r->get_type() == LeResourceType::eImage && ( reinterpret_cast<le_image_resource_handle>( r )->get_is_root() );
 
-		std::string resource_name = std::string( r->get_debug_name() );
+		std::string resource_name =
+		    ( r->get_idx() < this->data_sz )
+		        ? this->data_arr[ r->get_idx() ]->debug_name
+		        : "";
+
+		if ( resource_name.empty() ) {
+			resource_name = "UNKNOWN";
+		}
 
 		std::vector<uint32_t> resource_name_cp;
 		le_font::le_utf8_iterator( resource_name.c_str(), &resource_name_cp, cp_callback );

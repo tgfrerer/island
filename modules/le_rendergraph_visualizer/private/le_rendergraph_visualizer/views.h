@@ -13,7 +13,8 @@ class Font;
 
 class RenderPassView {
 
-	le_renderer_o* const renderer;
+	le_resource_handle_data_t const** data_arr = nullptr;
+	size_t                            data_sz  = 0;
 	std::string   name  = {};
 	le::Font*     pFont = nullptr;    // weak, owned by rendergraph_visualizer
 	le::Encoder2D encoder_cache;      // owning, cache over all draw calls done for this view
@@ -37,7 +38,7 @@ class RenderPassView {
   public:
 	uint8_t epoch = 0; // last time this was updated (cache control)
 
-	RenderPassView( le_renderer_o* renderer, le::Font* const font, le_renderpass_o const* rp, uint32_t epoch );
+	RenderPassView( le_resource_handle_data_t const** data_arr, size_t data_sz, le::Font* const font, le_renderpass_o const* rp, uint32_t epoch );
 
 	inline float get_right_most_x() {
 		return right_most_x;

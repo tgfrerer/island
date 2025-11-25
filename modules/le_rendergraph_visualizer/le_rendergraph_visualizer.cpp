@@ -19,7 +19,7 @@
 #include <algorithm> // for copy_if
 #include <iterator>
 
-static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassViews to keep in the cache
+static constexpr size_t C_VIEWS_CACHE_CAPACITY              = 100;   // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_DISABLE_CACHE                     = false; // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 7;     // number of rendergraphs to store - max
 
@@ -198,6 +198,11 @@ static void list_renderpasses_as_text( le_rendergraph_o* rp_src ) {
 // ----------------------------------------------------------------------
 
 static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergraph_visualizer_o* self, std::vector<le_renderpass_o const*> const& passes, std::vector<uint64_t>& renderpass_hashes ) {
+
+	static std::vector<le_resource_handle_data_t const*> resource_data;
+	static size_t                                        resource_data_sz = 0;
+	bool                                                 did_clone        = false;
+
 	for ( auto const& p : passes ) {
 
 		uint64_t rp_hash = le_renderer_api_i->le_renderpass_i.get_hash( p );
@@ -208,7 +213,14 @@ static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergra
 		auto [ it, did_emplace ] = self->renderpass_views_cache.emplace( rp_hash, nullptr );
 
 		if ( did_emplace ) {
-			it->second = new RenderPassView( self->renderer, &self->font, p, self->epoch );
+
+			while ( did_clone == false && false == le_renderer_api_i->le_renderer_i.clone_resource_data_into( self->renderer, resource_data.data(), &resource_data_sz ) ) {
+				resource_data.resize( resource_data_sz );
+			}
+			did_clone = true;
+
+			it->second = new RenderPassView( resource_data.data(), resource_data_sz, &self->font, p, self->epoch );
+
 		} else {
 			// Mark this RenderpassView as being used in this epoch -
 			// this means that cache control should not delete it yet...
