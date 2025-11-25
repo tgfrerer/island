@@ -4486,10 +4486,16 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 			    .layerCount     = 1,
 			};
 
+			void* p_next = nullptr;
+
+			if ( imageFormat == le::Format::eG8B8R82Plane420Unorm ) {
+				p_next = ycbcr_conversion_info;
+			}
+
 			VkImageViewCreateInfo imageViewCreateInfo{
 			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			    .pNext            = nullptr, // optional
-			    .flags            = 0,       // optional
+			    .pNext            = p_next, // optional
+			    .flags            = 0,      // optional
 			    .image            = vk_resource_info.as.image,
 			    .viewType         = VkImageViewType( vk_resource_info.info.imageInfo.imageType ), // this is very crude, but at least it gets the dimensionality right
 			    .format           = VkFormat( imageFormat ),
