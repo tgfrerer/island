@@ -282,6 +282,14 @@ static le_renderer_o* renderer_create() {
 	using namespace le_backend_vk;
 	obj->backend = vk_backend_i.create( obj );
 
+	{
+		// initialize callback for resource debug name lookup -
+		// note that you should call this initialization logic
+		// again whenever you reload this module.
+		le_resource_handle null_handle = nullptr;
+		null_handle->get_debug_name( le_renderer_api_i->le_renderer_i.get_resource_debug_name, obj );
+	}
+
 	return obj;
 }
 
@@ -491,6 +499,22 @@ static bool renderer_clone_resource_data_into( le_renderer_o* self, le_resource_
 
 	return true;
 }
+
+// ----------------------------------------------------------------------
+
+static char const* renderer_get_resource_debug_name( le_renderer_o* self, le_resource_handle handle ) {
+	std::unique_lock lock( self->resource_handle_store.mtx );
+
+	size_t idx = handle->get_idx();
+
+	if ( idx < self->resource_handle_store.resource_handles.size() ) {
+		return self->resource_handle_store.resource_handles[ idx ]->debug_name.c_str();
+	} else {
+		static auto error_message = "Could not find resource in resource list";
+		return error_message;
+	}
+};
+
 // ----------------------------------------------------------------------
 
 static void renderer_destroy( le_renderer_o* self ) {
@@ -1288,9 +1312,12 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.produce_blas_resource_handle     = renderer_produce_blas_resource_handle;
 
 	le_renderer_i.clone_resource_data_into = renderer_clone_resource_data_into;
+	le_renderer_i.get_resource_debug_name  = renderer_get_resource_debug_name;
+
 	// register sub-components of this api
 	register_le_rendergraph_api( api );
 
 	register_le_command_buffer_encoder_api( api );
+
 	LE_LOAD_TRACING_LIBRARY;
 }

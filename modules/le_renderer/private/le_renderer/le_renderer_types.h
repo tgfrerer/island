@@ -156,10 +156,6 @@ struct le_resource_handle_t {
 		return reinterpret_cast<uint32_t&>( p );
 	}
 
-	inline const char* get_debug_name() {
-		static char const* debug_name = "debug name not yet implemented";
-		return debug_name;
-	}
 
 	inline uint32_t get_idx() {
 		void const* p = this;
@@ -179,7 +175,39 @@ struct le_resource_handle_t {
 		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) ) & 0x3f ); // 6bits
 	}
 
-	explicit operator uint32_t() {
+	typedef char const*( fn_renderer_get_resource_debug_name )( struct le_renderer_o * renderer, le_resource_handle handle );
+
+	// Call this function ONCE with parameters during setup -
+	// or whenever you reload your compilation unit.
+	const char* get_debug_name( fn_renderer_get_resource_debug_name* pfn_renderer_get_resource_debug_name_ = nullptr, struct le_renderer_o* renderer_ = nullptr ) {
+		static char const* debug_name = "get_debug_name(): callbacks not set for this compilation unit.";
+
+		// Store a local copy to the renderer - we expect the
+		// renderer to stay in this place for the duration of the program.
+		//
+		static struct le_renderer_o* renderer = renderer_;
+
+		// Store a local copy to the api entry for the renderer's method
+		// that allows us to retrieve a debug name.
+		//
+		// We store the address for the api entry so that we can be independent
+		// of hot-reloading: if the renderer gets hot-reloaded, the api entry
+		// will get updated automatically, and when we derefence it when calling
+		// the method, we will call the new version of the function.
+		static fn_renderer_get_resource_debug_name* pfn_renderer_get_resource_debug_name = pfn_renderer_get_resource_debug_name_;
+
+		if ( renderer_ || pfn_renderer_get_resource_debug_name_ ) {
+			return "Get debug name callback set successfully.";
+		}
+
+		if ( renderer && pfn_renderer_get_resource_debug_name ) {
+			return ( *pfn_renderer_get_resource_debug_name )( renderer, this );
+		}
+
+		return debug_name;
+	};
+
+	inline explicit operator uint32_t() {
 		return as_uint32();
 	}
 };

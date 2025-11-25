@@ -1578,6 +1578,13 @@ static void backend_setup( le_backend_o* self ) {
 		exit( 1 );
 	}
 
+	{
+		// TODO: Update this on hot-reload
+		// initialize resource debug name callback
+		le_resource_handle null_resource{};
+		null_resource->get_debug_name( le_renderer_api_i->le_renderer_i.get_resource_debug_name, self->renderer );
+	}
+
 	VkDevice         vkDevice         = self->device->getVkDevice();
 	VkPhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
 	VkInstance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
