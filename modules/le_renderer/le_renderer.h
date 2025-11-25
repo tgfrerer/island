@@ -20,6 +20,7 @@ struct le_pipeline_manager_o;
 struct le_command_stream_t; // ffdecl
 struct le_window_o;
 struct le_swapchain_settings_t;
+struct le_resource_handle_data_t;
 
 struct le_allocator_o;         // from backend
 struct le_staging_allocator_o; // from backend

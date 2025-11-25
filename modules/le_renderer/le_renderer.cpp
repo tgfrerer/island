@@ -111,36 +111,6 @@ static le_texture_handle_store_t* get_texture_handle_library( bool erase = false
 }
 
 
-static le_resource_handle_store_t* get_resource_handle_library( bool erase = false ) {
-	static le_resource_handle_store_t* resource_handle_library = nullptr;
-
-	if ( erase ) {
-		delete resource_handle_library;
-		void** resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
-		*resource_handle_library_ptr       = nullptr; // null pointer stored in global store
-		resource_handle_library            = nullptr; // null pointer stored in local store
-		return nullptr;                               // return nullptr
-	}
-
-	if ( resource_handle_library ) {
-		return resource_handle_library;
-	}
-
-	// ----------| Invariant: not yet in local store
-	void** resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
-
-	if ( *resource_handle_library_ptr ) {
-		// Found in global store
-		resource_handle_library = static_cast<le_resource_handle_store_t*>( *resource_handle_library_ptr );
-	} else {
-		// Not yet available in global store - create & make available.
-		resource_handle_library      = new le_resource_handle_store_t();
-		*resource_handle_library_ptr = resource_handle_library;
-	}
-
-	return resource_handle_library;
-}
-
 // -----------
 
 template <typename H, typename I, typename D>
@@ -288,6 +258,8 @@ struct le_renderer_o {
 	bindless_resources_store_t<le_bindless_sampler_handle, le_sampler_info_t, le_bindless_sampler_data_t>                bindless_sampler_store;
 	bindless_resources_store_t<le_bindless_storage_image_handle, le_image_view_info_t, le_bindless_storage_image_data_t> bindless_storage_image_store;
 
+	le_resource_handle_store_t resource_handle_store;
+
 	std::vector<FrameData>           frames;
 	size_t                           backendDataFramesCount = 0;
 	size_t                           currentFrameNumber     = 0;  // ever increasing number of current frame
@@ -320,7 +292,8 @@ static le_texture_handle renderer_produce_texture_handle( le_renderer_o* rendere
 
 	// lock handle library for reading/writing
 	static le_texture_handle_store_t* texture_handle_library = get_texture_handle_library();
-	std::scoped_lock                  lock( texture_handle_library->mtx );
+
+	std::scoped_lock lock( texture_handle_library->mtx );
 
 	le_texture_handle handle;
 
@@ -423,10 +396,10 @@ le_resource_handle renderer_produce_resource_handle(
     uint16_t              index            = 0,
     le_resource_handle    reference_handle = nullptr ) {
 
-	static le_resource_handle_store_t* resource_handle_library = get_resource_handle_library();
+	le_resource_handle_store_t& resource_handle_library = renderer->resource_handle_store;
 
 	// lock handle library for reading/writing
-	std::scoped_lock lock( resource_handle_library->mtx );
+	std::scoped_lock lock( resource_handle_library.mtx );
 
 	uint32_t idx = index;
 
@@ -446,13 +419,19 @@ le_resource_handle renderer_produce_resource_handle(
 	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
 	p_data->debug_name                = maybe_name;
 
-	idx = resource_handle_library->resource_handles.size();
+	idx = resource_handle_library.resource_handles.size();
 
 	resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
 	p_data->handle  = resource_handle;
 
+	if ( p_data->debug_name.empty() ) {
+		char debug_name[ 64 ] = {};
+		snprintf( debug_name, sizeof( debug_name ), "[%08lx]", uint64_t( p_data->handle ) );
+		p_data->debug_name = debug_name;
+	}
+
 	// Store the resource handle with our array of resource handles
-	resource_handle_library->resource_handles.emplace_back( p_data );
+	resource_handle_library.resource_handles.emplace_back( p_data );
 	return resource_handle;
 }
 
@@ -498,15 +477,13 @@ static void renderer_destroy( le_renderer_o* self ) {
 	get_texture_handle_library( false );
 
 	{
-		le_resource_handle_store_t* resource_handle_library = get_resource_handle_library();
-		if ( resource_handle_library ) {
-			// we must deallocate manually allocated data for resource handles
-			for ( auto& e : resource_handle_library->resource_handles ) {
-				delete ( e );
-			}
-			// Delete static pointer to resource handle library
-			get_resource_handle_library( true );
+		le_resource_handle_store_t& resource_handle_library = self->resource_handle_store;
+		// we must deallocate manually allocated data for resource handles
+		for ( auto& e : resource_handle_library.resource_handles ) {
+			delete ( e );
 		}
+
+		self->resource_handle_store.resource_handles.clear();
 	}
 
 	if ( self->backend ) {
