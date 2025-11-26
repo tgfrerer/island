@@ -86,7 +86,6 @@ struct le_renderer_api {
 		le_bindless_sampler_handle (* allocate_bindless_sampler )(le_renderer_o* self, le_sampler_info_t const * sampler_info);
 		le_bindless_storage_image_handle (* allocate_bindless_storage_image )(le_renderer_o* self, le_image_view_info_t const * storage_image_info);
 
-		void                            ( *get_resources_for_bindless_resources)(le_renderer_o * self, le_bindless_resource_handle const* bindless_resources, uint32_t num_bindless_resources, le_resource_handle* pp_out_resource_handles);
 
 		// Debug related methods:
 		char const *                   (*get_resource_debug_name )(le_renderer_o* self, le_resource_handle handle); 

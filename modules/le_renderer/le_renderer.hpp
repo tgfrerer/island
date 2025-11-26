@@ -307,9 +307,6 @@ class Renderer : NoMove, NoCopy {
 		return le_renderer::renderer_i.allocate_bindless_storage_image( self, &storage_image );
 	}
 
-	void resolveResourcesForBindlessResources( le_bindless_resource_handle const* p_bindless_resources, uint32_t num_bindless_resources, le_resource_handle* p_resource_handles ) {
-		le_renderer::renderer_i.get_resources_for_bindless_resources( self, p_bindless_resources, num_bindless_resources, p_resource_handles );
-	}
 
 	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {
 		le::Extent2D result{};
