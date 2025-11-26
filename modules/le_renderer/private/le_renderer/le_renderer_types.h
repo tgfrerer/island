@@ -33,6 +33,11 @@ LE_OPAQUE_HANDLE( le_bindless_texture_handle );
 LE_OPAQUE_HANDLE( le_bindless_sampler_handle );
 LE_OPAQUE_HANDLE( le_bindless_storage_image_handle );
 
+LE_OPAQUE_HANDLE( le_resource_handle );        // generic resource handle
+LE_OPAQUE_HANDLE( le_image_resource_handle );  // image
+LE_OPAQUE_HANDLE( le_buffer_resource_handle ); // buffer
+LE_OPAQUE_HANDLE( le_blas_resource_handle );   // ray tracing bottom level acceleration structure
+LE_OPAQUE_HANDLE( le_tlas_resource_handle );   // ray tracing top level acceleration structure
 
 enum class le_bindless_resource_type : uint32_t {
 	eUndefined            = 0,
@@ -45,8 +50,6 @@ enum class le_bindless_resource_type : uint32_t {
 struct le_bindless_resource_handle_t {
 	static constexpr auto resource_type_id = le_bindless_resource_type::eUndefined;
 
-	// return reinterpret_cast<H>( ( uint64_t( idx ) << 12 ) | ( uint64_t( std::remove_pointer<H>::type::resource_type_id ) << 8 ) | ( uint64_t( version ) & 0xFF ) );
-
 	/*
 	 * BEWARE: for all of these "member functions", `this` is not a real pointer,
 	 * but an opaque handle containing an unsigned integer - of which we do know
@@ -55,23 +58,28 @@ struct le_bindless_resource_handle_t {
 
 	inline uint32_t as_uint32() {
 		void const* p = this;
-		return reinterpret_cast<uint32_t&>( p );
+		return uint32_t( reinterpret_cast<uint64_t&>( p ) >> 32 );
 	}
 
 	inline uint32_t get_idx() {
 		void const* p = this;
-		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 12 ) & 0xfffff ); // 20 bits
+		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> ( 12 + 32 ) ) & 0xfffff ); // 20 bits
 	}
 
 	inline le_bindless_resource_type get_type() {
 		void const* p       = this;
-		uint32_t    type_id = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 8 ) & 0xf ); // 4 bits
+		uint32_t    type_id = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> ( 8 + 32 ) ) & 0xf ); // 4 bits
 		return le_bindless_resource_type( type_id );
 	}
 
 	inline uint32_t get_version() {
 		void const* p = this;
-		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) ) & 0xff ); // 8 bits
+		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 32 ) & 0xff ); // 8 bits
+	}
+
+	le_resource_handle get_parent_handle() {
+		void const* p = this;
+		return le_resource_handle( reinterpret_cast<uint64_t const&>( p ) & 0xffffffff ); // low 32 bits are the parent resource
 	}
 
 	explicit operator uint32_t() {
@@ -100,12 +108,6 @@ enum class LeResourceType : uint32_t {
 	eRtxBlas, // bottom level acceleration structure
 	eRtxTlas, // top level acceleration structure
 };
-
-LE_OPAQUE_HANDLE( le_resource_handle );        // generic resource handle
-LE_OPAQUE_HANDLE( le_image_resource_handle );  // image
-LE_OPAQUE_HANDLE( le_buffer_resource_handle ); // buffer
-LE_OPAQUE_HANDLE( le_blas_resource_handle );   // ray tracing bottom level acceleration structure
-LE_OPAQUE_HANDLE( le_tlas_resource_handle );   // ray tracing top level acceleration structure
 
 struct le_resource_handle_t {
 
