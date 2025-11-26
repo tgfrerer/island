@@ -431,8 +431,8 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass& useImageResource( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eRequiresTransient );
+	RenderPass& useImageResource( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& final_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | final_write_access, resource_usage_flags::eRequiresTransient );
 		return *this;
 	}
 
@@ -440,18 +440,18 @@ class RenderPass {
 	// Overload of useImageResource for bindless storage image -- this is more efficient
 	// than useImageResource because it reduces the chance of pipeline switches, and it
 	// also doesn't require the renderer to create transient imageviews.
-	RenderPass& useImageResource( le_bindless_storage_image_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id->get_parent_handle(), first_read_access | last_write_access, resource_usage_flags::eNone );
+	RenderPass& useImageResource( le_bindless_storage_image_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2 const& final_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id->get_parent_handle(), first_read_access | final_write_access, resource_usage_flags::eNone );
 		return *this;
 	}
 
-	RenderPass& useImageResource( le_bindless_texture_handle texture_handle, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, texture_handle->get_parent_handle(), first_read_access | last_write_access, resource_usage_flags::eNone );
+	RenderPass& useImageResource( le_bindless_texture_handle texture_handle, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& final_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, texture_handle->get_parent_handle(), first_read_access | final_write_access, resource_usage_flags::eNone );
 		return *this;
 	}
 
-	RenderPass& useBufferResource( le_buffer_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eNone );
+	RenderPass& useBufferResource( le_buffer_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& final_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | final_write_access, resource_usage_flags::eNone );
 		return *this;
 	}
 
