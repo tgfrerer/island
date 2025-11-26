@@ -229,23 +229,6 @@ static void renderpass_sample_texture( le_renderpass_o* self, le_texture_handle 
 }
 
 // ----------------------------------------------------------------------
-// static void renderpass_sample_bindless_textures( le_renderpass_o* self, le_bindless_texture_data_t const* const textures, uint32_t num_textures ) {
-// 	ZoneScoped;
-//
-// 	// -- store texture info so that backend can create resources
-//
-// 	le::AccessFlags2 access_flags = le::AccessFlags2( le::AccessFlagBits2::eShaderSampledRead );
-//
-// 	// -- Mark all image resources referenced by textures as used for reading
-//
-// 	le_bindless_texture_data_t const* const t_end = textures + num_textures;
-//
-// 	for ( auto t = textures; t != t_end; t++ ) {
-// 		renderpass_use_resource( self, t->data.imageView.imageId, access_flags );
-// 	}
-// }
-
-// ----------------------------------------------------------------------
 
 static void renderpass_add_color_attachment( le_renderpass_o* self, le_image_resource_handle image_id, le_image_attachment_info_t const* attachmentInfo ) {
 	ZoneScoped;
