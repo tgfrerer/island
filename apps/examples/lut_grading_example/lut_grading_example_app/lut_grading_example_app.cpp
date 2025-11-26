@@ -20,11 +20,13 @@ struct lut_grading_example_app_o {
 	uint32_t mouse_button_state = 0;   // state of all mouse buttons - this uint32 is used as an array of 32 bools, really.
 
 	LeResourceManager        resource_manager{ renderer };
+
 	le_image_resource_handle image_0   = renderer.createImageResourceHandle( "image_0" );
 	le_image_resource_handle image_1   = renderer.createImageResourceHandle( "image_1" );
 	le_image_resource_handle image_lut = renderer.createImageResourceHandle( "lut_image" );
 
 	le::Extent2D               window_extents;
+
 	le_bindless_texture_handle tex_0 = nullptr;
 	le_bindless_texture_handle tex_1 = nullptr;
 	le_bindless_texture_handle lut_0 = nullptr;
@@ -86,6 +88,8 @@ static lut_grading_example_app_o* lut_grading_example_app_create() {
 
 	return app;
 }
+
+// ----------------------------------------------------------------------
 
 static void app_process_ui_events( lut_grading_example_app_o* self ) {
 
@@ -165,7 +169,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 		        .build() );
 	}
 
-	static auto sampler_handle = self->renderer.allocateBindlessSampler(
+	static le_bindless_sampler_handle sampler_handle = self->renderer.allocateBindlessSampler(
 	    le::SamplerInfoBuilder()
 	        .build() );
 
@@ -201,10 +205,9 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 	auto renderPassMain =
 	    le::RenderPass( "main" )
 	        .addColorAttachment( self->swapchain_handle )
-	        // .sampleTexture( lut_image_texture, lut_tex_info ) // Declare texture name to this pass: color lut image
-	        .useImageResource( self->image_lut )
-	        .useImageResource( self->image_0 )
-	        .useImageResource( self->image_1 )
+	        .useImageResource( self->lut_0 )
+	        .useImageResource( self->tex_0 )
+	        .useImageResource( self->tex_1 )
 
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	            auto                app = static_cast<lut_grading_example_app_o*>( user_data );
