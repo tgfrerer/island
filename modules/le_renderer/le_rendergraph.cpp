@@ -143,6 +143,10 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		return;
 	}
 
+	/* We keep our vector of known resources sorted, this is so that we can be faster at
+	 * finding whether a resource with this name already exists. Finding an element in a
+	 * sorted array should be O(log2(n)).
+	 */
 	auto   it           = std::lower_bound( self->resources.begin(), self->resources.end(), resource_id );
 	size_t resource_idx = it - self->resources.begin(); // index of matching resource
 
