@@ -151,7 +151,7 @@ static le_image_fx_blur_o* le_fx_blur_create( le_renderer_o* renderer ) {
 	auto self = new le_image_fx_blur_o{};
 
 	self->pipeline_manager = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
-	self->image_b          = le_renderer_api_i->le_renderer_i.produce_img_resource_handle( renderer, nullptr, 0, self->image_b, 0 );
+	self->image_b          = le_renderer_api_i->le_renderer_i.create_img_resource_handle( renderer, nullptr, 0, 0 );
 	self->tex_blur_source  = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "fx_blur_source" );
 
 	return self;
