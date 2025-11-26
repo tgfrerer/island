@@ -20,6 +20,40 @@ namespace le {
 
 // ----------------------------------------------------------------------
 
+class SamplerInfoBuilder {
+	le_sampler_info_t info{};
+
+	le_sampler_info_t& self = info;
+
+  public:
+	SamplerInfoBuilder()  = default;
+	~SamplerInfoBuilder() = default;
+
+	SamplerInfoBuilder( le_sampler_info_t const& info_ )
+	    : info( info_ ) {
+	}
+
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMagFilter, le::Filter, magFilter, = le::Filter::eLinear )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMinFilter, le::Filter, minFilter, = le::Filter::eLinear )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMipmapMode, le::SamplerMipmapMode, mipmapMode, = le::SamplerMipmapMode::eLinear )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeU, le::SamplerAddressMode, addressModeU, = le::SamplerAddressMode::eClampToBorder )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeV, le::SamplerAddressMode, addressModeV, = le::SamplerAddressMode::eClampToBorder )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeW, le::SamplerAddressMode, addressModeW, = le::SamplerAddressMode::eRepeat )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMipLodBias, float, mipLodBias, = 0.f )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setAnisotropyEnable, bool, anisotropyEnable, = false )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMaxAnisotropy, float, maxAnisotropy, = 0.f )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setCompareEnable, bool, compareEnable, = false )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setCompareOp, le::CompareOp, compareOp, = le::CompareOp::eLess )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMinLod, float, minLod, = 0.f )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setMaxLod, float, maxLod, = 1.f )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setBorderColor, le::BorderColor, borderColor, = le::BorderColor::eFloatTransparentBlack )
+	BUILDER_IMPLEMENT( SamplerInfoBuilder, setUnnormalizedCoordinates, bool, unnormalizedCoordinates, = false )
+
+	le_sampler_info_t const& build() {
+		return info;
+	}
+};
+
 class ImageSamplerInfoBuilder {
 	le_image_sampler_info_t info{};
 
@@ -55,7 +89,7 @@ class ImageSamplerInfoBuilder {
 
 	class ImageViewInfoBuilder {
 		ImageSamplerInfoBuilder&                       parent;
-		le_image_sampler_info_t::le_image_view_info_t& self = parent.info.imageView;
+		le_image_view_info_t&                          self = parent.info.imageView;
 
 	  public:
 		ImageViewInfoBuilder( ImageSamplerInfoBuilder& parent_ )
@@ -101,6 +135,36 @@ class ImageSamplerInfoBuilder {
 	}
 
 	le_image_sampler_info_t const& build() {
+		return info;
+	}
+};
+
+// TODO: refactor this -- so that this is not declared as a sub-object of ImageSamplerInfoBuilder anymore
+
+class ImageViewInfoBuilder {
+	le_image_view_info_t info{};
+
+	le_image_view_info_t& self = info;
+
+  public:
+	ImageViewInfoBuilder()  = default;
+	~ImageViewInfoBuilder() = default;
+
+	ImageViewInfoBuilder( le_image_view_info_t const& info_ )
+	    : info( info_ ) {
+	}
+
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_image_resource_handle, imageId, = {} )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImageViewType, le::ImageViewType, image_view_type, = le::ImageViewType::e2D )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setFormat, le::Format, format, = le::Format::eUndefined )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setBaseArrayLayer, uint32_t, base_array_layer, = 0 )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setLayerCount, uint32_t, layer_count, = 1 )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleR, le::ComponentSwizzle, r_swizzle, = {} )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleG, le::ComponentSwizzle, g_swizzle, = {} )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleB, le::ComponentSwizzle, b_swizzle, = {} )
+	BUILDER_IMPLEMENT( ImageViewInfoBuilder, setSwizzleA, le::ComponentSwizzle, a_swizzle, = {} )
+
+	le_image_view_info_t const& build() {
 		return info;
 	}
 };
@@ -217,6 +281,22 @@ class Renderer {
 		return le_renderer::renderer_i.get_swapchain_extent( self, swapchain, pWidth, pHeight );
 	}
 
+	le_bindless_texture_handle allocateBindlessTexture( le_image_sampler_info_t const& image_sampler ) {
+		return le_renderer::renderer_i.allocate_bindless_texture( self, &image_sampler );
+	}
+
+	le_bindless_sampler_handle allocateBindlessSampler( le_sampler_info_t const& sampler ) {
+		return le_renderer::renderer_i.allocate_bindless_sampler( self, &sampler );
+	}
+
+	le_bindless_storage_image_handle allocateBindlessStorageImage( le_image_view_info_t const& storage_image ) {
+		return le_renderer::renderer_i.allocate_bindless_storage_image( self, &storage_image );
+	}
+
+	void resolveResourcesForBindlessResources( le_bindless_resource_handle const* p_bindless_resources, uint32_t num_bindless_resources, le_resource_handle* p_resource_handles ) {
+		le_renderer::renderer_i.get_resources_for_bindless_resources( self, p_bindless_resources, num_bindless_resources, p_resource_handles );
+	}
+
 	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {
 		le::Extent2D result{};
 		le_renderer::renderer_i.get_swapchain_extent( self, swapchain, &result.width, &result.height );
@@ -247,6 +327,7 @@ class Renderer {
 class RenderPass {
 
 	le_renderpass_o* self;
+	using resource_usage_flags = le_renderer_api::renderpass_interface_t::resource_usage_flags;
 
   public:
 	// We must allow for this constructor to be called with no name, so that it can be used with initializer lists
@@ -351,23 +432,35 @@ class RenderPass {
 		return *this;
 	}
 
+	// TODO: not super happy with this -- it feels a bit cumbersome,
+	//
+	// The intent is to have a way to signal to the renderer that we are using an image resource in a bindless manner
+	// and that the renderer does not need to create a transient view for this image for this frame.
+	//
+	// It would be better if we could directly declare the resource via the bindless handle and would
+	// not have go go through the parent resource.
+	RenderPass& useImageResourceNoTransient( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eNone );
+		return *this;
+	}
+
 	RenderPass& useImageResource( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eRequiresTransient );
 		return *this;
 	}
 
 	RenderPass& useBufferResource( le_buffer_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access );
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eNone );
 		return *this;
 	}
 
 	RenderPass& useRtxBlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags, resource_usage_flags::eNone );
 		return *this;
 	}
 
 	RenderPass& useRtxTlasResource( le_resource_handle resource_id, le::AccessFlags2 const& access_flags = le::AccessFlags2( le::AccessFlagBits2::eAccelerationStructureReadBitKhr ) ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags, resource_usage_flags::eNone );
 		return *this;
 	}
 
@@ -375,6 +468,10 @@ class RenderPass {
 		le_renderer::renderpass_i.set_is_root( self, isRoot );
 		return *this;
 	}
+
+	// the important thing here is that we mark the linked image resource as being used with this renderpass-
+	// we don't really care about the resource being used bindless; and the lookup will be faster if we can
+	// just pass an array of image resources
 
 	RenderPass& sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t& imageSamplerInfo ) {
 		le_renderer::renderpass_i.sample_texture( self, textureName, &imageSamplerInfo );

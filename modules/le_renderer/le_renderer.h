@@ -41,6 +41,7 @@ struct le_shader_binding_table_o;
 // clang-format off
 struct le_renderer_api {
 
+
 	struct renderer_interface_t {
 		le_renderer_o *                ( *create                  )( );
 		void                           ( *destroy                 )( le_renderer_o *obj );
@@ -79,6 +80,13 @@ struct le_renderer_api {
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const* flags);
 
+
+		le_bindless_texture_handle (* allocate_bindless_texture )(le_renderer_o* self, le_image_sampler_info_t const * image_sampler_info);
+		le_bindless_sampler_handle (* allocate_bindless_sampler )(le_renderer_o* self, le_sampler_info_t const * sampler_info);
+		le_bindless_storage_image_handle (* allocate_bindless_storage_image )(le_renderer_o* self, le_image_view_info_t const * storage_image_info);
+
+		void                            ( *get_resources_for_bindless_resources)(le_renderer_o * self, le_bindless_resource_handle const* bindless_resources, uint32_t num_bindless_resources, le_resource_handle* pp_out_resource_handles);
+
 	};
 
 	struct helpers_interface_t {
@@ -90,6 +98,12 @@ struct le_renderer_api {
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
+
+		enum resource_usage_flags : uint32_t {
+			eNone              = 0,
+			eRequiresTransient = 1 << 0, // whether this resource requires a transient image view to be created for it for each pass
+		};
+
 		le_renderpass_o *               ( *create               )( const char *renderpass_name, const le::QueueFlagBits &type_ );
 		void                            ( *destroy              )( le_renderpass_o *obj );
 		le_renderpass_o *               ( *clone                )( const le_renderpass_o *obj );
@@ -103,10 +117,9 @@ struct le_renderer_api {
 		bool                            ( *get_framebuffer_settings)(le_renderpass_o const * obj, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count);
 		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id,  le::AccessFlags2 const& access_flags);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);
-		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds,  le::AccessFlags2 const ** pResourcesAccess, size_t *count );
+		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds,  le::AccessFlags2 const ** pResourcesAccess, resource_usage_flags const ** usage_flags, size_t *count );
 		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
 		void                            ( *get_queue_sumbission_info)( const le_renderpass_o* obj, le::QueueFlagBits* pass_type, le::RootPassesField * queue_submission_id, bool *has_commands);
@@ -116,7 +129,8 @@ struct le_renderer_api {
 		void (*ref_inc)(le_renderpass_o* self);
 		void (*ref_dec)(le_renderpass_o* self);
 
-		// TODO: not too sure about the nomenclature of this
+		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id,  le::AccessFlags2 const& access_flags, resource_usage_flags const& usage_flags);
+
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
 		void                         ( *sample_texture        )(le_renderpass_o* obj, le_texture_handle texture, const le_image_sampler_info_t* info);
 

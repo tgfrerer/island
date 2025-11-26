@@ -10,6 +10,7 @@ struct le_backend_vk_api;
 struct le_swapchain_settings_t;
 struct le_window_o;
 
+struct le_renderer_o;
 struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_device_o;              // defined in le_device_vk.cpp
 struct le_renderpass_o;
@@ -24,6 +25,14 @@ struct le_pipeline_manager_o;
 
 constexpr uint8_t LE_MAX_BOUND_DESCRIPTOR_SETS = 8;
 constexpr uint8_t LE_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
+
+// total number (and at the same maximum number) of bindless texture descriptors
+// the full number of descriptors will get allocated with each frame once on
+// backend frame creation. We expect descriptors to be lightweight, and this
+// a pretty fast operation.
+static constexpr uint32_t LE_C_BINDLESS_STORAGE_IMAGES_DESCRIPTORS_MAX_COUNT = 1 << 16;
+static constexpr uint32_t LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT        = 1 << 16;
+static constexpr uint32_t LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT = 1 << 9;
 
 static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS = "le.backend_vk.should_use_validation_layers";
 static constexpr char const* LE_SETTING_IDENTIFIER_SHOULD_CHECK_ARGUMENT_STATE  = "le.backend_vk.should_check_argument_state";
@@ -69,6 +78,7 @@ struct VkMemoryAllocateInfo;
 struct VkSpecializationMapEntry;
 struct VkPhysicalDeviceFeatures2;
 struct BackendFrameData;
+struct VkDescriptorSetLayout_T;
 
 struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 struct BackendRenderPass;
@@ -101,7 +111,6 @@ struct BuildAccelerationStructureFlagsKHR;
 } // namespace le
 
 struct LeShaderSourceLanguageEnum;
-// enum class LeResourceType : uint8_t;
 
 struct le_resource_info_t;
 struct le_shader_compiler_interface_t;
@@ -114,6 +123,7 @@ struct le_pipeline_layout_info {
 	uint64_t set_layout_count        = 0;  // number of actually used DescriptorSetLayouts for this layout
 	uint32_t active_vk_shader_stages = 0;  // bitfield of VkShaderStageFlagBits
 	uint32_t push_constants_enabled  = 0;  // whether push constant buffers are enabled or not: They might be disabled unintentionally if not used in shader and optimised away
+	uint32_t bindless_textures_enabled = 0;  // whether this pipeline layout uses bindless textures
 };
 
 struct le_pipeline_and_layout_info_t {
@@ -141,7 +151,7 @@ struct le_backend_vk_api {
 
 	// clang-format off
 	struct backend_vk_interface_t {
-		le_backend_o *         ( *create                     ) ( );
+		le_backend_o *         ( *create                     ) ( le_renderer_o* renderer);
 		void                   ( *destroy                    ) ( le_backend_o *self );
 
 		void 				   ( *initialise 				 ) ( le_backend_o* self);
@@ -229,11 +239,21 @@ struct le_backend_vk_api {
 		void    (* free_gpu_memory  ) ( le_backend_o* self, VmaAllocation_T* allocation );
 
 		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
+		
+		// Push the current state of bindless textures data from the renderer into the current frame
+ 		void (*frame_set_bindless_textures_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_texture_data_t const* const texture_data, size_t texture_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+ 		void (*frame_set_bindless_samplers_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_sampler_data_t const* const sampler_data, size_t sampler_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+ 		void (*frame_set_bindless_storage_images_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_storage_image_data_t const* const storage_image_data, size_t storage_image_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+
 		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
 	
 		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_image_resource_handle img );
 
 		VkSamplerYcbcrConversionInfo* (*get_sampler_ycbcr_conversion_info)(le_backend_o* self);
+
+		VkDescriptorSetLayout_T* 		  (*get_bindless_textures_descriptor_set_layout)(le_backend_o* self);
+		VkDescriptorSetLayout_T* 		  (*get_bindless_samplers_descriptor_set_layout)(le_backend_o* self);
+		VkDescriptorSetLayout_T* 		  (*get_bindless_storage_images_descriptor_set_layout)(le_backend_o* self);
 	};
 
 	struct instance_interface_t {
@@ -399,8 +419,8 @@ class Backend : NoCopy,
 		return self;
 	}
 
-	Backend()
-	    : self( le_backend_vk::vk_backend_i.create() )
+	Backend( le_renderer_o* renderer )
+	    : self( le_backend_vk::vk_backend_i.create( renderer ) )
 	    , is_reference( false ) {
 	}
 

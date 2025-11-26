@@ -235,7 +235,7 @@ le_backend_vk_instance_o* instance_create( const char** extensionNamesArray_, ui
 	    .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 	    .pNext              = nullptr,      // optional
 	    .pApplicationName   = "Island App", // optional
-	    .applicationVersion = VK_MAKE_API_VERSION( 0, 0, 0, 0 ),
+	    .applicationVersion = VK_MAKE_API_VERSION( 0, 0, 15, 1 ),
 	    .pEngineName        = ISL_ENGINE_NAME, // optional
 	    .engineVersion      = ISL_ENGINE_VERSION,
 	    .apiVersion         = ( VK_MAKE_API_VERSION( 0, 1, 4, 328 ) ),

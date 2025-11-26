@@ -87,7 +87,10 @@ struct ExecuteCallbackInfo {
 	void*                                     user_data = nullptr;
 };
 
+using rp_resource_usage_flags = le_renderer_api::renderpass_interface_t::resource_usage_flags;
+
 struct le_renderpass_o {
+
 	// -- start hashed block
 	uint64_t                id                   = 0;                           // | fnv1a_64 hash of debug_name -- calculated at creation
 	le::QueueFlagBits       type                 = le::QueueFlagBits{};         // | Requirements for a queue to which this pass can be submitted.
@@ -102,8 +105,9 @@ struct le_renderpass_o {
 	                                                                            // | by filtering via root_passes_affinity_masks
 	// -- end hashed block
 
-	std::vector<le_resource_handle> resources;              // all resources used in this pass, contains info about resource type
-	std::vector<le::AccessFlags2>   resources_access_flags; // first read | last write access for each resource used in this pass
+	std::vector<le_resource_handle>      resources;              // all resources used in this pass, contains info about resource type; this is kept sorted, so that we can do faster searches, and inserts.
+	std::vector<le::AccessFlags2>        resources_access_flags; // first read | last write access for each resource used in this pass, indexed by `resources`
+	std::vector<rp_resource_usage_flags> resources_usage_flags;  // whether the resource requires transient image views for this pass for example: made up of OR'ed `resource_use_flags` , indexed by `resources`0
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_image_resource_handle>   attachmentResources; // kept in sync with imageAttachments, one resource per attachment

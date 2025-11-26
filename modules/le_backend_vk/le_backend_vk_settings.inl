@@ -303,6 +303,37 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME );
 
+	/* ----------------------------------------------------------------------
+	 * Enable features needed for bindless
+	 * ----------------------------------------------------------------------
+	 *
+	 * - these Features should be available without an extension as they
+	 *   are core since vk 1.2 -- we must therefore enable them via the
+	 *   vk_12 features set.
+	 *
+	 */
+
+	// vk_12_features->shaderInputAttachmentArrayDynamicIndexing          = VK_TRUE;
+	// vk_12_features->shaderUniformTexelBufferArrayDynamicIndexing       = VK_TRUE;
+	// vk_12_features->shaderStorageTexelBufferArrayDynamicIndexing       = VK_TRUE;
+	// vk_12_features->shaderUniformBufferArrayNonUniformIndexing         = VK_TRUE;
+	vk_12_features->shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+	// vk_12_features->shaderStorageBufferArrayNonUniformIndexing         = VK_TRUE;
+	vk_12_features->shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
+	// vk_12_features->shaderInputAttachmentArrayNonUniformIndexing       = VK_TRUE;
+	// vk_12_features->shaderUniformTexelBufferArrayNonUniformIndexing    = VK_TRUE;
+	// vk_12_features->shaderStorageTexelBufferArrayNonUniformIndexing    = VK_TRUE;
+	// vk_12_features->descriptorBindingUniformBufferUpdateAfterBind      = VK_TRUE;
+	vk_12_features->descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+	vk_12_features->descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+	// vk_12_features->descriptorBindingStorageBufferUpdateAfterBind      = VK_TRUE;
+	// vk_12_features->descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE;
+	// vk_12_features->descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE;
+	vk_12_features->descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+	vk_12_features->descriptorBindingPartiallyBound           = VK_TRUE;
+	vk_12_features->descriptorBindingVariableDescriptorCount  = VK_TRUE;
+	vk_12_features->runtimeDescriptorArray                    = VK_TRUE; // we need this so that we can have unsized arrays in shaders
+
 #ifdef LE_FEATURE_RTX
 
 	self->physical_device_features.ray_tracing_pipeline.sType   = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;

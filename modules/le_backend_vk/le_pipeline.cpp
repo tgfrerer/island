@@ -340,6 +340,7 @@ struct le_pipeline_manager_o {
 	HashTable<uint64_t, char*>                 rtx_shader_group_data; // indexed by pipeline_hash
 	HashMap<uint64_t, le_pipeline_layout_info> pipelineLayoutInfos;
 
+	std::vector<VkDescriptorSetLayout>            owned_descriptor_set_layouts;
 	HashMap<uint64_t, le_descriptor_set_layout_t> descriptorSetLayouts;
 	HashMap<uint64_t, VkPipelineLayout>           pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 };
@@ -954,7 +955,7 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 
 #ifndef NDEBUG
 		constexpr bool CHECK_LOCATIONS_ARE_CONSECUTIVE = false;
-		if ( CHECK_LOCATIONS_ARE_CONSECUTIVE ) {
+		if constexpr ( CHECK_LOCATIONS_ARE_CONSECUTIVE ) {
 			// Ensure that locations are sorted asc, and there are no holes.
 			if ( vertexAttributeDescriptions.size() > 1 ) {
 				auto prev_l = vertexAttributeDescriptions.begin();
@@ -986,11 +987,61 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 			info.stage_bits = uint32_t( module->stage );
 			info.count      = binding->count;
 
-			assert( info.count > 0 );
+			//			assert( info.count > 0 );
+
+			// TODO: we might need to detect that a binding is used for bindless ...
 
 			// Dynamic uniform buffers need to specify a range given in bytes.
 			if ( info.type == le::DescriptorType::eUniformBufferDynamic ) {
 				info.range = binding->block.size;
+			}
+
+			if (                                                                 // set.binding_count == 1 &&                                        // If there is exactly one binding per set
+			    binding->binding == 0 &&                                         // and the binding is at position 0
+			    binding->type_description->op == SpvOp::SpvOpTypeRuntimeArray && // and it is an array
+			    binding->count == 0                                              // and it is unsized
+			) {
+				/* This binding refers to a bindless descriptorset bind point:
+				 *
+				 * - there must only be a single binding
+				 * - the binding must be at position 0
+				 * - the binding must be an array type
+				 * - the array must be unsized
+				 *
+				 */
+
+				// TODO: we could set a flag instead of just a boolean to tell us what type of descriptor this refers to
+				switch ( info.type ) {
+				case le::DescriptorType::eSampler:
+					info.is_bindless_resource = uint32_t( le_bindless_resource_type::eSampler );
+					break;
+				case le::DescriptorType::eCombinedImageSampler:
+					info.is_bindless_resource = uint32_t( le_bindless_resource_type::eTexture );
+					break;
+				case le::DescriptorType::eStorageImage:
+					info.is_bindless_resource = uint32_t( le_bindless_resource_type::eStorageImage );
+					break;
+				case le::DescriptorType::eSampledImage:
+				case le::DescriptorType::eUniformTexelBuffer:
+				case le::DescriptorType::eStorageTexelBuffer:
+				case le::DescriptorType::eUniformBuffer:
+				case le::DescriptorType::eStorageBuffer:
+				case le::DescriptorType::eUniformBufferDynamic:
+				case le::DescriptorType::eStorageBufferDynamic:
+				case le::DescriptorType::eInputAttachment:
+				case le::DescriptorType::eInlineUniformBlock:
+				case le::DescriptorType::eAccelerationStructureKhr:
+				case le::DescriptorType::eAccelerationStructureNv:
+				case le::DescriptorType::eMutableExt:
+				case le::DescriptorType::eSampleWeightImageQcom:
+				case le::DescriptorType::eBlockMatchImageQcom:
+				case le::DescriptorType::ePartitionedAccelerationStructureNv:
+					break;
+				}
+
+				if ( info.is_bindless_resource ) {
+					logger().info( "Inferred BINDLESS DescriptorSet [%lu] bind point: [%s]", binding->set, binding->name );
+				}
 			}
 
 			if ( binding->name && std::string::npos != std::string( binding->name ).find( TEXTURE_NAME_YCBCR_REQUEST_STRING ) ) {
@@ -1053,12 +1104,13 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 static bool shader_module_check_bindings_valid( le_shader_binding_info const* bindings, size_t numBindings ) {
 
 	// -- perform sanity check on bindings - bindings must be unique:
-	// (location+binding cannot be shared between shader uniforms)
+	//
+	// (location+binding should not overlap)
 
 	auto b_start = bindings;
 	auto b_end   = b_start + numBindings;
 
-	for ( auto b = b_start, b_prev = b_start; b != b_end; b++ ) {
+	for ( auto b = b_start, b_prev = b_start; b != b_end; b_prev = b++ ) {
 
 		if ( b == b_prev ) {
 			// first iteration
@@ -1067,12 +1119,26 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const* bi
 
 		if ( b->setIndex == b_prev->setIndex &&
 		     b->binding == b_prev->binding ) {
-			logger().error( "Illegal shader bindings detected, rejecting shader." );
-			logger().error( "Duplicate bindings for set: %d, binding %d", b->setIndex, b->binding );
+
+			if ( b->is_bindless_resource &&
+			     ( b->type == le::DescriptorType::eCombinedImageSampler ||
+			       b->type == le::DescriptorType::eStorageImage ) ) {
+				// We only reject overlapping bindings if they refer to non-bindless resources.
+				//
+				// Bindless combined image sampler resource arrays are allowed to overlap because
+				// that's how we allow access a to a combined image sampler resource via aliased
+				// sampler2D or sampler3D.
+				//
+				// If the binding was detected to be bindless and a combined image sampler,
+				// then we accept it even if it's overlapping an existing binding.
+				continue;
+			}
+
+			logger().warn( "Illegal shader bindings detected, rejecting shader." );
+			logger().warn( "Duplicate bindings for set: %d, binding %d", b->setIndex, b->binding );
 			return false;
 		}
 
-		b_prev = b;
 	}
 
 	return true;
@@ -1174,7 +1240,7 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 				if ( b.name_hash != last_binding->name_hash ) {
 
 					// If name hash is not equal, then try to recover
-					// by choosing the namehash which has the lowest stage
+					// by choosing the name hash which has the lowest stage
 					// flag bits set. This ensures that names in vert shaders
 					// have precedence over names in frag shaders for example.
 
@@ -1912,9 +1978,47 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 	if ( foundLayout ) {
 
 		// -- Layout was found in cache, reuse it.
-
 		*layout = foundLayout->vk_descriptor_set_layout;
 
+	} else if ( bindings.size() == 1 && bindings.front().is_bindless_resource ) {
+
+		// -- Layout was not found in cache, but this is a bindless binding,
+		// and bindless means that the Layout for this binding is held centrally
+		// and immutably in the backend.
+
+		le_descriptor_set_layout_t le_layout_info{};
+
+		switch ( bindings.front().is_bindless_resource ) {
+		case uint32_t( le_bindless_resource_type::eCombinedImageSampler ):
+			le_layout_info.vk_descriptor_set_layout = le_backend_vk::private_backend_vk_i.get_bindless_textures_descriptor_set_layout( self->backend );
+			break;
+		case uint32_t( le_bindless_resource_type::eSampler ):
+			le_layout_info.vk_descriptor_set_layout = le_backend_vk::private_backend_vk_i.get_bindless_samplers_descriptor_set_layout( self->backend );
+			break;
+		case uint32_t( le_bindless_resource_type::eStorageImage ):
+			le_layout_info.vk_descriptor_set_layout = le_backend_vk::private_backend_vk_i.get_bindless_storage_images_descriptor_set_layout( self->backend );
+			break;
+		case uint32_t( le_bindless_resource_type::eUndefined ):
+		default:
+			le_layout_info.vk_descriptor_set_layout = nullptr;
+			logger().error( "bindless resource type was not recognized: %lu", bindings.front().is_bindless_resource );
+			break;
+		}
+
+		le_layout_info.binding_info                  = bindings;
+		le_layout_info.vk_descriptor_update_template = nullptr;
+		le_layout_info.immutable_samplers            = {};
+
+		// We must use the shared layout for these bindless bindings, and
+		// signal that we have borrowed it, so that it does not accidentally
+		// get deleted once this le_pipeline gets destroyed.
+		le_layout_info.is_descriptor_set_layout_borrowed = true;
+
+		*layout = le_layout_info.vk_descriptor_set_layout;
+
+		bool result = descriptorSetLayouts.try_insert( set_layout_hash, &le_layout_info );
+
+		assert( result && "descriptorSetLayout insertion must be successful" );
 	} else {
 
 		// -- Layout was not found in cache, we must create vk objects.
@@ -2031,88 +2135,10 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 		vkCreateDescriptorSetLayout( self->device, &setLayoutInfo, nullptr, layout );
 
-		// -- Create descriptorUpdateTemplate
-		//
-		// The template needs to be created so that data for a VkDescriptorSet
-		// can be read from a vector of tightly packed DescriptorData elements.
-		//
-
-		VkDescriptorUpdateTemplate updateTemplate;
-		{
-			std::vector<VkDescriptorUpdateTemplateEntry> entries;
-
-			entries.reserve( bindings.size() );
-
-			size_t base_offset = 0; // offset in bytes into DescriptorData vector, assuming vector is tightly packed.
-			for ( const auto& b : bindings ) {
-
-				VkDescriptorUpdateTemplateEntry entry = {
-				    .dstBinding      = b.binding,
-				    .dstArrayElement = 0, // starting element at this binding to update - always 0
-				    .descriptorCount = b.count,
-				    .descriptorType  = VkDescriptorType( b.type ),
-				    .offset          = 0,
-				    .stride          = 0,
-				};
-
-				// set offset based on type of binding, so that template reads from correct data
-
-				switch ( b.type ) {
-				case le::DescriptorType::eAccelerationStructureKhr:
-					entry.offset = base_offset + offsetof( DescriptorData, accelerationStructureInfo );
-					break;
-				case le::DescriptorType::eUniformTexelBuffer:
-					assert( false ); // not implemented
-					break;
-				case le::DescriptorType::eStorageTexelBuffer:
-					assert( false ); // not implemented
-					break;
-				case le::DescriptorType::eInputAttachment:
-					assert( false ); // not implemented
-					break;
-				case le::DescriptorType::eCombinedImageSampler:                          // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case le::DescriptorType::eSampledImage:                                  // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case le::DescriptorType::eStorageImage:                                  // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-				case le::DescriptorType::eSampler:                                       // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
-					entry.offset = base_offset + offsetof( DescriptorData, imageInfo );  // <- point to first field of ImageInfo
-					break;                                                               //
-				case le::DescriptorType::eUniformBuffer:                                 // fall-through as this kind of descriptor uses BufferInfo
-				case le::DescriptorType::eStorageBuffer:                                 // fall-through as this kind of descriptor uses BufferInfo
-				case le::DescriptorType::eUniformBufferDynamic:                          // fall-through as this kind of descriptor uses BufferInfo
-				case le::DescriptorType::eStorageBufferDynamic:                          //
-					entry.offset = base_offset + offsetof( DescriptorData, bufferInfo ); // <- point to first element of BufferInfo
-					break;
-				default:
-					assert( false && "invalid descriptor type" );
-				}
-
-				entry.stride = sizeof( DescriptorData );
-
-				entries.emplace_back( std::move( entry ) );
-
-				base_offset += sizeof( DescriptorData );
-			}
-
-			VkDescriptorUpdateTemplateCreateInfo info = {
-			    .sType                      = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,
-			    .pNext                      = nullptr, // optional
-			    .flags                      = 0,       // optional
-			    .descriptorUpdateEntryCount = uint32_t( entries.size() ),
-			    .pDescriptorUpdateEntries   = entries.data(),
-			    .templateType               = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET,
-			    .descriptorSetLayout        = *layout,
-			    .pipelineBindPoint          = {}, // ignored as template type is not push_descriptors
-			    .pipelineLayout             = {}, // ignored as template type is not push_descriptors
-			    .set                        = {}, // ignored as template type is not push_descriptors
-			};
-
-			vkCreateDescriptorUpdateTemplate( self->device, &info, nullptr, &updateTemplate );
-		}
-
 		le_descriptor_set_layout_t le_layout_info;
 		le_layout_info.vk_descriptor_set_layout      = *layout;
 		le_layout_info.binding_info                  = bindings;
-		le_layout_info.vk_descriptor_update_template = updateTemplate;
+		le_layout_info.vk_descriptor_update_template = nullptr;
 		le_layout_info.immutable_samplers            = immutable_samplers;
 
 		bool result = descriptorSetLayouts.try_insert( set_layout_hash, &le_layout_info );
@@ -2163,6 +2189,12 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 					if ( current_set.size() == b.binding ) {
 						// we can add the real thing
 						current_set.push_back( b );
+
+						if ( b.is_bindless_resource ) {
+							current_set.back().count       = LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT;
+							info.bindless_textures_enabled = 1; // TODO: we could use a flag for each bindless type of content
+						}
+
 					} else {
 						// we must add a placeholder binding
 						le_shader_binding_info new_binding = {};
@@ -2198,7 +2230,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		}
 
 		for ( size_t i = 0; i != sets.size(); ++i ) {
-			info.set_layout_keys[ i ] = le_pipeline_cache_produce_descriptor_set_layout( self, sets[ i ], vkLayouts + i );
+			info.set_layout_keys[ i ] = le_pipeline_cache_produce_descriptor_set_layout( self, sets[ i ], &vkLayouts[ i ] );
 		}
 	}
 
@@ -2714,7 +2746,9 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o* self ) {
 			    vkDestroySampler( device, *s, nullptr );
 			    delete s;
 		    }
-		    if ( e->vk_descriptor_set_layout ) {
+		    if ( e->vk_descriptor_set_layout && false == e->is_descriptor_set_layout_borrowed ) {
+			    // note that we check whether the descriptor_set_layout is owned by us -
+			    // in case we have a bindless descriptor_set_layout in here, it was borrowed from the backend.
 			    vkDestroyDescriptorSetLayout( device, e->vk_descriptor_set_layout, nullptr );
 			    logger().info( "Destroyed VkDescriptorSetLayout: %p", e->vk_descriptor_set_layout );
 		    }

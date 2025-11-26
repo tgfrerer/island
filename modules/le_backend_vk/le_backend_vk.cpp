@@ -38,8 +38,7 @@
 
 #include "private/le_backend_vk/le_backend_vk_instance.inl"
 
-static constexpr auto LEGACY_SWAPCHAIN = false;
-static constexpr auto LOGGER_LABEL     = "le_backend_vk";
+static constexpr auto LOGGER_LABEL = "le_backend_vk";
 
 static le::Log& logger() {
 	// Enforce lazy initialization for logger().oblect
@@ -531,6 +530,15 @@ struct BackendFrameData {
 	VkFence  frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
 	uint64_t frameNumber = 0;       // current frame number
 
+	std::vector<le_bindless_texture_data_t> bindless_textures_data;             // pushed through by renderer, once setup has completed; this is the current table for all bindless textures for this frame
+	std::set<uint32_t>                      bindless_textures_data_update_list; // list of all indices that have changes since the last frame; this list is calculated in set_bindless_textures_data
+
+	std::vector<le_bindless_sampler_data_t> bindless_samplers_data;             // pushed through by renderer, once setup has completed; this is the current table for all bindless samplers for this frame
+	std::set<uint32_t>                      bindless_samplers_data_update_list; // list of all indices that have changes since the last frame; this list is calculated in set_bindless_samplers_data
+
+	std::vector<le_bindless_storage_image_data_t> bindless_storage_images_data;             // pushed through by renderer, once setup has completed; this is the current table for all bindless storage images for this frame
+	std::set<uint32_t>                            bindless_storage_images_data_update_list; // list of all indices that have changes since the last frame; this list is calculated in set_bindless_storage_images_data
+
 	std::vector<le_on_frame_clear_callback_data_t> on_clear_callbacks; // callbacks to call on frame clear
 
 	struct CommandPool {
@@ -579,7 +587,7 @@ struct BackendFrameData {
 	// A: It must not: as it is used to map external resources as well.
 	std::unordered_map<le_resource_handle, AbstractPhysicalResource> physicalResources;
 
-	/// \brief vk resources retained and destroyed with BackendFrameData.
+	/// \brief vk resources retained and destroyed with BackendFrameData or on clear().
 	/// These resources (such as samplers, imageviews, framebuffers) are transient,
 	/// and lifetime of these resources is tied to the frame fence.
 	std::forward_list<AbstractPhysicalResource> ownedResources;
@@ -599,7 +607,6 @@ struct BackendFrameData {
 
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
 
-	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass
 
 	typedef std::unordered_map<le_resource_handle, AllocatedResourceVk> ResourceMap_T;
 
@@ -626,12 +633,24 @@ struct BackendFrameData {
 
 	std::vector<le_command_stream_t*> command_streams; // owning; these must be destroyed when frame gets destroyed.
 
+	// ------ "bindful"
+
+	std::vector<VkDescriptorPool> descriptorPools; // one descriptor pool per pass
+
+	// ------ "bindless"
+
+	VkDescriptorPool bindless_descriptors_pool = nullptr; ///< owning, needs to be destroyed with frame
+	VkDescriptorSet  bindless_storage_images_descriptor_set = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
+	VkDescriptorSet  bindless_textures_descriptor_set       = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
+	VkDescriptorSet  bindless_samplers_descriptor_set       = nullptr; ///< owned by `bindless_descriptors_pool`, does not need to be separately destroyed.
+
 	bool must_create_queues_dot_graph = false;
 };
 
 /// \brief backend data object
 struct le_backend_o {
 
+	le_renderer_o*              renderer; // parent, non-owning (must be valid for the duration of the backend's existence)
 	le_backend_vk_instance_o*   instance;
 	std::unique_ptr<le::Device> device;
 
@@ -655,6 +674,16 @@ struct le_backend_o {
 	VkSamplerYcbcrConversionInfo vk_sampler_ycbcr_conversion_info;
 
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
+
+	std::vector<AbstractPhysicalResource> bindless_textures_samplers;    // indexed by bindless_texture_idx
+	std::vector<AbstractPhysicalResource> bindless_textures_image_views; // indexed by bindless_texture_idx
+	VkDescriptorSetLayout bindless_textures_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with backend
+
+	std::vector<AbstractPhysicalResource> bindless_samplers;
+	VkDescriptorSetLayout                 bindless_samplers_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with backend
+
+	std::vector<AbstractPhysicalResource> bindless_storage_images;
+	VkDescriptorSetLayout                 bindless_storage_images_descriptor_set_layout = nullptr; ///< owning, needs to be destroyed with backend
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
@@ -697,7 +726,7 @@ struct ArgumentState {
 	uint32_t                                   setCount           = 0;  // current count of bound descriptorSets (max: 8)
 	std::array<std::vector<DescriptorData>, 8> setData;                 // data per-set
 
-	std::array<VkDescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
+	// std::array<VkDescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
 	std::array<VkDescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
 	std::vector<le_shader_binding_info>       binding_infos;
 };
@@ -773,8 +802,9 @@ static VkBufferUsageFlags defaults_get_buffer_usage_scratch() {
 
 // ----------------------------------------------------------------------
 
-static le_backend_o* backend_create() {
+static le_backend_o* backend_create( le_renderer_o* renderer ) {
 	auto self = new le_backend_o;
+	self->renderer = renderer;
 	return self;
 }
 
@@ -808,6 +838,52 @@ static void backend_destroy( le_backend_o* self ) {
 		self->vk_sampler_ycbcr_conversion = nullptr;
 	}
 
+	{
+		// destroy bindless storage_images
+		for ( auto& s : self->bindless_storage_images ) {
+			vkDestroyImageView( device, s.asImageView, nullptr );
+		}
+		self->bindless_storage_images.clear();
+	}
+	{
+		// destroy bindless samplers
+		for ( auto& s : self->bindless_samplers ) {
+			vkDestroySampler( device, s.asSampler, nullptr );
+		}
+		self->bindless_samplers.clear();
+	}
+
+	{
+		// destroy samplers used for bindless textures
+		for ( auto& s : self->bindless_textures_samplers ) {
+			vkDestroySampler( device, s.asSampler, nullptr );
+		}
+		self->bindless_textures_samplers.clear();
+	}
+
+	{
+		// destroy image views used for bindless textures
+		for ( auto& s : self->bindless_textures_image_views ) {
+			vkDestroyImageView( device, s.asImageView, nullptr );
+		}
+		self->bindless_textures_image_views.clear();
+	}
+
+	if ( self->bindless_textures_descriptor_set_layout ) {
+		vkDestroyDescriptorSetLayout( device, self->bindless_textures_descriptor_set_layout, nullptr );
+		self->bindless_textures_descriptor_set_layout = nullptr;
+	}
+
+	if ( self->bindless_storage_images_descriptor_set_layout ) {
+		vkDestroyDescriptorSetLayout( device, self->bindless_storage_images_descriptor_set_layout, nullptr );
+		self->bindless_storage_images_descriptor_set_layout = nullptr;
+	}
+
+	if ( self->bindless_samplers_descriptor_set_layout ) {
+		vkDestroyDescriptorSetLayout( device, self->bindless_samplers_descriptor_set_layout, nullptr );
+		self->bindless_samplers_descriptor_set_layout = nullptr;
+	}
+
 	for ( auto& frameData : self->mFrames ) {
 
 		using namespace le_backend_vk;
@@ -820,6 +896,12 @@ static void backend_destroy( le_backend_o* self ) {
 		}
 
 		// -- destroy per-frame data
+
+		if ( frameData.bindless_descriptors_pool ) {
+
+			vkDestroyDescriptorPool( device, frameData.bindless_descriptors_pool, nullptr );
+			frameData.bindless_descriptors_pool = nullptr;
+		}
 
 		vkDestroyFence( device, frameData.frameFence, nullptr );
 
@@ -1290,6 +1372,18 @@ static VkSamplerYcbcrConversionInfo* backend_get_sampler_ycbcr_conversion_info( 
 	return &self->vk_sampler_ycbcr_conversion_info;
 }
 
+static VkDescriptorSetLayout backend_get_bindless_textures_descriptor_set_layout( le_backend_o* self ) {
+	return self->bindless_textures_descriptor_set_layout;
+}
+
+static VkDescriptorSetLayout backend_get_bindless_samplers_descriptor_set_layout( le_backend_o* self ) {
+	return self->bindless_samplers_descriptor_set_layout;
+}
+
+static VkDescriptorSetLayout backend_get_bindless_storage_images_descriptor_set_layout( le_backend_o* self ) {
+	return self->bindless_storage_images_descriptor_set_layout;
+}
+
 // ----------------------------------------------------------------------
 // ffdecl.
 static le_allocator_o** backend_create_transient_allocators( le_backend_o* self, size_t frameIndex, size_t numAllocators );
@@ -1546,7 +1640,54 @@ static void backend_setup( le_backend_o* self ) {
 			backend_create_transient_allocators( self, i, num_allocators );
 		}
 	}
+	{
 
+		auto create_descriptor_set_layout =
+		    [ &vkDevice ](
+		        uint32_t const          descriptor_count,
+		        VkDescriptorType const& descriptor_type,
+		        VkDescriptorSetLayout*  p_descriptor_set_layout ) {
+			    VkDescriptorBindingFlags binding_flags =
+			        // VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+			        VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
+			        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+			        VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+
+			    VkDescriptorSetLayoutBindingFlagsCreateInfo set_layout_binding_flags_create_info = {
+			        .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, // VkStructureType
+			        .pNext         = nullptr,                                                           // void *, optional
+			        .bindingCount  = 1,                                                                 // uint32_t
+			        .pBindingFlags = &binding_flags,                                                    // VkDescriptorBindingFlags const *
+			    };
+			    VkDescriptorSetLayoutBinding set_layout_binding = {
+			        .binding            = 0,                   // uint32_t
+			        .descriptorType     = descriptor_type,     // VkDescriptorType
+			        .descriptorCount    = descriptor_count,    // uint32_t
+			        .stageFlags         = VK_SHADER_STAGE_ALL, // VkShaderStageFlags
+			        .pImmutableSamplers = nullptr,             // VkSampler const *, optional
+			    };
+
+			    VkDescriptorSetLayoutCreateInfo set_layout_create_info = {
+			        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, // VkStructureType
+			        .pNext = &set_layout_binding_flags_create_info,               // void *, optional
+			        .flags = 0,
+			        // VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT |
+			        // VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
+			        .bindingCount = 1,                   // uint32_t
+			        .pBindings    = &set_layout_binding, // VkDescriptorSetLayoutBinding const *
+			    };
+
+			    vkCreateDescriptorSetLayout( vkDevice, &set_layout_create_info, nullptr, p_descriptor_set_layout );
+		    };
+
+		// ---- Create a SetLayout each for:
+		// - bindless storage images
+		// - bindless combined image samplers
+		// - bindless samplers
+		create_descriptor_set_layout( LE_C_BINDLESS_STORAGE_IMAGES_DESCRIPTORS_MAX_COUNT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &self->bindless_storage_images_descriptor_set_layout );
+		create_descriptor_set_layout( LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &self->bindless_textures_descriptor_set_layout );
+		create_descriptor_set_layout( LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT, VK_DESCRIPTOR_TYPE_SAMPLER, &self->bindless_samplers_descriptor_set_layout );
+	}
 	{
 
 		// Create YcBcR conversion sampler - we use this to derive samplers that can deal with images
@@ -1862,7 +2003,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 	le_resource_handle const* resources        = nullptr;
 	le::AccessFlags2 const*   resources_access = nullptr;
 	size_t                    resources_count  = 0;
-	renderpass_i.get_used_resources( pass, &resources, &resources_access, &resources_count );
+	renderpass_i.get_used_resources( pass, &resources, &resources_access, nullptr, &resources_count );
 
 	currentPass.resources.assign( resources, resources + resources_count );
 
@@ -2340,6 +2481,15 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	frame.frameNumber = self->mFramesCount++; // note post-increment
 
+	frame.bindless_textures_data.clear();
+	frame.bindless_textures_data_update_list.clear();
+
+	frame.bindless_samplers_data.clear();
+	frame.bindless_samplers_data_update_list.clear();
+
+	frame.bindless_storage_images_data.clear();
+	frame.bindless_storage_images_data_update_list.clear();
+
 	return true;
 };
 // ----------------------------------------------------------------------
@@ -2753,11 +2903,11 @@ static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_
 
 // ----------------------------------------------------------------------
 // if specific format for texture was not specified, return format of referenced image
-static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const* frame, le_image_sampler_info_t const* texInfo ) {
-	if ( texInfo->imageView.format == le::Format::eUndefined ) {
-		return ( frame_data_get_image_format_from_resource_id( frame, texInfo->imageView.imageId ) );
+static inline VkFormat frame_data_get_image_format_from_image_view_info( BackendFrameData const* frame, le_image_view_info_t const* texInfo ) {
+	if ( texInfo->format == le::Format::eUndefined ) {
+		return ( frame_data_get_image_format_from_resource_id( frame, texInfo->imageId ) );
 	} else {
-		return static_cast<VkFormat>( texInfo->imageView.format );
+		return static_cast<VkFormat>( texInfo->format );
 	}
 }
 
@@ -2925,8 +3075,8 @@ static void backend_create_descriptor_pools( BackendFrameData& frame, VkDevice& 
 
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{
 		    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-		    .pNext         = nullptr, // optional
-		    .flags         = 0,       // optional
+		    .pNext         = nullptr,
+		    .flags         = 0,
 		    .maxSets       = 2000,
 		    .poolSizeCount = uint32_t( descriptorPoolSizes.size() ),
 		    .pPoolSizes    = descriptorPoolSizes.data(),
@@ -3601,7 +3751,7 @@ static void collect_resource_infos_per_resource(
 		le::AccessFlags2 const*   p_resources_access_flags = nullptr;
 		size_t                    resources_count          = 0;
 
-		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_access_flags, &resources_count );
+		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_access_flags, nullptr, &resources_count );
 
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
@@ -3920,6 +4070,38 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o* instance,
 }
 
 // ----------------------------------------------------------------------
+
+// This tells all bindless resources that use or are a subresource of a particular resource
+// to update their temporary objects
+static void frame_taint_all_bindless_sub_resources_that_use_resources( BackendFrameData& frame, std::vector<le_resource_handle>& resources ) {
+
+	if ( resources.empty() ) {
+		return;
+	}
+
+	// ---------| invariant resources is not empty
+
+	// We test all bindless resources whether they are derived from a parent resource
+	// that has been re-allocated. if so, then we must flag the bindless resouce as
+	// tainted.
+
+	// this only applies to bindless image resoures and to bindless buffer resources
+	// but not to samplers, as samplers won't be chaged by any resource update.
+
+	for ( size_t i = 0; i != frame.bindless_textures_data.size(); i++ ) {
+
+		auto const& needle = frame.bindless_textures_data[ i ].data.imageView.imageId;
+
+		for ( const auto& r : resources ) {
+			if ( needle == r ) {
+				frame.bindless_textures_data_update_list.insert( i );
+				break;
+			}
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
 // towards the start of backend_acquire_physical_resources
 //
@@ -3993,6 +4175,8 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 
 	{
 
+		std::vector<le_resource_handle> updated_resources;
+
 		auto [ backendResources, backend_resources_lock ] = self->get_allocated_resources();
 
 		for ( auto const& ar : active_resources ) {
@@ -4041,6 +4225,8 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 				// Add resource to map of available resources for this frame
 				frame.availableResources.insert_or_assign( resource, allocatedResource );
 
+				updated_resources.push_back( resource );
+
 				// Add this newly allocated resource to the backend so that the following frames
 				// may use it, too
 				backendResources.insert_or_assign( resource, allocatedResource );
@@ -4084,6 +4270,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 						printResourceInfo( resource, allocatedResource.info, "RE-ALLOC" );
 					}
 
+					updated_resources.push_back( resource );
 					// Add a copy of old resource to recycling bin for this frame, so that
 					// these resources get freed when this frame comes round again.
 					//
@@ -4103,6 +4290,10 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger().info( "" );
 		}
+
+		// We must check on our bindless resources and make sure to update them in case
+		// they depend on any of the resources that we did just update.
+		frame_taint_all_bindless_sub_resources_that_use_resources( frame, updated_resources );
 	}
 
 	// -- Create rtx acceleration structure scratch buffer
@@ -4200,106 +4391,109 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevice const& device, le_renderpass_o** passes, size_t numRenderPasses, VkSamplerYcbcrConversionInfo* ycbcr_conversion_info = nullptr ) {
 	ZoneScoped;
 	using namespace le_renderer;
+	using rp_resource_usage_flags = le_renderer_api::renderpass_interface_t::resource_usage_flags;
 	le::QueueFlagBits pass_type{};
 
-	// Only for compute passes: Create imageviews for all available
-	// resources which are of type image and which have usage
-	// sampled or storage.
+	// Create imageviews for all available resources which are of
+	// type image and which require a temporary image view.
 	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 
 		// fetch pass type from this passes' queue sumbission info
 		renderpass_i.get_queue_sumbission_info( *p, &pass_type, nullptr, nullptr );
 
-		if ( pass_type != le::QueueFlagBits::eCompute ) {
-			continue;
-		}
+		le_resource_handle const*      resources        = nullptr;
+		le::AccessFlags2 const*        resources_access = nullptr;
+		rp_resource_usage_flags const* usage_flags      = nullptr;
+		size_t                         resource_count   = 0;
 
-		const le_resource_handle* resources        = nullptr;
-		const le::AccessFlags2*   resources_access = nullptr;
-		size_t                    resource_count   = 0;
-
-		renderpass_i.get_used_resources( *p, &resources, &resources_access, &resource_count );
+		renderpass_i.get_used_resources( *p, &resources, &resources_access, &usage_flags, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
+
+			if ( usage_flags[ i ] != rp_resource_usage_flags::eRequiresTransient ) {
+				continue;
+			}
+
+			// ----------| invariant: Requires Transient
+
 			auto const& r = static_cast<le_image_resource_handle>( resources[ i ] );
 
-			if ( r->data->type == LeResourceType::eImage ) {
+			assert( r->data->type == LeResourceType::eImage && "resource must be an image" );
 
-				// We create a default image view for this image and store it with the frame. If no explicit image view
-				// for a particular operation has been specified, this default image view is used.
+			// We create a default image view for this image and store it with the frame. If no explicit image view
+			// for a particular operation has been specified, this default image view is used.
 
-				if ( frame.imageViews.find( r ) != frame.imageViews.end() ) {
-					continue;
-				}
-
-				// ---------| Invariant: ImageView for this image not yet stored with frame.
-
-				// attempt to look up format via available resources - this is important for
-				// unspecified formats which get automatically inferred, in which case we want
-				// to set the format to whatever was inferred when the image was allocated and placed
-				// in available resources.
-
-				AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( &frame, r );
-
-				auto const& imageFormat = le::Format( vk_resource_info.info.imageInfo.format );
-
-				// If the format is still undefined at this point, we can only throw our hands up in the air...
-				//
-				if ( imageFormat == le::Format::eUndefined ) {
-					logger().warn( "Cannot create default view for image: '%s', as format is unspecified", r->data->debug_name );
-					continue;
-				}
-
-				VkImageSubresourceRange subresourceRange{
-				    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
-				    .baseMipLevel   = 0,
-				    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
-				    .baseArrayLayer = 0,
-				    .layerCount     = 1,
-				};
-
-				VkImageViewCreateInfo imageViewCreateInfo{
-				    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-				    .pNext            = nullptr, // optional
-				    .flags            = 0,       // optional
-				    .image            = vk_resource_info.as.image,
-				    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-				    .format           = VkFormat( imageFormat ),
-				    .components       = {}, // default component mapping
-				    .subresourceRange = subresourceRange,
-				};
-
-				VkImageView imageView = nullptr;
-				vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
-
-				// Store image view object with frame, indexed by image resource id,
-				// so that it can be found quickly if need be.
-				frame.imageViews[ r ] = imageView;
-
-				AbstractPhysicalResource imgView{};
-				imgView.type        = AbstractPhysicalResource::Type::eImageView;
-				imgView.asImageView = imageView;
-
-				frame.ownedResources.emplace_front( std::move( imgView ) );
+			if ( frame.imageViews.find( r ) != frame.imageViews.end() ) {
+				continue;
 			}
-		}
+
+			// ---------| Invariant: ImageView for this image not yet stored with frame.
+
+			// Attempt to look up format via available resources - this is important for
+			// unspecified formats which get automatically inferred, in which case we want
+			// to set the format to whatever was inferred when the image was allocated and placed
+			// in available resources.
+
+			AllocatedResourceVk const& vk_resource_info = frame_data_get_allocated_resource_from_resource_id( &frame, r );
+
+			auto const& imageFormat = le::Format( vk_resource_info.info.imageInfo.format );
+
+			// If the format is still undefined at this point, we can only throw our hands up in the air...
+			//
+			if ( imageFormat == le::Format::eUndefined ) {
+				logger().warn( "Cannot create default view for image: '%s', as format is unspecified", r->data->debug_name );
+				continue;
+			}
+
+			VkImageSubresourceRange subresourceRange{
+			    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
+			    .baseMipLevel   = 0,
+			    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+			    .baseArrayLayer = 0,
+			    .layerCount     = 1,
+			};
+
+			VkImageViewCreateInfo imageViewCreateInfo{
+			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			    .pNext            = nullptr, // optional
+			    .flags            = 0,       // optional
+			    .image            = vk_resource_info.as.image,
+			    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+			    .format           = VkFormat( imageFormat ),
+			    .components       = {}, // default component mapping
+			    .subresourceRange = subresourceRange,
+			};
+
+			VkImageView imageView = nullptr;
+			vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
+
+			// Store image view object with frame, indexed by image resource id,
+			// so that it can be found quickly if need be.
+			frame.imageViews[ r ] = imageView;
+
+			AbstractPhysicalResource imgView{};
+			imgView.type        = AbstractPhysicalResource::Type::eImageView;
+			imgView.asImageView = imageView;
+
+			frame.ownedResources.emplace_front( std::move( imgView ) );
+			}
 	}
 
 	frame.textures_per_pass.resize( numRenderPasses );
 
-	// Create Samplers for all images which are used as Textures
+	// Create Combined Image Samplers for all Textures
 	//
 	for ( size_t pass_idx = 0; pass_idx != numRenderPasses; ++pass_idx ) {
 
 		auto& p = passes[ pass_idx ];
 
 		// Get all texture names for this pass
-		const le_texture_handle* textureIds     = nullptr;
+		le_texture_handle const* textureIds     = nullptr;
 		size_t                   textureIdCount = 0;
 		renderpass_i.get_texture_ids( p, &textureIds, &textureIdCount );
 
-		const le_image_sampler_info_t* textureInfos     = nullptr;
+		le_image_sampler_info_t const* textureInfos     = nullptr;
 		size_t                         textureInfoCount = 0;
 		renderpass_i.get_texture_infos( p, &textureInfos, &textureInfoCount );
 
@@ -4307,7 +4501,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 
 		for ( size_t i = 0; i != textureIdCount; i++ ) {
 
-			// -- find out if texture with this name has already been alloacted.
+			// -- find out if texture with this name has already been allocated.
 			// -- if not, allocate
 
 			const le_texture_handle textureId = textureIds[ i ];
@@ -4320,7 +4514,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				// -- Store Texture with frame so that decoder can find references
 				BackendFrameData::Texture tex;
 
-				auto const& imageFormat = le::Format( frame_data_get_image_format_from_texture_info( &frame, &texInfo ) );
+				auto const& imageFormat = le::Format( frame_data_get_image_format_from_image_view_info( &frame, &texInfo.imageView ) );
 				{
 					// Set or create vkImageview
 
@@ -4332,10 +4526,7 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // Fixme: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
 					};
 
-					// TODO: fill in additional image view create info based on info from pass...
-					VkImageViewCreateInfo imageViewCreateInfo;
-
-					imageViewCreateInfo = {
+					VkImageViewCreateInfo imageViewCreateInfo = {
 					    .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 					    .pNext      = nullptr, // optional
 					    .flags      = 0,       // optional
@@ -4396,7 +4587,9 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 						    .borderColor             = VkBorderColor( texInfo.sampler.borderColor ),
 						    .unnormalizedCoordinates = texInfo.sampler.unnormalizedCoordinates,
 						};
+
 						vkCreateSampler( device, &samplerCreateInfo, nullptr, &tex.sampler );
+
 						// Now store vk object references with frame-owned resources, so that
 						// the vk objects can be destroyed when frame crosses the fence.
 
@@ -4416,6 +4609,616 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 			}
 		} // end for all textureIds
 	}     // end for all passes
+}
+
+// ----------------------------------------------------------------------
+// Allocate bindless descriptors for the frame
+//
+// Each frame has space for a full complement of bindless descriptors.
+// These descriptors are valid for the duration of the frame
+// and can only be re-used once the frame has cycled through clear()
+static inline void frame_allocate_bindless_descriptors( BackendFrameData& frame, const VkDevice& device,
+                                                        VkDescriptorSetLayout textures_set_layout,
+                                                        VkDescriptorSetLayout samplers_set_layout,
+                                                        VkDescriptorSetLayout storage_images_set_layout ) {
+
+	if ( nullptr != frame.bindless_descriptors_pool ) {
+		return;
+	}
+
+	// -----------| invariant: this frame has not yet got a descriptor pool
+
+	// we must create a descriptorpool for bindless descriptors
+	ZoneScopedS( "Create bindless descriptor Pool" );
+
+	VkDescriptorPoolSize descriptorPoolSizes[] = {
+	    { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, LE_C_BINDLESS_STORAGE_IMAGES_DESCRIPTORS_MAX_COUNT },
+	    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT },
+	    { VK_DESCRIPTOR_TYPE_SAMPLER, LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT },
+	};
+
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{
+	    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+	    .pNext         = nullptr,
+	    .flags         = 0,                                                              // VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+	    .maxSets       = sizeof( descriptorPoolSizes ) / sizeof( VkDescriptorPoolSize ), // one set for each type == number of pool sizes entries
+	    .poolSizeCount = sizeof( descriptorPoolSizes ) / sizeof( VkDescriptorPoolSize ), // number of pool size entries
+	    .pPoolSizes    = descriptorPoolSizes,
+	};
+
+	auto result = vkCreateDescriptorPool( device, &descriptorPoolCreateInfo, nullptr, &frame.bindless_descriptors_pool );
+	assert( result == VK_SUCCESS );
+
+	{
+		VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
+		    .pNext              = nullptr,                                                                  // void *, optional
+		    .descriptorSetCount = 1,                                                                        // uint32_t, optional
+		    .pDescriptorCounts  = &LE_C_BINDLESS_STORAGE_IMAGES_DESCRIPTORS_MAX_COUNT,                      // uint32_t const *
+		};
+
+		VkDescriptorSetAllocateInfo allocateInfo = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,          // VkStructureType
+		    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
+		    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
+		    .descriptorSetCount = 1,                                                       // uint32_t
+		    .pSetLayouts        = &storage_images_set_layout,                              // VkDescriptorSetLayout const *
+		};
+		auto r = vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_storage_images_descriptor_set );
+		assert( r == VK_SUCCESS );
+	}
+
+	{
+		VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
+		    .pNext              = nullptr,                                                                  // void *, optional
+		    .descriptorSetCount = 1,                                                                        // uint32_t, optional
+		    .pDescriptorCounts  = &LE_C_BINDLESS_TEXTURE_DESCRIPTORS_MAX_COUNT,                             // uint32_t const *
+		};
+
+		VkDescriptorSetAllocateInfo allocateInfo = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,          // VkStructureType
+		    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
+		    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
+		    .descriptorSetCount = 1,                                                       // uint32_t
+		    .pSetLayouts        = &textures_set_layout,                                    // VkDescriptorSetLayout const *
+		};
+		auto r = vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_textures_descriptor_set );
+		assert( r == VK_SUCCESS );
+	}
+
+	//
+
+	{
+		VkDescriptorSetVariableDescriptorCountAllocateInfo descriptor_set_variable_descriptor_count_allocate_info = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO, // VkStructureType
+		    .pNext              = nullptr,                                                                  // void *, optional
+		    .descriptorSetCount = 1,                                                                        // uint32_t, optional
+		    .pDescriptorCounts  = &LE_C_BINDLESS_SAMPLER_DESCRIPTORS_MAX_COUNT,                             // uint32_t const *
+		};
+
+		VkDescriptorSetAllocateInfo allocateInfo = {
+		    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,          // VkStructureType
+		    .pNext              = &descriptor_set_variable_descriptor_count_allocate_info, // void *, optional
+		    .descriptorPool     = frame.bindless_descriptors_pool,                         // VkDescriptorPool
+		    .descriptorSetCount = 1,                                                       // uint32_t
+		    .pSetLayouts        = &samplers_set_layout,                                    // VkDescriptorSetLayout const *
+		};
+		auto r = vkAllocateDescriptorSets( device, &allocateInfo, &frame.bindless_samplers_descriptor_set );
+		assert( r == VK_SUCCESS );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void frame_update_bindless_descriptors( le_backend_o* self, BackendFrameData& frame, VkDevice const& device, le_renderer_o* renderer,
+                                               VkDescriptorSet previous_frame_textures_descriptor_set,
+                                               VkDescriptorSet previous_frame_samplers_descriptor_set,
+                                               VkDescriptorSet previous_frame_storage_images_descriptor_set ) {
+
+	ZoneScoped;
+
+	// We keep one "bindless" descriptor set per frame.
+	// this means that for each frame, descriptors will always point at the correct version of a resource
+	// and descriptors will point at temporary objects which have the same lifetime as the resource
+	// if a temporary object gets recycled, it gets added to the frame bin
+	// and will get destroyed once the frame is cleared after render.
+
+	// what can change?
+	// - the texture can be deleted
+	// - the texture subresources may have changed
+	// - the texture resource may have changed
+
+	// how can we detect a change?
+	// how do we propagate change?
+	//
+	//
+
+	// for now, we can create descriptors for all bindless textures
+	// and also create samplers, and views.
+	//
+	//
+	// At this point bindless_textures_data holds the state of currently
+	// available bindless textures.
+
+	// we should compare the current version of the descriptors to the ones in the previous frame -
+	// anything that's different has been updated.
+
+	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - update all bindless storage images
+
+	for ( auto& idx : frame.bindless_storage_images_data_update_list ) {
+		auto& data = frame.bindless_storage_images_data[ idx ].data;
+
+		AbstractPhysicalResource storage_image{ .asRawData = 0, .type = AbstractPhysicalResource::eImageView };
+
+		auto const& imageFormat = le::Format( frame_data_get_image_format_from_image_view_info( &frame, &data ) );
+		{
+			// Set or create vkImageview
+
+			VkImageSubresourceRange subresourceRange{
+			    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
+			    .baseMipLevel   = 0,
+			    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+			    .baseArrayLayer = data.base_array_layer,
+			    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // Fixme: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
+			};
+
+			VkImageViewCreateInfo imageViewCreateInfo = {
+			    .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			    .pNext      = nullptr, // optional
+			    .flags      = 0,       // optional
+			    .image      = frame_data_get_image_from_le_resource_id( &frame, data.imageId ),
+			    .viewType   = VkImageViewType( data.image_view_type ),
+			    .format     = VkFormat( imageFormat ),
+			    .components = {
+			        .r = VkComponentSwizzle( data.r_swizzle ),
+			        .g = VkComponentSwizzle( data.g_swizzle ),
+			        .b = VkComponentSwizzle( data.b_swizzle ),
+			        .a = VkComponentSwizzle( data.a_swizzle ),
+
+			    }, // default component mapping
+			    .subresourceRange = subresourceRange,
+			};
+
+			vkCreateImageView( device, &imageViewCreateInfo, nullptr, &storage_image.asImageView );
+		}
+
+		if ( idx < self->bindless_storage_images.size() ) {
+			// This update refers to an existing item --
+			// this means we must retire the old storage_image before creating a new one
+
+			// replace exiting entry with new objects
+			std::swap( self->bindless_storage_images[ idx ], storage_image );
+
+			// move (old) storage_image to frame owned resources
+			// the effect is that they will be kept alife for until
+			// this frame is cleared, and then deleted.
+			frame.ownedResources.emplace_front( storage_image );
+		} else {
+			// this is a new element
+			self->bindless_storage_images.emplace_back( storage_image );
+
+			assert( self->bindless_storage_images.size() == idx + 1 );
+		}
+	}
+
+	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - update all bindless samplers
+
+	for ( auto& idx : frame.bindless_samplers_data_update_list ) {
+		auto& sampler_data = frame.bindless_samplers_data[ idx ].data;
+
+		AbstractPhysicalResource sampler{ .asRawData = 0, .type = AbstractPhysicalResource::eSampler };
+
+		{
+
+			VkSamplerCreateInfo samplerCreateInfo{
+			    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			    .pNext                   = nullptr, // optional
+			    .flags                   = 0,       // optional
+			    .magFilter               = VkFilter( sampler_data.magFilter ),
+			    .minFilter               = VkFilter( sampler_data.minFilter ),
+			    .mipmapMode              = VkSamplerMipmapMode( sampler_data.mipmapMode ),
+			    .addressModeU            = VkSamplerAddressMode( sampler_data.addressModeU ),
+			    .addressModeV            = VkSamplerAddressMode( sampler_data.addressModeV ),
+			    .addressModeW            = VkSamplerAddressMode( sampler_data.addressModeW ),
+			    .mipLodBias              = sampler_data.mipLodBias,
+			    .anisotropyEnable        = sampler_data.anisotropyEnable,
+			    .maxAnisotropy           = sampler_data.maxAnisotropy,
+			    .compareEnable           = sampler_data.compareEnable,
+			    .compareOp               = VkCompareOp( sampler_data.compareOp ),
+			    .minLod                  = sampler_data.minLod,
+			    .maxLod                  = sampler_data.maxLod,
+			    .borderColor             = VkBorderColor( sampler_data.borderColor ),
+			    .unnormalizedCoordinates = sampler_data.unnormalizedCoordinates,
+			};
+
+			vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler.asSampler );
+		}
+
+		if ( idx < self->bindless_samplers.size() ) {
+			// This update refers to an existing item --
+			// this means we must retire the old sampler before creating a new one
+
+			// replace exiting entry with new objects
+			std::swap( self->bindless_samplers[ idx ], sampler );
+
+			// move (old) sampler to frame owned resources
+			// the effect is that they will be kept alife for until
+			// this frame is cleared, and then deleted.
+			frame.ownedResources.emplace_front( sampler );
+		} else {
+			// this is a new element
+			self->bindless_samplers.emplace_back( sampler );
+
+			assert( self->bindless_samplers.size() == idx + 1 );
+		}
+	}
+
+	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - update all bindless textures (thats sampled images)
+
+	for ( auto& idx : frame.bindless_textures_data_update_list ) {
+		auto& tex_data = frame.bindless_textures_data[ idx ].data;
+
+		AbstractPhysicalResource sampler{ .asRawData = 0, .type = AbstractPhysicalResource::eSampler };
+		AbstractPhysicalResource image_view{ .asRawData = 0, .type = AbstractPhysicalResource::eImageView };
+
+		{
+
+			auto const& imageFormat = le::Format( frame_data_get_image_format_from_image_view_info( &frame, &tex_data.imageView ) );
+			{
+				// Set or create vkImageview
+
+				VkImageSubresourceRange subresourceRange{
+				    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
+				    .baseMipLevel   = 0,
+				    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+				    .baseArrayLayer = tex_data.imageView.base_array_layer,
+				    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // Fixme: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
+				};
+
+				VkImageViewCreateInfo imageViewCreateInfo = {
+				    .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+				    .pNext      = nullptr, // optional
+				    .flags      = 0,       // optional
+				    .image      = frame_data_get_image_from_le_resource_id( &frame, tex_data.imageView.imageId ),
+				    .viewType   = VkImageViewType( tex_data.imageView.image_view_type ),
+				    .format     = VkFormat( imageFormat ),
+				    .components = {
+				        .r = VkComponentSwizzle( tex_data.imageView.r_swizzle ),
+				        .g = VkComponentSwizzle( tex_data.imageView.g_swizzle ),
+				        .b = VkComponentSwizzle( tex_data.imageView.b_swizzle ),
+				        .a = VkComponentSwizzle( tex_data.imageView.a_swizzle ),
+
+				    }, // default component mapping
+				    .subresourceRange = subresourceRange,
+				};
+
+				// if ( VkFormat( imageFormat ) == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
+				// 	// if image is a planar image - we must create an image view with a sampler that can
+				// 	// convert such an image
+				// 	imageViewCreateInfo.pNext = ycbcr_conversion_info;
+				// }
+
+				vkCreateImageView( device, &imageViewCreateInfo, nullptr, &image_view.asImageView );
+			}
+
+			{
+				// Create VkSampler object on device in case we don't use an
+				// immutable sampler
+
+				if ( VkFormat( imageFormat ) == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ) {
+					assert( false && "we can't create a sampler for a yuv 420 image" );
+				}
+
+				VkSamplerCreateInfo samplerCreateInfo{
+				    .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+				    .pNext                   = nullptr, // optional
+				    .flags                   = 0,       // optional
+				    .magFilter               = VkFilter( tex_data.sampler.magFilter ),
+				    .minFilter               = VkFilter( tex_data.sampler.minFilter ),
+				    .mipmapMode              = VkSamplerMipmapMode( tex_data.sampler.mipmapMode ),
+				    .addressModeU            = VkSamplerAddressMode( tex_data.sampler.addressModeU ),
+				    .addressModeV            = VkSamplerAddressMode( tex_data.sampler.addressModeV ),
+				    .addressModeW            = VkSamplerAddressMode( tex_data.sampler.addressModeW ),
+				    .mipLodBias              = tex_data.sampler.mipLodBias,
+				    .anisotropyEnable        = tex_data.sampler.anisotropyEnable,
+				    .maxAnisotropy           = tex_data.sampler.maxAnisotropy,
+				    .compareEnable           = tex_data.sampler.compareEnable,
+				    .compareOp               = VkCompareOp( tex_data.sampler.compareOp ),
+				    .minLod                  = tex_data.sampler.minLod,
+				    .maxLod                  = tex_data.sampler.maxLod,
+				    .borderColor             = VkBorderColor( tex_data.sampler.borderColor ),
+				    .unnormalizedCoordinates = tex_data.sampler.unnormalizedCoordinates,
+				};
+				vkCreateSampler( device, &samplerCreateInfo, nullptr, &sampler.asSampler );
+				// Now store vk object references with frame-owned resources, so that
+				// the vk objects can be destroyed when frame crosses the fence.
+			}
+		}
+
+		if ( idx < self->bindless_textures_image_views.size() ) {
+			// This update refers to an existing item --
+			// this means we must retire the old sampler before creating a new one
+
+			// replace exiting entry with new objects
+			std::swap( self->bindless_textures_samplers[ idx ], sampler );
+			std::swap( self->bindless_textures_image_views[ idx ], image_view );
+
+			// move (old) image view and sampler to frame owned resources
+			// the effect is that they will be kept alife for until
+			// this frame is cleared, and then deleted.
+			frame.ownedResources.emplace_front( sampler );
+			frame.ownedResources.emplace_front( image_view );
+		} else {
+			// this is a new element
+			self->bindless_textures_samplers.emplace_back( sampler );
+			self->bindless_textures_image_views.emplace_back( image_view );
+
+			assert( self->bindless_textures_image_views.size() == self->bindless_textures_samplers.size() &&
+			        self->bindless_textures_image_views.size() == idx + 1 );
+		}
+	}
+
+	// In case this frame has no bindless descriptors yet,
+	// we pre-allocate a full arena of them.
+	// once descriptors are allocated, they stay around
+	// for the duration of the program
+	//
+	frame_allocate_bindless_descriptors( frame, device,
+	                                     self->bindless_textures_descriptor_set_layout,
+	                                     self->bindless_samplers_descriptor_set_layout,
+	                                     self->bindless_storage_images_descriptor_set_layout );
+
+	/*
+	 * copy descriptorsets from last frame in bulk
+	 *
+	 * We can read fearlessly from the last frame since:
+	 *
+	 * - descriptorsets have the same lifetime as the backendframe
+	 *   and will otherwise never deleted.
+	 *
+	 * - the only function which **writes** to descriptorsets is
+	 *   this function, and there is only ever one backend frame
+	 *   using this function at the same time, and backend frames
+	 *   execute in sequence (it is guaranteed that the previous
+	 *   backend frame has completed this function before the next
+	 *   backend frame begins executing this function).
+	 *
+	 * - it should be fine to read-only from descriptorsets even if
+	 *   they are used for rendering
+	 *
+	 */
+
+	std::vector<VkCopyDescriptorSet> set_copies;
+
+	// copy storage_images from last frame
+	if ( previous_frame_storage_images_descriptor_set ) {
+
+		// Last frame had a descriptor set, we want to copy its contents into this descriptor pool
+		// so that we can use the state of the last frame as the starting point for applying any
+		// updates. This is so that updates propagate through all frames.
+
+		ZoneScopedS( "Copy previous frame descriptors" );
+
+		// We don't want to copy the full DescriptorSet,
+		// but we could just as well. we do know that the
+		// maximum number of used descriptors is, and so
+		// we try to be economical and only copy over that
+		// number.
+		uint32_t max_used_descriptors_count = self->bindless_storage_images.size();
+
+		VkCopyDescriptorSet copy_set = {
+		    .sType           = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,        // VkStructureType
+		    .pNext           = nullptr,                                      // void *, optional
+		    .srcSet          = previous_frame_storage_images_descriptor_set, // VkDescriptorSet
+		    .srcBinding      = 0,                                            // uint32_t
+		    .srcArrayElement = 0,                                            // uint32_t
+		    .dstSet          = frame.bindless_storage_images_descriptor_set, // VkDescriptorSet
+		    .dstBinding      = 0,                                            // uint32_t
+		    .dstArrayElement = 0,                                            // uint32_t
+		    .descriptorCount = max_used_descriptors_count,                   // uint32_t
+		};
+
+		set_copies.emplace_back( copy_set );
+	}
+
+	if ( previous_frame_samplers_descriptor_set ) {
+
+		// Last frame had a descriptor set, we want to copy its contents into this descriptor pool
+		// so that we can use the state of the last frame as the starting point for applying any
+		// updates. This is so that updates propagate through all frames.
+
+		ZoneScopedS( "Copy previous frame descriptors" );
+
+		// We don't want to copy the full DescriptorSet,
+		// but we could just as well. we do know that the
+		// maximum number of used descriptors is, and so
+		// we try to be economical and only copy over that
+		// number.
+		uint32_t max_used_descriptors_count = self->bindless_samplers.size();
+
+		VkCopyDescriptorSet copy_set = {
+		    .sType           = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,  // VkStructureType
+		    .pNext           = nullptr,                                // void *, optional
+		    .srcSet          = previous_frame_samplers_descriptor_set, // VkDescriptorSet
+		    .srcBinding      = 0,                                      // uint32_t
+		    .srcArrayElement = 0,                                      // uint32_t
+		    .dstSet          = frame.bindless_samplers_descriptor_set, // VkDescriptorSet
+		    .dstBinding      = 0,                                      // uint32_t
+		    .dstArrayElement = 0,                                      // uint32_t
+		    .descriptorCount = max_used_descriptors_count,             // uint32_t
+		};
+
+		set_copies.emplace_back( copy_set );
+	}
+
+	// copy textures from last frame
+
+	if ( previous_frame_textures_descriptor_set ) {
+
+		// Last frame had a descriptor set, we want to copy its contents into this descriptor pool
+		// so that we can use the state of the last frame as the starting point for applying any
+		// updates. This is so that updates propagate through all frames.
+
+		ZoneScopedS( "Copy previous frame descriptors" );
+
+		// We don't want to copy the full DescriptorSet,
+		// but we could just as well. we do know that the
+		// maximum number of used descriptors is, and so
+		// we try to be economical and only copy over that
+		// number.
+		uint32_t max_used_descriptors_count = self->bindless_textures_samplers.size();
+
+		VkCopyDescriptorSet copy_set = {
+		    .sType           = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,  // VkStructureType
+		    .pNext           = nullptr,                                // void *, optional
+		    .srcSet          = previous_frame_textures_descriptor_set, // VkDescriptorSet
+		    .srcBinding      = 0,                                      // uint32_t
+		    .srcArrayElement = 0,                                      // uint32_t
+		    .dstSet          = frame.bindless_textures_descriptor_set, // VkDescriptorSet
+		    .dstBinding      = 0,                                      // uint32_t
+		    .dstArrayElement = 0,                                      // uint32_t
+		    .descriptorCount = max_used_descriptors_count,             // uint32_t
+		};
+
+		set_copies.emplace_back( copy_set );
+	}
+
+	if ( !set_copies.empty() ) {
+		vkUpdateDescriptorSets( device, 0, nullptr, set_copies.size(), set_copies.data() );
+	}
+
+	{
+		// Update storage_image descriptors
+
+		size_t num_write_descriptors = frame.bindless_storage_images_data_update_list.size();
+
+		if ( num_write_descriptors ) {
+			ZoneScopedS( "Update current storage_image descriptors" );
+
+			// Update any changed descriptors --
+			std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+			write_descriptor_sets.reserve( num_write_descriptors );
+			std::vector<VkDescriptorImageInfo> img_infos;
+			img_infos.reserve( num_write_descriptors );
+
+			// First, we have to collect all our image views, and storage_images
+			for ( auto& idx : frame.bindless_storage_images_data_update_list ) {
+				img_infos.emplace_back(
+				    nullptr,
+				    self->bindless_storage_images[ idx ].asImageView,
+				    VK_IMAGE_LAYOUT_GENERAL ); // Layout GENERAL is important here - so that we may write or read
+				                               /*
+				                                * we could specify the layout even more detailed, based on wheter our image is used as an SRV or UAV,
+				                                * but it appears that the general trend in Vulkan is to simplify layout -- and nvidia doesn't seem to
+				                                * care about layout anyway.
+				                                */
+			}
+
+			int img_info_idx = 0;
+			for ( auto& idx : frame.bindless_storage_images_data_update_list ) {
+				VkWriteDescriptorSet w{
+				    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				    .pNext            = nullptr,
+				    .dstSet           = frame.bindless_storage_images_descriptor_set,
+				    .dstBinding       = 0,
+				    .dstArrayElement  = idx, //
+				    .descriptorCount  = 1,
+				    .descriptorType   = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+				    .pImageInfo       = &img_infos[ img_info_idx++ ],
+				    .pBufferInfo      = 0,
+				    .pTexelBufferView = 0,
+				};
+				write_descriptor_sets.push_back( w );
+			}
+			vkUpdateDescriptorSets( device, uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
+		}
+	}
+	{
+		// Update sampler descriptors
+
+		size_t num_write_descriptors = frame.bindless_samplers_data_update_list.size();
+
+		if ( num_write_descriptors ) {
+			ZoneScopedS( "Update current sampler descriptors" );
+
+			// Update any changed descriptors --
+			std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+			write_descriptor_sets.reserve( num_write_descriptors );
+			std::vector<VkDescriptorImageInfo> img_infos;
+			img_infos.reserve( num_write_descriptors );
+
+			// First, we have to collect all our image views, and samplers
+			for ( auto& idx : frame.bindless_samplers_data_update_list ) {
+				img_infos.emplace_back(
+				    self->bindless_samplers[ idx ].asSampler,
+				    nullptr,
+				    VK_IMAGE_LAYOUT_UNDEFINED );
+			}
+
+			int img_info_idx = 0;
+			for ( auto& idx : frame.bindless_samplers_data_update_list ) {
+				VkWriteDescriptorSet w{
+				    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				    .pNext            = nullptr, // optional
+				    .dstSet           = frame.bindless_samplers_descriptor_set,
+				    .dstBinding       = 0,
+				    .dstArrayElement  = idx, //
+				    .descriptorCount  = 1,
+				    .descriptorType   = VK_DESCRIPTOR_TYPE_SAMPLER,
+				    .pImageInfo       = &img_infos[ img_info_idx++ ],
+				    .pBufferInfo      = 0,
+				    .pTexelBufferView = 0,
+				};
+				write_descriptor_sets.push_back( w );
+			}
+			vkUpdateDescriptorSets( device, uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
+		}
+	}
+	{
+		// update texture descriptors
+
+		size_t num_write_descriptors = frame.bindless_textures_data_update_list.size();
+
+		if ( num_write_descriptors ) {
+			ZoneScopedS( "Update current texture descriptors" );
+
+			// Update any changed descriptors --
+			std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+			write_descriptor_sets.reserve( num_write_descriptors );
+			std::vector<VkDescriptorImageInfo> img_infos;
+			img_infos.reserve( num_write_descriptors );
+
+			// First, we have to collect all our image views, and samplers
+			for ( auto& idx : frame.bindless_textures_data_update_list ) {
+				img_infos.emplace_back(
+				    self->bindless_textures_samplers[ idx ].asSampler,
+				    self->bindless_textures_image_views[ idx ].asImageView,
+				    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+			}
+
+			int img_info_idx = 0;
+			for ( auto& idx : frame.bindless_textures_data_update_list ) {
+				VkWriteDescriptorSet w{
+				    .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				    .pNext            = nullptr, // optional
+				    .dstSet           = frame.bindless_textures_descriptor_set,
+				    .dstBinding       = 0,
+				    .dstArrayElement  = idx, //
+				    .descriptorCount  = 1,
+				    .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				    .pImageInfo       = &img_infos[ img_info_idx++ ],
+				    .pBufferInfo      = 0,
+				    .pTexelBufferView = 0,
+				};
+				write_descriptor_sets.push_back( w );
+			}
+			vkUpdateDescriptorSets( device, uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
+		}
+	}
+
+	// Now the descriptorset should be updated, and you may use bindless handles to address
+	// bindless textures
 }
 
 // ----------------------------------------------------------------------
@@ -4490,6 +5293,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	}
 
 	// Note: this consumes frame.declared_resources
+	// Note: this will taint any bindless (sub)resources that are affected by resources that are allocated or re-allocated.
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
 	{
@@ -4562,6 +5366,14 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_transient_resources( frame, device, passes, numRenderPasses, &self->vk_sampler_ycbcr_conversion_info );
+
+	// -- update temporary objects (image_views, samplers) and descriptors for bindless textures
+	// note that we pass in the bindless descriptors pool from the last frame --
+	uint32_t previous_frame_index = ( frameIndex + self->mFrames.size() - 1 ) % self->mFrames.size();
+	frame_update_bindless_descriptors( self, frame, device, self->renderer,
+	                                   self->mFrames[ previous_frame_index ].bindless_textures_descriptor_set,
+	                                   self->mFrames[ previous_frame_index ].bindless_samplers_descriptor_set,
+	                                   self->mFrames[ previous_frame_index ].bindless_storage_images_descriptor_set );
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	backend_create_renderpasses( frame, device );
@@ -4674,7 +5486,7 @@ static bool updateArguments( const VkDevice&                    device,
                              const VkDescriptorPool&            descriptorPool_,
                              const ArgumentState&               argumentState,
                              std::array<DescriptorSetState, 8>& previousSetData,
-                             VkDescriptorSet*                   descriptorSets ) {
+                             VkDescriptorSet* descriptorSets, le_backend_o* self, BackendFrameData const& frame ) {
 
 	// -- allocate descriptors from descriptorpool based on set layout info
 
@@ -4710,6 +5522,19 @@ static bool updateArguments( const VkDevice&                    device,
 		static constexpr auto NULL_VK_BUFFER                     = VkBuffer( nullptr );
 		static constexpr auto NULL_VK_IMAGE_VIEW                 = VkImageView( nullptr );
 		static constexpr auto NULL_VK_ACCELERATION_STRUCTURE_KHR = VkAccelerationStructureKHR( nullptr );
+
+		// If we're binding a DescriptorSet that is used for bindless, this implies that
+		// we should not do any updates on this descriptorset.
+		if ( argumentState.layouts[ setId ] == self->bindless_textures_descriptor_set_layout ) {
+			descriptorSets[ setId ] = frame.bindless_textures_descriptor_set;
+			continue;
+		} else if ( argumentState.layouts[ setId ] == self->bindless_samplers_descriptor_set_layout ) {
+			descriptorSets[ setId ] = frame.bindless_samplers_descriptor_set;
+			continue;
+		} else if ( argumentState.layouts[ setId ] == self->bindless_storage_images_descriptor_set_layout ) {
+			descriptorSets[ setId ] = frame.bindless_storage_images_descriptor_set;
+			continue;
+		}
 
 		// Whether to test that that arguments are set correctly
 		// - we don't do this check by default if we're running a release build
@@ -4811,11 +5636,7 @@ static bool updateArguments( const VkDevice&                    device,
 
 				assert( result == VK_SUCCESS && "failed to allocate descriptor set" );
 
-				if ( /* DISABLES CODE */ ( false ) ) {
-					// I wish that this would work - but it appears that accelerator decriptors cannot be updated using templates.
-					vkUpdateDescriptorSetWithTemplate( device, descriptorSets[ setId ], argumentState.updateTemplates[ setId ], argumentState.setData[ setId ].data() );
-
-				} else {
+				{
 
 					std::vector<VkWriteDescriptorSet> write_descriptor_sets;
 
@@ -5041,6 +5862,49 @@ static uint32_t backend_find_queue_family_index_from_requirements( le_backend_o*
 
 	return cache_entry.first->second;
 }
+
+// This is triggered in RECORD stage after recording the frame
+// ----------------------------------------------------------------------
+static void backend_frame_set_bindless_textures_data( le_backend_o* self, uint32_t frame_index, le_bindless_texture_data_t const* const texture_data, size_t texture_data_count, uint32_t const* const updated_indices, size_t updated_indices_count ) {
+	ZoneScoped;
+	auto& current_frame = self->mFrames[ frame_index ];
+
+	// This copies the latest complete state of all bindless textures.
+	current_frame.bindless_textures_data.assign( texture_data, texture_data + texture_data_count );
+	// This contains a list of all the indices in the above state that have been changed
+	// (a new entry is considered a change; nothing is ever deleted, but deleted entries may get
+	// re-used, in which case they will have a different version number, and they will show as a change)
+	current_frame.bindless_textures_data_update_list.insert( updated_indices, updated_indices + updated_indices_count );
+}
+
+// This is triggered in RECORD stage after recording the frame
+// ----------------------------------------------------------------------
+static void backend_frame_set_bindless_storage_images_data( le_backend_o* self, uint32_t frame_index, le_bindless_storage_image_data_t const* const storage_image_data, size_t storage_image_data_count, uint32_t const* const updated_indices, size_t updated_indices_count ) {
+	ZoneScoped;
+	auto& current_frame = self->mFrames[ frame_index ];
+
+	// This copies the latest complete state of all bindless storage_images.
+	current_frame.bindless_storage_images_data.assign( storage_image_data, storage_image_data + storage_image_data_count );
+	// This contains a list of all the indices in the above state that have been changed
+	// (a new entry is considered a change; nothing is ever deleted, but deleted entries may get
+	// re-used, in which case they will have a different version number, and they will show as a change)
+	current_frame.bindless_storage_images_data_update_list.insert( updated_indices, updated_indices + updated_indices_count );
+}
+
+// This is triggered in RECORD stage after recording the frame
+// ----------------------------------------------------------------------
+static void backend_frame_set_bindless_samplers_data( le_backend_o* self, uint32_t frame_index, le_bindless_sampler_data_t const* const sampler_data, size_t sampler_data_count, uint32_t const* const updated_indices, size_t updated_indices_count ) {
+	ZoneScoped;
+	auto& current_frame = self->mFrames[ frame_index ];
+
+	// This copies the latest complete state of all bindless samplers.
+	current_frame.bindless_samplers_data.assign( sampler_data, sampler_data + sampler_data_count );
+	// This contains a list of all the indices in the above state that have been changed
+	// (a new entry is considered a change; nothing is ever deleted, but deleted entries may get
+	// re-used, in which case they will have a different version number, and they will show as a change)
+	current_frame.bindless_samplers_data_update_list.insert( updated_indices, updated_indices + updated_indices_count );
+}
+
 // ----------------------------------------------------------------------
 static void backend_frame_add_on_clear_callbacks( le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count ) {
 	ZoneScoped;
@@ -5382,7 +6246,6 @@ static void bind_pipeline(
 			auto& setData = argumentState.setData[ setId ];
 
 			argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
-			argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
 
 			setData.clear();
 			setData.reserve( setLayoutInfo->binding_info.size() );
@@ -5396,41 +6259,43 @@ static void bind_pipeline(
 				}
 
 				// ----------| invariant: b.count > 0
+				if ( 0 == b.is_bindless_resource ) {
 
-				// add an entry for each array element with this binding to setData
-				for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-					DescriptorData descriptorData{};
+					// add an entry for each array element with this binding to setData
+					for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
+						DescriptorData descriptorData{};
 
-					descriptorData.type          = b.type;
-					descriptorData.bindingNumber = uint32_t( b.binding );
-					descriptorData.arrayIndex    = uint32_t( arrayIndex );
+						descriptorData.type          = b.type;
+						descriptorData.bindingNumber = uint32_t( b.binding );
+						descriptorData.arrayIndex    = uint32_t( arrayIndex );
 
-					if ( b.type == le::DescriptorType::eStorageBuffer ||
-					     b.type == le::DescriptorType::eUniformBuffer ||
-					     b.type == le::DescriptorType::eStorageBufferDynamic ||
-					     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+						if ( b.type == le::DescriptorType::eStorageBuffer ||
+						     b.type == le::DescriptorType::eUniformBuffer ||
+						     b.type == le::DescriptorType::eStorageBufferDynamic ||
+						     b.type == le::DescriptorType::eUniformBufferDynamic ) {
 
-						descriptorData.bufferInfo.range = b.range;
-					} else if ( b.type == le::DescriptorType::eSampledImage ||
-					            b.type == le::DescriptorType::eCombinedImageSampler ) {
-						descriptorData.imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
-					} else if ( b.type == le::DescriptorType::eStorageImage ) {
-						// Layout must be general for a rw storage image
-						descriptorData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
+							descriptorData.bufferInfo.range = b.range;
+						} else if ( b.type == le::DescriptorType::eSampledImage ||
+						            b.type == le::DescriptorType::eCombinedImageSampler ) {
+							descriptorData.imageInfo.imageLayout = le::ImageLayout::eShaderReadOnlyOptimal;
+						} else if ( b.type == le::DescriptorType::eStorageImage ) {
+							// Layout must be general for a rw storage image
+							descriptorData.imageInfo.imageLayout = le::ImageLayout::eGeneral;
+						}
+
+						setData.emplace_back( descriptorData );
 					}
 
-					setData.emplace_back( descriptorData );
-				}
+					if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
+					     b.type == le::DescriptorType::eUniformBufferDynamic ) {
+						assert( b.count != 0 ); // count cannot be 0
 
-				if ( b.type == le::DescriptorType::eStorageBufferDynamic ||
-				     b.type == le::DescriptorType::eUniformBufferDynamic ) {
-					assert( b.count != 0 ); // count cannot be 0
+						// store dynamic offset index for this element
+						b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
 
-					// store dynamic offset index for this element
-					b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
-
-					// increase dynamic offset count by number of elements in this binding
-					argumentState.dynamicOffsetCount += b.count;
+						// increase dynamic offset count by number of elements in this binding
+						argumentState.dynamicOffsetCount += b.count;
+					}
 				}
 
 				// add this binding to list of current bindings
@@ -5931,7 +6796,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 									auto& setData = argumentState.setData[ setId ];
 
 									argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
-									argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
 
 									setData.clear();
 									setData.reserve( setLayoutInfo->binding_info.size() );
@@ -6015,7 +6879,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandTraceRays*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6074,7 +6938,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDispatchIndirect*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6103,7 +6967,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDispatch*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6161,7 +7025,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDraw*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6189,7 +7053,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDrawIndexed*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6222,7 +7086,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDrawMeshTasks*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -6249,7 +7113,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 						auto* le_cmd = static_cast<le::CommandDrawMeshTasksNV*>( dataIt );
 
 						// -- update descriptorsets via template if tainted
-						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+						bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets, self, frame );
 
 						if ( false == argumentsOk ) {
 							break;
@@ -8545,9 +9409,18 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.free_gpu_memory                           = backend_free_gpu_memory;
 	private_backend_i.get_default_graphics_queue_info           = backend_get_default_graphics_queue_info;
 	private_backend_i.find_queue_family_index_from_requirements = backend_find_queue_family_index_from_requirements;
+
+	private_backend_i.frame_set_bindless_textures_data = backend_frame_set_bindless_textures_data;
+	private_backend_i.frame_set_bindless_samplers_data       = backend_frame_set_bindless_samplers_data;
+	private_backend_i.frame_set_bindless_storage_images_data = backend_frame_set_bindless_storage_images_data;
+
 	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
 	private_backend_i.frame_data_get_image_from_le_resource_id  = frame_data_get_image_from_le_resource_id;
 	private_backend_i.get_sampler_ycbcr_conversion_info         = backend_get_sampler_ycbcr_conversion_info;
+
+	private_backend_i.get_bindless_textures_descriptor_set_layout = backend_get_bindless_textures_descriptor_set_layout;
+	private_backend_i.get_bindless_samplers_descriptor_set_layout = backend_get_bindless_samplers_descriptor_set_layout;
+	private_backend_i.get_bindless_storage_images_descriptor_set_layout = backend_get_bindless_storage_images_descriptor_set_layout;
 
 	auto& staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;

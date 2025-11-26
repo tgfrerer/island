@@ -28,3 +28,5 @@ apps/examples/hello_world/resources/images/world_winter.jpg
 /modules/le_image_fx/private/le_image_fx/resources/shaders/spv/blit_frag.spv
 /modules/le_image_fx/private/le_image_fx/resources/shaders/spv/blur_frag.spv
 /modules/le_image_fx/private/le_image_fx/resources/shaders/spv/fullscreen_vert.spv
+/modules/le_2d/private/le_2d/shaders/supplementary_materials/vello_shaders/spv/*
+/modules/le_2d/private/le_2d/shaders/vello/compress

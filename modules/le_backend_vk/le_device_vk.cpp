@@ -25,10 +25,11 @@ struct le_device_o {
 
 	struct Properties {
 		VkPhysicalDeviceProperties2                     device_properties;
-		VkPhysicalDeviceRayTracingPipelinePropertiesKHR raytracing_properties;
 		VkPhysicalDeviceVulkan11Properties              vk_11_physical_device_properties;
 		VkPhysicalDeviceVulkan12Properties              vk_12_physical_device_properties;
 		VkPhysicalDeviceVulkan13Properties              vk_13_physical_device_properties;
+		VkPhysicalDeviceRayTracingPipelinePropertiesKHR raytracing_properties;
+		VkPhysicalDeviceDescriptorIndexingProperties    vk_descriptor_indexing_properties;
 		//
 		VkPhysicalDeviceMemoryProperties2 memory_properties;
 		//
@@ -212,13 +213,12 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 
 		self->properties.raytracing_properties = {
 		    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR,
-		    .pNext = nullptr,
+		    .pNext = &self->properties.vk_descriptor_indexing_properties,
 		};
 
-		self->properties.memory_properties = {
-		    .sType            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
-		    .pNext            = nullptr, // optional
-		    .memoryProperties = {},
+		self->properties.vk_descriptor_indexing_properties = {
+		    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES,
+		    .pNext = nullptr,
 		};
 	}
 
@@ -259,6 +259,11 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 	}
 
 	// Let's find out the devices' memory properties
+	self->properties.memory_properties = {
+	    .sType            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
+	    .pNext            = nullptr, // optional
+	    .memoryProperties = {},
+	};
 	vkGetPhysicalDeviceMemoryProperties2( self->vkPhysicalDevice, &self->properties.memory_properties );
 
 	{
