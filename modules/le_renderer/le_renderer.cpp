@@ -118,11 +118,36 @@ class bindless_resources_store_t {
 
 	// Currently, the maximum number of possible handles is 1048575 --
 	// we allow 256 different versions.
-	// we keep 8 bits to encode the type of a resource
+	// we keep 4 bits to encode the type of a resource
 
-	inline H make_handle( uint64_t idx, uint64_t version ) {
+	template <typename Info_T>
+	inline le_resource_handle get_resource_handle( Info_T* info ) {
+		return nullptr;
+	}
+
+	inline le_resource_handle get_resource_handle( le_image_view_info_t const* info ) {
+		return info->imageId;
+	}
+
+	inline le_resource_handle get_resource_handle( le_image_sampler_info_t const* info ) {
+		return info->imageView.imageId;
+	}
+
+	inline H make_handle( uint64_t idx, uint64_t version, I const* info ) {
 		assert( idx <= ( 0xfffff ) );
-		return reinterpret_cast<H>( ( uint64_t( idx ) << 12 ) | ( uint64_t( std::remove_pointer<H>::type::resource_type_id ) << 8 ) | ( uint64_t( version ) & 0xFF ) );
+
+		// we store the parent resource handle in the low bits of this handle
+
+		le_resource_handle parent_resource = get_resource_handle( info );
+
+		uint64_t handle = 0;
+
+		handle |= ( uint64_t( idx ) << ( 12 + 32 ) );
+		handle |= ( uint64_t( std::remove_pointer<H>::type::resource_type_id ) << ( 8 + 32 ) );
+		handle |= ( ( uint64_t( version ) & 0xFF ) << 32 );
+		handle |= ( reinterpret_cast<uint64_t&>( parent_resource ) & 0xffffffff );
+
+		return reinterpret_cast<H>( handle );
 	};
 
   public:
@@ -199,7 +224,7 @@ class bindless_resources_store_t {
 			// Mark this resource entry as tainted
 			this->bindless_resource_updates.push_back( idx );
 
-			return make_handle( idx, version );
+			return make_handle( idx, version, info );
 		}
 
 		// ---------| invariant: the free list is empty
@@ -214,7 +239,7 @@ class bindless_resources_store_t {
 		// if we lookup a descriptor and the version in the handle does not match
 		// the version in the data, then we know that the handle is stale.
 		this->bindless_resource_updates.push_back( idx );
-		return make_handle( idx, version );
+		return make_handle( idx, version, info );
 	};
 
 	// --------------
