@@ -357,6 +357,9 @@ struct le_2d_api {
 		le_2d_o* ( *create )(le_renderer_o* renderer);
 		void     ( *destroy )( le_2d_o* self );
 		void     ( *update  )( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* encoder, le_image_resource_handle_t* img_output, le_resource_info_t* img_output_info, uint32_t background_colour_argb  );
+
+		// MSAA is not used by default, but the more costly area anti-aliasing is preferred
+		void     ( *set_should_use_msaa)(le_2d_o* self, bool shoul_use_msaa);
 	};
 
 	le_2d_encoder_interface_t le_2d_encoder_i;

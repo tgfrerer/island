@@ -701,6 +701,8 @@ struct le_2d_o {
 
 	Resolver resource_cache = {};
 
+	bool should_use_msaa = false; // whether to use area or msaa smoothing (false means area, default)
+
 	static_assert( sizeof( char ) == sizeof( uint8_t ), "char and uint8_t must be the same size." );
 };
 
@@ -1124,652 +1126,654 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	    ;
 
 	auto rp_pathtag_reduce =
-	    le::RenderPass( "rasterize_2d_scene", le::QueueFlagBits::eCompute )
-
-	        .useBufferResource( self->buf_vello_scene, le::AccessFlagBits2::eShaderRead )
-	        .useBufferResource( self->buf_reduced, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-
-	        .useBufferResource( self->buf_reduced2, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )     // only when large path numbers
-	        .useBufferResource( self->buf_reduced_scan, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite ) // only when large path numbers
-
-	        .useBufferResource( self->buf_tagmonoid, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_path_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_bump, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_lines, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_draw_reduced, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_draw_monoid, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-
-	        .useBufferResource( self->buf_info_bin_data, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-
-	        .useBufferResource( self->buf_clip_inp, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_clip_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_clip_el, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_clip_bic, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-
-	        .useBufferResource( self->buf_draw_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_bin_header, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_path, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_tile, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_indirect_count, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_seg_counts, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_ptcl, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_segments, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_blend_spill, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-	        .useBufferResource( self->buf_mask_lut, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
-
-	        .useImageResource( self->img_output, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderStorageWrite )
-	        .useImageResource( self->img_image_atlas, le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2::eNone )
-	        .useImageResource( self->img_gradients, le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2::eNone )
-
-	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
-		        auto ctx = ( le_2d_o* )user_data;
-
-		        auto const& wg = ctx->wg_counts;
-
-		        /*
-		         * witdh and height and number of tiles is dependent on the dimensions of the target framebuffer.
-		         *
-		         * data in layout depends on the scene
-		         *
-		         * then we have the number of allowed allocations based on how much data we allocated
-		         *
-		         */
-
-		        auto encoder = le::ComputeEncoder( e_ );
-
-		        static auto pm = encoder.getPipelineManager();
-
-		        { // Zero out any buffers that need to be reset
-			        assert( ctx->buf_bump_info.buffer.size % 4 == 0 && "bump buffer size must be multiple of 4" );
-
-			        auto zero_out_buffer = [ &encoder ]( le_buffer_resource_handle buf ) {
-				        encoder.fillBuffer( buf, 0, VK_WHOLE_SIZE, 0 );
-
-				        encoder.bufferMemoryBarrier(
-				            le::PipelineStageFlagBits2::eTransfer,
-				            le::PipelineStageFlagBits2::eComputeShader,
-				            le::AccessFlagBits2::eTransferWrite,
-				            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-				            buf );
-			        };
-
-			        encoder.fillBuffer( ctx->buf_tagmonoid, 0, VK_WHOLE_SIZE, 0 );
-
-			        // If we don't zero out this buffer, we may end with NAN's in 
-					// segments, because leftover path data may result in zero-length
-					// paths getting processed.
-			        zero_out_buffer( ctx->buf_path );
-
-			        zero_out_buffer( ctx->buf_bump );
-			        zero_out_buffer( ctx->buf_lines );
-			        zero_out_buffer( ctx->buf_clip_bbox );
-
-			        // zero out clip buffers --
-			        // zero_out_buffer( ctx->buf_clip_bbox );
-			        // zero_out_buffer( ctx->buf_clip_bic );
-			        // zero_out_buffer( ctx->buf_clip_el );
-			        // zero_out_buffer( ctx->buf_clip_inp );
-		        }
-
-		        {
-
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eTransfer,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead,
-			            ctx->buf_vello_scene );
-
-			        static auto pso_pathtag_reduce =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce_compressed_data_base85, "pathtag_reduce" );
-
-			        encoder.bindComputePipeline( pso_pathtag_reduce )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 )
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_reduced, 0 )
-			            .dispatch( wg.path_reduce[ 0 ], wg.path_reduce[ 1 ], wg.path_reduce[ 2 ] );
-			        //
-		        }
-
-		        // ----------
-
-		        if ( wg.use_large_path_scan ) {
-			        // dispatch reduce2
-
-			        {
-
-				        static auto pso_pathtag_reduce2 =
-				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce2_compressed_data_base85, "pathtag_reduce2" );
-
-				        encoder.bindComputePipeline( pso_pathtag_reduce2 )
-				            .bindArgumentBufferExplicit( 0, 0, ctx->buf_reduced, 0 )  // r
-				            .bindArgumentBufferExplicit( 0, 1, ctx->buf_reduced2, 0 ) // rw
-				            .dispatch( wg.path_reduce2[ 0 ], wg.path_reduce2[ 1 ], wg.path_reduce2[ 2 ] );
-				        //
-			        }
-			        {
-
-				        encoder.bufferMemoryBarrier(
-				            le::PipelineStageFlagBits2::eComputeShader,
-				            le::PipelineStageFlagBits2::eComputeShader,
-				            le::AccessFlagBits2::eShaderWrite,
-				            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-				            ctx->buf_reduced2 );
-
-				        static auto pso_pathtag_scan1 =
-				            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan1_compressed_data_base85, "pathtag_scan1" );
-
-				        encoder.bindComputePipeline( pso_pathtag_scan1 )
-				            .bindArgumentBufferExplicit( 0, 0, ctx->buf_reduced, 0 )      // r
-				            .bindArgumentBufferExplicit( 0, 1, ctx->buf_reduced2, 0 )     // r
-				            .bindArgumentBufferExplicit( 0, 2, ctx->buf_reduced_scan, 0 ) // rw
-				            .dispatch( wg.path_scan1[ 0 ], wg.path_scan1[ 1 ], wg.path_scan1[ 2 ] );
-				        //
-			        }
-		        }
-
-		        // ---------
-
-		        {
-
-			        le_buffer_resource_handle reduced_buf = ctx->buf_reduced;
-
-			        if ( wg.use_large_path_scan ) {
-				        reduced_buf = ctx->buf_reduced_scan;
-			        }
-
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eShaderWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            reduced_buf );
-
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eTransfer,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eTransferWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            ctx->buf_tagmonoid);
-
-			        static auto pso_pathtag_scan_large =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_large_compressed_data_base85, "pathtag_scan_large" );
-			        static auto pso_pathtag_scan_small =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_small_compressed_data_base85, "pathtag_scan_small" );
-
-			        encoder.bindComputePipeline( wg.use_large_path_scan ? pso_pathtag_scan_large : pso_pathtag_scan_small )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // r
-			            .bindArgumentBufferExplicit( 0, 2, reduced_buf, 0 )          // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_tagmonoid, 0 )   // w
-			            .dispatch( wg.path_scan[ 0 ], wg.path_scan[ 1 ], wg.path_scan[ 2 ] );
-		        }
-
-		        // -----------
-
-		        {
-			        static auto pso_path_bbox_clear =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, bbox_clear_compressed_data_base85, "bbox_clear" );
-
-			        encoder.bindComputePipeline( pso_path_bbox_clear )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_path_bbox ) // w
-			            .dispatch( wg.bbox_clear[ 0 ], wg.bbox_clear[ 1 ], wg.bbox_clear[ 2 ] );
-		        }
-
-		        {
-
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eShaderWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            ctx->buf_tagmonoid );
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eShaderWrite,
-			            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-			            ctx->buf_path_bbox );
-
-			        static auto pso_flatten =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, flatten_compressed_data_base85, "flatten" );
-
-			        encoder.bindComputePipeline( pso_flatten )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene ) // readonly
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_tagmonoid )   // readonly
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path_bbox )   // rw
-			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_bump )        // rw
-			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_lines )       // w
-			            .dispatch( wg.flatten[ 0 ], wg.flatten[ 1 ], wg.flatten[ 2 ] );
-		        }
-		        //
-		        {
-			        static auto pso_draw_reduce =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_reduce_compressed_data_base85, "draw_reduce" );
-
-			        encoder.bindComputePipeline( pso_draw_reduce )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // readonly
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_reduced )   // w
-			            .dispatch( wg.draw_reduce[ 0 ], wg.draw_reduce[ 1 ], wg.draw_reduce[ 2 ] );
-		        }
-
-		        // make sure that buf_path_bbox is available
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_path_bbox );
-
-		        // make sure that buf_reduced is available
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_reduced );
-
-		        {
-			        static auto pso_draw_leaf =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_leaf_compressed_data_base85, "draw_leaf" );
-
-			        encoder.bindComputePipeline( pso_draw_leaf )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 )   // r
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_reduced )     // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path_bbox, 0 )     // r
-			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_draw_monoid, 0 )   // w
-			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_info_bin_data, 0 ) // w
-			            .bindArgumentBufferExplicit( 0, 6, ctx->buf_clip_inp, 0 )      // w
-			            .dispatch( wg.draw_leaf[ 0 ], wg.draw_leaf[ 1 ], wg.draw_leaf[ 2 ] );
-		        }
-
-		        // make sure that buf_clip_inp is available
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead,
-		            ctx->buf_clip_inp );
-
-		        if ( wg.clip_reduce[ 0 ] > 0 ) {
-			        // clip_reduce
-			        static auto pso_clip_reduce =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_reduce_compressed_data_base85, "clip_reduce" );
-
-			        encoder.bindComputePipeline( pso_clip_reduce )
-			            .bindArgumentBufferExplicit( 0, 0, ctx->buf_clip_inp, 0 )  // r
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_path_bbox, 0 ) // r
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_clip_bic, 0 )  // rw
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_el, 0 )   // rw
-			            .dispatch( wg.clip_reduce[ 0 ], wg.clip_reduce[ 1 ], wg.clip_reduce[ 2 ] );
-
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eShaderWrite,
-			            le::AccessFlagBits2::eShaderRead,
-			            ctx->buf_clip_bic );
-
-			        encoder.bufferMemoryBarrier(
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::PipelineStageFlagBits2::eComputeShader,
-			            le::AccessFlagBits2::eShaderWrite,
-			            le::AccessFlagBits2::eShaderRead,
-			            ctx->buf_clip_el );
-		        }
-
-		        if ( wg.clip_leaf[ 0 ] > 0 ) {
-			        // clip_leaf
-			        static auto pso_clip_leaf =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_leaf_compressed_data_base85, "clip_leaf" );
-
-			        encoder.bindComputePipeline( pso_clip_leaf )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_clip_inp, 0 )    // r
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_path_bbox, 0 )   // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_bic, 0 )    // r
-			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_clip_el, 0 )     // r
-			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_draw_monoid, 0 ) // rw
-			            .bindArgumentBufferExplicit( 0, 6, ctx->buf_clip_bbox, 0 )   // rw
-
-			            .dispatch( wg.clip_leaf[ 0 ], wg.clip_leaf[ 1 ], wg.clip_leaf[ 2 ] );
-		        }
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_bump );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_info_bin_data );
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_draw_monoid );
-		        {
-			        static auto pso_binning =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, binning_compressed_data_base85, "binning" );
-
-			        encoder.bindComputePipeline( pso_binning )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_draw_monoid, 0 )   // w
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_path_bbox, 0 )     // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_bbox, 0 )     // r
-			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_draw_bbox, 0 )     // r
-			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_bump )             // rw
-			            .bindArgumentBufferExplicit( 0, 6, ctx->buf_info_bin_data, 0 ) // w
-			            .bindArgumentBufferExplicit( 0, 7, ctx->buf_bin_header, 0 )    // w
-			            .dispatch( wg.binning[ 0 ], wg.binning[ 1 ], wg.binning[ 2 ] );
-		        }
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_bump );
-
-				// last possible time to wait on buf path to be cleared.
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eTransfer,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eTransferWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_path );
-
-		        {
-
-			        static auto pso_tile_alloc =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, tile_alloc_compressed_data_base85, "tile_alloc" );
-
-			        encoder.bindComputePipeline( pso_tile_alloc )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // r
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_bbox, 0 )   // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_bump )           // rw
-			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_path, 0 )        // w
-			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_tile, 0 )        // w
-			            .dispatch( wg.tile_alloc[ 0 ], wg.tile_alloc[ 1 ], wg.tile_alloc[ 2 ] );
-		        }
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_bump );
-
-		        {
-
-			        static auto pso_path_count_setup =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_setup_compressed_data_base85, "path_count_setup" );
-
-			        encoder.bindComputePipeline( pso_path_count_setup )
-			            .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )              // rw
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_indirect_count, 0 ) // w
-			            .dispatch( wg.path_count_setup[ 0 ], wg.path_count_setup[ 1 ], wg.path_count_setup[ 2 ] );
-		        }
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eDrawIndirect,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eIndirectCommandRead,
-		            ctx->buf_indirect_count,
-		            0 );
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_bump );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_lines );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_path );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_tile );
-		        {
-
-			        static auto pso_path_count =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_compressed_data_base85, "path_count" );
-
-			        encoder.bindComputePipeline( pso_path_count )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_bump )       // rw
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_lines )      // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path )       // r
-			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_tile )       // rw
-			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_seg_counts ) // rw
-			            .dispatchIndirect( ctx->buf_indirect_count );            // r
-		        }
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_tile,
-		            0 );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_bump,
-		            0 );
-		        {
-
-			        static auto pso_backdrop_dyn =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, backdrop_dyn_compressed_data_base85, "backdrop_dyn" );
-
-			        encoder.bindComputePipeline( pso_backdrop_dyn )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_bump ) // rw
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_path ) // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_tile ) // rw
-			            .dispatch( wg.backdrop[ 0 ], wg.backdrop[ 1 ], wg.backdrop[ 2 ] );
-		        }
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_bump,
-		            0 );
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_tile,
-		            0 );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_info_bin_data,
-		            0 );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_draw_monoid );
-
-		        {
-
-			        static auto pso_coarse =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, coarse_compressed_data_base85, "coarse" );
-
-			        encoder.bindComputePipeline( pso_coarse )
-			            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene )   // r
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_monoid )   // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_bin_header )    // r
-			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_info_bin_data ) // r
-			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_path )          // r
-			            .bindArgumentBufferExplicit( 0, 6, ctx->buf_tile )          // rw
-			            .bindArgumentBufferExplicit( 0, 7, ctx->buf_bump )          // rw
-			            .bindArgumentBufferExplicit( 0, 8, ctx->buf_ptcl )          // rw
-			            .dispatch( wg.coarse[ 0 ], wg.coarse[ 1 ], wg.coarse[ 2 ] );
-		        }
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_bump,
-		            0 );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_ptcl,
-		            0 );
-
-		        // protect indirect buffer from write while it is still being used for dispatch
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eDrawIndirect,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eIndirectCommandRead,
-		            le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_indirect_count,
-		            0 );
-		        {
-
-			        static auto pso_path_tiling_setup =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_setup_compressed_data_base85, "path_tiling_setup" );
-
-			        encoder.bindComputePipeline( pso_path_tiling_setup )
-			            .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )              // rw
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_indirect_count, 0 ) // w
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )              // rw
-			            .dispatch( wg.path_tiling_setup[ 0 ], wg.path_tiling_setup[ 1 ], wg.path_tiling_setup[ 2 ] );
-		        }
-
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eDrawIndirect,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eIndirectCommandRead,
-		            ctx->buf_indirect_count,
-		            0 );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_tile,
-		            0 );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_bump,
-		            0 );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_seg_counts,
-		            0 );
-
-		        {
-
-			        static auto pso_path_tiling =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_compressed_data_base85, "path_tiling" );
-
-			        encoder.bindComputePipeline( pso_path_tiling )
-			            .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )          // rw
-			            .bindArgumentBufferExplicit( 0, 1, ctx->buf_seg_counts, 0 ) // r
-			            .bindArgumentBufferExplicit( 0, 2, ctx->buf_lines )         // r
-			            .bindArgumentBufferExplicit( 0, 3, ctx->buf_path )          // r
-			            .bindArgumentBufferExplicit( 0, 4, ctx->buf_tile )          // r
-			            .bindArgumentBufferExplicit( 0, 5, ctx->buf_segments )      // rw
-			            .dispatchIndirect( ctx->buf_indirect_count );               // r
-		        }
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_segments,
-		            0 );
-		        encoder.bufferMemoryBarrier(
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::PipelineStageFlagBits2::eComputeShader,
-		            le::AccessFlagBits2::eShaderWrite,
-		            le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
-		            ctx->buf_ptcl,
-		            0 );
-
-		        {
-
-			        static auto pso_fine_msaa_16 =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_msaa16_compressed_data_base85, "fine_msaa16" );
-
-			        static auto pso_fine_area =
-			            create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_area_compressed_data_base85, "fine_area" );
-
-			        bool should_use_msaa = false;
-
-			        if ( should_use_msaa ) {
-				        encoder.bindComputePipeline( pso_fine_msaa_16 )
-				            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-				            .bindArgumentBufferExplicit( 0, 1, ctx->buf_segments )      // rw
-				            .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )          // rw
-				            .bindArgumentBufferExplicit( 0, 3, ctx->buf_info_bin_data ) // r
-				            .bindArgumentBufferExplicit( 0, 4, ctx->buf_blend_spill )   // r
-				            .setArgumentImageExplicit( 0, 5, ctx->img_output, 0 )       // w
-				            .setArgumentImageExplicit( 0, 6, ctx->img_gradients, 0 )    // r
-				            .setArgumentImageExplicit( 0, 7, ctx->img_image_atlas, 0 )  // r
-				            .bindArgumentBufferExplicit( 0, 8, ctx->buf_mask_lut )      // rw
-				            .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
-			        } else {
-				        encoder.bindComputePipeline( pso_fine_area )
-				            .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
-				            .bindArgumentBufferExplicit( 0, 1, ctx->buf_segments )      // rw
-				            .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )          // rw
-				            .bindArgumentBufferExplicit( 0, 3, ctx->buf_info_bin_data ) // r
-				            .bindArgumentBufferExplicit( 0, 4, ctx->buf_blend_spill )   // r
-				            .setArgumentImageExplicit( 0, 5, ctx->img_output, 0 )       // w
-				            .setArgumentImageExplicit( 0, 6, ctx->img_gradients, 0 )    // r
-				            .setArgumentImageExplicit( 0, 7, ctx->img_image_atlas, 0 )  // r
-				            .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
-			        }
-		        }
-	        } );
+	    le::RenderPass( "rasterize_2d_scene", le::QueueFlagBits::eCompute );
+
+	if ( self->should_use_msaa ) {
+		rp_pathtag_reduce.useBufferResource( self->buf_mask_lut, le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2::eShaderWrite );
+	}
+
+	rp_pathtag_reduce
+	    .useBufferResource( self->buf_vello_scene, le::AccessFlagBits2::eShaderRead )
+	    .useBufferResource( self->buf_reduced, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	    .useBufferResource( self->buf_reduced2, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )     // only when large path numbers
+	    .useBufferResource( self->buf_reduced_scan, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite ) // only when large path numbers
+
+	    .useBufferResource( self->buf_tagmonoid, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_path_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_bump, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_lines, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_draw_reduced, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_draw_monoid, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	    .useBufferResource( self->buf_info_bin_data, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	    .useBufferResource( self->buf_clip_inp, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_clip_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_clip_el, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_clip_bic, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	    .useBufferResource( self->buf_draw_bbox, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_bin_header, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_path, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_tile, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_indirect_count, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_seg_counts, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_ptcl, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_segments, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+	    .useBufferResource( self->buf_blend_spill, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
+
+	    .useImageResource( self->img_output, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderStorageWrite )
+	    .useImageResource( self->img_image_atlas, le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2::eNone )
+	    .useImageResource( self->img_gradients, le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2::eNone )
+
+	    .setExecuteCallback( self, []( le_command_buffer_encoder_o* e_, void* user_data ) {
+		    auto ctx = ( le_2d_o* )user_data;
+
+		    auto const& wg = ctx->wg_counts;
+
+		    /*
+		     * witdh and height and number of tiles is dependent on the dimensions of the target framebuffer.
+		     *
+		     * data in layout depends on the scene
+		     *
+		     * then we have the number of allowed allocations based on how much data we allocated
+		     *
+		     */
+
+		    auto encoder = le::ComputeEncoder( e_ );
+
+		    static auto pm = encoder.getPipelineManager();
+
+		    { // Zero out any buffers that need to be reset
+			    assert( ctx->buf_bump_info.buffer.size % 4 == 0 && "bump buffer size must be multiple of 4" );
+
+			    auto zero_out_buffer = [ &encoder ]( le_buffer_resource_handle buf ) {
+				    encoder.fillBuffer( buf, 0, VK_WHOLE_SIZE, 0 );
+
+				    encoder.bufferMemoryBarrier(
+				        le::PipelineStageFlagBits2::eTransfer,
+				        le::PipelineStageFlagBits2::eComputeShader,
+				        le::AccessFlagBits2::eTransferWrite,
+				        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+				        buf );
+			    };
+
+			    encoder.fillBuffer( ctx->buf_tagmonoid, 0, VK_WHOLE_SIZE, 0 );
+
+			    // If we don't zero out this buffer, we may end with NAN's in
+			    // segments, because leftover path data may result in zero-length
+			    // paths getting processed.
+			    zero_out_buffer( ctx->buf_path );
+
+			    zero_out_buffer( ctx->buf_bump );
+			    zero_out_buffer( ctx->buf_lines );
+			    zero_out_buffer( ctx->buf_clip_bbox );
+
+			    // zero out clip buffers --
+			    // zero_out_buffer( ctx->buf_clip_bbox );
+			    // zero_out_buffer( ctx->buf_clip_bic );
+			    // zero_out_buffer( ctx->buf_clip_el );
+			    // zero_out_buffer( ctx->buf_clip_inp );
+		    }
+
+		    {
+
+			    encoder.bufferMemoryBarrier(
+			        le::PipelineStageFlagBits2::eTransfer,
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::AccessFlagBits2::eTransferWrite,
+			        le::AccessFlagBits2::eShaderRead,
+			        ctx->buf_vello_scene );
+
+			    static auto pso_pathtag_reduce =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce_compressed_data_base85, "pathtag_reduce" );
+
+			    encoder.bindComputePipeline( pso_pathtag_reduce )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 )
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_reduced, 0 )
+			        .dispatch( wg.path_reduce[ 0 ], wg.path_reduce[ 1 ], wg.path_reduce[ 2 ] );
+			    //
+		    }
+
+		    // ----------
+
+		    if ( wg.use_large_path_scan ) {
+			    // dispatch reduce2
+
+			    {
+
+				    static auto pso_pathtag_reduce2 =
+				        create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_reduce2_compressed_data_base85, "pathtag_reduce2" );
+
+				    encoder.bindComputePipeline( pso_pathtag_reduce2 )
+				        .bindArgumentBufferExplicit( 0, 0, ctx->buf_reduced, 0 )  // r
+				        .bindArgumentBufferExplicit( 0, 1, ctx->buf_reduced2, 0 ) // rw
+				        .dispatch( wg.path_reduce2[ 0 ], wg.path_reduce2[ 1 ], wg.path_reduce2[ 2 ] );
+				    //
+			    }
+			    {
+
+				    encoder.bufferMemoryBarrier(
+				        le::PipelineStageFlagBits2::eComputeShader,
+				        le::PipelineStageFlagBits2::eComputeShader,
+				        le::AccessFlagBits2::eShaderWrite,
+				        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+				        ctx->buf_reduced2 );
+
+				    static auto pso_pathtag_scan1 =
+				        create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan1_compressed_data_base85, "pathtag_scan1" );
+
+				    encoder.bindComputePipeline( pso_pathtag_scan1 )
+				        .bindArgumentBufferExplicit( 0, 0, ctx->buf_reduced, 0 )      // r
+				        .bindArgumentBufferExplicit( 0, 1, ctx->buf_reduced2, 0 )     // r
+				        .bindArgumentBufferExplicit( 0, 2, ctx->buf_reduced_scan, 0 ) // rw
+				        .dispatch( wg.path_scan1[ 0 ], wg.path_scan1[ 1 ], wg.path_scan1[ 2 ] );
+				    //
+			    }
+		    }
+
+		    // ---------
+
+		    {
+
+			    le_buffer_resource_handle reduced_buf = ctx->buf_reduced;
+
+			    if ( wg.use_large_path_scan ) {
+				    reduced_buf = ctx->buf_reduced_scan;
+			    }
+
+			    encoder.bufferMemoryBarrier(
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::AccessFlagBits2::eShaderWrite,
+			        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			        reduced_buf );
+
+			    encoder.bufferMemoryBarrier(
+			        le::PipelineStageFlagBits2::eTransfer,
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::AccessFlagBits2::eTransferWrite,
+			        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			        ctx->buf_tagmonoid );
+
+			    static auto pso_pathtag_scan_large =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_large_compressed_data_base85, "pathtag_scan_large" );
+			    static auto pso_pathtag_scan_small =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, pathtag_scan_small_compressed_data_base85, "pathtag_scan_small" );
+
+			    encoder.bindComputePipeline( wg.use_large_path_scan ? pso_pathtag_scan_large : pso_pathtag_scan_small )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // r
+			        .bindArgumentBufferExplicit( 0, 2, reduced_buf, 0 )          // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_tagmonoid, 0 )   // w
+			        .dispatch( wg.path_scan[ 0 ], wg.path_scan[ 1 ], wg.path_scan[ 2 ] );
+		    }
+
+		    // -----------
+
+		    {
+			    static auto pso_path_bbox_clear =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, bbox_clear_compressed_data_base85, "bbox_clear" );
+
+			    encoder.bindComputePipeline( pso_path_bbox_clear )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_path_bbox ) // w
+			        .dispatch( wg.bbox_clear[ 0 ], wg.bbox_clear[ 1 ], wg.bbox_clear[ 2 ] );
+		    }
+
+		    {
+
+			    encoder.bufferMemoryBarrier(
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::AccessFlagBits2::eShaderWrite,
+			        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			        ctx->buf_tagmonoid );
+			    encoder.bufferMemoryBarrier(
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::AccessFlagBits2::eShaderWrite,
+			        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+			        ctx->buf_path_bbox );
+
+			    static auto pso_flatten =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, flatten_compressed_data_base85, "flatten" );
+
+			    encoder.bindComputePipeline( pso_flatten )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene ) // readonly
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_tagmonoid )   // readonly
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_path_bbox )   // rw
+			        .bindArgumentBufferExplicit( 0, 4, ctx->buf_bump )        // rw
+			        .bindArgumentBufferExplicit( 0, 5, ctx->buf_lines )       // w
+			        .dispatch( wg.flatten[ 0 ], wg.flatten[ 1 ], wg.flatten[ 2 ] );
+		    }
+		    //
+		    {
+			    static auto pso_draw_reduce =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_reduce_compressed_data_base85, "draw_reduce" );
+
+			    encoder.bindComputePipeline( pso_draw_reduce )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // readonly
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_reduced )   // w
+			        .dispatch( wg.draw_reduce[ 0 ], wg.draw_reduce[ 1 ], wg.draw_reduce[ 2 ] );
+		    }
+
+		    // make sure that buf_path_bbox is available
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_path_bbox );
+
+		    // make sure that buf_reduced is available
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_reduced );
+
+		    {
+			    static auto pso_draw_leaf =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, draw_leaf_compressed_data_base85, "draw_leaf" );
+
+			    encoder.bindComputePipeline( pso_draw_leaf )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 )   // r
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_reduced )     // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_path_bbox, 0 )     // r
+			        .bindArgumentBufferExplicit( 0, 4, ctx->buf_draw_monoid, 0 )   // w
+			        .bindArgumentBufferExplicit( 0, 5, ctx->buf_info_bin_data, 0 ) // w
+			        .bindArgumentBufferExplicit( 0, 6, ctx->buf_clip_inp, 0 )      // w
+			        .dispatch( wg.draw_leaf[ 0 ], wg.draw_leaf[ 1 ], wg.draw_leaf[ 2 ] );
+		    }
+
+		    // make sure that buf_clip_inp is available
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead,
+		        ctx->buf_clip_inp );
+
+		    if ( wg.clip_reduce[ 0 ] > 0 ) {
+			    // clip_reduce
+			    static auto pso_clip_reduce =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_reduce_compressed_data_base85, "clip_reduce" );
+
+			    encoder.bindComputePipeline( pso_clip_reduce )
+			        .bindArgumentBufferExplicit( 0, 0, ctx->buf_clip_inp, 0 )  // r
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_path_bbox, 0 ) // r
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_clip_bic, 0 )  // rw
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_el, 0 )   // rw
+			        .dispatch( wg.clip_reduce[ 0 ], wg.clip_reduce[ 1 ], wg.clip_reduce[ 2 ] );
+
+			    encoder.bufferMemoryBarrier(
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::AccessFlagBits2::eShaderWrite,
+			        le::AccessFlagBits2::eShaderRead,
+			        ctx->buf_clip_bic );
+
+			    encoder.bufferMemoryBarrier(
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::PipelineStageFlagBits2::eComputeShader,
+			        le::AccessFlagBits2::eShaderWrite,
+			        le::AccessFlagBits2::eShaderRead,
+			        ctx->buf_clip_el );
+		    }
+
+		    if ( wg.clip_leaf[ 0 ] > 0 ) {
+			    // clip_leaf
+			    static auto pso_clip_leaf =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, clip_leaf_compressed_data_base85, "clip_leaf" );
+
+			    encoder.bindComputePipeline( pso_clip_leaf )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_clip_inp, 0 )    // r
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_path_bbox, 0 )   // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_bic, 0 )    // r
+			        .bindArgumentBufferExplicit( 0, 4, ctx->buf_clip_el, 0 )     // r
+			        .bindArgumentBufferExplicit( 0, 5, ctx->buf_draw_monoid, 0 ) // rw
+			        .bindArgumentBufferExplicit( 0, 6, ctx->buf_clip_bbox, 0 )   // rw
+
+			        .dispatch( wg.clip_leaf[ 0 ], wg.clip_leaf[ 1 ], wg.clip_leaf[ 2 ] );
+		    }
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_bump );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_info_bin_data );
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_draw_monoid );
+		    {
+			    static auto pso_binning =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, binning_compressed_data_base85, "binning" );
+
+			    encoder.bindComputePipeline( pso_binning )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_draw_monoid, 0 )   // w
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_path_bbox, 0 )     // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_clip_bbox, 0 )     // r
+			        .bindArgumentBufferExplicit( 0, 4, ctx->buf_draw_bbox, 0 )     // r
+			        .bindArgumentBufferExplicit( 0, 5, ctx->buf_bump )             // rw
+			        .bindArgumentBufferExplicit( 0, 6, ctx->buf_info_bin_data, 0 ) // w
+			        .bindArgumentBufferExplicit( 0, 7, ctx->buf_bin_header, 0 )    // w
+			        .dispatch( wg.binning[ 0 ], wg.binning[ 1 ], wg.binning[ 2 ] );
+		    }
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_bump );
+
+		    // last possible time to wait on buf path to be cleared.
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eTransfer,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eTransferWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_path );
+
+		    {
+
+			    static auto pso_tile_alloc =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, tile_alloc_compressed_data_base85, "tile_alloc" );
+
+			    encoder.bindComputePipeline( pso_tile_alloc )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene, 0 ) // r
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_bbox, 0 )   // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_bump )           // rw
+			        .bindArgumentBufferExplicit( 0, 4, ctx->buf_path, 0 )        // w
+			        .bindArgumentBufferExplicit( 0, 5, ctx->buf_tile, 0 )        // w
+			        .dispatch( wg.tile_alloc[ 0 ], wg.tile_alloc[ 1 ], wg.tile_alloc[ 2 ] );
+		    }
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_bump );
+
+		    {
+
+			    static auto pso_path_count_setup =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_setup_compressed_data_base85, "path_count_setup" );
+
+			    encoder.bindComputePipeline( pso_path_count_setup )
+			        .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )              // rw
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_indirect_count, 0 ) // w
+			        .dispatch( wg.path_count_setup[ 0 ], wg.path_count_setup[ 1 ], wg.path_count_setup[ 2 ] );
+		    }
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eDrawIndirect,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eIndirectCommandRead,
+		        ctx->buf_indirect_count,
+		        0 );
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_bump );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_lines );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_path );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_tile );
+		    {
+
+			    static auto pso_path_count =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, path_count_compressed_data_base85, "path_count" );
+
+			    encoder.bindComputePipeline( pso_path_count )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_bump )       // rw
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_lines )      // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_path )       // r
+			        .bindArgumentBufferExplicit( 0, 4, ctx->buf_tile )       // rw
+			        .bindArgumentBufferExplicit( 0, 5, ctx->buf_seg_counts ) // rw
+			        .dispatchIndirect( ctx->buf_indirect_count );            // r
+		    }
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_tile,
+		        0 );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_bump,
+		        0 );
+		    {
+
+			    static auto pso_backdrop_dyn =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, backdrop_dyn_compressed_data_base85, "backdrop_dyn" );
+
+			    encoder.bindComputePipeline( pso_backdrop_dyn )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_bump ) // rw
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_path ) // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_tile ) // rw
+			        .dispatch( wg.backdrop[ 0 ], wg.backdrop[ 1 ], wg.backdrop[ 2 ] );
+		    }
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_bump,
+		        0 );
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_tile,
+		        0 );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_info_bin_data,
+		        0 );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_draw_monoid );
+
+		    {
+
+			    static auto pso_coarse =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, coarse_compressed_data_base85, "coarse" );
+
+			    encoder.bindComputePipeline( pso_coarse )
+			        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_vello_scene )   // r
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_draw_monoid )   // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_bin_header )    // r
+			        .bindArgumentBufferExplicit( 0, 4, ctx->buf_info_bin_data ) // r
+			        .bindArgumentBufferExplicit( 0, 5, ctx->buf_path )          // r
+			        .bindArgumentBufferExplicit( 0, 6, ctx->buf_tile )          // rw
+			        .bindArgumentBufferExplicit( 0, 7, ctx->buf_bump )          // rw
+			        .bindArgumentBufferExplicit( 0, 8, ctx->buf_ptcl )          // rw
+			        .dispatch( wg.coarse[ 0 ], wg.coarse[ 1 ], wg.coarse[ 2 ] );
+		    }
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_bump,
+		        0 );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_ptcl,
+		        0 );
+
+		    // protect indirect buffer from write while it is still being used for dispatch
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eDrawIndirect,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eIndirectCommandRead,
+		        le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_indirect_count,
+		        0 );
+		    {
+
+			    static auto pso_path_tiling_setup =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_setup_compressed_data_base85, "path_tiling_setup" );
+
+			    encoder.bindComputePipeline( pso_path_tiling_setup )
+			        .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )              // rw
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_indirect_count, 0 ) // w
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )              // rw
+			        .dispatch( wg.path_tiling_setup[ 0 ], wg.path_tiling_setup[ 1 ], wg.path_tiling_setup[ 2 ] );
+		    }
+
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eDrawIndirect,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eIndirectCommandRead,
+		        ctx->buf_indirect_count,
+		        0 );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_tile,
+		        0 );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_bump,
+		        0 );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_seg_counts,
+		        0 );
+
+		    {
+
+			    static auto pso_path_tiling =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, path_tiling_compressed_data_base85, "path_tiling" );
+
+			    encoder.bindComputePipeline( pso_path_tiling )
+			        .bindArgumentBufferExplicit( 0, 0, ctx->buf_bump )          // rw
+			        .bindArgumentBufferExplicit( 0, 1, ctx->buf_seg_counts, 0 ) // r
+			        .bindArgumentBufferExplicit( 0, 2, ctx->buf_lines )         // r
+			        .bindArgumentBufferExplicit( 0, 3, ctx->buf_path )          // r
+			        .bindArgumentBufferExplicit( 0, 4, ctx->buf_tile )          // r
+			        .bindArgumentBufferExplicit( 0, 5, ctx->buf_segments )      // rw
+			        .dispatchIndirect( ctx->buf_indirect_count );               // r
+		    }
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_segments,
+		        0 );
+		    encoder.bufferMemoryBarrier(
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::PipelineStageFlagBits2::eComputeShader,
+		        le::AccessFlagBits2::eShaderWrite,
+		        le::AccessFlagBits2::eShaderRead | le::AccessFlagBits2::eShaderWrite,
+		        ctx->buf_ptcl,
+		        0 );
+
+		    {
+
+			    static auto pso_fine_msaa_16 =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_msaa16_compressed_data_base85, "fine_msaa16" );
+
+			    static auto pso_fine_area =
+			        create_cpso_from_compressed_and_encoded_spirv_code( pm, fine_area_compressed_data_base85, "fine_area" );
+
+			    if ( ctx->should_use_msaa ) {
+				    encoder.bindComputePipeline( pso_fine_msaa_16 )
+				        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+				        .bindArgumentBufferExplicit( 0, 1, ctx->buf_segments )      // rw
+				        .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )          // rw
+				        .bindArgumentBufferExplicit( 0, 3, ctx->buf_info_bin_data ) // r
+				        .bindArgumentBufferExplicit( 0, 4, ctx->buf_blend_spill )   // r
+				        .setArgumentImageExplicit( 0, 5, ctx->img_output, 0 )       // w
+				        .setArgumentImageExplicit( 0, 6, ctx->img_gradients, 0 )    // r
+				        .setArgumentImageExplicit( 0, 7, ctx->img_image_atlas, 0 )  // r
+				        .bindArgumentBufferExplicit( 0, 8, ctx->buf_mask_lut )      // rw
+				        .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
+			    } else {
+				    encoder.bindComputePipeline( pso_fine_area )
+				        .setArgumentDataExplicit( 0, 0, &ctx->rasterizer_args, sizeof( ctx->rasterizer_args ) )
+				        .bindArgumentBufferExplicit( 0, 1, ctx->buf_segments )      // rw
+				        .bindArgumentBufferExplicit( 0, 2, ctx->buf_ptcl )          // rw
+				        .bindArgumentBufferExplicit( 0, 3, ctx->buf_info_bin_data ) // r
+				        .bindArgumentBufferExplicit( 0, 4, ctx->buf_blend_spill )   // r
+				        .setArgumentImageExplicit( 0, 5, ctx->img_output, 0 )       // w
+				        .setArgumentImageExplicit( 0, 6, ctx->img_gradients, 0 )    // r
+				        .setArgumentImageExplicit( 0, 7, ctx->img_image_atlas, 0 )  // r
+				        .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
+			    }
+		    }
+	    } );
 
 	if ( true ) {
 		renderGraph
@@ -1779,6 +1783,12 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		    .addRenderPass( rp_clear_images )
 		    .addRenderPass( rp_pathtag_reduce );
 	}
+}
+
+// ----------------------------------------------------------------------
+
+static void le_2d_set_should_use_msaa( le_2d_o* self, bool should_use_msaa ) {
+	self->should_use_msaa = should_use_msaa;
 }
 
 extern void register_le_2d_encoder_api( void* api_ );
@@ -1791,6 +1801,7 @@ LE_MODULE_REGISTER_IMPL( le_2d, api ) {
 	le_2d_i.create  = le_2d_create;
 	le_2d_i.destroy = le_2d_destroy;
 	le_2d_i.update  = le_2d_update;
+	le_2d_i.set_should_use_msaa = le_2d_set_should_use_msaa;
 
 	register_le_2d_encoder_api( api );
 }
