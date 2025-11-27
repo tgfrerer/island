@@ -1129,7 +1129,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	    le::RenderPass( "rasterize_2d_scene", le::QueueFlagBits::eCompute );
 
 	if ( self->should_use_msaa ) {
-		rp_pathtag_reduce.useBufferResource( self->buf_mask_lut, le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2::eShaderWrite );
+		rp_pathtag_reduce.useBufferResource( self->buf_mask_lut, le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2::eNone );
 	}
 
 	rp_pathtag_reduce
@@ -1758,7 +1758,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 				        .setArgumentImageExplicit( 0, 5, ctx->img_output, 0 )       // w
 				        .setArgumentImageExplicit( 0, 6, ctx->img_gradients, 0 )    // r
 				        .setArgumentImageExplicit( 0, 7, ctx->img_image_atlas, 0 )  // r
-				        .bindArgumentBufferExplicit( 0, 8, ctx->buf_mask_lut )      // rw
+				        .bindArgumentBufferExplicit( 0, 8, ctx->buf_mask_lut )      // r
 				        .dispatch( wg.fine[ 0 ], wg.fine[ 1 ], wg.fine[ 2 ] );
 			    } else {
 				    encoder.bindComputePipeline( pso_fine_area )
