@@ -55,7 +55,7 @@ struct le_tweaks_api {
 		Data        data;
 		char const* file_path;
 
-		struct CbData* next; // linked list.
+		struct CbData* next = nullptr; // linked list.
 
 #define INITIALISER( T, TID )                                            \
 	explicit CbData( uint32_t line_num_, TID param, const char* path ) { \
@@ -76,7 +76,7 @@ struct le_tweaks_api {
 
 #undef INITIALISER
 
-		void ( *p_watch_destructor )( CbData* self ); // f
+		void ( *p_watch_destructor )( CbData* self ) = nullptr; //
 
 		~CbData() {
 			// we call the destructor so that we can clean up any callbacks on file reload

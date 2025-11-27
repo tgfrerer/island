@@ -40,9 +40,26 @@ struct tweak_entry_t {
 	int     watch_id = 0;
 };
 
-static auto& fetch_existing_tweaks_per_file() {
-	static std::unordered_map<std::string, tweak_entry_t> existing_tweaks_per_file;
-	return existing_tweaks_per_file;
+// This class exists so that we can make sure to
+// clear our list of tweaks at the correct time
+// once our application quits, otherwise we would
+// risk double-frees.
+class TweaksHolder : NoCopy, NoMove {
+	std::unordered_map<std::string, tweak_entry_t> data;
+
+  public:
+	~TweaksHolder() {
+		data.clear();
+	}
+
+	std::unordered_map<std::string, tweak_entry_t>& get_existing_tweaks_per_file() {
+		return data;
+	}
+};
+
+static std::unordered_map<std::string, tweak_entry_t>& fetch_existing_tweaks_per_file() {
+	static TweaksHolder existing_tweaks_per_file;
+	return existing_tweaks_per_file.get_existing_tweaks_per_file();
 }
 
 static int le_tweaks_add_watch( CbData* cb_data ) {
