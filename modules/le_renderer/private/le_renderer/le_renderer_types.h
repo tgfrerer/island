@@ -33,6 +33,11 @@ LE_OPAQUE_HANDLE( le_bindless_texture_handle );
 LE_OPAQUE_HANDLE( le_bindless_sampler_handle );
 LE_OPAQUE_HANDLE( le_bindless_storage_image_handle );
 
+LE_OPAQUE_HANDLE( le_resource_handle );        // generic resource handle
+LE_OPAQUE_HANDLE( le_image_resource_handle );  // image
+LE_OPAQUE_HANDLE( le_buffer_resource_handle ); // buffer
+LE_OPAQUE_HANDLE( le_blas_resource_handle );   // ray tracing bottom level acceleration structure
+LE_OPAQUE_HANDLE( le_tlas_resource_handle );   // ray tracing top level acceleration structure
 
 enum class le_bindless_resource_type : uint32_t {
 	eUndefined            = 0,
@@ -43,33 +48,38 @@ enum class le_bindless_resource_type : uint32_t {
 };
 
 struct le_bindless_resource_handle_t {
-	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eUndefined );
+	static constexpr auto resource_type_id = le_bindless_resource_type::eUndefined;
 
 	/*
-	 * BEWARE: for all of these "member fucntions", `this` is not a real pointer,
+	 * BEWARE: for all of these "member functions", `this` is not a real pointer,
 	 * but an opaque handle containing an unsigned integer - of which we do know
 	 * that it is confined to the range of uint32_t values
 	 */
 
 	inline uint32_t as_uint32() {
 		void const* p = this;
-		return reinterpret_cast<uint32_t&>( p );
-	}
-
-	inline le_bindless_resource_type get_type() {
-		void const* p       = this;
-		uint32_t    type_id = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 8 ) & 0xf );
-		return le_bindless_resource_type( type_id );
+		return uint32_t( reinterpret_cast<uint64_t&>( p ) >> 32 );
 	}
 
 	inline uint32_t get_idx() {
 		void const* p = this;
-		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 12 ) & 0xfffff );
+		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> ( 12 + 32 ) ) & 0xfffff ); // 20 bits
+	}
+
+	inline le_bindless_resource_type get_type() {
+		void const* p       = this;
+		uint32_t    type_id = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> ( 8 + 32 ) ) & 0xf ); // 4 bits
+		return le_bindless_resource_type( type_id );
 	}
 
 	inline uint32_t get_version() {
 		void const* p = this;
-		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) ) & 0xff );
+		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 32 ) & 0xff ); // 8 bits
+	}
+
+	le_resource_handle get_parent_handle() {
+		void const* p = this;
+		return le_resource_handle( reinterpret_cast<uint64_t const&>( p ) & 0xffffffff ); // low 32 bits are the parent resource
 	}
 
 	explicit operator uint32_t() {
@@ -78,15 +88,15 @@ struct le_bindless_resource_handle_t {
 };
 
 struct le_bindless_texture_handle_t : le_bindless_resource_handle_t {
-	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eCombinedImageSampler );
+	static constexpr auto resource_type_id = le_bindless_resource_type::eCombinedImageSampler;
 };
 
 struct le_bindless_sampler_handle_t : le_bindless_resource_handle_t {
-	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eSampler );
+	static constexpr auto resource_type_id = le_bindless_resource_type::eSampler;
 };
 
 struct le_bindless_storage_image_handle_t : le_bindless_resource_handle_t {
-	static constexpr uint64_t resource_type_id = uint64_t( le_bindless_resource_type::eStorageImage );
+	static constexpr auto resource_type_id = le_bindless_resource_type::eStorageImage;
 };
 
 // ------------ handles
@@ -99,21 +109,184 @@ enum class LeResourceType : uint32_t {
 	eRtxTlas, // top level acceleration structure
 };
 
-LE_OPAQUE_HANDLE( le_resource_handle );        // generic resource handle
-LE_OPAQUE_HANDLE( le_texture_handle );         // combined sampler image
-LE_OPAQUE_HANDLE( le_image_resource_handle );  // image
-LE_OPAQUE_HANDLE( le_buffer_resource_handle ); // buffer
-LE_OPAQUE_HANDLE( le_blas_resource_handle );   // ray tracing bottom level acceleration structure
-LE_OPAQUE_HANDLE( le_tlas_resource_handle );   // ray tracing top level acceleration structure
-
 struct le_resource_handle_t {
-	struct le_resource_handle_data_t* data;
+
+	constexpr static LeResourceType type = LeResourceType::eUndefined;
+
+	static le_resource_handle_t* make_handle(
+	    LeResourceType type,
+	    uint8_t        usage_flags,
+	    uint32_t       idx,
+	    uint8_t        version,
+	    uint8_t        num_samples ) {
+		uint64_t handle{};
+
+		handle |= uint64_t( version ) & 0x3f;             // 6  bits
+		handle |= ( uint64_t( usage_flags ) & 0x3 ) << 6; // 2  bits = 8
+		handle |= ( uint64_t( type ) & 0xf ) << 8;        // 4  bits = 12
+		handle |= ( uint64_t( idx ) & 0xfffff ) << 12;    // 20 bits = 32
+
+		// ---- high bits
+
+		// in case we have an image, we want to store the number of samles
+
+		if ( type == LeResourceType::eImage ) {
+			handle |= ( uint64_t( num_samples ) & 0x3 ) << 32; // 2 bits = 34
+		}
+
+		return ( le_resource_handle_t* )( handle );
+	};
+
+	// 20: id : 1M variations
+	// 4 : type
+	// 2 : usage_flags: num_samples | buffer_usage_flags
+	// 6 : version
+
+	// in the higher bits we store things which are only important for the rendergraph
+	// so that we can create bindless resources by combining the bindless resource id
+	// with the resource id of its parent in the backend..
+
+	// ----- high bits
+
+	/*
+	 * BEWARE: for all of these "member functions", `this` is not a real pointer,
+	 * but an opaque handle containing an unsigned integer - of which we do know
+	 * that it is confined to the range of uint32_t values
+	 */
+	inline uint32_t as_uint32() {
+		void const* p = this;
+		return reinterpret_cast<uint32_t&>( p );
+	}
+
+
+	inline uint32_t get_idx() {
+		void const* p = this;
+		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 12 ) & 0xfffff ); // 20 bits
+	}
+
+	inline LeResourceType get_type() {
+		void const* p       = this;
+		uint32_t    type_id = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 8 ) & 0xf ); // 4 bits
+		return LeResourceType( type_id );
+	}
+
+	// 2 bits for either num_samples or buffer usage flags
+
+	inline uint32_t get_version() {
+		void const* p = this;
+		return uint32_t( ( reinterpret_cast<uint64_t const&>( p ) ) & 0x3f ); // 6bits
+	}
+
+	typedef char const*( fn_renderer_get_resource_debug_name )( struct le_renderer_o * renderer, le_resource_handle handle );
+
+	// Call this function ONCE with parameters during setup -
+	// or whenever you reload your compilation unit.
+	const char* get_debug_name( fn_renderer_get_resource_debug_name* pfn_renderer_get_resource_debug_name_ = nullptr, struct le_renderer_o* renderer_ = nullptr ) {
+		static char const* debug_name = "get_debug_name(): callbacks not set for this compilation unit.";
+
+		// Store a local copy to the renderer - we expect the
+		// renderer to stay in this place for the duration of the program.
+		//
+		static struct le_renderer_o* renderer = renderer_;
+
+		// Store a local copy to the api entry for the renderer's method
+		// that allows us to retrieve a debug name.
+		//
+		// We store the address for the api entry so that we can be independent
+		// of hot-reloading: if the renderer gets hot-reloaded, the api entry
+		// will get updated automatically, and when we derefence it when calling
+		// the method, we will call the new version of the function.
+		static fn_renderer_get_resource_debug_name* pfn_renderer_get_resource_debug_name = pfn_renderer_get_resource_debug_name_;
+
+		if ( renderer_ || pfn_renderer_get_resource_debug_name_ ) {
+			return "Get debug name callback set successfully.";
+		}
+
+		if ( renderer && pfn_renderer_get_resource_debug_name ) {
+			return ( *pfn_renderer_get_resource_debug_name )( renderer, this );
+		}
+
+		return debug_name;
+	};
+
+	inline explicit operator uint32_t() {
+		return as_uint32();
+	}
 };
 
-struct le_image_resource_handle_t : le_resource_handle_t {};
-struct le_buffer_resource_handle_t : le_resource_handle_t {};
-struct le_blas_resource_handle_t : le_resource_handle_t {};
-struct le_tlas_resource_handle_t : le_resource_handle_t {};
+// ---------- image resource handle
+
+struct le_image_resource_handle_t : le_resource_handle_t {
+	enum UsageFlagBits : uint8_t {
+		eIsUnset = 0,
+		eIsRoot  = 1u << 0, // whether image, when used as a render target, is flagged as a root resource to the rendergraph
+	};
+
+	inline UsageFlagBits get_usage_flags() { // 2 bits (max: 3)
+		void const* p     = this;
+		uint32_t    flags = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 6 ) & 0x3 ); // 2 bits
+		return UsageFlagBits( flags );
+	}
+
+	inline uint32_t get_is_root() {
+		return get_usage_flags() == UsageFlagBits::eIsRoot;
+	}
+
+	inline le_image_resource_handle_t* clone_with_num_samples( uint8_t num_samples ) {
+		void const* p      = this;
+		uint64_t    handle = reinterpret_cast<uint64_t&>( p );
+		handle |= ( uint64_t( num_samples ) & 0x3 ) << 32; // 2 bits = 34
+		return reinterpret_cast<le_image_resource_handle_t*>( handle );
+	};
+
+	// this may also be used for buffer flags in case we have a buffer handle
+	inline uint32_t get_num_samples() { // 2 bits (max: 3)
+		void const* p           = this;
+		uint32_t    num_samples = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 32 ) & 0x3 ); // 2 bits
+		return uint32_t( num_samples );
+	}
+
+	constexpr static LeResourceType type = LeResourceType::eImage;
+};
+
+// ---------- buffer resource handle
+
+struct le_buffer_resource_handle_t : le_resource_handle_t {
+
+	enum UsageFlags : uint8_t {
+		eIsUnset   = 0,
+		eIsVirtual = 1u << 0, // backed by the buffer associated with the current command buffer
+		eIsStaging = 1u << 1, // backed by the staging buffer
+	};
+
+	inline UsageFlags get_usage_flags() { // 2 bits (max: 3)
+		void const* p     = this;
+		uint32_t    flags = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 6 ) & 0x3 ); // 2 bits
+		return UsageFlags( flags );
+	}
+
+	constexpr static LeResourceType type = LeResourceType::eBuffer;
+};
+
+// ---------- rtx resource handles
+
+struct le_blas_resource_handle_t : le_resource_handle_t {
+	constexpr static LeResourceType type = LeResourceType::eRtxBlas;
+};
+struct le_tlas_resource_handle_t : le_resource_handle_t {
+	constexpr static LeResourceType type = LeResourceType::eRtxTlas;
+};
+
+// ----------
+
+// A texture handle is different from image or resource handles in so far
+// as that it is purely symbolic. Only when used with a renderpass, it
+// references info for ImageView + Sampler, and then only for this renderpass.
+//
+// Prefer using bindless resources over textures, as bindless resources
+// don't require the renderer to create temporary vulkan objects for each
+// pass, but persist their image views, and/or samplers.
+LE_OPAQUE_HANDLE( le_texture_handle );
 
 // A graphics pipeline handle is an opaque handle to a *pipeline state* object.
 // Note that the pipeline state is different from the actual pipeline, as the

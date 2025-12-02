@@ -21,7 +21,11 @@
 // #include <bitset>
 #include <forward_list>
 
-#include "private/le_renderer/le_resource_handle_t.inl"
+struct le_resource_handle_data_t {
+	le_resource_handle handle     = {}; // original handle -- so that we can compare versions
+	std::string        debug_name = {}; // space for 47 chars + \0
+};
+
 #include "private/le_renderer/le_rendergraph.h"
 
 #include "le_tracy.h"
@@ -70,8 +74,9 @@ struct le_texture_handle_store_t {
 };
 
 struct le_resource_handle_store_t {
-	std::unordered_multimap<le_resource_handle_data_t, le_resource_handle_t, le_resource_handle_data_hash> resource_handles;
-	std::mutex                                                                                             mtx;
+	// this is the ultimate owner of the handle and the handle owns its data.
+	std::vector<le_resource_handle_data_t*> resource_handles;
+	std::mutex                         mtx;
 };
 
 static le_texture_handle_store_t* get_texture_handle_library( bool erase = false ) {
@@ -105,35 +110,6 @@ static le_texture_handle_store_t* get_texture_handle_library( bool erase = false
 	return texture_handle_library;
 }
 
-static le_resource_handle_store_t* get_resource_handle_library( bool erase = false ) {
-	static le_resource_handle_store_t* resource_handle_library = nullptr;
-
-	if ( erase ) {
-		delete resource_handle_library;
-		void** resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
-		*resource_handle_library_ptr       = nullptr; // null pointer stored in global store
-		resource_handle_library            = nullptr; // null pointer stored in local store
-		return nullptr;                               // return nullptr
-	}
-
-	if ( resource_handle_library ) {
-		return resource_handle_library;
-	}
-
-	// ----------| Invariant: not yet in local store
-	void** resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
-
-	if ( *resource_handle_library_ptr ) {
-		// Found in global store
-		resource_handle_library = static_cast<le_resource_handle_store_t*>( *resource_handle_library_ptr );
-	} else {
-		// Not yet available in global store - create & make available.
-		resource_handle_library      = new le_resource_handle_store_t();
-		*resource_handle_library_ptr = resource_handle_library;
-	}
-
-	return resource_handle_library;
-}
 
 // -----------
 
@@ -142,11 +118,36 @@ class bindless_resources_store_t {
 
 	// Currently, the maximum number of possible handles is 1048575 --
 	// we allow 256 different versions.
-	// we keep 8 bits to encode the type of a resource
+	// we keep 4 bits to encode the type of a resource
 
-	inline H make_handle( uint64_t idx, uint64_t version ) {
+	template <typename Info_T>
+	inline le_resource_handle get_resource_handle( Info_T* info ) {
+		return nullptr;
+	}
+
+	inline le_resource_handle get_resource_handle( le_image_view_info_t const* info ) {
+		return info->imageId;
+	}
+
+	inline le_resource_handle get_resource_handle( le_image_sampler_info_t const* info ) {
+		return info->imageView.imageId;
+	}
+
+	inline H make_handle( uint64_t idx, uint64_t version, I const* info ) {
 		assert( idx <= ( 0xfffff ) );
-		return reinterpret_cast<H>( ( uint64_t( idx ) << 12 ) | ( std::remove_pointer<H>::type::resource_type_id << 8 ) | ( uint64_t( version ) & 0xFF ) );
+
+		// we store the parent resource handle in the low bits of this handle
+
+		le_resource_handle parent_resource = get_resource_handle( info );
+
+		uint64_t handle = 0;
+
+		handle |= ( uint64_t( idx ) << ( 12 + 32 ) );
+		handle |= ( uint64_t( std::remove_pointer<H>::type::resource_type_id ) << ( 8 + 32 ) );
+		handle |= ( ( uint64_t( version ) & 0xFF ) << 32 );
+		handle |= ( reinterpret_cast<uint64_t&>( parent_resource ) & 0xffffffff );
+
+		return reinterpret_cast<H>( handle );
 	};
 
   public:
@@ -223,7 +224,7 @@ class bindless_resources_store_t {
 			// Mark this resource entry as tainted
 			this->bindless_resource_updates.push_back( idx );
 
-			return make_handle( idx, version );
+			return make_handle( idx, version, info );
 		}
 
 		// ---------| invariant: the free list is empty
@@ -238,13 +239,18 @@ class bindless_resources_store_t {
 		// if we lookup a descriptor and the version in the handle does not match
 		// the version in the data, then we know that the handle is stale.
 		this->bindless_resource_updates.push_back( idx );
-		return make_handle( idx, version );
+		return make_handle( idx, version, info );
 	};
 
 	// --------------
 
-	typedef void ( *backend_push_fn_t )( le_backend_o* self, uint32_t frame_index, D const* const texture_data, size_t texture_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
+	typedef void ( *backend_push_fn_t )( le_backend_o* self, uint32_t frame_index, D const* const bindless_resource_data, size_t bindless_resource_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
 
+	// This method gets called from the renderer just after RECORD
+	// and allows us to push any updates that have happened to the
+	// local store of bindless resources to the backend, so that the
+	// backend can update its bindless resources for the current
+	// frame accordingly.
 	void push_to_backend( le_backend_o* backend, uint32_t frame_index, backend_push_fn_t backend_push_fn ) {
 
 		if ( this->bindless_resource_updates.empty() ) {
@@ -282,6 +288,8 @@ struct le_renderer_o {
 	bindless_resources_store_t<le_bindless_sampler_handle, le_sampler_info_t, le_bindless_sampler_data_t>                bindless_sampler_store;
 	bindless_resources_store_t<le_bindless_storage_image_handle, le_image_view_info_t, le_bindless_storage_image_data_t> bindless_storage_image_store;
 
+	le_resource_handle_store_t resource_handle_store;
+
 	std::vector<FrameData>           frames;
 	size_t                           backendDataFramesCount = 0;
 	size_t                           currentFrameNumber     = 0;  // ever increasing number of current frame
@@ -304,17 +312,26 @@ static le_renderer_o* renderer_create() {
 	using namespace le_backend_vk;
 	obj->backend = vk_backend_i.create( obj );
 
+	{
+		// initialize callback for resource debug name lookup -
+		// note that you should call this initialization logic
+		// again whenever you reload this module.
+		le_resource_handle null_handle = nullptr;
+		null_handle->get_debug_name( le_renderer_api_i->le_renderer_i.get_resource_debug_name, obj );
+	}
+
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
 // creates a new handle if no name was given, or given name was not found in list of current handles.
-static le_texture_handle renderer_produce_texture_handle( char const* maybe_name ) {
+static le_texture_handle renderer_produce_texture_handle( le_renderer_o* renderer, char const* maybe_name ) {
 
 	// lock handle library for reading/writing
 	static le_texture_handle_store_t* texture_handle_library = get_texture_handle_library();
-	std::scoped_lock                  lock( texture_handle_library->mtx );
+
+	std::scoped_lock lock( texture_handle_library->mtx );
 
 	le_texture_handle handle;
 
@@ -362,32 +379,6 @@ static le_bindless_storage_image_handle renderer_allocate_bindless_storage_image
 	return self->bindless_storage_image_store.allocate( storage_image_info );
 }
 
-// Fetches the actual resources that are being referenced by bindless resources
-// given an array of bindless resource handles and store this into the out_array.
-// the out array is assumed to be the same size as the input array, namely
-// `num_bindless_resources`.
-static void renderer_get_resources_for_bindless_resources( le_renderer_o* self, le_bindless_resource_handle const* bindless_resources, uint32_t num_bindless_resources, le_resource_handle* p_out ) {
-
-	auto bindless_resources_end = bindless_resources + num_bindless_resources;
-
-	for ( le_bindless_resource_handle const* r = bindless_resources; r != bindless_resources_end; r++, p_out++ ) {
-		le_bindless_resource_handle const& res = *r;
-		le_resource_handle&                out = *p_out;
-
-		switch ( res->get_type() ) {
-		case le_bindless_resource_type::eCombinedImageSampler:
-			out = self->bindless_texture_store.get_data( res ).imageView.imageId;
-			break;
-		case le_bindless_resource_type::eStorageImage:
-			out = self->bindless_storage_image_store.get_data( res ).imageId;
-			break;
-		case le_bindless_resource_type::eSampler:
-		case le_bindless_resource_type::eUndefined:
-		default:
-			assert( false && "cannot resolve " );
-		}
-	}
-}
 
 // ----------------------------------------------------------------------
 
@@ -403,82 +394,124 @@ static char const* texture_handle_get_name( le_texture_handle texture ) {
 
 // creates a new resource if no name was given, or given name was not found in list of current handles.
 le_resource_handle renderer_produce_resource_handle(
+    le_renderer_o*        renderer,
     char const*           maybe_name,
     LeResourceType const& resource_type,
-    uint8_t               num_samples      = 0,
-    uint8_t               flags            = 0,
-    uint16_t              index            = 0,
-    le_resource_handle    reference_handle = nullptr ) {
+    uint8_t               num_samples = 0,
+    uint8_t               flags       = 0,
+    uint16_t              index       = 0 ) {
 
-	static le_resource_handle_store_t* resource_handle_library = get_resource_handle_library();
+	le_resource_handle_store_t& resource_handle_library = renderer->resource_handle_store;
+
 	// lock handle library for reading/writing
-	std::scoped_lock lock( resource_handle_library->mtx );
+	std::scoped_lock lock( resource_handle_library.mtx );
 
-	le_resource_handle handle;
+	uint32_t idx = index;
 
-	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
-	p_data->flags                     = flags;
-	p_data->num_samples               = num_samples;
-	p_data->reference_handle          = reference_handle;
-	p_data->type                      = resource_type;
-	p_data->index                     = index;
+	le_resource_handle resource_handle{};
+	uint32_t           version = 0; // FIXME: use proper versioning of resources
 
-	if ( maybe_name && maybe_name[ 0 ] != '\0' ) {
-		memcpy( p_data->debug_name, maybe_name, sizeof( p_data->debug_name ) );
-		// if a string was given, search for multimap and see if we can find something.
-		auto it = resource_handle_library->resource_handles.find( *p_data );
-		if ( it == resource_handle_library->resource_handles.end() ) {
-			// not found, insert a new element
-			handle = &resource_handle_library->resource_handles.emplace( *p_data, le_resource_handle_t{ p_data } )->second;
-		} else {
-			// found, return a pointer to the found element
-			handle = &it->second;
-			delete ( p_data );
-		}
-	} else {
-		// no name given: handle is set to address of newly inserted element
-		// As this is a multimap, there can be any number of textures with the same
-		// key "unnamed" in the map.
-		handle = &resource_handle_library->resource_handles.emplace( *p_data, le_resource_handle_t{ p_data } )->second;
-		// we tag the element with a debug name that contains the handle so that
-		// the debug name is unique.
-		sprintf( handle->data->debug_name, "[%p]", handle );
+	if ( resource_type == LeResourceType::eBuffer && ( flags != le_buffer_resource_handle_t::eIsUnset ) ) {
+		// this is a virtual resource
+		idx = index;
+		resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
+		// a virtual resource does not need to be stored with the resource handle library
+		return resource_handle;
 	}
 
-	// handle is a pointer to the element in the container, and as such it is
-	// guaranteed to stay valid, even through rehashes of the resource_handle_library
-	// container, because that's a guarantee that maps give us in c++, until
-	// the element gets erased.
+	// ---------| invariant: resource is not virtual
 
-	return handle;
+	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
+	p_data->debug_name                = maybe_name ? maybe_name : "";
+
+	idx = resource_handle_library.resource_handles.size();
+
+	resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
+	p_data->handle  = resource_handle;
+
+	if ( p_data->debug_name.empty() ) {
+		char debug_name[ 64 ] = {};
+		snprintf( debug_name, sizeof( debug_name ), "[%08lx]", uint64_t( p_data->handle ) );
+		p_data->debug_name = debug_name;
+	}
+
+	// Store the resource handle with our array of resource handles
+	resource_handle_library.resource_handles.emplace_back( p_data );
+	return resource_handle;
 }
 
 // ----------------------------------------------------------------------
 
-static le_image_resource_handle renderer_produce_img_resource_handle( char const* maybe_name, uint8_t num_samples,
-                                                                      le_image_resource_handle reference_handle, uint8_t flags ) {
-	return static_cast<le_image_resource_handle>(
-	    renderer_produce_resource_handle( maybe_name, LeResourceType::eImage, num_samples, flags, 0,
-	                                      static_cast<le_resource_handle>( reference_handle ) ) );
+static le_image_resource_handle renderer_create_img_resource_handle( le_renderer_o* renderer, char const* maybe_name, uint8_t num_samples, uint8_t flags ) {
+	return static_cast<le_image_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eImage, num_samples, flags, 0 ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_buffer_resource_handle renderer_produce_buf_resource_handle( char const* maybe_name, uint8_t flags, uint16_t index ) {
-	return static_cast<le_buffer_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
+static le_buffer_resource_handle renderer_create_buf_resource_handle( le_renderer_o* renderer, char const* maybe_name, uint8_t flags, uint16_t index ) {
+	return static_cast<le_buffer_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eBuffer, 0, flags, index ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_tlas_resource_handle renderer_produce_tlas_resource_handle( char const* maybe_name ) {
-	return static_cast<le_tlas_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eRtxTlas ) );
+static le_tlas_resource_handle renderer_create_tlas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
+	return static_cast<le_tlas_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eRtxTlas ) );
 }
 
 // ----------------------------------------------------------------------
 
-static le_blas_resource_handle renderer_produce_blas_resource_handle( char const* maybe_name ) {
-	return static_cast<le_blas_resource_handle>( renderer_produce_resource_handle( maybe_name, LeResourceType::eRtxBlas ) );
+static le_blas_resource_handle renderer_create_blas_resource_handle( le_renderer_o* renderer, char const* maybe_name ) {
+	return static_cast<le_blas_resource_handle>( renderer_produce_resource_handle( renderer, maybe_name, LeResourceType::eRtxBlas ) );
 }
+
+// ----------------------------------------------------------------------
+// This copies an array of pointers pointing to debug data.
+// Internally, these pointers are owned by the renderer, and kept alive
+// for the duration of the lifetime of the program, and therefore you can
+// assume that they will never dangle, as long as the renderer is alive.
+//
+// It's possible that a resource gets reallocated and that the *content*
+// to which the pointer points to changes, but (the address of) the pointer
+// will remain constant throughout.
+//
+// In case a resource gets re-used, the pointer will not change, but the
+// content of the data pointed to by the pointer; most notably the version
+// will be different, which is how you can tell whether a handle is stale
+// or not - if the version inside the handle matches the version held in-
+// side the data, then the handle is valid, otherwise it is stale.
+static bool renderer_clone_resource_data_into( le_renderer_o* self, le_resource_handle_data_t const** p_resource_handle_data_t, size_t* num_elements ) {
+	std::unique_lock lock( self->resource_handle_store.mtx );
+
+	if ( *num_elements < self->resource_handle_store.resource_handles.size() ) {
+		*num_elements = self->resource_handle_store.resource_handles.size();
+		return false;
+
+	} else {
+		*num_elements = self->resource_handle_store.resource_handles.size();
+	}
+
+	// ----------| there are enough elements in the target vector to store all our data pointers
+
+	memcpy( p_resource_handle_data_t, self->resource_handle_store.resource_handles.data(), *num_elements * sizeof( le_resource_handle_data_t* ) );
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+static char const* renderer_get_resource_debug_name( le_renderer_o* self, le_resource_handle handle ) {
+	std::unique_lock lock( self->resource_handle_store.mtx );
+
+	size_t idx = handle->get_idx();
+
+	if ( idx < self->resource_handle_store.resource_handles.size() ) {
+		return self->resource_handle_store.resource_handles[ idx ]->debug_name.c_str();
+	} else {
+		static auto error_message = "Could not find resource in resource list";
+		return error_message;
+	}
+};
+
 // ----------------------------------------------------------------------
 
 static void renderer_destroy( le_renderer_o* self ) {
@@ -498,15 +531,13 @@ static void renderer_destroy( le_renderer_o* self ) {
 	get_texture_handle_library( false );
 
 	{
-		le_resource_handle_store_t* resource_handle_library = get_resource_handle_library();
-		if ( resource_handle_library ) {
-			// we must deallocate manually allocated data for resource handles
-			for ( auto& e : resource_handle_library->resource_handles ) {
-				delete ( e.second.data );
-			}
-			// Delete static pointer to resource handle library
-			get_resource_handle_library( true );
+		le_resource_handle_store_t& resource_handle_library = self->resource_handle_store;
+		// we must deallocate manually allocated data for resource handles
+		for ( auto& e : resource_handle_library.resource_handles ) {
+			delete ( e );
 		}
+
+		self->resource_handle_store.resource_handles.clear();
 	}
 
 	if ( self->backend ) {
@@ -1264,20 +1295,26 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.allocate_bindless_texture      = renderer_allocate_bindless_texture;
 	le_renderer_i.allocate_bindless_sampler       = renderer_allocate_bindless_sampler;
 	le_renderer_i.allocate_bindless_storage_image = renderer_allocate_bindless_storage_image;
-	le_renderer_i.get_resources_for_bindless_resources = renderer_get_resources_for_bindless_resources;
+
+	// le_renderer_i.get_resources_for_bindless_resources = renderer_get_resources_for_bindless_resources;
 
 	auto& helpers_i = le_renderer_api_i->helpers_i;
 
 	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
 	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
-	le_renderer_i.produce_img_resource_handle      = renderer_produce_img_resource_handle;
-	le_renderer_i.produce_buf_resource_handle      = renderer_produce_buf_resource_handle;
-	le_renderer_i.produce_tlas_resource_handle     = renderer_produce_tlas_resource_handle;
-	le_renderer_i.produce_blas_resource_handle     = renderer_produce_blas_resource_handle;
+
+	le_renderer_i.create_img_resource_handle  = renderer_create_img_resource_handle;
+	le_renderer_i.create_buf_resource_handle  = renderer_create_buf_resource_handle;
+	le_renderer_i.create_tlas_resource_handle = renderer_create_tlas_resource_handle;
+	le_renderer_i.create_blas_resource_handle = renderer_create_blas_resource_handle;
+
+	le_renderer_i.clone_resource_data_into = renderer_clone_resource_data_into;
+	le_renderer_i.get_resource_debug_name  = renderer_get_resource_debug_name;
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api );
 
 	register_le_command_buffer_encoder_api( api );
+
 	LE_LOAD_TRACING_LIBRARY;
 }

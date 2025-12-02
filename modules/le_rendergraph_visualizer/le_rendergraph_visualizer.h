@@ -47,6 +47,7 @@
 
  */
 
+struct le_renderer_o;
 struct le_rendergraph_o;
 struct le_rendergraph_visualizer_o;
 struct le_image_resource_handle_t;
@@ -58,7 +59,7 @@ struct le_rendergraph_visualizer_api {
 
 	struct le_rendergraph_visualizer_interface_t {
 
-		le_rendergraph_visualizer_o *    ( * create                   ) ( uint32_t initial_window_w, uint32_t initial_window_h);
+		le_rendergraph_visualizer_o *    ( * create                   ) ( le_renderer_o* renderer, uint32_t initial_window_w, uint32_t initial_window_h);
 		void                 			 ( * destroy                  ) ( le_rendergraph_visualizer_o* self );
 		void                 			 ( * update                   ) ( le_rendergraph_visualizer_o* self, le_rendergraph_o* rendergraph, le_image_resource_handle_t* target_image);
 	
@@ -100,8 +101,8 @@ class LeRendergraphVisualizer : NoCopy, NoMove {
 	static constexpr uint32_t C_WINDOW_W_FALLBACK = 800; /// < This is the fallback value that is used in case no initial window width is specified
 	static constexpr uint32_t C_WINDOW_H_FALLBACK = 600; ///< fallback value in case no initial window height is specified
 
-	LeRendergraphVisualizer( bool active_by_default = true, uint32_t const& initial_window_w = C_WINDOW_W_FALLBACK, uint32_t const& initial_window_h = C_WINDOW_H_FALLBACK )
-	    : self( le_rendergraph_visualizer::le_rendergraph_visualizer_i.create( initial_window_w, initial_window_h ) ) {
+	LeRendergraphVisualizer( le_renderer_o* renderer, bool active_by_default = true, uint32_t const& initial_window_w = C_WINDOW_W_FALLBACK, uint32_t const& initial_window_h = C_WINDOW_H_FALLBACK )
+	    : self( le_rendergraph_visualizer::le_rendergraph_visualizer_i.create( renderer, initial_window_w, initial_window_h ) ) {
 		le_rendergraph_visualizer::le_rendergraph_visualizer_i.set_is_active( self, active_by_default );
 	}
 

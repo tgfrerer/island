@@ -319,7 +319,7 @@ struct le_backend_vk_api {
 	};
 
 	struct staging_allocator_interface_t {
-		le_staging_allocator_o* ( *create  )( VmaAllocator_T* const vmaAlloc, VkDevice_T* const device );
+		le_staging_allocator_o* ( *create  )( VmaAllocator_T* const vmaAlloc, VkDevice_T* const device, le_renderer_o* renderer );
 		void                    ( *destroy )( le_staging_allocator_o* self ) ;
 		void                    ( *reset   )( le_staging_allocator_o* self );
 		bool                    ( *map     )( le_staging_allocator_o* self, uint64_t numBytes, void **pData, le_buffer_resource_handle *resource_handle );

@@ -11,6 +11,7 @@
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "modules/le_backend_vk/le_backend_vk.h"
 
 #include <iostream>
 #include <memory>
@@ -47,7 +48,7 @@ static void app_initialize() {
 	// If you do not want validation layers active in a debug build, you can
 	// override validation layer usage here:
 	//
-	// LE_SETTING( const bool, LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS, false );
+	// 	LE_SETTING( const bool, LE_SETTING_IDENTIFIER_SHOULD_USE_VALIDATION_LAYERS, false );
 
 	// Explicitly initialize swapchain by giving it a swapchain
 	// settings object -- you only need to do this if a swapchain

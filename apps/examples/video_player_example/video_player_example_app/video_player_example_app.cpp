@@ -89,7 +89,7 @@ static void app_add_video_player( app_o* self ) {
 	};
 
 	video.video_player         = new le::VideoPlayer( self->renderer, video_player_examples[ self->video_players.size() % 2 ] );
-	video.video_texture_handle = le::Renderer::produceTextureHandle( nullptr );
+	video.video_texture_handle = self->renderer.produceTextureHandle();
 
 	// We must **forward** the callback in case we want to be able to hot-reload this app,
 	// as the callback address needs to be automatically updated if the app gets reloaded.
@@ -143,7 +143,7 @@ static video_player_example_app_o* app_create() {
 	// LE_SETTING( uint32_t, LE_SETTING_RENDERGRAPH_GENERATE_DOT_FILES, 10 );
 	app->timebase.reset();
 
-	app->gui = le_imgui::le_imgui_i.create();
+	app->gui = le_imgui::le_imgui_i.create( app->renderer );
 
 	app->cameraController.setControlRect( 0, 0, float( app->window_extents.width ), float( app->window_extents.height ) );
 	app_reset_camera( app );

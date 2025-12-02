@@ -5,7 +5,6 @@
 #include "le_renderer.h"
 #include "le_renderer.hpp"
 #include "le_2d.h"
-#include "le_shader_compiler.h"
 #include "le_pipeline_builder.h"
 #include "glm/glm.hpp"
 #include "le_font.h"
@@ -17,12 +16,10 @@
 
 #include "private/le_rendergraph_visualizer/views.h"
 
-#include "private/le_renderer/le_resource_handle_t.inl"
-
 #include <algorithm> // for copy_if
 #include <iterator>
 
-static constexpr size_t C_VIEWS_CACHE_CAPACITY = 100;   // Number of RenderpassViews to keep in the cache
+static constexpr size_t C_VIEWS_CACHE_CAPACITY              = 100;   // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_DISABLE_CACHE                     = false; // Number of RenderpassViews to keep in the cache
 static constexpr size_t C_RENDERGRAPH_STORE_RINGBUFFER_SIZE = 7;     // number of rendergraphs to store - max
 
@@ -106,12 +103,13 @@ struct io_state_t {
 };
 
 struct le_rendergraph_visualizer_o {
+	le_renderer_o* const renderer;
 	// members
 	le_image_resource_handle canvas_image;   // the canvas onto which we draw the visualization.
 	le_resource_info_t       canvas_image_info; // resource image information
 	le_texture_handle        canvas_texture;    // the texture which we use to sample the canvas
 	le::Font                 font = { "./resources/fonts/IBMPlexSans-Regular.otf", 8 };
-	Le2D                     ctx_2d; // 2d drawing context
+	Le2D                     ctx_2d{ renderer }; // 2d drawing context
 
 	io_state_t io_state            = {};
 	uint32_t   ui_capture_state    = 0; /// which events to consume, and which to bubble (this applies to the full vector of events that are being processed)
@@ -142,8 +140,8 @@ struct le_rendergraph_visualizer_o {
 
 // ----------------------------------------------------------------------
 
-static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create( uint32_t initial_window_w, uint32_t initial_window_h ) {
-	auto self = new le_rendergraph_visualizer_o();
+static le_rendergraph_visualizer_o* le_rendergraph_visualizer_create( le_renderer_o* renderer, uint32_t initial_window_w, uint32_t initial_window_h ) {
+	auto self = new le_rendergraph_visualizer_o( renderer );
 
 	self->canvas_image = LE_IMG_RESOURCE( "visualizer_output_image" );
 
@@ -200,6 +198,11 @@ static void list_renderpasses_as_text( le_rendergraph_o* rp_src ) {
 // ----------------------------------------------------------------------
 
 static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergraph_visualizer_o* self, std::vector<le_renderpass_o const*> const& passes, std::vector<uint64_t>& renderpass_hashes ) {
+
+	static std::vector<le_resource_handle_data_t const*> resource_data;
+	static size_t                                        resource_data_sz = 0;
+	bool                                                 did_clone        = false;
+
 	for ( auto const& p : passes ) {
 
 		uint64_t rp_hash = le_renderer_api_i->le_renderpass_i.get_hash( p );
@@ -210,7 +213,14 @@ static void le_rendergraph_visualizer_update_renderpass_view_cache( le_rendergra
 		auto [ it, did_emplace ] = self->renderpass_views_cache.emplace( rp_hash, nullptr );
 
 		if ( did_emplace ) {
-			it->second = new RenderPassView( &self->font, p, self->epoch );
+
+			while ( did_clone == false && false == le_renderer_api_i->le_renderer_i.clone_resource_data_into( self->renderer, resource_data.data(), &resource_data_sz ) ) {
+				resource_data.resize( resource_data_sz );
+			}
+			did_clone = true;
+
+			it->second = new RenderPassView( resource_data.data(), resource_data_sz, &self->font, p, self->epoch );
+
 		} else {
 			// Mark this RenderpassView as being used in this epoch -
 			// this means that cache control should not delete it yet...

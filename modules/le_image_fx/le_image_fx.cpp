@@ -151,8 +151,8 @@ static le_image_fx_blur_o* le_fx_blur_create( le_renderer_o* renderer ) {
 	auto self = new le_image_fx_blur_o{};
 
 	self->pipeline_manager = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
-	self->image_b          = le_renderer_api_i->le_renderer_i.produce_img_resource_handle( nullptr, 0, self->image_b, 0 );
-	self->tex_blur_source  = le::Renderer::produceTextureHandle( "fx_blur_source" );
+	self->image_b          = le_renderer_api_i->le_renderer_i.create_img_resource_handle( renderer, nullptr, 0, 0 );
+	self->tex_blur_source  = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "fx_blur_source" );
 
 	return self;
 }
@@ -265,6 +265,7 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 
 struct le_image_fx_blit_o {
 	// members
+	le_renderer_o* const             renderer;
 	le_pipeline_manager_o*           pipeline_manager = nullptr; // non-owning
 	le_texture_handle                tex_blit_source;            // owning
 	le_gpso_handle                   pipeline_handle;            //
@@ -272,9 +273,9 @@ struct le_image_fx_blit_o {
 };
 
 static le_image_fx_blit_o* le_fx_blit_create( le_renderer_o* renderer, le_image_fx_api::BlitBlendPreset blend_preset ) {
-	auto self = new le_image_fx_blit_o{};
+	auto self = new le_image_fx_blit_o{ renderer };
 
-	self->tex_blit_source  = le::Renderer::produceTextureHandle( "image_fx_blit_src" );
+	self->tex_blit_source  = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "image_fx_blit_src" );
 	self->pipeline_manager = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
 	self->blend_preset     = blend_preset;
 

@@ -212,7 +212,7 @@ class WriteToImageSettingsBuilder {
 
 // ---------
 
-class Renderer {
+class Renderer : NoMove, NoCopy {
 
 	le_renderer_o* self;
 
@@ -281,6 +281,20 @@ class Renderer {
 		return le_renderer::renderer_i.get_swapchain_extent( self, swapchain, pWidth, pHeight );
 	}
 
+	le_image_resource_handle createImageResourceHandle( const char* name = nullptr, uint8_t num_samples = 0, le_image_resource_handle_t::UsageFlagBits flags = {} ) {
+		return le_renderer::renderer_i.create_img_resource_handle( self, name, num_samples, flags );
+	}
+
+	le_buffer_resource_handle createBufferResourceHandle( const char* name = nullptr, le_buffer_resource_handle_t::UsageFlags flags = {}, uint16_t index = 0 ) {
+		return le_renderer::renderer_i.create_buf_resource_handle( self, name, flags, index );
+	}
+
+	le_texture_handle produceTextureHandle( const char* name = nullptr ) {
+		return le_renderer::renderer_i.produce_texture_handle( self, name );
+	}
+
+	//
+
 	le_bindless_texture_handle allocateBindlessTexture( le_image_sampler_info_t const& image_sampler ) {
 		return le_renderer::renderer_i.allocate_bindless_texture( self, &image_sampler );
 	}
@@ -293,9 +307,6 @@ class Renderer {
 		return le_renderer::renderer_i.allocate_bindless_storage_image( self, &storage_image );
 	}
 
-	void resolveResourcesForBindlessResources( le_bindless_resource_handle const* p_bindless_resources, uint32_t num_bindless_resources, le_resource_handle* p_resource_handles ) {
-		le_renderer::renderer_i.get_resources_for_bindless_resources( self, p_bindless_resources, num_bindless_resources, p_resource_handles );
-	}
 
 	const le::Extent2D getSwapchainExtent( le_swapchain_handle swapchain = nullptr ) const {
 		le::Extent2D result{};
@@ -305,18 +316,6 @@ class Renderer {
 
 	le_pipeline_manager_o* getPipelineManager() const {
 		return le_renderer::renderer_i.get_pipeline_manager( self );
-	}
-
-	static le_texture_handle produceTextureHandle( char const* maybe_name ) {
-		return le_renderer::renderer_i.produce_texture_handle( maybe_name );
-	}
-
-	static le_image_resource_handle produceImageHandle( char const* maybe_name ) {
-		return le_renderer::renderer_i.produce_img_resource_handle( maybe_name, 0, nullptr, 0 );
-	}
-
-	static le_buffer_resource_handle produceBufferHandle( char const* maybe_name ) {
-		return le_renderer::renderer_i.produce_buf_resource_handle( maybe_name, 0, 0 );
 	}
 
 	operator auto() {
@@ -432,25 +431,27 @@ class RenderPass {
 		return *this;
 	}
 
-	// TODO: not super happy with this -- it feels a bit cumbersome,
-	//
-	// The intent is to have a way to signal to the renderer that we are using an image resource in a bindless manner
-	// and that the renderer does not need to create a transient view for this image for this frame.
-	//
-	// It would be better if we could directly declare the resource via the bindless handle and would
-	// not have go go through the parent resource.
-	RenderPass& useImageResourceNoTransient( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eNone );
+	RenderPass& useImageResource( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& final_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | final_write_access, resource_usage_flags::eRequiresTransient );
 		return *this;
 	}
 
-	RenderPass& useImageResource( le_image_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eRequiresTransient );
+	// PREFERRED
+	// Overload of useImageResource for bindless storage image -- this is more efficient
+	// than useImageResource because it reduces the chance of pipeline switches, and it
+	// also doesn't require the renderer to create transient imageviews.
+	RenderPass& useImageResource( le_bindless_storage_image_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2 const& final_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id->get_parent_handle(), first_read_access | final_write_access, resource_usage_flags::eNone );
 		return *this;
 	}
 
-	RenderPass& useBufferResource( le_buffer_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& last_write_access = le::AccessFlagBits2::eNone ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | last_write_access, resource_usage_flags::eNone );
+	RenderPass& useImageResource( le_bindless_texture_handle texture_handle, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eShaderSampledRead, le::AccessFlagBits2 const& final_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, texture_handle->get_parent_handle(), first_read_access | final_write_access, resource_usage_flags::eNone );
+		return *this;
+	}
+
+	RenderPass& useBufferResource( le_buffer_resource_handle resource_id, le::AccessFlagBits2 const& first_read_access = le::AccessFlagBits2::eVertexAttributeRead, le::AccessFlagBits2 const& final_write_access = le::AccessFlagBits2::eNone ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, first_read_access | final_write_access, resource_usage_flags::eNone );
 		return *this;
 	}
 
@@ -503,7 +504,8 @@ class RenderPass {
 class RenderGraph : NoCopy, NoMove {
 
 	le_rendergraph_o* self;
-	const bool        is_reference = false;
+
+	const bool is_reference = false;
 
   public:
 	RenderGraph()

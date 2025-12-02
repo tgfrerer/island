@@ -11,11 +11,12 @@
 
 static void
 le_render_module_add_blit_pass(
-    le_rendergraph_o*             module,
+    le_renderer_o*                  renderer,
+    le_rendergraph_o*               module,
     le_image_resource_handle const& input,
     le_image_resource_handle const& output ) {
 
-	static auto SRC_TEX_UNIT_0 = le::Renderer::produceTextureHandle( "src_tex_unit_0" );
+	static auto SRC_TEX_UNIT_0 = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "src_tex_unit_0" );
 
 	auto pass_blit_exec = []( le_command_buffer_encoder_o* encoder_, void* ) {
 		le::GraphicsEncoder encoder{ encoder_ };
@@ -25,13 +26,11 @@ le_render_module_add_blit_pass(
 		    LeShaderModuleBuilder( pm )
 		        .setShaderStage( le::ShaderStage::eVertex )
 		        .setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" )
-		        .setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) )
 		        .build();
 		static auto blitFrag =
 		    LeShaderModuleBuilder( pm )
 		        .setShaderStage( le::ShaderStage::eFragment )
 		        .setSourceFilePath( "./resources/shaders/fullscreenQuad.frag" )
-		        .setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_frag" ) )
 		        .build();
 
 		static auto pipeline =
@@ -62,24 +61,42 @@ le_render_module_add_blit_pass(
 
 static void
 le_render_module_add_bloom_pass(
-    le_rendergraph_o*             module,
+    le_renderer_o*                  renderer,
+    le_rendergraph_o*               module,
     le_image_resource_handle const& input,
     le_image_resource_handle const& output,
-    uint32_t const&               width,
-    uint32_t const&               height,
-    le_bloom_pass_api::params_t*  params ) {
+    uint32_t const&                 width,
+    uint32_t const&                 height,
+    le_bloom_pass_api::params_t*    params ) {
 
 	// we must introduce all transient resources
 
 	using namespace le_renderer;
 
-	static auto TEX_INPUT        = le::Renderer::produceTextureHandle( "input_tex" );
-	static auto SRC_TEX_UNIT_0   = le::Renderer::produceTextureHandle( "src_tex_unit_0" );
-	static auto SRC_TEX_UNIT_0_0 = le::Renderer::produceTextureHandle( "src_tex_unit_0.0" );
-	static auto SRC_TEX_UNIT_0_1 = le::Renderer::produceTextureHandle( "src_tex_unit_0.1" );
-	static auto SRC_TEX_UNIT_0_2 = le::Renderer::produceTextureHandle( "src_tex_unit_0.2" );
-	static auto SRC_TEX_UNIT_0_3 = le::Renderer::produceTextureHandle( "src_tex_unit_0.3" );
-	static auto SRC_TEX_UNIT_0_4 = le::Renderer::produceTextureHandle( "src_tex_unit_0.4" );
+	static auto TEX_INPUT        = renderer_i.produce_texture_handle( renderer, "input_tex" );
+	static auto SRC_TEX_UNIT_0   = renderer_i.produce_texture_handle( renderer, "src_tex_unit_0" );
+	static auto SRC_TEX_UNIT_0_0 = renderer_i.produce_texture_handle( renderer, "src_tex_unit_0.0" );
+	static auto SRC_TEX_UNIT_0_1 = renderer_i.produce_texture_handle( renderer, "src_tex_unit_0.1" );
+	static auto SRC_TEX_UNIT_0_2 = renderer_i.produce_texture_handle( renderer, "src_tex_unit_0.2" );
+	static auto SRC_TEX_UNIT_0_3 = renderer_i.produce_texture_handle( renderer, "src_tex_unit_0.3" );
+	static auto SRC_TEX_UNIT_0_4 = renderer_i.produce_texture_handle( renderer, "src_tex_unit_0.4" );
+
+	// Important to create these handles only once
+
+	static le_image_resource_handle bloom_blur_h[ 5 ] = {
+	    LE_IMG_RESOURCE( "bloom_blur_h_0" ),
+	    LE_IMG_RESOURCE( "bloom_blur_h_1" ),
+	    LE_IMG_RESOURCE( "bloom_blur_h_2" ),
+	    LE_IMG_RESOURCE( "bloom_blur_h_3" ),
+	    LE_IMG_RESOURCE( "bloom_blur_h_4" ),
+	};
+	static le_image_resource_handle bloom_blur_v[ 5 ] = {
+	    LE_IMG_RESOURCE( "bloom_blur_v_0" ),
+	    LE_IMG_RESOURCE( "bloom_blur_v_1" ),
+	    LE_IMG_RESOURCE( "bloom_blur_v_2" ),
+	    LE_IMG_RESOURCE( "bloom_blur_v_3" ),
+	    LE_IMG_RESOURCE( "bloom_blur_v_4" ),
+	};
 
 	static auto samplerInfoImgInput = le::ImageSamplerInfoBuilder( input ).build();
 
@@ -95,19 +112,19 @@ le_render_module_add_bloom_pass(
 	};
 
 	static RenderTarget targets_blur_h[] = {
-	    { LE_IMG_RESOURCE( "bloom_blur_h_0" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_h_0" ) ).build() },
-	    { LE_IMG_RESOURCE( "bloom_blur_h_1" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_h_1" ) ).build() },
-	    { LE_IMG_RESOURCE( "bloom_blur_h_2" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_h_2" ) ).build() },
-	    { LE_IMG_RESOURCE( "bloom_blur_h_3" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_h_3" ) ).build() },
-	    { LE_IMG_RESOURCE( "bloom_blur_h_4" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_h_4" ) ).build() },
+	    { bloom_blur_h[ 0 ], le::ImageSamplerInfoBuilder( bloom_blur_h[ 0 ] ).build() },
+	    { bloom_blur_h[ 1 ], le::ImageSamplerInfoBuilder( bloom_blur_h[ 1 ] ).build() },
+	    { bloom_blur_h[ 2 ], le::ImageSamplerInfoBuilder( bloom_blur_h[ 2 ] ).build() },
+	    { bloom_blur_h[ 3 ], le::ImageSamplerInfoBuilder( bloom_blur_h[ 3 ] ).build() },
+	    { bloom_blur_h[ 4 ], le::ImageSamplerInfoBuilder( bloom_blur_h[ 4 ] ).build() },
 	};
 
 	static RenderTarget targets_blur_v[] = {
-	    { LE_IMG_RESOURCE( "bloom_blur_v_0" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_v_0" ) ).build() },
-	    { LE_IMG_RESOURCE( "bloom_blur_v_1" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_v_1" ) ).build() },
-	    { LE_IMG_RESOURCE( "bloom_blur_v_2" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_v_2" ) ).build() },
-	    { LE_IMG_RESOURCE( "bloom_blur_v_3" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_v_3" ) ).build() },
-	    { LE_IMG_RESOURCE( "bloom_blur_v_4" ), le::ImageSamplerInfoBuilder( LE_IMG_RESOURCE( "bloom_blur_v_4" ) ).build() },
+	    { bloom_blur_v[ 0 ], le::ImageSamplerInfoBuilder( bloom_blur_v[ 0 ] ).build() },
+	    { bloom_blur_v[ 1 ], le::ImageSamplerInfoBuilder( bloom_blur_v[ 1 ] ).build() },
+	    { bloom_blur_v[ 2 ], le::ImageSamplerInfoBuilder( bloom_blur_v[ 2 ] ).build() },
+	    { bloom_blur_v[ 3 ], le::ImageSamplerInfoBuilder( bloom_blur_v[ 3 ] ).build() },
+	    { bloom_blur_v[ 4 ], le::ImageSamplerInfoBuilder( bloom_blur_v[ 4 ] ).build() },
 	};
 
 	static BlurSettings BlurSettingsH[ 5 ] = {
@@ -153,8 +170,8 @@ le_render_module_add_bloom_pass(
 
 		auto* pm = encoder.getPipelineManager();
 
-		static auto quadVert     = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
-		static auto highPassFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/luminosity_high_pass.frag" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_luminosity_high_pass_frag" ) ).build();
+		static auto quadVert     = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).build();
+		static auto highPassFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/luminosity_high_pass.frag" ).build();
 
 		static auto pipeline =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
@@ -188,14 +205,14 @@ le_render_module_add_bloom_pass(
 		    "KERNEL_RADIUS=11",
 		};
 
-		static auto quadVert = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
+		static auto quadVert = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).build();
 
 		static le_shader_module_handle gaussianBlurFrag[] = {
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 0 ] ).setHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_0_frag" ) ).build(),
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 1 ] ).setHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_1_frag" ) ).build(),
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 2 ] ).setHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_2_frag" ) ).build(),
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 3 ] ).setHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_3_frag" ) ).build(),
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 4 ] ).setHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_4_frag" ) ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 0 ] ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 1 ] ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 2 ] ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 3 ] ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 4 ] ).build(),
 		};
 
 		struct BlurParams {
@@ -214,7 +231,7 @@ le_render_module_add_bloom_pass(
 		encoder
 		    .bindGraphicsPipeline( pipeline )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), SRC_TEX_UNIT_0 )
-		    .setArgumentData( LE_ARGUMENT_NAME( "BlurParams" ), &blur_params, sizeof( BlurParams ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "params" ), &blur_params, sizeof( BlurParams ) )
 		    .draw( 4 );
 	};
 
@@ -229,8 +246,8 @@ le_render_module_add_bloom_pass(
 		}
 
 		auto*       pm              = encoder.getPipelineManager();
-		static auto quadVert        = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
-		static auto quadCombineFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/ue_bloom_combine.frag" ).setHandle( LE_SHADER_MODULE_HANDLE( "le_ue_bloom_combine_frag" ) ).build();
+		static auto quadVert        = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).build();
+		static auto quadCombineFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/ue_bloom_combine.frag" ).build();
 
 		static auto pipeline =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
@@ -317,16 +334,16 @@ le_render_module_add_bloom_pass(
 		        .setExecuteCallback( params, combine_render_fun );
 
 		rendergraph_i.add_renderpass( module, passCombine );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_4" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_3" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_2" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_1" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_v_0" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_4" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_3" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_2" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_1" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, LE_IMG_RESOURCE( "bloom_blur_h_0" ), le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_v[ 4 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_v[ 3 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_v[ 2 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_v[ 1 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_v[ 0 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_h[ 4 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_h[ 3 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_h[ 2 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_h[ 1 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.declare_resource( module, bloom_blur_h[ 0 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
 	}
 }
 

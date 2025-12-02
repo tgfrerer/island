@@ -11,9 +11,6 @@
 
 #include <unordered_map>
 
-// only used to print debug messages:
-#include "private/le_renderer/le_resource_handle_t.inl"
-
 #include "shared/interfaces/le_image_decoder_interface.h"
 
 static le::Log& logger() {
@@ -34,6 +31,7 @@ struct le_image_decoder_format_o {
 
 struct le_resource_manager_o {
 
+	le_renderer_o* const renderer;
 	le_file_watcher_o* file_watcher = nullptr;
 
 	struct image_data_layer_t {
@@ -257,8 +255,8 @@ static void le_resource_manager_file_watcher_callback( char const* path, void* u
 
 // ----------------------------------------------------------------------
 
-static le_resource_manager_o* le_resource_manager_create() {
-	auto self = new le_resource_manager_o{};
+static le_resource_manager_o* le_resource_manager_create( le_renderer_o* renderer ) {
+	auto self = new le_resource_manager_o{ renderer };
 
 	// Register default file types with resource manager -
 	// the decoder for these files is provided by le_pixels
@@ -438,7 +436,7 @@ static void le_resource_manager_add_item( le_resource_manager_o*         self,
 		        item.image_info.image.extent.depth != 0 &&
 		        "Image extents for resource are not valid." );
 	} else {
-		logger().error( "Resource '%s' was added more than once.", image_handle->data->debug_name );
+		logger().error( "Resource '%s' was added more than once.", image_handle->get_debug_name() );
 	}
 }
 
@@ -459,7 +457,7 @@ static bool le_resource_manager_remove_item( le_resource_manager_o* self, le_ima
 	auto it = self->resources.find( resource_handle );
 
 	if ( it == self->resources.end() ) {
-		logger().warn( "Could not remove resource. Resource '%s' not found.", resource_handle->data->debug_name );
+		logger().warn( "Could not remove resource. Resource '%s' not found.", resource_handle->get_debug_name() );
 		return false;
 	}
 

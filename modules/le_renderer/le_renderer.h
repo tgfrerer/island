@@ -20,6 +20,7 @@ struct le_pipeline_manager_o;
 struct le_command_stream_t; // ffdecl
 struct le_window_o;
 struct le_swapchain_settings_t;
+struct le_resource_handle_data_t;
 
 struct le_allocator_o;         // from backend
 struct le_staging_allocator_o; // from backend
@@ -28,13 +29,13 @@ LE_OPAQUE_HANDLE( le_shader_module_handle );
 LE_OPAQUE_HANDLE( le_swapchain_handle );
 
 #define LE_BUF_RESOURCE( x ) \
-	le_renderer::renderer_i.produce_buf_resource_handle( ( x ), 0, 0 )
+	le_renderer::renderer_i.create_buf_resource_handle( renderer, ( x ), 0, 0 )
 
 #define LE_IMG_RESOURCE( x ) \
-	le_renderer::renderer_i.produce_img_resource_handle( ( x ), 0, 0, 0 )
+	le_renderer::renderer_i.create_img_resource_handle( renderer, ( x ), 0, 0 )
 
 #define LE_TEXTURE( x ) \
-	le_renderer::renderer_i.produce_texture_handle( ( x ) )
+	le_renderer::renderer_i.produce_texture_handle( renderer, ( x ) )
 
 struct le_shader_binding_table_o;
 
@@ -68,14 +69,14 @@ struct le_renderer_api {
 
 		le_pipeline_manager_o*         ( *get_pipeline_manager    )( le_renderer_o* self );
 
-        le_texture_handle              ( *produce_texture_handle  )(char const * maybe_name );
+        le_texture_handle              ( *produce_texture_handle  )(le_renderer_o* self, char const * maybe_name );
         char const *                   ( *texture_handle_get_name )(le_texture_handle handle);
 
-        le_buffer_resource_handle (*produce_buf_resource_handle)(char const * maybe_name, uint8_t flags, uint16_t index);
-        le_image_resource_handle (*produce_img_resource_handle)(char const * maybe_name, uint8_t num_samples, le_image_resource_handle reference_handle, uint8_t flags);
+        le_buffer_resource_handle (*create_buf_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t flags, uint16_t index);
+        le_image_resource_handle  (*create_img_resource_handle)(le_renderer_o* self, char const * maybe_name, uint8_t num_samples, uint8_t flags);
 
-        le_tlas_resource_handle (*produce_tlas_resource_handle)(char const * maybe_name);
-        le_blas_resource_handle (*produce_blas_resource_handle)(char const * maybe_name);
+        le_tlas_resource_handle (*create_tlas_resource_handle)(le_renderer_o* self, char const * maybe_name);
+        le_blas_resource_handle (*create_blas_resource_handle)(le_renderer_o* self, char const * maybe_name);
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, le::BuildAccelerationStructureFlagsKHR const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, le::BuildAccelerationStructureFlagsKHR const* flags);
@@ -85,7 +86,10 @@ struct le_renderer_api {
 		le_bindless_sampler_handle (* allocate_bindless_sampler )(le_renderer_o* self, le_sampler_info_t const * sampler_info);
 		le_bindless_storage_image_handle (* allocate_bindless_storage_image )(le_renderer_o* self, le_image_view_info_t const * storage_image_info);
 
-		void                            ( *get_resources_for_bindless_resources)(le_renderer_o * self, le_bindless_resource_handle const* bindless_resources, uint32_t num_bindless_resources, le_resource_handle* pp_out_resource_handles);
+
+		// Debug related methods:
+		char const *                   (*get_resource_debug_name )(le_renderer_o* self, le_resource_handle handle); 
+		bool                           (*clone_resource_data_into)(le_renderer_o* self, le_resource_handle_data_t const ** p_resource_handle_data_t, size_t *num_elements);
 
 	};
 
@@ -142,7 +146,7 @@ struct le_renderer_api {
 
 	// Graph builder builds a graph for a rendergraph
 	struct rendergraph_interface_t {
-		le_rendergraph_o *   ( *create           ) ( );
+		le_rendergraph_o *   ( *create           ) ();
 		void                 ( *destroy          ) ( le_rendergraph_o *self );
 		void                 ( *reset            ) ( le_rendergraph_o *self );
 		void                 ( *add_renderpass   ) ( le_rendergraph_o *self, le_renderpass_o *rp );

@@ -148,6 +148,8 @@ struct Node {
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
+	le_renderer_o* renderer = nullptr;
+
 	std::vector<le_renderpass_o*>    passes;                                 // owning
 	std::vector<Node>                nodes;                                  // one node per pass
 

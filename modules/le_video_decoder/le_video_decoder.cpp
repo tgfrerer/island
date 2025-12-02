@@ -158,6 +158,7 @@ struct le_video_data_h264_t {
 };
 
 struct le_video_decoder_o {
+	le_renderer_o const* renderer;
 
 	std::atomic<size_t> reference_count; // intrusive pointer - once this is at zero, object will be destroyed.
 
@@ -415,7 +416,7 @@ static void le_video_decoder_init() {
 
 // ----------------------------------------------------------------------
 static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, char const* file_path ) {
-	auto self = new le_video_decoder_o();
+	auto self = new le_video_decoder_o( renderer );
 
 	self->reference_count++;
 
@@ -1188,7 +1189,7 @@ static le_video_decoder_o* le_video_decoder_create( le_renderer_o* renderer, cha
 
 			f.id                         = i;
 			f.decoder                    = self;
-			f.rendergraph_image_resource = le::Renderer::produceImageHandle( nullptr );
+			f.rendergraph_image_resource = le_renderer_api_i->le_renderer_i.create_img_resource_handle( renderer, nullptr, 0, 0 );
 
 			if ( false == self->properties.do_dpb_and_out_images_coincide ) {
 

@@ -21,6 +21,7 @@ struct font_info_t {
 };
 
 struct le_font_renderer_o {
+	le_renderer_o* const           renderer; // weak pointer, non-owning
 	std::forward_list<font_info_t> fonts_info;
 	std::atomic<size_t>            counter          = {};
 	le_shader_module_handle        shader_font_vert = nullptr;
@@ -32,7 +33,7 @@ using draw_string_info_t = le_font_renderer_api::draw_string_info_t;
 // ----------------------------------------------------------------------
 
 le_font_renderer_o* le_font_renderer_create( le_renderer_o* renderer ) {
-	auto self = new le_font_renderer_o();
+	auto self = new le_font_renderer_o{ renderer };
 
 	using namespace le_renderer;
 	auto pm = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
@@ -86,9 +87,9 @@ void le_font_renderer_add_font( le_font_renderer_o* self, le_font_o* font ) {
 	auto info =
 	    font_info_t(
 	        { font,
-	          LE_IMG_RESOURCE( img_atlas_name ),
+	          le_renderer_api_i->le_renderer_i.create_img_resource_handle( self->renderer, img_atlas_name, 0, 0 ),
 	          font_atlas_info,
-	          le::Renderer::produceTextureHandle( img_sampler_name ),
+	          le_renderer_api_i->le_renderer_i.produce_texture_handle( self->renderer, img_sampler_name ),
 	          false,
 	          false } );
 

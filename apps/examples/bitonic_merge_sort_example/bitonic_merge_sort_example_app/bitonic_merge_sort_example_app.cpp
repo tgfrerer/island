@@ -90,7 +90,7 @@ static bitonic_merge_sort_example_app_o* bitonic_merge_sort_example_app_create()
 	app->renderer.setup( app->window );
 
 	app->pixels_data                    = new pixels_data_t{};
-	app->pixels_data->handle            = LE_BUF_RESOURCE( "sort_data" );
+	app->pixels_data->handle            = app->renderer.createBufferResourceHandle( "sort_data" );
 	app->pixels_data->w                 = C_WINDOW_WIDTH;
 	app->pixels_data->h                 = C_WINDOW_HEIGHT;
 	app->pixels_data->num_channels      = 1;

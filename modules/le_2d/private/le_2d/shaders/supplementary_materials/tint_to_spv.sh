@@ -1,8 +1,8 @@
-#!/bin/sh
+#!/bin/sh -e
 
 pushd vello_shaders
 
-mkdir spv
+mkdir -p spv
 
 for file in *.wgsl;do
 	file_name=$(basename "$file" .wgsl)
@@ -14,14 +14,33 @@ for file in *.wgsl;do
 	tmpfile="tmp_input.wgsl"
 
 	if [ "$file_name" = "fine" ]; then 
+
+		# Note that both fine files get turned into spirv-assembly files, not directly SPIRV-binaries
+		# This is because we need to patch the generated spirv to allow unknown output image formats
+		# Otherwise the output Image format is hardcoded to be rgba8.
+
 		# fine with msaa defines is the 16 msaa permutation: we define 'msaa', and 'msaa16'
 		sed -r 's/^#import\s(.*?).*/#include "shared\/\1.wgsl"/g' < "$file" | gcc -nostdinc -P -C -E -Dmsaa -Dmsaa16 - > $tmpfile
-		tint --spirv-version 1.4 --format spirv -o "spv/${file_name}_msaa16.spv" $tmpfile 
+		tint --spirv-version 1.4 --format spvasm -o "spv/${file_name}_msaa16.spvasm" $tmpfile 
+
+		# apply patch so that image output format does not need to be defined upfront
+		sed -f ../patch.sed -i "spv/${file_name}_msaa16.main.spvasm"
+		echo "	patched spv/${file_name}_msaa16.main.spvasm"
+
+		spirv-as "spv/${file_name}_msaa16.main.spvasm" --target-env vulkan1.4 --preserve-numeric-ids -o "spv/${file_name}_msaa16.main.spv"
+		echo "	assembled spv/${file_name}_msaa16.main.spv"
 		
 		# fine without any defines is area shader
 		sed -r 's/^#import\s(.*?).*/#include "shared\/\1.wgsl"/g' < "$file" | gcc -nostdinc -P -C -E - > $tmpfile 
-		tint --spirv-version 1.4 --format spirv -o "spv/${file_name}_area.spv" $tmpfile 
+		tint --spirv-version 1.4 --format spvasm -o "spv/${file_name}_area.spvasm" $tmpfile 
 		
+		# apply patch so that image output format does not need to be defined upfront
+		sed -f ../patch.sed -i "spv/${file_name}_area.main.spvasm"
+		echo "	patched spv/${file_name}_msaa16.main.spvasm"
+
+		spirv-as "spv/${file_name}_area.main.spvasm" --target-env vulkan1.4 --preserve-numeric-ids -o "spv/${file_name}_area.main.spv"
+		echo "	assembled spv/${file_name}_msaa16.main.spv"
+
 	elif [ "$file_name" = "pathtag_scan" ]; then 
 		# pathtag without any defines is the large pathtag scan
 		sed -r 's/^#import\s(.*?).*/#include "shared\/\1.wgsl"/g' < "$file" | gcc -nostdinc -P -C -E - > $tmpfile 

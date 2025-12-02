@@ -43,13 +43,13 @@ struct exr_decode_example_app_o {
 
 	GpuMeshData* gpu_mesh = nullptr; // owning
 
-	LeCamera               camera;
-	LeCameraController     cameraController;
-	LeResourceManager      resource_manager;
-	le_image_resource_handle img_heightmap = LE_IMG_RESOURCE( "heightmap_image" );
-	le_texture_handle      tex_unit_0    = LE_TEXTURE( "tex_unit_0" );
-	LeMesh                 mesh;
-	bool                   was_mesh_uploaded = false;
+	LeCamera                 camera;
+	LeCameraController       cameraController;
+	LeResourceManager        resource_manager{ renderer };
+	le_image_resource_handle img_heightmap = renderer.createImageResourceHandle( "heightmap_image" );
+	le_texture_handle        tex_unit_0    = renderer.produceTextureHandle( "tex_unit_0" );
+	LeMesh                   mesh;
+	bool                     was_mesh_uploaded = false;
 };
 
 static void reset_camera( exr_decode_example_app_o* self );                             // ffdecl.
@@ -113,9 +113,9 @@ static exr_decode_example_app_o* exr_decode_example_app_create() {
 
 		// Initialize handles, and size infos for gpu mesh data:
 		app->gpu_mesh = new GpuMeshData{
-		    LE_BUF_RESOURCE( "vertex_buffer" ),
-		    LE_BUF_RESOURCE( "uv_buffer" ),
-		    LE_BUF_RESOURCE( "index_buffer" ),
+		    app->renderer.createBufferResourceHandle( "vertex_buffer" ),
+		    app->renderer.createBufferResourceHandle( "uv_buffer" ),
+		    app->renderer.createBufferResourceHandle( "index_buffer" ),
 		    vertex_count,
 		    vertex_count,
 		    index_count,
@@ -123,7 +123,7 @@ static exr_decode_example_app_o* exr_decode_example_app_create() {
 		    vertex_count * get_num_bytes( le_mesh_api::eUv ),
 		    index_count * index_num_bytes_per_index,
 		    index_num_bytes_per_index == 2 ? le::IndexType::eUint16 : le::IndexType::eUint32,
-	    };
+		};
 	}
 
 	auto window_extents = app->renderer.getSwapchainExtent();
@@ -403,7 +403,7 @@ static bool exr_decode_example_app_update( exr_decode_example_app_o* self ) {
 		        .end()
 		        .build();
 
-		static le_image_resource_handle depth_buffer_image = LE_IMG_RESOURCE( "depth_buffer" );
+		static le_image_resource_handle depth_buffer_image = self->renderer.createImageResourceHandle( "depth_buffer" );
 		static le_image_resource_handle swapchain_image    = self->renderer.getSwapchainResource();
 
 		auto passDraw =
