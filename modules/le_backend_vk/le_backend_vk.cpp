@@ -3571,10 +3571,10 @@ static bool staging_allocator_map( le_staging_allocator_o* self, uint64_t numByt
 		self->allocationInfo.push_back( allocationInfo );
 		self->buffers.emplace_back( buffer );
 
-		// Staging resources share the same name, but their allocation index is different.
+		// Staging resources are virtual - they will not be stored
+		// with the resource library. They are retrieved only
+		// by their allocation index into the staging allocator.
 		//
-		// The staging index makes sure the correct buffer for this handle can be retrieved later.
-
 		*resource_handle =
 		    le_renderer::renderer_i
 		        .create_buf_resource_handle(
