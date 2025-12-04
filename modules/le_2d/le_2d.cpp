@@ -15,7 +15,7 @@
 constexpr uint32_t PATH_BBOX_WG_SZ        = 256;
 constexpr uint32_t FLATTEN_WG_SZ          = 256;
 constexpr uint32_t CLIP_REDUCE_WG_SZ      = 256;
-constexpr size_t   buf_bin_data_num_bytes = ( 1 << 18 ) * 4; // TODO: is there a method to calculate the required number of bytes required?
+constexpr size_t   buf_bin_data_num_bytes = ( 1 << 20 ) * 4; // TODO: is there a method to calculate the required number of bytes required?
 constexpr uint32_t TILE_UNIT              = 16;              // tiles are 16x16 pixels
 constexpr auto     VK_WHOLE_SIZE          = ( ~0ULL );
 constexpr size_t   N_GRADIENT_SAMPLES     = 512;
@@ -812,14 +812,20 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		    .indirect_count    = 16,
 		    .bin_headers       = 8 * binning_wgs * 256,
 		    .paths             = 32 * n_paths_aligned,
-		    // these should be based on heuristics
-		    .lines       = 24 * ( 1 << 21 ),
+
+		    // The following sizes are based on heurisics.
+		    //
+		    // If you see the indirect count for any of our indirect draws go to x==0, then this means
+		    // that the bump allocator failed for one of these categories; and it means that you need
+		    // to provide more space for the affected category.
+		    //
+		    .lines       = 24 * ( 1 << 23 ),
 		    .bin_data    = buf_bin_data_num_bytes, // TODO: this needs to change based on the actual size of the data
-		    .tiles       = 8 * ( 1 << 21 ),
-		    .seg_counts  = 8 * ( 1 << 21 ),
-		    .segments    = 24 * ( 1 << 21 ),
-		    .blend_spill = 4 * ( 1 << 20 ), // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
-		    .ptcl        = 4 * ( 1 << 23 ), // TODO: this also needs to reflect the actual number of pt
+		    .tiles       = 8 * ( 1 << 23 ),
+		    .seg_counts  = 8 * ( 1 << 23 ),
+		    .segments    = 24 * ( 1 << 22 ),
+		    .blend_spill = 4 * ( 1 << 21 ), // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
+		    .ptcl        = 4 * ( 1 << 24 ), // TODO: this also needs to reflect the actual number of pt
 		};
 	}
 	{
