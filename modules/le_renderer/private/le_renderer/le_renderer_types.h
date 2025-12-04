@@ -595,29 +595,26 @@ struct le_resource_info_t {
 		le::ImageTiling      tiling;            // enum VkImageTiling
 		le::ImageUsageFlags  usage;             // usage flags (LeImageUsageFlags : uint32_t)
 		uint32_t             samplesFlags;      // bitfield over all variants of this image resource- we use this to tell how many multisampling instances this image requires
-
-		//		bool operator==( ImageInfo const& ) const = default;
 	};
 
 	struct BufferInfo {
-		uint32_t             size;
-		le::BufferUsageFlags usage; // usage flags (LeBufferUsageFlags : uint32_t)
+		uint32_t             size  = 0;
+		le::BufferUsageFlags usage = { le::BufferUsageFlagBits::eTransferDst }; // usage flags (LeBufferUsageFlags : uint32_t)
 
-		//		bool operator==( BufferInfo const& ) const = default;
+		uint32_t allocation_memory_usage           = 7; // auto
+		uint32_t allocation_memory_preferred_flags = 0; // device local
+		uint32_t allocation_memory_required_flags  = 1;
 	};
 
 	struct TlasInfo {
 		le_rtx_tlas_info_handle info; // opaque handle, but enough to refer back to original
 		LeRtxTlasUsageFlags     usage;
 
-		//		bool operator==( TlasInfo const& ) const = default;
 	};
 
 	struct BlasInfo {
 		le_rtx_blas_info_handle info; // opaque handle, but enough to refer back to original
 		LeRtxBlasUsageFlags     usage;
-
-		//		bool operator==( BlasInfo const& ) const = default;
 	};
 
 	LeResourceType type;
@@ -652,28 +649,6 @@ struct le_resource_info_t {
 	    : tlas( tlas_info ) {
 	}
 
-	//	bool operator==( le_resource_info_t const& lhs ) const {
-	//		if ( type != lhs.type ) {
-	//			return false;
-	//		}
-	//		switch ( type ) {
-	//		case ( LeResourceType::eUndefined ):
-	//			return true;
-	//		case ( LeResourceType::eBuffer ):
-	//			return lhs.buffer == buffer;
-	//		case ( LeResourceType::eImage ):
-	//			return lhs.image == image;
-	//		case ( LeResourceType::eRtxBlas ):
-	//			return lhs.blas == blas;
-	//		case ( LeResourceType::eRtxTlas ):
-	//			return lhs.tlas == tlas;
-	//		}
-
-	//		return false;
-	//	};
-	//	bool operator!=( le_resource_info_t const& lhs ) const {
-	//		return ( !operator==( lhs ) );
-	//	}
 };
 
 enum class le_compound_num_type : uint8_t {

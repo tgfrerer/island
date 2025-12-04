@@ -121,12 +121,24 @@ struct ResourceCreateInfo {
 
 	LeResourceType type;
 
+	VmaAllocationCreateInfo allocation_create_info = {
+	    .flags          = {},
+	    .usage          = VMA_MEMORY_USAGE_GPU_ONLY,
+	    .requiredFlags  = 0,
+	    .preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+	    .memoryTypeBits = {},
+	    .pool           = {},
+	    .pUserData      = {},
+	    .priority       = {},
+	};
+
 	union {
 		VkBufferCreateInfo  bufferInfo; // | only one of either ever in use
 		VkImageCreateInfo   imageInfo;  // | only one of either ever in use
 		LeRtxBlasCreateInfo blasInfo;
 		LeRtxTlasCreateInfo tlasInfo;
 	};
+
 
 	// Compares two ResourceCreateInfos, returns true if identical, false if not.
 	//
@@ -144,9 +156,10 @@ struct ResourceCreateInfo {
 			return ( bufferInfo.flags == rhs.bufferInfo.flags &&
 			         bufferInfo.size == rhs.bufferInfo.size &&
 			         bufferInfo.usage == rhs.bufferInfo.usage &&
-			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode
-			         // bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-			         // bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // these two entries are ignored, as we assume sharingMode to be EXCLUSIVE
+			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
+			         0 == bufferInfo.queueFamilyIndexCount &&
+			         0 == rhs.bufferInfo.queueFamilyIndexCount
+			         // bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // ignored, because sharingMode must be EXCLUSIVE
 			);
 
 		} else if ( isImage() ) {
@@ -163,9 +176,10 @@ struct ResourceCreateInfo {
 			         imageInfo.tiling == rhs.imageInfo.tiling &&
 			         imageInfo.usage == rhs.imageInfo.usage &&
 			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-			         imageInfo.initialLayout == rhs.imageInfo.initialLayout
-			         // imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-			         //  imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // these two entries are ignored, as we assume sharingMode to be EXCLUSIVE
+			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
+			         0 == imageInfo.queueFamilyIndexCount &&
+			         0 == rhs.imageInfo.queueFamilyIndexCount
+			         //  imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices //  ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 		} else if ( isBlas() ) {
 			return blasInfo.handle == rhs.blasInfo.handle &&
@@ -198,8 +212,9 @@ struct ResourceCreateInfo {
 			return ( bufferInfo.flags == rhs.bufferInfo.flags &&
 			         bufferInfo.size == rhs.bufferInfo.size &&
 			         ( ( bufferInfo.usage & rhs.bufferInfo.usage ) == rhs.bufferInfo.usage ) &&
-			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode
-			         // bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
+			         0 == bufferInfo.queueFamilyIndexCount &&
+			         0 == rhs.bufferInfo.queueFamilyIndexCount
 			         // bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 
@@ -225,9 +240,10 @@ struct ResourceCreateInfo {
 			         imageInfo.tiling == rhs.imageInfo.tiling &&
 			         ( ( imageInfo.usage & rhs.imageInfo.usage ) == rhs.imageInfo.usage ) &&
 			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-			         imageInfo.initialLayout == rhs.imageInfo.initialLayout
-			         // imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-			         //( void* )imageInfo.pQueueFamilyIndices == ( void* )rhs.imageInfo.pQueueFamilyIndices // ignored, as we assume sharingMode to be EXCLUSIVE
+			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
+			         0 == imageInfo.queueFamilyIndexCount &&
+			         0 == rhs.imageInfo.queueFamilyIndexCount
+			         // imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // ignored, as we assume sharingMode to be EXCLUSIVE
 			);
 		} else if ( isBlas() ) {
 			// NOTE: we don't compare scratch_buffer_sz, as scratch buffer sz is only available
@@ -351,6 +367,10 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		    .queueFamilyIndexCount = 0, // optional
 		    .pQueueFamilyIndices   = nullptr,
 		};
+
+		res.allocation_create_info.usage          = VmaMemoryUsage( info.buffer.allocation_memory_usage );
+		res.allocation_create_info.preferredFlags = info.buffer.allocation_memory_preferred_flags;
+		res.allocation_create_info.requiredFlags  = info.buffer.allocation_memory_required_flags;
 
 	} break;
 	case ( LeResourceType::eImage ): {
@@ -3227,57 +3247,61 @@ static void backend_destroy_buffer( le_backend_o* self, VkBuffer buffer, VmaAllo
 // ----------------------------------------------------------------------
 // Allocates and creates a physical vulkan resource using vmaAlloc given an allocator
 // Returns an AllocatedResourceVk, currently does not do any error checking.
-static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& alloc, const ResourceCreateInfo& resourceInfo, VkDevice device = nullptr ) {
+static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& alloc, const ResourceCreateInfo& resourceInfo_, VkDevice device = nullptr ) {
 	ZoneScoped;
 	AllocatedResourceVk res{};
-	res.info = resourceInfo;
-	VmaAllocationCreateInfo allocationCreateInfo{};
-	allocationCreateInfo.flags          = {}; // default flags
-	allocationCreateInfo.usage          = VMA_MEMORY_USAGE_GPU_ONLY;
-	allocationCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+	res.info = resourceInfo_;
 
 	VkResult result = VK_SUCCESS;
 
-	if ( resourceInfo.isBuffer() ) {
+	if ( res.info.isBuffer() ) {
+
+		// in case we have a buffer that is on the host (that's the CPU, we want to make sure
+		// that it is mapped) -- this will store the pointer to mapped memory in res;
+		//
+		if ( res.info.allocation_create_info.usage == VmaMemoryUsage::VMA_MEMORY_USAGE_AUTO_PREFER_HOST ) {
+			res.info.allocation_create_info.flags |= ( VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT );
+		}
 
 		result = vmaCreateBuffer(
 		    alloc,
-		    &resourceInfo.bufferInfo,
-		    &allocationCreateInfo,
+		    &res.info.bufferInfo,
+		    &res.info.allocation_create_info,
 		    &res.as.buffer,
 		    &res.allocation,
 		    &res.allocationInfo );
+
 		assert( result == VK_SUCCESS );
 
-	} else if ( resourceInfo.isImage() ) {
+	} else if ( res.info.isImage() ) {
 
 		if ( 0 ==
-		     resourceInfo.imageInfo.extent.depth *
-		         resourceInfo.imageInfo.extent.width *
-		         resourceInfo.imageInfo.extent.height ) {
+		     res.info.imageInfo.extent.depth *
+		         res.info.imageInfo.extent.width *
+		         res.info.imageInfo.extent.height ) {
 
 			logger().error( "Image cannot be allocated with invalid extents: %dx%dx%d",
-			                resourceInfo.imageInfo.extent.depth,
-			                resourceInfo.imageInfo.extent.width,
-			                resourceInfo.imageInfo.extent.height );
+			                res.info.imageInfo.extent.depth,
+			                res.info.imageInfo.extent.width,
+			                res.info.imageInfo.extent.height );
 			return res;
 		}
 
 		result = vmaCreateImage(
 		    alloc,
-		    &resourceInfo.imageInfo,
-		    &allocationCreateInfo,
+		    &res.info.imageInfo,
+		    &res.info.allocation_create_info,
 		    &res.as.image,
 		    &res.allocation,
 		    &res.allocationInfo );
 		assert( result == VK_SUCCESS );
-	} else if ( resourceInfo.isBlas() ) {
+	} else if ( res.info.isBlas() ) {
 
 		// Allocate bottom level ray tracing acceleration structure
 
 		assert( device && "blas allocation needs device" );
 
-		auto const blas = reinterpret_cast<le_rtx_blas_info_o*>( resourceInfo.blasInfo.handle );
+		auto const blas = reinterpret_cast<le_rtx_blas_info_o*>( res.info.blasInfo.handle );
 
 		std::vector<VkAccelerationStructureGeometryKHR> geometries;
 		std::vector<uint32_t>                           primitive_counts;
@@ -3355,7 +3379,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 			    vmaCreateBuffer(
 			        alloc,
 			        &static_cast<VkBufferCreateInfo&>( bufferInfo ),
-			        &allocationCreateInfo,
+			        &res.info.allocation_create_info,
 			        &res.info.blasInfo.buffer,
 			        &res.allocation,
 			        &res.allocationInfo );
@@ -3396,13 +3420,13 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		res.info.blasInfo.device_address =
 		    vkGetAccelerationStructureDeviceAddressKHR( device, &device_address_info );
 
-	} else if ( resourceInfo.isTlas() ) {
+	} else if ( res.info.isTlas() ) {
 
 		// Allocate top level ray tracing allocation structure
 
 		assert( device && "tlas allocation needs device" );
 
-		auto const tlas = reinterpret_cast<le_rtx_tlas_info_o*>( resourceInfo.tlasInfo.handle );
+		auto const tlas = reinterpret_cast<le_rtx_tlas_info_o*>( res.info.tlasInfo.handle );
 
 		assert( tlas && "tlas must be valid." );
 
@@ -3461,7 +3485,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 			    vmaCreateBuffer(
 			        alloc,
 			        &bufferInfo,
-			        &allocationCreateInfo,
+			        &res.info.allocation_create_info,
 			        &res.info.tlasInfo.buffer,
 			        &res.allocation,
 			        &res.allocationInfo );
@@ -3661,6 +3685,10 @@ static inline void consolidate_resource_info_into( le_resource_info_t& lhs, le_r
 
 		lhs.buffer.size = std::max( lhs.buffer.size, rhs.buffer.size );
 		lhs.buffer.usage |= rhs.buffer.usage;
+
+		lhs.buffer.allocation_memory_usage = rhs.buffer.allocation_memory_usage;
+		lhs.buffer.allocation_memory_preferred_flags |= rhs.buffer.allocation_memory_preferred_flags;
+		lhs.buffer.allocation_memory_required_flags |= rhs.buffer.allocation_memory_required_flags;
 
 		return;
 	}
@@ -7119,14 +7147,15 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						if ( argumentState.setCount > 0 ) {
 
-							vkCmdBindDescriptorSets( cmd,
-							                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-							                         currentPipelineLayout,
-							                         0,
-							                         argumentState.setCount,
-							                         descriptorSets,
-							                         argumentState.dynamicOffsetCount,
-							                         argumentState.dynamicOffsets.data() );
+							vkCmdBindDescriptorSets(
+							    cmd,
+							    VK_PIPELINE_BIND_POINT_GRAPHICS,
+							    currentPipelineLayout,
+							    0,
+							    argumentState.setCount,
+							    descriptorSets,
+							    argumentState.dynamicOffsetCount,
+							    argumentState.dynamicOffsets.data() );
 						}
 
 						vkCmdDrawMeshTasksEXT( cmd, le_cmd->info.x_count, le_cmd->info.y_count, le_cmd->info.z_count );

@@ -1260,8 +1260,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 static le_resource_info_t get_default_resource_info_for_buffer() {
 	le_resource_info_t res = {};
 	res.type               = LeResourceType::eBuffer;
-	res.buffer.size        = 0;
-	res.buffer.usage       = le::BufferUsageFlags( le::BufferUsageFlagBits::eTransferDst );
+	res.buffer             = le_resource_info_t::BufferInfo();
 	return res;
 }
 
