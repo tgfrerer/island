@@ -910,6 +910,11 @@ class TransferEncoder {
 		return self;
 	}
 
+	TransferEncoder& copyToBuffer( le_buffer_resource_handle const& dst_buffer, size_t const& byte_offset_dst, le_buffer_resource_handle const& src_buffer, size_t const& byte_offset_src, size_t const& numBytes ) {
+		le_renderer::encoder_transfer_i.copy_to_buffer( self, dst_buffer, byte_offset_dst, src_buffer, byte_offset_dst, numBytes );
+		return *this;
+	}
+
 	TransferEncoder& writeToBuffer( le_buffer_resource_handle const& dstBuffer, size_t const& byteOffsetDst, void const* data, size_t const& numBytes ) {
 		le_renderer::encoder_transfer_i.write_to_buffer( self, dstBuffer, byteOffsetDst, data, numBytes );
 		return *this;

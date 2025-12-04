@@ -795,6 +795,17 @@ static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o* self, le_cps
 
 // ----------------------------------------------------------------------
 
+static void cbe_copy_to_buffer( le_command_buffer_encoder_o* self, le_buffer_resource_handle const& dst_buffer, size_t dst_offset, le_buffer_resource_handle const& src_buffer, size_t src_offset, size_t numBytes ) {
+	auto cmd                = self->mCommandStream->emplace_cmd<le::CommandWriteToBuffer>();
+	cmd->info.src_buffer_id = src_buffer;
+	cmd->info.src_offset    = src_offset;
+	cmd->info.dst_offset    = dst_offset;
+	cmd->info.numBytes      = numBytes;
+	cmd->info.dst_buffer_id = dst_buffer;
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_write_to_buffer( le_command_buffer_encoder_o* self, le_buffer_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes ) {
 
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandWriteToBuffer>();
@@ -1177,6 +1188,7 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	};
 
 	cbe_transfer_i = {
+	    .copy_to_buffer        = cbe_copy_to_buffer,
 	    .write_to_buffer       = cbe_write_to_buffer,
 	    .write_to_image        = cbe_write_to_image,
 	    .buffer_memory_barrier = cbe_buffer_memory_barrier,
