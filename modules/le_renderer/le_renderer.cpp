@@ -401,25 +401,24 @@ le_resource_handle renderer_produce_resource_handle(
     uint8_t               flags       = 0,
     uint16_t              index       = 0 ) {
 
-	le_resource_handle_store_t& resource_handle_library = renderer->resource_handle_store;
-
-	// lock handle library for reading/writing
-	std::scoped_lock lock( resource_handle_library.mtx );
-
 	uint32_t idx = index;
 
 	le_resource_handle resource_handle{};
 	uint32_t           version = 0; // FIXME: use proper versioning of resources
 
 	if ( resource_type == LeResourceType::eBuffer && ( flags != le_buffer_resource_handle_t::eIsUnset ) ) {
-		// this is a virtual resource
-		idx = index;
-		resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
+		// This is a virtual resource --
 		// a virtual resource does not need to be stored with the resource handle library
+		resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
 		return resource_handle;
 	}
 
 	// ---------| invariant: resource is not virtual
+
+	le_resource_handle_store_t& resource_handle_library = renderer->resource_handle_store;
+
+	// lock handle library for reading/writing
+	std::scoped_lock lock( resource_handle_library.mtx );
 
 	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
 	p_data->debug_name                = maybe_name ? maybe_name : "";
