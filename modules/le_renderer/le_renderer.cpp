@@ -401,42 +401,45 @@ le_resource_handle renderer_produce_resource_handle(
     uint8_t               flags       = 0,
     uint16_t              index       = 0 ) {
 
-	uint32_t idx = index;
-
-	le_resource_handle resource_handle{};
-	uint32_t           version = 0; // FIXME: use proper versioning of resources
 
 	if ( resource_type == LeResourceType::eBuffer && ( flags != le_buffer_resource_handle_t::eIsUnset ) ) {
-		// This is a virtual resource --
-		// a virtual resource does not need to be stored with the resource handle library
+
+		// This is a virtual resource
+		// A virtual resource does not need to be stored with the resource handle library
+		return le_resource_handle_t::make_handle( resource_type, flags, index, 0, num_samples );
+
+	} else {
+
+		// ---------| invariant: resource is not virtual
+
+		le_resource_handle_store_t& resource_handle_library = renderer->resource_handle_store;
+
+		// lock handle library for reading/writing
+		std::scoped_lock lock( resource_handle_library.mtx );
+
+		le_resource_handle resource_handle{};
+		uint32_t           idx = index;
+
+		uint32_t version = 0; // FIXME: use proper versioning of resources
+
+		le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
+		p_data->debug_name                = maybe_name ? maybe_name : "";
+
+		idx = resource_handle_library.resource_handles.size();
+
 		resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
+		p_data->handle  = resource_handle;
+
+		if ( p_data->debug_name.empty() ) {
+			char debug_name[ 64 ] = {};
+			snprintf( debug_name, sizeof( debug_name ), "[%08lx]", uint64_t( p_data->handle ) );
+			p_data->debug_name = debug_name;
+		}
+
+		// Store the resource handle with our array of resource handles
+		resource_handle_library.resource_handles.emplace_back( p_data );
 		return resource_handle;
 	}
-
-	// ---------| invariant: resource is not virtual
-
-	le_resource_handle_store_t& resource_handle_library = renderer->resource_handle_store;
-
-	// lock handle library for reading/writing
-	std::scoped_lock lock( resource_handle_library.mtx );
-
-	le_resource_handle_data_t* p_data = new le_resource_handle_data_t{};
-	p_data->debug_name                = maybe_name ? maybe_name : "";
-
-	idx = resource_handle_library.resource_handles.size();
-
-	resource_handle = le_resource_handle_t::make_handle( resource_type, flags, idx, version, num_samples );
-	p_data->handle  = resource_handle;
-
-	if ( p_data->debug_name.empty() ) {
-		char debug_name[ 64 ] = {};
-		snprintf( debug_name, sizeof( debug_name ), "[%08lx]", uint64_t( p_data->handle ) );
-		p_data->debug_name = debug_name;
-	}
-
-	// Store the resource handle with our array of resource handles
-	resource_handle_library.resource_handles.emplace_back( p_data );
-	return resource_handle;
 }
 
 // ----------------------------------------------------------------------
