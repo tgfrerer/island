@@ -885,8 +885,6 @@ static void encoder_append_into_encoder( le_2d_encoder_o* self, le_2d_encoder_o 
 
 	LeTransform2D t = maybe_transform ? *maybe_transform : LeTransform2D();
 
-	// TODO apply optional transform to all transform objects in rhs
-
 	size_t old_transforms_count = self->transforms.size();
 	self->transforms.insert( self->transforms.end(), rhs->transforms.begin(), rhs->transforms.end() );
 
