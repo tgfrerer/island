@@ -331,12 +331,30 @@ struct LeResourceUsageFlags {
 	} as;
 };
 
-// Callback type for a resource that needs to be notified that the current frame has been cleared
-// we use this to tie lifetime of objects to the lifetime of the current frame by decrementing
-// an intrusive pointer counter on each callback. (in le_video_decoder for example)
+/*
+ * Callback type for a resource that needs to be notified that the current frame is about to be cleared.
+ * This callback is triggered once the Frame Fence has been crossed, and just before the Frame gets
+ * cleared.
+ *
+ * We use this for example to tie lifetime of objects to the lifetime of the current frame by
+ * decrementing an intrusive pointer counter on each callback. (in le_video_decoder)
+ *
+ * NOTE: it's a good idea to make objects that issue callbacks lifetime-managed via an intrusive
+ * pointer, and to increase the pointer with every callback that is issued, and decrease it when
+ * the pointer completes. That way, the callback can take ownership of the object when the object
+ * gets destroyed, and the object stays alife for as long as there is a callback around that uses
+ * the object. Take a look at le_2d_o for an example of this behaviour.
+ *
+ */
 struct le_on_frame_clear_callback_data_t {
-	void ( *cb_fun )( void* user_data ); // function pointer to call upon clear
-	void* user_data;                     // user data to pass into function
+	typedef void( cb_fun_t )( void* user_data );
+	/* NOTE: We use a pointer-to-function-pointer for cb_fun, so that we can be sure that
+	 * the callback function has not become stale via hot-reloading. To provide a callback
+	 * you point at the function address in a private or public le_interface. This gives us
+	 * hot-reloading safety at the cost of an extra indirection.
+	 */
+	cb_fun_t* cb_fun;    // function to call upon frame clear
+	void*     user_data; // user data to pass into function
 };
 
 namespace le {

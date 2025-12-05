@@ -913,6 +913,7 @@ static void backend_destroy( le_backend_o* self ) {
 		using namespace le_backend_vk;
 
 		{
+			// Call on_clear_callbacks with tear_down flag set
 			for ( auto& c : frameData.on_clear_callbacks ) {
 				c.cb_fun( c.user_data );
 			}
@@ -2415,13 +2416,18 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	if ( !frame.on_clear_callbacks.empty() ) {
 		// Call clear callbacks, if any have been set via the renderer.
 		for ( auto& c : frame.on_clear_callbacks ) {
-			// call each callback in clear callbacks
-			c.cb_fun( c.user_data );
+			/* NOTE: We de-reference first, then call the callback -
+			 *
+			 * we do this so that we are protected from the final callback address
+			 * having changed via hot-reloading.
+			 */
+			( *c.cb_fun )( c.user_data );
 		}
-		// We use these clear callbacks to decrement an intrusive pointer counter
-		// in video decoder, for example, so that we can make sure that the lifetime
-		// of any video resource is at least as long as there are frames referencing
-		// the video resource.
+		/* We can use these clear callbacks to decrement an intrusive pointer counter
+		 * in video decoder, for example, so that we can make sure that the lifetime
+		 * of any video resource is at least as long as there are frames referencing
+		 * the video resource.
+		 */
 		frame.on_clear_callbacks.clear();
 	}
 
