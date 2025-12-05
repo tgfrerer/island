@@ -245,6 +245,9 @@ struct le_backend_vk_api {
  		void (*frame_set_bindless_samplers_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_sampler_data_t const* const sampler_data, size_t sampler_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
  		void (*frame_set_bindless_storage_images_data)( le_backend_o* self, uint32_t frame_index, struct le_bindless_storage_image_data_t const* const storage_image_data, size_t storage_image_data_count, uint32_t const* updated_indices, size_t updated_indices_count );
 
+		// returns nullptr if not found or no data bound
+		void* (*frame_get_mapped_data_for_buffer)(le_backend_o* self, uint32_t frame_index, le_buffer_resource_handle buffer);
+
 		void ( *frame_add_on_clear_callbacks)(le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count );
 	
 		VkImage_T* (*frame_data_get_image_from_le_resource_id)( const BackendFrameData* frame, le_image_resource_handle img );

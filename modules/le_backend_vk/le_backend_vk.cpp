@@ -5958,6 +5958,25 @@ static void backend_frame_set_bindless_samplers_data( le_backend_o* self, uint32
 	current_frame.bindless_samplers_data_update_list.insert( updated_indices, updated_indices + updated_indices_count );
 }
 
+static void* backend_frame_get_mapped_data_for_buffer( le_backend_o* self, uint32_t frame_index, le_buffer_resource_handle buffer ) {
+
+	if ( frame_index > self->mFramesCount ) {
+		return nullptr;
+	}
+
+	//----------| invariant: frame_index is in valid range
+
+	auto const& resources = self->mFrames[ frame_index ].availableResources;
+
+	auto it = resources.find( buffer );
+
+	if ( it != resources.end() ) {
+		return it->second.allocationInfo.pMappedData;
+	}
+
+	return nullptr;
+}
+
 // ----------------------------------------------------------------------
 static void backend_frame_add_on_clear_callbacks( le_backend_o* self, uint32_t frame_index, le_on_frame_clear_callback_data_t* callbacks, size_t callbacks_count ) {
 	ZoneScoped;
@@ -9465,6 +9484,8 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	private_backend_i.frame_set_bindless_textures_data = backend_frame_set_bindless_textures_data;
 	private_backend_i.frame_set_bindless_samplers_data       = backend_frame_set_bindless_samplers_data;
 	private_backend_i.frame_set_bindless_storage_images_data = backend_frame_set_bindless_storage_images_data;
+
+	private_backend_i.frame_get_mapped_data_for_buffer = backend_frame_get_mapped_data_for_buffer;
 
 	private_backend_i.frame_add_on_clear_callbacks              = backend_frame_add_on_clear_callbacks;
 	private_backend_i.frame_data_get_image_from_le_resource_id  = frame_data_get_image_from_le_resource_id;
