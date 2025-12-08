@@ -724,16 +724,27 @@ struct le_2d_o {
 
 	le_image_resource_handle img_output = nullptr; // externally set by user
 
-	RasterizerUboData rasterizer_args = {
-	    .lines_size      = 1 << 10, /// count of LineSoups in line soup buffer allocation
-	    .binning_size    = 1 << 21, /// count of uint32_t in binning buffer allocation
-	    .tiles_size      = 1 << 21, /// count of Tiles in tile buffer allocation
-	    .seg_counts_size = 1 << 21, /// count of SegmentCounts in segment count buffer allocation
-	    .segments_size   = 1 << 22, /// count of PathSegments in segment buffer allocation
-	    .blend_size      = 1 << 22, /// count of uint32_t pixels in blend spill buffer allocation
-	    .ptcl_size       = 0,       /// count of uint32_t in per-tile command list buffer allocation (NOTE that assumed pre- allocated amount of memory depends on number of tiles, we calculate this on update)
+	uint32_t failed; // Bitmask of stages that have failed allocation.
+	uint32_t binning;
+	uint32_t ptcl;
+	uint32_t tile;
+	uint32_t seg_counts;
+	uint32_t segments;
+	uint32_t blend;
+	uint32_t lines;
 
+	vello_bump_allocator_data_t bump_alloc_data{
+	    .failed     = 0,
+	    .binning    = 1 << 21, /// count of uint32_t in binning buffer allocation
+	    .ptcl       = 0,       /// count of uint32_t in per-tile command list buffer allocation (NOTE that assumed pre- allocated amount of memory depends on number of tiles, we calculate this on update)
+	    .tile       = 1 << 21, /// count of Tiles in tile buffer allocation
+	    .seg_counts = 1 << 21, /// count of SegmentCounts in segment count buffer allocation
+	    .segments   = 1 << 22, /// count of PathSegments in segment buffer allocation
+	    .blend      = 1 << 22, /// count of uint32_t pixels in blend spill buffer allocation
+	    .lines      = 1 << 10, /// count of LineSoups in line soup buffer allocation
 	};
+
+	RasterizerUboData rasterizer_args = {};
 
 	WorkGroupCounts wg_counts;
 
@@ -856,13 +867,15 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		size_t      binning_wgs     = wg.binning[ 0 ];
 		size_t      draw_monoid_wgs = wg.draw_reduce[ 0 ];
 		size_t      n_paths_aligned = align_up( n_paths, 256 );
+		size_t      ptcl_initial_alloc_size = ( self->rasterizer_args.width_in_tiles * self->rasterizer_args.height_in_tiles ) * 64; // 64 corresponds to PTCL_INITIAL_ALLOC
 
-		uint32_t& lines_size      = self->rasterizer_args.lines_size;      // number of lines in linesoup, ( sizeof LineSoup == 16 )
-		uint32_t& tiles_size      = self->rasterizer_args.tiles_size;      // number of tiles, sizeof(Tile) = 8
-		uint32_t& seg_counts_size = self->rasterizer_args.seg_counts_size; //
-		uint32_t& segments_size   = self->rasterizer_args.segments_size;   // number of segments (sizeof Segment ==8)
-		uint32_t& blend_size      = self->rasterizer_args.blend_size;
-		uint32_t& ptcl_size       = self->rasterizer_args.ptcl_size; // number of bytes available (shared by all tiles) for per-tile command list allocations
+		self->rasterizer_args.binning_size    = self->bump_alloc_data.binning;
+		self->rasterizer_args.lines_size      = self->bump_alloc_data.lines;      // number of lines in linesoup, ( sizeof LineSoup == 16 )
+		self->rasterizer_args.tiles_size      = self->bump_alloc_data.tile;       // number of tiles, sizeof(Tile) = 8
+		self->rasterizer_args.seg_counts_size = self->bump_alloc_data.seg_counts; //
+		self->rasterizer_args.segments_size   = self->bump_alloc_data.segments;   // number of segments (sizeof Segment ==8)
+		self->rasterizer_args.blend_size      = self->bump_alloc_data.blend;
+		self->rasterizer_args.ptcl_size       = ptcl_initial_alloc_size + self->bump_alloc_data.ptcl; // number of bytes available (shared by all tiles) for per-tile command list allocations
 
 		// The `coarse` shader (only user of `bump.ptcl`) assumes a certain amount of memory pre-allocated
 		// before it will use `bump.ptcl` for  dynamic memory allocation. We must therefore make sure that
@@ -871,7 +884,6 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		// the count of uint32_t that need to be pre-allocated at minimum. Anything that bump.ptcl reports,
 		// needs to be added on top of this.
 		//
-		ptcl_size = ( self->rasterizer_args.width_in_tiles * self->rasterizer_args.height_in_tiles ) * 64; // 64 corresponds to PTCL_INITIAL_ALLOC
 
 		self->bsz = {
 		    // all sizes here are given in bytes.
@@ -899,13 +911,13 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		    // that the bump allocator failed for one of these categories; and it means that you need
 		    // to provide more space for the affected category.
 		    //
-		    .lines       = 20 * lines_size,
+		    .lines       = 20 * self->rasterizer_args.lines_size,
 		    .bin_data    = 4 * ( self->rasterizer_args.binning_size + self->rasterizer_args.layout.bin_data_start ),
-		    .tiles       = 8 * tiles_size,
-		    .seg_counts  = 8 * seg_counts_size,
-		    .segments    = 20 * segments_size,
-		    .blend_spill = 4 * blend_size, // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
-		    .ptcl        = 4 * ptcl_size,  // given in bytes per-tile command list (this will be split into per-tile segments), initial_alloc + number of allocations,
+		    .tiles       = 8 * self->rasterizer_args.tiles_size,
+		    .seg_counts  = 8 * self->rasterizer_args.seg_counts_size,
+		    .segments    = 20 * self->rasterizer_args.segments_size,
+		    .blend_spill = 4 * self->rasterizer_args.blend_size, // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
+		    .ptcl        = 4 * self->rasterizer_args.ptcl_size,  // given in bytes per-tile command list (this will be split into per-tile segments), initial_alloc + number of allocations,
 		};
 	}
 	return true;
@@ -962,37 +974,37 @@ static void on_backend_frame_clear_callback( void* user_data ) {
 
 	if ( mapped_data ) {
 		uint32_t                     bump_idx            = ( data->self->bump_allocator_history_ring_buffer_idx++ ) % data->self->bump_allocator_history.size();
-		vello_bump_allocator_data_t* bump_allocator_data = &data->self->bump_allocator_history[ bump_idx ];
+		vello_bump_allocator_data_t* bump_allocator_readback_data = &data->self->bump_allocator_history[ bump_idx ];
 
-		memcpy( bump_allocator_data, mapped_data + N_BYTES_READBACK_OFFSET * frame_id, sizeof( vello_bump_allocator_data_t ) );
+		memcpy( bump_allocator_readback_data, mapped_data + N_BYTES_READBACK_OFFSET * frame_id, sizeof( vello_bump_allocator_data_t ) );
 
-		auto&       args = data->self->rasterizer_args;
-		auto const& b    = *bump_allocator_data;
+		auto&       args = data->self->bump_alloc_data;
+		auto const& b    = *bump_allocator_readback_data;
 
-		if ( b.failed ) {
-			if ( args.lines_size < b.lines ) {
-				args.lines_size *= 2;
+		if ( b.failed != 0 ) {
+			if ( args.lines < b.lines ) {
+				args.lines *= 2;
 			}
-			if ( args.binning_size < b.binning ) {
-				args.binning_size *= 2;
+			if ( ( b.failed & 0x1 ) || args.binning < b.binning ) {
+				args.binning *= 2;
 			}
-			if ( args.ptcl_size < b.ptcl ) {
-				args.ptcl_size *= 2;
+			if ( args.ptcl < b.ptcl ) {
+				args.ptcl *= 2;
 			}
-			if ( args.tiles_size < b.tile ) {
-				args.tiles_size *= 2;
+			if ( args.tile < b.tile ) {
+				args.tile *= 2;
 			}
-			if ( args.seg_counts_size < b.seg_counts ) {
-				args.seg_counts_size *= 2;
+			if ( args.seg_counts < b.seg_counts ) {
+				args.seg_counts *= 2;
 			}
-			if ( args.segments_size < b.segments ) {
-				args.segments_size *= 2;
+			if ( args.segments < b.segments ) {
+				args.segments *= 2;
 			}
-			if ( args.blend_size < b.blend ) {
-				args.blend_size *= 2;
+			if ( args.blend < b.blend ) {
+				args.blend *= 2;
 			}
-			if ( args.lines_size < b.lines ) {
-				args.lines_size *= 2;
+			if ( args.lines < b.lines ) {
+				args.lines *= 2;
 			}
 		}
 	}
