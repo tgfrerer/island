@@ -362,8 +362,14 @@ struct le_2d_api {
 		void     ( *set_should_use_msaa)(le_2d_o* self, bool shoul_use_msaa);
 	};
 
+	struct le_2d_backend_callback_interface_t {
+		void (*on_backend_frame_clear_cb)(void * user_data);
+	};
+
 	le_2d_encoder_interface_t le_2d_encoder_i;
 	le_2d_interface_t le_2d_i;
+	le_2d_backend_callback_interface_t le_2d_backend_callback_i;
+
 };
 // clang-format on
 

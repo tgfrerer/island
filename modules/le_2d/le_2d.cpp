@@ -2,6 +2,7 @@
 #include "le_core.h"
 #include "private/le_2d/le_2d_shared.h"
 
+#include <atomic>
 #include <cassert>
 #include <cstring>
 #include <stdlib.h>
@@ -11,14 +12,16 @@
 #include "le_pipeline_builder.h"
 #include "private/le_2d/SpookyV2.h"
 #include "le_log.h"
+#include "le_backend_vk.h"
 
 constexpr uint32_t PATH_BBOX_WG_SZ        = 256;
 constexpr uint32_t FLATTEN_WG_SZ          = 256;
 constexpr uint32_t CLIP_REDUCE_WG_SZ      = 256;
-constexpr size_t   buf_bin_data_num_bytes = ( 1 << 20 ) * 4; // TODO: is there a method to calculate the required number of bytes required?
 constexpr uint32_t TILE_UNIT              = 16;              // tiles are 16x16 pixels
 constexpr auto     VK_WHOLE_SIZE          = ( ~0ULL );
 constexpr size_t   N_GRADIENT_SAMPLES     = 512;
+
+constexpr uint32_t N_BYTES_READBACK_OFFSET = 512;
 
 using ExtendMode              = le_2d_api::ExtendMode;
 
@@ -107,6 +110,7 @@ struct RasterizerUboData {
 	uint32_t segments_size;   /// count of PathSegments in segment buffer allocation
 	uint32_t blend_size;      /// count of uint32_t pixels in blend spill buffer allocation
 	uint32_t ptcl_size;       /// count of uint32_t in per-tile command list buffer allocation
+	uint32_t padding[ 2 ];
 };
 
 struct BufferSizes {
@@ -618,16 +622,39 @@ static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, s
 	return true;
 }
 
+/*
+ *
+ * // Bitflags for each stage that can fail allocation.
+ * const STAGE_BINNING: u32 = 0x1u;
+ * const STAGE_TILE_ALLOC: u32 = 0x2u;
+ * const STAGE_FLATTEN: u32 = 0x4u;
+ * const STAGE_PATH_COUNT: u32 = 0x8u;
+ * const STAGE_COARSE: u32 = 0x10u;
+ */
+struct vello_bump_allocator_data_t {
+	uint32_t failed; // Bitmask of stages that have failed allocation.
+	uint32_t binning;
+	uint32_t ptcl;
+	uint32_t tile;
+	uint32_t seg_counts;
+	uint32_t segments;
+	uint32_t blend;
+	uint32_t lines;
+};
 // ----------------------------------------------------------------------
 
 struct le_2d_o {
 	// members
 
+	std::atomic<uint32_t> intrusive_pointer_count = 0; // this object needs to stay alife for the duration of its own lifetime, and for the duration of any callbacks that is spawns. callbacks decrease the intrusive counter at the end of their execution
+	le_renderer_o* const  renderer;                    // non-owning
+
 	static constexpr uint8_t transfer_lut_mask   = 0x1;
 	static constexpr uint8_t transfer_scene_mask = 0x2;
 	static constexpr uint8_t transfer_gradient_cache_mask = 0x4;
 
-	le_renderer_o* const renderer; // non-owning
+	std::array<vello_bump_allocator_data_t, 4> bump_allocator_history; // we keep 4 frames around
+	std::atomic<uint32_t>                      bump_allocator_history_ring_buffer_idx = 0;
 
 	uint8_t rasterizer_xfer_flags = transfer_lut_mask | transfer_scene_mask | transfer_gradient_cache_mask; // masked by one of the masks above
 
@@ -662,6 +689,8 @@ struct le_2d_o {
 	le_buffer_resource_handle buf_blend_spill    = LE_BUF_RESOURCE( "vello.blend_spill" );
 	le_buffer_resource_handle buf_mask_lut       = LE_BUF_RESOURCE( "vello.mask_lut" );
 
+	le_buffer_resource_handle buf_bump_cpu = LE_BUF_RESOURCE( "vello.bump_buf_cpu_readback" );
+
 	le_resource_info_t buf_vello_scene_info;
 	le_resource_info_t buf_reduced_info;
 	le_resource_info_t buf_reduced2_info;
@@ -688,12 +717,23 @@ struct le_2d_o {
 	le_resource_info_t buf_blend_spill_info;
 	le_resource_info_t buf_mask_lut_info;
 
+	le_resource_info_t buf_bump_cpu_info;
+
 	le_image_resource_handle img_gradients   = LE_IMG_RESOURCE( "vello.image_gradient" );
 	le_image_resource_handle img_image_atlas = LE_IMG_RESOURCE( "vello.image_atlas" );
 
 	le_image_resource_handle img_output = nullptr; // externally set by user
 
-	RasterizerUboData rasterizer_args = {};
+	RasterizerUboData rasterizer_args = {
+	    .lines_size      = 1 << 10, /// count of LineSoups in line soup buffer allocation
+	    .binning_size    = 1 << 21, /// count of uint32_t in binning buffer allocation
+	    .tiles_size      = 1 << 21, /// count of Tiles in tile buffer allocation
+	    .seg_counts_size = 1 << 21, /// count of SegmentCounts in segment count buffer allocation
+	    .segments_size   = 1 << 22, /// count of PathSegments in segment buffer allocation
+	    .blend_size      = 1 << 22, /// count of uint32_t pixels in blend spill buffer allocation
+	    .ptcl_size       = 0,       /// count of uint32_t in per-tile command list buffer allocation (NOTE that assumed pre- allocated amount of memory depends on number of tiles, we calculate this on update)
+
+	};
 
 	WorkGroupCounts wg_counts;
 
@@ -703,23 +743,53 @@ struct le_2d_o {
 
 	bool should_use_msaa = false; // whether to use area or msaa smoothing (false means area, default)
 
+	// -----
+
+	/*
+	 * On clear callbacks -- the on clear callback gets called with the data
+	 * in callback data when the backend frame that was used to enqueue our drawing
+	 * commands has crossed the fence and is about to be cleared.
+	 *
+	 */
+
+	size_t num_data_frames        = 0; // number of data frames in the backend, we must keep the number
+	size_t current_data_frame_idx = 0;
+
+	struct on_backend_clear_callback_data_t {
+		le_2d_o* self           = nullptr;
+		uint32_t data_frame_idx = 0;
+	};
+
+	std::vector<on_backend_clear_callback_data_t> on_clear_callback_data;
+
+	// -----
+
 	static_assert( sizeof( char ) == sizeof( uint8_t ), "char and uint8_t must be the same size." );
 };
 
 // ----------------------------------------------------------------------
 
 static le_2d_o* le_2d_create( le_renderer_o* renderer ) {
-	auto self = new le_2d_o( renderer );
+	auto self = new le_2d_o( 1, renderer );
+
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
+static void le_2d_decrement_intrusive_pointer( le_2d_o* self ) {
+	uint32_t count = --self->intrusive_pointer_count;
+
+	if ( count == 0 ) {
+		delete self;
+		logger().info( "Destroyed le_2d Instance: %p", self );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void le_2d_destroy( le_2d_o* self ) {
-
-	// we should signal to the renderer that we do not require any of the buffer resources anymore
-
-	delete self;
+	le_2d_decrement_intrusive_pointer( self );
 }
 
 // ----------------------------------------------------------------------
@@ -749,28 +819,24 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 	{
 		// update rasterizer layout data
 
-		if ( true ) {
+		size_t num_scene_bytes = self->scene_bytes.size();
 
-			size_t num_scene_bytes = self->scene_bytes.size();
-
-			while ( false == encoder_encode_to_bytes( e, self->scene_bytes.data(), &num_scene_bytes, &self->rasterizer_args.layout ) ) {
-				self->scene_bytes.resize( num_scene_bytes );
-			};
-
-			// snip off any extra bytes that were not used
+		while ( false == encoder_encode_to_bytes( e, self->scene_bytes.data(), &num_scene_bytes, &self->rasterizer_args.layout ) ) {
 			self->scene_bytes.resize( num_scene_bytes );
+		};
 
-			// self->rasterizer_args.layout       = le_2d_api::le_2d_encoder_i.encode_to_bytes( e, self->scene_bytes );
-			self->rasterizer_args.binning_size = buf_bin_data_num_bytes / sizeof( uint32_t ) - self->rasterizer_args.layout.bin_data_start;
+		// snip off any extra bytes that were not used
+		self->scene_bytes.resize( num_scene_bytes );
 
-			self->buf_vello_scene_info =
-			    le::BufferInfoBuilder()
-			        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst |
-			                        le::BufferUsageFlagBits::eStorageBuffer )
-			        //.setSize( self->scene_bytes.size() ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
-			        .setSize( std::max<size_t>( self->buf_vello_scene_info.buffer.size, self->scene_bytes.size() ) ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
-			        .build();
-		}
+		// self->rasterizer_args.layout       = le_2d_api::le_2d_encoder_i.encode_to_bytes( e, self->scene_bytes );
+		// self->rasterizer_args.binning_size = buf_bin_data_num_bytes / sizeof( uint32_t ) - self->rasterizer_args.layout.bin_data_start;
+
+		self->buf_vello_scene_info =
+		    le::BufferInfoBuilder()
+		        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst |
+		                        le::BufferUsageFlagBits::eStorageBuffer )
+		        .setSize( std::max<size_t>( self->buf_vello_scene_info.buffer.size, self->scene_bytes.size() ) ) // to prevent re-allocation every time a smaller number of elements is required, we do just keep the buffer at the maximum size
+		        .build();
 
 		self->rasterizer_args.base_color      = background_colour_argb;
 		self->rasterizer_args.target_width    = out_img_info->image.extent.width;
@@ -781,8 +847,6 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		self->wg_counts = get_work_group_counts( self->rasterizer_args.layout, self->rasterizer_args.width_in_tiles, self->rasterizer_args.height_in_tiles );
 	}
 	{
-		// TODO: only call get_work_group_counts once -- consolidate all this when you ingest / process the scene for the first time...
-		//
 		auto const& wg              = self->wg_counts;
 		size_t      n_paths         = self->rasterizer_args.layout.n_paths;
 		size_t      n_draw_objs     = self->rasterizer_args.layout.n_drawobj;
@@ -792,6 +856,22 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		size_t      binning_wgs     = wg.binning[ 0 ];
 		size_t      draw_monoid_wgs = wg.draw_reduce[ 0 ];
 		size_t      n_paths_aligned = align_up( n_paths, 256 );
+
+		uint32_t& lines_size      = self->rasterizer_args.lines_size;      // number of lines in linesoup, ( sizeof LineSoup == 16 )
+		uint32_t& tiles_size      = self->rasterizer_args.tiles_size;      // number of tiles, sizeof(Tile) = 8
+		uint32_t& seg_counts_size = self->rasterizer_args.seg_counts_size; //
+		uint32_t& segments_size   = self->rasterizer_args.segments_size;   // number of segments (sizeof Segment ==8)
+		uint32_t& blend_size      = self->rasterizer_args.blend_size;
+		uint32_t& ptcl_size       = self->rasterizer_args.ptcl_size; // number of bytes available (shared by all tiles) for per-tile command list allocations
+
+		// The `coarse` shader (only user of `bump.ptcl`) assumes a certain amount of memory pre-allocated
+		// before it will use `bump.ptcl` for  dynamic memory allocation. We must therefore make sure that
+		// the pre-allocated memory amount matches the shader's expectations. The shader calculates pre-
+		// allocated memory size as (witdh_in_tiles * height_in_tiles * PTCL_INITIAL_ALLOC); this is then
+		// the count of uint32_t that need to be pre-allocated at minimum. Anything that bump.ptcl reports,
+		// needs to be added on top of this.
+		//
+		ptcl_size = ( self->rasterizer_args.width_in_tiles * self->rasterizer_args.height_in_tiles ) * 64; // 64 corresponds to PTCL_INITIAL_ALLOC
 
 		self->bsz = {
 		    // all sizes here are given in bytes.
@@ -819,23 +899,14 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		    // that the bump allocator failed for one of these categories; and it means that you need
 		    // to provide more space for the affected category.
 		    //
-		    .lines       = 24 * ( 1 << 23 ),
-		    .bin_data    = buf_bin_data_num_bytes, // TODO: this needs to change based on the actual size of the data
-		    .tiles       = 8 * ( 1 << 23 ),
-		    .seg_counts  = 8 * ( 1 << 23 ),
-		    .segments    = 24 * ( 1 << 22 ),
-		    .blend_spill = 4 * ( 1 << 21 ), // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
-		    .ptcl        = 4 * ( 1 << 24 ), // TODO: this also needs to reflect the actual number of pt
+		    .lines       = 20 * lines_size,
+		    .bin_data    = 4 * ( self->rasterizer_args.binning_size + self->rasterizer_args.layout.bin_data_start ),
+		    .tiles       = 8 * tiles_size,
+		    .seg_counts  = 8 * seg_counts_size,
+		    .segments    = 20 * segments_size,
+		    .blend_spill = 4 * blend_size, // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
+		    .ptcl        = 4 * ptcl_size,  // given in bytes per-tile command list (this will be split into per-tile segments), initial_alloc + number of allocations,
 		};
-	}
-	{
-		// the sizes here are object counts. we must divide the buffer sizes by
-		self->rasterizer_args.lines_size      = self->bsz.lines / 24; // number of lines in linesoup, ( sizeof LineSoup == 16 )
-		self->rasterizer_args.tiles_size      = self->bsz.tiles / 8;  // number of tiles, sizeof(Tile) = 8
-		self->rasterizer_args.seg_counts_size = self->bsz.seg_counts / 8;
-		self->rasterizer_args.segments_size   = self->bsz.segments / 24; // number of segments (sizeof Segment ==8)
-		self->rasterizer_args.blend_size      = self->bsz.blend_spill / 4;
-		self->rasterizer_args.ptcl_size       = self->bsz.ptcl / 4;
 	}
 	return true;
 }
@@ -871,7 +942,109 @@ static le_cpso_handle create_cpso_from_compressed_and_encoded_spirv_code( le_pip
 
 // ----------------------------------------------------------------------
 
+static void on_backend_frame_clear_callback( void* user_data ) {
+	auto data = static_cast<le_2d_o::on_backend_clear_callback_data_t*>( user_data );
+
+	// ----------| invariant: callback object is valid
+
+	uint32_t frame_id = data->data_frame_idx;
+
+	// we need to cancel this callback if the object was destroyed.
+	// in which case we must not touch anything related to the object.
+
+	// at this point we want to update sizes for allocations
+	// we need to be careful because another thread might be
+	// currently rendering
+
+	auto backend = le_renderer_api_i->le_renderer_i.get_backend( data->self->renderer );
+
+	char* mapped_data = static_cast<char*>( le_backend_vk_api_i->private_backend_vk_i.frame_get_mapped_data_for_buffer( backend, frame_id, data->self->buf_bump_cpu ) );
+
+	if ( mapped_data ) {
+		uint32_t                     bump_idx            = ( data->self->bump_allocator_history_ring_buffer_idx++ ) % data->self->bump_allocator_history.size();
+		vello_bump_allocator_data_t* bump_allocator_data = &data->self->bump_allocator_history[ bump_idx ];
+
+		memcpy( bump_allocator_data, mapped_data + N_BYTES_READBACK_OFFSET * frame_id, sizeof( vello_bump_allocator_data_t ) );
+
+		auto&       args = data->self->rasterizer_args;
+		auto const& b    = *bump_allocator_data;
+
+		if ( b.failed ) {
+			if ( args.lines_size < b.lines ) {
+				args.lines_size *= 2;
+			}
+			if ( args.binning_size < b.binning ) {
+				args.binning_size *= 2;
+			}
+			if ( args.ptcl_size < b.ptcl ) {
+				args.ptcl_size *= 2;
+			}
+			if ( args.tiles_size < b.tile ) {
+				args.tiles_size *= 2;
+			}
+			if ( args.seg_counts_size < b.seg_counts ) {
+				args.seg_counts_size *= 2;
+			}
+			if ( args.segments_size < b.segments ) {
+				args.segments_size *= 2;
+			}
+			if ( args.blend_size < b.blend ) {
+				args.blend_size *= 2;
+			}
+			if ( args.lines_size < b.lines ) {
+				args.lines_size *= 2;
+			}
+		}
+	}
+
+	/* TODO: update size counts -- we could write bump_allocator_data_t to the main object
+	 * how to we make sure that we don't overwrite the current frame?
+	 *
+	 * + we can calculate the max number of allocations here - this is the only invocation
+	 *   that has any change in counts.
+	 *
+	 * + we write the updated change to the frame - we could keep this shared, or make these counts atomic, in which
+	 *   case they will just be picked up by the next element.
+	 *
+	 *   use a ring buffer to record the current value for each of these elements -- keep them in a struct
+	 * 	in here, calculate the new max values -- if there is a change, then we want to update the counts in the main object.
+	 *
+	 *  We need to make sure that the data that we get back from the readback is meaningful - we know which stage has failed, but we don't know
+	 *  what size it would require; if we double instantly, then we don't see the effects until the frame has come back, this means
+	 *  the next frame might double again and we end up with a buffer that is way too big.
+	 *
+	 */
+
+	// Tell the le_2d_object that issued the callback that the callback is complete,
+	// and that it has one less reason to defer deletion.
+	le_2d_decrement_intrusive_pointer( data->self );
+}
+
+// ----------------------------------------------------------------------
+
 static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* encoder_2d, le_image_resource_handle img_output, le_resource_info_t* img_output_info, uint32_t background_colour_argb ) {
+
+	if ( self->num_data_frames == 0 ) {
+
+		// In case num_data_frames is zero, we must query the backend and find out how
+		// many backend data frames there are, so that we can provide a corresponding
+		// set of on backend frame clear callbacks.
+		// We need frame clear callbacks so that we can readback from the GPU and find
+		// out whether we provided enough space for the bump allocator.
+
+		auto backend          = le_renderer_api_i->le_renderer_i.get_backend( self->renderer );
+		self->num_data_frames = le_backend_vk_api_i->vk_backend_i.get_data_frames_count( backend );
+
+		self->on_clear_callback_data.reserve( self->num_data_frames );
+
+		for ( uint32_t i = 0; i != self->num_data_frames; i++ ) {
+			// increase the number of owners to our self object by one --
+			// the callback will decrease once it has executed.
+			self->on_clear_callback_data.emplace_back( self, i );
+		}
+	}
+
+	assert( self->num_data_frames != 0 );
 
 	if ( self->mask_lut_bytes.empty() ) {
 		generate_msaa16_lut( self->mask_lut_bytes );
@@ -946,11 +1119,18 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	self->buf_reduced_scan_info  = build_buffer_info( self->bsz.path_reduced_scan, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
 	self->buf_tagmonoid_info     = build_buffer_info( self->bsz.path_monoids, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
 	self->buf_path_bbox_info     = build_buffer_info( self->bsz.path_bboxes, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );
-	self->buf_bump_info          = build_buffer_info( self->bsz.bump_alloc, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );   // the size for this buffer is determined by how many threads want to allocate concurrently
-	self->buf_draw_reduced_info  = build_buffer_info( self->bsz.draw_reduced, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst ); // the size for this buffer is determined by how many threads want to allocate concurrently
+	self->buf_bump_info          = build_buffer_info( self->bsz.bump_alloc, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eTransferSrc ); // the size for this buffer is determined by how many threads want to allocate concurrently
+	self->buf_draw_reduced_info  = build_buffer_info( self->bsz.draw_reduced, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst );                                       // the size for this buffer is determined by how many threads want to allocate concurrently
 	self->buf_lines_info         = build_buffer_info( self->bsz.lines, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst);
 	self->buf_draw_monoid_info   = build_buffer_info( self->bsz.draw_monoids, le::BufferUsageFlagBits::eStorageBuffer );
-	self->buf_info_bin_data_info = build_buffer_info( buf_bin_data_num_bytes, le::BufferUsageFlagBits::eStorageBuffer );
+	self->buf_info_bin_data_info = build_buffer_info( self->bsz.bin_data, le::BufferUsageFlagBits::eStorageBuffer );
+
+	self->buf_bump_cpu_info = build_buffer_info( self->bsz.bump_alloc, le::BufferUsageFlagBits::eTransferDst ); // this buffer is the cpu readback buffer for bump
+
+	self->buf_bump_cpu_info.buffer.allocation_memory_preferred_flags = 0; // host visible
+	self->buf_bump_cpu_info.buffer.allocation_memory_required_flags  = 2; // host visible
+	self->buf_bump_cpu_info.buffer.allocation_memory_usage           = 9; // prefer host
+	self->buf_bump_cpu_info.buffer.size                              = self->num_data_frames * N_BYTES_READBACK_OFFSET;
 
 	self->buf_clip_inp_info  = build_buffer_info( self->bsz.clip_inps, le::BufferUsageFlagBits::eStorageBuffer ); // size for this needs to be determined by what?
 	self->buf_clip_bbox_info = build_buffer_info( self->bsz.clip_bboxes, le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst  );
@@ -999,6 +1179,8 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	    .declareResource( self->buf_bump, self->buf_bump_info )
 	    .declareResource( self->buf_lines, self->buf_lines_info )
 	    .declareResource( self->buf_draw_monoid, self->buf_draw_monoid_info )
+
+	    .declareResource( self->buf_bump_cpu, self->buf_bump_cpu_info )
 
 	    .declareResource( self->buf_draw_reduced, self->buf_draw_reduced_info )
 
@@ -1131,14 +1313,14 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	                .build() ) //
 	    ;
 
-	auto rp_pathtag_reduce =
+	auto rp_rasterize =
 	    le::RenderPass( "rasterize_2d_scene", le::QueueFlagBits::eCompute );
 
 	if ( self->should_use_msaa ) {
-		rp_pathtag_reduce.useBufferResource( self->buf_mask_lut, le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2::eNone );
+		rp_rasterize.useBufferResource( self->buf_mask_lut, le::AccessFlagBits2::eShaderRead, le::AccessFlagBits2::eNone );
 	}
 
-	rp_pathtag_reduce
+	rp_rasterize
 	    .useBufferResource( self->buf_vello_scene, le::AccessFlagBits2::eShaderRead )
 	    .useBufferResource( self->buf_reduced, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eShaderWrite )
 
@@ -1781,14 +1963,85 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		    }
 	    } );
 
-	if ( true ) {
-		renderGraph
-		    .addRenderPass( rp_xfer_gradients_cache )
-		    .addRenderPass( rp_xfer_lut )
-		    .addRenderPass( rp_xfer_scene )
-		    .addRenderPass( rp_clear_images )
-		    .addRenderPass( rp_pathtag_reduce );
-	}
+	/*
+	 * Copy the contents of bump into bump_cpu -- the latter is a cpu visible and coherent buffer.
+	 * we do this so that we can see if there was an issue with allocation - if there was an issue
+	 * this gives le_2d the opportunity to allocate greater amounts of memory for the bump
+	 * allocator.
+	 *
+	 * If there was an issue with the bump allocator running out of memory, it will have set the
+	 * indirect draw count to x==0, which means that nothing gets drawn -- or the last frame just
+	 * gets drawn again.
+	 *
+	 */
+	auto rp_xfer_bump =
+	    le::RenderPass( "copy_bump_buf", le::QueueFlagBits::eTransfer )
+	        .useBufferResource( self->buf_bump, le::AccessFlagBits2::eTransferRead )
+	        .useBufferResource( self->buf_bump_cpu, le::AccessFlagBits2::eNone, le::AccessFlagBits2::eTransferWrite )
+	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+		        auto ctx = ( le_2d_o* )user_data;
+
+		        /*
+		         * struct BumpAllocators {
+		         * 	failed: atomic<u32>, 	// Bitmask of stages that have failed allocation.
+		         * 	binning: atomic<u32>,
+		         * 	ptcl: atomic<u32>,
+		         * 	tile: atomic<u32>,
+		         * 	seg_counts: atomic<u32>,
+		         * 	segments: atomic<u32>,
+		         * 	blend: atomic<u32>,
+		         * 	lines: atomic<u32>,
+		         * }
+		         */
+
+		        auto encoder = le::TransferEncoder( encoder_ );
+
+		        // Copy to the readback buffer.
+		        // Note that the readback buffer is shared for all draw commands,
+		        // but is partitioned into N_BYTES_READBACK_OFFSET partitions, so that
+		        // a frame will only read and write into its own partition of the buffer.
+		        //
+
+		        encoder.bufferMemoryBarrier( le::PipelineStageFlagBits2::eComputeShader,
+		                                     le::PipelineStageFlagBits2::eCopy,
+		                                     le::AccessFlagBits2::eShaderStorageWrite,
+		                                     le::AccessFlagBits2::eTransferRead,
+		                                     ctx->buf_bump, 0, ctx->buf_bump_info.buffer.size );
+
+		        // this should make sure that any writes to buf_bump have been flushed before we copy over to
+		        // the cpu visible buffer.
+
+		        encoder.copyToBuffer( ctx->buf_bump_cpu, N_BYTES_READBACK_OFFSET * ctx->current_data_frame_idx, ctx->buf_bump, 0, ctx->buf_bump_info.buffer.size );
+
+		        ctx->current_data_frame_idx = ( ctx->current_data_frame_idx + 1 ) % ctx->num_data_frames;
+	        } )
+	        .setIsRoot( true );
+
+	renderGraph
+	    .addRenderPass( rp_xfer_gradients_cache )
+	    .addRenderPass( rp_xfer_lut )
+	    .addRenderPass( rp_xfer_scene )
+	    .addRenderPass( rp_clear_images )
+	    .addRenderPass( rp_rasterize )
+	    .addRenderPass( rp_xfer_bump );
+
+	auto t = &le_2d_api_i->le_2d_backend_callback_i.on_backend_frame_clear_cb;
+
+	le_on_frame_clear_callback_data_t cb_data{
+	    .cb_fun    = le_2d_api_i->le_2d_backend_callback_i.on_backend_frame_clear_cb,
+	    .user_data = &self->on_clear_callback_data[ self->current_data_frame_idx ],
+	};
+
+	// increase the number of owners to this objects just before we add a callback
+	// -- the callback will remove itself upon completion.
+	self->intrusive_pointer_count++;
+
+	// So that we may collect the data that was written into our readback buffer,
+	// we must add a callback to when the backend frame has cycled through rendering
+	// and is about to be cleared. At this point the frame will have crossed its
+	// frame fence and this means that we are guaranteed that the gpu->cpu write
+	// operation (our readback) has completed.
+	le_renderer_api_i->le_rendergraph_i.add_on_frame_clear_callbacks( renderGraph, &cb_data, 1 );
 }
 
 // ----------------------------------------------------------------------
