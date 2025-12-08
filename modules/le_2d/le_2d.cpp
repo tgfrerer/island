@@ -636,8 +636,8 @@ struct vello_bump_allocator_data_t {
 	uint32_t binning    = 1 << 21; /// count of uint32_t in binning buffer allocation
 	uint32_t ptcl       = 0;       /// count of uint32_t in per-tile command list buffer allocation (NOTE that assumed pre- allocated amount of memory depends on number of tiles, we calculate this on update)
 	uint32_t tile       = 1 << 21; /// count of Tiles in tile buffer allocation
-	uint32_t seg_counts = 1 << 21; /// count of SegmentCounts in segment count buffer all
-	uint32_t segments   = 1 << 22; /// count of PathSegments in segment buffer allocation
+	uint32_t seg_counts = 1 << 10; /// count of SegmentCounts in segment count buffer all
+	uint32_t segments   = 1 << 22; /// count of PathSegments in segment buffer allocation: TODO: check if there are any assumptions shader-side on how much space will be pre-allocated.
 	uint32_t blend      = 1 << 22; /// count of uint32_t pixels in blend spill buffer all
 	uint32_t lines      = 1 << 10; /// count of LineSoups in line soup buffer allocation
 };
@@ -773,7 +773,6 @@ struct le_2d_o {
 
 static le_2d_o* le_2d_create( le_renderer_o* renderer ) {
 	auto self = new le_2d_o( 1, renderer );
-
 	return self;
 }
 
@@ -947,18 +946,16 @@ static le_cpso_handle create_cpso_from_compressed_and_encoded_spirv_code( le_pip
 // ----------------------------------------------------------------------
 
 static void on_backend_frame_clear_callback( void* user_data ) {
-	auto data = static_cast<le_2d_o::on_backend_clear_callback_data_t*>( user_data );
+
+	if ( user_data == nullptr ) {
+		return;
+	}
 
 	// ----------| invariant: callback object is valid
 
+	auto data = static_cast<le_2d_o::on_backend_clear_callback_data_t*>( user_data );
+
 	uint32_t frame_id = data->data_frame_idx;
-
-	// we need to cancel this callback if the object was destroyed.
-	// in which case we must not touch anything related to the object.
-
-	// at this point we want to update sizes for allocations
-	// we need to be careful because another thread might be
-	// currently rendering
 
 	auto backend = le_renderer_api_i->le_renderer_i.get_backend( data->self->renderer );
 
@@ -967,45 +964,39 @@ static void on_backend_frame_clear_callback( void* user_data ) {
 	if ( mapped_data ) {
 		auto&                        b_history                    = data->self->bump_allocator_history;
 		size_t                       b_history_size               = b_history.size();
-		uint32_t                     bump_idx            = ( data->self->bump_allocator_history_ring_buffer_idx++ ) % data->self->bump_allocator_history.size();
-		vello_bump_allocator_data_t* bump_allocator_readback_data = &data->self->bump_allocator_history[ bump_idx ];
+		uint32_t                     bump_idx                     = ( data->self->bump_allocator_history_ring_buffer_idx++ ) % b_history_size;
+		vello_bump_allocator_data_t* bump_allocator_readback_data = &b_history[ bump_idx ];
 
 		memcpy( bump_allocator_readback_data, mapped_data + N_BYTES_READBACK_OFFSET * frame_id, sizeof( vello_bump_allocator_data_t ) );
 
 		auto& current_bump_sz  = data->self->bump_alloc_data;
-		auto  readback_bump_sz = *bump_allocator_readback_data;
-		le::DebugPrint( "Total number of lines: %d\n", readback_bump_sz.lines );
+		auto  bump_tmp         = *bump_allocator_readback_data;
 
-		constexpr auto default_bump = vello_bump_allocator_data_t();
-
-		if ( readback_bump_sz.failed != 0 ) {
-			// if ( current_bump_sz.lines < readback_bump_sz.lines ) {
-			//	current_bump_sz.lines *= 2;
-			// }
-			if ( ( readback_bump_sz.failed & 0x1 ) || current_bump_sz.binning < readback_bump_sz.binning ) {
-				current_bump_sz.binning *= 2;
+		if ( bump_tmp.failed != 0 ) {
+			if ( current_bump_sz.lines < bump_tmp.lines ) {
+				bump_tmp.lines = current_bump_sz.lines * 2;
 			}
-			if ( current_bump_sz.ptcl < readback_bump_sz.ptcl ) {
-				current_bump_sz.ptcl *= 2;
+			if ( current_bump_sz.binning < bump_tmp.binning ) {
+				bump_tmp.binning = current_bump_sz.binning * 2;
 			}
-			if ( current_bump_sz.tile < readback_bump_sz.tile ) {
-				current_bump_sz.tile *= 2;
+			if ( current_bump_sz.ptcl < bump_tmp.ptcl ) {
+				bump_tmp.ptcl = current_bump_sz.ptcl * 2;
 			}
-			if ( current_bump_sz.seg_counts < readback_bump_sz.seg_counts ) {
-				current_bump_sz.seg_counts *= 2;
+			if ( current_bump_sz.tile < bump_tmp.tile ) {
+				bump_tmp.tile = current_bump_sz.tile * 2;
 			}
-			if ( current_bump_sz.segments < readback_bump_sz.segments ) {
-				current_bump_sz.segments *= 2;
+			if ( current_bump_sz.seg_counts < bump_tmp.seg_counts ) {
+				bump_tmp.seg_counts = current_bump_sz.seg_counts * 2;
 			}
-			if ( current_bump_sz.blend < readback_bump_sz.blend ) {
-				current_bump_sz.blend *= 2;
+			if ( current_bump_sz.segments < bump_tmp.segments ) {
+				bump_tmp.segments = current_bump_sz.segments * 2;
 			}
-			if ( current_bump_sz.lines < readback_bump_sz.lines ) {
-				current_bump_sz.lines *= 2;
+			if ( current_bump_sz.blend < bump_tmp.blend ) {
+				bump_tmp.blend = current_bump_sz.blend * 2;
 			}
 		}
 
-		// calculate the maximum over all historically recorded bump allocator
+		// Calculate the maximum over all historically recorded bump allocator
 		// sizes -- this works as a low pass filter; it allows you to retrieve
 		// some memory if large sizes have not been requested over any history
 		// frames.
@@ -1013,43 +1004,35 @@ static void on_backend_frame_clear_callback( void* user_data ) {
 		for ( size_t i = 1; i != b_history_size; i++ ) {
 			size_t      idx             = ( i + bump_idx ) % b_history_size;
 			auto const& b_h             = b_history[ idx ];
-			readback_bump_sz.binning    = std::max<uint32_t>( b_h.binning, readback_bump_sz.binning );
-			readback_bump_sz.ptcl       = std::max<uint32_t>( b_h.ptcl, readback_bump_sz.ptcl );
-			readback_bump_sz.tile       = std::max<uint32_t>( b_h.tile, readback_bump_sz.tile );
-			readback_bump_sz.seg_counts = std::max<uint32_t>( b_h.seg_counts, readback_bump_sz.seg_counts );
-			readback_bump_sz.segments   = std::max<uint32_t>( b_h.segments, readback_bump_sz.segments );
-			readback_bump_sz.blend      = std::max<uint32_t>( b_h.blend, readback_bump_sz.blend );
-			readback_bump_sz.lines      = std::max<uint32_t>( b_h.lines, readback_bump_sz.lines );
+
+			if ( b_h.failed ) {
+				// ignore any failed allocations because they might contain
+				// garbled quantities.
+				continue;
+			}
+
+			bump_tmp.binning    = std::max<uint32_t>( b_h.binning, bump_tmp.binning );
+			bump_tmp.ptcl       = std::max<uint32_t>( b_h.ptcl, bump_tmp.ptcl );
+			bump_tmp.tile       = std::max<uint32_t>( b_h.tile, bump_tmp.tile );
+			bump_tmp.seg_counts = std::max<uint32_t>( b_h.seg_counts, bump_tmp.seg_counts );
+			bump_tmp.segments   = std::max<uint32_t>( b_h.segments, bump_tmp.segments );
+			bump_tmp.blend      = std::max<uint32_t>( b_h.blend, bump_tmp.blend );
+			bump_tmp.lines      = std::max<uint32_t>( b_h.lines, bump_tmp.lines );
 		}
 
-		current_bump_sz.lines = std::max( default_bump.lines, uint32_t( align_up( readback_bump_sz.lines, 1 << 16 ) ) );
-		le::DebugPrint( "Allocated lines: %d\n", current_bump_sz.lines );
+		constexpr auto default_bump = vello_bump_allocator_data_t{};
 
-		readback_bump_sz = current_bump_sz;
+		// Adjust size
+		current_bump_sz.lines      = std::max( default_bump.lines, uint32_t( align_up( bump_tmp.lines, 1 << 16 ) ) );
+		current_bump_sz.seg_counts = std::max( default_bump.seg_counts, uint32_t( align_up( bump_tmp.seg_counts, 1 << 16 ) ) );
 
-
-		current_bump_sz = readback_bump_sz;
+		if ( bump_tmp.failed ) {
+			*bump_allocator_readback_data = current_bump_sz;
+		}
 	}
 
-	/* TODO: update size counts -- we could write bump_allocator_data_t to the main object
-	 * how to we make sure that we don't overwrite the current frame?
-	 *
-	 * + we can calculate the max number of allocations here - this is the only invocation
-	 *   that has any change in counts.
-	 *
-	 * + we write the updated change to the frame - we could keep this shared, or make these counts atomic, in which
-	 *   case they will just be picked up by the next element.
-	 *
-	 *   use a ring buffer to record the current value for each of these elements -- keep them in a struct
-	 * 	in here, calculate the new max values -- if there is a change, then we want to update the counts in the main object.
-	 *
-	 *  We need to make sure that the data that we get back from the readback is meaningful - we know which stage has failed, but we don't know
-	 *  what size it would require; if we double instantly, then we don't see the effects until the frame has come back, this means
-	 *  the next frame might double again and we end up with a buffer that is way too big.
-	 *
-	 */
-
 	// Tell the le_2d_object that issued the callback that the callback is complete,
+
 	// and that it has one less reason to defer deletion.
 	le_2d_decrement_intrusive_pointer( data->self );
 }
