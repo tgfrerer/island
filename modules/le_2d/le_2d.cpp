@@ -653,7 +653,7 @@ struct le_2d_o {
 	static constexpr uint8_t transfer_scene_mask = 0x2;
 	static constexpr uint8_t transfer_gradient_cache_mask = 0x4;
 
-	std::array<vello_bump_allocator_data_t, 4> bump_allocator_history; // we keep 4 frames around
+	std::array<vello_bump_allocator_data_t, 5> bump_allocator_history                 = {}; // we keep 5 frames around so that we have a bit of hysterisis when it comes to reducing allocation sizes
 	std::atomic<uint32_t>                      bump_allocator_history_ring_buffer_idx = 0;
 
 	uint8_t rasterizer_xfer_flags = transfer_lut_mask | transfer_scene_mask | transfer_gradient_cache_mask; // masked by one of the masks above
