@@ -632,14 +632,14 @@ static bool encoder_encode_to_bytes( le_2d_encoder_o const* e, uint8_t* bytes, s
  * const STAGE_COARSE: u32 = 0x10u;
  */
 struct vello_bump_allocator_data_t {
-	uint32_t failed; // Bitmask of stages that have failed allocation.
-	uint32_t binning;
-	uint32_t ptcl;
-	uint32_t tile;
-	uint32_t seg_counts;
-	uint32_t segments;
-	uint32_t blend;
-	uint32_t lines;
+	uint32_t failed     = 0;       // Bitmask of stages that have failed allocation.
+	uint32_t binning    = 1 << 21; /// count of uint32_t in binning buffer allocation
+	uint32_t ptcl       = 0;       /// count of uint32_t in per-tile command list buffer allocation (NOTE that assumed pre- allocated amount of memory depends on number of tiles, we calculate this on update)
+	uint32_t tile       = 1 << 21; /// count of Tiles in tile buffer allocation
+	uint32_t seg_counts = 1 << 21; /// count of SegmentCounts in segment count buffer all
+	uint32_t segments   = 1 << 22; /// count of PathSegments in segment buffer allocation
+	uint32_t blend      = 1 << 22; /// count of uint32_t pixels in blend spill buffer all
+	uint32_t lines      = 1 << 10; /// count of LineSoups in line soup buffer allocation
 };
 // ----------------------------------------------------------------------
 
