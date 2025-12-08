@@ -902,15 +902,16 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		    // that the bump allocator failed for one of these categories; and it means that you need
 		    // to provide more space for the affected category.
 		    //
-		    .lines       = 20 * self->rasterizer_args.lines_size,
+		    .lines       = 24 * self->rasterizer_args.lines_size, // lines size is 24 because alignment forces us to use 3*vec2
 		    .bin_data    = 4 * ( self->rasterizer_args.binning_size + self->rasterizer_args.layout.bin_data_start ),
 		    .tiles       = 8 * self->rasterizer_args.tiles_size,
 		    .seg_counts  = 8 * self->rasterizer_args.seg_counts_size,
-		    .segments    = 20 * self->rasterizer_args.segments_size,
-		    .blend_spill = 4 * self->rasterizer_args.blend_size, // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
-		    .ptcl        = 4 * self->rasterizer_args.ptcl_size,  // given in bytes per-tile command list (this will be split into per-tile segments), initial_alloc + number of allocations,
+		    .segments    = 24 * self->rasterizer_args.segments_size, // Segments Size is 24 because alignment forces us to use 3*vec2
+		    .blend_spill = 4 * self->rasterizer_args.blend_size,     // 16 * 16 (1<<8) is one blend spill, so this allows for 4096 spills.
+		    .ptcl        = 4 * self->rasterizer_args.ptcl_size,      // given in bytes per-tile command list (this will be split into per-tile segments), initial_alloc + number of allocations,
 		};
 	}
+
 	return true;
 }
 
