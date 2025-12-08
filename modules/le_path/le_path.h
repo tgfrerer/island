@@ -222,13 +222,13 @@ class Path {
 		return *this;
 	}
 
-	Path& quadBezierTo( float2 const& p, float2 const& c1 ) {
-		le_path::le_path_operations_i.quad_bezier_to( self, &p, &c1 );
+	Path& quadBezierTo( float2 const& c1, float2 const& p ) {
+		le_path::le_path_operations_i.quad_bezier_to( self, &c1, &p );
 		return *this;
 	}
 
-	Path& cubicBezierTo( float2 const& p, float2 const& c1, float2 const& c2 ) {
-		le_path::le_path_operations_i.cubic_bezier_to( self, &p, &c1, &c2 );
+	Path& cubicBezierTo( float2 const& c1, float2 const& c2, float2 const& p ) {
+		le_path::le_path_operations_i.cubic_bezier_to( self, &c1, &c2, &p );
 		return *this;
 	}
 
