@@ -911,7 +911,7 @@ class TransferEncoder {
 	}
 
 	TransferEncoder& copyToBuffer( le_buffer_resource_handle const& dst_buffer, size_t const& byte_offset_dst, le_buffer_resource_handle const& src_buffer, size_t const& byte_offset_src, size_t const& numBytes ) {
-		le_renderer::encoder_transfer_i.copy_to_buffer( self, dst_buffer, byte_offset_dst, src_buffer, byte_offset_dst, numBytes );
+		le_renderer::encoder_transfer_i.copy_to_buffer( self, dst_buffer, byte_offset_dst, src_buffer, byte_offset_src, numBytes );
 		return *this;
 	}
 
