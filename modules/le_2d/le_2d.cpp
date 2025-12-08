@@ -965,40 +965,70 @@ static void on_backend_frame_clear_callback( void* user_data ) {
 	char* mapped_data = static_cast<char*>( le_backend_vk_api_i->private_backend_vk_i.frame_get_mapped_data_for_buffer( backend, frame_id, data->self->buf_bump_cpu ) );
 
 	if ( mapped_data ) {
+		auto&                        b_history                    = data->self->bump_allocator_history;
+		size_t                       b_history_size               = b_history.size();
 		uint32_t                     bump_idx            = ( data->self->bump_allocator_history_ring_buffer_idx++ ) % data->self->bump_allocator_history.size();
 		vello_bump_allocator_data_t* bump_allocator_readback_data = &data->self->bump_allocator_history[ bump_idx ];
 
 		memcpy( bump_allocator_readback_data, mapped_data + N_BYTES_READBACK_OFFSET * frame_id, sizeof( vello_bump_allocator_data_t ) );
 
-		auto&       args = data->self->bump_alloc_data;
-		auto const& b    = *bump_allocator_readback_data;
+		auto& current_bump_sz  = data->self->bump_alloc_data;
+		auto  readback_bump_sz = *bump_allocator_readback_data;
+		le::DebugPrint( "Total number of lines: %d\n", readback_bump_sz.lines );
 
-		if ( b.failed != 0 ) {
-			if ( args.lines < b.lines ) {
-				args.lines *= 2;
+		constexpr auto default_bump = vello_bump_allocator_data_t();
+
+		if ( readback_bump_sz.failed != 0 ) {
+			// if ( current_bump_sz.lines < readback_bump_sz.lines ) {
+			//	current_bump_sz.lines *= 2;
+			// }
+			if ( ( readback_bump_sz.failed & 0x1 ) || current_bump_sz.binning < readback_bump_sz.binning ) {
+				current_bump_sz.binning *= 2;
 			}
-			if ( ( b.failed & 0x1 ) || args.binning < b.binning ) {
-				args.binning *= 2;
+			if ( current_bump_sz.ptcl < readback_bump_sz.ptcl ) {
+				current_bump_sz.ptcl *= 2;
 			}
-			if ( args.ptcl < b.ptcl ) {
-				args.ptcl *= 2;
+			if ( current_bump_sz.tile < readback_bump_sz.tile ) {
+				current_bump_sz.tile *= 2;
 			}
-			if ( args.tile < b.tile ) {
-				args.tile *= 2;
+			if ( current_bump_sz.seg_counts < readback_bump_sz.seg_counts ) {
+				current_bump_sz.seg_counts *= 2;
 			}
-			if ( args.seg_counts < b.seg_counts ) {
-				args.seg_counts *= 2;
+			if ( current_bump_sz.segments < readback_bump_sz.segments ) {
+				current_bump_sz.segments *= 2;
 			}
-			if ( args.segments < b.segments ) {
-				args.segments *= 2;
+			if ( current_bump_sz.blend < readback_bump_sz.blend ) {
+				current_bump_sz.blend *= 2;
 			}
-			if ( args.blend < b.blend ) {
-				args.blend *= 2;
-			}
-			if ( args.lines < b.lines ) {
-				args.lines *= 2;
+			if ( current_bump_sz.lines < readback_bump_sz.lines ) {
+				current_bump_sz.lines *= 2;
 			}
 		}
+
+		// calculate the maximum over all historically recorded bump allocator
+		// sizes -- this works as a low pass filter; it allows you to retrieve
+		// some memory if large sizes have not been requested over any history
+		// frames.
+		//
+		for ( size_t i = 1; i != b_history_size; i++ ) {
+			size_t      idx             = ( i + bump_idx ) % b_history_size;
+			auto const& b_h             = b_history[ idx ];
+			readback_bump_sz.binning    = std::max<uint32_t>( b_h.binning, readback_bump_sz.binning );
+			readback_bump_sz.ptcl       = std::max<uint32_t>( b_h.ptcl, readback_bump_sz.ptcl );
+			readback_bump_sz.tile       = std::max<uint32_t>( b_h.tile, readback_bump_sz.tile );
+			readback_bump_sz.seg_counts = std::max<uint32_t>( b_h.seg_counts, readback_bump_sz.seg_counts );
+			readback_bump_sz.segments   = std::max<uint32_t>( b_h.segments, readback_bump_sz.segments );
+			readback_bump_sz.blend      = std::max<uint32_t>( b_h.blend, readback_bump_sz.blend );
+			readback_bump_sz.lines      = std::max<uint32_t>( b_h.lines, readback_bump_sz.lines );
+		}
+
+		current_bump_sz.lines = std::max( default_bump.lines, uint32_t( align_up( readback_bump_sz.lines, 1 << 16 ) ) );
+		le::DebugPrint( "Allocated lines: %d\n", current_bump_sz.lines );
+
+		readback_bump_sz = current_bump_sz;
+
+
+		current_bump_sz = readback_bump_sz;
 	}
 
 	/* TODO: update size counts -- we could write bump_allocator_data_t to the main object
