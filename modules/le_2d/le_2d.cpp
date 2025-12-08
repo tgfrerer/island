@@ -733,16 +733,7 @@ struct le_2d_o {
 	uint32_t blend;
 	uint32_t lines;
 
-	vello_bump_allocator_data_t bump_alloc_data{
-	    .failed     = 0,
-	    .binning    = 1 << 21, /// count of uint32_t in binning buffer allocation
-	    .ptcl       = 0,       /// count of uint32_t in per-tile command list buffer allocation (NOTE that assumed pre- allocated amount of memory depends on number of tiles, we calculate this on update)
-	    .tile       = 1 << 21, /// count of Tiles in tile buffer allocation
-	    .seg_counts = 1 << 21, /// count of SegmentCounts in segment count buffer allocation
-	    .segments   = 1 << 22, /// count of PathSegments in segment buffer allocation
-	    .blend      = 1 << 22, /// count of uint32_t pixels in blend spill buffer allocation
-	    .lines      = 1 << 10, /// count of LineSoups in line soup buffer allocation
-	};
+	vello_bump_allocator_data_t bump_alloc_data = {};
 
 	RasterizerUboData rasterizer_args = {};
 
