@@ -58,15 +58,17 @@ Usage hints:
 #include "glm/fwd.hpp"
 #include "public/le_2d/le_transform_2d.hpp"
 
-// generic operations on path - this is a shared interface
-struct le_path_operations_interface_t {
-	void ( *move_to )( void* user_data, glm::vec2 const* p );
-	void ( *line_to )( void* user_data, glm::vec2 const* p );
-	void ( *quad_bezier_to )( void* user_data, glm::vec2 const* c1, glm::vec2 const* p );
-	void ( *cubic_bezier_to )( void* user_data, glm::vec2 const* c1, glm::vec2 const* c2, glm::vec2 const* p );
-	void ( *arc_to )( void* user_data, glm::vec2 const* p, glm::vec2 const* radii, float phi, bool large_arc, bool sweep );
-	void ( *close )( void* user_data );
+#ifdef __cplusplus
+#	include "3rdparty/src/glm/glm/fwd.hpp"
+using float2 = glm::vec2;
+#else
+struct float2 {
+	float x;
+	float y;
 };
+#endif
+
+#include "shared/interfaces/le_path_operations_interface.h"
 
 struct le_2d_o;
 struct le_renderer_o;
