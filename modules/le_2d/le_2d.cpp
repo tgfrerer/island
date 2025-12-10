@@ -2084,7 +2084,6 @@ LE_MODULE_REGISTER_IMPL( le_2d, api ) {
 	le_2d_i.set_should_use_msaa = le_2d_set_should_use_msaa;
 
 	auto& le_2d_backend_callback_i                     = static_cast<le_2d_api*>( api )->le_2d_backend_callback_i;
-
 	le_2d_backend_callback_i.on_backend_frame_clear_cb = on_backend_frame_clear_callback;
 
 	register_le_2d_encoder_api( api );

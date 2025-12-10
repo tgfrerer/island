@@ -58,6 +58,9 @@ Usage hints:
 #include "glm/fwd.hpp"
 #include "public/le_2d/le_transform_2d.hpp"
 
+using float2 = glm::vec2; // FIXME: maybe better not to lift this into the global namespace
+#include "public/le_path/le_path_iterator_interface_declaration.inl"
+
 struct le_2d_o;
 struct le_renderer_o;
 struct le_rendergraph_o;
@@ -352,6 +355,7 @@ struct le_2d_api {
 		void (* append_into_encoder)(le_2d_encoder_o* self, le_2d_encoder_o const * rhs, LeTransform2D const* maybe_transform);
 	};
 
+
 	struct le_2d_interface_t {
 
 		le_2d_o* ( *create )(le_renderer_o* renderer);
@@ -366,9 +370,11 @@ struct le_2d_api {
 		void (*on_backend_frame_clear_cb)(void * user_data);
 	};
 
+
 	le_2d_encoder_interface_t le_2d_encoder_i;
 	le_2d_interface_t le_2d_i;
 	le_2d_backend_callback_interface_t le_2d_backend_callback_i;
+	le_path_operations_interface_t le_2d_path_iterator_i;
 
 };
 // clang-format on

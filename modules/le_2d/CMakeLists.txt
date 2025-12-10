@@ -5,6 +5,7 @@ depends_on_island_module(le_renderer)
 depends_on_island_module(le_log)
 depends_on_island_module(le_pipeline_builder)
 depends_on_island_module(le_backend_vk)
+depends_on_island_module(le_path)
 
 set (SOURCES "le_2d.h")
 set (SOURCES ${SOURCES} "le_2d.cpp")
