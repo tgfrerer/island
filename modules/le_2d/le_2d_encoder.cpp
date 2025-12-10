@@ -980,10 +980,10 @@ void register_le_2d_encoder_api( void* api_ ) {
 	//
 	auto& le_2d_path_iterator_i = static_cast<le_2d_api*>( api_i )->le_2d_path_iterator_i;
 
-	le_2d_path_iterator_i.arc_to          = []( void*, const float2*, const float2*, float, bool, bool ) {}; // noop
-	le_2d_path_iterator_i.move_to         = []( void* user_data, float2 const* p ) { encoder_path_move_to( ( le_2d_encoder_o* )user_data, *p ); };
-	le_2d_path_iterator_i.line_to         = []( void* user_data, float2 const* p ) { encoder_path_line_to( ( le_2d_encoder_o* )user_data, *p ); };
-	le_2d_path_iterator_i.quad_bezier_to  = []( void* user_data, float2 const* c1, float2 const* p ) { encoder_path_quad_to( ( le_2d_encoder_o* )user_data, *c1, *p ); };
-	le_2d_path_iterator_i.cubic_bezier_to = []( void* user_data, float2 const* c1, float2 const* c2, float2 const* p ) { encoder_path_cubic_to( ( le_2d_encoder_o* )user_data, *c1, *c2, *p ); };
+	le_2d_path_iterator_i.arc_to          = []( void*, const glm::vec2*, const glm::vec2*, float, bool, bool ) {}; // noop
+	le_2d_path_iterator_i.move_to         = []( void* user_data, glm::vec2 const* p ) { encoder_path_move_to( ( le_2d_encoder_o* )user_data, *p ); };
+	le_2d_path_iterator_i.line_to         = []( void* user_data, glm::vec2 const* p ) { encoder_path_line_to( ( le_2d_encoder_o* )user_data, *p ); };
+	le_2d_path_iterator_i.quad_bezier_to  = []( void* user_data, glm::vec2 const* c1, glm::vec2 const* p ) { encoder_path_quad_to( ( le_2d_encoder_o* )user_data, *c1, *p ); };
+	le_2d_path_iterator_i.cubic_bezier_to = []( void* user_data, glm::vec2 const* c1, glm::vec2 const* c2, glm::vec2 const* p ) { encoder_path_cubic_to( ( le_2d_encoder_o* )user_data, *c1, *c2, *p ); };
 	le_2d_path_iterator_i.close           = []( void* user_data ) { encoder_path_close( ( le_2d_encoder_o* )user_data ); };
 }
