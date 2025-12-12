@@ -865,12 +865,12 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 		self->rasterizer_args.seg_counts_size = self->bump_alloc_data.seg_counts; //
 		self->rasterizer_args.segments_size   = self->bump_alloc_data.segments;   // number of segments (sizeof Segment ==8)
 		self->rasterizer_args.blend_size      = self->bump_alloc_data.blend;
-		self->rasterizer_args.ptcl_size       = ptcl_initial_alloc_size + self->bump_alloc_data.ptcl; // number of bytes available (shared by all tiles) for per-tile command list allocations
+		self->rasterizer_args.ptcl_size       = ptcl_initial_alloc_size + self->bump_alloc_data.ptcl; // number of uint32_t available (shared by all tiles) for per-tile command list allocations
 
 		// The `coarse` shader (only user of `bump.ptcl`) assumes a certain amount of memory pre-allocated
 		// before it will use `bump.ptcl` for  dynamic memory allocation. We must therefore make sure that
 		// the pre-allocated memory amount matches the shader's expectations. The shader calculates pre-
-		// allocated memory size as (witdh_in_tiles * height_in_tiles * PTCL_INITIAL_ALLOC); this is then
+		// allocated memory size as 20itdh_in_tiles * height_in_tiles * PTCL_INITIAL_ALLOC); this is then
 		// the count of uint32_t that need to be pre-allocated at minimum. Anything that bump.ptcl reports,
 		// needs to be added on top of this.
 		//
@@ -980,7 +980,7 @@ static void on_backend_frame_clear_callback( void* user_data ) {
 				bump_tmp.binning = current_bump_sz.binning * 2;
 			}
 			if ( current_bump_sz.ptcl < bump_tmp.ptcl ) {
-				bump_tmp.ptcl = current_bump_sz.ptcl * 2;
+				bump_tmp.ptcl = current_bump_sz.ptcl ? current_bump_sz.ptcl * 2 : align_up( bump_tmp.ptcl, 4096 );
 			}
 			if ( current_bump_sz.tile < bump_tmp.tile ) {
 				bump_tmp.tile = current_bump_sz.tile * 2;
@@ -1012,7 +1012,7 @@ static void on_backend_frame_clear_callback( void* user_data ) {
 			}
 
 			bump_tmp.binning    = std::max<uint32_t>( b_h.binning, bump_tmp.binning );
-			bump_tmp.ptcl       = std::max<uint32_t>( b_h.ptcl, bump_tmp.ptcl );
+			bump_tmp.ptcl       = std::max<uint32_t>( current_bump_sz.ptcl, bump_tmp.ptcl );
 			bump_tmp.tile       = std::max<uint32_t>( b_h.tile, bump_tmp.tile );
 			bump_tmp.seg_counts = std::max<uint32_t>( b_h.seg_counts, bump_tmp.seg_counts );
 			bump_tmp.segments   = std::max<uint32_t>( b_h.segments, bump_tmp.segments );
@@ -1025,6 +1025,7 @@ static void on_backend_frame_clear_callback( void* user_data ) {
 		// Adjust size
 		current_bump_sz.lines      = std::max( default_bump.lines, uint32_t( align_up( bump_tmp.lines, 1 << 16 ) ) );
 		current_bump_sz.seg_counts = std::max( default_bump.seg_counts, uint32_t( align_up( bump_tmp.seg_counts, 1 << 16 ) ) );
+		current_bump_sz.ptcl       = bump_tmp.ptcl;
 
 		if ( bump_tmp.failed ) {
 			*bump_allocator_readback_data = current_bump_sz;
