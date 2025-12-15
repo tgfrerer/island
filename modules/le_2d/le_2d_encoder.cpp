@@ -893,6 +893,9 @@ static void encoder_append_into_encoder( le_2d_encoder_o* self, le_2d_encoder_o 
 		self->transforms[ i ] = t * self->transforms[ i ];
 	}
 
+	self->resources.colour_stops.insert( self->resources.colour_stops.end(), rhs->resources.colour_stops.begin(), rhs->resources.colour_stops.end() );
+	self->resources.patches.insert( self->resources.patches.end(), rhs->resources.patches.begin(), rhs->resources.patches.end() );
+
 	self->path_tags.insert( self->path_tags.end(), rhs->path_tags.begin(), rhs->path_tags.end() );
 	self->path_data.insert( self->path_data.end(), rhs->path_data.begin(), rhs->path_data.end() );
 
