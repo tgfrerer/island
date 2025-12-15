@@ -545,17 +545,17 @@ class Encoder2D : NoCopy, NoMove {
 		return *this;
 	};
 
-	Encoder2D& linear_gradient( le_2d_gradient_linear_t const& gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_count, enum le_2d_api::ExtendMode extend = le_2d_api::ExtendMode::Pad, float alpha = 1.0 ) {
+	Encoder2D& linear_gradient( le_2d_gradient_linear_t const& gradient, le_2d_colour_stop_t const* colour_stops, size_t const& colour_stops_count, enum le_2d_api::ExtendMode extend = le_2d_api::ExtendMode::Pad, float alpha = 1.0 ) {
 		le_2d::le_2d_encoder_i.encode_linear_gradient( self, &gradient, colour_stops, colour_stops_count, alpha, extend );
 		return *this;
 	}
 
-	Encoder2D& radial_gradient( le_2d_gradient_radial_t const& gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_count, enum le_2d_api::ExtendMode extend = le_2d_api::ExtendMode::Pad, float alpha = 1.0 ) {
+	Encoder2D& radial_gradient( le_2d_gradient_radial_t const& gradient, le_2d_colour_stop_t const* colour_stops, size_t const& colour_stops_count, enum le_2d_api::ExtendMode extend = le_2d_api::ExtendMode::Pad, float alpha = 1.0 ) {
 		le_2d::le_2d_encoder_i.encode_radial_gradient( self, &gradient, colour_stops, colour_stops_count, alpha, extend );
 		return *this;
 	}
 
-	Encoder2D& sweep_gradient( le_2d_gradient_sweep_t const& gradient, le_2d_colour_stop_t const* colour_stops, size_t colour_stops_count, enum le_2d_api::ExtendMode extend = le_2d_api::ExtendMode::Pad, float alpha = 1.0 ) {
+	Encoder2D& sweep_gradient( le_2d_gradient_sweep_t const& gradient, le_2d_colour_stop_t const* colour_stops, size_t const& colour_stops_count, enum le_2d_api::ExtendMode extend = le_2d_api::ExtendMode::Pad, float alpha = 1.0 ) {
 		le_2d::le_2d_encoder_i.encode_sweep_gradient( self, &gradient, colour_stops, colour_stops_count, alpha, extend );
 		return *this;
 	}
