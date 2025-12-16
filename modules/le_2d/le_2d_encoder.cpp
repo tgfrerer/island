@@ -893,8 +893,25 @@ static void encoder_append_into_encoder( le_2d_encoder_o* self, le_2d_encoder_o 
 		self->transforms[ i ] = t * self->transforms[ i ];
 	}
 
+	size_t lhs_data_offset             = self->draw_data.size(); // we must update the draw patches so that they refer to the correct offsets
+	size_t lhs_colour_stops_offset     = self->resources.colour_stops.size();
+	size_t old_resources_patches_count = self->resources.patches.size();
+
 	self->resources.colour_stops.insert( self->resources.colour_stops.end(), rhs->resources.colour_stops.begin(), rhs->resources.colour_stops.end() );
 	self->resources.patches.insert( self->resources.patches.end(), rhs->resources.patches.begin(), rhs->resources.patches.end() );
+
+	size_t updated_resources_patches_count = self->resources.patches.size();
+
+	for ( size_t i = old_resources_patches_count; i != updated_resources_patches_count; i++ ) {
+		auto& r = self->resources.patches[ i ];
+
+		if ( r.type == Patch::Type::Ramp ) {
+			auto& r_data = r.data.as_ramp;
+			r_data.draw_data_offset += lhs_data_offset;
+			r_data.stops_start += lhs_colour_stops_offset;
+			r_data.stops_end += lhs_colour_stops_offset;
+		}
+	}
 
 	self->path_tags.insert( self->path_tags.end(), rhs->path_tags.begin(), rhs->path_tags.end() );
 	self->path_data.insert( self->path_data.end(), rhs->path_data.begin(), rhs->path_data.end() );
