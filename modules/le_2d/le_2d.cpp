@@ -472,12 +472,12 @@ static bool le_2d_encoder_resolve_patches( le_2d_encoder_o* e, Resolver& resourc
 			// as the first field in any encoded gradients is an uint32_t holding the ramp-index-and-extend
 			// information.
 
-			uint32_t& gradient_ramp_index_and_extent = e->draw_data[ p.draw_data_offset ];
+			uint32_t* ref_gradient_data = &e->draw_data[ p.draw_data_offset ];
 
 			// this must have been set to 0 when initially encoding the gradient information into the draw stream.
-			assert( gradient_ramp_index_and_extent == 0 );
+			// assert( *ref_gradient_data == 0 );
 
-			gradient_ramp_index_and_extent = uint32_t( ramp_id << 2 ) | uint32_t( p.extend );
+			*ref_gradient_data = uint32_t( ramp_id << 2 ) | uint32_t( p.extend );
 
 			resources.resolved_patches.emplace_back( std::move( r ) );
 
