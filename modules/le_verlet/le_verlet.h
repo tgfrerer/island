@@ -4,16 +4,7 @@
 #include "le_core.h"
 
 #ifdef __cplusplus
-
-// Unless explicitly disabled, enable glm types by default.
-#	ifndef LE_ALLOW_GLM_TYPES
-#		define LE_ALLOW_GLM_TYPES
-#	endif
-
-#	ifdef LE_ALLOW_GLM_TYPES
-#		include "glm/fwd.hpp"
-#	endif
-
+#	include "glm/fwd.hpp"
 #endif
 
 struct le_verlet_particle_system_o;
@@ -21,7 +12,7 @@ struct le_verlet_particle_system_o;
 // clang-format off
 struct le_verlet_api {
 
-#ifdef LE_ALLOW_GLM_TYPES
+#ifdef __cplusplus
 	typedef glm::vec2 float2;
 #else
 	struct float2{
