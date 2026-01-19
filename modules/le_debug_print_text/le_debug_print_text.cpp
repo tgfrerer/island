@@ -646,7 +646,7 @@ LE_MODULE_REGISTER_IMPL( le_debug_print_text, api ) {
 
 	if ( p_le_debug_print_text_api->singleton_obj == nullptr ) {
 		// If we're registering this for the first time, we must create the singleton object.
-		// This object will never get destroyed.
+		// This object will only get destroyed on UNREGISTER.
 		p_le_debug_print_text_api->singleton_obj = le_debug_print_text_create();
 	}
 }
