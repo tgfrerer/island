@@ -27,33 +27,13 @@
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
-struct ApiStore {
-	std::vector<std::string> names{};      // Api names (used for debugging)
-	std::vector<uint64_t>    nameHashes{}; // Hashed api names (used for lookup)
-	std::vector<void*>       ptrs{};       // Pointer to struct holding api for each api name
-	~ApiStore() {
-		// We must free any api table entry for which memory was been allocated.
-		for ( auto p : ptrs ) {
-			if ( p ) {
-				free( p );
-			}
-		}
-	}
+struct loader_callback_params_o {
+	le_module_loader_o* loader;
+	void*               api;      // address of api interface struct
+	size_t              api_size; // api interface struct size in bytes
+	std::string         lib_register_fun_name;
+	int                 watch_id;
 };
-
-// We use a function here because this means lazy, but deterministic initialisation.
-// see also: <http://www.cs.technion.ac.il/users/yechiel/c++-faq/static-init-order.html>
-static ApiStore& apiStore() {
-	static ApiStore obj;
-	return obj;
-};
-
-ISL_API_ATTR void** le_core_produce_dictionary_entry( uint64_t key ) {
-	static std::mutex                          mtx;
-	std::scoped_lock                           lock( mtx );
-	static std::unordered_map<uint64_t, void*> store{};
-	return &store[ key ];
-}
 
 // ----------------------------------------------------------------------
 // Return heap-allocated char *, uniquely indexed by key
@@ -80,6 +60,7 @@ ISL_API_ATTR uint64_t le_core_spooky_hash_64( const void* message, size_t length
 // ----------------------------------------------------------------------
 
 #include "private/le_core/le_settings_private_types.inl"
+
 // ----------------------------------------------------------------------
 // mutex that protects our main settings map - if you change the map structure, you
 // must first lock this mutex
@@ -87,6 +68,7 @@ static std::mutex& get_settings_store_mutex() {
 	static std::mutex mtx;
 	return mtx;
 }
+
 // our global settings map structure
 static le_settings_map_t& get_global_settings_store() {
 	static le_settings_map_t store{ {} };
@@ -162,13 +144,14 @@ ISL_API_ATTR LeSettingEntry* le_core_get_setting_entry( char const* setting_name
 
 // ----------------------------------------------------------------------
 
-struct loader_callback_params_o {
-	le_module_loader_o* loader;
-	void*               api;      // address of api interface struct
-	size_t              api_size; // api interface struct size in bytes
-	std::string         lib_register_fun_name;
-	int                 watch_id;
-};
+ISL_API_ATTR void** le_core_produce_dictionary_entry( uint64_t key ) {
+	static std::mutex                          mtx;
+	std::scoped_lock                           lock( mtx );
+	static std::unordered_map<uint64_t, void*> store{};
+	return &store[ key ];
+}
+
+// ----------------------------------------------------------------------
 
 static le_module_loader_api const* get_module_loader_api() {
 	static auto api = LE_MODULE_GET_API_STATIC( le_module_loader );
@@ -210,14 +193,34 @@ ISL_API_ATTR void le_core_poll_for_module_reloads() {
 }
 
 // ----------------------------------------------------------------------
+
+struct ApiStore {
+	std::vector<std::string> names{};      // Api names (used for debugging)
+	std::vector<uint64_t>    nameHashes{}; // Hashed api names (used for lookup)
+	std::vector<void*>       ptrs{};       // Pointer to struct holding api for each api name
+	~ApiStore() {
+		// We must free any api table entry for which memory was been allocated.
+		// But really, as this only gets called once the app gets destroyed, we can just as
+		// well leak the data as it will get collected automatically.
+		for ( auto& p : ptrs ) {
+			if ( p ) {
+				free( p );
+				p = nullptr;
+			}
+		}
+	}
+};
+
+// ----------------------------------------------------------------------
 // We use C++ RAII to add pointers to a "kill list" so that objects which
 // need global lifetime can be unloaded once the app unloads.
-struct DeferDelete {
+struct CoreContext {
 
+	ApiStore                               api_store;
 	std::vector<le_module_loader_o*>       loaders; // loaders to clean up
 	std::vector<loader_callback_params_o*> params;  // callback params to clean up
 
-	~DeferDelete() {
+	~CoreContext() {
 		static auto module_loader_i = get_module_loader_api()->le_module_loader_i;
 
 		// call teardown on each module
@@ -242,8 +245,10 @@ struct DeferDelete {
 	}
 };
 
-static DeferDelete& defer_delete() {
-	static DeferDelete obj{};
+// We use a function here because this means lazy, but deterministic initialisation.
+// see also: <http://www.cs.technion.ac.il/users/yechiel/c++-faq/static-init-order.html>
+static CoreContext& ctx() {
+	static CoreContext obj{};
 	return obj;
 }
 
@@ -256,18 +261,18 @@ static size_t produce_api_index( uint64_t id, const char* module_name ) {
 
 	size_t foundElement = 0;
 
-	for ( const auto& n : apiStore().nameHashes ) {
+	for ( const auto& n : ctx().api_store.nameHashes ) {
 		if ( n == id ) {
 			break;
 		}
 		++foundElement;
 	}
 
-	if ( foundElement == apiStore().nameHashes.size() ) {
+	if ( foundElement == ctx().api_store.nameHashes.size() ) {
 		// no element found, we need to add an element
-		apiStore().nameHashes.emplace_back( id );
-		apiStore().ptrs.emplace_back( nullptr );    // initialise to nullptr
-		apiStore().names.emplace_back( module_name ); // implicitly creates a string
+		ctx().api_store.nameHashes.emplace_back( id );
+		ctx().api_store.ptrs.emplace_back( nullptr );      // initialise to nullptr
+		ctx().api_store.names.emplace_back( module_name ); // implicitly creates a string
 	}
 
 	// --------| invariant: foundElement points to correct element
@@ -280,7 +285,7 @@ static size_t produce_api_index( uint64_t id, const char* module_name ) {
 static void* le_core_get_api( uint64_t id, const char* module_name ) {
 
 	size_t foundElement = produce_api_index( id, module_name );
-	return apiStore().ptrs[ foundElement ];
+	return ctx().api_store.ptrs[ foundElement ];
 }
 
 // ----------------------------------------------------------------------
@@ -289,7 +294,7 @@ static void* le_core_create_api( uint64_t id, size_t apiStructSize, const char* 
 
 	size_t foundElement = produce_api_index( id, module_name );
 
-	auto& apiPtr = apiStore().ptrs[ foundElement ];
+	auto& apiPtr = ctx().api_store.ptrs[ foundElement ];
 
 	if ( apiPtr == nullptr ) {
 
@@ -400,7 +405,7 @@ ISL_API_ATTR void* le_core_load_module_dynamic( char const* module_name, uint64_
 		le_module_loader_o* loader            = module_loader_i.create( module_path.c_str() );
 #endif
 
-		defer_delete().loaders.push_back( loader ); // add to cleanup list
+		ctx().loaders.push_back( loader ); // add to cleanup list
 
 		// Important to store api back to table here *before* calling loadApi,
 		// as loadApi might recursively add other apis
@@ -419,7 +424,7 @@ ISL_API_ATTR void* le_core_load_module_dynamic( char const* module_name, uint64_
 			callbackParams->lib_register_fun_name    = api_register_fun_name;
 			callbackParams->watch_id                 = 0;
 			callbackParams->api_size                 = api_size_in_bytes;
-			defer_delete().params.push_back( callbackParams ); // add to deferred cleanup list
+			ctx().params.push_back( callbackParams ); // add to deferred cleanup list
 
 			le_file_watcher_watch_settings watchSettings = {};
 
