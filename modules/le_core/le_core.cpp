@@ -228,15 +228,15 @@ struct CoreContext {
 		// we do this in a separate pass from destroy
 		// so that we can enforce that all modules are alive
 		//
-		for ( auto& l : loaders ) {
-			if ( l ) {
-				module_loader_i.unregister_api( l );
+		for ( auto it = loaders.rbegin(); it != loaders.rend(); it++ ) {
+			if ( *it ) {
+				module_loader_i.unregister_api( *it );
 			}
 		}
 
-		for ( auto& l : loaders ) {
-			if ( l ) {
-				module_loader_i.destroy( l );
+		for ( auto it = loaders.rbegin(); it != loaders.rend(); it++ ) {
+			if ( *it ) {
+				module_loader_i.destroy( *it );
 			}
 		}
 		for ( auto& p : params ) {
