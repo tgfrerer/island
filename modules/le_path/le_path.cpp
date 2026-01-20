@@ -963,7 +963,7 @@ static void flatten_cubic_bezier_segment_to( Polyline&          polyline,
 
 	float t = 0;
 
-	glm::vec2 p_prev = b.p0;
+	glm::vec2 p_prev = polyline.vertices.empty() ? glm::vec2{} : polyline.vertices.back();
 
 	// Note that we limit the number of iterations by setting a maximum of 1000 - this
 	// should only ever be reached when tolerance is super small.
