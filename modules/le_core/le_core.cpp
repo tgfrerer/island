@@ -202,12 +202,12 @@ struct ApiStore {
 		// We must free any api table entry for which memory was been allocated.
 		// But really, as this only gets called once the app gets destroyed, we can just as
 		// well leak the data as it will get collected automatically.
-		for ( auto& p : ptrs ) {
-			if ( p ) {
-				free( p );
-				p = nullptr;
-			}
-		}
+		// for ( auto it = ptrs.rbegin(); it != ptrs.rend(); it++ ) {
+		// 	if ( *it ) {
+		// 		free( *it );
+		// 		*it = nullptr;
+		// 	}
+		// }
 	}
 };
 
