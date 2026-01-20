@@ -993,8 +993,13 @@ static void flatten_cubic_bezier_segment_to( Polyline&          polyline,
 		polyline.total_distance += glm::distance( pt, p_prev );
 		polyline.distances.emplace_back( polyline.total_distance );
 
-		// First derivative with respect to t, see: https://en.m.wikipedia.org/wiki/B%C3%A9zier_curve
-		polyline.tangents.emplace_back( cubic_bezier_derivative( t, b.p0, b.c1, b.c2, b.p1 ) );
+		if ( t < 1.0f ) {
+			// First derivative with respect to t, see: https://en.m.wikipedia.org/wiki/B%C3%A9zier_curve
+			polyline.tangents.emplace_back( cubic_bezier_derivative( t, b.p0, b.c1, b.c2, b.p1 ) );
+		} else {
+			// use original (not subdivided bezier fo the last derivative at 1.0)
+			polyline.tangents.emplace_back( cubic_bezier_derivative( t, b_.p0, b_.c1, b_.c2, b_.p1 ) );
+		}
 
 		if ( t >= 1.0f )
 			break;
