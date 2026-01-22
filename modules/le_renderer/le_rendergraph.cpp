@@ -61,6 +61,11 @@ static void renderpass_destroy( le_renderpass_o* self ) {
 	delete self;
 }
 
+static void renderpass_disable( le_renderpass_o* self ) {
+	ZoneScoped;
+	self->is_contributing = false;
+}
+
 static void renderpass_ref_inc( le_renderpass_o* self ) {
 	++self->ref_count;
 }
@@ -317,6 +322,7 @@ static void renderpass_set_is_root( le_renderpass_o* self, bool is_root ) {
 	self->is_root = is_root;
 }
 
+
 static bool renderpass_get_is_root( le_renderpass_o const* self ) {
 	return self->is_root;
 }
@@ -411,7 +417,10 @@ static void rendergraph_reset( le_rendergraph_o* self ) {
 	for ( auto rp : self->passes ) {
 		renderpass_destroy( rp );
 	}
+
 	self->passes.clear();
+	self->passes_ids.clear();
+	self->grouped_passes_per_pass.clear();
 	self->nodes.clear();
 	self->unique_resources.clear();
 	self->root_passes_affinity_masks.clear();
@@ -433,6 +442,49 @@ static void rendergraph_destroy( le_rendergraph_o* self ) {
 static void rendergraph_add_renderpass( le_rendergraph_o* self, le_renderpass_o* renderpass ) {
 	ZoneScoped;
 	self->passes.push_back( renderpass_clone( renderpass ) ); // Note: We receive ownership of the cloned renderpass here. We must destroy it.
+	self->passes_ids.push_back( reinterpret_cast<uintptr_t>( renderpass ) );
+}
+
+// ----------------------------------------------------------------------
+
+static inline bool rendergraph_passes_ids_find_pass_id( std::vector<uintptr_t> const& passes_ids, uintptr_t const& needle, const size_t& idx_end, size_t* found_idx ) {
+	if ( idx_end < 1 ) {
+		return false;
+	}
+	for ( int i = idx_end - 1; i >= 0; i-- ) {
+		if ( passes_ids[ i ] == needle ) {
+			*found_idx = i;
+			return true;
+		}
+	}
+
+	return false;
+};
+
+// Groups children with parent passes -- parent passes must have been declared to the rendergraph before the child pass.
+static void rendergraph_group_pass_with( le_rendergraph_o* self, le_renderpass_o const* renderpass_child, le_renderpass_o const* renderpass_parent ) {
+	ZoneScoped;
+	static auto logger = LeLog( LOGGER_LABEL );
+
+	self->grouped_passes_per_pass.resize( self->passes_ids.size(), {} );
+
+	auto const& pass_child  = reinterpret_cast<uintptr_t>( renderpass_child );
+	auto const& pass_parent = reinterpret_cast<uintptr_t>( renderpass_parent );
+
+	size_t child_id  = 0;
+	size_t parent_id = 0;
+
+	if ( rendergraph_passes_ids_find_pass_id( self->passes_ids, pass_child, self->passes_ids.size(), &child_id ) ) {
+		// found the child
+		if ( rendergraph_passes_ids_find_pass_id( self->passes_ids, pass_parent, child_id, &parent_id ) ) {
+			// found the parent
+			self->grouped_passes_per_pass.at( parent_id ).push_back( child_id );
+		} else {
+			logger.warn( "Could not find parent pass '%s' in current rendergraph. Has it been added to the rendergraph yet?", renderpass_parent->debug_name.c_str() );
+		}
+	} else {
+		logger.warn( "Could not find child pass '%s' in current rendergraph. Has it been added to the rendergraph yet?", renderpass_child->debug_name.c_str() );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -747,48 +799,49 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 		const size_t resources_per_pass_count = p->resources.size();
 
-		for ( size_t i = 0; i != resources_per_pass_count; i++ ) {
-			auto const& resource_handle = p->resources[ i ];
-			auto        access_flags    = p->resources_access_flags[ i ];
+		if ( p->is_contributing ) {
+			for ( size_t i = 0; i != resources_per_pass_count; i++ ) {
+				auto const& resource_handle = p->resources[ i ];
+				auto        access_flags    = p->resources_access_flags[ i ];
 
-			bool detect_read           = bool( access_flags & LE_ALL_READ_ACCESS_FLAGS );
-			bool detect_write          = bool( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
-			bool detect_explicit_write = detect_write;
+				bool detect_read           = bool( access_flags & LE_ALL_READ_ACCESS_FLAGS );
+				bool detect_write          = bool( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
+				bool detect_explicit_write = detect_write;
 
-			// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
-			// this means that some reads to image resources are implicit read/writes.
-			// we can only get rid of this if we can prove that resources will not undergo a layout transform.
-			//
-			if ( resource_handle->get_type() == LeResourceType::eImage ) {
-				detect_write |= bool( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
-			}
-
-			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
-			for ( auto& h : known_unique_handles ) {
-				if ( h == resource_handle ) {
-					// found matching resource, res_idx is index into uniqueHandles for resource
-					break;
+				// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
+				// this means that some reads to image resources are implicit read/writes.
+				// we can only get rid of this if we can prove that resources will not undergo a layout transform.
+				//
+				if ( resource_handle->get_type() == LeResourceType::eImage ) {
+					detect_write |= bool( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
 				}
-				res_idx++;
+
+				size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
+				for ( auto& h : known_unique_handles ) {
+					if ( h == resource_handle ) {
+						// found matching resource, res_idx is index into uniqueHandles for resource
+						break;
+					}
+					res_idx++;
+				}
+
+				if ( res_idx == known_unique_handles.size() ) {
+					// resource was not found, we must add a new resource
+					known_unique_handles.push_back( resource_handle );
+					assert( known_unique_handles.size() < LE_MAX_NUM_GRAPH_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
+				}
+
+				// --------| invariant: uniqueHandles[res_idx] is valid
+
+				node.reads.set( res_idx, detect_read );
+				node.writes.set( res_idx, detect_write );
+				node.explicit_writes.set( res_idx, detect_explicit_write );
 			}
 
-			if ( res_idx == known_unique_handles.size() ) {
-				// resource was not found, we must add a new resource
-				known_unique_handles.push_back( resource_handle );
-				assert( known_unique_handles.size() < LE_MAX_NUM_GRAPH_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
+			if ( p->is_root ) {
+				node.is_root = true;
 			}
-
-			// --------| invariant: uniqueHandles[res_idx] is valid
-
-			node.reads.set( res_idx, detect_read );
-			node.writes.set( res_idx, detect_write );
-			node.explicit_writes.set( res_idx, detect_explicit_write );
 		}
-
-		if ( p->is_root ) {
-			node.is_root = true;
-		}
-
 		node.debug_name = p->debug_name;
 		nodes.emplace_back( std::move( node ) );
 	}
@@ -800,12 +853,38 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	uint32_t root_count = 0; // gets set to number of found root nodes as a side-effect of node_tag_contributing
 	node_tag_contributing( nodes.data(), nodes.size(), &root_count );
 
+	// table from pass idx (owner) to owned passes
+	// std::vector<std::vector<uint32_t>> const & grouped_passes_per_pass = self->grouped_passses_per_pass;
+	{
+
+		// If a node is owned by a group owner node that is contributing,
+		// then it needs to contribute, too.
+		//
+		for ( size_t i = 0; i != self->grouped_passes_per_pass.size(); i++ ) {
+			auto const& g = self->grouped_passes_per_pass[ i ];
+
+			if ( !g.empty() && self->nodes[ i ].is_contributing ) {
+
+				// All nodes belonging to a group owner node need to
+				// contribute if the group owner is contributing.
+
+				for ( auto const& e : g ) {
+					self->nodes[ e ].is_contributing |= true;
+				}
+			}
+		}
+	}
+
 	// non-owning pointers to debug names within passes which are root, in the same order as RootPassesField is constructed
 	std::vector<std::string> root_debug_names( root_count );
 
 	assert( root_count <= LE_MAX_NUM_GRAPH_ROOTS && "number of nodes must fit LE_MAX_NUM_TREES, otherwise we can't express tree affinity as a bitfield" );
 
 	{
+		// Build independent subgraphs --
+		//
+		// We do this so that we may place fully independent graphs on parallel queues if possible.
+
 		std::vector<ResourceField> root_reads_accum( root_count );
 		std::vector<ResourceField> root_writes_accum( root_count );
 
@@ -838,6 +917,7 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 					if ( n->is_root ) {
 						continue;
 					}
+
 					// if this earlier node writes to any of our subsequent reads, we add it to our
 					// current tree of nodes.
 					if ( ( n->writes & read_accum ).any() ) {
@@ -849,6 +929,21 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				}
 				root_debug_names[ root_index ] = r->debug_name; // owned by pass, will stay alive and in-place until frame gets cleared
 				root_index++;
+			}
+		}
+
+		{
+			// For passes that were grouped with another pass so that they conditionally execute
+			// if their group owner executes, we need to apply the group owner's root nodes
+			// affinity to each owned pass.
+
+			for ( int owner_idx = 0; owner_idx != self->grouped_passes_per_pass.size(); owner_idx++ ) {
+				const auto& g = self->grouped_passes_per_pass[ owner_idx ];
+
+				// Apply the owner's root node affinity to each owned passes
+				for ( auto const& p_idx : g ) {
+					nodes[ p_idx ].root_nodes_affinity |= nodes[ owner_idx ].root_nodes_affinity;
+				}
 			}
 		}
 
@@ -1174,11 +1269,9 @@ static void rendergraph_setup_passes( le_rendergraph_o* src_rendergraph ) {
 
 		if ( renderpass_has_setup_callback( *it ) ) {
 			if ( false == renderpass_run_setup_callback( *it ) ) {
-				// if setup() returns `false` this means that we must remove the
-				// pass from the current graph.
-				renderpass_destroy( *it );
-				it = src_rendergraph->passes.erase( it );
-				continue;
+				// if setup() returns `false` this means that we must
+				// disable this pass.
+				renderpass_disable( *it );
 			}
 		}
 		it++;
@@ -1212,6 +1305,13 @@ static le_rendergraph_o* rendergraph_clone( le_rendergraph_o* self ) {
 		ret->passes.push_back( le_renderer_api_i->le_renderpass_i.clone( f ) );
 	}
 
+	// we keep the original user-set ids as the ids only ever refer
+	// to the original reference to the user-given renderpass. this
+	// is to prevent the id changing. The id will only ever be internal
+	// to the rendergraph;
+	ret->passes_ids              = self->passes_ids;
+	ret->grouped_passes_per_pass = self->grouped_passes_per_pass;
+
 	return ret;
 };
 
@@ -1235,7 +1335,9 @@ static le_rendergraph_o* rendergraph_move( le_rendergraph_o* self ) {
 	ret->declared_resources_id   = std::move( self->declared_resources_id );
 	ret->declared_resources_info = std::move( self->declared_resources_info );
 
-	ret->passes = std::move( self->passes );
+	ret->passes                  = std::move( self->passes );
+	ret->passes_ids              = std::move( self->passes_ids );
+	ret->grouped_passes_per_pass = std::move( self->grouped_passes_per_pass );
 
 	return ret;
 }
@@ -1263,6 +1365,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_i.destroy                      = rendergraph_destroy;
 	le_rendergraph_i.reset                        = rendergraph_reset;
 	le_rendergraph_i.add_renderpass               = rendergraph_add_renderpass;
+	le_rendergraph_i.group_pass_with              = rendergraph_group_pass_with;
 	le_rendergraph_i.declare_resource             = rendergraph_declare_resource;
 	le_rendergraph_i.add_on_frame_clear_callbacks = rendergraph_add_on_frame_clear_callbacks;
 

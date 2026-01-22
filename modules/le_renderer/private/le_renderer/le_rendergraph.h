@@ -97,6 +97,7 @@ struct le_renderpass_o {
 	uint32_t                width                = 0;                           // | < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t                height               = 0;                           // | < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count         = le::SampleCountFlagBits::e1; // | < SampleCount for all attachments.
+	uintptr_t               is_grouped_with      = 0;                           // | id of pass that this pass is grouped with (optional). if grouped with another pass, this pass will execute if the pass it is grouped with executes.
 	bool                    is_root              = false;                       // | Whether pass *must* be processed
 	bool                    is_contributing      = true;                        // | Whether this pass contributes to the final result or could be pruned.
 	bool                    padding[ 6 ]         = { 0 };                       // | padding for a full uint8_t
@@ -150,8 +151,10 @@ struct Node {
 struct le_rendergraph_o : NoCopy, NoMove {
 	le_renderer_o* renderer = nullptr;
 
-	std::vector<le_renderpass_o*>    passes;                                 // owning
-	std::vector<Node>                nodes;                                  // one node per pass
+	std::vector<le_renderpass_o*>      passes;                   // owning
+	std::vector<uintptr_t>             passes_ids;               // original pointer addresses as numbers, as a means to refer to renderpasses (not-owning, only used as a reference)
+	std::vector<std::vector<uint32_t>> grouped_passes_per_pass;  // groups defined for renderpasses- all grouped passes will execute if the owner executes
+	std::vector<Node>                  nodes;                    // one node per pass
 
 	size_t                           num_contributing_passes = 0;            // number of passes which are contributing (the count of all passes where is_contributing is true, set when building the rendergraph)
 	std::vector<le_resource_handle>  declared_resources_id;                  // | pre-declared resources (declared via module)

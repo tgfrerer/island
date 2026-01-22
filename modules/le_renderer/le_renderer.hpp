@@ -532,6 +532,11 @@ class RenderGraph : NoCopy, NoMove {
 		return *this;
 	}
 
+	RenderGraph& groupRenderPassWith( le_renderpass_o const* child, le_renderpass_o const* parent ) {
+		le_renderer::rendergraph_i.group_pass_with( self, child, parent );
+		return *this;
+	}
+
 	RenderGraph& declareResource( le_resource_handle const& resource_id, le_resource_info_t const& info ) {
 		le_renderer::rendergraph_i.declare_resource( self, resource_id, info );
 		return *this;
