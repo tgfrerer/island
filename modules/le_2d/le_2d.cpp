@@ -2032,8 +2032,7 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 		        encoder.copyToBuffer( ctx->buf_bump_cpu, N_BYTES_READBACK_OFFSET * ctx->current_data_frame_idx, ctx->buf_bump, 0, ctx->buf_bump_info.buffer.size );
 
 		        ctx->current_data_frame_idx = ( ctx->current_data_frame_idx + 1 ) % ctx->num_data_frames;
-	        } )
-	        .setIsRoot( true );
+	        } );
 
 	renderGraph
 	    .addRenderPass( rp_xfer_gradients_cache )
@@ -2041,7 +2040,8 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	    .addRenderPass( rp_xfer_scene )
 	    .addRenderPass( rp_clear_images )
 	    .addRenderPass( rp_rasterize )
-	    .addRenderPass( rp_xfer_bump );
+	    .addRenderPass( rp_xfer_bump )
+	    .groupRenderPassWith( rp_xfer_bump, rp_rasterize );
 
 	auto t = &le_2d_api_i->le_2d_backend_callback_i.on_backend_frame_clear_cb;
 
