@@ -824,6 +824,9 @@ static bool le_2d_encode_scene( le_2d_o* self, le_2d_encoder_o const* e, le_reso
 
 		while ( false == encoder_encode_to_bytes( e, self->scene_bytes.data(), &num_scene_bytes, &self->rasterizer_args.layout ) ) {
 			self->scene_bytes.resize( num_scene_bytes );
+			if ( num_scene_bytes == 0 ) {
+				return false;
+			}
 		};
 
 		// snip off any extra bytes that were not used
@@ -1041,6 +1044,11 @@ static void on_backend_frame_clear_callback( void* user_data ) {
 // ----------------------------------------------------------------------
 
 static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* encoder_2d, le_image_resource_handle img_output, le_resource_info_t* img_output_info, uint32_t background_colour_argb ) {
+
+	if ( encoder_2d->n_paths == 0 ) {
+		// nothing to encode
+		return;
+	}
 
 	if ( self->num_data_frames == 0 ) {
 
