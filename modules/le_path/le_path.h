@@ -109,6 +109,11 @@ struct le_path_api {
 		/// Note: Upon return, `*num_vertices` will contain number of vertices needed to describe tessellated contour triangles.
 		bool ( *tessellate_thick_contour )( le_path_o* self, size_t contour_index, struct stroke_attribute_t const* stroke_attributes, float2* vertices, size_t* num_vertices );
 
+		/// Append copy of contours from the current path to the target path
+		/// returns false if not all contour could be copied, or if the index 
+		/// of the first contour to copy could not be found in the source path.
+		bool (*copy_contours_to)(le_path_o* source, le_path_o* target, uint32_t first_contour_to_copy, uint32_t num_contours_to_copy);
+
 		size_t ( *get_num_contours  )( le_path_o* self );
 		size_t ( *get_num_polylines )( le_path_o* self );
 
@@ -278,6 +283,10 @@ class Path {
 
 	size_t getNumContours() const {
 		return le_path::le_path_i.get_num_contours( self );
+	}
+
+	bool copyContoursTo( le_path_o* target, uint32_t first_contour_idx = 0, uint32_t num_contours_to_copy = 1 ) {
+		return le_path::le_path_i.copy_contours_to( self, target, first_contour_idx, num_contours_to_copy );
 	}
 
 	bool getVerticesForPolyline( size_t const& polyline_index, float2* vertices, size_t* numVertices ) const {

@@ -2206,6 +2206,32 @@ bool le_path_tessellate_thick_contour(
 
 // ----------------------------------------------------------------------
 
+static bool le_path_copy_contours_to( le_path_o* source, le_path_o* target, uint32_t first_contour_to_copy, uint32_t num_contours_to_copy ) {
+
+	if ( first_contour_to_copy >= source->sub_path.size() ) {
+		// invalid first contour
+		logger.warn( "Cannot copy contours: Invalid source contour index: %d. Number of contours: %d", first_contour_to_copy, source->sub_path.size() );
+		return false;
+	}
+
+	// ----------| invariant: source index is valid
+
+	if ( first_contour_to_copy + num_contours_to_copy > source->sub_path.size() ) {
+		// number of contours to copy is out of source range
+		logger.warn( "Cannot copy contours: Out of source range." );
+		return false;
+	}
+
+	// ----------| invariant: source range is valid
+
+	target->sub_path.insert( target->sub_path.end(), source->sub_path.begin() + first_contour_to_copy,
+	                         source->sub_path.begin() + first_contour_to_copy + num_contours_to_copy );
+
+	return true;
+};
+
+// ----------------------------------------------------------------------
+
 static void le_path_iterate_vertices_for_contour( le_path_o* self, size_t const& contour_index, le_path_api::contour_vertex_cb callback, void* user_data ) {
 
 	assert( self->sub_path.size() > contour_index );
@@ -2533,7 +2559,14 @@ static void le_path_line_to( void* user_data, float2 const* p ) {
 		le_path_move_to( self, ( float2* )&v0 );
 	}
 	assert( !self->sub_path.empty() ); // subpath must exist
-	self->sub_path.back().commands.emplace_back( PathCommand::eLineTo, *( glm::vec2* )( p ) );
+
+	// Only insert command if the next point is not the same point
+	// that is already in the command list.
+	if ( glm::any( glm::epsilonNotEqual( *( glm::vec2* )( p ),
+	                                     self->sub_path.back().commands.back().p,
+	                                     glm::vec2( std::numeric_limits<float>::epsilon() ) ) ) ) {
+		self->sub_path.back().commands.emplace_back( PathCommand::eLineTo, *( glm::vec2* )( p ) );
+	};
 }
 
 // ----------------------------------------------------------------------
@@ -3688,6 +3721,8 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 
 	le_path_i.generate_offset_outline_for_contour = le_path_generate_offset_outline_for_contour;
 	le_path_i.tessellate_thick_contour            = le_path_tessellate_thick_contour;
+
+	le_path_i.copy_contours_to = le_path_copy_contours_to;
 
 	le_path_i.iterate_vertices_for_contour     = le_path_iterate_vertices_for_contour;
 	le_path_i.iterate_quad_beziers_for_contour = le_path_iterate_quad_beziers_for_contour;
