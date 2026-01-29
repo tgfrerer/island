@@ -9,6 +9,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <cassert>
+#include <regex>
+#include <ostream>
 
 #ifdef _MSC_VER
 
@@ -54,8 +56,8 @@ static uint64_t le_image_encoder_get_encoder_version( le_image_encoder_o* encode
 static le_ffmpeg_pipe_encoder_parameters_t get_default_parameters() {
 	using ns = le_ffmpeg_pipe_encoder_parameters_t;
 	return le_ffmpeg_pipe_encoder_parameters_t{
-	    /* MP4 @ 60 fps */ .command_line = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i %s -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high %s",
-	    // /* GIF */ .command_line = "ffmpeg -r 60 -f rawvideo -pix_fmt %s -s %dx%d -i %s -filter_complex \"[0:v] fps=30,split [a][b];[a] palettegen [p];[b][p] paletteuse\" %s",
+	    /* MP4 @ 60 fps */ .command_line = "ffmpeg -r 60 -f rawvideo -pix_fmt ${pix_fmt} -s ${w}x${h} -i ${input} -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high ${output}",
+	    // /* GIF */ .command_line = "ffmpeg -r 60 -f rawvideo -pix_fmt ${pix_fmt} -s ${w}x${h} -i ${input} -filter_complex \"[0:v] fps=30,split [a][b];[a] palettegen [p];[b][p] paletteuse\" ${output}",
 	};
 }
 
@@ -65,7 +67,7 @@ struct le_image_encoder_o {
 	uint32_t image_width  = 0;
 	uint32_t image_height = 0;
 
-	std::string output_file_name;
+	std::string output_sink; // may be a filename, could also be a different type of output
 
 #ifdef _MSC_VER
 	HANDLE              pipe = nullptr; // named windows pipe
@@ -92,7 +94,7 @@ static le_image_encoder_o* le_image_encoder_create( char const* file_path, uint3
 	auto        self   = new le_image_encoder_o();
 	logger.info( "Creating ffmpeg pipe encoder %p", self );
 
-	self->output_file_name = file_path;
+	self->output_sink      = file_path;
 	self->image_width      = width;
 	self->image_height     = height;
 
@@ -134,6 +136,62 @@ static void le_image_encoder_set_encode_parameters( le_image_encoder_o* self, vo
 		logger.warn( "Could not set parameters for encoder: Parameters pointer was NULL." );
 	}
 }
+
+// ----------------------------------------------------------------------
+
+static std::string build_command_line( le_image_encoder_o* self, char const* pipe_name, std::string const& pix_fmt ) {
+	std::ostringstream cmd_result;
+
+	// here, apply f-string style replacement --
+	// this can be a bit heavier, because this will only happen once, as the pipe will stay alife for the duration of the video recording.
+
+	std::regex                                       pattern( R"(\$\{([A-Za-z_][A-Za-z0-9_]*)\})" );
+	std::regex_token_iterator<std::string::iterator> it_cmd_var( self->pipe_cmd.begin(), self->pipe_cmd.end(), pattern, 1 );
+	std::regex_token_iterator<std::string::iterator> it_cmd_context( self->pipe_cmd.begin(), self->pipe_cmd.end(), pattern, -1 );
+
+	// default constructor = end-of-sequence:
+	std::regex_token_iterator<std::string::iterator> rend;
+
+	// this assumes that var and context are always interleaved, and that the context comes first.
+	// we must test what happens if a var comes first.
+
+	while ( it_cmd_var != rend || it_cmd_context != rend ) {
+		if ( it_cmd_context != rend ) {
+			// This is text between our fill strings
+			cmd_result << *it_cmd_context;
+			it_cmd_context++;
+		}
+		if ( it_cmd_var != rend ) {
+			if ( it_cmd_var->matched ) {
+
+				uint64_t var_hash = hash_64_fnv1a( it_cmd_var->str().c_str() );
+				switch ( var_hash ) {
+				case ( hash_64_fnv1a_const( "w" ) ):
+					cmd_result << self->image_width;
+					break;
+				case ( hash_64_fnv1a_const( "h" ) ):
+					cmd_result << self->image_height;
+					break;
+				case ( hash_64_fnv1a_const( "pix_fmt" ) ):
+					cmd_result << pix_fmt;
+					break;
+				case ( hash_64_fnv1a_const( "input" ) ):
+					cmd_result << pipe_name;
+					break;
+				case ( hash_64_fnv1a_const( "output" ) ):
+					cmd_result << self->output_sink;
+					break;
+				default:
+					break;
+				}
+			}
+			it_cmd_var++;
+		}
+	}
+
+	return cmd_result.str();
+}
+
 // ----------------------------------------------------------------------
 
 static bool le_image_encoder_write_pixels( le_image_encoder_o* self, uint8_t const* p_pixel_data, size_t pixel_data_byte_count, le_image_encoder_format_o* pixel_data_format ) {
@@ -190,22 +248,21 @@ static bool le_image_encoder_write_pixels( le_image_encoder_o* self, uint8_t con
 		STARTUPINFOA si = {};
 		si.cb           = sizeof( self->pi );
 
-		char cmd[ 1024 ]{};
-		snprintf( cmd, sizeof( cmd ), self->pipe_cmd.c_str(), pix_fmt.c_str(), self->image_width, self->image_height, G_PIPE_NAME, self->output_file_name.c_str() );
-		logger.info( "Image encoder opening pipe using command line: '%s'", cmd );
+		std::string cmd = build_command_line( self, G_PIPE_NAME, pix_fmt );
+		logger.info( "Image encoder opening pipe using command line: '%s'", cmd.c_str() );
 
 		// Create the process
 		if ( !CreateProcessA(
-		         nullptr,        // Application name
-		         ( LPSTR )cmd,   // Command line
-		         nullptr,        // Process handle not inheritable
-		         nullptr,        // Thread handle not inheritable
-		         FALSE,          // Set handle inheritance to FALSE
-		         0,              // No creation flags
-		         nullptr,        // Use parent's environment block
-		         nullptr,        // Use parent's starting directory
-		         &si,            // Pointer to STARTUPINFO structure
-		         &self->pi ) ) { // Pointer to PROCESS_INFORMATION structure
+		         nullptr,              // Application name
+		         ( LPSTR )cmd.c_str(), // Command line
+		         nullptr,              // Process handle not inheritable
+		         nullptr,              // Thread handle not inheritable
+		         FALSE,                // Set handle inheritance to FALSE
+		         0,                    // No creation flags
+		         nullptr,              // Use parent's environment block
+		         nullptr,              // Use parent's starting directory
+		         &si,                  // Pointer to STARTUPINFO structure
+		         &self->pi ) ) {       // Pointer to PROCESS_INFORMATION structure
 
 			DWORD error_no = GetLastError();
 			logger.error( "error creating process: %s", get_error_string( error_no ).c_str() );
@@ -221,12 +278,12 @@ static bool le_image_encoder_write_pixels( le_image_encoder_o* self, uint8_t con
 		// Close process and thread handles
 
 #else
-		char cmd[ 1024 ]{};
-		snprintf( cmd, sizeof( cmd ), self->pipe_cmd.c_str(), pix_fmt.c_str(), self->image_width, self->image_height, "-", self->output_file_name.c_str() );
-		logger.info( "Image encoder opening pipe using command line: '%s'", cmd );
+
+		std::string cmd = build_command_line( self, "-", pix_fmt );
+		logger.info( "Image encoder opening pipe using command line: '%s'", cmd.c_str() );
 
 		// Open pipe to ffmpeg's stdin in binary write mode
-		self->pipe = popen( cmd, "w" );
+		self->pipe = popen( cmd.c_str(), "w" );
 
 		if ( self->pipe == nullptr ) {
 			logger.error( "Could not open pipe. Additionally, strerror reports: $s", strerror( errno ) );
@@ -264,7 +321,7 @@ static bool le_image_encoder_write_pixels( le_image_encoder_o* self, uint8_t con
 
 static void le_image_encoder_update_filename( le_image_encoder_o* self, char const* filename ) {
 	// Note: only the first file name will be used
-	self->output_file_name = filename;
+	self->output_sink = filename;
 }
 // ----------------------------------------------------------------------
 
