@@ -47,6 +47,7 @@ struct le_screenshot_o {
 	le_swapchain_handle         swapchain          = nullptr; // opaque handle to a swapchain owned by the renderer
 	le_image_resource_handle    fallback_src_image = nullptr; // source image used if no source image was given explicitly (this is resolved to the image of the first available swapchain)
 	le_swapchain_img_settings_t swapchain_settings = {};
+	le_shader_module_handle     blit_frag_shader_optional = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -111,18 +112,18 @@ static le_shader_module_handle get_shader_frag_blit( le_pipeline_manager_o* pm )
 static void le_screenshot_blit_apply( le_screenshot_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst ) {
 
 	static auto pipelineBlit =
-		LeGraphicsPipelineBuilder( self->pipeline_manager )
-			.addShaderStage( get_shader_vert( self->pipeline_manager ) )
-			.addShaderStage( get_shader_frag_blit( self->pipeline_manager ) )
-			.withAttachmentBlendState()
-			.setColorBlendOp( le::BlendOp::eAdd )
-			.setSrcColorBlendFactor( le::BlendFactor::eOne )
-			.setDstColorBlendFactor( le::BlendFactor::eZero )
-			.setAlphaBlendOp( le::BlendOp::eAdd )
-			.setSrcAlphaBlendFactor( le::BlendFactor::eOne )
-			.setDstAlphaBlendFactor( le::BlendFactor::eZero ) // note we don't want to add alpha - we want to just get the dst alpha
-			.end()
-			.build();
+	    LeGraphicsPipelineBuilder( self->pipeline_manager )
+	        .addShaderStage( get_shader_vert( self->pipeline_manager ) )
+	        .addShaderStage( self->blit_frag_shader_optional ? self->blit_frag_shader_optional : get_shader_frag_blit( self->pipeline_manager ) )
+	        .withAttachmentBlendState()
+	        .setColorBlendOp( le::BlendOp::eAdd )
+	        .setSrcColorBlendFactor( le::BlendFactor::eOne )
+	        .setDstColorBlendFactor( le::BlendFactor::eZero )
+	        .setAlphaBlendOp( le::BlendOp::eAdd )
+	        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
+	        .setDstAlphaBlendFactor( le::BlendFactor::eZero ) // note we don't want to add alpha - we want to just get the dst alpha
+	        .end()
+	        .build();
 
 	auto blit_pass =
 	    le::RenderPass( "Screenshot BLIT" )
@@ -287,11 +288,18 @@ static bool le_screenshot_record( le_screenshot_o* self, le_rendergraph_o* rg, l
 
 // ----------------------------------------------------------------------
 
+static void le_screenshot_set_shader_frag( le_screenshot_o* self, le_shader_module_handle shader_module ) {
+	self->blit_frag_shader_optional = shader_module;
+}
+
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_screenshot, api ) {
 	auto& le_screenshot_i = static_cast<le_screenshot_api*>( api )->le_screenshot_i;
 
 	le_screenshot_i.create  = le_screenshot_create;
 	le_screenshot_i.destroy = le_screenshot_destroy;
+	le_screenshot_i.set_shader_frag = le_screenshot_set_shader_frag;
 	le_screenshot_i.record  = le_screenshot_record;
 	le_screenshot_i.init    = le_screenshot_init;
 }
