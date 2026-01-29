@@ -1,3 +1,12 @@
+// 
+//   IMPORTANT: 
+//   
+//   sRGB is a colour space with primaries and an illuminant,
+//	 and can have a transfer function that is 	
+// 		- non-linear (default, Bt.709)
+//   	- or linear  
+//
+
 
 // Given in 10 nm bands from 380nm to 760nm
 // X,Y,Z
@@ -67,41 +76,104 @@ vec4 rgba_linear_color_from_hex(in uint hexVal ){
 	return (result/255.f);
 }
 
-// we're setting white point to what we expect our hdr 
-// screen to have as default brightness, given in nits.
-// we assume 350 or 400 for now.
+// Converts a color from linear light gamma to sRGB gamma
+vec3 nonlinear_srgb_from_linear_srgb(vec3 linearRGB)
+{
+    bvec3 cutoff = lessThan(linearRGB, vec3(0.0031308));
+    vec3 higher = vec3(1.055)*pow(linearRGB, vec3(1.0/2.4)) - vec3(0.055);
+    vec3 lower = linearRGB * vec3(12.92);
 
-// This is adapted from: <https://panoskarabelas.com/blog/posts/hdr_in_under_10_minutes/>
-// vec3 linear_srgb_to_hdr10( in vec3 color, in const float white_point_in_nits)
-// {
-//     // Convert Rec.709 to Rec.2020 color space to broaden the palette
-//     const mat3 from709to2020 =
-//     {
-//         { 0.6274040f, 0.3292820f, 0.0433136f },
-//         { 0.0690970f, 0.9195400f, 0.0113612f },
-//         { 0.0163916f, 0.0880132f, 0.8955950f }
-//     };   
-//     // color = color * from709to2020 ;
-//      color = color * from709to2020 ;
-// 
-//     // Normalize HDR scene values ([0..>1] to [0..1]) for ST.2084 curve
-//     const float st2084_max = 10000.0f;
-//     // color *= white_point_in_nits / st2084_max;
-// 
-//     // Apply ST.2084 (PQ curve) for HDR10 standard
-//     //
-// 	// The original inverse-EOTF spec is Equation 5.2, pg.8 in: 
-// 	// <https://pub.smpte.org/latest/st2084/st2084-2014.pdf>
-//     const float m1 = 2610.0 / 4096.0 / 4;
-//     const float m2 = 2523.0 / 4096.0 * 128;
-//     const float c1 = 3424.0 / 4096.0;
-//     const float c2 = 2413.0 / 4096.0 * 32;
-//     const float c3 = 2392.0 / 4096.0 * 32;
-// 	vec3 cp             = pow(abs(color), vec3(m1));
-//     color               = pow((c1 + c2 * cp) / (1 + c3 * cp), vec3(m2));
-// 
-//     return color;
-// }
+    return mix(higher, lower, cutoff);
+}
+
+// Converts a color from sRGB gamma to linear light gamma
+vec3 linear_srgb_from_nonlinear_srgb(vec3 sRGB)
+{
+    bvec3 cutoff = lessThan(sRGB, vec3(0.04045));
+    vec3 higher = pow((sRGB + vec3(0.055))/vec3(1.055), vec3(2.4));
+    vec3 lower = sRGB/vec3(12.92);
+
+    return mix(higher, lower, cutoff);
+}
+
+// [tig] This is adapted from: <https://panoskarabelas.com/blog/posts/hdr_in_under_10_minutes/>
+// with the conversion matrix hand-derived and verified via: 
+// http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+// With D65 whitepoint (XYZ: 0.95047, 1.00000, 1.08883)
+// sRGB primaries:    [0.640, 0.330, 0.300, 0.600, 0.150 ,0.060 ] // [rx,ry,gx,gy,bx,by]
+// bt.2020 primaries: [0.708, 0.292, 0.170, 0.797, 0.131, 0.046]
+vec3 linear_srgb_to_bt2020_pq( in vec3 color, in const float white_point_in_nits)
+{
+    // Convert Rec.709 to Rec.2020 color space to broaden the palette
+    const mat3 from709to2020 =
+    {
+        { 0.6274040f, 0.3292820f, 0.0433136f },
+        { 0.0690970f, 0.9195400f, 0.0113612f },
+        { 0.0163916f, 0.0880132f, 0.8955950f }
+    };   
+
+    // Note that we pre-multiply, as the matrix above is row-major.
+    // pre-multiplying is the mathematical equivalent of transposing 
+    // the matrix first, then post-multiplying.
+    color = color * from709to2020;
+
+    // Normalize HDR scene values ([0..>1] to [0..1]) for ST.2084 curve
+    const float st2084_max = 10000.0f;
+    color *=  white_point_in_nits / st2084_max;
+
+    // Apply ST.2084 (PQ curve) for HDR10 standard
+    //
+	// The original inverse-EOTF spec is Equation 5.2, pg.8 in: 
+	// <https://pub.smpte.org/latest/st2084/st2084-2014.pdf>
+    const float m1 = 2610.0 / 4096.0 / 4;
+    const float m2 = 2523.0 / 4096.0 * 128;
+    const float c1 = 3424.0 / 4096.0;
+    const float c2 = 2413.0 / 4096.0 * 32;
+    const float c3 = 2392.0 / 4096.0 * 32;
+	vec3 cp             = pow(abs(color), vec3(m1));
+    color               = pow((c1 + c2 * cp) / (1 + c3 * cp), vec3(m2));
+
+    return color;
+}
+
+// [tig] Conversion matrix calculated following
+// http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+// With D65 whitepoint (XYZ: 0.95047, 1.00000, 1.08883)
+// sRGB primaries: [0.640, 0.330, 0.300, 0.600, 0.150 ,0.060 ] // [rx,ry,gx,gy,bx,by]
+// P3   primaries: [0.680, 0.320, 0.265, 0.690, 0.150, 0.060 ]
+vec3 linear_srgb_to_display_p3_pq( in vec3 color, in const float white_point_in_nits)
+{
+    // Convert Rec.709 to Display P3 color space to broaden the palette
+    const mat3 from709toP3 =
+    {
+        { 8.22488581e-01, 1.77511419e-01, -5.45598434e-18},
+        { 3.32000485e-02, 9.66799951e-01, -3.17642342e-18},
+        { 1.70890654e-02, 7.24115122e-02,  9.10499422e-01}
+    };   
+
+    // Note that we pre-multiply, as the matrix above is row-major.
+    // pre-multiplying is the mathematical equivalent of transposing 
+    // the matrix first, then post-multiplying.
+    color = color * from709toP3;
+
+    // Normalize HDR scene values ([0..>1] to [0..1]) for ST.2084 curve
+    const float st2084_max = 10000.0f;
+    color *=  white_point_in_nits / st2084_max;
+
+    // Apply ST.2084 (PQ curve) for HDR10 standard
+    //
+    // The original inverse-EOTF spec is Equation 5.2, pg.8 in: 
+    // <https://pub.smpte.org/latest/st2084/st2084-2014.pdf>
+    const float m1 = 2610.0 / 4096.0 / 4;
+    const float m2 = 2523.0 / 4096.0 * 128;
+    const float c1 = 3424.0 / 4096.0;
+    const float c2 = 2413.0 / 4096.0 * 32;
+    const float c3 = 2392.0 / 4096.0 * 32;
+    vec3 cp             = pow(abs(color), vec3(m1));
+    color               = pow((c1 + c2 * cp) / (1 + c3 * cp), vec3(m2));
+
+    return color;
+}
 
 
 // Via http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
