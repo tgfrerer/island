@@ -22,7 +22,7 @@ vec3 bloomTintColors[5] = {vec3(1),vec3(1),vec3(1),vec3(1),vec3(1)};
 
 float lerpBloomFactor(const in float factor) { 
 	float mirrorFactor = 1.2 - factor;
-	return mix(factor, mirrorFactor, bloomRadius);
+	return mix(factor, mirrorFactor, clamp(bloomRadius,0,1));
 }
 
 void main() {
