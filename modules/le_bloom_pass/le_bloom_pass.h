@@ -13,14 +13,14 @@ struct le_bloom_pass_api {
 
 	struct params_t {
 		struct bloom_params_t {
-			float strength{1};
-			float radius{1};
+			float strength = 1.f;
+			float radius   = 1.f;
 		} bloom;
 		struct luma_threshold_params_t {
-			float defaultColor[ 3 ]{0.f, 0.f, 0.f}; // vec3(0)
-			float defaultOpacity{0.7f};             // 0
-			float luminosityThreshold{0.75f};       // 1.f
-			float smoothWidth{0.01f};               // 1.0
+			float defaultColor[ 3 ]   = { 0.f, 0.f, 0.f }; // vec3(0)
+			float defaultOpacity      = 0.7f;              // 0
+			float luminosityThreshold = 1.f;             // 1.f
+			float smoothWidth         = 0.01f;             // 1.0
 		} luma_threshold;
 	};
 

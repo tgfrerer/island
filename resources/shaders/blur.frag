@@ -3,13 +3,9 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-#ifndef KERNEL_RADIUS
-  #define KERNEL_RADIUS 2
-#endif
+layout (constant_id = 0) const int KERNEL_RADIUS = 2;
+layout (constant_id = 1) const float SIGMA = 2.f;
 
-#ifndef SIGMA
-  #define SIGMA KERNEL_RADIUS
-#endif
 
 
 // inputs 

@@ -62,7 +62,7 @@ le_render_module_add_blit_pass(
 static void
 le_render_module_add_bloom_pass(
     le_renderer_o*                  renderer,
-    le_rendergraph_o*               module,
+    le_rendergraph_o*               rendergraph,
     le_image_resource_handle const& input,
     le_image_resource_handle const& output,
     uint32_t const&                 width,
@@ -197,22 +197,18 @@ le_render_module_add_bloom_pass(
 
 		auto* pm = encoder.getPipelineManager();
 
-		static char const* BLUR_KERNEL_DEFINES[] = {
-		    "KERNEL_RADIUS=3",
-		    "KERNEL_RADIUS=5",
-		    "KERNEL_RADIUS=7",
-		    "KERNEL_RADIUS=9",
-		    "KERNEL_RADIUS=11",
-		};
-
 		static auto quadVert = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).build();
 
+		static LeShaderModuleBuilder builder =
+		    std::move( LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ) );
+
+		// Set kernel width and sigma via specialization constants - we do it this way so that
+		// the driver can optimise the shader and unroll loops if possible.
 		static le_shader_module_handle gaussianBlurFrag[] = {
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 0 ] ).build(),
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 1 ] ).build(),
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 2 ] ).build(),
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 3 ] ).build(),
-		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 4 ] ).build(),
+		    builder.setSpecializationConstant( 0, 5l ).setSpecializationConstant( 1, 5.5f ).build(),   // build a version of the pipeline with kernel width 5, sigma 5
+		    builder.setSpecializationConstant( 0, 7l ).setSpecializationConstant( 1, 7.5f ).build(),   // build a version of the pipeline with kernel width 7, sigma 7
+		    builder.setSpecializationConstant( 0, 9l ).setSpecializationConstant( 1, 9.5f ).build(),   // --"--  9, 9
+		    builder.setSpecializationConstant( 0, 11l ).setSpecializationConstant( 1, 11.5f ).build(), // --"-- 11, 11
 		};
 
 		struct BlurParams {
@@ -284,7 +280,7 @@ le_render_module_add_bloom_pass(
 	{
 		using namespace le_renderer;
 
-		rendergraph_i.add_renderpass( module, passHighPass );
+		rendergraph_i.add_renderpass( rendergraph, passHighPass );
 
 		uint32_t w = width;
 		uint32_t h = height;
@@ -319,8 +315,8 @@ le_render_module_add_bloom_pass(
 
 			source_info = targets_blur_v[ i ].info;
 
-			rendergraph_i.add_renderpass( module, passBlurHorizontal );
-			rendergraph_i.add_renderpass( module, passBlurVertical );
+			rendergraph_i.add_renderpass( rendergraph, passBlurHorizontal );
+			rendergraph_i.add_renderpass( rendergraph, passBlurVertical );
 		}
 
 		auto passCombine =
@@ -333,17 +329,18 @@ le_render_module_add_bloom_pass(
 		        .addColorAttachment( output, LOAD_LOAD ) // color attachment
 		        .setExecuteCallback( params, combine_render_fun );
 
-		rendergraph_i.add_renderpass( module, passCombine );
-		rendergraph_i.declare_resource( module, bloom_blur_v[ 4 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_v[ 3 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_v[ 2 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_v[ 1 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_v[ 0 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_h[ 4 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_h[ 3 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_h[ 2 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_h[ 1 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
-		rendergraph_i.declare_resource( module, bloom_blur_h[ 0 ], le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled ).build() );
+		rendergraph_i.add_renderpass( rendergraph, passCombine );
+
+		static const auto image_info =
+		    le::ImageInfoBuilder()
+		        .setUsageFlags( le::ImageUsageFlagBits::eColorAttachment | le::ImageUsageFlagBits::eSampled )
+		        .setFormat( le::Format::eR32G32B32A32Sfloat )
+		        .build();
+
+		for ( int i = 0; i != 4; i++ ) {
+			rendergraph_i.declare_resource( rendergraph, bloom_blur_v[ i ], image_info );
+			rendergraph_i.declare_resource( rendergraph, bloom_blur_h[ i ], image_info );
+		}
 	}
 }
 
