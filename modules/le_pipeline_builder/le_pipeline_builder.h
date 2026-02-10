@@ -210,7 +210,7 @@ static const auto& le_shader_module_builder_i     = api->le_shader_module_builde
 
 // ----------------------------------------------------------------------
 
-class LeShaderModuleBuilder : NoCopy, NoMove {
+class LeShaderModuleBuilder : NoCopy {
 
 	le_shader_module_builder_o* self;
 
@@ -220,8 +220,20 @@ class LeShaderModuleBuilder : NoCopy, NoMove {
 	}
 
 	~LeShaderModuleBuilder() {
-		le_pipeline_builder::le_shader_module_builder_i.destroy( self );
+		if ( self ) {
+			le_pipeline_builder::le_shader_module_builder_i.destroy( self );
+			self = nullptr;
+		}
 	}
+
+	// move construction operator
+	LeShaderModuleBuilder( LeShaderModuleBuilder&& rhs ) noexcept
+	    : self( rhs.self ) {
+		rhs.self = nullptr;
+	};
+
+	// move assignment operator
+	LeShaderModuleBuilder& operator=( LeShaderModuleBuilder&& rhs ) = delete;
 
 	le_shader_module_handle_t* build() {
 		return le_pipeline_builder::le_shader_module_builder_i.build( self );
@@ -262,7 +274,6 @@ class LeShaderModuleBuilder : NoCopy, NoMove {
 		le_pipeline_builder::le_shader_module_builder_i.set_specialization_constant( self, constant_id, &value, 4 );
 		return *this;
 	}
-
 };
 // ----------------------------------------------------------------------
 
