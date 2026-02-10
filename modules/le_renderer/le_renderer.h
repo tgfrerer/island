@@ -129,9 +129,13 @@ struct le_renderer_api {
 		void                            ( *get_queue_sumbission_info)( const le_renderpass_o* obj, le::QueueFlagBits* pass_type, le::RootPassesField * queue_submission_id, bool *has_commands);
 		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_image_resource_handle ** pResourceIds, size_t* numAttachments);
 
-		// Reference counting
-		void (*ref_inc)(le_renderpass_o* self);
-		void (*ref_dec)(le_renderpass_o* self);
+		// Reference counting --
+
+		// returns value of le_renderpass_o* after incrementing reference count 
+		le_renderpass_o* (*ref_inc)(le_renderpass_o* self);
+		// returns value of le_renderpass_o* after decrementing reference count
+		// (may be nullptr if deleted, in case reference count is 0)
+		le_renderpass_o* (*ref_dec)(le_renderpass_o* self);
 
 		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id,  le::AccessFlags2 const& access_flags, resource_usage_flags const& usage_flags);
 

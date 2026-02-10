@@ -373,20 +373,18 @@ class RenderPass {
 		// We check for validity of self, as move assignment/constructor
 		// set the moved-from to null after completion.
 		if ( self ) {
-			le_renderer::renderpass_i.ref_dec( self );
+			self = le_renderer::renderpass_i.ref_dec( self );
 		}
 	}
 
 	// Copy constructor
 	RenderPass( RenderPass const& rhs )
-	    : self( rhs.self ) {
-		le_renderer::renderpass_i.ref_inc( self );
+	    : self( le_renderer::renderpass_i.ref_inc( rhs.self ) ) {
 	}
 
 	// Copy assignment
 	RenderPass& operator=( RenderPass const& rhs ) {
-		self = rhs.self;
-		le_renderer::renderpass_i.ref_inc( self );
+		self = le_renderer::renderpass_i.ref_inc( rhs.self );
 		return *this;
 	}
 

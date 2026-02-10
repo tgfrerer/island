@@ -66,14 +66,17 @@ static void renderpass_disable( le_renderpass_o* self ) {
 	self->is_contributing = false;
 }
 
-static void renderpass_ref_inc( le_renderpass_o* self ) {
+static le_renderpass_o* renderpass_ref_inc( le_renderpass_o* self ) {
 	++self->ref_count;
+	return self;
 }
 
-static void renderpass_ref_dec( le_renderpass_o* self ) {
+static le_renderpass_o* renderpass_ref_dec( le_renderpass_o* self ) {
 	if ( --self->ref_count == 0 ) {
 		renderpass_destroy( self );
+		return nullptr;
 	}
+	return self;
 }
 
 // ----------------------------------------------------------------------
