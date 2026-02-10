@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 static constexpr auto LOGGER_LABEL = "le_screenshot";
 
@@ -37,6 +38,7 @@ static le_swapchain_img_settings_t get_default_swapchain_img_settings() {
 	};
 	return settings;
 }
+
 // ----------------------------------------------------------------------
 
 struct le_screenshot_o {
@@ -48,6 +50,8 @@ struct le_screenshot_o {
 	le_image_resource_handle    fallback_src_image = nullptr; // source image used if no source image was given explicitly (this is resolved to the image of the first available swapchain)
 	le_swapchain_img_settings_t swapchain_settings = {};
 	le_shader_module_handle     blit_frag_shader_optional = nullptr;
+	std::unordered_map<le_shader_module_handle, le_gpso_handle> pipeline_cache; // local store for pipelines, associated with shader - we keep this so that we only create one pipeline per shader module
+	le_gpso_handle                                              pipeline;
 };
 
 // ----------------------------------------------------------------------
@@ -111,19 +115,45 @@ static le_shader_module_handle get_shader_frag_blit( le_pipeline_manager_o* pm )
 // ----------------------------------------------------------------------
 static void le_screenshot_blit_apply( le_screenshot_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst ) {
 
-	static auto pipelineBlit =
-	    LeGraphicsPipelineBuilder( self->pipeline_manager )
-	        .addShaderStage( get_shader_vert( self->pipeline_manager ) )
-	        .addShaderStage( self->blit_frag_shader_optional ? self->blit_frag_shader_optional : get_shader_frag_blit( self->pipeline_manager ) )
-	        .withAttachmentBlendState()
-	        .setColorBlendOp( le::BlendOp::eAdd )
-	        .setSrcColorBlendFactor( le::BlendFactor::eOne )
-	        .setDstColorBlendFactor( le::BlendFactor::eZero )
-	        .setAlphaBlendOp( le::BlendOp::eAdd )
-	        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
-	        .setDstAlphaBlendFactor( le::BlendFactor::eZero ) // note we don't want to add alpha - we want to just get the dst alpha
-	        .end()
-	        .build();
+	/*
+	 *  Note that we're not 100% happy with how a custom pipeline is set -
+	 *  we are setting `self->pipeline` here, and assume
+	 *  that this will remain unchanged until the callback is called;
+	 *  this is something that is difficult to guarantee.
+	 *
+	 *  The best solution would be if the render callback had something
+	 *  like a closure (with its own state) -- and we would then store
+	 *  the state of the pipeline there, which would be valid for the
+	 *  duration of the renderer's frame.
+	 *
+	 */
+
+	auto        selected_shader      = self->blit_frag_shader_optional ? self->blit_frag_shader_optional : get_shader_frag_blit( self->pipeline_manager );
+	static auto last_selected_shader = selected_shader;
+
+	self->pipeline = self->pipeline_cache[ selected_shader ];
+
+	if ( self->pipeline == nullptr ) {
+
+		// If there is no pipeline in the cache, we must create one.
+
+		self->pipeline =
+		    LeGraphicsPipelineBuilder( self->pipeline_manager )
+		        .addShaderStage( get_shader_vert( self->pipeline_manager ) )
+		        .addShaderStage( selected_shader )
+		        .withAttachmentBlendState()
+		        .setColorBlendOp( le::BlendOp::eAdd )
+		        .setSrcColorBlendFactor( le::BlendFactor::eOne )
+		        .setDstColorBlendFactor( le::BlendFactor::eZero )
+		        .setAlphaBlendOp( le::BlendOp::eAdd )
+		        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
+		        .setDstAlphaBlendFactor( le::BlendFactor::eZero ) // note we don't want to add alpha - we want to just get the dst alpha
+		        .end()
+		        .build();
+
+		self->pipeline_cache[ selected_shader ] = self->pipeline;
+		last_selected_shader                    = selected_shader;
+	}
 
 	auto blit_pass =
 	    le::RenderPass( "Screenshot BLIT" )
@@ -147,7 +177,7 @@ static void le_screenshot_blit_apply( le_screenshot_o* self, le_rendergraph_o* r
 		        auto                fx = static_cast<le_screenshot_o*>( user_data );
 		        le::GraphicsEncoder encoder{ encoder_ };
 		        encoder
-		            .bindGraphicsPipeline( pipelineBlit )
+		            .bindGraphicsPipeline( fx->pipeline )
 		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blit_source )
 		            .draw( 4 );
 	        } );
