@@ -58,7 +58,6 @@ struct le_screenshot_o {
 
 static le_screenshot_o* le_screenshot_create( le_renderer_o* renderer ) {
 	auto self                = new le_screenshot_o{ renderer };
-	self->pipeline_manager   = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
 	self->tex_blit_source    = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "fx_blit_source" );
 	self->swapchain_settings = get_default_swapchain_img_settings();
 	return self;
@@ -193,6 +192,12 @@ static void le_screenshot_blit_apply( le_screenshot_o* self, le_rendergraph_o* r
 static bool le_screenshot_record( le_screenshot_o* self, le_rendergraph_o* rg, le_image_resource_handle src_image_, uint32_t* num_images, le_swapchain_img_settings_t const* p_img_settings ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
+
+	if ( nullptr == self->pipeline_manager ) {
+		// we must check whether the pipeline manager has been set - in case the screenshot object was created from a
+		// renderer that was not setup, it would not have had an opportunity to query the renderer's pipeline manager.
+		self->pipeline_manager = le_renderer_api_i->le_renderer_i.get_pipeline_manager( self->renderer );
+	}
 
 	// In case we've already recorded all the frames that need recording
 	// we can return early
