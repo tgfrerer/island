@@ -109,11 +109,31 @@ static const auto& le_screenshot_i = api->le_screenshot_i;
 } // namespace le_screenshot
 
 class LeScreenshot : NoCopy, NoMove {
+	le_screenshot_o* self;
 
   public:
-    static bool init() {
-        return le_screenshot::le_screenshot_i.init();
-    }
+	static bool init() {
+		return le_screenshot::le_screenshot_i.init();
+	}
+
+	LeScreenshot( le_renderer_o* renderer ) {
+		self = le_screenshot::le_screenshot_i.create( renderer );
+	}
+
+	~LeScreenshot() {
+		if ( self ) {
+			le_screenshot::le_screenshot_i.destroy( self );
+			self = nullptr;
+		}
+	}
+
+	void setShaderFrag( le_shader_module_handle_t* shader_handle ) {
+		le_screenshot::le_screenshot_i.set_shader_frag( self, shader_handle );
+	}
+
+	void record( le_rendergraph_o* rendergraph, le_image_resource_handle& src_image, uint32_t* num_images, le_swapchain_img_settings_t const* p_img_swapchain_settings = nullptr ) {
+		le_screenshot::le_screenshot_i.record( self, rendergraph, src_image, num_images, p_img_swapchain_settings );
+	}
 };
 
 namespace le {
