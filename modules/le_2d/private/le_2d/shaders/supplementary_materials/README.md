@@ -78,4 +78,4 @@ Wgsl does not allow unknown formats for output storage images, it requires you t
 
 What we do: 
 
-We compile both *fine* shaders into `fine_area.spv` and `fine_msaa.spv` using Tint using `tint_to_spv.sh`. Then, we disassemble both shader files using `spirv-dis`
+We compile both *fine* shaders into `fine_area.spv` and `fine_msaa.spv` using Tint using `tint_to_spv.sh`. Then, we disassemble both shader files using `spirv-dis`, apply the patch using `sed`, and compile the patched assembly into a spirv file again, using `spv-as`. 
