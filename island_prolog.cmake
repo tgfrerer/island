@@ -20,11 +20,17 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # manually set that we want to use libc pthread - there seems to be an
     # issue with detecting Thread support, otherwise.
     set (CMAKE_HAVE_LIBC_PTHREAD TRUE)
+
     # use lld linker for clang-compiled binary - it's faster than gnu ld,
     # and you don't have to worry about the linking order for libraries.
-    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-fuse-ld=lld -Wno-unused-command-line-argument")
-    set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-fuse-ld=lld -Wno-unused-command-line-argument")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
+    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wno-unused-command-line-argument")
+
+    # Activate asan if you must:
+    # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -fsanitize=address")
+    # set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} " -fsanitize=address -Wno-unused-command-line-argument")
 endif()
+
 
 set ( STATIC_LIBRARIES "" CACHE INTERNAL "static_libraries" )
 set ( DEPENDENCY_DEPTH 0 CACHE INTERNAL "current depth in dependency hierarchy" )
