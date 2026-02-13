@@ -9,6 +9,8 @@ for file in *.wgsl;do
 	
 	printf "processing: %s\n" "$file_name"
 
+	rm -f "tmp_input.wgsl"
+
 	tmpfile=$(mktemp)
 	mv "$tmpfile" "tmp_input.wgsl"
 	tmpfile="tmp_input.wgsl"
@@ -71,5 +73,7 @@ done
 
 popd
 
-
-popd
+# convert .spv files to .inl files
+pushd "../../vello/"
+	./compress_shaders.sh
+popd 
