@@ -72,6 +72,8 @@ struct le_log_api {
 
     };
 
+    struct le_log_context_o* own_context;
+
     le_log_channel_interface_t   le_log_channel_i;
 };
 // clang-format on

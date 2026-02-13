@@ -273,13 +273,11 @@ LE_MODULE_REGISTER_IMPL( le_log, api ) {
 	le_api_channel_i.error     = le_log_implementation<LeLog::Level::eError>;
 	le_api_channel_i.set_level = le_log_set_level;
 
-	auto fallback_context_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_log_context_fallback" ) );
-
-	if ( *fallback_context_addr == nullptr ) {
-		*fallback_context_addr = new le_log_context_o();
+    if ( le_api->own_context == nullptr ) {
+        le_api->own_context = new le_log_context_o();
 	}
 
-	ctx = static_cast<le_log_context_o*>( *fallback_context_addr );
+    ctx = le_api->own_context;
 
 	if ( ctx->subscribers.empty() ) {
 		setup_basic_cout_subscriber();
