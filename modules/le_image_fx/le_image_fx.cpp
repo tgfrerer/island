@@ -3,6 +3,8 @@
 
 #include "le_renderer.hpp"
 #include "le_pipeline_builder.h"
+#include "le_log.h"
+
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
@@ -15,6 +17,11 @@
 
 static le_shader_module_handle shader_box_h;
 static le_shader_module_handle shader_box_v;
+
+static auto& get_logger() {
+	static auto logger = le::Log( "le_image_fx" );
+	return logger;
+}
 
 // ----------------------------------------------------------------------
 // Decompression functions - these are used to retrieve shader code from inl strings
@@ -296,6 +303,10 @@ static le_image_fx_blit_o* le_fx_blit_create( le_renderer_o* renderer, le_image_
 		break;
 	default:
 		assert( false ); // unreachable
+	}
+
+	if ( self->pipeline_manager == nullptr ) {
+		get_logger().error( "Cannot initialize blit without valid pipeline manager -- Was renderer set up?" );
 	}
 
 	self->pipeline_handle =

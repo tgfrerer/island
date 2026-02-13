@@ -3,6 +3,7 @@ set (TARGET le_image_fx)
 # list modules this module depends on
 depends_on_island_module(le_renderer)
 depends_on_island_module(le_pipeline_builder)
+depends_on_island_module(le_log)
 
 set (SOURCES "le_image_fx.cpp")
 set (SOURCES ${SOURCES} "le_image_fx.h")
