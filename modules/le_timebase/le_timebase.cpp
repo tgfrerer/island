@@ -49,7 +49,18 @@ static void le_timebase_update( le_timebase_o* self, uint64_t delta_ticks ) {
 		self->ticks_before_update += le::Ticks( delta_ticks );
 		self->now = self->initial_time + self->ticks_before_update;
 	} else {
-		self->now                 = std::chrono::round<le::Ticks>( std::chrono::steady_clock::now() );
+		TimeTicks previous_now = self->now;
+		self->now              = std::chrono::round<le::Ticks>( std::chrono::steady_clock::now() );
+
+		if ( previous_now > self->now ) {
+			// Time cannot go backwards.
+			//
+			// 'now' was previously set ahead of the current time - via explicitly setting
+			// time via delta_ticks, we must catch up; we cannot go back; we just pretend
+			// that we started measuring time earlier to make up for the difference.
+			self->initial_time -= ( previous_now - self->now );
+		}
+
 		self->ticks_before_update = self->now - self->initial_time;
 	}
 }
