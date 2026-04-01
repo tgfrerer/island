@@ -75,10 +75,11 @@ struct le_mesh_api {
 		/// @param `target`                    : pointer to where to write data to
 		/// @param `target_capacity_num_bytes` : number of bytes held at `target` - this limits the maximum number of bytes that will be read into target.
 		/// @param `attribute_name`            : name of the attribute from which to read data from
-		/// @param `num_bytes_per_vertex`      : (optional) number of bytes per-vertex for this attribute, if set, this will return the actual number of bytes that this attribute requires per-vertex
-		/// @param `num_vertices`              : (optional) number of vertices to read, if not set, will assume that you want to read any available vertices. if set, will return number of vertices that were read into `target`.
+		/// @param `num_bytes_per_vertex`      : out: (optional) number of bytes per-vertex for this attribute, if set, this will return the actual number of bytes that this attribute requires per-vertex
+		/// @param `num_vertices`              : in/out: (optional) number of vertices to read, if not set, will assume that you want to read any available vertices. if set, will return number of vertices that were read into `target`.
 		/// @param `first_vertex`              : first vertex to read; this works as an offset, default is 0
-		void (*read_attribute_data_into)( le_mesh_o const * self, void* target, size_t target_capacity_num_bytes, attribute_name_t attribute_name,  uint32_t* num_bytes_per_vertex, size_t *num_vertices, size_t first_vertex, uint32_t stride );
+		/// @param `initial_stride_offset`     : initial write offset into target (in bytes) -- (initial_stride_offset + attribute_sz) <= stride, default is 0
+		void (*read_attribute_data_into)( le_mesh_o const * self, void* target, size_t target_capacity_num_bytes, attribute_name_t attribute_name,  uint32_t* out_num_bytes_per_vertex, size_t *num_vertices, size_t first_vertex, uint32_t stride, uint32_t initial_stride_offset );
 
 		/// Read index data into `target`
 		///
@@ -145,8 +146,8 @@ class LeMesh : NoCopy, NoMove {
 		this_i.read_attribute_infos_into( self, target, num_attributes_in_target );
 	}
 
-	void readAttributeDataInto( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_name_t attribute_name, uint32_t* num_bytes_per_vertex = nullptr, size_t* num_vertices = nullptr, size_t first_vertex = 0, uint32_t stride = 0 ) const {
-		this_i.read_attribute_data_into( self, target, target_capacity_num_bytes, attribute_name, num_bytes_per_vertex, num_vertices, first_vertex, stride );
+	void readAttributeDataInto( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_name_t attribute_name, uint32_t* num_bytes_per_vertex = nullptr, size_t* num_vertices = nullptr, size_t first_vertex = 0, uint32_t stride = 0, uint32_t initial_stride_offset = 0 ) const {
+		this_i.read_attribute_data_into( self, target, target_capacity_num_bytes, attribute_name, num_bytes_per_vertex, num_vertices, first_vertex, stride, initial_stride_offset );
 	}
 
 	void readIndexDataInto( void* target, size_t target_capacity_num_bytes, uint32_t* num_bytes_per_index = nullptr, size_t* num_indices = nullptr, size_t first_index = 0 ) const {

@@ -59,7 +59,7 @@ static void le_mesh_clear( le_mesh_o* self ) {
 // write contents of
 static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes,
                                               le_mesh_api::attribute_name_t attribute_name,
-                                              uint32_t* num_bytes_per_vertex, size_t* num_vertices, size_t first_vertex, uint32_t stride ) {
+                                              uint32_t* out_num_bytes_per_vertex, size_t* num_vertices, size_t first_vertex, uint32_t stride, uint32_t initial_stride_offset ) {
 
 	// ---------| invariant: stride is 0
 
@@ -85,24 +85,30 @@ static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* targe
 
 	size_t num_vertices_to_copy = std::min( num_vertices_requested, num_vertices_available - first_vertex );
 
-	// Now, limit number of vertices to however many as we can store back into the target
-	num_vertices_to_copy = std::min( target_capacity_num_bytes / attr_desc.num_bytes, num_vertices_to_copy );
-
-	if ( num_vertices ) {
-		*num_vertices = num_vertices_to_copy; // write back number of vertices that were actually copied
-	}
-
-	if ( num_bytes_per_vertex ) {
-		*num_bytes_per_vertex = attr_desc.num_bytes; // write back number of bytes per vertex
-	}
-
 	if ( stride == 0 ) {
 		// If no stride has been specified, assume tightly packed
 		stride = attr_desc.num_bytes;
 	}
 
+	// Now, limit number of vertices to however many as we can store back into the target
+	num_vertices_to_copy = std::min( target_capacity_num_bytes / stride, num_vertices_to_copy );
+
+	if ( num_vertices ) {
+		*num_vertices = num_vertices_to_copy; // write back number of vertices that were actually copied
+	}
+
+	if ( out_num_bytes_per_vertex ) {
+		*out_num_bytes_per_vertex = attr_desc.num_bytes; // write back number of bytes per vertex
+	}
+
+	if ( initial_stride_offset + attr_desc.num_bytes > stride ) {
+		logger.error( "Initial stride offset (%d) + attribute size (%d) must not overflow stride (%d)", initial_stride_offset, attr_desc.num_bytes, stride );
+		return;
+	}
+
 	if ( stride < attr_desc.num_bytes ) {
 		logger.error( "stride may not be lower than attribute byte count: %d < %d", stride, attr_desc.num_bytes );
+		return;
 	}
 
 	size_t requested_bytes_count = ( stride ) * ( num_vertices_to_copy - 1 ) + attr_desc.num_bytes;
@@ -120,10 +126,10 @@ static void le_mesh_read_attribute_data_into( le_mesh_o const* self, void* targe
 			memcpy( target, bytes_vec.data() + offset_in_bytes, num_bytes_to_copy );
 		} else {
 			// target is not contiguous, but strided, we must manually copy
-			size_t offset_in_bytes = first_vertex * attr_desc.num_bytes;
+			size_t src_offset_in_bytes = first_vertex * attr_desc.num_bytes;
 
-			uint8_t const* data_source = bytes_vec.data() + offset_in_bytes;
-			uint8_t*       data_target = reinterpret_cast<uint8_t*>( target );
+			uint8_t const* data_source = bytes_vec.data() + src_offset_in_bytes;
+			uint8_t*       data_target = reinterpret_cast<uint8_t*>( target ) + initial_stride_offset;
 
 			for ( size_t i = 0; i != num_vertices_to_copy; i++ ) {
 				memcpy(
