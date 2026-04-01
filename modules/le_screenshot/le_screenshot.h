@@ -134,6 +134,10 @@ class LeScreenshot : NoCopy, NoMove {
 	void record( le_rendergraph_o* rendergraph, le_image_resource_handle& src_image, uint32_t* num_images, le_swapchain_img_settings_t const* p_img_swapchain_settings = nullptr ) {
 		le_screenshot::le_screenshot_i.record( self, rendergraph, src_image, num_images, p_img_swapchain_settings );
 	}
+
+	operator le_screenshot_o*() {
+		return self;
+	}
 };
 
 namespace le {
