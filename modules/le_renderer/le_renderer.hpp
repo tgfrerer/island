@@ -759,7 +759,7 @@ class GraphicsEncoder {
 		return *this;
 	}
 
-	GraphicsEncoder& bindIndexBuffer( le_buffer_resource_handle const& bufferId, uint64_t const& offset, IndexType const& indexType = IndexType::eUint16 ) {
+	GraphicsEncoder& bindIndexBuffer( le_buffer_resource_handle const& bufferId, uint64_t const& offset = 0, IndexType const& indexType = IndexType::eUint16 ) {
 		le_renderer::encoder_graphics_i.bind_index_buffer( self, bufferId, offset, indexType );
 		return *this;
 	}
