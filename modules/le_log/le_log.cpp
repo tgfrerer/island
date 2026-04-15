@@ -1,6 +1,7 @@
-#include "le_log.h"
+#define LE_MODULE_UNREGISTER_EXPLICIT
 #include "le_core.h"
 #include "le_hash_util.h"
+#include "le_log.h"
 
 #include <atomic>
 #include <mutex>
@@ -24,9 +25,15 @@ struct le_log_channel_o {
 #else
 	std::atomic_int log_level = LE_LOG_LEVEL_INFO;
 #endif
-};
+	uint64_t line_hashes[ le_log_api::MAX_NUM_LINES_TO_FILTER ];
 
-constexpr auto LE_SHOULD_FILTER_N_REPEATING_LINES = 8; // whether to filter repeating log lines - set to 0 to not filter
+	size_t hashes_capacity     = le_log_api::DEFAULT_NUM_LINES_TO_FILTER; // number of line hashes that we use for filter context
+	size_t hashes_begin        = 0;
+	size_t hashes_end          = 0;
+	size_t hash_count_elements = 0;
+
+	std::mutex channel_filter_mutex; // mutex protecting num_lines_to_filter and line_hashes
+};
 
 struct subscriber_entry {
 	uint64_t                             unique_id           = 0;
@@ -42,13 +49,20 @@ struct le_log_context_o {
 	std::vector<subscriber_entry>                      subscribers;
 	std::mutex                                         subscribers_mtx;
 	uint64_t                                           subscriber_id_next = 1; // ever-increasing number, Note that we start handing out subscriber ids at 1, so that 0 can stand for no subscriber
+
+	uint64_t default_cout_handle = 0;
+	uint64_t default_cerr_handle = 0;
 };
 
-static le_log_context_o* ctx;
+static le_log_context_o* ctx = nullptr;
+
+// ----------------------------------------------------------------------
 
 static le_log_channel_o* le_log_channel_default() {
 	return &ctx->channel_default;
 }
+
+// ----------------------------------------------------------------------
 
 static le_log_channel_o* le_log_get_module( const char* name ) {
 	if ( !name || !name[ 0 ] ) {
@@ -65,12 +79,16 @@ static le_log_channel_o* le_log_get_module( const char* name ) {
 	return ctx->channels[ name ];
 }
 
+// ----------------------------------------------------------------------
+
 static void le_log_set_level( le_log_channel_o* channel, LeLog::Level level ) {
 	if ( !channel ) {
 		channel = le_log_channel_default();
 	}
 	channel->log_level = static_cast<std::underlying_type<LeLog::Level>::type>( level );
 }
+
+// ----------------------------------------------------------------------
 
 static const char* le_log_level_name( LeLog::Level level ) {
 	switch ( level ) {
@@ -86,9 +104,77 @@ static const char* le_log_level_name( LeLog::Level level ) {
 	return "";
 }
 
+static void le_log_set_filter_num_lines( le_log_channel_o* channel, size_t num_lines ) {
+	auto lock                    = std::scoped_lock( channel->channel_filter_mutex );
+
+	size_t previous_capacity = channel->hashes_capacity;
+	channel->hashes_capacity = std::min( le_log_api::MAX_NUM_LINES_TO_FILTER, num_lines );
+	if ( previous_capacity != channel->hashes_capacity ) {
+		// reset ring buffer iterators if capacity has changed.
+		channel->hashes_begin        = 0;
+		channel->hashes_end          = 0;
+		channel->hash_count_elements = 0;
+	}
+}
+
+// ----------------------------------------------------------------------
+// Filter log messages so that messages which are repeated within a
+// per-channel window are discarded.
+static bool filter_current_message( le_log_channel_o* channel, std::string const& buffer ) {
+
+	if constexpr ( le_log_api::MAX_NUM_LINES_TO_FILTER ) {
+		if ( channel->hashes_capacity > 0 ) {
+
+			auto lock = std::scoped_lock( channel->channel_filter_mutex );
+
+			// Num_lines_to_filter may have changed between the
+			// last check and acquisition of the mutex.
+			if ( channel->hashes_capacity == 0 ) {
+				return true;
+			}
+
+			auto& hashes = channel->line_hashes;
+
+			// This is optimised for the most common case:
+			// Messages are not repeating.
+			uint64_t const h = hash_64_fnv1a( buffer.c_str() );
+
+			// How does this wrap?
+
+			for ( size_t i = 0; i != channel->hash_count_elements; i++ ) {
+
+				if ( hashes[ ( channel->hashes_begin + i ) % channel->hashes_capacity ] == h ) {
+					// We found an identical hash, this means that we have printed
+					// this line within the last n lines.
+					return false;
+				}
+			}
+
+			// If the element has not been seen before, we add it
+			// to our list of lines that we have seen;
+
+			if ( channel->hash_count_elements < channel->hashes_capacity ) {
+				// buffer can still grow
+				hashes[ channel->hashes_end ] = h;
+				channel->hashes_end           = ( channel->hashes_end + 1 ) % channel->hashes_capacity;
+				channel->hash_count_elements++;
+			} else {
+				// buffer is at capacity - we must shift begin and end by one element
+				hashes[ channel->hashes_end ] = h;
+				channel->hashes_end           = ( channel->hashes_end + 1 ) % channel->hashes_capacity;
+				channel->hashes_begin         = ( channel->hashes_end + 1 ) % channel->hashes_capacity;
+			}
+		}
+	}
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
 // this method needs to be thread-safe!
 // its' very likely that multiple threads want to write to this at the same time.
-static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, const char* msg, va_list args ) {
+static void le_log_printf( le_log_channel_o* channel, LeLog::Level level, const char* msg, va_list args ) {
 
 	if ( !channel ) {
 		channel = le_log_channel_default();
@@ -98,8 +184,7 @@ static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, 
 		return;
 	}
 
-	// thread-safe region follows
-
+	// Thread-safe region follows
 	{
 		static std::mutex print_mtx;
 		auto              lock = std::scoped_lock( print_mtx ); // lock protecting this whole function
@@ -134,23 +219,26 @@ static void le_log_printf( const le_log_channel_o* channel, LeLog::Level level, 
 		}
 		num_bytes_buffer_2--; // remove last \0 byte
 
-		auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
-		for ( auto& s : ctx->subscribers ) {
-			// call back subscribers iff they have matching log level flags set in their mask
-			// careful - if there is a call within the callback to the log itself
-			// then we may end up with a deadlock.
-			// FIXME: make sure that we don't end up with a deadlock.
-			if ( uint32_t( level ) & s.log_level_flag_mask ) {
-				s.push_chars( buffer.data(), num_bytes_buffer_1 + num_bytes_buffer_2, s.user_data );
-			}
-		} // end thread-safe region
+		if ( filter_current_message( channel, buffer ) ) {
+
+			auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
+			for ( auto& s : ctx->subscribers ) {
+				// call back subscribers iff they have matching log level flags set in their mask
+				// careful - if there is a call within the callback to the log itself
+				// then we may end up with a deadlock.
+				// FIXME: make sure that we don't end up with a deadlock.
+				if ( uint32_t( level ) & s.log_level_flag_mask ) {
+					s.push_chars( buffer.data(), num_bytes_buffer_1 + num_bytes_buffer_2, s.user_data );
+				}
+			} // end thread-safe region
+		}
 	}
 }
 
 // ----------------------------------------------------------------------
 
 template <LeLog::Level level>
-static void le_log_implementation( const le_log_channel_o* channel, const char* msg, ... ) {
+static void le_log_implementation( le_log_channel_o* channel, const char* msg, ... ) {
 	va_list arglist;
 	va_start( arglist, msg );
 	le_log_printf( channel, level, msg, arglist );
@@ -197,47 +285,6 @@ static void api_remove_subscriber( uint64_t handle ) {
 
 static void default_subscriber_cout( char const* chars, uint32_t num_chars, void* ) {
 
-	if ( LE_SHOULD_FILTER_N_REPEATING_LINES ) {
-
-		/*
-		 * Filter log messages so that repeating messages are discarded.
-		 *
-		 * Set `LE_SHOULD_FILTER_N_REPEATING_LINES=0` to disable filtering.
-		 *
-		 * Note that since we are xoring hashes and the XOR operation is
-		 * commutative, two lines that appear twice, but in different order
-		 * will still produce the same hash for both lines, and will get
-		 * filtered ([A,B] has the same combined hash over two lines as [B,A]).
-		 *
-		 */
-
-		static constexpr auto& N_LINES = LE_SHOULD_FILTER_N_REPEATING_LINES;
-
-		static uint64_t hashed_lines[ N_LINES ] = {};
-
-		// This is optimised for the most common case:
-		// Messages are not repeating.
-		uint64_t h = hash_64_fnv1a( chars );
-
-		uint64_t last_hashed_lines[ N_LINES ] = {};
-		memcpy( last_hashed_lines, hashed_lines, sizeof( hashed_lines ) );
-
-		// Calculate next iteration of hashed lines
-		for ( int i = N_LINES - 1; i > 0; i-- ) {
-			hashed_lines[ i ] = hashed_lines[ i - 1 ] ^ h; // hash over (i+1) lines (XOR COMMUTATIVITY means order of lines is irrelevant)
-		}
-		hashed_lines[ 0 ] = h; // hash over 0th line
-
-		for ( int i = 0; i != N_LINES; i++ ) {
-			if ( hashed_lines[ i ] == last_hashed_lines[ i ] ) {
-				// we found an identical hash, this means that i lines have been repeating
-				fflush( stdout );
-				return;
-				;
-			}
-		}
-	}
-
 	fprintf( stdout, "%*s\n", num_chars, chars );
 	fflush( stdout );
 };
@@ -253,8 +300,30 @@ static void default_subscriber_cerr( char const* chars, uint32_t num_chars, void
 // This is where we hook up the default subscribers to our logger. The
 // default subscribers print to stdout and stderr.
 static void setup_basic_cout_subscriber() {
-	api_add_subscriber( default_subscriber_cout, &ctx, LE_LOG_LEVEL_DEBUG | LE_LOG_LEVEL_INFO | LE_LOG_LEVEL_WARN );
-	api_add_subscriber( default_subscriber_cerr, &ctx, LE_LOG_LEVEL_ERROR );
+	ctx->default_cout_handle = api_add_subscriber( default_subscriber_cout, &ctx, LE_LOG_LEVEL_DEBUG | LE_LOG_LEVEL_INFO | LE_LOG_LEVEL_WARN );
+	ctx->default_cerr_handle = api_add_subscriber( default_subscriber_cerr, &ctx, LE_LOG_LEVEL_ERROR );
+}
+
+// ----------------------------------------------------------------------
+
+static void reset_basic_cout_subscriber() {
+	// remove default cout subscriber - as the function might have changed position on reload of this module
+	if ( ctx->default_cout_handle ) {
+		api_remove_subscriber( ctx->default_cout_handle );
+		ctx->default_cout_handle = 0;
+	}
+
+	// remove default cerr subscriber - as the function might have changed position on reload of this module
+	if ( ctx->default_cerr_handle ) {
+		api_remove_subscriber( ctx->default_cerr_handle );
+		ctx->default_cerr_handle = 0;
+	}
+}
+
+// ----------------------------------------------------------------------
+// This only gets called on final teardown
+LE_MODULE_UNREGISTER_IMPL( le_log, api ) {
+	reset_basic_cout_subscriber();
 }
 
 // ----------------------------------------------------------------------
@@ -271,15 +340,19 @@ LE_MODULE_REGISTER_IMPL( le_log, api ) {
 	le_api_channel_i.info      = le_log_implementation<LeLog::Level::eInfo>;
 	le_api_channel_i.warn      = le_log_implementation<LeLog::Level::eWarn>;
 	le_api_channel_i.error     = le_log_implementation<LeLog::Level::eError>;
-	le_api_channel_i.set_level = le_log_set_level;
 
-    if ( le_api->own_context == nullptr ) {
-        le_api->own_context = new le_log_context_o();
+	le_api_channel_i.set_level            = le_log_set_level;
+	le_api_channel_i.set_filter_num_lines = le_log_set_filter_num_lines;
+
+	if ( le_api->own_context == nullptr ) {
+		le_api->own_context = new le_log_context_o();
 	}
 
-    ctx = le_api->own_context;
+	ctx = le_api->own_context;
 
-	if ( ctx->subscribers.empty() ) {
+	reset_basic_cout_subscriber();
+
+	if ( ctx->default_cout_handle == 0 && ctx->default_cerr_handle == 0 ) {
 		setup_basic_cout_subscriber();
 	}
 }

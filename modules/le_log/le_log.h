@@ -1,6 +1,13 @@
 #ifndef GUARD_le_log_H
 #define GUARD_le_log_H
 
+/* Log messages are issued via named log channels. You can create as many channels as you wish.
+ * It's useful to name each channel after for example the file that issued the log message.
+ * Logs are consumed via log subscribers - subscribers decide which log levels
+ * they subscribe to.
+ *
+ */
+
 #include "le_core.h"
 
 #define LE_LOG_LEVEL_DEBUG ( 1 << 0 )
@@ -37,6 +44,10 @@ struct le_log_context_o;
 // clang-format off
 struct le_log_api {
 
+	static constexpr size_t MAX_NUM_LINES_TO_FILTER = 16; // set this to 0 to globally disable any log filtering
+	static constexpr size_t DEFAULT_NUM_LINES_TO_FILTER = 4; // set this to 0 to disable filtering by default
+	static_assert(MAX_NUM_LINES_TO_FILTER >= DEFAULT_NUM_LINES_TO_FILTER, "Max number of lines for filtering must be larger or equal to default number of lines.");
+
 	enum class Level : uint32_t {
 		eDebug = LE_LOG_LEVEL_DEBUG,
 		eInfo  = LE_LOG_LEVEL_INFO,
@@ -65,14 +76,17 @@ struct le_log_api {
         // Set the log level for a given channel - Messages below the given level will be ignored. 
         void ( *set_level  )(le_log_channel_o *channel, Level level);
 
-        void ( *debug )(const le_log_channel_o *channel, const char *msg, ...);
-        void ( *info  )(const le_log_channel_o *channel, const char *msg, ...);
-        void ( *warn  )(const le_log_channel_o *channel, const char *msg, ...);
-        void ( *error )(const le_log_channel_o *channel, const char *msg, ...);
+		// How many lines to scan for repetitions (repeated lines get filtered out)
+		void ( *set_filter_num_lines)(le_log_channel_o* channel, size_t num_lines); 
+
+        void ( *debug )(le_log_channel_o *channel, const char *msg, ...);
+        void ( *info  )(le_log_channel_o *channel, const char *msg, ...);
+        void ( *warn  )(le_log_channel_o *channel, const char *msg, ...);
+        void ( *error )(le_log_channel_o *channel, const char *msg, ...);
 
     };
 
-    struct le_log_context_o* own_context;
+    struct le_log_context_o* own_context = nullptr;
 
     le_log_channel_interface_t   le_log_channel_i;
 };
@@ -107,6 +121,10 @@ class LeLog {
 
 	inline void set_level( const Level& level ) {
 		api->le_log_channel_i.set_level( channel, level );
+	}
+
+	inline void set_filter_num_lines( const size_t& num_lines ) {
+		api->le_log_channel_i.set_filter_num_lines( channel, num_lines );
 	}
 
 	template <class... Args>
@@ -150,6 +168,10 @@ using Log = LeLog;
 
 static inline void le_log_set_level( const LeLog::Level& level ) {
 	le_log::api->le_log_channel_i.set_level( nullptr, level );
+}
+
+static inline void le_log_set_filter_num_lines( const size_t& num_lines ) {
+	le_log::api->le_log_channel_i.set_filter_num_lines( nullptr, num_lines );
 }
 
 template <typename... Args>
