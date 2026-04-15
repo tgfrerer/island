@@ -816,7 +816,7 @@ static void glfw_joystick_connection_callback( int jid, int event ) {
 		if ( glfwJoystickIsGamepad( jid ) ) {
 			logger().info( "Joystick has gamepad mapping." );
 		} else {
-			logger().warn( "Joystick does not have gamepad mapping." );
+			logger().info( "Joystick does not have gamepad mapping." );
 		}
 
 	} else if ( event == GLFW_DISCONNECTED ) {
