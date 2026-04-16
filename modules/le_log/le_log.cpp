@@ -1,4 +1,3 @@
-#define LE_MODULE_UNREGISTER_EXPLICIT
 #include "le_core.h"
 #include "le_hash_util.h"
 #include "le_log.h"
@@ -186,9 +185,9 @@ static void le_log_printf( le_log_channel_o* channel, LeLog::Level level, const 
 		static std::mutex print_mtx;
 		auto              lock = std::scoped_lock( print_mtx ); // lock protecting this whole function
 
-		static size_t      num_bytes_buffer_1 = 16;
-		static size_t      num_bytes_buffer_2 = 0;
-		static std::string buffer( num_bytes_buffer_1, '\0' );
+		size_t            num_bytes_buffer_1 = 16;
+		size_t            num_bytes_buffer_2 = 0;
+		std::vector<char> buffer( num_bytes_buffer_1, '\0' );
 
 		do {
 			buffer.resize( num_bytes_buffer_1 + 1 );
@@ -216,7 +215,7 @@ static void le_log_printf( le_log_channel_o* channel, LeLog::Level level, const 
 		}
 		num_bytes_buffer_2--; // remove last \0 byte
 
-		if ( filter_current_message( channel, buffer ) ) {
+		if ( filter_current_message( channel, buffer.data() ) ) {
 
 			auto subscribers_lock = std::scoped_lock( ctx->subscribers_mtx );
 			for ( auto& s : ctx->subscribers ) {
@@ -315,12 +314,6 @@ static void reset_basic_cout_subscriber() {
 		api_remove_subscriber( ctx->default_cerr_handle );
 		ctx->default_cerr_handle = 0;
 	}
-}
-
-// ----------------------------------------------------------------------
-// This only gets called on final teardown
-LE_MODULE_UNREGISTER_IMPL( le_log, api ) {
-	reset_basic_cout_subscriber();
 }
 
 // ----------------------------------------------------------------------
