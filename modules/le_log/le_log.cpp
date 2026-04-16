@@ -139,10 +139,7 @@ static bool filter_current_message( le_log_channel_o* channel, std::string const
 			// Messages are not repeating.
 			uint64_t const h = hash_64_fnv1a( buffer.c_str() );
 
-			// How does this wrap?
-
 			for ( size_t i = 0; i != channel->hash_count_elements; i++ ) {
-
 				if ( hashes[ ( channel->hashes_begin + i ) % channel->hashes_capacity ] == h ) {
 					// We found an identical hash, this means that we have printed
 					// this line within the last n lines.
