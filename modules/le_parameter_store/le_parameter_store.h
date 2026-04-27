@@ -11,7 +11,7 @@ struct le_parameter_o;
 Parameters are heap-allocated bits of data which have a fixed address for the duration of the
 lifetime of parameter_store.
 
-Because of this, pointers handed out to parameters can be kept aound for as long as the parameter
+Because of this, pointers handed out to parameters can be kept around for as long as the parameter
 store object is alive.
 
 Each parameter is stored as an array<paramterType, 3>.
