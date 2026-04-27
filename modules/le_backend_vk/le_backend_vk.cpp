@@ -3253,7 +3253,7 @@ static void backend_destroy_buffer( le_backend_o* self, VkBuffer buffer, VmaAllo
 // ----------------------------------------------------------------------
 // Allocates and creates a physical vulkan resource using vmaAlloc given an allocator
 // Returns an AllocatedResourceVk, currently does not do any error checking.
-static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& alloc, const ResourceCreateInfo& resourceInfo_, VkDevice device = nullptr ) {
+static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& alloc, const ResourceCreateInfo& resourceInfo_, VkDevice device = nullptr, le_resource_handle maybe_debug_resource = nullptr ) {
 	ZoneScoped;
 	AllocatedResourceVk res{};
 	res.info = resourceInfo_;
@@ -3286,7 +3286,8 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator& allo
 		         res.info.imageInfo.extent.width *
 		         res.info.imageInfo.extent.height ) {
 
-			logger().error( "Image cannot be allocated with invalid extents: %dx%dx%d",
+			logger().error( "Image '%s' cannot be allocated with invalid extents: %dx%dx%d",
+			                ( maybe_debug_resource ? maybe_debug_resource->get_debug_name() : "" ),
 			                res.info.imageInfo.extent.depth,
 			                res.info.imageInfo.extent.width,
 			                res.info.imageInfo.extent.height );
@@ -4256,7 +4257,7 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 					}
 				}
 
-				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
+				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice(), resource );
 
 				if ( LE_PRINT_DEBUG_MESSAGES || true ) {
 					printResourceInfo( resource, allocatedResource.info, "ALLOC" );
