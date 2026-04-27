@@ -53,6 +53,56 @@ static const auto& le_imgui_i = api->le_imgui_i;
 
 } // namespace le_imgui
 
+namespace le {
+
+class ImGui : NoCopy, NoMove {
+
+	le_imgui_o* self;
+
+  public:
+	ImGui( le_renderer_o* renderer )
+	    : self( le_imgui_api_i->le_imgui_i.create( renderer ) ) {
+	}
+
+	void beginFrame() {
+		le_imgui_api_i->le_imgui_i.begin_frame( self );
+	}
+
+	void endFrame() {
+		le_imgui_api_i->le_imgui_i.end_frame( self );
+	}
+
+	void setupResources( le_rendergraph_o* p_rendergraph, float display_width, float display_height ) {
+		le_imgui_api_i->le_imgui_i.setup_resources( self, p_rendergraph, display_width, display_height );
+	}
+
+	void draw( le_renderpass_o* renderpass ) {
+		le_imgui_api_i->le_imgui_i.draw( self, renderpass );
+	}
+
+	void processEvents( LeUiEvent const* events, uint32_t num_events ) {
+		le_imgui_api_i->le_imgui_i.process_events( self, events, num_events );
+	}
+
+	void processAndFilterEvents( LeUiEvent* events, uint32_t* num_events ) {
+		le_imgui_api_i->le_imgui_i.process_and_filter_events( self, events, num_events );
+	}
+
+	void registerSetClipboardStringCb( void* cb_addr ) {
+		le_imgui_api_i->le_imgui_i.register_set_clipboard_string_cb( self, cb_addr );
+	}
+
+	void registerGetClipboardStringCb( void* cb_addr ) {
+		le_imgui_api_i->le_imgui_i.register_get_clipboard_string_cb( self, cb_addr );
+	}
+
+	~ImGui() {
+		le_imgui_api_i->le_imgui_i.destroy( self );
+	}
+};
+
+} // namespace le
+
 #endif // __cplusplus
 
 #if ( WIN32 && defined(PLUGINS_DYNAMIC))
