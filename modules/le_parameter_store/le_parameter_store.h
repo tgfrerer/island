@@ -193,6 +193,10 @@ class LeParameterStore : NoCopy, NoMove {
 	}
 };
 
+namespace le {
+using ParameterStore = LeParameterStore;
+}
+
 #endif // __cplusplus
 
 #endif
