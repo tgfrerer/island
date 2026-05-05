@@ -6247,7 +6247,7 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 				}
 			}
 
-			auto dstImage = frame_data_get_image_from_le_resource_id( &frame, static_cast<le_image_resource_handle>( op.resource ) );
+			auto img_info = frame_data_get_allocated_resource_from_resource_id( &frame, op.resource );
 
 			VkImageMemoryBarrier2 imageLayoutTransfer{
 			    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -6260,9 +6260,11 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 			    .newLayout           = stateFinal.layout,
 			    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			    .image               = dstImage,
+			    .image               = img_info.as.image,
 			    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
 			};
+
+			imageLayoutTransfer.subresourceRange.aspectMask = get_aspect_flags_from_format( le::Format( img_info.info.imageInfo.format ) );
 
 			VkDependencyInfo dependencyInfo = {
 			    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
