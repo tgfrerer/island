@@ -21,7 +21,6 @@ struct le_camera_api {
 		le_camera_o *    ( * create                   ) ( );
         le_camera_o *    ( * clone                    ) ( le_camera_o const * self );
 		void             ( * destroy                  ) ( le_camera_o* self );
-		void             ( * update                   ) ( le_camera_o* self );
 
 		void             ( * set_clip_distances       ) ( le_camera_o* self, float nearClip, float farClip);
 		void             ( * set_fov_radians          ) ( le_camera_o* self, float fov_radians);
