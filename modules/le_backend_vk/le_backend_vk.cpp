@@ -2940,7 +2940,7 @@ static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFram
 
 // ----------------------------------------------------------------------
 
-static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData* frame, le_resource_handle const rsp ) {
+static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData const* frame, le_resource_handle const rsp ) {
 	return frame->availableResources.at( rsp );
 }
 
