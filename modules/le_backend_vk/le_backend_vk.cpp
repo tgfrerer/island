@@ -2120,9 +2120,14 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
 				requestedState.layout         = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-			}
-
-			else {
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ) ) {
+				// This means most likely that the image is used as an attachment. In this case,
+				// synchronisation is taken care of implicitly.
+				requestedState.visible_access = resources_access[ i ];
+				requestedState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+				requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				//	logger().info( "colour attachment write" );
+			} else {
 				continue;
 			}
 
@@ -2717,74 +2722,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			subpasses.emplace_back( subpassDescription );
 		}
 
-		VkMemoryBarrier2     memoryBarriers[ 2 ];
-		VkSubpassDependency2 dependencies[ 2 ];
-
-		{
-			if ( LE_PRINT_DEBUG_MESSAGES ) {
-
-				logger().info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass `%s`", pass.debugName );
-				logger().info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", to_string_vk_pipeline_stage_flags2( srcStageFromExternalFlags ).c_str() );
-				logger().info( "\t dstStage: %-40s anything in stage %1$s.", to_string_vk_pipeline_stage_flags2( dstStageFromExternalFlags ).c_str() );
-				uint64_t( srcAccessFromExternalFlags )
-				    ? logger().info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", to_string_vk_access_flags2( srcAccessFromExternalFlags ).c_str(), to_string_vk_pipeline_stage_flags2( srcStageFromExternalFlags ).c_str() )
-				    : logger().info( "\tsrcAccess: %-40s No memory needs to be made available", to_string_vk_access_flags2( srcAccessFromExternalFlags ).c_str() );
-				logger().info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", to_string_vk_access_flags2( dstAccessFromExternalFlags ).c_str(), to_string_vk_pipeline_stage_flags2( dstStageFromExternalFlags ).c_str() );
-
-				logger().info( "Subpass Dependency: subpass `%s` to VK_SUBPASS_EXTERNAL:", pass.debugName );
-				logger().info( "\t srcStage: %-40s Anything in stage %1$s must happen-before", to_string_vk_pipeline_stage_flags2( srcStageToExternalFlags ).c_str() );
-				logger().info( "\t dstStage: %-40s anything in stage %1$s.", to_string_vk_pipeline_stage_flags2( dstStageToExternalFlags ).c_str() );
-				uint64_t( srcAccessToExternalFlags )
-				    ? logger().info( "\tsrcAccess: %-40s Memory from stage %s, accessing %1$s must be made available", to_string_vk_access_flags2( srcAccessToExternalFlags ).c_str(), to_string_vk_pipeline_stage_flags2( srcStageToExternalFlags ).c_str() )
-				    : logger().info( "\tsrcAccess: %-40s No memory needs to be made available", to_string_vk_access_flags2( srcAccessToExternalFlags ).c_str() );
-				logger().info( "\tdstAccess: %-40s before memory is made visible to %1$s in stage %s", to_string_vk_access_flags2( dstAccessToExternalFlags ).c_str(), to_string_vk_pipeline_stage_flags2( dstStageToExternalFlags ).c_str() );
-				logger().info( "" );
-			}
-
-			memoryBarriers[ 0 ] = {
-			    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
-			    .pNext         = nullptr,
-			    .srcStageMask  = srcStageFromExternalFlags,
-			    .srcAccessMask = srcAccessFromExternalFlags,
-			    .dstStageMask  = dstStageFromExternalFlags,
-			    .dstAccessMask = dstAccessFromExternalFlags,
-			};
-			memoryBarriers[ 1 ] = {
-			    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
-			    .pNext         = nullptr,
-			    .srcStageMask  = srcStageToExternalFlags,
-			    .srcAccessMask = srcAccessToExternalFlags,
-			    .dstStageMask  = dstStageToExternalFlags,
-			    .dstAccessMask = dstAccessToExternalFlags,
-			};
-
-			dependencies[ 0 ] = {
-			    // external to subpass
-			    .sType           = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
-			    .pNext           = memoryBarriers,              // optional
-			    .srcSubpass      = VK_SUBPASS_EXTERNAL,         // outside of renderpass
-			    .dstSubpass      = 0,                           // first subpass
-			    .srcStageMask    = 0,                           // not used
-			    .dstStageMask    = 0,                           // not used
-			    .srcAccessMask   = 0,                           // not used
-			    .dstAccessMask   = 0,                           // not used
-			    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT, // optional
-			    .viewOffset      = 0,
-			};
-			dependencies[ 1 ] = {
-			    // subpass to external
-			    .sType           = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
-			    .pNext           = memoryBarriers + 1,          // optional
-			    .srcSubpass      = 0,                           // last subpass
-			    .dstSubpass      = VK_SUBPASS_EXTERNAL,         // outside of subpass
-			    .srcStageMask    = 0,                           // not used
-			    .dstStageMask    = 0,                           // not used
-			    .srcAccessMask   = 0,                           // not used
-			    .dstAccessMask   = 0,                           // not used
-			    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT, // optional
-			    .viewOffset      = 0,
-			};
-		}
 
 		{
 			// -- Build hash for compatible renderpass
@@ -2870,15 +2807,15 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			}
 
 			VkRenderPassCreateInfo2 renderpassCreateInfo{
-			    .sType                   = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2,
-			    .pNext                   = nullptr, // optional
-			    .flags                   = 0,       // optional
-			    .attachmentCount         = uint32_t( attachments.size() ),
-			    .pAttachments            = attachments.data(),
-			    .subpassCount            = uint32_t( subpasses.size() ),
-			    .pSubpasses              = subpasses.data(),
-			    .dependencyCount         = uint32_t( sizeof( dependencies ) / sizeof( VkSubpassDependency2 ) ),
-			    .pDependencies           = dependencies,
+			    .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2,
+			    .pNext           = nullptr, // optional
+			    .flags           = 0,       // optional
+			    .attachmentCount = uint32_t( attachments.size() ),
+			    .pAttachments    = attachments.data(),
+			    .subpassCount    = uint32_t( subpasses.size() ),
+			    .pSubpasses      = subpasses.data(),
+			    .dependencyCount = 0,
+			    .pDependencies   = nullptr,
 			    .correlatedViewMaskCount = 0, // optional
 			    .pCorrelatedViewMasks    = 0,
 			};
