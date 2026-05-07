@@ -149,6 +149,8 @@ static void camera_get_view_matrix( le_camera_o* self, float* p_matrix ) {
 static void camera_set_view_matrix( le_camera_o* self, float const* viewMatrix ) {
 
 	self->view_matrix = *reinterpret_cast<glm::mat4 const*>( viewMatrix );
+
+	camera_update_zoom_if_orthographic( self, glm::inverse( self->view_matrix ) );
 }
 
 // ----------------------------------------------------------------------
@@ -616,6 +618,7 @@ LE_MODULE_REGISTER_IMPL( le_camera, api ) {
 	le_camera_i.create                = le_camera_create;
 	le_camera_i.destroy               = le_camera_destroy;
 	le_camera_i.clone                 = le_camera_clone;
+
 	le_camera_i.get_projection_matrix = camera_get_projection_matrix;
 	le_camera_i.get_unit_distance     = camera_get_unit_distance;
 	le_camera_i.get_view_matrix       = camera_get_view_matrix;
