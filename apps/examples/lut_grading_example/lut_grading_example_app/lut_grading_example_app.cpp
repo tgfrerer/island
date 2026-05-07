@@ -169,9 +169,6 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 		        .build() );
 	}
 
-	static le_bindless_sampler_handle sampler_handle = self->renderer.allocateBindlessSampler(
-	    le::SamplerInfoBuilder()
-	        .build() );
 
 	if ( self->tex_1 == nullptr ) {
 		self->tex_1 = self->renderer.allocateBindlessTexture(
