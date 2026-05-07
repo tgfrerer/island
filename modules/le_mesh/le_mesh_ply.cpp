@@ -11,6 +11,12 @@
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 #include "glm/vec4.hpp"
+#include "le_log.h"
+
+auto& logger() {
+	static le::Log l( "le_mesh_ply.cpp" );
+	return l;
+}
 
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
@@ -29,8 +35,7 @@ static std::vector<char> load_file( const std::filesystem::path& file_path, bool
 	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
 
 	if ( !file.is_open() ) {
-		std::cerr << "Unable to open file: " << std::filesystem::canonical( file_path ) << std::endl
-		          << std::flush;
+		logger().error( "Unable to open file: '%s'", std::filesystem::canonical( file_path ).string().c_str() );
 		*success = false;
 		return contents;
 	}
@@ -78,7 +83,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 	std::filesystem::path file_path{ file_path_ };
 
 	if ( !std::filesystem::exists( file_path ) ) {
-		std::cerr << "File not found: '" << file_path << "'";
+		logger().error( "File not found: '%s'", file_path.string().c_str() );
 		return false;
 	}
 
@@ -147,7 +152,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 	std::vector<char> file_data         = load_file( file_path, &file_load_success );
 
 	if ( !file_load_success ) {
-		std::cerr << "File could not be loaded: '" << file_path << "'";
+		logger().warn( "File could not be loaded: '%s'", file_path.string().c_str() );
 		return false;
 	}
 
@@ -159,14 +164,14 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 	char* c = strtok_r( file_data.data(), DELIMS, &c_save_ptr );
 
 	if ( 0 != strcmp( c, "ply" ) ) {
-		std::cerr << "Invalid file header: '" << file_path << "'";
+		logger().warn( "Invalid file header: '%s'", file_path.string().c_str() );
 		return false;
 	}
 
 	c = strtok_r( nullptr, DELIMS, &c_save_ptr );
 
 	if ( 0 != strcmp( c, "format ascii 1.0" ) ) {
-		std::cerr << "Invalid file header: '" << file_path << "'";
+		logger().warn( "Invalid file header: '%s'", file_path.string().c_str() );
 		return false;
 	}
 
@@ -242,8 +247,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 						property.list_size_type = Property::Type::eUint;
 						c += last_search_string_len + 1;
 					} else {
-						std::cerr << "Unknown list size type: '" << c << "'" << std::endl
-						          << std::flush;
+						logger().error( "Unknown list size type: '%s'", c );
 						assert( false );
 					}
 
@@ -256,8 +260,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 						property.list_content_type = Property::Type::eUint;
 						c += last_search_string_len + 1;
 					} else {
-						std::cerr << "Unknown list content type: '" << c << "'" << std::endl
-						          << std::flush;
+						logger().error( "Unknown list content type: '%s'", c );
 						assert( false );
 					}
 
@@ -278,8 +281,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 						property.type = Property::Type::eUchar;
 					} else {
 						// Unknown property type.
-						std::cerr << __PRETTY_FUNCTION__ << ": Unknown property type: " << c << std::endl
-						          << std::flush;
+						logger().error( ": Unknown property type: %s", c );
 						assert( false );
 						return false;
 					}
@@ -319,14 +321,12 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 					            0 == strncmp( c, "a", property.name_len ) ) {
 						property.attribute_type = Property::AttributeType::eColA;
 					} else {
-						std::cerr << "WARNING: Attribute name not recognised: '" << c << "'" << std::endl
-						          << std::flush;
+						logger().warn( "Attribute name not recognised: '%s'", c );
 					}
 
 					return true;
 				}
-				std::cerr << "Expected property type must be either 'list', or one of non-list type: uchar, float, uint, but given: " << c << std::endl
-				          << std::flush;
+				logger().error( "Expected property type must be either 'list', or one of non-list type: uchar, float, uint, but given: %s", c );
 				assert( false );
 				return false;
 			};
@@ -351,8 +351,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 		// been triggered - this means that there is something wrong with
 		// the file. we must exit.
 
-		std::cerr << "ERROR: " << __PRETTY_FUNCTION__ << "Invalid file header data: '" << c << "'" << std::endl
-		          << std::flush;
+		logger().error( "Invalid file header data: '%s'", c );
 
 		assert( false );
 
@@ -370,10 +369,22 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 	Element const* element_archetype     = elements.data();
 	auto const     element_archetype_end = elements.data() + elements.size();
 
+	auto skip_comments_or_empty_lines = [ & ]() {
+		// skip any comments and empty lines
+		size_t needle_len = 1;
+		if ( does_start_with( c, "#", needle_len ) ||
+		     does_start_with( c, "\n", needle_len ) ||
+		     does_start_with( c, "\r", needle_len ) ) {
+			c = strtok_r( nullptr, DELIMS, &c_save_ptr );
+		}
+	};
+
 	// What follows now is a list of elements, one element per line.
 	// elements have properties, which are separated by commas.
 
 	for ( ; element_archetype != element_archetype_end; element_archetype++ ) {
+
+		skip_comments_or_empty_lines();
 
 		// Check whether the current property is still part of the current element
 		// Otherwise move to the next element
@@ -442,6 +453,9 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 			size_t count_positions = 0;
 
 			for ( uint32_t i = 0; i != element_archetype->num_elements && c != nullptr; ++i, c = strtok_r( nullptr, DELIMS, &c_save_ptr ) ) {
+
+				skip_comments_or_empty_lines();
+
 				char* s = c;
 
 				if ( pos_data ) {
@@ -513,6 +527,8 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 
 					char* s = c;
 
+					skip_comments_or_empty_lines();
+
 					auto three = strtoul( s, &s, 0 );
 					assert( three == 3 ); // first element must be three
 
@@ -532,6 +548,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 				      ++line_num ) {
 
 					char* s = c;
+					skip_comments_or_empty_lines();
 
 					auto three = strtoul( s, &s, 0 );
 					assert( three == 3 ); // first element must be three
