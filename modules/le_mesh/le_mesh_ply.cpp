@@ -454,6 +454,10 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 
 			for ( uint32_t i = 0; i != element_archetype->num_elements && c != nullptr; ++i, c = strtok_r( nullptr, DELIMS, &c_save_ptr ) ) {
 
+				if ( colours_data ) {
+					colours_data->w = 1.f; // initialize colour alpha to 1 in case it does not get set
+				}
+
 				skip_comments_or_empty_lines();
 
 				char* s = c;
