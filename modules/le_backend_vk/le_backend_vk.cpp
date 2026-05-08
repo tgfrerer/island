@@ -2708,7 +2708,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		size_t resolve_attachment_count = pass.numResolveAttachments; // if there are resolve attachments, them must be the same size as colour+depth count
 
 		// if there are resolve attachments, there must be one for each colour and depth element
-		assert( resolve_attachment_count && ( resolve_attachment_count = pass.numColorAttachments + pass.numDepthStencilAttachments ) );
+		assert( ( resolve_attachment_count == 0 ) || ( resolve_attachment_count = pass.numColorAttachments + pass.numDepthStencilAttachments ) );
 
 		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
 
