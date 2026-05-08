@@ -23,6 +23,7 @@ struct le_backend_vk_settings_o {
 		VkPhysicalDeviceVulkan11Features                 vk_1_1;
 		VkPhysicalDeviceVulkan12Features                 vk_1_2;
 		VkPhysicalDeviceVulkan13Features                 vk_1_3;
+		VkPhysicalDeviceVulkan14Features                 vk_1_4;
 		VkPhysicalDeviceRayTracingPipelineFeaturesKHR    ray_tracing_pipeline;
 		VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure;
 		VkPhysicalDeviceMeshShaderFeaturesNV             mesh_shader;
@@ -277,6 +278,9 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 
 		self->physical_device_features.vk_1_3       = {};
 		self->physical_device_features.vk_1_3.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
+		self->physical_device_features.vk_1_4       = {};
+		self->physical_device_features.vk_1_4.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
 	}
 
 	// Setup the features chain
@@ -286,6 +290,7 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	auto vk_11_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.vk_1_1 );
 	auto vk_12_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.vk_1_2 );
 	auto vk_13_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.vk_1_3 );
+	auto vk_14_features = get_or_append_features_chain_link( features_chain, &self->physical_device_features.vk_1_4 );
 
 	// ----------------------------------------------------------------------
 	// Enable some default features that we don't want to live without
@@ -299,6 +304,12 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	vk_11_features->shaderDrawParameters   = VK_TRUE; // needed for spir-v shaders
 	vk_12_features->timelineSemaphore      = VK_TRUE; // needed for cross-queue synchronisation
 	vk_13_features->synchronization2       = VK_TRUE; // use synchronisation2 by default
+
+// enable features for dynamic rendering
+#if LE_DR
+	vk_13_features->dynamicRendering          = VK_TRUE; // use dynamic rendering
+	vk_14_features->dynamicRenderingLocalRead = VK_TRUE;
+#endif
 
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME );
