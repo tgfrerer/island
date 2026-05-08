@@ -2702,8 +2702,11 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 		auto const attachments_end = pass.attachments +
 		                             pass.numColorAttachments +
-		                             pass.numDepthStencilAttachments +
-		                             pass.numResolveAttachments;
+		                             pass.numDepthStencilAttachments
+#	ifndef LE_DR
+		                             + pass.numResolveAttachments // resolve attachments are added in pairs when using dynamic rendering
+#	endif
+		    ;
 
 		size_t resolve_attachment_count = pass.numResolveAttachments; // if there are resolve attachments, them must be the same size as colour+depth count
 
