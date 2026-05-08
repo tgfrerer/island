@@ -8294,7 +8294,11 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 			// non-draw passes don't need renderpasses.
 			if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
+#ifdef LE_DR
+				vkCmdEndRendering( cmd );
+#else
 				vkCmdEndRenderPass( cmd );
+#endif
 			}
 
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
