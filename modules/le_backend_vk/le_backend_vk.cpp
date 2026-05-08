@@ -6671,7 +6671,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			pass_insert_explicit_sync_ops( frame, submission, pass.sync_ops_before_pass, cmd );
 
 			// Draw passes must begin by opening a Renderpass context.
-			if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
+			if ( pass.type == le::QueueFlagBits::eGraphics ) {
 
 #ifdef LE_DR
 
@@ -6683,12 +6683,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				        .offset = { 0, 0 },
 				        .extent = { pass.width, pass.height },
 				    },
-				    .layerCount           = 1,                                                                 // uint32_t  --
-				    .viewMask             = 0,                                                                 // uint32_t  -- for multi-view rendering
-				    .colorAttachmentCount = pass.numColorAttachments,                                          // uint32_t, optional
-				    .pColorAttachments    = pass.attachment_rendering_infos.data(),                            // VkRenderingAttachmentInfo const *
-				    .pDepthAttachment     = pass.attachment_rendering_infos.data() + pass.numColorAttachments, // VkRenderingAttachmentInfo const *, optional
-				    .pStencilAttachment   = nullptr,                                                           // VkRenderingAttachmentInfo const *, optional
+				    .layerCount           = 1,                                                                                                             // uint32_t  --
+				    .viewMask             = 0,                                                                                                             // uint32_t  -- for multi-view rendering
+				    .colorAttachmentCount = pass.numColorAttachments,                                                                                      // uint32_t, optional
+				    .pColorAttachments    = pass.attachment_rendering_infos.data(),                                                                        // VkRenderingAttachmentInfo const *
+				    .pDepthAttachment     = pass.numDepthStencilAttachments ? pass.attachment_rendering_infos.data() + pass.numColorAttachments : nullptr, // VkRenderingAttachmentInfo const *, optional
+				    .pStencilAttachment   = pass.numDepthStencilAttachments ? pass.attachment_rendering_infos.data() + pass.numColorAttachments : nullptr, // VkRenderingAttachmentInfo const *, optional
 				};
 
 				vkCmdBeginRendering( cmd, &rendering_info );
@@ -8312,7 +8312,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			}
 
 			// non-draw passes don't need renderpasses.
-			if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
+			if ( pass.type == le::QueueFlagBits::eGraphics ) {
 #ifdef LE_DR
 				vkCmdEndRendering( cmd );
 #else

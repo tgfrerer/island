@@ -176,8 +176,10 @@ struct BackendRenderPass {
 	le::QueueFlagBits   type;
 	le::RootPassesField root_passes_affinity; // key used to assign pass to queue submission
 
+#ifndef LE_DR
 	VkFramebuffer           framebuffer;
 	VkRenderPass            renderPass;
+#endif
 	uint32_t                width;
 	uint32_t                height;
 	le::SampleCountFlagBits sampleCount;    // We store this with renderpass, as sampleCount must be same for all color/depth attachments
