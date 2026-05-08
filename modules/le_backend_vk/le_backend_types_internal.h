@@ -170,8 +170,8 @@ struct BackendRenderPass {
 
 	AttachmentInfo attachments[ LE_MAX_COLOR_ATTACHMENTS ]; // maximum of 16 color output attachments
 	uint16_t       numColorAttachments;                     // 0..VK_MAX_COLOR_ATTACHMENTS
-	uint16_t       numResolveAttachments;                   // 0..8
 	uint16_t       numDepthStencilAttachments;              // 0..1
+	uint16_t       numResolveAttachments;                   // 0..8 -- there must be a resolve attachment for each image attachment
 
 	le::QueueFlagBits   type;
 	le::RootPassesField root_passes_affinity; // key used to assign pass to queue submission
@@ -190,4 +190,6 @@ struct BackendRenderPass {
 	char                        debugName[ 256 ] = ""; // Debug name for renderpass
 	std::vector<ExplicitSyncOp> sync_ops_before_pass;  // explicit sync operations for renderpass, these execute before renderpass begins.
 	std::vector<ExplicitSyncOp> sync_ops_after_pass;   // explicit sync operations after this renderpass (image layout transfers for example)
+
+	std::vector<VkRenderingAttachmentInfo> attachment_rendering_infos;
 };

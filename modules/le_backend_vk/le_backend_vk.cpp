@@ -2636,6 +2636,47 @@ VkImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
 // ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
 //
+static VkImageView create_image_view_for_attachment( BackendFrameData& frame, VkDevice& device, const AttachmentInfo* attachment ) {
+
+	VkImageSubresourceRange subresourceRange{
+	    .aspectMask     = get_aspect_flags_from_format( attachment->format ),
+	    .baseMipLevel   = 0,
+	    .levelCount     = 1,
+	    .baseArrayLayer = 0,
+	    .layerCount     = 1,
+	};
+
+	VkImage img = frame_data_get_image_from_le_resource_id( &frame, attachment->resource );
+
+	VkImageViewCreateInfo imageViewCreateInfo{
+	    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+	    .pNext            = nullptr, // optional
+	    .flags            = 0,       // optional
+	    .image            = img,
+	    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+	    .format           = VkFormat( attachment->format ),
+	    .components       = {},
+	    .subresourceRange = subresourceRange,
+	};
+
+	VkImageView image_view = nullptr;
+	{
+		auto result = vkCreateImageView( device, &imageViewCreateInfo, nullptr, &image_view );
+		assert( result == VK_SUCCESS );
+	}
+
+	// Retain imageviews in owned resources - they will be released
+	// once not needed anymore.
+
+	AbstractPhysicalResource iv;
+	iv.type        = AbstractPhysicalResource::eImageView;
+	iv.asImageView = image_view;
+
+	frame.ownedResources.emplace_front( std::move( iv ) );
+
+	return image_view;
+}
+
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 	ZoneScoped;
 
@@ -2654,8 +2695,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 #ifdef LE_DR
 
-		std::vector<VkRenderingAttachmentInfo> attachment_infos;
-
 		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger().info( "* Renderpass: '%s'", pass.debugName );
 			logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
@@ -2666,6 +2705,11 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		                             pass.numDepthStencilAttachments +
 		                             pass.numResolveAttachments;
 
+		size_t resolve_attachment_count = pass.numResolveAttachments; // if there are resolve attachments, them must be the same size as colour+depth count
+
+		// if there are resolve attachments, there must be one for each colour and depth element
+		assert( resolve_attachment_count && ( resolve_attachment_count = pass.numColorAttachments + pass.numDepthStencilAttachments ) );
+
 		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
 
 			auto& syncChain = syncChainTable.at( attachment->resource );
@@ -2674,65 +2718,35 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			const auto& syncSubpass = syncChain.at( attachment->initialStateOffset + 1 ); // during
 			const auto& syncFinal   = syncChain.at( attachment->finalStateOffset );       // next    -- check this - it could be that this is where the automatic layout transfer happens
 
-			bool isDepth   = false;
-			bool isStencil = false;
-			le_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
+			VkImageView image_view = create_image_view_for_attachment( frame, device, attachment );
 
-			// it looks like we need to create image views for our attachments...
+			VkImageView   resolve_image_view   = nullptr;
+			VkImageLayout resolve_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-			// vkCreateImageView();
-			VkImageSubresourceRange subresourceRange{
-			    .aspectMask     = get_aspect_flags_from_format( attachment->format ),
-			    .baseMipLevel   = 0,
-			    .levelCount     = 1,
-			    .baseArrayLayer = 0,
-			    .layerCount     = 1,
+			if ( resolve_attachment_count ) {
+				auto const resolve_attachment = ( attachment + resolve_attachment_count );
+				resolve_image_view            = create_image_view_for_attachment( frame, device, resolve_attachment );
+				auto const& sc                = syncChainTable.at( resolve_attachment->resource );
+				resolve_image_layout          = sc.at( ( resolve_attachment )->initialStateOffset + 1 ).layout;
 			};
 
-			VkImage img = frame_data_get_image_from_le_resource_id( &frame, attachment->resource );
-
-			VkImageViewCreateInfo imageViewCreateInfo{
-			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			    .pNext            = nullptr, // optional
-			    .flags            = 0,       // optional
-			    .image            = img,
-			    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-			    .format           = VkFormat( attachment->format ),
-			    .components       = {},
-			    .subresourceRange = subresourceRange,
-			};
-
-			VkImageView imageView = nullptr;
-			{
-				auto result = vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
-				assert( result == VK_SUCCESS );
-			}
-
-			framebufferAttachments.push_back( imageView );
-
-			{
-				// Retain imageviews in owned resources - they will be released
-				// once not needed anymore.
-
-				AbstractPhysicalResource iv;
-				iv.type        = AbstractPhysicalResource::eImageView;
-				iv.asImageView = imageView;
-
-				frame.ownedResources.emplace_front( std::move( iv ) );
-			}
 			VkRenderingAttachmentInfo a_i = {
-			    .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, // VkStructureType
-			    .pNext              = nullptr,                                     // void *, optional
-			    .imageView          = 0,                                           // VkImageView, optional
-			    .imageLayout        = syncSubpass.layout,                          // VkImageLayout
-			    .resolveMode        = 0,                                           // VkResolveModeFlagBits, optional
-			    .resolveImageView   = 0,                                           // VkImageView, optional
-			    .resolveImageLayout = syncSubpass.layout,                          // VkImageLayout, if image is a resolve image?
+			    .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,                                   // VkStructureType
+			    .pNext              = nullptr,                                                                       // void *, optional
+			    .imageView          = image_view,                                                                    // VkImageView, optional
+			    .imageLayout        = syncSubpass.layout,                                                            // VkImageLayout
+			    .resolveMode        = resolve_attachment_count ? VK_RESOLVE_MODE_AVERAGE_BIT : VK_RESOLVE_MODE_NONE, // VkResolveModeFlagBits, optional :: TODO: find out which bits we must set for resolve mode
+			    .resolveImageView   = resolve_image_view,                                                            // VkImageView, optional
+			    .resolveImageLayout = resolve_image_layout,                                                          // VkImageLayout, if image is a resolve image?
 			    .loadOp             = VkAttachmentLoadOp( attachment->loadOp ),
 			    .storeOp            = VkAttachmentStoreOp( attachment->storeOp ),
-			    .clearValue         = 0, // VkClearValue
+			    .clearValue         = reinterpret_cast<VkClearValue const&>( attachment->clearValue ), // VkClearValue
 			};
+
+			pass.attachment_rendering_infos.emplace_back( std::move( a_i ) );
 		}
+
+		// now all attachment information is in attachment_infos... this should probably be stored with the frame.
 
 #else
 
@@ -2968,7 +2982,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 #endif
 	} // end for each pass
 }
-
 
 // ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
@@ -6651,12 +6664,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				        .offset = { 0, 0 },
 				        .extent = { pass.width, pass.height },
 				    },
-				    .layerCount           = 0,       // uint32_t  --
-				    .viewMask             = 0,       // uint32_t  -- for multi-view rendering
-				    .colorAttachmentCount = 0,       // uint32_t, optional
-				    .pColorAttachments    = nullptr, // VkRenderingAttachmentInfo const *
-				    .pDepthAttachment     = nullptr, // VkRenderingAttachmentInfo const *, optional
-				    .pStencilAttachment   = nullptr, // VkRenderingAttachmentInfo const *, optional
+				    .layerCount           = 0,                                                                 // uint32_t  --
+				    .viewMask             = 0,                                                                 // uint32_t  -- for multi-view rendering
+				    .colorAttachmentCount = pass.numColorAttachments,                                          // uint32_t, optional
+				    .pColorAttachments    = pass.attachment_rendering_infos.data(),                            // VkRenderingAttachmentInfo const *
+				    .pDepthAttachment     = pass.attachment_rendering_infos.data() + pass.numColorAttachments, // VkRenderingAttachmentInfo const *, optional
+				    .pStencilAttachment   = nullptr,                                                           // VkRenderingAttachmentInfo const *, optional
 				};
 
 				vkCmdBeginRendering( cmd, &rendering_info );
