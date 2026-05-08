@@ -5449,7 +5449,10 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// patch and retain physical resources in bulk here, so that
 	// each pass may be processed independently
+#ifdef LE_DR
+#else
 	backend_create_frame_buffers( frame, device );
+#endif
 
 	return true;
 };
