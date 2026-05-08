@@ -3001,6 +3001,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 	} // end for each pass
 }
 
+#ifndef LE_DR
 // ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
 //
@@ -3091,7 +3092,7 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 		}
 	}
 }
-
+#endif
 // ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
 //
