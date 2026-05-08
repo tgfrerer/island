@@ -58,7 +58,7 @@ static le::Log& logger() {
 #endif
 
 #ifndef LE_PRINT_DEBUG_MESSAGES
-#	define LE_PRINT_DEBUG_MESSAGES false
+#	define LE_PRINT_DEBUG_MESSAGES true
 #endif
 
 #ifndef DEBUG_TAG_RESOURCES
@@ -2558,6 +2558,80 @@ static constexpr auto ANY_WRITE_VK_ACCESS_2_FLAGS =
       VK_ACCESS_2_VIDEO_ENCODE_WRITE_BIT_KHR
 #endif
     );
+// ----------------------------------------------------------------------
+
+/// \brief fetchVkBuffer from frame local storage based on resource handle flags
+/// - allocatorBuffers[index] if transient,
+/// - stagingAllocator.buffers[index] if staging,
+/// otherwise, fetch from frame available resources based on an id lookup.
+static inline VkBuffer frame_data_get_buffer_from_le_resource_id( BackendFrameData const* frame, le_buffer_resource_handle const buffer ) {
+	if ( buffer->get_usage_flags() == le_buffer_resource_handle_t::eIsVirtual ) {
+		return frame->allocatorBuffers[ buffer->get_idx() ];
+	} else if ( buffer->get_usage_flags() == uint8_t( le_buffer_resource_handle_t::eIsStaging ) ) {
+		return frame->stagingAllocator->buffers[ buffer->get_idx() ];
+	} else {
+#ifndef NDEBUG
+		auto it_buf = frame->availableResources.find( buffer );
+		if ( it_buf != frame->availableResources.end() ) {
+			return it_buf->second.as.buffer;
+		} else {
+			logger().error( "Resource '%s' is not declared in current frame/renderpass.", buffer->get_debug_name() );
+			return nullptr;
+		}
+#else
+		return frame->availableResources.at( buffer ).as.buffer;
+#endif
+	}
+}
+
+// ----------------------------------------------------------------------
+static inline VkImage frame_data_get_image_from_le_resource_id( BackendFrameData const* frame, le_image_resource_handle const img ) {
+	return frame->availableResources.at( img ).as.image;
+}
+
+// ----------------------------------------------------------------------
+static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const* frame, le_image_resource_handle const img ) {
+	return frame->availableResources.at( img ).info.imageInfo.format;
+}
+
+// ----------------------------------------------------------------------
+
+static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData const* frame, le_resource_handle const rsp ) {
+	return frame->availableResources.at( rsp );
+}
+
+// ----------------------------------------------------------------------
+// if specific format for texture was not specified, return format of referenced image
+static inline VkFormat frame_data_get_image_format_from_image_view_info( BackendFrameData const* frame, le_image_view_info_t const* texInfo ) {
+	if ( texInfo->format == le::Format::eUndefined ) {
+		return ( frame_data_get_image_format_from_resource_id( frame, texInfo->imageId ) );
+	} else {
+		return static_cast<VkFormat>( texInfo->format );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+VkImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
+	VkImageAspectFlags aspectFlags{};
+
+	bool isDepth   = false;
+	bool isStencil = false;
+	le_format_get_is_depth_stencil( format, isDepth, isStencil );
+
+	if ( isDepth || isStencil ) {
+		if ( isDepth ) {
+			aspectFlags |= VK_IMAGE_ASPECT_DEPTH_BIT;
+		}
+		if ( isStencil ) {
+			aspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+	} else {
+		aspectFlags |= VK_IMAGE_ASPECT_COLOR_BIT;
+	}
+
+	return aspectFlags;
+}
 
 // ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
@@ -2578,6 +2652,90 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 		// ---------| Invariant: current pass is a draw pass.
 
+#ifdef LE_DR
+
+		std::vector<VkRenderingAttachmentInfo> attachment_infos;
+
+		if ( LE_PRINT_DEBUG_MESSAGES ) {
+			logger().info( "* Renderpass: '%s'", pass.debugName );
+			logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
+		}
+
+		auto const attachments_end = pass.attachments +
+		                             pass.numColorAttachments +
+		                             pass.numDepthStencilAttachments +
+		                             pass.numResolveAttachments;
+
+		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
+
+			auto& syncChain = syncChainTable.at( attachment->resource );
+
+			const auto& syncInitial = syncChain.at( attachment->initialStateOffset );     // before
+			const auto& syncSubpass = syncChain.at( attachment->initialStateOffset + 1 ); // during
+			const auto& syncFinal   = syncChain.at( attachment->finalStateOffset );       // next    -- check this - it could be that this is where the automatic layout transfer happens
+
+			bool isDepth   = false;
+			bool isStencil = false;
+			le_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
+
+			// it looks like we need to create image views for our attachments...
+
+			// vkCreateImageView();
+			VkImageSubresourceRange subresourceRange{
+			    .aspectMask     = get_aspect_flags_from_format( attachment->format ),
+			    .baseMipLevel   = 0,
+			    .levelCount     = 1,
+			    .baseArrayLayer = 0,
+			    .layerCount     = 1,
+			};
+
+			VkImage img = frame_data_get_image_from_le_resource_id( &frame, attachment->resource );
+
+			VkImageViewCreateInfo imageViewCreateInfo{
+			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			    .pNext            = nullptr, // optional
+			    .flags            = 0,       // optional
+			    .image            = img,
+			    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+			    .format           = VkFormat( attachment->format ),
+			    .components       = {},
+			    .subresourceRange = subresourceRange,
+			};
+
+			VkImageView imageView = nullptr;
+			{
+				auto result = vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
+				assert( result == VK_SUCCESS );
+			}
+
+			framebufferAttachments.push_back( imageView );
+
+			{
+				// Retain imageviews in owned resources - they will be released
+				// once not needed anymore.
+
+				AbstractPhysicalResource iv;
+				iv.type        = AbstractPhysicalResource::eImageView;
+				iv.asImageView = imageView;
+
+				frame.ownedResources.emplace_front( std::move( iv ) );
+			}
+			VkRenderingAttachmentInfo a_i = {
+			    .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, // VkStructureType
+			    .pNext              = nullptr,                                     // void *, optional
+			    .imageView          = 0,                                           // VkImageView, optional
+			    .imageLayout        = syncSubpass.layout,                          // VkImageLayout
+			    .resolveMode        = 0,                                           // VkResolveModeFlagBits, optional
+			    .resolveImageView   = 0,                                           // VkImageView, optional
+			    .resolveImageLayout = syncSubpass.layout,                          // VkImageLayout, if image is a resolve image?
+			    .loadOp             = VkAttachmentLoadOp( attachment->loadOp ),
+			    .storeOp            = VkAttachmentStoreOp( attachment->storeOp ),
+			    .clearValue         = 0, // VkClearValue
+			};
+		}
+
+#else
+
 		std::vector<VkAttachmentDescription2> attachments;
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
@@ -2585,17 +2743,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		std::vector<VkAttachmentReference2> resolveAttachmentReferences;
 		VkAttachmentReference2*             dsAttachmentReference = nullptr;
 
-		// We must accumulate these flags over all attachments - they are the
-		// union of all flags required by all attachments in a pass.
-		VkPipelineStageFlags2 srcStageFromExternalFlags  = 0;
-		VkPipelineStageFlags2 dstStageFromExternalFlags  = 0;
-		VkAccessFlags2        srcAccessFromExternalFlags = 0;
-		VkAccessFlags2        dstAccessFromExternalFlags = 0;
-
-		VkPipelineStageFlags2 srcStageToExternalFlags  = 0;
-		VkPipelineStageFlags2 dstStageToExternalFlags  = 0;
-		VkAccessFlags2        srcAccessToExternalFlags = 0;
-		VkAccessFlags2        dstAccessToExternalFlags = 0;
 
 		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger().info( "* Renderpass: '%s'", pass.debugName );
@@ -2676,23 +2823,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 				break;
 			}
 
-			srcStageFromExternalFlags |= syncInitial.stage;
-			dstStageFromExternalFlags |= syncSubpass.stage;
-			srcAccessFromExternalFlags |= ( syncInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS );
-			dstAccessFromExternalFlags |= syncSubpass.visible_access; // & ~(syncInitial.visible_access );
-			// this would make only changes in availability operations happen. it should only happen if there are no src write_access_flags. we leave this out so as to give the driver more info
-
-			// TODO: deal with other subpasses ...
-
-			srcStageToExternalFlags |= syncChain.at( attachment->finalStateOffset - 1 ).stage;
-			dstStageToExternalFlags |= syncFinal.stage;
-			srcAccessToExternalFlags |= ( syncChain.at( attachment->finalStateOffset - 1 ).visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS );
-			dstAccessToExternalFlags |= syncFinal.visible_access;
-
-			if ( 0 == uint64_t( srcStageFromExternalFlags ) ) {
-				// Ensure that the stage mask is valid if no src stage was specified.
-				srcStageFromExternalFlags = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-			}
 		}
 
 		if ( LE_PRINT_DEBUG_MESSAGES ) {
@@ -2721,7 +2851,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 			subpasses.emplace_back( subpassDescription );
 		}
-
 
 		{
 			// -- Build hash for compatible renderpass
@@ -2836,83 +2965,10 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			// it can be recycled when not needed anymore.
 			frame.ownedResources.emplace_front( std::move( rp ) );
 		}
+#endif
 	} // end for each pass
 }
 
-// ----------------------------------------------------------------------
-
-/// \brief fetchVkBuffer from frame local storage based on resource handle flags
-/// - allocatorBuffers[index] if transient,
-/// - stagingAllocator.buffers[index] if staging,
-/// otherwise, fetch from frame available resources based on an id lookup.
-static inline VkBuffer frame_data_get_buffer_from_le_resource_id( BackendFrameData const* frame, le_buffer_resource_handle const buffer ) {
-	if ( buffer->get_usage_flags() == le_buffer_resource_handle_t::eIsVirtual ) {
-		return frame->allocatorBuffers[ buffer->get_idx() ];
-	} else if ( buffer->get_usage_flags() == uint8_t( le_buffer_resource_handle_t::eIsStaging ) ) {
-		return frame->stagingAllocator->buffers[ buffer->get_idx() ];
-	} else {
-#ifndef NDEBUG
-        auto it_buf = frame->availableResources.find( buffer );
-        if ( it_buf != frame->availableResources.end() ) {
-            return it_buf->second.as.buffer;
-        } else {
-			logger().error( "Resource '%s' is not declared in current frame/renderpass.", buffer->get_debug_name() );
-			return nullptr;
-		}
-#else
-        return frame->availableResources.at( buffer ).as.buffer;
-#endif
-	}
-}
-
-// ----------------------------------------------------------------------
-static inline VkImage frame_data_get_image_from_le_resource_id( BackendFrameData const* frame, le_image_resource_handle const img ) {
-	return frame->availableResources.at( img ).as.image;
-}
-
-// ----------------------------------------------------------------------
-static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const* frame, le_image_resource_handle const img ) {
-	return frame->availableResources.at( img ).info.imageInfo.format;
-}
-
-// ----------------------------------------------------------------------
-
-static inline AllocatedResourceVk const& frame_data_get_allocated_resource_from_resource_id( BackendFrameData const* frame, le_resource_handle const rsp ) {
-	return frame->availableResources.at( rsp );
-}
-
-// ----------------------------------------------------------------------
-// if specific format for texture was not specified, return format of referenced image
-static inline VkFormat frame_data_get_image_format_from_image_view_info( BackendFrameData const* frame, le_image_view_info_t const* texInfo ) {
-	if ( texInfo->format == le::Format::eUndefined ) {
-		return ( frame_data_get_image_format_from_resource_id( frame, texInfo->imageId ) );
-	} else {
-		return static_cast<VkFormat>( texInfo->format );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-VkImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
-	VkImageAspectFlags aspectFlags{};
-
-	bool isDepth   = false;
-	bool isStencil = false;
-	le_format_get_is_depth_stencil( format, isDepth, isStencil );
-
-	if ( isDepth || isStencil ) {
-		if ( isDepth ) {
-			aspectFlags |= VK_IMAGE_ASPECT_DEPTH_BIT;
-		}
-		if ( isStencil ) {
-			aspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
-		}
-	} else {
-		aspectFlags |= VK_IMAGE_ASPECT_COLOR_BIT;
-	}
-
-	return aspectFlags;
-}
 
 // ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
@@ -5380,7 +5436,6 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// patch and retain physical resources in bulk here, so that
 	// each pass may be processed independently
-
 	backend_create_frame_buffers( frame, device );
 
 	return true;
@@ -6576,13 +6631,37 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			}
 
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
-				logger().info( "*** Frame %d *** Queue %d *** Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
+				logger().info( "*** Frame %d *** Queue %d *** / Begin Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 			}
 			pass_insert_explicit_sync_ops( frame, submission, pass.sync_ops_before_pass, cmd );
 
 			// Draw passes must begin by opening a Renderpass context.
 			if ( pass.type == le::QueueFlagBits::eGraphics && pass.renderPass ) {
 
+#ifdef LE_DR
+
+				// todo - fill in renderinginfo into pass.
+
+				// implement dynamic rendering
+				VkRenderingInfo rendering_info = {
+				    .sType      = VK_STRUCTURE_TYPE_RENDERING_INFO, // VkStructureType
+				    .pNext      = nullptr,                          // void *, optional
+				    .flags      = 0,                                // VkRenderingFlags, optional
+				    .renderArea = {
+				        .offset = { 0, 0 },
+				        .extent = { pass.width, pass.height },
+				    },
+				    .layerCount           = 0,       // uint32_t  --
+				    .viewMask             = 0,       // uint32_t  -- for multi-view rendering
+				    .colorAttachmentCount = 0,       // uint32_t, optional
+				    .pColorAttachments    = nullptr, // VkRenderingAttachmentInfo const *
+				    .pDepthAttachment     = nullptr, // VkRenderingAttachmentInfo const *, optional
+				    .pStencilAttachment   = nullptr, // VkRenderingAttachmentInfo const *, optional
+				};
+
+				vkCmdBeginRendering( cmd, &rendering_info );
+
+#else
 				for ( uint32_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
 					clearValues[ i ] = reinterpret_cast<VkClearValue&>( pass.attachments[ i ].clearValue );
 				}
@@ -6601,6 +6680,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				};
 
 				vkCmdBeginRenderPass( cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE );
+#endif
 			}
 
 			// -- Translate intermediary command stream data to api-native instructions
@@ -8205,7 +8285,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			}
 
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
-				logger().info( "*** Frame %d *** Queue %d *** EndRenderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
+				logger().info( "*** Frame %d *** Queue %d *** \\ End   Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 			}
 			pass_insert_explicit_sync_ops( frame, submission, pass.sync_ops_after_pass, cmd );
 

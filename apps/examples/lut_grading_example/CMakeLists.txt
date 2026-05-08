@@ -12,6 +12,8 @@ project (${PROJECT_NAME})
 # set to number of worker threads if you wish to use multi-threaded rendering
 # add_compile_definitions( LE_MT=4 )
 
+add_compile_definitions(LE_DR)
+
 # Vulkan Validation layers are enabled by default for Debug builds.
 # Uncomment the next line to disable loading Vulkan Validation Layers.
 # add_compile_definitions( SHOULD_USE_VALIDATION_LAYERS=false )
