@@ -192,4 +192,6 @@ struct BackendRenderPass {
 	std::vector<ExplicitSyncOp> sync_ops_after_pass;   // explicit sync operations after this renderpass (image layout transfers for example)
 
 	std::vector<VkRenderingAttachmentInfo> attachment_rendering_infos;
+	std::vector<VkFormat>                  color_formats;
+	VkFormat                               depth_format = {};
 };
