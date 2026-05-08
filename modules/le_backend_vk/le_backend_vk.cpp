@@ -598,7 +598,7 @@ struct BackendFrameData {
 	sync_chain_table_t syncChainTable;
 
 	// last implicitly synchronised synch chain index for resources that need to be explicitly synched
-	std::unordered_map<le_resource_handle, uint32_t> explicit_sync_requests;
+	// std::unordered_map<le_resource_handle, uint32_t> explicit_sync_requests;
 
 	static_assert( sizeof( VkBuffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
 
@@ -1795,6 +1795,10 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 	size_t                            numImageAttachments = 0;
 
 	renderpass_i.get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
+
+	// if we are multisampling we will need a resolve attachment for each image or depth attachment
+	currentPass.attachments.resize( numSamplesLog2 ? numImageAttachments : numImageAttachments * 2, {} );
+
 	for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
 		auto const& image_attachment_info = pImageAttachments[ i ];
@@ -1827,7 +1831,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		bool isDepthStencil = isDepth || isStencil;
 
 		AttachmentInfo* currentAttachment =
-		    currentPass.attachments +
+		    currentPass.attachments.data() +
 		    currentPass.numColorAttachments +
 		    currentPass.numDepthStencilAttachments +
 		    currentPass.numResolveAttachments;
@@ -1954,7 +1958,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		le_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
 		bool isDepthStencil = isDepth || isStencil;
 
-		AttachmentInfo* currentAttachment = currentPass.attachments +
+		AttachmentInfo* currentAttachment = currentPass.attachments.data() +
 		                                    currentPass.numColorAttachments +
 		                                    currentPass.numDepthStencilAttachments +
 		                                    currentPass.numResolveAttachments;
@@ -2123,10 +2127,14 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 			} else if ( resources_access[ i ] & ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ) ) {
 				// This means most likely that the image is used as an attachment. In this case,
 				// synchronisation is taken care of implicitly.
+#ifdef LE_DR
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 				requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 				//	logger().info( "colour attachment write" );
+#else
+				continue;
+#endif
 			} else {
 				continue;
 			}
@@ -2147,7 +2155,11 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 		// -- we must add an explicit sync op so that the change happens before the pass - this applies to
 		// passes which don't do implicit syncing, such as compute or transfer passes.
-		currentPass.sync_ops_before_pass.emplace_back( syncOp );
+
+		// let's only add the sync op if this is the first transition for this element
+		if ( syncOp.sync_chain_offset_initial == 0 ) {
+			currentPass.sync_ops_before_pass.emplace_back( syncOp );
+		}
 	}
 }
 
@@ -2225,13 +2237,31 @@ static void frame_track_resource_state(
 		//
 		le_renderpass_add_explicit_sync( pass, currentPass, syncChainTable );
 
+		// the last entry in the sync chain table for each used resource in this pass should show the state that is required for this
+		// resource at the beginning of this pass.
+
 		// Iterate over all image attachments
 		le_renderpass_add_attachments( pass, currentPass, frame, currentPass.sampleCount, renderer );
+
+		for ( auto const& r : currentPass.resources ) {
+			currentPass.sync_ops_after_pass.push_back( {
+			    r,
+			    uint32_t( syncChainTable.at( r ).size() ) - 1, // last current
+			    uint32_t( syncChainTable.at( r ).size() ),     // speculative: next state
+			    true,
+			} );
+		}
+
+		// theoretically, here we would add sync for all resources that were used in this buffer to transition to the next stage - even if that next stage is not
+		// yet known. we will add a final stage to all resources so we know that there will always be a stage n+1
 
 		frame.passes.emplace_back( std::move( currentPass ) );
 	} // end for all passes
 
 	for ( auto& s_entry : syncChainTable ) {
+
+		// Set the final state for each resource.
+
 		const auto& resource_handle = s_entry.first;
 		auto&       sync_chain      = s_entry.second;
 
@@ -2251,6 +2281,7 @@ static void frame_track_resource_state(
 		sync_chain.emplace_back( std::move( finalState ) );
 	}
 
+#ifndef LE_DR
 	// ------------------------------------------------------
 	// Check for barrier correctness
 	//
@@ -2346,19 +2377,17 @@ static void frame_track_resource_state(
 	for ( auto [ handle, max_idx ] : max_sync_index ) {
 		uint32_t sync_indices_count = syncChainTable[ handle ].size();
 		if ( sync_indices_count > max_idx + 1 ) {
-			frame.explicit_sync_requests[ handle ] = max_idx;
+			// frame.explicit_sync_requests[ handle ] = max_idx;
 
 			// Store an explicit post-pass sync request with the last pass that touched a
 			// resource. We store with the last pass because this makes it this pass'es
 			// responsibility to return the resource to the last stage in the sync chain.
 
+			//			logger().warn( "Image '%s' :: sync chain length %d > %d, last used in pass: %s", handle->get_debug_name(), sync_indices_count, max_idx, resource_last_used_in_pass[ handle ]->debugName );
 			resource_last_used_in_pass[ handle ]->sync_ops_after_pass.push_back( { handle, max_idx, sync_indices_count - 1, true } );
-
-			// logger().warn( "Image %s :: sync chain length %d > %d, last used in pass: %s",
-			//              handle->data->debug_name, syncChainTable[ handle ].size(), max_idx,
-			//              resource_last_used_in_pass[ handle ]->debugName );
 		}
 	}
+#endif
 }
 
 // ----------------------------------------------------------------------
@@ -2518,7 +2547,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	frame.physicalResources.clear();
 	frame.syncChainTable.clear();
-	frame.explicit_sync_requests.clear();
+	// frame.explicit_sync_requests.clear();
 
 	frame.passes.clear();
 
@@ -2676,6 +2705,7 @@ static VkImageView create_image_view_for_attachment( BackendFrameData& frame, Vk
 
 	return image_view;
 }
+// ----------------------------------------------------------------------
 
 static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
 	ZoneScoped;
@@ -2700,12 +2730,9 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
 		}
 
-		auto const attachments_end = pass.attachments +
+		auto const attachments_end = pass.attachments.data() +
 		                             pass.numColorAttachments +
 		                             pass.numDepthStencilAttachments
-#	ifndef LE_DR
-		                             + pass.numResolveAttachments // resolve attachments are added in pairs when using dynamic rendering
-#	endif
 		    ;
 
 		size_t resolve_attachment_count = pass.numResolveAttachments; // if there are resolve attachments, them must be the same size as colour+depth count
@@ -2713,9 +2740,8 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 		// if there are resolve attachments, there must be one for each colour and depth element
 		assert( ( resolve_attachment_count == 0 ) || ( resolve_attachment_count = pass.numColorAttachments + pass.numDepthStencilAttachments ) );
 
-		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
+		for ( AttachmentInfo const* attachment = pass.attachments.data(); attachment != attachments_end; attachment++ ) {
 
-#	ifdef LE_DR
 			{
 				// store format so that it can be more easily gathered when creating pipelines.
 				bool is_depth, is_stencil;
@@ -2728,7 +2754,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 					pass.color_formats.push_back( VkFormat( attachment->format ) );
 				}
 			}
-#	endif
 
 			auto& syncChain = syncChainTable.at( attachment->resource );
 
@@ -2781,12 +2806,12 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
 		}
 
-		auto const attachments_end = pass.attachments +
+		auto const attachments_end = pass.attachments.data() +
 		                             pass.numColorAttachments +
 		                             pass.numDepthStencilAttachments +
 		                             pass.numResolveAttachments;
 
-		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
+		for ( AttachmentInfo const* attachment = pass.attachments.data(); attachment != attachments_end; attachment++ ) {
 
 			auto& syncChain = syncChainTable.at( attachment->resource );
 
@@ -2854,7 +2879,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 				} );
 				break;
 			}
-
 		}
 
 		if ( LE_PRINT_DEBUG_MESSAGES ) {
@@ -3023,8 +3047,8 @@ static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& dev
 		std::vector<VkImageView> framebufferAttachments;
 		framebufferAttachments.reserve( attachmentCount );
 
-		auto const attachment_end = pass.attachments + attachmentCount;
-		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachment_end; attachment++ ) {
+		auto const attachment_end = pass.attachments.data() + attachmentCount;
+		for ( AttachmentInfo const* attachment = pass.attachments.data(); attachment != attachment_end; attachment++ ) {
 
 			VkImageSubresourceRange subresourceRange{
 			    .aspectMask     = get_aspect_flags_from_format( attachment->format ),
@@ -5386,7 +5410,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		// Initialise, then build sync chain table - each resource receives initial state
 		// from current entry in frame.availableResources resource map -
 
-		assert( frame.explicit_sync_requests.empty() );
+		// assert( frame.explicit_sync_requests.empty() );
 		assert( frame.syncChainTable.empty() );
 
 		for ( auto const& res : frame.availableResources ) {
@@ -5461,6 +5485,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	                                   self->mFrames[ previous_frame_index ].bindless_storage_images_descriptor_set );
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
+	// TODO: rename this -- we create attachmentinfos here, not renderpasses.
 	backend_create_renderpasses( frame, device );
 
 	// -- make sure that there is a descriptorpool for every renderpass
@@ -8324,6 +8349,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				logger().info( "*** Frame %d *** Queue %d *** \\ End   Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 			}
 			pass_insert_explicit_sync_ops( frame, submission, pass.sync_ops_after_pass, cmd );
+			if ( LE_PRINT_DEBUG_MESSAGES ) {
+				logger().info( "--- / End Sync after pass " );
+			}
 
 			if ( SHOULD_INSERT_DEBUG_LABELS ) {
 				vkCmdEndDebugUtilsLabelEXT( cmd );
