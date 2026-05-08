@@ -2715,6 +2715,21 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 		for ( AttachmentInfo const* attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
 
+#	ifdef LE_DR
+			{
+				// store format so that it can be more easily gathered when creating pipelines.
+				bool is_depth, is_stencil;
+
+				le_format_get_is_depth_stencil( attachment->format, is_depth, is_stencil );
+
+				if ( is_depth || is_stencil ) {
+					pass.depth_format = VkFormat( attachment->format );
+				} else {
+					pass.color_formats.push_back( VkFormat( attachment->format ) );
+				}
+			}
+#	endif
+
 			auto& syncChain = syncChainTable.at( attachment->resource );
 
 			const auto& syncInitial = syncChain.at( attachment->initialStateOffset );     // before
