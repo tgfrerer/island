@@ -6656,9 +6656,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 #ifdef LE_DR
 
-				// todo - fill in renderinginfo into pass.
-
-				// implement dynamic rendering
 				VkRenderingInfo rendering_info = {
 				    .sType      = VK_STRUCTURE_TYPE_RENDERING_INFO, // VkStructureType
 				    .pNext      = nullptr,                          // void *, optional
@@ -6667,7 +6664,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				        .offset = { 0, 0 },
 				        .extent = { pass.width, pass.height },
 				    },
-				    .layerCount           = 0,                                                                 // uint32_t  --
+				    .layerCount           = 1,                                                                 // uint32_t  --
 				    .viewMask             = 0,                                                                 // uint32_t  -- for multi-view rendering
 				    .colorAttachmentCount = pass.numColorAttachments,                                          // uint32_t, optional
 				    .pColorAttachments    = pass.attachment_rendering_infos.data(),                            // VkRenderingAttachmentInfo const *
