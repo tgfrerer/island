@@ -1709,28 +1709,34 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 
 	//
 	// We must match blend attachment states with number of attachments for
-	// the current renderpass - each attachment may have their own blend state.
-	// Our pipeline objects will have 16 stages which are readable.
+	// the current renderpass. If blend attachment states are not defined,
+	// then we should use default blend attachment state for these states.
 	//
-	assert( pass.numColorAttachments <= LE_MAX_COLOR_ATTACHMENTS );
-	//
-	VkPipelineColorBlendStateCreateInfo colorBlendState =
-	    {
-	        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-	        .pNext           = nullptr,
-	        .flags           = 0,
-	        .logicOpEnable   = VK_FALSE,
-	        .logicOp         = VK_LOGIC_OP_CLEAR,
-	        .attachmentCount = pass.numColorAttachments,
-	        .pAttachments    = pso->data.blendAttachmentStates,
-	        .blendConstants  = {
-                pso->data.blend_factor_constants[ 0 ],
-                pso->data.blend_factor_constants[ 1 ],
-                pso->data.blend_factor_constants[ 2 ],
-                pso->data.blend_factor_constants[ 3 ],
-            },
-	    };
-	;
+
+	std::vector<VkPipelineColorBlendAttachmentState> blend_attachment_states;
+	blend_attachment_states.reserve( pass.numColorAttachments );
+	// insert states that are set via the pipeline directly
+	blend_attachment_states.insert( blend_attachment_states.end(), pso->data.blendAttachmentStates.begin(), pso->data.blendAttachmentStates.end() );
+	// fill unset states with default value for blend attachment state (alpha blending)
+	blend_attachment_states.insert(
+	    blend_attachment_states.end(), pass.numColorAttachments - blend_attachment_states.size(),
+	    LE_DEFAULT_COLOR_BLEND_ATTACHMENT_STATE );
+
+	VkPipelineColorBlendStateCreateInfo color_blend_state_info = {
+	    .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+	    .pNext           = nullptr,
+	    .flags           = 0,
+	    .logicOpEnable   = VK_FALSE,
+	    .logicOp         = VK_LOGIC_OP_CLEAR,
+	    .attachmentCount = pass.numColorAttachments,
+	    .pAttachments    = blend_attachment_states.data(), // fill in default for unset elements: this can be stack allocated.
+	    .blendConstants  = {
+            pso->data.blend_factor_constants[ 0 ],
+            pso->data.blend_factor_constants[ 1 ],
+            pso->data.blend_factor_constants[ 2 ],
+            pso->data.blend_factor_constants[ 3 ],
+        },
+	};
 
 	// Viewport and Scissor are tracked as dynamic states, and although this object will not
 	// get used, we must still fulfill the contract of providing a valid object to vk.
@@ -1782,8 +1788,8 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 
 	VkGraphicsPipelineCreateInfo gpi =
 	    {
-	        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-	        .pNext = &pipeline_rendering_create_info,
+	        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+	        .pNext               = &pipeline_rendering_create_info,
 	        .flags               = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT, //
 	        .stageCount          = uint32_t( pipelineStages.size() ),        // set shaders
 	        .pStages             = pipelineStages.data(),                    // set shaders
@@ -1794,13 +1800,13 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	        .pRasterizationState = &pso->data.rasterizationInfo,             //
 	        .pMultisampleState   = &multisampleCreateInfo,                   // <- we patch this with correct sample count for renderpass, because otherwise not possible
 	        .pDepthStencilState  = &pso->data.depthStencilState,             //
-	        .pColorBlendState    = &colorBlendState,                         //
+	        .pColorBlendState    = &color_blend_state_info,                  //
 	        .pDynamicState       = &dynamicState,                            //
 	        .layout              = pipelineLayout,                           //
-	        .renderPass = nullptr,
-	        .subpass    = 0,
-	        .basePipelineHandle = nullptr, // optional
-	        .basePipelineIndex  = 0,       // -1 signals not to use a base pipeline index
+	        .renderPass          = nullptr,
+	        .subpass             = 0,
+	        .basePipelineHandle  = nullptr, // optional
+	        .basePipelineIndex   = 0,       // -1 signals not to use a base pipeline index
 	    };
 
 	VkPipeline pipeline = nullptr;

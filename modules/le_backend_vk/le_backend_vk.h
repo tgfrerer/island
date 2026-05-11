@@ -24,7 +24,6 @@ struct le_on_frame_clear_callback_data_t;
 struct le_pipeline_manager_o;
 
 constexpr uint8_t LE_MAX_BOUND_DESCRIPTOR_SETS = 8;
-constexpr uint8_t LE_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
 
 // total number (and at the same maximum number) of bindless texture descriptors
 // the full number of descriptors will get allocated with each frame once on

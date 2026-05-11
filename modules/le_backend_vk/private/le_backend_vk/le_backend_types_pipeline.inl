@@ -1,4 +1,19 @@
 // ----------------------------------------------------------------------
+static constexpr VkPipelineColorBlendAttachmentState LE_DEFAULT_COLOR_BLEND_ATTACHMENT_STATE{
+    .blendEnable         = VK_TRUE,
+    .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+    .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+    .colorBlendOp        = VK_BLEND_OP_ADD,
+    .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+    .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+    .alphaBlendOp        = VK_BLEND_OP_ADD,
+    .colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT |
+        VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT |
+        VK_COLOR_COMPONENT_A_BIT, // optional
+
+};
 
 struct le_graphics_pipeline_builder_data {
 
@@ -9,7 +24,7 @@ struct le_graphics_pipeline_builder_data {
 	VkPipelineDepthStencilStateCreateInfo  depthStencilState{};
 
 	float                               blend_factor_constants[ 4 ]; // only used with blend factors referencing constant color|alpha
-	VkPipelineColorBlendAttachmentState blendAttachmentStates[ LE_MAX_COLOR_ATTACHMENTS ];
+	std::vector<VkPipelineColorBlendAttachmentState> blendAttachmentStates;
 };
 
 struct graphics_pipeline_state_o {
