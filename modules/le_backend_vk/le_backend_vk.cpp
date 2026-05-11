@@ -2621,6 +2621,11 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 		for ( AttachmentInfo const* attachment = pass.attachments.data(); attachment != attachments_end; attachment++ ) {
 
+			VkResolveModeFlagBits resolve_mode =
+			    resolve_attachment_count
+			        ? VK_RESOLVE_MODE_AVERAGE_BIT
+			        : VK_RESOLVE_MODE_NONE;
+
 			{
 				// store format so that it can be more easily gathered when creating pipelines.
 				bool is_depth, is_stencil;
@@ -2629,6 +2634,9 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 				if ( is_depth || is_stencil ) {
 					pass.depth_format = VkFormat( attachment->format );
+					if ( is_stencil ) {
+						resolve_mode = VK_RESOLVE_MODE_MAX_BIT;
+					}
 				} else {
 					pass.color_formats.push_back( VkFormat( attachment->format ) );
 				}
@@ -2653,13 +2661,13 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 			};
 
 			VkRenderingAttachmentInfo a_i = {
-			    .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,                                   // VkStructureType
-			    .pNext              = nullptr,                                                                       // void *, optional
-			    .imageView          = image_view,                                                                    // VkImageView, optional
-			    .imageLayout        = syncSubpass.layout,                                                            // VkImageLayout
-			    .resolveMode        = resolve_attachment_count ? VK_RESOLVE_MODE_AVERAGE_BIT : VK_RESOLVE_MODE_NONE, // VkResolveModeFlagBits, optional :: TODO: find out which bits we must set for resolve mode
-			    .resolveImageView   = resolve_image_view,                                                            // VkImageView, optional
-			    .resolveImageLayout = resolve_image_layout,                                                          // VkImageLayout, if image is a resolve image?
+			    .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, // VkStructureType
+			    .pNext              = nullptr,                                     // void *, optional
+			    .imageView          = image_view,                                  // VkImageView, optional
+			    .imageLayout        = syncSubpass.layout,                          // VkImageLayout
+			    .resolveMode        = resolve_mode,                                // VkResolveModeFlagBits, optional
+			    .resolveImageView   = resolve_image_view,                          // VkImageView, optional
+			    .resolveImageLayout = resolve_image_layout,                        // VkImageLayout, if image is a resolve image?
 			    .loadOp             = VkAttachmentLoadOp( attachment->loadOp ),
 			    .storeOp            = VkAttachmentStoreOp( attachment->storeOp ),
 			    .clearValue         = reinterpret_cast<VkClearValue const&>( attachment->clearValue ), // VkClearValue
@@ -6328,7 +6336,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				    .colorAttachmentCount = pass.numColorAttachments,                                                                                      // uint32_t, optional
 				    .pColorAttachments    = pass.attachment_rendering_infos.data(),                                                                        // VkRenderingAttachmentInfo const *
 				    .pDepthAttachment     = pass.numDepthStencilAttachments ? pass.attachment_rendering_infos.data() + pass.numColorAttachments : nullptr, // VkRenderingAttachmentInfo const *, optional
-				    .pStencilAttachment   = pass.numDepthStencilAttachments ? pass.attachment_rendering_infos.data() + pass.numColorAttachments : nullptr, // VkRenderingAttachmentInfo const *, optional
+				    // TODO: we need to account for separate stencil attachment
+				    .pStencilAttachment = nullptr, // VkRenderingAttachmentInfo const *, optional
 				};
 
 				vkCmdBeginRendering( cmd, &rendering_info );

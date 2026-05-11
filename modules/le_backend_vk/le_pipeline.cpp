@@ -1768,7 +1768,6 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 
 	multisampleCreateInfo.rasterizationSamples = VkSampleCountFlagBits( pass.sampleCount );
 
-
 	VkPipelineRenderingCreateInfo pipeline_rendering_create_info = {
 	    .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, // VkStructureType
 	    .pNext                   = nullptr,                                          // void *, optional
@@ -1776,7 +1775,7 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	    .colorAttachmentCount    = uint32_t( pass.color_formats.size() ),            // uint32_t, optional
 	    .pColorAttachmentFormats = ( VkFormat* )pass.color_formats.data(),           // VkFormat const *
 	    .depthAttachmentFormat   = VkFormat( pass.depth_format ),                    // VkFormat
-	    .stencilAttachmentFormat = VkFormat( pass.depth_format ),                    // VkFormat
+	    .stencilAttachmentFormat = VK_FORMAT_UNDEFINED,                              // VkFormat : TODO: we don't use a stencil format for now
 	};
 
 	// setup pipeline
