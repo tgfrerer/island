@@ -1768,7 +1768,6 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 
 	multisampleCreateInfo.rasterizationSamples = VkSampleCountFlagBits( pass.sampleCount );
 
-#ifdef LE_DR
 
 	VkPipelineRenderingCreateInfo pipeline_rendering_create_info = {
 	    .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, // VkStructureType
@@ -1779,18 +1778,13 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	    .depthAttachmentFormat   = VkFormat( pass.depth_format ),                    // VkFormat
 	    .stencilAttachmentFormat = VkFormat( pass.depth_format ),                    // VkFormat
 	};
-#endif
 
 	// setup pipeline
 
 	VkGraphicsPipelineCreateInfo gpi =
 	    {
 	        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-#ifdef LE_DR
 	        .pNext = &pipeline_rendering_create_info,
-#else
-	        .pNext = nullptr, //
-#endif
 	        .flags               = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT, //
 	        .stageCount          = uint32_t( pipelineStages.size() ),        // set shaders
 	        .pStages             = pipelineStages.data(),                    // set shaders
@@ -1804,13 +1798,8 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	        .pColorBlendState    = &colorBlendState,                         //
 	        .pDynamicState       = &dynamicState,                            //
 	        .layout              = pipelineLayout,                           //
-#ifdef LE_DR
 	        .renderPass = nullptr,
 	        .subpass    = 0,
-#else
-	        .renderPass = pass.renderPass, // must be a valid renderpass.
-	        .subpass    = subpass,         //
-#endif
 	        .basePipelineHandle = nullptr, // optional
 	        .basePipelineIndex  = 0,       // -1 signals not to use a base pipeline index
 	    };

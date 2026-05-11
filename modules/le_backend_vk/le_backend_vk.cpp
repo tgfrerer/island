@@ -2127,14 +2127,10 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 			} else if ( resources_access[ i ] & ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ) ) {
 				// This means most likely that the image is used as an attachment. In this case,
 				// synchronisation is taken care of implicitly.
-#ifdef LE_DR
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 				requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 				//	logger().info( "colour attachment write" );
-#else
-				continue;
-#endif
 			} else {
 				continue;
 			}
@@ -2279,114 +2275,6 @@ static void frame_track_resource_state(
 
 		sync_chain.emplace_back( std::move( finalState ) );
 	}
-
-#ifndef LE_DR
-	// ------------------------------------------------------
-	// Check for barrier correctness
-	//
-	// Go through all frames and passes and make sure that any explicit sync ops do refer
-	// to sync chain indices which are higher than the current sync chain id for a given resource.
-	//
-	// If they were lower, that would mean that an implicit sync has already taken care of this
-	// image resource operation, in which case we want to deactivate the barrier, as it is not needed.
-	//
-
-	// Note that only resources of type image may be implicitly synced.
-
-	std::unordered_map<le_resource_handle, uint32_t>           max_sync_index;
-	std::unordered_map<le_resource_handle, BackendRenderPass*> resource_last_used_in_pass;
-
-	auto insert_if_greater = [ &max_sync_index ]( le_resource_handle const& key, uint32_t value ) {
-		// Updates map entry to highest value
-		auto& element = max_sync_index[ key ];
-		element       = std::max( element, value );
-	};
-
-	for ( auto& p : frame.passes ) {
-
-		// Check barrier sync chain index against current sync index.
-		//
-		// If barrier sync index is higher, barrier must be issued. Otherwise,
-		// barrier must be removed, as subpass dependency already takes care
-		// of synchronisation implicitly.
-
-		for ( auto& op : p.sync_ops_before_pass ) {
-
-			if ( op.resource->get_type() != LeResourceType::eImage ) {
-				continue;
-			}
-
-			// ---------| invariant: only image resources need checking
-			//
-			// This is because only image may potentially be synchronised implicitly via
-			// subpass dependencies. No such mechanism exists for buffers.
-			//
-			// We can skip checks for buffer barriers, as we assume they are
-			// all needed.
-
-			auto found_it = max_sync_index.find( op.resource );
-			if ( found_it != max_sync_index.end() && found_it->second >= op.sync_chain_offset_final ) {
-				// found an element, and current index is already higher than barrier index.
-				op.active = false;
-			} else {
-				// no element found, or max index is smaller.
-				op.active = true;
-				// store the current max index, then.
-				max_sync_index[ op.resource ] = op.sync_chain_offset_final;
-			}
-
-			// Track that this image was last seen in this pass
-			// so that we may add one last sync op at the last pass if needed.
-
-			resource_last_used_in_pass[ op.resource ] = &p;
-		}
-
-		// Update max_sync_index, so that it contains the maximum sync chain index for each
-		// attachment image resource used in the current pass.
-		const size_t numAttachments = p.numColorAttachments +
-		                              p.numDepthStencilAttachments +
-		                              p.numResolveAttachments;
-
-		for ( size_t a = 0; a != numAttachments; a++ ) {
-			auto const& attachmentInfo = p.attachments[ a ];
-			insert_if_greater( attachmentInfo.resource, attachmentInfo.finalStateOffset );
-		}
-	}
-
-	// Note this applies only to images as max_sync_index does only get filled with resources
-	// that test positively for being images.
-	//
-	// find out whether the max sync index is correct for all elements in sync chain map
-
-	// We insert explicit sync for any resource that does not get synced
-	// via renderpass transitions before we hand over to the swapchain.
-	// This affects the swapchain surface for example, if it gets drawn into
-	// and then sampled from before being handed over to present.
-	// Implicit (renderpass-based sync) would not affect the image as it is
-	// first explicitly transferred to be sampled from. Since there is no more
-	// renderpass that makes use of this image as an attachment, there would
-	// be no more sync happening to this image.
-	// That's what we therefore need to catch, any images with dangling sync ops
-	// that are not implicitly done via renderpasses; these sync ops need to happen
-	// after the last pass that used the image is done with the image. We attach this
-	// to the last pass because we know that the pass can access the image (correct
-	// queue family).
-	//
-	//
-	for ( auto [ handle, max_idx ] : max_sync_index ) {
-		uint32_t sync_indices_count = syncChainTable[ handle ].size();
-		if ( sync_indices_count > max_idx + 1 ) {
-			// frame.explicit_sync_requests[ handle ] = max_idx;
-
-			// Store an explicit post-pass sync request with the last pass that touched a
-			// resource. We store with the last pass because this makes it this pass'es
-			// responsibility to return the resource to the last stage in the sync chain.
-
-			//			logger().warn( "Image '%s' :: sync chain length %d > %d, last used in pass: %s", handle->get_debug_name(), sync_indices_count, max_idx, resource_last_used_in_pass[ handle ]->debugName );
-			resource_last_used_in_pass[ handle ]->sync_ops_after_pass.push_back( { handle, max_idx, sync_indices_count - 1, true } );
-		}
-	}
-#endif
 }
 
 // ----------------------------------------------------------------------
@@ -2722,8 +2610,6 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 		// ---------| Invariant: current pass is a draw pass.
 
-#ifdef LE_DR
-
 		if ( LE_PRINT_DEBUG_MESSAGES ) {
 			logger().info( "* Renderpass: '%s'", pass.debugName );
 			logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
@@ -2790,332 +2676,9 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 		// now all attachment information is in attachment_infos... this should probably be stored with the frame.
 
-#else
-
-		std::vector<VkAttachmentDescription2> attachments;
-		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
-
-		std::vector<VkAttachmentReference2> colorAttachmentReferences;
-		std::vector<VkAttachmentReference2> resolveAttachmentReferences;
-		VkAttachmentReference2*             dsAttachmentReference = nullptr;
-
-
-		if ( LE_PRINT_DEBUG_MESSAGES ) {
-			logger().info( "* Renderpass: '%s'", pass.debugName );
-			logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
-		}
-
-		auto const attachments_end = pass.attachments.data() +
-		                             pass.numColorAttachments +
-		                             pass.numDepthStencilAttachments +
-		                             pass.numResolveAttachments;
-
-		for ( AttachmentInfo const* attachment = pass.attachments.data(); attachment != attachments_end; attachment++ ) {
-
-			auto& syncChain = syncChainTable.at( attachment->resource );
-
-			const auto& syncInitial = syncChain.at( attachment->initialStateOffset );
-			const auto& syncSubpass = syncChain.at( attachment->initialStateOffset + 1 );
-			const auto& syncFinal   = syncChain.at( attachment->finalStateOffset );
-
-			bool isDepth   = false;
-			bool isStencil = false;
-			le_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
-
-			VkAttachmentDescription2 attachmentDescription{
-			    .sType          = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
-			    .pNext          = nullptr,                        // optional
-			    .flags          = VkAttachmentDescriptionFlags(), // optional
-			    .format         = VkFormat( attachment->format ),
-			    .samples        = VkSampleCountFlagBits( attachment->numSamples ),
-			    .loadOp         = VkAttachmentLoadOp( attachment->loadOp ),
-			    .storeOp        = VkAttachmentStoreOp( attachment->storeOp ),
-			    .stencilLoadOp  = isStencil ? VkAttachmentLoadOp( attachment->loadOp ) : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			    .stencilStoreOp = isStencil ? VkAttachmentStoreOp( attachment->storeOp ) : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			    .initialLayout  = syncInitial.layout,
-			    .finalLayout    = syncFinal.layout,
-			};
-
-			if ( LE_PRINT_DEBUG_MESSAGES ) {
-				logger().info( " %38s@%d : %30s → %30s → %30s | sync chain indices: %4d : %4d : %4d",
-				               attachment->resource->get_debug_name(), 1 << attachment->resource->get_num_samples(),
-				               to_str_vk_image_layout( syncInitial.layout ),
-				               to_str_vk_image_layout( syncSubpass.layout ),
-				               to_str_vk_image_layout( syncFinal.layout ),
-				               attachment->initialStateOffset,
-				               attachment->initialStateOffset + 1,
-				               attachment->finalStateOffset );
-			}
-
-			attachments.emplace_back( attachmentDescription );
-
-			switch ( attachment->type ) {
-			case AttachmentInfo::Type::eDepthStencilAttachment:
-				dsAttachmentReference = new VkAttachmentReference2{
-				    .sType      = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
-				    .pNext      = nullptr, // optional
-				    .attachment = uint32_t( attachments.size() - 1 ),
-				    .layout     = syncSubpass.layout,
-				    .aspectMask = 0,
-				}; // cleanup at the end of loop
-				break;
-			case AttachmentInfo::Type::eColorAttachment:
-				colorAttachmentReferences.push_back( {
-				    .sType      = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
-				    .pNext      = nullptr, // optional
-				    .attachment = uint32_t( attachments.size() - 1 ),
-				    .layout     = syncSubpass.layout,
-				    .aspectMask = 0,
-				} );
-				break;
-			case AttachmentInfo::Type::eResolveAttachment:
-				resolveAttachmentReferences.push_back( {
-				    .sType      = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
-				    .pNext      = nullptr, // optional
-				    .attachment = uint32_t( attachments.size() - 1 ),
-				    .layout     = syncSubpass.layout,
-				    .aspectMask = 0,
-				} );
-				break;
-			}
-		}
-
-		if ( LE_PRINT_DEBUG_MESSAGES ) {
-			logger().info( "" );
-		}
-
-		std::vector<VkSubpassDescription2> subpasses;
-		subpasses.reserve( 1 );
-
-		{
-			VkSubpassDescription2 subpassDescription{
-			    .sType                   = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2,
-			    .pNext                   = nullptr, // optional
-			    .flags                   = 0,       // optional
-			    .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
-			    .viewMask                = 0,
-			    .inputAttachmentCount    = 0, // optional
-			    .pInputAttachments       = nullptr,
-			    .colorAttachmentCount    = uint32_t( colorAttachmentReferences.size() ), // optional
-			    .pColorAttachments       = colorAttachmentReferences.data(),
-			    .pResolveAttachments     = resolveAttachmentReferences.empty() ? nullptr : resolveAttachmentReferences.data(), // optional
-			    .pDepthStencilAttachment = dsAttachmentReference,                                                              // optional
-			    .preserveAttachmentCount = 0,                                                                                  // optional
-			    .pPreserveAttachments    = nullptr,
-			};
-
-			subpasses.emplace_back( subpassDescription );
-		}
-
-		{
-			// -- Build hash for compatible renderpass
-			//
-			// We need to include all information that defines renderpass compatibility.
-			//
-			// We are not clear whether subpasses must be identical between two compatible renderpasses,
-			// therefore we don't include subpass information in calculating renderpass compatibility.
-
-			// -- 1. hash attachments
-			// -- 2. hash subpass descriptions for each subpass
-			//       subpass descriptions are structs with vectors of index references to attachments
-
-			{
-				uint64_t rp_hash = 0;
-
-				// -- hash attachments
-				for ( const auto& a : attachments ) {
-
-					// We use offsetof so that we can get everything from flags to the start of the
-					// attachmentdescription to (but not including) loadOp.
-					static_assert(
-					    offsetof( VkAttachmentDescription2, loadOp ) -
-					            offsetof( VkAttachmentDescription2, flags ) ==
-					        sizeof( VkAttachmentDescription2::flags ) +
-					            sizeof( VkAttachmentDescription2::format ) +
-					            sizeof( VkAttachmentDescription2::samples ),
-					    "AttachmentDescription struct must be tightly packed for efficient hashing" );
-
-					rp_hash = SpookyHash::Hash64(
-					    &a.flags, offsetof( VkAttachmentDescription2, loadOp ) - offsetof( VkAttachmentDescription2, flags ),
-					    rp_hash );
-				}
-
-				// -- Hash subpasses
-				for ( const auto& s : subpasses ) {
-
-					// Note: Attachment references are not that straightforward to hash either, as they contain a layout
-					// field, which we want to ignore, since it makes no difference for render pass compatibility.
-
-					rp_hash = SpookyHash::Hash64( &s.flags, sizeof( s.flags ), rp_hash );
-					rp_hash = SpookyHash::Hash64( &s.pipelineBindPoint, sizeof( s.pipelineBindPoint ), rp_hash );
-					rp_hash = SpookyHash::Hash64( &s.inputAttachmentCount, sizeof( s.inputAttachmentCount ), rp_hash );
-					rp_hash = SpookyHash::Hash64( &s.colorAttachmentCount, sizeof( s.colorAttachmentCount ), rp_hash );
-					rp_hash = SpookyHash::Hash64( &s.preserveAttachmentCount, sizeof( s.preserveAttachmentCount ), rp_hash );
-
-					// We define this as a pure function lambda, and hope for it to be inlined
-					auto calc_hash_for_attachment_references = []( VkAttachmentReference2 const* pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
-						if ( pAttachmentRefs == nullptr ) {
-							return seed;
-						}
-						// ----------| invariant: pAttachmentRefs is valid
-						for ( auto const* pAr = pAttachmentRefs; pAr != pAttachmentRefs + count; pAr++ ) {
-							// Note: for RenderPass compatibility, only the actual attachment
-							// counts - Layout has no effect on compatibility.
-							seed = SpookyHash::Hash64( &pAr->attachment, sizeof( VkAttachmentReference2::attachment ), seed );
-						}
-						return seed;
-					};
-
-					// -- For each element in attachment reference, add attachment reference index to the hash
-					//
-					rp_hash = calc_hash_for_attachment_references( s.pColorAttachments, s.colorAttachmentCount, rp_hash );
-					rp_hash = calc_hash_for_attachment_references( s.pInputAttachments, s.inputAttachmentCount, rp_hash );
-					rp_hash = calc_hash_for_attachment_references( s.pDepthStencilAttachment, 1, rp_hash );
-
-					// Note that we did not calculate hashes for resolve attachments, as these do not contribute
-					// to renderpass compatibility considerations. See: vkSpec:`7.2. Render Pass Compatibility`
-
-					// -- preserve attachments are special, because they are not stored as attachment references, but as plain indices
-					if ( s.pPreserveAttachments ) {
-						rp_hash = SpookyHash::Hash64( s.pPreserveAttachments, s.preserveAttachmentCount * sizeof( *s.pPreserveAttachments ), rp_hash );
-					}
-				}
-
-				// Store *hash for compatible renderpass* with pass so that pipelines can test whether they are compatible.
-				//
-				// "Compatible renderpass" means the hash is not fully representative of the renderpass,
-				// but two renderpasses with same hash should be compatible, as everything that touches
-				// renderpass compatibility has been factored into calculating the hash.
-				//
-				pass.renderpassHash = rp_hash;
-			}
-
-			VkRenderPassCreateInfo2 renderpassCreateInfo{
-			    .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2,
-			    .pNext           = nullptr, // optional
-			    .flags           = 0,       // optional
-			    .attachmentCount = uint32_t( attachments.size() ),
-			    .pAttachments    = attachments.data(),
-			    .subpassCount    = uint32_t( subpasses.size() ),
-			    .pSubpasses      = subpasses.data(),
-			    .dependencyCount = 0,
-			    .pDependencies   = nullptr,
-			    .correlatedViewMaskCount = 0, // optional
-			    .pCorrelatedViewMasks    = 0,
-			};
-
-			// Create vulkan renderpass object
-
-			vkCreateRenderPass2( device, &renderpassCreateInfo, nullptr, &pass.renderPass );
-
-			delete dsAttachmentReference; // noo-op if nullptr; we clean up here in case we allocated a
-			                              // depth stencil attachment reference above.
-			                              // Once createRenderPass has consumed the data, we can safely delete.
-
-			AbstractPhysicalResource rp;
-			rp.type         = AbstractPhysicalResource::eRenderPass;
-			rp.asRenderPass = pass.renderPass;
-
-			// Add vulkan renderpass object to list of owned and life-time tracked resources, so that
-			// it can be recycled when not needed anymore.
-			frame.ownedResources.emplace_front( std::move( rp ) );
-		}
-#endif
 	} // end for each pass
 }
 
-#ifndef LE_DR
-// ----------------------------------------------------------------------
-// Executes on the DISPATCH FRAME
-//
-// input: Pass
-// output: framebuffer, append newly created imageViews to retained resources list.
-static void backend_create_frame_buffers( BackendFrameData& frame, VkDevice& device ) {
-
-	ZoneScoped;
-	for ( auto& pass : frame.passes ) {
-
-		if ( pass.type != le::QueueFlagBits::eGraphics ) {
-			continue;
-		}
-
-		uint32_t attachmentCount = pass.numColorAttachments +
-		                           pass.numResolveAttachments +
-		                           pass.numDepthStencilAttachments;
-
-		std::vector<VkImageView> framebufferAttachments;
-		framebufferAttachments.reserve( attachmentCount );
-
-		auto const attachment_end = pass.attachments.data() + attachmentCount;
-		for ( AttachmentInfo const* attachment = pass.attachments.data(); attachment != attachment_end; attachment++ ) {
-
-			VkImageSubresourceRange subresourceRange{
-			    .aspectMask     = get_aspect_flags_from_format( attachment->format ),
-			    .baseMipLevel   = 0,
-			    .levelCount     = 1,
-			    .baseArrayLayer = 0,
-			    .layerCount     = 1,
-			};
-
-			VkImage img = frame_data_get_image_from_le_resource_id( &frame, attachment->resource );
-
-			VkImageViewCreateInfo imageViewCreateInfo{
-			    .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			    .pNext            = nullptr, // optional
-			    .flags            = 0,       // optional
-			    .image            = img,
-			    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-			    .format           = VkFormat( attachment->format ),
-			    .components       = {},
-			    .subresourceRange = subresourceRange,
-			};
-
-			VkImageView imageView = nullptr;
-			{
-				auto result = vkCreateImageView( device, &imageViewCreateInfo, nullptr, &imageView );
-				assert( result == VK_SUCCESS );
-			}
-
-			framebufferAttachments.push_back( imageView );
-
-			{
-				// Retain imageviews in owned resources - they will be released
-				// once not needed anymore.
-
-				AbstractPhysicalResource iv;
-				iv.type        = AbstractPhysicalResource::eImageView;
-				iv.asImageView = imageView;
-
-				frame.ownedResources.emplace_front( std::move( iv ) );
-			}
-		}
-
-		VkFramebufferCreateInfo framebufferCreateInfo{
-		    .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-		    .pNext           = nullptr, // optional
-		    .flags           = 0,       // optional
-		    .renderPass      = pass.renderPass,
-		    .attachmentCount = attachmentCount, // optional
-		    .pAttachments    = framebufferAttachments.data(),
-		    .width           = pass.width,
-		    .height          = pass.height,
-		    .layers          = 1,
-		};
-
-		auto result = vkCreateFramebuffer( device, &framebufferCreateInfo, nullptr, &pass.framebuffer );
-		assert( result == VK_SUCCESS && "Framebuffer must be valid" );
-		{
-			// Retain framebuffer
-
-			AbstractPhysicalResource fb;
-			fb.type          = AbstractPhysicalResource::eFramebuffer;
-			fb.asFramebuffer = pass.framebuffer;
-
-			frame.ownedResources.emplace_front( std::move( fb ) );
-		}
-	}
-}
-#endif
 // ----------------------------------------------------------------------
 // Executes on the DISPATCH FRAME
 //
@@ -5492,10 +5055,6 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// patch and retain physical resources in bulk here, so that
 	// each pass may be processed independently
-#ifdef LE_DR
-#else
-	backend_create_frame_buffers( frame, device );
-#endif
 
 	return true;
 };
@@ -6697,8 +6256,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			// Draw passes must begin by opening a Renderpass context.
 			if ( pass.type == le::QueueFlagBits::eGraphics ) {
 
-#ifdef LE_DR
-
 				VkRenderingInfo rendering_info = {
 				    .sType      = VK_STRUCTURE_TYPE_RENDERING_INFO, // VkStructureType
 				    .pNext      = nullptr,                          // void *, optional
@@ -6717,26 +6274,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 				vkCmdBeginRendering( cmd, &rendering_info );
 
-#else
-				for ( uint32_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
-					clearValues[ i ] = reinterpret_cast<VkClearValue&>( pass.attachments[ i ].clearValue );
-				}
-
-				VkRenderPassBeginInfo renderPassBeginInfo{
-				    .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-				    .pNext       = nullptr, // optional
-				    .renderPass  = pass.renderPass,
-				    .framebuffer = pass.framebuffer,
-				    .renderArea  = {
-				         .offset = { 0, 0 },
-				         .extent = { pass.width, pass.height },
-                    },
-				    .clearValueCount = uint32_t( pass.numColorAttachments + pass.numDepthStencilAttachments ), // optional
-				    .pClearValues    = clearValues.data(),
-				};
-
-				vkCmdBeginRenderPass( cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE );
-#endif
 			}
 
 			// -- Translate intermediary command stream data to api-native instructions
@@ -8337,11 +7874,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 			// non-draw passes don't need renderpasses.
 			if ( pass.type == le::QueueFlagBits::eGraphics ) {
-#ifdef LE_DR
 				vkCmdEndRendering( cmd );
-#else
-				vkCmdEndRenderPass( cmd );
-#endif
 			}
 
 			if ( LE_PRINT_DEBUG_MESSAGES ) {

@@ -306,10 +306,8 @@ static le_backend_vk_settings_o* le_backend_vk_settings_create() {
 	vk_13_features->synchronization2       = VK_TRUE; // use synchronisation2 by default
 
 // enable features for dynamic rendering
-#if LE_DR
 	vk_13_features->dynamicRendering          = VK_TRUE; // use dynamic rendering
 	vk_14_features->dynamicRenderingLocalRead = VK_TRUE;
-#endif
 
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
 	le_backend_vk_settings_add_required_device_extension( self, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME );
