@@ -2636,6 +2636,8 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 					pass.depth_format = VkFormat( attachment->format );
 					if ( is_stencil ) {
 						resolve_mode = VK_RESOLVE_MODE_MAX_BIT;
+						logger().warn( "Renderpass: '%s'", pass.debugName );
+						logger().warn( "Stencil testing is not implemented currently." );
 					}
 				} else {
 					pass.color_formats.push_back( VkFormat( attachment->format ) );
