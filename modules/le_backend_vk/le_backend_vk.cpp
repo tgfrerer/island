@@ -2251,7 +2251,6 @@ static void frame_track_resource_state(
 			    true,
 			} );
 		}
-
 		// theoretically, here we would add sync for all resources that were used in this buffer to transition to the next stage - even if that next stage is not
 		// yet known. we will add a final stage to all resources so we know that there will always be a stage n+1
 
@@ -8358,21 +8357,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			}
 
 			vkEndCommandBuffer( cmd );
-		}
-		{
-			// TODO: we need to add an explicit layout transition here post renderpasses -
-			// into another renderpass, and which are now
-			// in the wrong layout -- this needs to happen after the last
-			// renderpass is done with this resource. maybe we need to do
-			// this in its own renderpass...
-
-			// if the last transition for an image was not the end of its synch chain?
-			// we would know this when / where we add the renderpasses.
-
-			// ideally, this happens earlier, and the last renderpass
-			// that uses a resource issues translates it back
-			// -- for this we would need to find out which renderpass
-			// did last use a resource...
 		}
 	}
 }
