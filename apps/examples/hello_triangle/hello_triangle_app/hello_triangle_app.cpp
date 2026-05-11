@@ -20,9 +20,13 @@
 #include <thread> // for sleeping
 #include <chrono> // for sleeping a certain time
 
+constexpr le_swapchain_windowed_settings_t swapchain_default_hints{
+    .format_hint      = le::Format::eR16G16B16A16Sfloat,
+    .color_space_hint = le::ColorSpaceKHR::eBt2020LinearExt,
+};
 struct WindowData {
 	le::Window                       window;
-	le_swapchain_windowed_settings_t windowed_swapchain_settings{};
+	le_swapchain_windowed_settings_t windowed_swapchain_settings = swapchain_default_hints;
 	le_swapchain_handle              swapchain;
 	le_image_resource_handle         swapchain_image;
 };
@@ -54,7 +58,7 @@ static void app_initialize() {
 	// settings object -- you only need to do this if a swapchain
 	// is not implicitly generated.
 	//
-	le::SwapchainVk::init( le_swapchain_windowed_settings_t() );
+	le::SwapchainVk::init( &swapchain_default_hints.base );
 
 	le::Window::init();
 };
@@ -87,6 +91,8 @@ static app_o* app_create() {
 
 	// Instead, we explicitly create a swapchain, which we associate with the window
 	app->window_data.windowed_swapchain_settings.window = app->window_data.window;
+	// app->window_data.windowed_swapchain_settings.format_hint      = le::Format::eR16G16B16A16Sfloat;
+	// app->window_data.windowed_swapchain_settings.color_space_hint = le::ColorSpaceKHR::eBt2020LinearExt;
 	// Explicitly creating a swapchain allows us to choose a presentmode.
 	app->window_data.windowed_swapchain_settings.presentmode_hint = le_swapchain_windowed_settings_t::Presentmode::eFifo;
 
