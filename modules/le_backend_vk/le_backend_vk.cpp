@@ -5817,9 +5817,13 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 	ZoneScoped;
 
 	// -- Issue sync barriers for all resources which require explicit sync.
+	// -- Note that these resources may be buffers as well as images...
 	//
 	// The spec requires barriers to happen outside of a Renderpass context.
-	//
+
+	std::vector<VkImageMemoryBarrier2>  image_barriers;
+	std::vector<VkBufferMemoryBarrier2> buffer_barriers;
+
 	for ( auto const& op : explicit_sync_ops ) {
 		// fill in sync op
 
@@ -5834,63 +5838,124 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 		auto const& stateInitial = syncChain[ op.sync_chain_offset_initial ];
 		auto const& stateFinal   = syncChain[ op.sync_chain_offset_final ];
 
-		if ( stateInitial != stateFinal ) {
-			// we must issue an image barrier
-
+		auto print_debug_messages = [ & ]() {
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
 
-				// --------| invariant: barrier is active.
-
 				// print out sync chain for sampled image
-				logger().info( "\t Explicit Barrier for: %s (s: %d)", op.resource->get_debug_name(), 1 << static_cast<le_image_resource_handle>( op.resource )->get_num_samples() );
-				logger().info( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
-				logger().info( "\t --- : ------------------------------ : ------------------------------ : ----------" );
-
-				auto const& syncChain = frame.syncChainTable.at( op.resource );
-
-				for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
-					auto const& s = syncChain[ i ];
-					logger().info( "\t % 3d : % 30s : % 30s : % 10s", i,
-					               to_string_vk_access_flags2( s.visible_access ).c_str(),
-					               to_string_vk_pipeline_stage_flags2( s.stage ).c_str(),
-					               to_str_vk_image_layout( s.layout ) );
+				if ( op.resource->get_type() == le::ResourceType::eImage ) {
+					logger().info( "\t Explicit Image Barrier for: %s (s: %d)", op.resource->get_debug_name(), 1 << static_cast<le_image_resource_handle>( op.resource )->get_num_samples() );
+					logger().info( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
+					logger().info( "\t --- : ------------------------------ : ------------------------------ : ----------" );
+					logger().info( "\t % 3d : % 30s : % 30s : % 10s", op.sync_chain_offset_initial,
+					               to_string_vk_access_flags2( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ).c_str(),
+					               to_string_vk_pipeline_stage_flags2( stateInitial.stage ).c_str(),
+					               to_str_vk_image_layout( stateInitial.layout ) );
+					logger().info( "\t % 3d : % 30s : % 30s : % 10s", op.sync_chain_offset_final,
+					               to_string_vk_access_flags2( stateFinal.visible_access ).c_str(),
+					               to_string_vk_pipeline_stage_flags2( stateFinal.stage ).c_str(),
+					               to_str_vk_image_layout( stateFinal.layout ) );
+				} else if ( op.resource->get_type() == le::ResourceType::eBuffer ) {
+					logger().info( "\t Explicit Buffer Barrier for: %s", op.resource->get_debug_name() );
+					logger().info( "\t % 3s : % 30s : % 30s ", "#", "visible_access", "write_stage" );
+					logger().info( "\t --- : ------------------------------ : ------------------------------ " );
+					logger().info( "\t % 3d : % 30s : % 30s : % 10s", op.sync_chain_offset_initial,
+					               to_string_vk_access_flags2( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ).c_str(),
+					               to_string_vk_pipeline_stage_flags2( stateInitial.stage ).c_str(),
+					               to_str_vk_image_layout( stateInitial.layout ) );
+					logger().info( "\t % 3d : % 30s : % 30s : % 10s", op.sync_chain_offset_final,
+					               to_string_vk_access_flags2( stateFinal.visible_access ).c_str(),
+					               to_string_vk_pipeline_stage_flags2( stateFinal.stage ).c_str(),
+					               to_str_vk_image_layout( stateFinal.layout ) );
+				} else {
+					logger().warn( "Unknown resource type: %d for resource name: '%s'", op.resource->get_type(), op.resource->get_debug_name() );
 				}
 			}
+		};
 
-			auto img_info = frame_data_get_allocated_resource_from_resource_id( &frame, op.resource );
+		if ( stateInitial != stateFinal ) {
 
-			VkImageMemoryBarrier2 imageLayoutTransfer{
-			    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-			    .pNext               = nullptr,
-			    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
-			    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
-			    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
-			    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
-			    .oldLayout           = stateInitial.layout,
-			    .newLayout           = stateFinal.layout,
-			    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			    .image               = img_info.as.image,
-			    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
-			};
+			switch ( op.resource->get_type() ) {
+			case ( le::ResourceType::eImage ): {
+				// we must issue an image barrier if the resource is an image
+				// if the resource is a buffer, we must issue a memory barrier
 
-			imageLayoutTransfer.subresourceRange.aspectMask = get_aspect_flags_from_format( le::Format( img_info.info.imageInfo.format ) );
+				print_debug_messages();
 
-			VkDependencyInfo dependencyInfo = {
-			    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-			    .pNext                    = nullptr, // optional
-			    .dependencyFlags          = 0,       // optional
-			    .memoryBarrierCount       = 0,       // optional
-			    .pMemoryBarriers          = 0,
-			    .bufferMemoryBarrierCount = 0, // optional
-			    .pBufferMemoryBarriers    = 0,
-			    .imageMemoryBarrierCount  = 1, // optional
-			    .pImageMemoryBarriers     = &imageLayoutTransfer,
-			};
+				auto img_info = frame_data_get_allocated_resource_from_resource_id( &frame, op.resource );
 
-			vkCmdPipelineBarrier2( cmd, &dependencyInfo );
+				VkImageMemoryBarrier2 i_barrier{
+				    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+				    .pNext               = nullptr,
+				    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
+				    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
+				    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
+				    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
+				    .oldLayout           = stateInitial.layout,
+				    .newLayout           = stateFinal.layout,
+				    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				    .image               = img_info.as.image,
+				    .subresourceRange    = LE_IMAGE_SUBRESOURCE_RANGE_ALL_MIPLEVELS,
+				};
+
+				i_barrier.subresourceRange.aspectMask = get_aspect_flags_from_format( le::Format( img_info.info.imageInfo.format ) );
+
+				// add imagelayout transfer to vector
+				image_barriers.emplace_back( std::move( i_barrier ) );
+				break;
+			}
+			case ( le::ResourceType::eBuffer ): {
+
+				print_debug_messages();
+
+				auto buf_info = frame_data_get_allocated_resource_from_resource_id( &frame, op.resource );
+
+				VkBufferMemoryBarrier2 b_barrier{
+				    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,                                                      // VkStructureType
+				    .pNext               = nullptr,                                                                                        // void *, optional
+				    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
+				    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
+				    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
+				    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
+				    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,                                                                        // uint32_t
+				    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,                                                                        // uint32_t
+				    .buffer              = buf_info.as.buffer,                                                                             // VkBuffer
+				    .offset              = 0,                                                                                              // VkDeviceSize :: we don't do sub-allocations per-buffer, therefore all our buffers have offset 0
+				    .size                = buf_info.info.bufferInfo.size,                                                                  // VkDeviceSize
+				};
+
+				buffer_barriers.emplace_back( b_barrier );
+				break;
+			}
+			default:
+				assert( false ); // unexpected resource type
+			}
 		}
 	} // end for all explicit sync ops.
+
+	// TODO: buffer memory barriers - instead of issueing barriers for each buffer individually
+	// it might be better to accumulate the requirements into one general barrier that we
+	// can issue at this point.
+	// But for now, we will issue buffer barriers just like this.
+
+	// this means that all writes need to be accumulated so that they can be flushed
+	// in one go - before the first read may be issued.
+	//
+	// Another thing we might want to optimize is any transforms where there
+	// is no visible access
+
+	VkDependencyInfo dependencyInfo = {
+	    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+	    .pNext                    = nullptr, // optional
+	    .dependencyFlags          = 0,       // optional
+	    .memoryBarrierCount       = 0,       // optional
+	    .pMemoryBarriers          = 0,
+	    .bufferMemoryBarrierCount = uint32_t( buffer_barriers.size() ), // optional
+	    .pBufferMemoryBarriers    = buffer_barriers.data(),
+	    .imageMemoryBarrierCount  = uint32_t( image_barriers.size() ), // optional
+	    .pImageMemoryBarriers     = image_barriers.data(),
+	};
+	vkCmdPipelineBarrier2( cmd, &dependencyInfo );
 }
 
 // ----------------------------------------------------------------------

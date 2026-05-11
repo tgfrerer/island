@@ -1039,6 +1039,9 @@ struct LeShaderGroupDataHeader {
 };
 
 namespace le {
+
+using ResourceType = LeResourceType;
+
 enum class CommandType : uint32_t {
 	eDrawIndexed,
 	eDraw,
