@@ -58,7 +58,7 @@ static le::Log& logger() {
 #endif
 
 #ifndef LE_PRINT_DEBUG_MESSAGES
-#	define LE_PRINT_DEBUG_MESSAGES true
+#	define LE_PRINT_DEBUG_MESSAGES false
 #endif
 
 #ifndef DEBUG_TAG_RESOURCES
