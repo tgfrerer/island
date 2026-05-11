@@ -2397,17 +2397,11 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 			case AbstractPhysicalResource::eBuffer:
 				vkDestroyBuffer( device, r.asBuffer, nullptr );
 				break;
-			case AbstractPhysicalResource::eFramebuffer:
-				vkDestroyFramebuffer( device, r.asFramebuffer, nullptr );
-				break;
 			case AbstractPhysicalResource::eImage:
 				vkDestroyImage( device, r.asImage, nullptr );
 				break;
 			case AbstractPhysicalResource::eImageView:
 				vkDestroyImageView( device, r.asImageView, nullptr );
-				break;
-			case AbstractPhysicalResource::eRenderPass:
-				vkDestroyRenderPass( device, r.asRenderPass, nullptr );
 				break;
 			case AbstractPhysicalResource::eSampler:
 				vkDestroySampler( device, r.asSampler, nullptr );

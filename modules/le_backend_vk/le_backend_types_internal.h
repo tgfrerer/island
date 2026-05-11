@@ -116,8 +116,6 @@ struct AbstractPhysicalResource {
 		eImage,
 		eImageView,
 		eSampler,
-		eFramebuffer,
-		eRenderPass,
 	};
 	union {
 		uint64_t      asRawData;
