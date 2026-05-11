@@ -1797,7 +1797,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 	renderpass_i.get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 
 	// if we are multisampling we will need a resolve attachment for each image or depth attachment
-	currentPass.attachments.resize( numSamplesLog2 ? numImageAttachments : numImageAttachments * 2, {} );
+	currentPass.attachments.resize( numSamplesLog2 == 0 ? numImageAttachments : numImageAttachments * 2, {} );
 
 	for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
