@@ -485,6 +485,12 @@ class RenderPass {
 		return sampleTexture( textureName, le::ImageSamplerInfoBuilder( img_handle ).build() );
 	}
 
+	RenderPass& setExtent( uint32_t width, uint32_t height ) {
+		le_renderer::renderpass_i.set_width( self, width );
+		le_renderer::renderpass_i.set_height( self, height );
+		return *this;
+	}
+
 	RenderPass& setWidth( uint32_t width ) {
 		le_renderer::renderpass_i.set_width( self, width );
 		return *this;
