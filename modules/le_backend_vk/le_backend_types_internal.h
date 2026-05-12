@@ -141,7 +141,7 @@ struct AttachmentInfo {
 	le::AttachmentStoreOp    storeOp;            ///
 	le::ClearValue           clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
 	le::SampleCountFlagBits  numSamples;         /// < number of samples, default 1
-	uint32_t                 initialStateOffset; ///< sync state of resource before entering the renderpass (offset is into resource specific sync chain )
+	uint32_t                 sync_chain_offset;  ///< sync chain idx of resource on entering the renderpass (offset is into resource specific sync chain )
 	Type                     type;
 };
 

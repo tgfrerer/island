@@ -1919,7 +1919,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 				}
 			}
 
-			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
+			currentAttachment->sync_chain_offset = uint16_t( syncChain.size() );
 			syncChain.emplace_back( std::move( beforeSubpass ) );
 		}
 
@@ -1995,7 +1995,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 				}
 			}
 
-			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
+			currentAttachment->sync_chain_offset = uint16_t( syncChain.size() );
 			syncChain.emplace_back( std::move( beforeSubpass ) );
 		}
 
@@ -2573,7 +2573,6 @@ static void backend_create_rendering_attachment_infos( BackendFrameData& frame, 
 
 	const auto& syncChainTable = frame.syncChainTable;
 
-	// Note: This should be trivial to parallelize.
 	for ( auto& pass : frame.passes ) {
 
 		// The rest of this loop only concerns draw passes
@@ -2583,11 +2582,6 @@ static void backend_create_rendering_attachment_infos( BackendFrameData& frame, 
 		}
 
 		// ---------| Invariant: current pass is a draw pass.
-
-		// if ( LE_PRINT_DEBUG_MESSAGES ) {
-		// 	logger().info( "* Renderpass: '%s'", pass.debugName );
-		// 	logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
-		// }
 
 		auto const attachments_end = pass.attachments.data() +
 		                             pass.numColorAttachments +
@@ -2626,7 +2620,7 @@ static void backend_create_rendering_attachment_infos( BackendFrameData& frame, 
 
 			auto& syncChain = syncChainTable.at( attachment->resource );
 
-			const ResourceState& resource_state = syncChain.at( attachment->initialStateOffset ); // during
+			const ResourceState& resource_state = syncChain.at( attachment->sync_chain_offset ); // resource state during the renderpass
 
 			VkImageView image_view = create_image_view_for_attachment( frame, device, attachment );
 
@@ -2637,7 +2631,7 @@ static void backend_create_rendering_attachment_infos( BackendFrameData& frame, 
 				auto const resolve_attachment = ( attachment + resolve_attachment_count );
 				resolve_image_view            = create_image_view_for_attachment( frame, device, resolve_attachment );
 				auto const& sc                = syncChainTable.at( resolve_attachment->resource );
-				resolve_image_layout          = sc.at( ( resolve_attachment )->initialStateOffset ).layout;
+				resolve_image_layout          = sc.at( ( resolve_attachment )->sync_chain_offset ).layout;
 			};
 
 			VkRenderingAttachmentInfo a_i = {
@@ -2655,8 +2649,6 @@ static void backend_create_rendering_attachment_infos( BackendFrameData& frame, 
 
 			pass.attachment_rendering_infos.emplace_back( std::move( a_i ) );
 		}
-
-		// now all attachment information is in attachment_infos... this should probably be stored with the frame.
 
 	} // end for each pass
 }
