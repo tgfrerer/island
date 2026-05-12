@@ -73,6 +73,12 @@ can build a single, statically linked and optimised binary.
   visualizes the current state of the renderer -- it displays active and
   inactive renderpasses, and their resource dependencies in real-time.
 
+* Multiview rendering using `GL_EXT_multiview` - renderpass image
+  attachments can be layered images, and may declare a viewMask bitfield;
+  if a such a bitfield is detected, rendering is automatically broadcast
+  to the layers covered by the bitfield. A single renderpass is enough to
+  render into 6 faces of a cubemap, for example.
+
 * **Automatic GPU multiqueue**: renderpasses are automatically
   distributed onto any avaliable render queues - if resources need to
   be transferred between queue families, this happens automatically.
