@@ -1774,7 +1774,7 @@ static VkPipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manage
 	VkPipelineRenderingCreateInfo pipeline_rendering_create_info = {
 	    .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, // VkStructureType
 	    .pNext                   = nullptr,                                          // void *, optional
-	    .viewMask                = 0,                                                // uint32_t
+	    .viewMask                = pass.viewMask,                                    // uint32_t
 	    .colorAttachmentCount    = uint32_t( pass.color_formats.size() ),            // uint32_t, optional
 	    .pColorAttachmentFormats = ( VkFormat* )pass.color_formats.data(),           // VkFormat const *
 	    .depthAttachmentFormat   = VkFormat( pass.depth_format ),                    // VkFormat

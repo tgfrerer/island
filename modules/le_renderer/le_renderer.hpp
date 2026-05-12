@@ -178,6 +178,10 @@ class ImageAttachmentInfoBuilder {
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setColorClearValue, le::ClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueColor )
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setDepthStencilClearValue, le::ClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueDepthStencil )
 
+	/// setViewMask allows you to use MultiView Rendering - if viewMask is not 0, multiview rendering is on
+	/// viewMask bitfield controls which layers are being rendered into.
+	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setViewMask, uint32_t, viewMask, = 0 )
+
 	operator le_image_attachment_info_t const&() {
 		return self;
 	}

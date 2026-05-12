@@ -143,6 +143,7 @@ struct AttachmentInfo {
 	le::SampleCountFlagBits  numSamples;         /// < number of samples, default 1
 	uint32_t                 sync_chain_offset;  ///< sync chain idx of resource on entering the renderpass (offset is into resource specific sync chain )
 	Type                     type;
+	uint32_t                 viewMask; ///< non-zero means multiview
 };
 
 struct ExplicitSyncOp {
@@ -189,4 +190,6 @@ struct BackendRenderPass {
 	std::vector<VkRenderingAttachmentInfo> attachment_rendering_infos;
 	std::vector<VkFormat>                  color_formats;
 	VkFormat                               depth_format = {};
+	uint32_t                               layer_count  = 0; // multiview, if not 0
+	uint32_t                               viewMask     = 0; // bitfield to activate individual layers for multiview
 };

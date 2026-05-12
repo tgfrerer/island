@@ -29,6 +29,7 @@
 #include <cstring> // for memcpy
 #include <array>
 #include <algorithm> // for std::find, for std::max
+#include <bit>
 
 #include "3rdparty/le_backend_vk/volk/volk.h"
 
@@ -1849,6 +1850,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		currentAttachment->loadOp     = image_attachment_info.loadOp;
 		currentAttachment->storeOp    = image_attachment_info.storeOp;
 		currentAttachment->clearValue = image_attachment_info.clearValue;
+		currentAttachment->viewMask   = image_attachment_info.viewMask;
 
 		{
 			// track resource state before entering a subpass
@@ -2528,12 +2530,23 @@ VkImageAspectFlags get_aspect_flags_from_format( le::Format const& format ) {
 //
 static VkImageView create_image_view_for_attachment( BackendFrameData& frame, VkDevice& device, const AttachmentInfo* attachment ) {
 
+	uint32_t        layer_count     = 1;
+	VkImageViewType image_view_type = VK_IMAGE_VIEW_TYPE_2D;
+
+	if ( attachment->viewMask ) {
+		// If viewMask is set, this means that we are drawing using multiview.
+		// Multiview means that we must draw using Layers. Therefore our image
+		// must be a 2D Array Image.
+		layer_count     = std::popcount( attachment->viewMask );
+		image_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+	}
+
 	VkImageSubresourceRange subresourceRange{
 	    .aspectMask     = get_aspect_flags_from_format( attachment->format ),
 	    .baseMipLevel   = 0,
 	    .levelCount     = 1,
 	    .baseArrayLayer = 0,
-	    .layerCount     = 1,
+	    .layerCount     = layer_count,
 	};
 
 	VkImage img = frame_data_get_image_from_le_resource_id( &frame, attachment->resource );
@@ -2543,7 +2556,7 @@ static VkImageView create_image_view_for_attachment( BackendFrameData& frame, Vk
 	    .pNext            = nullptr, // optional
 	    .flags            = 0,       // optional
 	    .image            = img,
-	    .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+	    .viewType         = image_view_type,
 	    .format           = VkFormat( attachment->format ),
 	    .components       = {},
 	    .subresourceRange = subresourceRange,
@@ -2647,6 +2660,10 @@ static void backend_create_rendering_attachment_infos( BackendFrameData& frame, 
 			    .clearValue         = reinterpret_cast<VkClearValue const&>( attachment->clearValue ), // VkClearValue
 			};
 
+			// Accumulate any multiview info
+			pass.viewMask |= attachment->viewMask;
+			pass.layer_count = std::max<uint32_t>( pass.layer_count, std::popcount( attachment->viewMask ) );
+			// Store attachment info for vkCmdBeginRenderingg
 			pass.attachment_rendering_infos.emplace_back( std::move( a_i ) );
 		}
 
@@ -6321,8 +6338,8 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				        .offset = { 0, 0 },
 				        .extent = { pass.width, pass.height },
 				    },
-				    .layerCount           = 1,                                                                                                             // uint32_t  --
-				    .viewMask             = 0,                                                                                                             // uint32_t  -- for multi-view rendering
+				    .layerCount           = std::max<uint32_t>( 1, pass.layer_count ),                                                                     // uint32_t  --
+				    .viewMask             = pass.viewMask,                                                                                                 // uint32_t  -- for multi-view rendering
 				    .colorAttachmentCount = pass.numColorAttachments,                                                                                      // uint32_t, optional
 				    .pColorAttachments    = pass.attachment_rendering_infos.data(),                                                                        // VkRenderingAttachmentInfo const *
 				    .pDepthAttachment     = pass.numDepthStencilAttachments ? pass.attachment_rendering_infos.data() + pass.numColorAttachments : nullptr, // VkRenderingAttachmentInfo const *, optional

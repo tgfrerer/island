@@ -448,6 +448,8 @@ struct le_image_attachment_info_t {
 	le::AttachmentStoreOp storeOp = le::AttachmentStoreOp::eStore; //
 
 	le::ClearValue clearValue = DefaultClearValueColor; // only used if loadOp == clear
+
+	uint32_t viewMask = 0; // if not 0, then multiview is active
 };
 
 static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
