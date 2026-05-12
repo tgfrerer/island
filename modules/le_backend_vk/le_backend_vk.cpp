@@ -429,7 +429,6 @@ struct ResourceState {
 	                                      // if any of these are WRITE accesses, these must be made available(flushed)
 	                                      // before next access - for the next src access we can OR this with ANY_WRITES
 	VkImageLayout layout;                 // Current layout (for images)
-	uint32_t      renderpass_index;       // which renderpass currently uses this resource  -1 being outside of scope (e.g. swapchain)
 
 	bool operator==( const ResourceState& rhs ) const {
 		return visible_access == rhs.visible_access &&
@@ -1854,6 +1853,8 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 		{
 			// track resource state before entering a subpass
 
+			// This are our requirements for the resource before we can start with this renderpass
+
 			auto&         previousSyncState = syncChain.back();
 			ResourceState beforeFirstUse{ previousSyncState };
 
@@ -1877,7 +1878,6 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 				beforeFirstUse.visible_access = VkAccessFlagBits2( 0 );
 			}
 
-			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
 			syncChain.emplace_back( std::move( beforeFirstUse ) ); // attachment initial state for a renderpass - may be loaded/cleared on first use
 			                                                       // * sync state: ready for load/store *
 		}
@@ -1919,10 +1919,9 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 				}
 			}
 
+			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
 			syncChain.emplace_back( std::move( beforeSubpass ) );
 		}
-
-		currentAttachment->finalStateOffset = uint16_t( syncChain.size() );
 
 	} // end foreach image attachment
 
@@ -1970,11 +1969,8 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 
 		{
 			// track resource state before entering a subpass
-
 			auto& previousSyncState = syncChain.back();
 			auto  beforeFirstUse{ previousSyncState };
-
-			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
 			syncChain.emplace_back( beforeFirstUse ); // attachment initial state for a renderpass - may be loaded/cleared on first use
 			                                          // * sync state: ready for load/store *
 		}
@@ -1999,10 +1995,9 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 				}
 			}
 
+			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
 			syncChain.emplace_back( std::move( beforeSubpass ) );
 		}
-
-		currentAttachment->finalStateOffset = uint16_t( syncChain.size() );
 
 	} // end foreach image attachment
 }
@@ -2160,9 +2155,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 	}
 }
 
-static void frame_track_resource_state(
-    BackendFrameData& frame, le_renderpass_o** pp_passes,
-    size_t num_renderpasses, const std::vector<le_image_resource_handle>& swapchain_images, le_renderer_o* renderer ) {
+static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o** pp_passes, size_t num_renderpasses, const std::vector<le_image_resource_handle>& swapchain_images, le_renderer_o* renderer ) {
 
 	ZoneScoped;
 
@@ -2245,9 +2238,9 @@ static void frame_track_resource_state(
 		// Set the final state for each resource.
 
 		const auto& resource_handle = s_entry.first;
-		auto&       sync_chain      = s_entry.second;
+		std::vector<ResourceState>& sync_chain      = s_entry.second;
 
-		auto finalState{ sync_chain.back() };
+		ResourceState finalState{ sync_chain.back() };
 
 		if ( s_entry.first->get_type() != LeResourceType::eBuffer && std::find( swapchain_images.begin(), swapchain_images.end(), resource_handle ) != swapchain_images.end() ) {
 			finalState.stage          = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT; // Everything: Drain the pipeline
@@ -2575,7 +2568,7 @@ static VkImageView create_image_view_for_attachment( BackendFrameData& frame, Vk
 }
 // ----------------------------------------------------------------------
 
-static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& device ) {
+static void backend_create_rendering_attachment_infos( BackendFrameData& frame, VkDevice& device ) {
 	ZoneScoped;
 
 	const auto& syncChainTable = frame.syncChainTable;
@@ -2633,9 +2626,7 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 			auto& syncChain = syncChainTable.at( attachment->resource );
 
-			const auto& syncInitial = syncChain.at( attachment->initialStateOffset );     // before
-			const auto& syncSubpass = syncChain.at( attachment->initialStateOffset + 1 ); // during
-			const auto& syncFinal   = syncChain.at( attachment->finalStateOffset );       // next    -- check this - it could be that this is where the automatic layout transfer happens
+			const ResourceState& resource_state = syncChain.at( attachment->initialStateOffset ); // during
 
 			VkImageView image_view = create_image_view_for_attachment( frame, device, attachment );
 
@@ -2646,14 +2637,14 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 				auto const resolve_attachment = ( attachment + resolve_attachment_count );
 				resolve_image_view            = create_image_view_for_attachment( frame, device, resolve_attachment );
 				auto const& sc                = syncChainTable.at( resolve_attachment->resource );
-				resolve_image_layout          = sc.at( ( resolve_attachment )->initialStateOffset + 1 ).layout;
+				resolve_image_layout          = sc.at( ( resolve_attachment )->initialStateOffset ).layout;
 			};
 
 			VkRenderingAttachmentInfo a_i = {
 			    .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, // VkStructureType
 			    .pNext              = nullptr,                                     // void *, optional
 			    .imageView          = image_view,                                  // VkImageView, optional
-			    .imageLayout        = syncSubpass.layout,                          // VkImageLayout
+			    .imageLayout        = resource_state.layout,                       // VkImageLayout
 			    .resolveMode        = resolve_mode,                                // VkResolveModeFlagBits, optional
 			    .resolveImageView   = resolve_image_view,                          // VkImageView, optional
 			    .resolveImageLayout = resolve_image_layout,                        // VkImageLayout, if image is a resolve image?
@@ -5043,7 +5034,7 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	// TODO: rename this -- we create attachmentinfos here, not renderpasses.
-	backend_create_renderpasses( frame, device );
+	backend_create_rendering_attachment_infos( frame, device );
 
 	// -- make sure that there is a descriptorpool for every renderpass
 	backend_create_descriptor_pools( frame, device, numRenderPasses );
