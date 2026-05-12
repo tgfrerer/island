@@ -1922,12 +1922,6 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 			syncChain.emplace_back( std::move( beforeSubpass ) );
 		}
 
-		// TODO: here, go through command instructions for renderpass and update resource chain if necessary.
-		// If resource is modified by commands inside the renderpass, this needs to be added to the sync chain here.
-
-		// Whichever next resource state will be in the sync chain will be the resource state we should transition to
-		// when defining the last_subpass_to_external dependency
-		// which is why, optimistically, we designate the index of the next, not yet written state here -
 		currentAttachment->finalStateOffset = uint16_t( syncChain.size() );
 
 	} // end foreach image attachment
@@ -2008,12 +2002,6 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 			syncChain.emplace_back( std::move( beforeSubpass ) );
 		}
 
-		// TODO: here, go through command instructions for renderpass and update resource chain if necessary.
-		// If resource is modified by commands inside the renderpass, this needs to be added to the sync chain here.
-
-		// Whichever next resource state will be in the sync chain will be the resource state we should transition to
-		// when defining the last_subpass_to_external dependency
-		// which is why, optimistically, we designate the index of the next, not yet written state here -
 		currentAttachment->finalStateOffset = uint16_t( syncChain.size() );
 
 	} // end foreach image attachment
@@ -2136,7 +2124,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
 				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
-				logger().warn( "strange access to image resource: %s", resource->get_debug_name() );
+				logger().warn( "Unexpected access to image resource: %s", resource->get_debug_name() );
 			}
 
 		} else if ( resource->get_type() == LeResourceType::eBuffer ) {
@@ -2177,28 +2165,12 @@ static void frame_track_resource_state(
     size_t num_renderpasses, const std::vector<le_image_resource_handle>& swapchain_images, le_renderer_o* renderer ) {
 
 	ZoneScoped;
+
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
 	//
 	// * An EXECUTION DEPENDENCY tells us which stage needs to be complete (srcStage) before another named stage (dstStage) may execute.
 	// * A  MEMORY DEPENDECY     tells us which memory/cache needs to be made available/flushed (srcAccess) after srcStage,
 	//   before another memory/cache can be made visible/invalidated (dstAccess) before dstStage
-
-	// Renderpass implicit sync (per image resource)
-	//
-	// + Enter renderpass : INITIAL LAYOUT (layout must match)
-	// + Layout transition if initial layout and attachment reference layout differ for subpass
-	//   [ attachment memory is automatically made AVAILABLE | see Spec 6.1.1]
-	//   [layout transition happens-before any LOAD OPs: (Source: amd open source driver <https://github.com/GPUOpen-Drivers/xgl/blob/aa330d8e9acffb578c88193e4abe017c8fe15426/icd/api/renderpass/renderpass_builder.cpp#L819>)]
-	// + Load/clear op (executed using INITIAL LAYOUT once before first use per-resource)
-	//   [ attachment memory must be AVAILABLE ]
-	// + Enter subpass
-	// + Command execution [attachment memory must be VISIBLE ]
-	// + Store op
-	// + Exit subpass : final layout
-	// + Exit renderpass
-	// + Layout transform (if final layout differs)
-	//
-	//- NOTE texture image resources *must* be explicitly synchronised:
 
 	auto& syncChainTable = frame.syncChainTable;
 
@@ -2246,8 +2218,10 @@ static void frame_track_resource_state(
 		//
 		le_renderpass_add_explicit_sync( pass, currentPass, syncChainTable );
 
-		// the last entry in the sync chain table for each used resource in this pass should show the state that is required for this
-		// resource at the beginning of this pass.
+		// After a pass we must transfer the resource so that it is ready for the next pass.
+		// How do we know what is needed from the next pass? At this point we don't - but we
+		// know the index of the sync chain table element for the next pass - it it the current
+		// pass index + 1
 
 		// Iterate over all image attachments
 		le_renderpass_add_attachments( pass, currentPass, frame, currentPass.sampleCount, renderer );
@@ -2260,11 +2234,11 @@ static void frame_track_resource_state(
 			    true,
 			} );
 		}
-		// theoretically, here we would add sync for all resources that were used in this buffer to transition to the next stage - even if that next stage is not
-		// yet known. we will add a final stage to all resources so we know that there will always be a stage n+1
 
 		frame.passes.emplace_back( std::move( currentPass ) );
 	} // end for all passes
+
+	// Add a final sync stage to all resources so we know that there will always be a stage n+1
 
 	for ( auto& s_entry : syncChainTable ) {
 
@@ -5009,13 +4983,12 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 
 		frame_track_resource_state( frame, passes, numRenderPasses, tmp_swapchain_resources, self->renderer );
 
-		// At this point we know the state for each resource at the end of the sync chain.
-		// this state will be the initial state for the resource
-
+		// At this point we know the final state for each resource at the end of the sync chain.
+		// So that we can initialize the sync chain table again for the next frame, we store the last
+		// state for each known resource with the backend.
+		//
 		{
 			// Update final sync state for each pre-existing backend resource.
-			// fixme: this breaks the promise that no-one but allocate resources is writing to allocatedResources.
-
 
 			auto [ backend_resources, lock ] = self->get_allocated_resources();
 
@@ -5863,11 +5836,6 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 		auto print_debug_messages = [ & ]() {
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
 
-				// if ( 0 != strcmp( "img_gbuffer_depth", op.resource->get_debug_name() ) ) {
-				// 	return;
-				// } else {
-				// 	logger().info( "img_gbuffer_depth" );
-				// }
 				// print out sync chain for sampled image
 				if ( op.resource->get_type() == le::ResourceType::eImage ) {
 					logger().info( "\t Explicit Image Barrier for: %s (s: %d)", op.resource->get_debug_name(), 1 << static_cast<le_image_resource_handle>( op.resource )->get_num_samples() );
