@@ -989,8 +989,6 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 
 			//			assert( info.count > 0 );
 
-			// TODO: we might need to detect that a binding is used for bindless ...
-
 			// Dynamic uniform buffers need to specify a range given in bytes.
 			if ( info.type == le::DescriptorType::eUniformBufferDynamic ) {
 				info.range = binding->block.size;
@@ -1010,7 +1008,6 @@ static void shader_module_update_reflection( le_shader_module_o* module ) {
 				 *
 				 */
 
-				// TODO: we could set a flag instead of just a boolean to tell us what type of descriptor this refers to
 				switch ( info.type ) {
 				case le::DescriptorType::eSampler:
 					info.is_bindless_resource = uint32_t( le_bindless_resource_type::eSampler );

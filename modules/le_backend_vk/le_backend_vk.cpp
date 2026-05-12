@@ -4167,9 +4167,9 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 					VkImageSubresourceRange subresourceRange{
 					    .aspectMask     = get_aspect_flags_from_format( imageFormat ),
 					    .baseMipLevel   = 0,
-					    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+					    .levelCount     = VK_REMAINING_MIP_LEVELS, // we set VK_REMAINING_MIP_LEVELS, which activates all mip levels remaining.
 					    .baseArrayLayer = texInfo.imageView.base_array_layer,
-					    .layerCount     = VK_REMAINING_ARRAY_LAYERS, // Fixme: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
+					    .layerCount     = texInfo.imageView.layer_count, // Note: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
 					};
 
 					VkImageViewCreateInfo imageViewCreateInfo = {
@@ -4943,11 +4943,12 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
 	{
-		// assert( frame.explicit_sync_requests.empty() );
 		assert( frame.syncChainTable.empty() );
 
-		// Initialise, sync chain table - each resource receives initial state
-		// from current entry in frame.availableResources resource map -
+		// Pre-Initialise SyncChain table:
+		//
+		// - set initial state by looking at available resources and by picking
+		//   the state of that resource at the end of the previous frame.
 
 		for ( auto const& res : frame.availableResources ) {
 			std::string name  = res.first->get_debug_name();
@@ -4955,8 +4956,6 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 			frame.syncChainTable.insert( { res.first, { res.second.state } } );
 		}
 
-		// -- build sync chain for each resource, create explicit sync barrier requests for resources
-		// which cannot be implicitly synced.
 		std::vector<le_image_resource_handle> tmp_swapchain_resources{};
 		tmp_swapchain_resources.reserve( frame.frame_owned_swapchain_state.size() );
 
@@ -5024,15 +5023,11 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	                                   self->mFrames[ previous_frame_index ].bindless_samplers_descriptor_set,
 	                                   self->mFrames[ previous_frame_index ].bindless_storage_images_descriptor_set );
 
-	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
-	// TODO: rename this -- we create attachmentinfos here, not renderpasses.
+	// Create attachment infos that can then be used to begin rendering
 	backend_create_rendering_attachment_infos( frame, device );
 
 	// -- make sure that there is a descriptorpool for every renderpass
 	backend_create_descriptor_pools( frame, device, numRenderPasses );
-
-	// patch and retain physical resources in bulk here, so that
-	// each pass may be processed independently
 
 	return true;
 };
