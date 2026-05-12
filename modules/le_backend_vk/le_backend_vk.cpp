@@ -1910,7 +1910,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const* pass, BackendR
 
 				if ( isDepthStencil ) {
 					beforeSubpass.visible_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-					beforeSubpass.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+					beforeSubpass.stage          = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
 					beforeSubpass.layout         = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 				} else {
 					beforeSubpass.visible_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
@@ -2125,23 +2125,36 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.stage          = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
 				requestedState.layout         = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 			} else if ( resources_access[ i ] & ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ) ) {
-				// This means most likely that the image is used as an attachment. In this case,
-				// synchronisation is taken care of implicitly.
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 				requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-				//	logger().info( "colour attachment write" );
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT ) ) {
+				requestedState.visible_access = resources_access[ i ];
+				requestedState.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+				requestedState.layout         = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 			} else {
-				continue;
+				requestedState.visible_access = resources_access[ i ];
+				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
+				requestedState.layout         = VK_IMAGE_LAYOUT_GENERAL;
+				logger().warn( "strange access to image resource: %s", resource->get_debug_name() );
+			}
+
+		} else if ( resource->get_type() == LeResourceType::eBuffer ) {
+
+			// Process Buffer Resources
+
+			requestedState.visible_access = resources_access[ i ];
+			requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
+
+			if ( requestedState.visible_access & VK_ACCESS_2_INDEX_READ_BIT ) {
+				requestedState.stage |= VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT;
+			}
+			if ( requestedState.visible_access & VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT ) {
+				requestedState.stage |= VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
 			}
 
 		} else {
-			// Resources other than Images are ignored
-
-			// TODO: whe should probably process buffers here, as skipping the loop here
-			// means that Buffers don't ever get added to pre_pass_sync_ops.
-
-			continue;
+			logger().warn( "Unknown resource type: %d", resource->get_type() );
 		}
 
 		// -- we must add an entry to the sync chain to signal the state after change
@@ -2604,10 +2617,10 @@ static void backend_create_renderpasses( BackendFrameData& frame, VkDevice& devi
 
 		// ---------| Invariant: current pass is a draw pass.
 
-		if ( LE_PRINT_DEBUG_MESSAGES ) {
-			logger().info( "* Renderpass: '%s'", pass.debugName );
-			logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
-		}
+		// if ( LE_PRINT_DEBUG_MESSAGES ) {
+		// 	logger().info( "* Renderpass: '%s'", pass.debugName );
+		// 	logger().info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
+		// }
 
 		auto const attachments_end = pass.attachments.data() +
 		                             pass.numColorAttachments +
@@ -4973,13 +4986,15 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
 	{
-		// Initialise, then build sync chain table - each resource receives initial state
-		// from current entry in frame.availableResources resource map -
-
 		// assert( frame.explicit_sync_requests.empty() );
 		assert( frame.syncChainTable.empty() );
 
+		// Initialise, sync chain table - each resource receives initial state
+		// from current entry in frame.availableResources resource map -
+
 		for ( auto const& res : frame.availableResources ) {
+			std::string name  = res.first->get_debug_name();
+			auto&       state = res.second.state;
 			frame.syncChainTable.insert( { res.first, { res.second.state } } );
 		}
 
@@ -5016,6 +5031,9 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 				if ( res != backend_resources.end() ) {
 					// Element found.
 					// Set sync state for this resource to value of last elment in the sync chain.
+					le_resource_handle handle         = res->first;
+					auto&              resource_state = res->second;
+					std::string        res_name       = handle->get_debug_name();
 					res->second.state = resSyncList.back();
 				} else {
 
@@ -5845,13 +5863,18 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 		auto print_debug_messages = [ & ]() {
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
 
+				// if ( 0 != strcmp( "img_gbuffer_depth", op.resource->get_debug_name() ) ) {
+				// 	return;
+				// } else {
+				// 	logger().info( "img_gbuffer_depth" );
+				// }
 				// print out sync chain for sampled image
 				if ( op.resource->get_type() == le::ResourceType::eImage ) {
 					logger().info( "\t Explicit Image Barrier for: %s (s: %d)", op.resource->get_debug_name(), 1 << static_cast<le_image_resource_handle>( op.resource )->get_num_samples() );
 					logger().info( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
 					logger().info( "\t --- : ------------------------------ : ------------------------------ : ----------" );
 					logger().info( "\t % 3d : % 30s : % 30s : % 10s", op.sync_chain_offset_initial,
-					               to_string_vk_access_flags2( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ).c_str(),
+					               to_string_vk_access_flags2( stateInitial.visible_access ).c_str(),
 					               to_string_vk_pipeline_stage_flags2( stateInitial.stage ).c_str(),
 					               to_str_vk_image_layout( stateInitial.layout ) );
 					logger().info( "\t % 3d : % 30s : % 30s : % 10s", op.sync_chain_offset_final,
@@ -5862,14 +5885,12 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 					logger().info( "\t Explicit Buffer Barrier for: %s", op.resource->get_debug_name() );
 					logger().info( "\t % 3s : % 30s : % 30s ", "#", "visible_access", "write_stage" );
 					logger().info( "\t --- : ------------------------------ : ------------------------------ " );
-					logger().info( "\t % 3d : % 30s : % 30s : % 10s", op.sync_chain_offset_initial,
-					               to_string_vk_access_flags2( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ).c_str(),
-					               to_string_vk_pipeline_stage_flags2( stateInitial.stage ).c_str(),
-					               to_str_vk_image_layout( stateInitial.layout ) );
-					logger().info( "\t % 3d : % 30s : % 30s : % 10s", op.sync_chain_offset_final,
+					logger().info( "\t % 3d : % 30s : % 30s", op.sync_chain_offset_initial,
+					               to_string_vk_access_flags2( stateInitial.visible_access ).c_str(),
+					               to_string_vk_pipeline_stage_flags2( stateInitial.stage ).c_str() );
+					logger().info( "\t % 3d : % 30s : % 30s", op.sync_chain_offset_final,
 					               to_string_vk_access_flags2( stateFinal.visible_access ).c_str(),
-					               to_string_vk_pipeline_stage_flags2( stateFinal.stage ).c_str(),
-					               to_str_vk_image_layout( stateFinal.layout ) );
+					               to_string_vk_pipeline_stage_flags2( stateFinal.stage ).c_str() );
 				} else {
 					logger().warn( "Unknown resource type: %d for resource name: '%s'", op.resource->get_type(), op.resource->get_debug_name() );
 				}
@@ -5879,11 +5900,8 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 		if ( stateInitial != stateFinal ) {
 
 			switch ( op.resource->get_type() ) {
-			case ( le::ResourceType::eImage ): {
-				// we must issue an image barrier if the resource is an image
-				// if the resource is a buffer, we must issue a memory barrier
 
-				print_debug_messages();
+			case ( le::ResourceType::eImage ): {
 
 				auto img_info = frame_data_get_allocated_resource_from_resource_id( &frame, op.resource );
 
@@ -5891,7 +5909,7 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 				    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 				    .pNext               = nullptr,
 				    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
-				    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
+				    .srcAccessMask       = ( stateInitial.visible_access ),                                                                // make available memory update from operation (in case it was a write operation, otherwise don't wait)
 				    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
 				    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
 				    .oldLayout           = stateInitial.layout,
@@ -5904,13 +5922,18 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 
 				i_barrier.subresourceRange.aspectMask = get_aspect_flags_from_format( le::Format( img_info.info.imageInfo.format ) );
 
-				// add imagelayout transfer to vector
-				image_barriers.emplace_back( std::move( i_barrier ) );
+				// We only want to issue barrier if there is actual work to do -
+				// This means there needs to be either:
+				// 1) a layout transition
+				// 2) a write operation in srcAccessMask that needs to be flushed (made available)
+
+				if ( i_barrier.oldLayout != i_barrier.newLayout || i_barrier.srcAccessMask & ANY_WRITE_VK_ACCESS_2_FLAGS ) {
+					image_barriers.emplace_back( std::move( i_barrier ) );
+					print_debug_messages();
+				}
 				break;
 			}
 			case ( le::ResourceType::eBuffer ): {
-
-				print_debug_messages();
 
 				auto buf_info = frame_data_get_allocated_resource_from_resource_id( &frame, op.resource );
 
@@ -5918,7 +5941,7 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 				    .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,                                                      // VkStructureType
 				    .pNext               = nullptr,                                                                                        // void *, optional
 				    .srcStageMask        = uint64_t( stateInitial.stage ) == 0 ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT : stateInitial.stage, // happens-before
-				    .srcAccessMask       = ( stateInitial.visible_access & ANY_WRITE_VK_ACCESS_2_FLAGS ),                                  // make available memory update from operation (in case it was a write operation, otherwise don't wait)
+				    .srcAccessMask       = ( stateInitial.visible_access ),                                                                // make available memory update from operation (in case it was a write operation, otherwise don't wait)
 				    .dstStageMask        = stateFinal.stage,                                                                               // happens-after
 				    .dstAccessMask       = stateFinal.visible_access,                                                                      // make visible
 				    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,                                                                        // uint32_t
@@ -5929,6 +5952,7 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 				};
 
 				buffer_barriers.emplace_back( b_barrier );
+				print_debug_messages();
 				break;
 			}
 			default:
@@ -5937,25 +5961,43 @@ static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, Backen
 		}
 	} // end for all explicit sync ops.
 
-	// TODO: buffer memory barriers - instead of issueing barriers for each buffer individually
-	// it might be better to accumulate the requirements into one general barrier that we
-	// can issue at this point.
-	// But for now, we will issue buffer barriers just like this.
+	VkMemoryBarrier2 batched_buffer_barriers{
+	    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, // VkStructureType
+	    .pNext         = nullptr,                            // void *, optional
+	    .srcStageMask  = 0,                                  // VkPipelineStageFlags2, optional
+	    .srcAccessMask = 0,                                  // VkAccessFlags2, optional
+	    .dstStageMask  = 0,                                  // VkPipelineStageFlags2, optional
+	    .dstAccessMask = 0,                                  // VkAccessFlags2, optional
+	};
 
-	// this means that all writes need to be accumulated so that they can be flushed
-	// in one go - before the first read may be issued.
-	//
-	// Another thing we might want to optimize is any transforms where there
-	// is no visible access
+	for ( auto& b : buffer_barriers ) {
+		batched_buffer_barriers.srcStageMask |= b.srcStageMask;
+		batched_buffer_barriers.srcAccessMask |= b.srcAccessMask;
+		batched_buffer_barriers.dstStageMask |= b.dstStageMask;
+		batched_buffer_barriers.dstAccessMask |= b.dstAccessMask;
+	}
+
+	/*
+	 * Note that for buffer barriers, we don't issue the individual barriers, but
+	 * we batch them by accumulating all buffer barriers into a single global
+	 * memory barrier that is the superset of all barrier sync ops.
+	 *
+	 * This is the suggested way to do it according to:
+	 * <https://github.com/KhronosGroup/Vulkan-Docs/wiki/Synchronization-Examples>
+	 *
+	 * It appears per-buffer barriers are mainly useful for transferring queue family
+	 * ownership for a buffer resource.
+	 *
+	 */
 
 	VkDependencyInfo dependencyInfo = {
 	    .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
 	    .pNext                    = nullptr, // optional
 	    .dependencyFlags          = 0,       // optional
-	    .memoryBarrierCount       = 0,       // optional
-	    .pMemoryBarriers          = 0,
-	    .bufferMemoryBarrierCount = uint32_t( buffer_barriers.size() ), // optional
-	    .pBufferMemoryBarriers    = buffer_barriers.data(),
+	    .memoryBarrierCount       = 1,       // optional
+	    .pMemoryBarriers          = &batched_buffer_barriers,
+	    .bufferMemoryBarrierCount = 0,                                 // uint32_t( buffer_barriers.size() ), // optional
+	    .pBufferMemoryBarriers    = nullptr,                           // buffer_barriers.data(),
 	    .imageMemoryBarrierCount  = uint32_t( image_barriers.size() ), // optional
 	    .pImageMemoryBarriers     = image_barriers.data(),
 	};
