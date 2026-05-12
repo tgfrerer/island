@@ -597,9 +597,6 @@ struct BackendFrameData {
 	using sync_chain_table_t = std::unordered_map<le_resource_handle, std::vector<ResourceState>>;
 	sync_chain_table_t syncChainTable;
 
-	// last implicitly synchronised synch chain index for resources that need to be explicitly synched
-	// std::unordered_map<le_resource_handle, uint32_t> explicit_sync_requests;
-
 	static_assert( sizeof( VkBuffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
 
 	// Map from renderer resource id to physical resources - only contains resources this frame uses.
@@ -2410,7 +2407,6 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 
 	frame.physicalResources.clear();
 	frame.syncChainTable.clear();
-	// frame.explicit_sync_requests.clear();
 
 	frame.passes.clear();
 
@@ -5803,7 +5799,7 @@ inline DescriptorData* find_descriptor_with_binding_number_and_array_idx(
 }
 
 // ----------------------------------------------------------------------
-static void pass_insert_explicit_sync_ops( BackendFrameData const& frame, BackendFrameData::PerQueueSubmissionData const& submission, std::vector<ExplicitSyncOp> const& explicit_sync_ops, VkCommandBuffer& cmd ) {
+static void cmd_insert_pipeline_barriers( VkCommandBuffer& cmd, BackendFrameData const& frame, BackendFrameData::PerQueueSubmissionData const& submission, std::vector<ExplicitSyncOp> const& explicit_sync_ops ) {
 	ZoneScoped;
 
 	// -- Issue sync barriers for all resources which require explicit sync.
@@ -6325,7 +6321,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger().info( "*** Frame %d *** Queue %d *** / Begin Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 			}
-			pass_insert_explicit_sync_ops( frame, submission, pass.sync_ops_before_pass, cmd );
+			cmd_insert_pipeline_barriers( cmd, frame, submission, pass.sync_ops_before_pass );
 
 			// Draw passes must begin by opening a Renderpass context.
 			if ( pass.type == le::QueueFlagBits::eGraphics ) {
@@ -7955,7 +7951,9 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger().info( "*** Frame %d *** Queue %d *** \\ End   Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 			}
-			pass_insert_explicit_sync_ops( frame, submission, pass.sync_ops_after_pass, cmd );
+
+			cmd_insert_pipeline_barriers( cmd, frame, submission, pass.sync_ops_after_pass );
+
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger().info( "--- / End Sync after pass " );
 			}
