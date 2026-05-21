@@ -53,6 +53,10 @@ class MeshGenerator : NoCopy, NoMove {
 	static void generatePlane( le_mesh_o* mesh, float width, float height, uint32_t widthSegments = 2, uint32_t heightSegments = 2, uint32_t* num_bytes_per_index = nullptr ) {
 		le_mesh_generator::le_mesh_generator_i.generate_plane( mesh, width, height, widthSegments, heightSegments, num_bytes_per_index );
 	}
+
+	static void generateBox( le_mesh_o* mesh, float width, float height, float depth ) {
+		le_mesh_generator::le_mesh_generator_i.generate_box( mesh, width, height, depth );
+	}
 };
 
 } // namespace le
