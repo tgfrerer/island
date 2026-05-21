@@ -582,8 +582,8 @@ struct BackendFrameData {
 	std::vector<VkSemaphore>                        retired_semaphores;          // semaphores that were retired by this frame - these should be clearable upon the frame fence being cleared.
 
 	struct Texture {
-		VkSampler   sampler;
-		VkImageView imageView;
+		VkSampler   sampler   = nullptr;
+		VkImageView imageView = nullptr;
 	};
 
 	using texture_map_t = std::unordered_map<le_texture_handle, Texture>;
