@@ -323,10 +323,18 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o*     self,
 	uint64_t*                  dataOffsets = ( uint64_t* )( dataBuffers + bindingCount ); // start address for offset data
 
 	cmd->info = { firstBinding, bindingCount };
-	cmd->header.info.size += data_size; // we must increase the size of this command by its payload size
+	cmd->header.info.size += data_size; // append payload size to size of this command entry
 
 	memcpy( dataBuffers, pBuffers, data_buffers_size );
-	memcpy( dataOffsets, pOffsets, data_offsets_size );
+
+	if ( nullptr == pOffsets ) {
+		// If pOffsets was not given, zero out offset data
+		// which means that there will be no offsets
+		memset( dataOffsets, 0, data_offsets_size );
+	} else {
+		// Otherwise copy offsets from user data.
+		memcpy( dataOffsets, pOffsets, data_offsets_size );
+	}
 }
 
 // ----------------------------------------------------------------------

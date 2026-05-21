@@ -775,8 +775,8 @@ class GraphicsEncoder {
 	}
 
 	/// \param firstBinding: first binding index
-	/// \param pOffsets: byte offset per-binding. consider initialising this with a stack-allocated array as in `uint64_t offsets[] = {0};`
-	GraphicsEncoder& bindVertexBuffers( uint32_t const& firstBinding, uint32_t const& bindingCount, le_buffer_resource_handle const* pBufferId, uint64_t const* pOffsets ) {
+	/// \param pOffsets: (optional) byte offset per-binding. All zero if set to nullptr.
+	GraphicsEncoder& bindVertexBuffers( uint32_t const& firstBinding, uint32_t const& bindingCount, le_buffer_resource_handle const* pBufferId, uint64_t const* pOffsets = nullptr ) {
 		le_renderer::encoder_graphics_i.bind_vertex_buffers( self, firstBinding, bindingCount, pBufferId, pOffsets );
 		return *this;
 	}
