@@ -14,7 +14,7 @@
 #include "shared/interfaces/le_image_decoder_interface.h"
 
 static le::Log& logger() {
-	// Enforce lazy initialization for logger oblect
+	// Enforce lazy initialization for logger object
 	static auto logger = le::Log( "resource_manager" );
 	return logger;
 };
