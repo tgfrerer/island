@@ -47,7 +47,7 @@ struct le_resource_manager_o {
 		uint32_t                       height;
 	};
 
-	struct resource_item_t {
+	struct image_resource_item_t {
 		le_image_resource_handle        image_handle;
 		le_resource_info_t              image_info;
 		std::vector<image_data_layer_t> image_layers; // must have at least one element
@@ -55,7 +55,7 @@ struct le_resource_manager_o {
 
 	std::unordered_map<std::string, le_image_decoder_interface_t*> available_decoder_interfaces; // map from hash of lowercase file extension (`exr`, `png`, ... ) to an image decoder inferface that can deal with this extension
 
-	std::unordered_map<le_resource_handle, resource_item_t> resources;
+	std::unordered_map<le_resource_handle, image_resource_item_t> resources;
 };
 
 // ----------------------------------------------------------------------
@@ -368,7 +368,7 @@ static void le_resource_manager_add_item( le_resource_manager_o*         self,
                                           char const**                   image_paths,
                                           bool                           should_watch ) {
 
-	auto [ it, was_emplaced ] = self->resources.emplace( image_handle, le_resource_manager_o::resource_item_t{} );
+	auto [ it, was_emplaced ] = self->resources.emplace( image_handle, le_resource_manager_o::image_resource_item_t{} );
 
 	if ( was_emplaced ) {
 		auto& item = it->second;
