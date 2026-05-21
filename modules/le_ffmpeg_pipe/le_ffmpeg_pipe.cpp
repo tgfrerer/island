@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <cassert>
 #include <regex>
-#include <ostream>
+#include <sstream>
 
 #ifdef _MSC_VER
 
