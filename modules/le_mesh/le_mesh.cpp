@@ -251,7 +251,9 @@ static void le_mesh_read_attribute_data_into(
 
 static void le_mesh_read_index_data_into( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, uint32_t* num_bytes_per_index, size_t* num_indices, size_t first_index ) {
 
-	auto& bytes_vec = self->indices_data;
+	if ( self->indices_data == nullptr ) {
+		return;
+	}
 
 	size_t existing_bytes_per_index = self->indices_data->num_bytes_per_stride;
 
@@ -315,7 +317,7 @@ static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, u
 // allocate data for a buffer of interleaved vertex data
 // attribute_infos must hold information for the current buffer
 // and any data that gets interleaved with this buffer.
-static void* le_mesh_allocate_vertex_buffer( le_mesh_o* self, le_mesh_api::attribute_info_t const* attribute_infos, size_t num_attribute_infos ) {
+static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_api::attribute_info_t const* attribute_infos, size_t num_attribute_infos ) {
 
 	if ( attribute_infos == nullptr || num_attribute_infos == 0 || self->num_vertices == 0 ) {
 		return nullptr;
@@ -373,7 +375,7 @@ static void* le_mesh_allocate_attribute_data( le_mesh_o* self, le_mesh_api::attr
 	le_mesh_api::attribute_info_t info{
 	    .name             = attribute_name,
 	    .bytes_per_vertex = num_bytes_per_vertex };
-	return le_mesh_allocate_vertex_buffer( self, &info, 1 );
+	return le_mesh_allocate_vertex_data( self, &info, 1 );
 };
 
 // ----------------------------------------------------------------------
@@ -459,7 +461,7 @@ static void le_mesh_read_attribute_infos_into( le_mesh_o* self, le_mesh_api::att
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o* const* meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer ) {
+static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer ) {
 
 	struct upload_data_item_t {
 		le_buffer_resource_handle buffer;
@@ -477,7 +479,7 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o* const* meshes, size
 
 			if ( nullptr == descriptor.buffer_resource ) {
 				// we need to allocate the buffer resource first
-				le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, "", 0, 0 );
+				descriptor.buffer_resource = le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, "", 0, 0 );
 			}
 
 			if ( descriptor.is_tainted ) {
@@ -495,19 +497,26 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o* const* meshes, size
 			le_renderer_api_i->le_rendergraph_i.declare_resource( rg, descriptor.buffer_resource, descriptor.buffer_resource_info );
 		}
 
-		if ( mesh->indices_data->is_tainted ) {
-			size_t num_bytes = mesh->indices_data->cpu_data.size();
-			mesh->indices_data->buffer_resource_info =
-			    le::BufferInfoBuilder()
-			        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eIndexBuffer )
-			        .setSize( num_bytes )
-			        .build();
-			upload_items.emplace_back( mesh->indices_data->buffer_resource, &mesh->indices_data->cpu_data );
-			mesh->indices_data->is_tainted = false;
-		}
+		if ( mesh->indices_data ) {
 
-		// set index buffer info so that is has index read
-		le_renderer_api_i->le_rendergraph_i.declare_resource( rg, mesh->indices_data->buffer_resource, mesh->indices_data->buffer_resource_info );
+			if ( nullptr == mesh->indices_data->buffer_resource ) {
+				mesh->indices_data->buffer_resource = le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, "", 0, 0 );
+			}
+
+			if ( mesh->indices_data->is_tainted ) {
+				size_t num_bytes = mesh->indices_data->cpu_data.size();
+				mesh->indices_data->buffer_resource_info =
+				    le::BufferInfoBuilder()
+				        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eIndexBuffer )
+				        .setSize( num_bytes )
+				        .build();
+				upload_items.emplace_back( mesh->indices_data->buffer_resource, &mesh->indices_data->cpu_data );
+				mesh->indices_data->is_tainted = false;
+			}
+
+			// set index buffer info so that is has index read
+			le_renderer_api_i->le_rendergraph_i.declare_resource( rg, mesh->indices_data->buffer_resource, mesh->indices_data->buffer_resource_info );
+		}
 	}
 
 	// now we have all upload items -- we need to add a transfer pass to the rendergraph
@@ -560,6 +569,25 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o* const* meshes, size
 	free( mesh_closure_data );
 };
 
+static void le_mesh_get_input_attribute_descriptions( le_mesh_o* self, le_mesh_api::attribute_info_t const* attribute_infos, size_t num_attribute_infos ) {
+
+	if ( attribute_infos == nullptr || num_attribute_infos == 0 || self->num_vertices == 0 ) {
+		return;
+	}
+
+	// we need to make sure that all of these attributes exist
+	// and that they have a matching number of bytes.
+	std::vector<le_mesh_api::attribute_info_t> attr_infos{ attribute_infos, attribute_infos + num_attribute_infos };
+
+	for ( auto const& a : attr_infos ) {
+		auto it = self->data_descriptors.find( a.name );
+		if ( it != self->data_descriptors.end() ) {
+		} else {
+			logger.error( "Could not find attribute info. Attribute %d does not exist in this mesh.", a.name );
+		}
+	}
+}
+
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR void le_module_register_le_mesh_load_from_ply( void* api ); // ffdecl.
@@ -571,10 +599,10 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 
 	le_module_register_le_mesh_load_from_ply( api );
 
-	le_mesh_i.allocate_vertex_buffer   = le_mesh_allocate_vertex_buffer;
-	le_mesh_i.allocate_attribute_data  = le_mesh_allocate_attribute_data;
-	le_mesh_i.allocate_index_data      = le_mesh_allocate_index_data;
-	le_mesh_i.read_attribute_data_into = le_mesh_read_attribute_data_into;
+	le_mesh_i.allocate_vertex_data         = le_mesh_allocate_vertex_data;
+	le_mesh_i.allocate_index_data          = le_mesh_allocate_index_data;
+	le_mesh_i.read_attribute_data_into     = le_mesh_read_attribute_data_into;
+	le_mesh_i.read_vertex_data_into_buffer = le_mesh_read_vertex_data_into_buffer;
 
 	le_mesh_i.set_vertex_count = le_mesh_set_vertex_count;
 	le_mesh_i.get_vertex_count = le_mesh_get_vertex_count;
@@ -582,6 +610,8 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	le_mesh_i.get_index_count           = le_mesh_get_index_count;
 	le_mesh_i.read_attribute_infos_into = le_mesh_read_attribute_infos_into;
 	le_mesh_i.read_index_data_into      = le_mesh_read_index_data_into;
+
+	le_mesh_i.submit_meshes_to_rendergraph = le_mesh_submit_meshes_to_rendergraph;
 
 	le_mesh_i.clear   = le_mesh_clear;
 	le_mesh_i.create  = le_mesh_create;

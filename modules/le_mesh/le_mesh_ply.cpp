@@ -13,6 +13,8 @@
 #include "glm/vec4.hpp"
 #include "le_log.h"
 
+#include <map>
+
 auto& logger() {
 	static le::Log l( "le_mesh_ply.cpp" );
 	return l;
@@ -76,7 +78,7 @@ static inline int does_start_with( char const* haystack, char const* needle, siz
 /// \brief loads mesh from ply file
 /// \note any contents of mesh will be cleared before loading
 /// \return true upon success, false otherwise.
-static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ ) {
+static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_, bool should_interleave ) {
 
 	// - Make sure file exists
 
@@ -364,6 +366,8 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 
 	size_t num_vertices = 0;
 
+	// --
+
 	// - Load file data
 
 	Element const* element_archetype     = elements.data();
@@ -400,14 +404,22 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 				num_vertices = element_archetype->num_elements;
 			}
 
-			glm::vec3*       pos_data         = nullptr;
-			glm::vec3 const* pos_data_end     = nullptr;
-			glm::vec3*       normals_data     = nullptr;
-			glm::vec3 const* normals_data_end = nullptr;
-			glm::vec2*       uvs_data         = nullptr;
-			glm::vec2 const* uvs_data_end     = nullptr;
-			glm::vec4*       colours_data     = nullptr;
-			glm::vec4 const* colours_data_end = nullptr;
+			std::map<le_mesh_api::attribute_name_t, le_mesh_api::attribute_info_t> attribute_infos;
+
+			size_t           per_vertex_stride = 0;
+			glm::vec3*       pos_data          = nullptr;
+			glm::vec3 const* pos_data_end      = nullptr;
+			glm::vec3*       normals_data      = nullptr;
+			glm::vec3 const* normals_data_end  = nullptr;
+			glm::vec2*       uvs_data          = nullptr;
+			glm::vec2 const* uvs_data_end      = nullptr;
+			glm::vec4*       colours_data      = nullptr;
+			glm::vec4 const* colours_data_end  = nullptr;
+
+			size_t pos_data_per_vertex_offset     = 0;
+			size_t normals_data_per_vertex_offset = 0;
+			size_t uvs_data_per_vertex_offset     = 0;
+			size_t colours_data_per_vertex_offset = 0;
 
 			for ( auto const& p : element_archetype->properties ) {
 
@@ -415,39 +427,115 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 				case ( Property::AttributeType::eVX ): // intentional fall-through
 				case ( Property::AttributeType::eVY ): // intentional fall-through
 				case ( Property::AttributeType::eVZ ): // intentional fall-through
-					if ( pos_data == nullptr ) {
-						pos_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::ePosition, sizeof( glm::vec3 ) );
+				{
+					constexpr le_mesh_api::attribute_info_t attr_info = { .name = le_mesh_api::attribute_name_t::ePosition, .bytes_per_vertex = sizeof( glm::vec3 ) };
+					if ( should_interleave ) {
+						attribute_infos[ le_mesh_api::attribute_name_t::ePosition ] = attr_info;
+					} else if ( pos_data == nullptr ) {
+						pos_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1 );
 						pos_data_end = pos_data + sizeof( glm::vec3 ) * num_vertices;
 					}
-					break;
+				} break;
 				case ( Property::AttributeType::eNX ): // intentional fall-through
 				case ( Property::AttributeType::eNY ): // intentional fall-through
 				case ( Property::AttributeType::eNZ ): // intentional fall-through
-					if ( normals_data == nullptr ) {
-						normals_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eNormal, sizeof( glm::vec3 ) );
+				{
+					constexpr le_mesh_api::attribute_info_t attr_info = { .name = le_mesh_api::attribute_name_t::eNormal, .bytes_per_vertex = sizeof( glm::vec3 ) };
+					if ( should_interleave ) {
+						attribute_infos[ le_mesh_api::attribute_name_t::eNormal ] = attr_info;
+					} else if ( normals_data == nullptr ) {
+						normals_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1 );
 						normals_data_end = normals_data + sizeof( glm::vec3 ) * num_vertices;
 					}
-					break;
+				} break;
 				case ( Property::AttributeType::eColR ): // intentional fall-through
 				case ( Property::AttributeType::eColG ): // intentional fall-through
 				case ( Property::AttributeType::eColB ): // intentional fall-through
 				case ( Property::AttributeType::eColA ): // intentional fall-through
-					if ( colours_data == nullptr ) {
-						colours_data     = ( glm::vec4* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eColour, sizeof( glm::vec4 ) );
+				{
+					constexpr le_mesh_api::attribute_info_t attr_info = { .name = le_mesh_api::attribute_name_t::eColour, .bytes_per_vertex = sizeof( glm::vec4 ) };
+					if ( should_interleave ) {
+						attribute_infos[ le_mesh_api::attribute_name_t::eColour ] = attr_info;
+					} else if ( colours_data == nullptr ) {
+						colours_data     = ( glm::vec4* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1 );
 						colours_data_end = colours_data + sizeof( glm::vec4 ) * num_vertices;
 					}
-					break;
+				} break;
 				case ( Property::AttributeType::eTexU ): // intentional fall-through
 				case ( Property::AttributeType::eTexV ): // intentional fall-through
-					if ( uvs_data == nullptr ) {
-						uvs_data     = ( glm::vec2* )le_mesh_api_i->le_mesh_i.allocate_attribute_data( self, le_mesh_api::attribute_name_t::eUv, sizeof( glm::vec2 ) );
+				{
+					constexpr le_mesh_api::attribute_info_t attr_info = { .name = le_mesh_api::attribute_name_t::eUv, .bytes_per_vertex = sizeof( glm::vec2 ) };
+					if ( should_interleave ) {
+						attribute_infos[ le_mesh_api::attribute_name_t::eUv ] = attr_info;
+					} else if ( uvs_data == nullptr ) {
+						uvs_data     = ( glm::vec2* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1 );
 						uvs_data_end = uvs_data + sizeof( glm::vec2 ) * num_vertices;
 					}
-					break;
+				} break;
 				case ( Property::AttributeType::eUnknown ):
 					break;
 				}
 				// TODO: check for tangents.
+			}
+
+			if ( should_interleave ) {
+
+				std::vector<le_mesh_api::attribute_info_t> attribute_info_vec;
+
+				for ( auto& [ key, item ] : attribute_infos ) {
+					attribute_info_vec.push_back( item );
+
+					switch ( key ) {
+					case le_mesh_api::eUndefined:
+						break;
+					case le_mesh_api::ePosition:
+						pos_data_per_vertex_offset = per_vertex_stride;
+						break;
+					case le_mesh_api::eNormal:
+						normals_data_per_vertex_offset = per_vertex_stride;
+						break;
+					case le_mesh_api::eColour:
+						colours_data_per_vertex_offset = per_vertex_stride;
+						break;
+					case le_mesh_api::eUv:
+						uvs_data_per_vertex_offset = per_vertex_stride;
+						break;
+					case le_mesh_api::eTangent:
+						assert( false && "tangent import not yet implemented" );
+						break;
+					}
+
+					per_vertex_stride += item.bytes_per_vertex;
+				}
+
+				void* data = le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, attribute_info_vec.data(), attribute_info_vec.size() );
+
+				for ( auto const& info : attribute_info_vec ) {
+
+					switch ( info.name ) {
+					case le_mesh_api::eUndefined:
+						break;
+					case le_mesh_api::ePosition:
+						pos_data     = ( glm::vec3* )( ( uint8_t* )( data ) + pos_data_per_vertex_offset );
+						pos_data_end = ( glm::vec3* )( ( uint8_t* )( data ) + pos_data_per_vertex_offset + per_vertex_stride * num_vertices );
+						break;
+					case le_mesh_api::eNormal:
+						normals_data     = ( glm::vec3* )( ( uint8_t* )( data ) + normals_data_per_vertex_offset );
+						normals_data_end = ( glm::vec3* )( ( uint8_t* )( data ) + normals_data_per_vertex_offset + per_vertex_stride * num_vertices );
+						break;
+					case le_mesh_api::eColour:
+						colours_data     = ( glm::vec4* )( ( uint8_t* )( data ) + colours_data_per_vertex_offset );
+						colours_data_end = ( glm::vec4* )( ( uint8_t* )( data ) + colours_data_per_vertex_offset + per_vertex_stride * num_vertices );
+						break;
+					case le_mesh_api::eUv:
+						uvs_data     = ( glm::vec2* )( ( uint8_t* )( data ) + uvs_data_per_vertex_offset );
+						uvs_data_end = ( glm::vec2* )( ( uint8_t* )( data ) + uvs_data_per_vertex_offset + per_vertex_stride * num_vertices );
+						break;
+					case le_mesh_api::eTangent:
+						assert( false && "tangent import not yet implemented" );
+						break;
+					}
+				}
 			}
 
 			size_t count_positions = 0;
@@ -475,12 +563,12 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 					assert( colours_data < colours_data_end );
 				}
 
-				// clang-format off
 
 				for ( auto const& p : element_archetype->properties ) {
 
 					// todo: you need to iterate the archetype element
 
+					// clang-format off
 					switch ( p.attribute_type ) {
 					case ( Property::AttributeType::eVX )   : pos_data->x  = strtof( s, &s ); break;
 					case ( Property::AttributeType::eVY )   : pos_data->y  = strtof( s, &s ); break;
@@ -495,17 +583,25 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_ 
 					case ( Property::AttributeType::eColB ) : if ( colours_data ) { colours_data->z  = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
 					case ( Property::AttributeType::eColA ) : if ( colours_data ) { colours_data->w  = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break; }
 					case ( Property::AttributeType::eUnknown ):
+						// clang-format on
 						// TODO: what do we do if there is an unknown attribute?
 						assert( false );
 						break;
 					}
 				}
 
-				pos_data     = pos_data     ? pos_data     + 1 : nullptr;
-				normals_data = normals_data ? normals_data + 1 : nullptr;
-				uvs_data     = uvs_data     ? uvs_data     + 1 : nullptr;
-				colours_data = colours_data ? colours_data + 1 : nullptr;
-
+				// clang-format off
+				if ( should_interleave ) {
+					pos_data     = pos_data     ? ( glm::vec3* )( ( uint8_t* )( pos_data     ) + per_vertex_stride ) : nullptr;
+					normals_data = normals_data ? ( glm::vec3* )( ( uint8_t* )( normals_data ) + per_vertex_stride ) : nullptr;
+					uvs_data     = uvs_data     ? ( glm::vec2* )( ( uint8_t* )( uvs_data     ) + per_vertex_stride ) : nullptr;
+					colours_data = colours_data ? ( glm::vec4* )( ( uint8_t* )( colours_data ) + per_vertex_stride ) : nullptr;
+				} else {
+					pos_data     = pos_data     ? pos_data     + 1 : nullptr;
+					normals_data = normals_data ? normals_data + 1 : nullptr;
+					uvs_data     = uvs_data     ? uvs_data     + 1 : nullptr;
+					colours_data = colours_data ? colours_data + 1 : nullptr;
+				}
 				// clang-format on
 			}
 

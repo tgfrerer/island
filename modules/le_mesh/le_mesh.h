@@ -58,7 +58,7 @@ struct le_mesh_api {
 		void           ( * destroy                  ) ( le_mesh_o* self );
 
 		/// Submits mesh(es) to rendergraph; introduces the mesh buffers to rendergraph; 
-		void 		   ( * submit_meshes_to_rendergraph ) (le_mesh_o* const* meshes, size_t meshes_count, le_rendergraph_o* rg);
+		void 		   ( * submit_meshes_to_rendergraph ) (le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer);
 
 		void (*clear)(le_mesh_o* self);
 
@@ -74,16 +74,19 @@ struct le_mesh_api {
 		/// @param `attribute_name`            : enum value which attribute value we want to allocate memory for.
 		/// @param `num_bytes_per_vertex`      : number of bytes required for per-vertex for this attribute.
 		///
-		/// @note if this attribute has already been allocated, this function will just return a pointer to the attribute data.
 		/// @note the total number of vertices is set by `set_vertex_count`, which will invalidate all attribute data pointers that were queried before `set_vertex_count`.
 		/// @warning writing into allocated data is super finnicky - you must make sure that you don't write over the boundaries of the data that you allocated.
 		///
-		void *(*allocate_attribute_data)( le_mesh_o * self, attribute_name_t attribute_name, uint32_t num_bytes_per_vertex);
+		[[nodiscard]]
 		void *(*allocate_index_data)( le_mesh_o * self, size_t num_indices, uint32_t* num_bytes_per_index); // num_bytes_per_index can be 0, will be set to 2 or 4 depending on number of vertices, must be 4 if number of vertices is (2^16)
 
 		// Allocates one buffer for vertex data - vertex data may be interleaved, in which case attribute_infos must 
 		// hold infos for more than one attribute in the correct order for interleaving.
-		void *(*allocate_vertex_buffer)( le_mesh_o * self, attribute_info_t const * attribute_infos, size_t attribute_infos_count);
+		[[nodiscard]]
+		void *(*allocate_vertex_data)( le_mesh_o * self, attribute_info_t const * attribute_infos, size_t attribute_infos_count);
+
+
+		void (*read_vertex_data_into_buffer)( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex );
 
 		/// Read attribute data into `target`
 		///
@@ -114,7 +117,7 @@ struct le_mesh_api {
 
 		// PLY import
 
-		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
+		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path, bool should_interleave );
 
 	};
 
@@ -165,14 +168,19 @@ class LeMesh : NoCopy, NoMove {
 	}
 
 	[[nodiscard]]
-	void* allocateVertexBuffer( le_mesh_api::attribute_info_t const* attribute_infos, uint32_t attribute_infos_count ) {
-		return this_i.allocate_vertex_buffer( self, attribute_infos, attribute_infos_count );
+	void* allocateVertexData( le_mesh_api::attribute_info_t const* attribute_infos, uint32_t attribute_infos_count ) {
+		return this_i.allocate_vertex_data( self, attribute_infos, attribute_infos_count );
 	}
 
 	void readAttributeInfosInto( le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
 		this_i.read_attribute_infos_into( self, target, num_attributes_in_target );
 	}
 
+	void readVertexDataIntoBuffer( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex = 0 ) {
+		this_i.read_vertex_data_into_buffer( self, target, target_capacity_num_bytes, dst_attribute_info, dst_attribute_info_count, first_vertex );
+	}
+
+	[[deprecated]]
 	void readAttributeDataInto( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_name_t attribute_name, uint32_t* num_bytes_per_vertex = nullptr, size_t* num_vertices = nullptr, size_t first_vertex = 0, uint32_t stride = 0, uint32_t initial_stride_offset = 0 ) const {
 		this_i.read_attribute_data_into( self, target, target_capacity_num_bytes, attribute_name, num_bytes_per_vertex, num_vertices, first_vertex, stride, initial_stride_offset );
 	}
@@ -181,18 +189,19 @@ class LeMesh : NoCopy, NoMove {
 		this_i.read_index_data_into( self, target, target_capacity_num_bytes, num_bytes_per_index, num_indices, first_index );
 	}
 
-	bool loadFromPlyFile( char const* file_path ) {
-		return this_i.load_from_ply_file( self, file_path );
+	bool loadFromPlyFile( char const* file_path, bool should_interleave = false ) {
+		return this_i.load_from_ply_file( self, file_path, should_interleave );
 	}
 
 	operator auto() {
 		return self;
 	}
+
 #		undef this_i
 #	endif
 
-	static void submitMeshesToRendergraph( le_mesh_o* const* meshes, size_t meshes_count, le_rendergraph_o* rg ) {
-		le_mesh_api_i->le_mesh_i.submit_meshes_to_rendergraph( meshes, meshes_count, rg );
+	static void submitMeshesToRendergraph( le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer ) {
+		le_mesh_api_i->le_mesh_i.submit_meshes_to_rendergraph( meshes, meshes_count, rg, renderer );
 	};
 };
 
