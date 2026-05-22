@@ -416,6 +416,11 @@ class RenderPass {
 		return *this;
 	}
 
+	RenderPass& setExecuteCallbackWithLocalUserData( void* user_data, size_t user_data_num_bytes, le_renderer_api::pfn_renderpass_execute_t fun ) {
+		le_renderer::renderpass_i.set_execute_callback_with_local_user_data( self, user_data, user_data_num_bytes, fun );
+		return *this;
+	}
+
 	// ----
 
 	/// \brief Adds a resource as an image attachment to the renderpass.

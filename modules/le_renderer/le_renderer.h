@@ -119,7 +119,8 @@ struct le_renderer_api {
 		void                            ( *set_height           )( le_renderpass_o* obj, uint32_t height);
 		void                            ( *set_sample_count     ) (le_renderpass_o* obj, le::SampleCountFlagBits const & sampleCount);
 		bool                            ( *get_framebuffer_settings)(le_renderpass_o const * obj, uint32_t* width, uint32_t* height, le::SampleCountFlagBits* sample_count);
-		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
+		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun);
+		void                            ( *set_execute_callback_with_local_user_data )( le_renderpass_o *obj, void *user_data,  size_t user_data_num_bytes , pfn_renderpass_execute_t render_fun);
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);

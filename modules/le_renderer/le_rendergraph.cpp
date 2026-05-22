@@ -91,12 +91,21 @@ static void renderpass_set_setup_callback( le_renderpass_o* self, void* user_dat
 static void renderpass_set_execute_callback( le_renderpass_o* self, void* user_data, le_renderer_api::pfn_renderpass_execute_t callback ) {
 	self->executeCallbacks.push_back( { callback, user_data } );
 }
+// ----------------------------------------------------------------------
+
+static void renderpass_set_execute_callback_with_local_user_data( le_renderpass_o* self, void* user_data, size_t user_data_num_bytes, le_renderer_api::pfn_renderpass_execute_t callback ) {
+	self->executeCallbacks.push_back( { callback, nullptr, { ( uint8_t* )( user_data ), ( uint8_t* )( user_data ) + user_data_num_bytes } } );
+}
 
 // ----------------------------------------------------------------------
 static void renderpass_run_execute_callbacks( le_renderpass_o* self, le_command_buffer_encoder_o* encoder ) {
 	ZoneScoped;
 	for ( auto const& c : self->executeCallbacks ) {
-		c.fn( encoder, c.user_data );
+		if ( c.local_storage.empty() ) {
+			c.fn( encoder, c.user_data );
+		} else {
+			c.fn( encoder, ( void* )( c.local_storage.data() ) );
+		}
 	}
 }
 
@@ -1390,7 +1399,8 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.set_height                   = renderpass_set_height;
 	le_renderpass_i.set_setup_callback           = renderpass_set_setup_callback;
 	le_renderpass_i.has_setup_callback           = renderpass_has_setup_callback;
-	le_renderpass_i.set_execute_callback         = renderpass_set_execute_callback;
+	le_renderpass_i.set_execute_callback                      = renderpass_set_execute_callback;
+	le_renderpass_i.set_execute_callback_with_local_user_data = renderpass_set_execute_callback_with_local_user_data;
 	le_renderpass_i.has_execute_callback         = renderpass_has_execute_callback;
 	le_renderpass_i.set_is_root                  = renderpass_set_is_root;
 	le_renderpass_i.get_is_root                  = renderpass_get_is_root;

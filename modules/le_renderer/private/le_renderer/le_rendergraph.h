@@ -85,6 +85,7 @@ static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::C
 struct ExecuteCallbackInfo {
 	le_renderer_api::pfn_renderpass_execute_t fn        = nullptr;
 	void*                                     user_data = nullptr;
+	std::vector<uint8_t>                      local_storage = {}; // if not empty, a pointer to local_storage.data() is given instead of user_data on callback execution
 };
 
 using rp_resource_usage_flags = le_renderer_api::renderpass_interface_t::resource_usage_flags;
