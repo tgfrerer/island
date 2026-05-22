@@ -1,6 +1,7 @@
 set (TARGET le_mesh)
 
 depends_on_island_module(le_log)
+depends_on_island_module(le_renderer)
 
 set (SOURCES "le_mesh.h" )
 set (SOURCES ${SOURCES} "le_mesh.cpp" )

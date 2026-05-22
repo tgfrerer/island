@@ -4,6 +4,8 @@
 #include "le_core.h"
 
 struct le_mesh_o;
+struct le_renderer_o;
+struct le_rendergraph_o;
 
 /*
 
@@ -30,24 +32,33 @@ struct le_mesh_api {
     static constexpr size_t ALL_VERTICES = ~size_t(0);
 
 
-	enum attribute_name_t : uint32_t  {
-			eUndefined = 0,
-			ePosition ,
-			eNormal ,
-			eColour,
-			eUv,
-			eTangent,
+	enum attribute_name_t :uint32_t  {
+			eUndefined = 0 << 0,
+			//
+			ePadding = eUndefined,
+			//
+			ePosition  = 1 << 0,
+			eNormal    = 1 << 1,
+			eColour    = 1 << 2,
+			eUv        = 1 << 3,
+			eTangent   = 1 << 4,
 		};
 
+	// clang-format on
 	struct attribute_info_t {
-		    attribute_name_t name; //
-			uint32_t bytes_per_vertex; // bytes per vertex for attribute
+		attribute_name_t name                          = {}; //
+		uint32_t         bytes_per_vertex              = 0;  // bytes per vertex for this attribute (this may include padding if interleaved)
+		                                                     // uint32_t         buffer_idx                    = 0;  // which buffer should be used for this?
 	};
+	// clang-format off
 
 	struct le_mesh_interface_t {
 
-		le_mesh_o *    ( * create                   ) ( );
+		le_mesh_o *    ( * create                   ) ();
 		void           ( * destroy                  ) ( le_mesh_o* self );
+
+		/// Submits mesh(es) to rendergraph; introduces the mesh buffers to rendergraph; 
+		void 		   ( * submit_meshes_to_rendergraph ) (le_mesh_o* const* meshes, size_t meshes_count, le_rendergraph_o* rg);
 
 		void (*clear)(le_mesh_o* self);
 
@@ -69,6 +80,10 @@ struct le_mesh_api {
 		///
 		void *(*allocate_attribute_data)( le_mesh_o * self, attribute_name_t attribute_name, uint32_t num_bytes_per_vertex);
 		void *(*allocate_index_data)( le_mesh_o * self, size_t num_indices, uint32_t* num_bytes_per_index); // num_bytes_per_index can be 0, will be set to 2 or 4 depending on number of vertices, must be 4 if number of vertices is (2^16)
+
+		// Allocates one buffer for vertex data - vertex data may be interleaved, in which case attribute_infos must 
+		// hold infos for more than one attribute in the correct order for interleaving.
+		void *(*allocate_vertex_buffer)( le_mesh_o * self, attribute_info_t const * attribute_infos, size_t attribute_infos_count);
 
 		/// Read attribute data into `target`
 		///
@@ -94,6 +109,7 @@ struct le_mesh_api {
 		///
 		/// @param `target`                    : (optional) pointer (or c-array) where to write data to.
 		/// @param `num_attributes_in_target`  : (required) memory available in target, given as a multiple of `sizeof(attribute_info_t)`, returns total number of attributes available in mesh.
+		/// @note   retuned attribute_infos are sorted asc by attribute_name.
 		void (*read_attribute_infos_into)(le_mesh_o*self, attribute_info_t* target, size_t *num_attributes_in_target);
 
 		// PLY import
@@ -122,7 +138,7 @@ class LeMesh : NoCopy, NoMove {
 	le_mesh_o* self;
 
   public:
-    LeMesh()
+	LeMesh()
 	    : self( this_i.create() ) {
 	}
 
@@ -134,12 +150,23 @@ class LeMesh : NoCopy, NoMove {
 		this_i.clear( self );
 	}
 
+	bool setVertexCount( size_t num_vertices ) {
+		bool did_reallocate = false;
+		this_i.set_vertex_count( self, num_vertices, &did_reallocate );
+		return did_reallocate;
+	}
+
 	size_t getIndexCount( uint32_t* num_bytes_per_index = nullptr ) {
 		return this_i.get_index_count( self, num_bytes_per_index );
 	}
 
 	size_t getVertexCount() {
 		return this_i.get_vertex_count( self );
+	}
+
+	[[nodiscard]]
+	void* allocateVertexBuffer( le_mesh_api::attribute_info_t const* attribute_infos, uint32_t attribute_infos_count ) {
+		return this_i.allocate_vertex_buffer( self, attribute_infos, attribute_infos_count );
 	}
 
 	void readAttributeInfosInto( le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
@@ -163,6 +190,10 @@ class LeMesh : NoCopy, NoMove {
 	}
 #		undef this_i
 #	endif
+
+	static void submitMeshesToRendergraph( le_mesh_o* const* meshes, size_t meshes_count, le_rendergraph_o* rg ) {
+		le_mesh_api_i->le_mesh_i.submit_meshes_to_rendergraph( meshes, meshes_count, rg );
+	};
 };
 
 namespace le {
