@@ -579,11 +579,20 @@ static void le_mesh_get_input_attribute_descriptions( le_mesh_o* self, le_mesh_a
 	// and that they have a matching number of bytes.
 	std::vector<le_mesh_api::attribute_info_t> attr_infos{ attribute_infos, attribute_infos + num_attribute_infos };
 
+	// std::vector<le_vertex_input_attribute_description>
+
 	for ( auto const& a : attr_infos ) {
 		auto it = self->data_descriptors.find( a.name );
 		if ( it != self->data_descriptors.end() ) {
+
+			if ( it->second.bytes_per_vertex != a.bytes_per_vertex ) {
+				logger.error( "attribute has incorrect number of bytes per vertex" );
+				return;
+			}
+
 		} else {
 			logger.error( "Could not find attribute info. Attribute %d does not exist in this mesh.", a.name );
+			return;
 		}
 	}
 }
