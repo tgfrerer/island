@@ -22,14 +22,14 @@ struct le_rendergraph_o;
 // clang-format off
 struct le_mesh_api {
 
-    typedef uint16_t default_index_type;
-    typedef float default_vertex_type[3];
-    typedef float default_uv_type[2];
-    typedef float default_colour_type[4];
-    typedef float default_normal_type[3];
-    typedef float default_tangent_type[3];
+    // typedef uint16_t default_index_type;
+    // typedef float default_vertex_type[3];
+    // typedef float default_uv_type[2];
+    // typedef float default_colour_type[4];
+    // typedef float default_normal_type[3];
+    // typedef float default_tangent_type[3];
 
-    static constexpr size_t ALL_VERTICES = ~size_t(0);
+    // static constexpr size_t ALL_VERTICES = ~size_t(0);
 
 
 	enum attribute_name_t :uint32_t  {
