@@ -569,31 +569,199 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 	free( mesh_closure_data );
 };
 
-static void le_mesh_get_input_attribute_descriptions( le_mesh_o* self, le_mesh_api::attribute_info_t const* attribute_infos, size_t num_attribute_infos ) {
+// ----------------------------------------------------------------------
 
-	if ( attribute_infos == nullptr || num_attribute_infos == 0 || self->num_vertices == 0 ) {
-		return;
+static uint32_t le_mesh_get_vertex_input_descriptions(
+    le_mesh_o*                             self,
+    le_mesh_api::attribute_info_t const*   attribute_infos,
+    size_t                                 attribute_infos_count,
+    le_vertex_input_attribute_description* out_attribute_descriptions,
+    size_t*                                out_attribute_descriptions_count,
+    le_vertex_input_binding_description*   out_binding_descriptions,
+    size_t*                                out_binding_descriptions_count ) {
+
+	if ( attribute_infos == nullptr || attribute_infos_count == 0 || self->num_vertices == 0 ) {
+		return 0;
 	}
 
-	// we need to make sure that all of these attributes exist
-	// and that they have a matching number of bytes.
-	std::vector<le_mesh_api::attribute_info_t> attr_infos{ attribute_infos, attribute_infos + num_attribute_infos };
+	if ( nullptr == out_attribute_descriptions ) {
+		return 0;
+	}
 
-	// std::vector<le_vertex_input_attribute_description>
+	std::map<uint8_t, le_vertex_input_binding_description> binding_descriptors;
 
-	for ( auto const& a : attr_infos ) {
-		auto it = self->data_descriptors.find( a.name );
-		if ( it != self->data_descriptors.end() ) {
+	{
+		auto out_description      = out_attribute_descriptions;
+		auto out_descriptions_end = out_attribute_descriptions + *out_attribute_descriptions_count;
 
-			if ( it->second.bytes_per_vertex != a.bytes_per_vertex ) {
-				logger.error( "attribute has incorrect number of bytes per vertex" );
-				return;
+		// We can't really calculate the location because this is ultimately specified by the shader.
+		//
+		// We can, however, assume that the order in which our attribute infos are given has meaning
+		// and that it represents the location in which we would find the attributes in the shader.
+		//
+		uint8_t location                              = 0;
+		size_t  used_out_attribute_descriptions_count = 0;
+
+		for ( auto a = attribute_infos; a != attribute_infos + attribute_infos_count; a++ ) {
+
+			if ( out_description == out_descriptions_end ) {
+				logger.error( "not enough out attribute descriptors provided." );
+				return false;
 			}
 
-		} else {
-			logger.error( "Could not find attribute info. Attribute %d does not exist in this mesh.", a.name );
-			return;
+			auto it = self->data_descriptors.find( a->name );
+			if ( it != self->data_descriptors.end() ) {
+
+				auto const& [ key, buffer_data ] = *it;
+
+				if ( buffer_data.bytes_per_vertex != a->bytes_per_vertex ) {
+					logger.error( "attribute has incorrect number of bytes per vertex" );
+					return false;
+				}
+
+				out_description->location       = location;                                                  /// 0..31 shader attribute location (this is set in shader code - and needs to be matched manually or via reflection)
+				out_description->binding        = uint8_t( buffer_data.data_idx );                           /// 0..31 binding slot (this is the binding slot we want to bind to - usually the index of the data buffer)
+				out_description->binding_offset = uint8_t( buffer_data.interleave_offset );                  /// 0..65565 offset for this location within binding (careful: must not be larger than maxVertexInputAttributeOffset [0.0x7ff])
+				out_description->type           = le_num_type::eF32;                                         /// base type for attribute
+				out_description->vecsize        = uint8_t( buffer_data.bytes_per_vertex / sizeof( float ) ); /// 0..7 number of elements of base type
+				out_description->isNormalised   = 0;                                                         /// whether this input comes pre-normalized
+
+				auto& b   = binding_descriptors[ out_description->binding ];
+				b.binding = out_description->binding;
+				b.stride     = self->data[ out_description->binding ].num_bytes_per_stride;
+				b.input_rate = le_vertex_input_rate::ePerVertex;
+
+				used_out_attribute_descriptions_count++;
+				out_description++;
+			} else {
+				// Is it possible to leave a binding unoccupied?
+				logger.error( "Could not find attribute info. Attribute %d does not exist in this mesh.", a->name );
+				return false;
+			}
+			location++;
 		}
+
+		*out_attribute_descriptions_count = used_out_attribute_descriptions_count;
+	}
+
+	{
+		size_t used_out_binding_descriptions_count = 0;
+		// Return binding descriptions
+		auto binding      = out_binding_descriptions;
+		auto bindings_end = binding + *out_binding_descriptions_count;
+		for ( auto const& [ key, b ] : binding_descriptors ) {
+			if ( binding == bindings_end ) {
+				logger.error( "Not enough out binding descriptors provided" );
+				return false;
+			}
+			*binding++ = b;
+			used_out_binding_descriptions_count++;
+		}
+		*out_binding_descriptions_count = used_out_binding_descriptions_count;
+	}
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* encoder_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+
+	// consolidate all bindings for the attributes in question
+	le::GraphicsEncoder encoder{ encoder_ };
+
+	std::set<uint32_t> used_buffers; // unique, automatically sorted
+
+	for ( auto a = attribute_infos; a != attribute_infos + attribute_infos_count; a++ ) {
+		auto it = self->data_descriptors.find( a->name );
+		if ( it != self->data_descriptors.end() ) {
+			used_buffers.emplace( it->second.data_idx );
+		}
+	}
+
+	if ( used_buffers.empty() && self->indices_data == nullptr ) {
+		return false;
+	}
+
+	std::vector<le_buffer_resource_handle> buffers;
+
+	size_t first_binding = 0;
+
+	for ( auto const& b_idx : used_buffers ) {
+		auto& b = self->data[ b_idx ];
+
+		if ( b.buffer_resource ) {
+			buffers.push_back( b.buffer_resource );
+		} else {
+			// we need to flush in case not all buffers have been uploaded to gpu yet.
+			if ( !buffers.empty() ) {
+				encoder.bindVertexBuffers( first_binding, buffers.size(), buffers.data() );
+				buffers.clear();
+			}
+			encoder.setVertexData( b.cpu_data.data(), b.cpu_data.size(), b_idx );
+			first_binding = b_idx + 1;
+		}
+	}
+
+	if ( !buffers.empty() ) {
+		encoder.bindVertexBuffers( first_binding, buffers.size(), buffers.data() );
+		buffers.clear();
+	}
+
+	if ( self->indices_data ) {
+		// In case there this mesh has index data
+		// we first try if we can set it from gpu index buffer data
+		// otherwise we set it via cpu index buffer data.
+		size_t bytes_per_index = self->indices_data->num_bytes_per_stride;
+		if ( self->indices_data->buffer_resource ) {
+			encoder.bindIndexBuffer( self->indices_data->buffer_resource, 0, bytes_per_index == 2 ? le::IndexType::eUint16 : le::IndexType::eUint32 );
+		} else if ( !self->indices_data->cpu_data.empty() ) {
+			encoder.setIndexData( self->indices_data->cpu_data.data(), self->indices_data->cpu_data.size(), bytes_per_index == 2 ? le::IndexType::eUint16 : le::IndexType::eUint32 );
+		}
+	}
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+
+	// We just want to know which buffers are in use
+	// and then flag these as being used by this renderpass.
+
+	le::RenderPass rp( rp_ );
+
+	if ( attribute_infos == nullptr ) {
+
+		// all buffers are in use.
+
+		for ( auto const& b : self->data ) {
+			if ( b.buffer_resource ) {
+				rp.useBufferResource( b.buffer_resource, le::AccessFlagBits2::eVertexAttributeRead );
+			}
+		}
+
+	} else {
+		std::set<le_buffer_resource_handle> used_buffers; // unique, automatically sorted
+		// TODO: This can be optimized since both sides are expected to be ordered,
+		// and the final order does not matter;
+		for ( auto a = attribute_infos; a != attribute_infos + attribute_infos_count; a++ ) {
+			auto it = self->data_descriptors.find( a->name );
+			if ( it != self->data_descriptors.end() ) {
+				auto buffer_resource = self->data[ it->second.data_idx ].buffer_resource;
+				if ( buffer_resource ) {
+					used_buffers.emplace( buffer_resource );
+				}
+			}
+		}
+		for ( auto const& b : used_buffers ) {
+			rp.useBufferResource( b, le::AccessFlagBits2::eVertexAttributeRead );
+		}
+	}
+
+	if ( self->indices_data && self->indices_data->buffer_resource ) {
+		rp.useBufferResource( self->indices_data->buffer_resource, le::AccessFlagBits2::eIndexRead );
 	}
 }
 
@@ -621,6 +789,10 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	le_mesh_i.read_index_data_into      = le_mesh_read_index_data_into;
 
 	le_mesh_i.submit_meshes_to_rendergraph = le_mesh_submit_meshes_to_rendergraph;
+	le_mesh_i.get_vertex_input_descriptions = le_mesh_get_vertex_input_descriptions;
+
+	le_mesh_i.bind_to_encoder = le_mesh_bind_to_encoder;
+	le_mesh_i.setup_renderpass = le_mesh_setup_renderpass;
 
 	le_mesh_i.clear   = le_mesh_clear;
 	le_mesh_i.create  = le_mesh_create;

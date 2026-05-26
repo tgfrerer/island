@@ -6,7 +6,10 @@
 struct le_mesh_o;
 struct le_renderer_o;
 struct le_rendergraph_o;
-
+struct le_vertex_input_attribute_description; // defined in le_renderer_types.h
+struct le_vertex_input_binding_description;   // defined in le_renderer_types.h
+struct le_command_buffer_encoder_o;
+struct le_renderpass_o;
 /*
 
   A modern mesh API:
@@ -117,6 +120,19 @@ struct le_mesh_api {
 
 		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path, bool should_interleave );
 
+		// get the input attribute descriptions for any given bindings given by name and byte count
+		uint32_t (*get_vertex_input_descriptions)( le_mesh_o* self, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* attribute_descriptions, size_t * attribute_descriptions_count , le_vertex_input_binding_description*   binding_descriptions, size_t *binding_descriptions_count);
+
+		// bind vertex buffers and index buffers to the mesh if buffer handles exist
+		// otherwise upload mesh data
+		bool (*bind_to_encoder)(le_mesh_o* self, le_command_buffer_encoder_o* encoder, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count);
+
+
+		// Declare any buffers that have been created for this mesh to the renderpass 
+		// so that these resoures may be used with an encoder.
+		// attribute_infos is optional, if nullptr, all buffers available buffers will be declared as being used
+		// if an index buffer exists, it will automatically be declared as being used by this renderpass
+		void (*setup_renderpass)(le_mesh_o* self, le_renderpass_o* rp, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count);
 	};
 
 	le_mesh_interface_t       le_mesh_i;
@@ -194,6 +210,20 @@ class LeMesh : NoCopy, NoMove {
 
 	bool loadFromPlyFile( char const* file_path, bool should_interleave = false ) {
 		return this_i.load_from_ply_file( self, file_path, should_interleave );
+	}
+
+	// get any binding infos and attribute infos for the attributes contained in the ordered list attribute_infos
+	// list order
+	bool getVertexInputDescriptions( le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* attribute_descriptions, size_t* attribute_descriptions_count, le_vertex_input_binding_description* binding_descriptions, size_t* binding_descriptions_count ) {
+		return this_i.get_vertex_input_descriptions( self, attribute_infos, attribute_infos_count, attribute_descriptions, attribute_descriptions_count, binding_descriptions, binding_descriptions_count );
+	}
+
+	bool bind( le_command_buffer_encoder_o* encoder, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+		return this_i.bind_to_encoder( self, encoder, attribute_infos, attribute_infos_count );
+	}
+
+	void setupRenderPass( le_renderpass_o* rp, le_mesh_api::attribute_info_t const* attribute_infos = nullptr, size_t attribute_infos_count = 0 ) {
+		this_i.setup_renderpass( self, rp, attribute_infos, attribute_infos_count );
 	}
 
 	operator auto() {
