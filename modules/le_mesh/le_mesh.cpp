@@ -37,7 +37,7 @@ struct buffer_data_t {
 */
 
 struct buffer_data_descriptor {
-	uint32_t idx               = 0;
+	uint32_t data_idx          = 0;
 	uint32_t interleave_offset = 0;
 	uint32_t bytes_per_vertex  = 0;
 };
@@ -150,8 +150,8 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 				auto const& desc = self->data_descriptors.at( d.name );
 
 				it_t iterator{
-				    .src        = self->data[ desc.idx ].cpu_data.data() + desc.interleave_offset,
-				    .src_stride = uint8_t( self->data[ desc.idx ].cpu_data.size() / self->num_vertices ),
+				    .src        = self->data[ desc.data_idx ].cpu_data.data() + desc.interleave_offset,
+				    .src_stride = uint8_t( self->data[ desc.data_idx ].cpu_data.size() / self->num_vertices ),
 				    .n_bytes    = std::min<uint16_t>( desc.bytes_per_vertex, d.bytes_per_vertex ), // note: if dst < src this means that there may be garbage data in dst if dst if not zeroed out before copy
 				    .dst        = target_head + dst_offset_sum,
 				};
@@ -346,7 +346,7 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_api::attribu
 
 	for ( auto p_attr = attribute_infos; p_attr != attribute_infos + num_attribute_infos; p_attr++ ) {
 		buffer_data_descriptor d{
-		    .idx               = buffer_id,
+		    .data_idx          = buffer_id,
 		    .interleave_offset = num_bytes_per_vertex,
 		    .bytes_per_vertex  = p_attr->bytes_per_vertex,
 		};
