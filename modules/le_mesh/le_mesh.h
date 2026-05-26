@@ -32,7 +32,7 @@ struct le_mesh_api {
     // static constexpr size_t ALL_VERTICES = ~size_t(0);
 
 
-	enum attribute_name_t :uint32_t  {
+	enum attribute_name_t :uint8_t  {
 			eUndefined = 0 << 0,
 			//
 			ePadding = eUndefined,

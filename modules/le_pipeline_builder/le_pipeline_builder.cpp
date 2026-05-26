@@ -458,7 +458,7 @@ void le_graphics_pipeline_builder_set_binding_stride( le_graphics_pipeline_build
 // ----------------------------------------------------------------------
 
 void le_graphics_pipeline_builder_binding_add_attribute( le_graphics_pipeline_builder_o* self, uint8_t binding_number, uint8_t attribute_number ) {
-	le_vertex_input_attribute_description attribute;
+	le_vertex_input_attribute_description attribute{};
 
 	attribute.binding        = binding_number;
 	attribute.location       = attribute_number;
