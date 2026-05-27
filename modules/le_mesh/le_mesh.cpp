@@ -1,6 +1,7 @@
 #include "le_mesh.h"
 #include "le_core.h"
 #include "le_log.h"
+#include "le_pipeline_builder.h"
 #include "le_renderer.h"
 #include "le_renderer.hpp"
 
@@ -9,9 +10,13 @@
 #include <cstring> // for memcopy
 #include <map>
 #include <set>
-#include <memory>
+#include <cassert>
+#include <unordered_map>
 
 static auto logger = le::Log( "le_mesh" );
+
+// ffdecl.
+static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count );
 
 struct buffer_data_t {
 	std::vector<uint8_t> cpu_data;
@@ -619,7 +624,7 @@ static uint32_t le_mesh_get_vertex_input_descriptions(
 
 				out_description->location       = location;                                                  /// 0..31 shader attribute location (this is set in shader code - and needs to be matched manually or via reflection)
 				out_description->binding        = uint8_t( buffer_data.data_idx );                           /// 0..31 binding slot (this is the binding slot we want to bind to - usually the index of the data buffer)
-				out_description->binding_offset = uint8_t( buffer_data.interleave_offset );                  /// 0..65565 offset for this location within binding (careful: must not be larger than maxVertexInputAttributeOffset [0.0x7ff])
+				out_description->binding_offset = uint16_t( buffer_data.interleave_offset );                 /// 0..65565 offset for this location within binding (careful: must not be larger than maxVertexInputAttributeOffset [0.0x7ff])
 				out_description->type           = le_num_type::eF32;                                         /// base type for attribute
 				out_description->vecsize        = uint8_t( buffer_data.bytes_per_vertex / sizeof( float ) ); /// 0..7 number of elements of base type
 				out_description->isNormalised   = 0;                                                         /// whether this input comes pre-normalized
@@ -733,7 +738,7 @@ bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* enco
 
 // ----------------------------------------------------------------------
 
-void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
 
 	le::RenderPass rp( rp_ );
 
@@ -776,6 +781,139 @@ void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_ap
 
 // ----------------------------------------------------------------------
 
+static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t meshes_count, le_renderpass_o* rp_ ) {
+
+	static constexpr size_t                        C_ATTR_COUNT               = 1;
+	static constexpr le_mesh_api::attribute_info_t attributes[ C_ATTR_COUNT ] = {
+	    { le_mesh_api::ePosition, sizeof( float ) * 3 }, // location 0
+	};
+
+	// ---------- Declare Resources to be used with given renderpass
+
+	le::RenderPass rp( rp_ );
+
+	for ( auto m = meshes; m != meshes + meshes_count; m++ ) {
+		le_mesh_setup_renderpass( m->mesh, rp_, attributes, 1 );
+	}
+
+	// ---------- Draw Meshes into given renderpass
+
+	// First, we need to capture the per-mesh parameters into a closure,
+	// so that these will be available in the draw callback.
+	//
+	struct mesh_draw_capture_t {
+		size_t                    num_items;
+		le_mesh_debug_draw_data_t items[];
+	};
+
+	size_t               closure_sz   = sizeof( size_t ) + sizeof( le_mesh_debug_draw_data_t ) * meshes_count;
+	mesh_draw_capture_t* closure_data = ( mesh_draw_capture_t* )malloc( closure_sz );
+
+	closure_data->num_items = meshes_count;
+	memcpy( closure_data->items, meshes, sizeof( le_mesh_debug_draw_data_t ) * meshes_count );
+
+	rp.setExecuteCallbackWithLocalUserData( closure_data, closure_sz, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+		// Draw main scene
+
+		le::GraphicsEncoder encoder{ encoder_ };
+
+		auto extents = encoder.getRenderpassExtent();
+
+		le::Viewport viewports[ 1 ] = {
+		    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
+		};
+
+		// Data as it is laid out in the shader ubo.
+		// Be careful to respect std430 or std140 layout
+		// depending on what you specify in the
+		// shader.
+		struct MvpUbo {
+			float mvp[ 16 ];
+			float colour[ 4 ];
+		};
+
+		// Create shader modules
+		static auto shaderVert =
+		    LeShaderModuleBuilder( encoder.getPipelineManager() )
+		        .setShaderStage( le::ShaderStage::eVertex )
+		        .setSourceFilePath( "./local_resources/shaders/buoy.vert" )
+		        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
+		        .build();
+
+		static auto shaderFrag =
+		    LeShaderModuleBuilder( encoder.getPipelineManager() )
+		        .setShaderStage( le::ShaderStage::eFragment )
+		        .setSourceFilePath( "./local_resources/shaders/buoy.frag" )
+		        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
+		        .build();
+
+		// ---------
+
+		static std::unordered_map<uint64_t, le_gpso_handle> pipeline_cache;
+
+		auto   closure               = ( mesh_draw_capture_t* )user_data;
+		size_t previous_binding_hash = 0;
+		encoder.setLineWidth( 1 );
+		for ( auto m = closure->items; m != closure->items + closure->num_items; m++ ) {
+
+			size_t num_ad = C_ATTR_COUNT;
+			size_t num_bd = C_ATTR_COUNT;
+
+			struct binding_info_t {
+				le_vertex_input_attribute_description ad[ C_ATTR_COUNT ] = {};
+				le_vertex_input_binding_description   bd[ C_ATTR_COUNT ] = {};
+			} binding_info;
+
+			auto result = le_mesh_get_vertex_input_descriptions( m->mesh, attributes, C_ATTR_COUNT, binding_info.ad, &num_ad, binding_info.bd, &num_bd );
+			assert( result == true );
+
+			// ---------
+
+			uint64_t binding_hash = le_core_spooky_hash_64( &binding_info, sizeof( binding_info ), 0 );
+
+			auto& pipeline_handle = pipeline_cache[ binding_hash ];
+
+			if ( pipeline_handle == nullptr ) {
+				// Create a pipeline using these shader modules
+				pipeline_handle =
+				    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+				        .addShaderStage( shaderVert )
+				        .addShaderStage( shaderFrag )
+				        .withRasterizationState()
+				        .setPolygonMode( le::PolygonMode::eLine )
+				        .end()
+				        .setVertexInputBindingDescriptions( binding_info.bd, num_bd )
+				        .setVertexInputAttributeDescriptions( binding_info.ad, num_ad )
+				        .build();
+			}
+
+			MvpUbo mvp{};
+
+			memcpy( mvp.mvp, m->mvp, sizeof( m->mvp ) );
+			memcpy( mvp.colour, m->colour, sizeof( mvp.colour ) );
+
+			if ( previous_binding_hash != binding_hash ) {
+				encoder.bindGraphicsPipeline( pipeline_handle );
+			}
+
+			encoder.setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) );
+
+			le_mesh_bind_to_encoder( m->mesh, encoder, attributes, C_ATTR_COUNT );
+
+			if ( m->mesh->indices_data ) {
+				encoder.drawIndexed( m->mesh->indices_data->cpu_data.size() / m->mesh->indices_data->num_bytes_per_stride );
+			} else {
+				encoder.draw( m->mesh->num_vertices );
+			}
+
+			previous_binding_hash = binding_hash;
+		}
+	} );
+
+	free( closure_data );
+}
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void le_module_register_le_mesh_load_from_ply( void* api ); // ffdecl.
 
 // ----------------------------------------------------------------------
@@ -802,6 +940,8 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 
 	le_mesh_i.bind_to_encoder = le_mesh_bind_to_encoder;
 	le_mesh_i.setup_renderpass = le_mesh_setup_renderpass;
+
+	le_mesh_i.debug_draw_meshes = le_mesh_debug_draw_meshes;
 
 	le_mesh_i.clear   = le_mesh_clear;
 	le_mesh_i.create  = le_mesh_create;

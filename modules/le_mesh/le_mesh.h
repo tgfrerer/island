@@ -25,11 +25,26 @@ USAGE:
 - create a mesh object
 - set number of vertices
 - allocate & map vertex attribute data for first buffer
+    - you can now memcpy vertex data into the mapped buffer
 - allocate & map vertex attribute data for any further buffers
-- (optional) allocate index data
 
 Note: Since you can allocate more than one attribute per buffer, you can choose whether
 and how to interleave your mesh data in internal storage.
+
+- (optional) allocate index data
+    - memcpy index data into index buffer
+
+USAGE (DRAWING):
+- (optional) submit meshes to rendergraph (this will upload mesh data to gpu and allocate gpu buffers)
+    - this will also declare all buffers used for given mesh array
+- setup renderpass: declare that you want to draw a mesh using a renderpass (this will declare the mesh resources to the renderpass)
+- when executing this renderpass:
+    - get_vertex_input_descriptions: fetch binding and attribute descriptions for given attributes array so that
+      you can create a pipeline for this mesh
+    - bind this pipeline, then `bind_to_encoder` using the same attributes array
+- (optional) `debug_draw_meshes`: draw given mesh array as wireframe
+
+
 
 EXTRAS/TODO:
     + we want the mesh to be able to draw itself
@@ -37,6 +52,12 @@ EXTRAS/TODO:
     + add adapters for loading meshes from other formats (gltf?)
 
 */
+
+struct le_mesh_debug_draw_data_t {
+	le_mesh_o* mesh;        // the mesh object itself
+	float      mvp[ 16 ];   // model view projection per mesh
+	float      colour[ 4 ]; // vertex colour for this mesh
+};
 
 // clang-format off
 struct le_mesh_api {
@@ -53,7 +74,7 @@ struct le_mesh_api {
 			eTangent   = 1 << 4,
 		};
 
-	// clang-format on
+	// clang-format on -- TODO: move this out of the struct
 	struct attribute_info_t {
 		attribute_name_t name                          = {}; //
 		uint32_t         bytes_per_vertex              = 0;  // bytes per vertex for this attribute (this may include padding if interleaved)
@@ -70,6 +91,9 @@ struct le_mesh_api {
 		/// mesh data can be submitted to the gpu before it is used.
 		void 		   ( * submit_meshes_to_rendergraph ) (le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer);
 
+		/// Draw meshes using an internal debug pipeline; only positions will be drawn; the mesh will show as wireframe
+        void           ( * debug_draw_meshes            )( le_mesh_debug_draw_data_t* meshes, size_t meshes_count, le_renderpass_o* rp_);
+  
 		void (*clear)(le_mesh_o* self);
 
 		// If attributes were already set, this means that these attributes will have their pointers invalidated - did_reallocate will tell you.
@@ -138,10 +162,9 @@ struct le_mesh_api {
 		// otherwise upload mesh data
 		bool (*bind_to_encoder)(le_mesh_o* self, le_command_buffer_encoder_o* encoder, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count);
 
-		// Declare any buffers that have been created for this mesh to the renderpass 
-		// so that these resoures may be used with an encoder.
-		// attribute_infos is optional, if nullptr, all buffers available buffers will be declared as being used
-		// if an index buffer exists, it will automatically be declared as being used by this renderpass
+		/// \brief Declare any buffers that have been created for this mesh to a renderpass so that they can be used when executing this renderpass.
+		/// \note  `attribute_infos` is optional, if `nullptr`, all buffers of this mesh will be declared as being used.
+		/// \note  If an index buffer exists, it will automatically be declared as being used by this renderpass.
 		void (*setup_renderpass)(le_mesh_o* self, le_renderpass_o* rp, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count);
 	};
 
@@ -226,7 +249,7 @@ class LeMesh : NoCopy, NoMove {
 		return this_i.load_from_ply_file( self, file_path, should_interleave );
 	}
 
-	// ------------ DRAWING METHODS -----------------------------------------
+	// ------------ DRAWING HELPERS -----------------------------------------
 
 	/// \brief Fetch Attribute descriptions and binding descriptions for this mesh, relating to given `attribute_infos`.
 	/// \note  The order in `attribute_infos` is meaningful; each item refers to a location in the shader, starting at 0.
@@ -251,7 +274,12 @@ class LeMesh : NoCopy, NoMove {
 		this_i.setup_renderpass( self, rp, attribute_infos, attribute_infos_count );
 	}
 
-	// ------------ RENDERGRAPH METHODS -------------------------------------
+	// ------------ RENDERGRAPH HELPERS -------------------------------------
+
+	/// \brief Draw wireframe of given meshes into renderpass.
+	static void debugDrawMeshes( le_mesh_debug_draw_data_t* debug_meshes, size_t meshes_count, le_renderpass_o* rp ) {
+		this_i.debug_draw_meshes( debug_meshes, meshes_count, rp );
+	};
 
 	/// \brief Upload any tainted cpu data to gpu. If necessary, allocate new GPU buffers.
 	/// \note  This is a batch method. You are supposed to call this *once* for all meshes
