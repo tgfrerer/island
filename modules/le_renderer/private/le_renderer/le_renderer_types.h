@@ -1010,12 +1010,12 @@ enum class le_vertex_input_rate : uint8_t {
 struct le_vertex_input_attribute_description {
 	union {
 		struct {
-			uint8_t     location;       /// 0..32 shader attribute location
-			uint8_t     binding;        /// 0..32 binding slot
+			uint8_t     location;       /// 0..31 shader attribute location
+			uint8_t     binding;        /// 0..31 binding slot
 			uint16_t    binding_offset; /// 0..65565 offset for this location within binding (careful: must not be larger than maxVertexInputAttributeOffset [0.0x7ff])
 			le_num_type type;           /// base type for attribute
 			uint8_t     vecsize;        /// 0..7 number of elements of base type
-			uint8_t     isNormalised;   /// whether this input comes pre-normalized
+			uint16_t    isNormalised;   /// whether this input comes pre-normalized
 		};
 		uint64_t raw_data = 0;
 	};
