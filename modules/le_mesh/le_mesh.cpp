@@ -473,28 +473,28 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 	for ( size_t i = 0; i != meshes_count; i++ ) {
 		le_mesh_o* mesh = meshes[ i ];
 
-		for ( auto& descriptor : mesh->data ) {
+		for ( auto& buf_data : mesh->data ) {
 
 			// declare resource to rendergraph
 
-			if ( nullptr == descriptor.buffer_resource ) {
+			if ( nullptr == buf_data.buffer_resource ) {
 				// we need to allocate the buffer resource first
-				descriptor.buffer_resource = le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, "", 0, 0 );
+				buf_data.buffer_resource = le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, "", 0, 0 );
 			}
 
-			if ( descriptor.is_tainted ) {
-				upload_items.emplace_back( descriptor.buffer_resource, &descriptor.cpu_data );
-				size_t num_bytes                            = mesh->num_vertices * descriptor.num_bytes_per_stride;
-				descriptor.buffer_resource_info.buffer.size = num_bytes;
-				descriptor.buffer_resource_info =
+			if ( buf_data.is_tainted ) {
+				upload_items.emplace_back( buf_data.buffer_resource, &buf_data.cpu_data );
+				size_t num_bytes                          = mesh->num_vertices * buf_data.num_bytes_per_stride;
+				buf_data.buffer_resource_info.buffer.size = num_bytes;
+				buf_data.buffer_resource_info =
 				    le::BufferInfoBuilder()
 				        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eVertexBuffer )
 				        .setSize( num_bytes )
 				        .build();
-				descriptor.is_tainted = false;
+				buf_data.is_tainted = false;
 			}
 
-			le_renderer_api_i->le_rendergraph_i.declare_resource( rg, descriptor.buffer_resource, descriptor.buffer_resource_info );
+			le_renderer_api_i->le_rendergraph_i.declare_resource( rg, buf_data.buffer_resource, buf_data.buffer_resource_info );
 		}
 
 		if ( mesh->indices_data ) {
@@ -519,54 +519,52 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 		}
 	}
 
-	// now we have all upload items -- we need to add a transfer pass to the rendergraph
-	// that does the transfer for us.
+	// If there are any upload items - these need to be transferred
+	//
+	if ( !upload_items.empty() ) {
 
-	auto rp = le::RenderPass( "le_mesh:xfer_meshes", le::QueueFlagBits::eTransfer );
+		auto rp = le::RenderPass( "le_mesh:xfer_meshes", le::QueueFlagBits::eTransfer );
 
-	// Declare that all resources will get transferred in this pass.
-
-	for ( auto& u : upload_items ) {
-		rp.useBufferResource( u.buffer, le::AccessFlagBits2::eTransferWrite );
-	}
-
-	// ---------- set up transfer pass for data items.
-
-	struct mesh_closure_t {
-		size_t             num_upload_items;
-		upload_data_item_t upload_data_items[];
-	};
-
-	// manually allocate closure data
-	size_t mesh_closure_data_num_bytes = sizeof( size_t ) + sizeof( upload_data_item_t ) * upload_items.size();
-	auto   mesh_closure_data           = ( mesh_closure_t* )malloc( mesh_closure_data_num_bytes );
-
-	// fill in closure data
-	mesh_closure_data->num_upload_items = upload_items.size();
-	memcpy( mesh_closure_data->upload_data_items, upload_items.data(), sizeof( upload_data_item_t ) * upload_items.size() );
-
-	rp.setExecuteCallbackWithLocalUserData( mesh_closure_data, mesh_closure_data_num_bytes, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-		le::TransferEncoder encoder( encoder_ );
-		// extract closure data from callback local data
-		auto mesh_data = ( mesh_closure_t* )( user_data );
-
-		for ( upload_data_item_t* it = mesh_data->upload_data_items; it != mesh_data->upload_data_items + mesh_data->num_upload_items; it++ ) {
-
-			// now we allocate memory and upload the data items here
-			void* gpu_memory = nullptr;
-			// this copies the mesh data from cpu memory into the gpu buffer
-			if ( encoder.mapBufferMemory( it->buffer, 0, it->p_attribute_data->size(), &gpu_memory ) ) {
-				// Then write into mapped memory which is directly managed by the GPU
-				memcpy( gpu_memory, it->p_attribute_data->data(), it->p_attribute_data->size() );
-			}
+		// Declare that all resources will get transferred in this pass.
+		for ( auto& u : upload_items ) {
+			rp.useBufferResource( u.buffer, le::AccessFlagBits2::eTransferWrite );
 		}
+		// ---------- set up transfer pass for data items.
 
-	} );
+		struct mesh_closure_t {
+			size_t             num_upload_items;
+			upload_data_item_t upload_data_items[];
+		};
 
-	// add the renderpass to the current rendergraph
-	le::RenderGraph( rg ).addRenderPass( rp );
+		// manually allocate closure data
+		size_t mesh_closure_data_num_bytes = sizeof( size_t ) + sizeof( upload_data_item_t ) * upload_items.size();
+		auto   mesh_closure_data           = ( mesh_closure_t* )malloc( mesh_closure_data_num_bytes );
 
-	free( mesh_closure_data );
+		// fill in closure data
+		mesh_closure_data->num_upload_items = upload_items.size();
+		memcpy( mesh_closure_data->upload_data_items, upload_items.data(), sizeof( upload_data_item_t ) * upload_items.size() );
+
+		rp.setExecuteCallbackWithLocalUserData( mesh_closure_data, mesh_closure_data_num_bytes, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+			le::TransferEncoder encoder( encoder_ );
+			// extract closure data from callback local data
+			auto mesh_data = ( mesh_closure_t* )( user_data );
+
+			for ( upload_data_item_t* it = mesh_data->upload_data_items; it != mesh_data->upload_data_items + mesh_data->num_upload_items; it++ ) {
+
+				// now we allocate memory and upload the data items here
+				void* gpu_memory = nullptr;
+				// this copies the mesh data from cpu memory into the gpu buffer
+				if ( encoder.mapBufferMemory( it->buffer, 0, it->p_attribute_data->size(), &gpu_memory ) ) {
+					// Then write into mapped memory which is directly managed by the GPU
+					memcpy( gpu_memory, it->p_attribute_data->data(), it->p_attribute_data->size() );
+				}
+			}
+		} );
+
+		// add the renderpass to the current rendergraph
+		le::RenderGraph( rg ).addRenderPass( rp );
+		free( mesh_closure_data );
+	}
 };
 
 // ----------------------------------------------------------------------
@@ -672,10 +670,20 @@ bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* enco
 
 	std::set<uint32_t> used_buffers; // unique, automatically sorted
 
-	for ( auto a = attribute_infos; a != attribute_infos + attribute_infos_count; a++ ) {
-		auto it = self->data_descriptors.find( a->name );
-		if ( it != self->data_descriptors.end() ) {
-			used_buffers.emplace( it->second.data_idx );
+	if ( attribute_infos == nullptr ) {
+		// If no attribute infos are specified, we read this as the requirement to bind all
+		// buffers to this encoder.
+		//
+		for ( int i = 0; i != self->data.size(); i++ ) {
+			used_buffers.insert( i );
+		}
+	} else {
+
+		for ( auto a = attribute_infos; a != attribute_infos + attribute_infos_count; a++ ) {
+			auto it = self->data_descriptors.find( a->name );
+			if ( it != self->data_descriptors.end() ) {
+				used_buffers.emplace( it->second.data_idx );
+			}
 		}
 	}
 
@@ -727,14 +735,11 @@ bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* enco
 
 void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
 
-	// We just want to know which buffers are in use
-	// and then flag these as being used by this renderpass.
-
 	le::RenderPass rp( rp_ );
 
 	if ( attribute_infos == nullptr ) {
 
-		// all buffers are in use.
+		// All buffers owned by this mesh are in use.
 
 		for ( auto const& b : self->data ) {
 			if ( b.buffer_resource ) {
@@ -743,9 +748,11 @@ void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_ap
 		}
 
 	} else {
+
+		// We must filter by the buffers that are named in attribute_infos
+
 		std::set<le_buffer_resource_handle> used_buffers; // unique, automatically sorted
-		// TODO: This can be optimized since both sides are expected to be ordered,
-		// and the final order does not matter;
+
 		for ( auto a = attribute_infos; a != attribute_infos + attribute_infos_count; a++ ) {
 			auto it = self->data_descriptors.find( a->name );
 			if ( it != self->data_descriptors.end() ) {
@@ -759,6 +766,8 @@ void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_ap
 			rp.useBufferResource( b, le::AccessFlagBits2::eVertexAttributeRead );
 		}
 	}
+
+	// Flag index resource as used, if there exists an index resource in the mesh
 
 	if ( self->indices_data && self->indices_data->buffer_resource ) {
 		rp.useBufferResource( self->indices_data->buffer_resource, le::AccessFlagBits2::eIndexRead );

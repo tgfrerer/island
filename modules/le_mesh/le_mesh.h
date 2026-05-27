@@ -163,6 +163,10 @@ class LeMesh : NoCopy, NoMove {
 		this_i.destroy( self );
 	}
 
+	operator auto() {
+		return self;
+	}
+
 	void clear() {
 		this_i.clear( self );
 	}
@@ -212,30 +216,41 @@ class LeMesh : NoCopy, NoMove {
 		return this_i.load_from_ply_file( self, file_path, should_interleave );
 	}
 
+	// ------------ DRAWING METHODS -----------------------------------------
+
 	// get any binding infos and attribute infos for the attributes contained in the ordered list attribute_infos
 	// list order
 	bool getVertexInputDescriptions( le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* attribute_descriptions, size_t* attribute_descriptions_count, le_vertex_input_binding_description* binding_descriptions, size_t* binding_descriptions_count ) {
 		return this_i.get_vertex_input_descriptions( self, attribute_infos, attribute_infos_count, attribute_descriptions, attribute_descriptions_count, binding_descriptions, binding_descriptions_count );
 	}
 
+	/// \brief Bind data for attributes given in `attribute_infos` to the given encoder
+	/// \note  The order of attributes within `attribute_infos` is meaningful. It represents the locations of the attributes on the shader, starting with location 0.
+	/// \note
 	bool bind( le_command_buffer_encoder_o* encoder, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
 		return this_i.bind_to_encoder( self, encoder, attribute_infos, attribute_infos_count );
 	}
 
+	/// \brief Declare buffers used by mesh to the renderpass
+	/// \param attribute_infos [optional] attributes for which buffers declared,
+	/// \note  Keep `attribute_infos` to `nullptr` to declare all buffers owned by this mesh to the renderpass
 	void setupRenderPass( le_renderpass_o* rp, le_mesh_api::attribute_info_t const* attribute_infos = nullptr, size_t attribute_infos_count = 0 ) {
 		this_i.setup_renderpass( self, rp, attribute_infos, attribute_infos_count );
 	}
 
-	operator auto() {
-		return self;
-	}
+	// ------------ RENDERGRAPH METHODS -------------------------------------
+
+	/// \brief Upload any tainted cpu data to gpu. If necessary, allocate new GPU buffers.
+	/// \note  This is a batch method. You are supposed to call this *once* for all meshes
+	///        in the rendergraph. Add this before any renderpasses make use of GPU mesh data.
+	///
+	static void submitMeshesToRendergraph( le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer ) {
+		this_i.submit_meshes_to_rendergraph( meshes, meshes_count, rg, renderer );
+	};
 
 #		undef this_i
 #	endif
 
-	static void submitMeshesToRendergraph( le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer ) {
-		le_mesh_api_i->le_mesh_i.submit_meshes_to_rendergraph( meshes, meshes_count, rg, renderer );
-	};
 };
 
 namespace le {
