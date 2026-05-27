@@ -70,26 +70,27 @@ struct le_mesh_debug_draw_data_t {
 	float      colour[ 4 ]; // vertex colour for this mesh
 };
 
+enum class le_mesh_attribute_name : uint8_t {
+	eUndefined = 0 << 0,
+	//
+	ePadding = eUndefined,
+	//
+	ePosition = 1 << 0,
+	eNormal   = 1 << 1,
+	eColour   = 1 << 2,
+	eUv       = 1 << 3,
+	eTangent  = 1 << 4,
+};
+
+// clang-format on -- TODO: move this out of the struct
+struct le_mesh_attribute_info_t {
+	le_mesh_attribute_name name             = {}; //
+	uint32_t               bytes_per_vertex = 0;  // bytes per vertex for this attribute (this may include padding if interleaved)
+};
+
 // clang-format off
 struct le_mesh_api {
 
-	enum attribute_name_t :uint8_t  {
-			eUndefined = 0 << 0,
-			//
-			ePadding = eUndefined,
-			//
-			ePosition  = 1 << 0,
-			eNormal    = 1 << 1,
-			eColour    = 1 << 2,
-			eUv        = 1 << 3,
-			eTangent   = 1 << 4,
-		};
-
-	// clang-format on -- TODO: move this out of the struct
-	struct attribute_info_t {
-		attribute_name_t name                          = {}; //
-		uint32_t         bytes_per_vertex              = 0;  // bytes per vertex for this attribute (this may include padding if interleaved)
-	};
 	// clang-format off
 
 	struct le_mesh_interface_t {
@@ -125,9 +126,9 @@ struct le_mesh_api {
 
 		// Allocates one buffer for vertex data - vertex data may be interleaved, in which case attribute_infos must 
 		// hold infos for more than one attribute in the correct order for interleaving.
-		void *(*allocate_vertex_data)( le_mesh_o * self, attribute_info_t const * attribute_infos, size_t attribute_infos_count);
+		void *(*allocate_vertex_data)( le_mesh_o * self, le_mesh_attribute_info_t const * attribute_infos, size_t attribute_infos_count);
 
-		void (*read_vertex_data_into_buffer)( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex );
+		void (*read_vertex_data_into_buffer)( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, le_mesh_attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex );
 
 		/// Read attribute data into `target`
 		///
@@ -138,7 +139,7 @@ struct le_mesh_api {
 		/// @param `num_vertices`              : in/out: (optional) number of vertices to read, if not set, will assume that you want to read any available vertices. if set, will return number of vertices that were read into `target`.
 		/// @param `first_vertex`              : first vertex to read; this works as an offset, default is 0
 		/// @param `initial_stride_offset`     : initial write offset into target (in bytes) -- (initial_stride_offset + attribute_sz) <= stride, default is 0
-		void (*read_attribute_data_into)( le_mesh_o const * self, void* target, size_t target_capacity_num_bytes, attribute_name_t attribute_name,  uint32_t* out_num_bytes_per_vertex, size_t *num_vertices, size_t first_vertex, uint32_t stride, uint32_t initial_stride_offset );
+		void (*read_attribute_data_into)( le_mesh_o const * self, void* target, size_t target_capacity_num_bytes, le_mesh_attribute_name attribute_name,  uint32_t* out_num_bytes_per_vertex, size_t *num_vertices, size_t first_vertex, uint32_t stride, uint32_t initial_stride_offset );
 
 		/// Read index data into `target`
 		///
@@ -149,12 +150,12 @@ struct le_mesh_api {
 		/// @param `first_vertex`              : first vertex to read; this works as an offset, default is 0
 		void (*read_index_data_into)( le_mesh_o const * self, void*target,size_t target_capacity_num_bytes, uint32_t *num_bytes_per_index,  size_t *num_indices, size_t first_index);
 
-		/// Read attribute info into a given array of `attribute_info_t`.
+		/// Read attribute info into a given array of `le_mesh_attribute_info_t`.
 		///
 		/// @param `target`                    : (optional) pointer (or c-array) where to write data to.
-		/// @param `num_attributes_in_target`  : (required) memory available in target, given as a multiple of `sizeof(attribute_info_t)`, returns total number of attributes available in mesh.
+		/// @param `num_attributes_in_target`  : (required) memory available in target, given as a multiple of `sizeof(le_mesh_attribute_info_t)`, returns total number of attributes available in mesh.
 		/// @note   retuned attribute_infos are sorted asc by attribute_name.
-		void (*read_attribute_infos_into)(le_mesh_o*self, attribute_info_t* target, size_t *num_attributes_in_target);
+		void (*read_attribute_infos_into)(le_mesh_o*self, le_mesh_attribute_info_t* target, size_t *num_attributes_in_target);
 
 		// PLY import
 
@@ -167,16 +168,16 @@ struct le_mesh_api {
 		/// \note  You are expected to size both `out_attribute_descriptions` and `out_binding_descriptions` to `attribute_infos_count`.
 		///        On successful return, the repective `_count` members will be sized to the number of used attribute and binding descriptors.
 		/// \return true on success, false otherwise.
-		uint32_t (*get_vertex_input_descriptions)( le_mesh_o* self, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* attribute_descriptions, size_t * attribute_descriptions_count , le_vertex_input_binding_description*   binding_descriptions, size_t *binding_descriptions_count);
+		uint32_t (*get_vertex_input_descriptions)( le_mesh_o* self, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* attribute_descriptions, size_t * attribute_descriptions_count , le_vertex_input_binding_description*   binding_descriptions, size_t *binding_descriptions_count);
 
 		// bind vertex buffers and index buffers to the mesh if buffer handles exist
 		// otherwise upload mesh data
-		bool (*bind_to_encoder)(le_mesh_o* self, le_command_buffer_encoder_o* encoder, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count);
+		bool (*bind_to_encoder)(le_mesh_o* self, le_command_buffer_encoder_o* encoder, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count);
 
 		/// \brief Declare any buffers that have been created for this mesh to a renderpass so that they can be used when executing this renderpass.
 		/// \note  `attribute_infos` is optional, if `nullptr`, all buffers of this mesh will be declared as being used.
 		/// \note  If an index buffer exists, it will automatically be declared as being used by this renderpass.
-		void (*setup_renderpass)(le_mesh_o* self, le_renderpass_o* rp, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count);
+		void (*setup_renderpass)(le_mesh_o* self, le_renderpass_o* rp, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count);
 	};
 
 	le_mesh_interface_t       le_mesh_i;
@@ -235,20 +236,20 @@ class LeMesh : NoCopy, NoMove {
 	}
 
 	[[nodiscard]]
-	void* allocateVertexData( le_mesh_api::attribute_info_t const* attribute_infos, uint32_t attribute_infos_count ) {
+	void* allocateVertexData( le_mesh_attribute_info_t const* attribute_infos, uint32_t attribute_infos_count ) {
 		return this_i.allocate_vertex_data( self, attribute_infos, attribute_infos_count );
 	}
 
-	void readAttributeInfosInto( le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
+	void readAttributeInfosInto( le_mesh_attribute_info_t* target, size_t* num_attributes_in_target ) {
 		this_i.read_attribute_infos_into( self, target, num_attributes_in_target );
 	}
 
-	void readVertexDataIntoBuffer( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex = 0 ) {
+	void readVertexDataIntoBuffer( void* target, size_t target_capacity_num_bytes, le_mesh_attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex = 0 ) {
 		this_i.read_vertex_data_into_buffer( self, target, target_capacity_num_bytes, dst_attribute_info, dst_attribute_info_count, first_vertex );
 	}
 
 	[[deprecated]]
-	void readAttributeDataInto( void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_name_t attribute_name, uint32_t* num_bytes_per_vertex = nullptr, size_t* num_vertices = nullptr, size_t first_vertex = 0, uint32_t stride = 0, uint32_t initial_stride_offset = 0 ) const {
+	void readAttributeDataInto( void* target, size_t target_capacity_num_bytes, le_mesh_attribute_name attribute_name, uint32_t* num_bytes_per_vertex = nullptr, size_t* num_vertices = nullptr, size_t first_vertex = 0, uint32_t stride = 0, uint32_t initial_stride_offset = 0 ) const {
 		this_i.read_attribute_data_into( self, target, target_capacity_num_bytes, attribute_name, num_bytes_per_vertex, num_vertices, first_vertex, stride, initial_stride_offset );
 	}
 
@@ -267,21 +268,21 @@ class LeMesh : NoCopy, NoMove {
 	/// \note  You are expected to size both `out_attribute_descriptions` and `out_binding_descriptions` to `attribute_infos_count`.
 	///        On successful return, the repective `_count` members will be sized to the number of used attribute and binding descriptors.
 	/// \return true on success, false otherwise.
-	bool getVertexInputDescriptions( le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* out_attribute_descriptions, size_t* out_attribute_descriptions_count, le_vertex_input_binding_description* out_binding_descriptions, size_t* out_binding_descriptions_count ) {
+	bool getVertexInputDescriptions( le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* out_attribute_descriptions, size_t* out_attribute_descriptions_count, le_vertex_input_binding_description* out_binding_descriptions, size_t* out_binding_descriptions_count ) {
 		return this_i.get_vertex_input_descriptions( self, attribute_infos, attribute_infos_count, out_attribute_descriptions, out_attribute_descriptions_count, out_binding_descriptions, out_binding_descriptions_count );
 	}
 
 	/// \brief Bind data for attributes given in `attribute_infos` to the given encoder
 	/// \note  The order of attributes within `attribute_infos` is meaningful. It represents the locations of the attributes on the shader, starting with location 0.
 	/// \note
-	bool bind( le_command_buffer_encoder_o* encoder, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+	bool bind( le_command_buffer_encoder_o* encoder, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
 		return this_i.bind_to_encoder( self, encoder, attribute_infos, attribute_infos_count );
 	}
 
 	/// \brief Declare buffers used by mesh to the renderpass
 	/// \param attribute_infos [optional] attributes for which buffers declared,
 	/// \note  Keep `attribute_infos` to `nullptr` to declare all buffers owned by this mesh to the renderpass
-	void setupRenderPass( le_renderpass_o* rp, le_mesh_api::attribute_info_t const* attribute_infos = nullptr, size_t attribute_infos_count = 0 ) {
+	void setupRenderPass( le_renderpass_o* rp, le_mesh_attribute_info_t const* attribute_infos = nullptr, size_t attribute_infos_count = 0 ) {
 		this_i.setup_renderpass( self, rp, attribute_infos, attribute_infos_count );
 	}
 

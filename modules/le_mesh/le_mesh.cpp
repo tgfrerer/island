@@ -19,7 +19,7 @@
 static auto logger = le::Log( "le_mesh" );
 
 // ffdecl.
-static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count );
+static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count );
 
 struct buffer_data_t {
 	std::vector<uint8_t> cpu_data;
@@ -54,9 +54,9 @@ struct le_mesh_o {
 	size_t num_vertices = 0; // number of vertices - all attribute_data must have this count
 
 	std::vector<buffer_data_t>                                      data;
-	std::map<le_mesh_api::attribute_name_t, buffer_data_descriptor> data_descriptors;
+	std::map<le_mesh_attribute_name, buffer_data_descriptor>        data_descriptors;
 
-	le_mesh_api::attribute_name_t existing_attribute_names;
+	le_mesh_attribute_name existing_attribute_names;
 
 	buffer_data_t* indices_data = nullptr;
 };
@@ -124,7 +124,7 @@ static void le_mesh_clear( le_mesh_o* self ) {
 //
 
 static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes,
-                                                  le_mesh_api::attribute_info_t* dst_attribute_info,
+                                                  le_mesh_attribute_info_t* dst_attribute_info,
                                                   size_t dst_attribute_info_count, size_t first_vertex ) {
 
 	struct it_t {
@@ -138,7 +138,7 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 	size_t            dst_stride = 0;
 
 	{
-		std::vector<le_mesh_api::attribute_info_t> dst_info{ dst_attribute_info, dst_attribute_info + dst_attribute_info_count };
+		std::vector<le_mesh_attribute_info_t> dst_info{ dst_attribute_info, dst_attribute_info + dst_attribute_info_count };
 
 		uint8_t* target_head = reinterpret_cast<uint8_t*>( target );
 
@@ -148,10 +148,10 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 
 		for ( auto& d : dst_info ) {
 
-			if ( ( d.name & self->existing_attribute_names ) == 0 ) {
+			if ( ( uint8_t( d.name ) & uint8_t( self->existing_attribute_names ) ) == 0 ) {
 
 				// if name not in source names or if it does not exist in our data we must ignore it
-				d.name = le_mesh_api::attribute_name_t::eUndefined;
+				d.name = le_mesh_attribute_name::eUndefined;
 
 			} else {
 
@@ -206,12 +206,12 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 static void le_mesh_read_attribute_data_into(
     le_mesh_o const* self,
     void* target, size_t target_capacity_num_bytes,
-    le_mesh_api::attribute_name_t attribute_name,
-    uint32_t*                     out_num_bytes_per_vertex,
-    size_t*                       num_vertices,
-    size_t                        first_vertex, // first vertex
-    uint32_t                      stride,
-    uint32_t                      initial_stride_offset ) {
+    le_mesh_attribute_name attribute_name,
+    uint32_t*              out_num_bytes_per_vertex,
+    size_t*                num_vertices,
+    size_t                 first_vertex, // first vertex
+    uint32_t               stride,
+    uint32_t               initial_stride_offset ) {
 
 	auto d_it = self->data_descriptors.find( attribute_name );
 
@@ -234,9 +234,9 @@ static void le_mesh_read_attribute_data_into(
 		return;
 	}
 
-	le_mesh_api::attribute_info_t attribute_infos[] = {
+	le_mesh_attribute_info_t attribute_infos[] = {
 	    {
-	        .name             = le_mesh_api::attribute_name_t::ePadding,
+	        .name             = le_mesh_attribute_name::ePadding,
 	        .bytes_per_vertex = initial_stride_offset,
 	    },
 	    {
@@ -244,7 +244,7 @@ static void le_mesh_read_attribute_data_into(
 	        .bytes_per_vertex = d_it->second.bytes_per_vertex,
 	    },
 	    {
-	        .name             = le_mesh_api::attribute_name_t::ePadding,
+	        .name             = le_mesh_attribute_name::ePadding,
 	        .bytes_per_vertex = stride - initial_stride_offset - d_it->second.bytes_per_vertex,
 	    },
 	};
@@ -325,7 +325,7 @@ static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, u
 // allocate data for a buffer of interleaved vertex data
 // attribute_infos must hold information for the current buffer
 // and any data that gets interleaved with this buffer.
-static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_api::attribute_info_t const* attribute_infos, size_t num_attribute_infos ) {
+static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_info_t const* attribute_infos, size_t num_attribute_infos ) {
 
 	if ( attribute_infos == nullptr || num_attribute_infos == 0 || self->num_vertices == 0 ) {
 		return nullptr;
@@ -335,14 +335,13 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_api::attribu
 
 	// first we need to make sure that none of the given attributes is already present
 
-
-	le_mesh_api::attribute_name_t new_attribute_names = {};
+	le_mesh_attribute_name new_attribute_names = {};
 	for ( auto p_attr = attribute_infos; p_attr != attribute_infos + num_attribute_infos; p_attr++ ) {
-		new_attribute_names = le_mesh_api::attribute_name_t( new_attribute_names | p_attr->name );
+		new_attribute_names = le_mesh_attribute_name( uint8_t( new_attribute_names ) | uint8_t( p_attr->name ) );
 	}
 
-	if ( self->existing_attribute_names & new_attribute_names ) {
-		logger.warn( "attribute name does already exist: %d", self->existing_attribute_names & new_attribute_names );
+	if ( uint8_t( self->existing_attribute_names ) & uint8_t( new_attribute_names ) ) {
+		logger.warn( "attribute name does already exist: %d", uint8_t( self->existing_attribute_names ) & uint8_t( new_attribute_names ) );
 		return nullptr;
 	}
 
@@ -372,15 +371,15 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_api::attribu
 
 	self->data.emplace_back( std::move( data_entry ) );
 
-	self->existing_attribute_names = le_mesh_api::attribute_name_t( self->existing_attribute_names | new_attribute_names );
+	self->existing_attribute_names = le_mesh_attribute_name( uint8_t( self->existing_attribute_names ) | uint8_t( new_attribute_names ) );
 
 	return self->data.back().cpu_data.data();
 }
 
 // ----------------------------------------------------------------------
 
-static void* le_mesh_allocate_attribute_data( le_mesh_o* self, le_mesh_api::attribute_name_t attribute_name, uint32_t num_bytes_per_vertex ) {
-	le_mesh_api::attribute_info_t info{
+static void* le_mesh_allocate_attribute_data( le_mesh_o* self, le_mesh_attribute_name attribute_name, uint32_t num_bytes_per_vertex ) {
+	le_mesh_attribute_info_t info{
 	    .name             = attribute_name,
 	    .bytes_per_vertex = num_bytes_per_vertex };
 	return le_mesh_allocate_vertex_data( self, &info, 1 );
@@ -435,7 +434,7 @@ static size_t le_mesh_get_index_count( le_mesh_o* self, uint32_t* num_bytes_per_
 
 // // ----------------------------------------------------------------------
 // // read attribute info into a given array of data
-static void le_mesh_read_attribute_infos_into( le_mesh_o* self, le_mesh_api::attribute_info_t* target, size_t* num_attributes_in_target ) {
+static void le_mesh_read_attribute_infos_into( le_mesh_o* self, le_mesh_attribute_info_t* target, size_t* num_attributes_in_target ) {
 
 	if ( nullptr == num_attributes_in_target ) {
 		return;
@@ -579,7 +578,7 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 
 static uint32_t le_mesh_get_vertex_input_descriptions(
     le_mesh_o*                             self,
-    le_mesh_api::attribute_info_t const*   attribute_infos,
+    le_mesh_attribute_info_t const*        attribute_infos,
     size_t                                 attribute_infos_count,
     le_vertex_input_attribute_description* out_attribute_descriptions,
     size_t*                                out_attribute_descriptions_count,
@@ -671,7 +670,7 @@ static uint32_t le_mesh_get_vertex_input_descriptions(
 
 // ----------------------------------------------------------------------
 
-bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* encoder_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* encoder_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
 
 	// consolidate all bindings for the attributes in question
 	le::GraphicsEncoder encoder{ encoder_ };
@@ -741,7 +740,7 @@ bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* enco
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
 
 	le::RenderPass rp( rp_ );
 
@@ -787,9 +786,10 @@ static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_
 static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t meshes_count, le_renderpass_o* rp_ ) {
 
 	static constexpr size_t                        C_ATTR_COUNT               = 1;
-	static constexpr le_mesh_api::attribute_info_t attributes[ C_ATTR_COUNT ] = {
-	    { le_mesh_api::ePosition, sizeof( float ) * 3 }, // location 0
-	};
+	static constexpr le_mesh_attribute_info_t      attributes[ C_ATTR_COUNT ] = {
+        { le_mesh_attribute_name::ePosition, sizeof( float ) * 3 }, // location 0
+
+    };
 
 	// ---------- Declare Resources to be used with given renderpass
 
