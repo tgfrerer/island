@@ -12,46 +12,50 @@ struct le_command_buffer_encoder_o;
 struct le_renderpass_o;
 
 /*
-
-MESH object & Mesh rendering specific helpers.
-------------------------------------------------------------
-    + create a mesh using mapped cpu data
-    + create a mesh by loading ply format
-    + batch upload meshes to rendergraph
-    + read mesh data into mapped buffers - this is useful for (de)interlacing mesh data
-
-USAGE:
-
-- create a mesh object
-- set number of vertices
-- allocate & map vertex attribute data for first buffer
-    - you can now memcpy vertex data into the mapped buffer
-- allocate & map vertex attribute data for any further buffers
-
-Note: Since you can allocate more than one attribute per buffer, you can choose whether
-and how to interleave your mesh data in internal storage.
-
-- (optional) allocate index data
-    - memcpy index data into index buffer
-
-USAGE (DRAWING):
-- (optional) submit meshes to rendergraph (this will upload mesh data to gpu and allocate gpu buffers)
-    - this will also declare all buffers used for given mesh array
-- setup renderpass: declare that you want to draw a mesh using a renderpass (this will declare the mesh resources to the renderpass)
-- when executing this renderpass:
-    - get_vertex_input_descriptions: fetch binding and attribute descriptions for given attributes array so that
-      you can create a pipeline for this mesh
-    - bind this pipeline, then `bind_to_encoder` using the same attributes array
-- (optional) `debug_draw_meshes`: draw given mesh array as wireframe
-
-
-
-EXTRAS/TODO:
-    + we want the mesh to be able to draw itself
-    + we want a mesh to be able to optimize itself
-    + add adapters for loading meshes from other formats (gltf?)
-
-*/
+ *
+ * ----------------------------------------------------------------------
+ * MESH object & Mesh rendering specific helpers.
+ * ----------------------------------------------------------------------
+ *     + create a mesh using mapped cpu data
+ *     + create a mesh by loading ply format
+ *     + batch upload meshes to rendergraph
+ *     + read mesh data into mapped buffers - this is useful for (de)interlacing mesh data
+ *
+ * ----------------------------------------------------------------------
+ * USAGE:
+ * ----------------------------------------------------------------------
+ * - create a mesh object
+ * - set number of vertices
+ * - allocate & map vertex attribute data for first buffer
+ *     - you can now memcpy vertex data into the mapped buffer
+ * - allocate & map vertex attribute data for any further buffers
+ *
+ * Note: Since you can allocate more than one attribute per buffer,
+ * you can choose whether and how to interleave your mesh data in
+ * internal storage.
+ *
+ * - (optional) allocate index data
+ *     - memcpy index data into index buffer
+ *
+ * ----------------------------------------------------------------------
+ * USAGE (DRAWING):
+ * ----------------------------------------------------------------------
+ * - (optional) submit meshes to rendergraph (this will upload mesh data to gpu and allocate gpu buffers)
+ *     - this will also declare all buffers used for given mesh array
+ * - setup renderpass: declare that you want to draw a mesh using a renderpass (this will declare the mesh resources to the renderpass)
+ * - when executing this renderpass:
+ *     - get_vertex_input_descriptions: fetch binding and attribute descriptions for given attributes array so that
+ *       you can create a pipeline for this mesh
+ *     - bind this pipeline, then `bind_to_encoder` using the same attributes array
+ * - (optional) `debug_draw_meshes`: draw given mesh array as wireframe
+ *
+ * ----------------------------------------------------------------------
+ * EXTRAS/TODO:
+ * ----------------------------------------------------------------------
+ *     + we want a mesh to be able to optimize itself
+ *     + add adapters for loading meshes from other formats (gltf?)
+ *
+ */
 
 struct le_mesh_debug_draw_data_t {
 	le_mesh_o* mesh;        // the mesh object itself
