@@ -61,10 +61,11 @@ struct le_mesh_api {
 		void           ( * destroy                  ) ( le_mesh_o* self );
 
 		/// Submits mesh(es) to rendergraph; introduces the mesh buffers to rendergraph; 
+		/// you are supposed to call this early, and only once per frame, so that all 
+		/// mesh data can be submitted to the gpu before it is used.
 		void 		   ( * submit_meshes_to_rendergraph ) (le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer);
 
 		void (*clear)(le_mesh_o* self);
-
 
 		// If attributes were already set, this means that these attributes will have their pointers invalidated - did_reallocate will tell you.
 		void   (*set_vertex_count)( le_mesh_o * self , size_t num_vertices, bool * did_reallocate);
@@ -120,13 +121,18 @@ struct le_mesh_api {
 
 		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path, bool should_interleave );
 
-		// get the input attribute descriptions for any given bindings given by name and byte count
+		// Drawing 
+ 
+		/// \brief Fetch Attribute descriptions and binding descriptions for this mesh, relating to given `attribute_infos`.
+		/// \note  The order in `attribute_infos` is meaningful; each item refers to a location in the shader, starting at 0.
+		/// \note  You are expected to size both `out_attribute_descriptions` and `out_binding_descriptions` to `attribute_infos_count`.
+		///        On successful return, the repective `_count` members will be sized to the number of used attribute and binding descriptors.
+		/// \return true on success, false otherwise.
 		uint32_t (*get_vertex_input_descriptions)( le_mesh_o* self, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* attribute_descriptions, size_t * attribute_descriptions_count , le_vertex_input_binding_description*   binding_descriptions, size_t *binding_descriptions_count);
 
 		// bind vertex buffers and index buffers to the mesh if buffer handles exist
 		// otherwise upload mesh data
 		bool (*bind_to_encoder)(le_mesh_o* self, le_command_buffer_encoder_o* encoder, le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count);
-
 
 		// Declare any buffers that have been created for this mesh to the renderpass 
 		// so that these resoures may be used with an encoder.
@@ -218,10 +224,13 @@ class LeMesh : NoCopy, NoMove {
 
 	// ------------ DRAWING METHODS -----------------------------------------
 
-	// get any binding infos and attribute infos for the attributes contained in the ordered list attribute_infos
-	// list order
-	bool getVertexInputDescriptions( le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* attribute_descriptions, size_t* attribute_descriptions_count, le_vertex_input_binding_description* binding_descriptions, size_t* binding_descriptions_count ) {
-		return this_i.get_vertex_input_descriptions( self, attribute_infos, attribute_infos_count, attribute_descriptions, attribute_descriptions_count, binding_descriptions, binding_descriptions_count );
+	/// \brief Fetch Attribute descriptions and binding descriptions for this mesh, relating to given `attribute_infos`.
+	/// \note  The order in `attribute_infos` is meaningful; each item refers to a location in the shader, starting at 0.
+	/// \note  You are expected to size both `out_attribute_descriptions` and `out_binding_descriptions` to `attribute_infos_count`.
+	///        On successful return, the repective `_count` members will be sized to the number of used attribute and binding descriptors.
+	/// \return true on success, false otherwise.
+	bool getVertexInputDescriptions( le_mesh_api::attribute_info_t const* attribute_infos, size_t attribute_infos_count, le_vertex_input_attribute_description* out_attribute_descriptions, size_t* out_attribute_descriptions_count, le_vertex_input_binding_description* out_binding_descriptions, size_t* out_binding_descriptions_count ) {
+		return this_i.get_vertex_input_descriptions( self, attribute_infos, attribute_infos_count, out_attribute_descriptions, out_attribute_descriptions_count, out_binding_descriptions, out_binding_descriptions_count );
 	}
 
 	/// \brief Bind data for attributes given in `attribute_infos` to the given encoder
