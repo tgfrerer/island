@@ -13,6 +13,9 @@
 #include <cassert>
 #include <unordered_map>
 
+#include "shaders/default_vert.h"
+#include "shaders/default_frag.h"
+
 static auto logger = le::Log( "le_mesh" );
 
 // ffdecl.
@@ -832,19 +835,19 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 			float colour[ 4 ];
 		};
 
-		// Create shader modules
+		// Create shader modules using local shaders.
 		static auto shaderVert =
 		    LeShaderModuleBuilder( encoder.getPipelineManager() )
 		        .setShaderStage( le::ShaderStage::eVertex )
-		        .setSourceFilePath( "./local_resources/shaders/buoy.vert" )
-		        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
+		        .setSpirvCode( SPIRV_SOURCE_DEFAULT_VERT, sizeof( SPIRV_SOURCE_DEFAULT_VERT ) / sizeof( uint32_t ) )
+		        .setSourceLanguage( le::ShaderSourceLanguage::eSpirv )
 		        .build();
 
 		static auto shaderFrag =
 		    LeShaderModuleBuilder( encoder.getPipelineManager() )
 		        .setShaderStage( le::ShaderStage::eFragment )
-		        .setSourceFilePath( "./local_resources/shaders/buoy.frag" )
-		        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
+		        .setSpirvCode( SPIRV_SOURCE_DEFAULT_FRAG, sizeof( SPIRV_SOURCE_DEFAULT_FRAG ) / sizeof( uint32_t ) )
+		        .setSourceLanguage( le::ShaderSourceLanguage::eSpirv )
 		        .build();
 
 		// ---------
