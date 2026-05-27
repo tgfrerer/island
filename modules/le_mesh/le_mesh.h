@@ -10,30 +10,36 @@ struct le_vertex_input_attribute_description; // defined in le_renderer_types.h
 struct le_vertex_input_binding_description;   // defined in le_renderer_types.h
 struct le_command_buffer_encoder_o;
 struct le_renderpass_o;
+
 /*
 
-  A modern mesh API:
+MESH object & Mesh rendering specific helpers.
+------------------------------------------------------------
+    + create a mesh using mapped cpu data
+    + create a mesh by loading ply format
+    + batch upload meshes to rendergraph
+    + read mesh data into mapped buffers - this is useful for (de)interlacing mesh data
 
-  + we want the mesh to be able to draw itself
-  + we want a mesh to be able to optimize itself
+USAGE:
 
-  + we want to have a pure-cpu mesh as well as a mesh that exists on the gpu.
-  + how should we draw a mesh?
+- create a mesh object
+- set number of vertices
+- allocate & map vertex attribute data for first buffer
+- allocate & map vertex attribute data for any further buffers
+- (optional) allocate index data
+
+Note: Since you can allocate more than one attribute per buffer, you can choose whether
+and how to interleave your mesh data in internal storage.
+
+EXTRAS/TODO:
+    + we want the mesh to be able to draw itself
+    + we want a mesh to be able to optimize itself
+    + add adapters for loading meshes from other formats (gltf?)
 
 */
 
 // clang-format off
 struct le_mesh_api {
-
-    // typedef uint16_t default_index_type;
-    // typedef float default_vertex_type[3];
-    // typedef float default_uv_type[2];
-    // typedef float default_colour_type[4];
-    // typedef float default_normal_type[3];
-    // typedef float default_tangent_type[3];
-
-    // static constexpr size_t ALL_VERTICES = ~size_t(0);
-
 
 	enum attribute_name_t :uint8_t  {
 			eUndefined = 0 << 0,
@@ -51,7 +57,6 @@ struct le_mesh_api {
 	struct attribute_info_t {
 		attribute_name_t name                          = {}; //
 		uint32_t         bytes_per_vertex              = 0;  // bytes per vertex for this attribute (this may include padding if interleaved)
-		                                                     // uint32_t         buffer_idx                    = 0;  // which buffer should be used for this?
 	};
 	// clang-format off
 
@@ -87,7 +92,6 @@ struct le_mesh_api {
 		// hold infos for more than one attribute in the correct order for interleaving.
 		void *(*allocate_vertex_data)( le_mesh_o * self, attribute_info_t const * attribute_infos, size_t attribute_infos_count);
 
-
 		void (*read_vertex_data_into_buffer)( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, le_mesh_api::attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex );
 
 		/// Read attribute data into `target`
@@ -121,7 +125,7 @@ struct le_mesh_api {
 
 		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path, bool should_interleave );
 
-		// Drawing 
+		// Drawing helpers 
  
 		/// \brief Fetch Attribute descriptions and binding descriptions for this mesh, relating to given `attribute_infos`.
 		/// \note  The order in `attribute_infos` is meaningful; each item refers to a location in the shader, starting at 0.
