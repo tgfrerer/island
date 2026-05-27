@@ -1,25 +1,24 @@
-#ifndef GUARD_le_mesh_H
-#define GUARD_le_mesh_H
+#pragma once
 
 #include "le_core.h"
 
-struct le_mesh_o;
-struct le_renderer_o;
-struct le_rendergraph_o;
-struct le_vertex_input_attribute_description; // defined in le_renderer_types.h
-struct le_vertex_input_binding_description;   // defined in le_renderer_types.h
-struct le_command_buffer_encoder_o;
-struct le_renderpass_o;
-
-/*
- *
- * ----------------------------------------------------------------------
+/* ----------------------------------------------------------------------
  * MESH object & Mesh rendering specific helpers.
  * ----------------------------------------------------------------------
+ *
+ * A mesh is structured data describing vertices and possibly indices of
+ * a 3d object. Vertices may have attibutes other than just position.
+ *
+ * A mesh may contain lists of indices which refer to vertices and
+ * describe faces of the 3d object. Generally, 3 indices describe a
+ * triangle, and our topology is a triangle list.
+ *
+ * This module allows you to:
+ *
  *     + create a mesh using mapped cpu data
- *     + create a mesh by loading ply format
- *     + batch upload meshes to rendergraph
- *     + read mesh data into mapped buffers - this is useful for (de)interlacing mesh data
+ *     + create a mesh by loading from an ASCII ply file
+ *     + batch upload mesh buffers to rendergraph
+ *     + read out mesh data into mapped buffers - this is useful for (re)structuring mesh data
  *
  * ----------------------------------------------------------------------
  * USAGE:
@@ -56,6 +55,14 @@ struct le_renderpass_o;
  *     + add adapters for loading meshes from other formats (gltf?)
  *
  */
+
+struct le_mesh_o;
+struct le_renderer_o;
+struct le_rendergraph_o;
+struct le_vertex_input_attribute_description; // defined in le_renderer_types.h
+struct le_vertex_input_binding_description;   // defined in le_renderer_types.h
+struct le_command_buffer_encoder_o;
+struct le_renderpass_o;
 
 struct le_mesh_debug_draw_data_t {
 	le_mesh_o* mesh;        // the mesh object itself
@@ -303,5 +310,3 @@ using Mesh = LeMesh;
 }
 
 #endif // __cplusplus
-
-#endif
