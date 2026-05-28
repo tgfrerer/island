@@ -78,7 +78,7 @@ static inline int does_start_with( char const* haystack, char const* needle, siz
 /// \brief loads mesh from ply file
 /// \note any contents of mesh will be cleared before loading
 /// \return true upon success, false otherwise.
-static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_, bool should_interleave ) {
+static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_, bool should_interleave, le_renderer_o* optional_renderer ) {
 
 	// - Make sure file exists
 
@@ -432,7 +432,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_,
 					if ( should_interleave ) {
 						attribute_infos[ le_mesh_attribute_name::ePosition ] = attr_info;
 					} else if ( pos_data == nullptr ) {
-						pos_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1 );
+						pos_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1, optional_renderer );
 						pos_data_end = pos_data + sizeof( glm::vec3 ) * num_vertices;
 					}
 				} break;
@@ -444,7 +444,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_,
 					if ( should_interleave ) {
 						attribute_infos[ le_mesh_attribute_name::eNormal ] = attr_info;
 					} else if ( normals_data == nullptr ) {
-						normals_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1 );
+						normals_data     = ( glm::vec3* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1, optional_renderer );
 						normals_data_end = normals_data + sizeof( glm::vec3 ) * num_vertices;
 					}
 				} break;
@@ -457,7 +457,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_,
 					if ( should_interleave ) {
 						attribute_infos[ le_mesh_attribute_name::eColour ] = attr_info;
 					} else if ( colours_data == nullptr ) {
-						colours_data     = ( glm::vec4* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1 );
+						colours_data     = ( glm::vec4* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1, optional_renderer );
 						colours_data_end = colours_data + sizeof( glm::vec4 ) * num_vertices;
 					}
 				} break;
@@ -468,7 +468,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_,
 					if ( should_interleave ) {
 						attribute_infos[ le_mesh_attribute_name::eUv ] = attr_info;
 					} else if ( uvs_data == nullptr ) {
-						uvs_data     = ( glm::vec2* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1 );
+						uvs_data     = ( glm::vec2* )le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, &attr_info, 1, optional_renderer );
 						uvs_data_end = uvs_data + sizeof( glm::vec2 ) * num_vertices;
 					}
 				} break;
@@ -508,7 +508,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_,
 					per_vertex_stride += item.bytes_per_vertex;
 				}
 
-				void* data = le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, attribute_info_vec.data(), attribute_info_vec.size() );
+				void* data = le_mesh_api_i->le_mesh_i.allocate_vertex_data( self, attribute_info_vec.data(), attribute_info_vec.size(), optional_renderer );
 
 				for ( auto const& info : attribute_info_vec ) {
 

@@ -63,6 +63,8 @@ struct le_vertex_input_attribute_description; // defined in le_renderer_types.h
 struct le_vertex_input_binding_description;   // defined in le_renderer_types.h
 struct le_command_buffer_encoder_o;
 struct le_renderpass_o;
+struct le_buffer_resource_handle_t;
+struct le_resource_info_t;
 
 struct le_mesh_debug_draw_data_t {
 	le_mesh_o* mesh;        // the mesh object itself
@@ -124,9 +126,10 @@ struct le_mesh_api {
 		///
 		void *(*allocate_index_data)( le_mesh_o * self, size_t num_indices, uint32_t* num_bytes_per_index); // num_bytes_per_index can be 0, will be set to 2 or 4 depending on number of vertices, must be 4 if number of vertices is (2^16)
 
-		// Allocates one buffer for vertex data - vertex data may be interleaved, in which case attribute_infos must 
-		// hold infos for more than one attribute in the correct order for interleaving.
-		void *(*allocate_vertex_data)( le_mesh_o * self, le_mesh_attribute_info_t const * attribute_infos, size_t attribute_infos_count);
+		/// \brief Allocates one buffer for vertex data - vertex data may be interleaved, in which case attribute_infos must 
+		/// 	   hold infos for more than one attribute in the correct order for interleaving.
+		/// \note  if renderer is given, then associate a new le_buffer_resource with the data backing.
+		void *(*allocate_vertex_data)( le_mesh_o * self, le_mesh_attribute_info_t const * attribute_infos, size_t attribute_infos_count, le_renderer_o* optional_renderer);
 
 		void (*read_vertex_data_into_buffer)( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, le_mesh_attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex );
 
@@ -155,11 +158,20 @@ struct le_mesh_api {
 		/// @param `target`                    : (optional) pointer (or c-array) where to write data to.
 		/// @param `num_attributes_in_target`  : (required) memory available in target, given as a multiple of `sizeof(le_mesh_attribute_info_t)`, returns total number of attributes available in mesh.
 		/// @note   retuned attribute_infos are sorted asc by attribute_name.
-		void (*read_attribute_infos_into)(le_mesh_o*self, le_mesh_attribute_info_t* target, size_t *num_attributes_in_target);
+		bool (*get_attribute_infos_for_binding)(le_mesh_o*self, size_t const binding_number, le_mesh_attribute_info_t* out_attr_info, size_t *out_attr_info_count);
+
+		/// Return the number of backing buffers used for vertex attribute data storage
+		size_t (*get_vertex_buffers_count)(le_mesh_o* self);
+
+		void * (*get_attribute_data)(le_mesh_o* self, le_mesh_attribute_name attribute_name, size_t *out_stride);
+		void * (*get_index_data)(le_mesh_o* self, size_t * optional_out_stride, size_t * optional_out_num_indices);
+
+		le_buffer_resource_handle_t* (*get_attribute_buffer)(le_mesh_o* self, le_mesh_attribute_name attribute_name, le_resource_info_t* optional_resource_info);
+		le_buffer_resource_handle_t* (*get_index_buffer)(le_mesh_o* self, le_resource_info_t* optional_resource_info);
 
 		// PLY import
 
-		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path, bool should_interleave );
+		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path, bool should_interleave , le_renderer_o* optional_renderer);
 
 		// Drawing helpers 
  
@@ -226,8 +238,34 @@ class LeMesh : NoCopy, NoMove {
 		return this_i.get_index_count( self, num_bytes_per_index );
 	}
 
+	[[nodiscard]]
 	size_t getVertexCount() {
 		return this_i.get_vertex_count( self );
+	}
+
+	[[nodiscard]]
+	size_t getNumVertexBuffers() {
+		return this_i.get_vertex_buffers_count( self );
+	}
+
+	[[nodiscard]]
+	void* getDataForAttribute( le_mesh_attribute_name attribute_name, size_t* out_stride ) {
+		return this_i.get_attribute_data( self, attribute_name, out_stride );
+	}
+
+	[[nodiscard]]
+	void* getIndexData( size_t* out_stride, size_t* optional_out_num_indices = nullptr ) {
+		return this_i.get_index_data( self, out_stride, optional_out_num_indices );
+	}
+
+	[[nodiscard]]
+	le_buffer_resource_handle_t* getBufferForAttribute( le_mesh_attribute_name attribute_name, le_resource_info_t* optional_resource_info = nullptr ) {
+		return this_i.get_attribute_buffer( self, attribute_name, optional_resource_info );
+	}
+
+	[[nodiscard]]
+	le_buffer_resource_handle_t* getIndexBuffer( le_resource_info_t* optional_resource_info = nullptr ) {
+		return this_i.get_index_buffer( self, optional_resource_info );
 	}
 
 	[[nodiscard]]
@@ -236,12 +274,17 @@ class LeMesh : NoCopy, NoMove {
 	}
 
 	[[nodiscard]]
-	void* allocateVertexData( le_mesh_attribute_info_t const* attribute_infos, uint32_t attribute_infos_count ) {
-		return this_i.allocate_vertex_data( self, attribute_infos, attribute_infos_count );
+	void* allocateVertexData( le_mesh_attribute_info_t const* attribute_infos, uint32_t attribute_infos_count, le_renderer_o* optional_renderer = nullptr ) {
+		return this_i.allocate_vertex_data( self, attribute_infos, attribute_infos_count, optional_renderer );
 	}
 
-	void readAttributeInfosInto( le_mesh_attribute_info_t* target, size_t* num_attributes_in_target ) {
-		this_i.read_attribute_infos_into( self, target, num_attributes_in_target );
+	/// \brief return attribute infos associated with a given binding
+	/// \note  you must size the out_attr_info array correctly;
+	/// \note  `out_attr_info_count` will be set to number of required elements
+	/// \return false if number of required elements did not fit, or if binding number does not exist.
+	/// \note  If this method returns false and sets `*out_attr_info_count` to 0, you should not insist.
+	bool getAttributeInfosForBinding( size_t const binding_number, le_mesh_attribute_info_t* out_attr_info, size_t* out_attr_info_count ) {
+		return this_i.get_attribute_infos_for_binding( self, binding_number, out_attr_info, out_attr_info_count );
 	}
 
 	void readVertexDataIntoBuffer( void* target, size_t target_capacity_num_bytes, le_mesh_attribute_info_t* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex = 0 ) {
@@ -257,8 +300,11 @@ class LeMesh : NoCopy, NoMove {
 		this_i.read_index_data_into( self, target, target_capacity_num_bytes, num_bytes_per_index, num_indices, first_index );
 	}
 
-	bool loadFromPlyFile( char const* file_path, bool should_interleave = false ) {
-		return this_i.load_from_ply_file( self, file_path, should_interleave );
+	/// \brief Load Mesh data from ASCII ply file
+	/// \note  By default data will be stored in a single buffer per-attribute, you can change this by setting `should_interleave` to true
+	/// \note  If you pass a valid renderer, then resource handles will be initialized for every attribute gpu buffer.
+	bool loadFromPlyFile( char const* file_path, bool should_interleave = false, le_renderer_o* optional_renderer = nullptr ) {
+		return this_i.load_from_ply_file( self, file_path, should_interleave, optional_renderer );
 	}
 
 	// ------------ DRAWING HELPERS -----------------------------------------

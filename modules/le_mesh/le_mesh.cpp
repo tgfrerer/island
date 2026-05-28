@@ -31,8 +31,6 @@ static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_
     - a mesh should be able to convert to a different layout
     - a mesh should know when to re-submit itself
 
-
-
 */
 
 struct buffer_data_descriptor {
@@ -42,8 +40,8 @@ struct buffer_data_descriptor {
 };
 
 struct buffer_data_t {
-	std::vector<uint8_t>                  cpu_data;
 	std::vector<le_mesh_attribute_info_t> attribute_infos;
+	std::vector<uint8_t>                  cpu_data;
 
 	le_buffer_resource_handle buffer_resource      = nullptr;
 	le_resource_info_t        buffer_resource_info = {};
@@ -327,7 +325,7 @@ static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, u
 // allocate data for a buffer of interleaved vertex data
 // attribute_infos must hold information for the current buffer
 // and any data that gets interleaved with this buffer.
-static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_info_t const* attribute_infos, size_t num_attribute_infos ) {
+static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_info_t const* attribute_infos, size_t num_attribute_infos, le_renderer_o* optional_renderer ) {
 
 	if ( attribute_infos == nullptr || num_attribute_infos == 0 || self->num_vertices == 0 ) {
 		return nullptr;
@@ -364,9 +362,9 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_in
 	}
 
 	buffer_data_t data_entry{
-	    .cpu_data             = std::vector<uint8_t>( num_bytes_per_vertex * self->num_vertices ),
 	    .attribute_infos      = { attribute_infos, attribute_infos + num_attribute_infos },
-	    .buffer_resource      = nullptr,
+	    .cpu_data             = std::vector<uint8_t>( num_bytes_per_vertex * self->num_vertices ),
+	    .buffer_resource      = optional_renderer ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, "", 0, 0 ) : nullptr,
 	    .buffer_resource_info = le::BufferInfoBuilder().build(),
 	    .num_bytes_per_stride = num_bytes_per_vertex,
 	    .is_tainted           = true,
@@ -385,7 +383,7 @@ static void* le_mesh_allocate_attribute_data( le_mesh_o* self, le_mesh_attribute
 	le_mesh_attribute_info_t info{
 	    .name             = attribute_name,
 	    .bytes_per_vertex = num_bytes_per_vertex };
-	return le_mesh_allocate_vertex_data( self, &info, 1 );
+	return le_mesh_allocate_vertex_data( self, &info, 1, nullptr );
 };
 
 // ----------------------------------------------------------------------
@@ -435,38 +433,136 @@ static size_t le_mesh_get_index_count( le_mesh_o* self, uint32_t* num_bytes_per_
 	return self->indices_data->cpu_data.size() / self->indices_data->num_bytes_per_stride;
 };
 
-// // ----------------------------------------------------------------------
-// // read attribute info into a given array of data
-static void le_mesh_read_attribute_infos_into( le_mesh_o* self, le_mesh_attribute_info_t* target, size_t* num_attributes_in_target ) {
+// ----------------------------------------------------------------------
 
-	if ( nullptr == num_attributes_in_target ) {
-		return;
+static bool le_mesh_get_attribute_infos_for_binding( le_mesh_o* self, size_t const binding_number,
+                                                     le_mesh_attribute_info_t* out_attr_info, size_t* out_attr_info_count ) {
+
+	if ( nullptr == out_attr_info_count ) {
+		return false;
 	}
 
-	// ----------| invariant: num_attributes_in_target was set
+	// ----------| Invariant: out_att_info_count is valid pointer
 
-	size_t num_available_slots = *num_attributes_in_target;
+	if ( binding_number >= self->data.size() ) {
+		*out_attr_info_count = 0;
+		return false;
+	}
 
-	// write back the number of attributes that this mesh contains.
-	*num_attributes_in_target = self->data_descriptors.size();
+	// ----------| Invariant: binding number is valid
 
-	if ( target ) {
+	auto const& attr_infos      = self->data[ binding_number ].attribute_infos;
+	size_t      attr_info_count = attr_infos.size();
 
-		for ( auto const& a_e : self->data_descriptors ) {
-			if ( num_available_slots == 0 ) {
-				break;
-			}
+	if ( *out_attr_info_count < attr_info_count ) {
+		*out_attr_info_count = attr_info_count;
+		return false;
+	}
 
-			auto& [ key, a ] = a_e;
+	if ( nullptr == out_attr_info ) {
+		return false;
+	}
 
-			*target++ = {
-			    .name             = key,
-			    .bytes_per_vertex = a.bytes_per_vertex,
-			};
+	memcpy( out_attr_info, attr_infos.data(), sizeof( le_mesh_attribute_info_t ) * attr_info_count );
 
-			num_available_slots--;
+	*out_attr_info_count = attr_info_count;
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+/// Return the number of backing buffers used for vertex attribute data storage
+static size_t le_mesh_get_vertex_buffers_count( le_mesh_o* self ) {
+	return self->data_descriptors.size();
+};
+
+// ----------------------------------------------------------------------
+
+static void* le_mesh_get_attribute_data( le_mesh_o* self, le_mesh_attribute_name attribute_name, size_t* out_stride ) {
+
+	auto it = self->data_descriptors.find( attribute_name );
+
+	if ( it == self->data_descriptors.end() ) {
+		return nullptr;
+	}
+
+	// -----------| invariant attribute exists
+
+	size_t required_stride = it->second.bytes_per_vertex;
+
+	if ( required_stride ) {
+		if ( nullptr == out_stride ) {
+			return nullptr;
+		} else {
+			*out_stride = required_stride;
 		}
 	}
+
+	self->data[ it->second.data_idx ].is_tainted = true;
+
+	return self->data[ it->second.data_idx ].cpu_data.data() + it->second.interleave_offset;
+}
+
+// ----------------------------------------------------------------------
+
+static void* le_mesh_get_index_data( le_mesh_o* self, size_t* out_stride, size_t* num_indices ) {
+
+	if ( nullptr == self->indices_data ) {
+		return nullptr;
+	}
+
+	// ---------| invariant: there is index data
+	size_t stride = self->indices_data->num_bytes_per_stride;
+
+	if ( out_stride ) {
+		*out_stride = stride;
+	}
+
+	if ( num_indices ) {
+		*num_indices = self->indices_data->cpu_data.size() / stride;
+	}
+
+	self->indices_data->is_tainted = true;
+
+	return self->indices_data->cpu_data.data();
+}
+
+// ----------------------------------------------------------------------
+
+static le_buffer_resource_handle le_mesh_get_attribute_buffer( le_mesh_o* self, le_mesh_attribute_name attribute_name, le_resource_info_t* optional_resource_info ) {
+
+	auto it = self->data_descriptors.find( attribute_name );
+
+	if ( it == self->data_descriptors.end() ) {
+		return nullptr;
+	}
+
+	// -----------| invariant attribute exists
+
+	auto& buf_data = self->data[ it->second.data_idx ];
+
+	if ( optional_resource_info ) {
+		*optional_resource_info = buf_data.buffer_resource_info;
+	}
+
+	return buf_data.buffer_resource;
+}
+
+// ----------------------------------------------------------------------
+
+static le_buffer_resource_handle le_mesh_get_index_buffer( le_mesh_o* self, le_resource_info_t* optional_resource_info ) {
+
+	if ( nullptr == self->indices_data ) {
+		return nullptr;
+	}
+
+	// ---------| invariant: there is index buffer
+	if ( optional_resource_info ) {
+		*optional_resource_info = self->indices_data->buffer_resource_info;
+	}
+
+	return self->indices_data->buffer_resource;
 }
 
 // ----------------------------------------------------------------------
@@ -918,6 +1014,7 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 
 	free( closure_data );
 }
+
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR void le_module_register_le_mesh_load_from_ply( void* api ); // ffdecl.
@@ -935,19 +1032,26 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	le_mesh_i.read_vertex_data_into_buffer = le_mesh_read_vertex_data_into_buffer;
 
 	le_mesh_i.set_vertex_count = le_mesh_set_vertex_count;
+
 	le_mesh_i.get_vertex_count = le_mesh_get_vertex_count;
+	le_mesh_i.get_index_count  = le_mesh_get_index_count;
 
-	le_mesh_i.get_index_count           = le_mesh_get_index_count;
-	le_mesh_i.read_attribute_infos_into = le_mesh_read_attribute_infos_into;
-	le_mesh_i.read_index_data_into      = le_mesh_read_index_data_into;
+	le_mesh_i.get_attribute_infos_for_binding = le_mesh_get_attribute_infos_for_binding;
+	le_mesh_i.get_vertex_buffers_count        = le_mesh_get_vertex_buffers_count;
+	le_mesh_i.read_index_data_into            = le_mesh_read_index_data_into;
 
-	le_mesh_i.submit_meshes_to_rendergraph = le_mesh_submit_meshes_to_rendergraph;
-	le_mesh_i.get_vertex_input_descriptions = le_mesh_get_vertex_input_descriptions;
+	le_mesh_i.get_attribute_data = le_mesh_get_attribute_data;
+	le_mesh_i.get_index_data     = le_mesh_get_index_data;
 
-	le_mesh_i.bind_to_encoder = le_mesh_bind_to_encoder;
+	le_mesh_i.get_attribute_buffer = le_mesh_get_attribute_buffer;
+	le_mesh_i.get_index_buffer     = le_mesh_get_index_buffer;
+
+	le_mesh_i.bind_to_encoder  = le_mesh_bind_to_encoder;
 	le_mesh_i.setup_renderpass = le_mesh_setup_renderpass;
 
-	le_mesh_i.debug_draw_meshes = le_mesh_debug_draw_meshes;
+	le_mesh_i.submit_meshes_to_rendergraph  = le_mesh_submit_meshes_to_rendergraph;
+	le_mesh_i.get_vertex_input_descriptions = le_mesh_get_vertex_input_descriptions;
+	le_mesh_i.debug_draw_meshes             = le_mesh_debug_draw_meshes;
 
 	le_mesh_i.clear   = le_mesh_clear;
 	le_mesh_i.create  = le_mesh_create;
