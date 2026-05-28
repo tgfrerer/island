@@ -21,15 +21,6 @@ static auto logger = le::Log( "le_mesh" );
 // ffdecl.
 static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count );
 
-struct buffer_data_t {
-	std::vector<uint8_t> cpu_data;
-
-	le_buffer_resource_handle buffer_resource      = nullptr;
-	le_resource_info_t        buffer_resource_info = {};
-	//
-	uint32_t num_bytes_per_stride = 0;    // bytes per index or bytes per vertex on this buffer
-	bool     is_tainted           = true; // whether the resource needs to be uploaded or not
-};
 
 /*
 
@@ -48,6 +39,17 @@ struct buffer_data_descriptor {
 	uint32_t data_idx          = 0;
 	uint32_t interleave_offset = 0;
 	uint32_t bytes_per_vertex  = 0;
+};
+
+struct buffer_data_t {
+	std::vector<uint8_t>                  cpu_data;
+	std::vector<le_mesh_attribute_info_t> attribute_infos;
+
+	le_buffer_resource_handle buffer_resource      = nullptr;
+	le_resource_info_t        buffer_resource_info = {};
+	//
+	uint32_t num_bytes_per_stride = 0;    // bytes per index or bytes per vertex on this buffer
+	bool     is_tainted           = true; // whether the resource needs to be uploaded or not
 };
 
 struct le_mesh_o {
@@ -363,6 +365,7 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_in
 
 	buffer_data_t data_entry{
 	    .cpu_data             = std::vector<uint8_t>( num_bytes_per_vertex * self->num_vertices ),
+	    .attribute_infos      = { attribute_infos, attribute_infos + num_attribute_infos },
 	    .buffer_resource      = nullptr,
 	    .buffer_resource_info = le::BufferInfoBuilder().build(),
 	    .num_bytes_per_stride = num_bytes_per_vertex,
