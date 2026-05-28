@@ -16,7 +16,7 @@ static auto logger = le::Log( "le_mesh_generator" );
 
 template <typename T>
 static inline void copy_index( T* p_index, T val ) {
-    *p_index = val;
+	*p_index = val;
 }
 
 static void le_mesh_generator_generate_plane( le_mesh_o* mesh,
@@ -36,9 +36,23 @@ static void le_mesh_generator_generate_plane( le_mesh_o* mesh,
 	bool was_reallocated = false;
 	le_mesh::le_mesh_i.set_vertex_count( mesh, ( numHeightSegments + 1 ) * ( numWidthSegments + 1 ), &was_reallocated );
 
-	auto position = ( glm::vec3* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::ePosition, sizeof( glm::vec3 ) );
-	auto normal   = ( glm::vec3* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::eNormal, sizeof( glm::vec3 ) );
-	auto uv       = ( glm::vec2* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::eUv, sizeof( glm::vec2 ) );
+	le_mesh_attribute_info_t attribute_infos[ 3 ] = {
+	    { .name = le_mesh_attribute_name::ePosition, .bytes_per_vertex = sizeof( glm::vec3 ) },
+	    { .name = le_mesh_attribute_name::eNormal, .bytes_per_vertex = sizeof( glm::vec3 ) },
+	    { .name = le_mesh_attribute_name::eUv, .bytes_per_vertex = sizeof( glm::vec2 ) },
+	};
+
+	struct vertex_t {
+		glm::vec3 position;
+		glm::vec3 normal;
+		glm::vec2 uv;
+	};
+
+	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 3 );
+
+	auto position = &data->position;
+	auto normal   = &data->normal;
+	auto uv       = &data->uv;
 
 	// Build up vertices
 
@@ -118,10 +132,26 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
 
 	std::vector<std::vector<uint32_t>> grid; // holds indices for rows of vertices
 
-	auto mesh_position = ( glm::vec3* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::ePosition, sizeof( glm::vec3 ) );
-	auto mesh_normal   = ( glm::vec3* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::eNormal, sizeof( glm::vec3 ) );
-	auto mesh_tangent  = ( glm::vec3* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::eTangent, sizeof( glm::vec3 ) );
-	auto mesh_uv       = ( glm::vec2* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::eUv, sizeof( glm::vec2 ) );
+	le_mesh_attribute_info_t attribute_infos[ 4 ] = {
+	    { .name = le_mesh_attribute_name::ePosition, .bytes_per_vertex = sizeof( glm::vec3 ) },
+	    { .name = le_mesh_attribute_name::eNormal, .bytes_per_vertex = sizeof( glm::vec3 ) },
+	    { .name = le_mesh_attribute_name::eTangent, .bytes_per_vertex = sizeof( glm::vec3 ) },
+	    { .name = le_mesh_attribute_name::eUv, .bytes_per_vertex = sizeof( glm::vec2 ) },
+	};
+
+	struct vertex_t {
+		glm::vec3 position;
+		glm::vec3 normal;
+		glm::vec3 tangent;
+		glm::vec2 uv;
+	};
+
+	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 4 );
+
+	auto mesh_position = &data->position;
+	auto mesh_normal   = &data->normal;
+	auto mesh_tangent  = &data->tangent;
+	auto mesh_uv       = &data->uv;
 
 	// Generate vertices, normals and uvs
 	for ( iy = 0; iy <= heightSegments; iy++ ) {
@@ -250,20 +280,26 @@ static void le_mesh_generator_generate_box( le_mesh_o* mesh, float width, float 
 	bool was_reallocated = false;
 	le_mesh::le_mesh_i.set_vertex_count( mesh, 4 * 6, &was_reallocated );
 
-	// we must generate vertices first.
-	// we should import this via ply and scale it to our needs.
-	auto mesh_position = ( glm::vec3* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::ePosition, sizeof( glm::vec3 ) );
-	auto mesh_normal   = ( glm::vec3* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::eNormal, sizeof( glm::vec3 ) );
-	auto mesh_uv       = ( glm::vec2* )le_mesh::le_mesh_i.allocate_attribute_data( mesh, le_mesh_api::attribute_name_t::eUv, sizeof( glm::vec2 ) );
-
-	struct cube_data {
-		glm::vec3 vertex;
-		glm::vec3 normal;
-		glm::vec2 tex_coord;
+	le_mesh_attribute_info_t attribute_infos[ 3 ] = {
+	    { .name = le_mesh_attribute_name::ePosition, .bytes_per_vertex = sizeof( glm::vec3 ) },
+	    { .name = le_mesh_attribute_name::eNormal, .bytes_per_vertex = sizeof( glm::vec3 ) },
+	    { .name = le_mesh_attribute_name::eUv, .bytes_per_vertex = sizeof( glm::vec2 ) },
 	};
 
+	struct vertex_t {
+		glm::vec3 position;
+		glm::vec3 normal;
+		glm::vec2 uv;
+	};
+
+	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 3 );
+
+	auto mesh_position = &data->position;
+	auto mesh_normal   = &data->normal;
+	auto mesh_uv       = &data->uv;
+
 	// clang-format off
-	cube_data unit_cube[] ={
+	vertex_t unit_cube[] ={
 	    {{-1.000000f, 1.000000f, -1.000000f}, {0.000000f, 1.000000f, -0.000000f}, {0.875000f, 0.500000f},},
 	    {{1.000000f, 1.000000f, 1.000000f}, {0.000000f, 1.000000f, -0.000000f}, {0.625000f, 0.750000f},},
 	    {{1.000000f, 1.000000f, -1.000000f},{ 0.000000f, 1.000000f, -0.000000f},{ 0.625000f, 0.500000f},},
@@ -294,9 +330,9 @@ static void le_mesh_generator_generate_box( le_mesh_o* mesh, float width, float 
 	glm::vec3 scale_factor{ width * 0.5f, height * 0.5f, depth * 0.5f };
 
 	for ( auto const& v : unit_cube ) {
-		*mesh_position++ = ( v.vertex * scale_factor );
+		*mesh_position++ = ( v.position * scale_factor );
 		*mesh_normal++   = v.normal;
-		*mesh_uv++       = v.tex_coord;
+		*mesh_uv++       = v.uv;
 	}
 
 	// Set indices for box
