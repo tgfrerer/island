@@ -67,7 +67,7 @@ static void le_mesh_generator_generate_plane( le_mesh_o* mesh,
 	size_t num_indices = ( iz - 1 ) * ( ix - 1 ) * 6;
 
 	uint32_t num_bytes_per_index = ( p_num_bytes_per_index ) ? *p_num_bytes_per_index : 0;
-	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, num_indices, &num_bytes_per_index );
+	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, num_indices, &num_bytes_per_index, nullptr );
 
 	if ( p_num_bytes_per_index ) {
 		*p_num_bytes_per_index = num_bytes_per_index;
@@ -210,7 +210,7 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
 	}
 
 	uint32_t num_bytes_per_index = ( p_num_bytes_per_index ) ? *p_num_bytes_per_index : 0;
-	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, num_indices, &num_bytes_per_index );
+	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, num_indices, &num_bytes_per_index, nullptr );
 
 	if ( p_num_bytes_per_index ) {
 		*p_num_bytes_per_index = num_bytes_per_index;
@@ -334,7 +334,7 @@ static void le_mesh_generator_generate_box( le_mesh_o* mesh, float width, float 
 	// Set indices for box
 
 	uint32_t num_bytes_per_index = 0;
-	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, 3 * 2 * 6, &num_bytes_per_index );
+	void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( mesh, 3 * 2 * 6, &num_bytes_per_index, nullptr );
 
 	if ( num_bytes_per_index == 2 ) {
 		uint16_t indices[ 3 * 2 * 6 ] = {
