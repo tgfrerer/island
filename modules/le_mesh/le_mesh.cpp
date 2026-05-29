@@ -19,8 +19,7 @@
 static auto logger = le::Log( "le_mesh" );
 
 // ffdecl.
-static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count );
-
+static void le_mesh_use_with_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count );
 
 /*
 
@@ -905,7 +904,7 @@ static uint32_t le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_enco
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_setup_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+static void le_mesh_use_with_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
 
 	le::RenderPass rp( rp_ );
 
@@ -961,7 +960,7 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 	le::RenderPass rp( rp_ );
 
 	for ( auto m = meshes; m != meshes + meshes_count; m++ ) {
-		le_mesh_setup_renderpass( m->mesh, rp_, attributes, 1 );
+		le_mesh_use_with_renderpass( m->mesh, rp_, attributes, 1 );
 	}
 
 	// ---------- Draw Meshes into given renderpass
@@ -1113,7 +1112,7 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	le_mesh_i.get_index_buffer     = le_mesh_get_index_buffer;
 
 	le_mesh_i.bind_to_encoder  = le_mesh_bind_to_encoder;
-	le_mesh_i.setup_renderpass = le_mesh_setup_renderpass;
+	le_mesh_i.use_with_renderpass = le_mesh_use_with_renderpass;
 
 	le_mesh_i.submit_meshes_to_rendergraph  = le_mesh_submit_meshes_to_rendergraph;
 	le_mesh_i.get_vertex_input_descriptions = le_mesh_get_vertex_input_descriptions;

@@ -217,7 +217,7 @@ struct le_mesh_api {
 		/// \brief Declare any buffers that have been created for this mesh to a renderpass so that they can be used when executing this renderpass.
 		/// \note  `attribute_infos` is optional, if `nullptr`, all buffers of this mesh will be declared as being used.
 		/// \note  If an index buffer exists, it will automatically be declared as being used by this renderpass.
-		void (*setup_renderpass)(le_mesh_o* self, le_renderpass_o* rp, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count);
+		void (*use_with_renderpass)(le_mesh_o* self, le_renderpass_o* rp, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count);
 	};
 
 	le_mesh_interface_t       le_mesh_i;
@@ -362,8 +362,8 @@ class LeMesh : NoCopy, NoMove {
 	/// \brief Declare buffers used by mesh to the renderpass
 	/// \param attribute_infos [optional] attributes for which buffers declared,
 	/// \note  Keep `attribute_infos` to `nullptr` to declare all buffers owned by this mesh to the renderpass
-	void setupRenderPass( le_renderpass_o* rp, le_mesh_attribute_info_t const* attribute_infos = nullptr, size_t attribute_infos_count = 0 ) {
-		this_i.setup_renderpass( self, rp, attribute_infos, attribute_infos_count );
+	void useWithRenderpass( le_renderpass_o* rp, le_mesh_attribute_info_t const* attribute_infos = nullptr, size_t attribute_infos_count = 0 ) {
+		this_i.use_with_renderpass( self, rp, attribute_infos, attribute_infos_count );
 	}
 
 	// ------------ RENDERGRAPH HELPERS -------------------------------------
