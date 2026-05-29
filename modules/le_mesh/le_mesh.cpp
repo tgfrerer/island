@@ -293,30 +293,49 @@ static void le_mesh_read_index_data_into( le_mesh_o const* self, void* target, s
 
 // ----------------------------------------------------------------------
 
-static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, uint32_t* num_bytes_per_index ) {
+static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, uint32_t* num_bytes_per_index, le_renderer_o* optional_renderer ) {
 
 	if ( nullptr == num_bytes_per_index ) {
 		logger.error( "You must specify the number of bytes per index pointer." );
 		return nullptr;
 	}
 
-	if ( nullptr == self->indices_data ) {
-		self->indices_data = new buffer_data_t{};
-	}
-
-	// If number of vertices is greater than what can be represented with an 16 bit index, we must use
-	// 32 bit indices.
-
+	size_t num_bytes_required = 0;
 	{
+		// If number of vertices is greater than what can be represented with an 16 bit index, we must use
+		// 32 bit indices.
+
 		uint32_t required_num_bytes_per_index = ( self->num_vertices <= ( 1 << 16 ) ) ? 2 : 4;
 
 		// Go for the lowest number of bytes per index that you can get away with,
 		// but respect the client's request if they want a higher number of indices.
-		*num_bytes_per_index              = std::min( std::max( required_num_bytes_per_index, *num_bytes_per_index ), uint32_t( 4 ) );
+		*num_bytes_per_index                     = std::min( std::max( required_num_bytes_per_index, *num_bytes_per_index ), uint32_t( 4 ) );
 		self->indices_data->num_bytes_per_stride = *num_bytes_per_index;
+		num_bytes_required                       = self->indices_data->num_bytes_per_stride * num_indices;
 	}
 
-	self->indices_data->cpu_data.resize( self->indices_data->num_bytes_per_stride * num_indices );
+	// If this mesh has not had indices before, then we must create index data.
+
+	if ( nullptr == self->indices_data ) {
+		self->indices_data = new buffer_data_t{};
+
+		self->indices_data->buffer_resource =
+		    optional_renderer
+		        ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, "", 0, 0 )
+		        : nullptr,
+		self->indices_data->buffer_resource_info =
+		    le::BufferInfoBuilder()
+		        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eIndexBuffer )
+		        .setSize( num_bytes_required )
+		        .build();
+	} else {
+		// Update the buffer info to the latest required buffer size
+		// just in case indices were already present.
+		self->indices_data->buffer_resource_info.buffer.size = num_bytes_required;
+	}
+
+	// This potentially re-allocates indices, and it invalidates any previous pointers to index data
+	self->indices_data->cpu_data.resize( num_bytes_required );
 
 	return self->indices_data->cpu_data.data();
 }
