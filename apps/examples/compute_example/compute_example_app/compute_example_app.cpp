@@ -21,20 +21,13 @@
 #include "le_backend_vk.h"
 
 #include <iostream>
-#include <memory>
-#include <sstream>
+// #include <memory>
+// #include <sstream>
 #include <vector>
 
 constexpr size_t cNumDataElements = 64;
 constexpr size_t C_SHOULD_USE_FIXED_FPS = false;
 constexpr size_t FIXED_FPS              = 60; // set to a fixed fps frame rate if you render out image sequences, for example
-
-struct GpuMeshData {
-	le_buffer_resource_handle vertex_handle;
-	le_buffer_resource_handle index_handle;
-	uint32_t                  vertex_num_bytes;
-	uint32_t                  index_num_bytes;
-};
 
 struct compute_example_app_o {
 	le::Window   window;
@@ -44,13 +37,16 @@ struct compute_example_app_o {
 	float    anim_t        = 0;
 	int32_t  anim_speed    = 1.f;
 
-	GpuMeshData* gpu_mesh     = nullptr; // owning
-	bool         meshUploaded = false;
+	le::Mesh waves_mesh; // owning
 
 	le::Camera                camera;
 	le::CameraController      cameraController;
 	le::RendergraphVisualizer rendergraph_visualizer{ renderer, true, 1024, 1024 }; // don't show initially, window_width, window_height
 	le::Timebase              timebase;
+};
+
+static constexpr le_mesh_attribute_info_t mesh_layout[ 1 ]{
+    { le_mesh_attribute_name::ePosition, sizeof( glm::vec4 ) },
 };
 
 // ----------------------------------------------------------------------
@@ -93,14 +89,29 @@ static compute_example_app_o* compute_example_app_create() {
 	// Set up the camera
 	reset_camera( app );
 
-	auto& renderer = app->renderer; // TODO: fixme - this is needed for the LE_BUF_RESOURCE macro -- and very ugly.
+	{
+		// Initialize the waves mesh
 
-	app->gpu_mesh = new GpuMeshData{
-	    renderer.createBufferResourceHandle( "vertex_buffer" ),
-	    renderer.createBufferResourceHandle( "index_buffer" ),
-	    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * sizeof( glm::vec4 ),    // vertex_num_bytes
-	    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * 6 * sizeof( uint16_t ), // indices_num_bytes
-	};
+		le::Mesh tmp_mesh;
+		LeMeshGenerator::generatePlane( tmp_mesh, 1024, 1024, cNumDataElements, cNumDataElements );
+
+		size_t   vertex_count        = tmp_mesh.getVertexCount();
+		uint32_t num_bytes_per_index = 0;
+		size_t   index_count         = tmp_mesh.getIndexCount( &num_bytes_per_index );
+
+		// Now that we have generated a plane mesh, we copy over only the attribute(s) that we need
+		// for our waves mesh.
+
+		app->waves_mesh.setVertexCount( vertex_count );
+		{
+			void* data = app->waves_mesh.allocateVertexData( mesh_layout, 1, app->renderer );
+			tmp_mesh.readVertexDataIntoBuffer( data, sizeof( glm::vec4 ) * vertex_count, mesh_layout, 1 );
+		}
+		{
+			void* data = app->waves_mesh.allocateIndexData( index_count, &num_bytes_per_index, app->renderer );
+			tmp_mesh.readIndexDataInto( data, index_count * num_bytes_per_index );
+		}
+	}
 
 	return app;
 }
@@ -119,64 +130,6 @@ static void reset_camera( compute_example_app_o* self ) {
 	      { 0.367212, 0.256439, 0.894089, -0.000000 },
 	      { 25.002544, -99.994820, -616.479797, 1.000000 } };
 	self->camera.setViewMatrix( ( float* )( &camMatrix ) );
-}
-
-// ----------------------------------------------------------------------
-
-static bool pass_initialise_setup( le_renderpass_o* pRp, void* user_data ) {
-
-	auto app = static_cast<compute_example_app_o*>( user_data );
-
-	// --------| invariant: particle buffer handle exists
-
-	le::RenderPass rp( pRp );
-	rp
-	    .useBufferResource( app->gpu_mesh->vertex_handle, le::AccessFlagBits2::eTransferWrite ) //
-	    .useBufferResource( app->gpu_mesh->index_handle, le::AccessFlagBits2::eTransferWrite )  //
-	    ;
-
-	if ( app->meshUploaded ) {
-		return false;
-	} else {
-		app->meshUploaded = true;
-		return true;
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void pass_initialise_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-
-	auto                app = static_cast<compute_example_app_o*>( user_data );
-	le::TransferEncoder encoder( encoder_ );
-
-	LeMesh mesh;
-
-	LeMeshGenerator::generatePlane( mesh, 1024, 1024, cNumDataElements, cNumDataElements );
-
-	{
-		// This is really annoying - we must use vec4 instead of vec3 for vertex position
-		// as ssbo alignment only allows us vec4 - we can't have that packed tightly
-
-		size_t num_vertices          = mesh.getVertexCount();
-		size_t num_vertex_data_bytes = num_vertices * sizeof( glm::vec4 );
-
-		void* gpu_memory = nullptr;
-		if ( encoder.mapBufferMemory( app->gpu_mesh->vertex_handle, 0, num_vertex_data_bytes, &gpu_memory ) ) {
-
-			mesh.readAttributeDataInto( gpu_memory, num_vertex_data_bytes, le_mesh_api::ePosition, nullptr, nullptr, 0, sizeof( glm::vec4 ) );
-		}
-	}
-
-	{
-		void*    gpu_memory          = nullptr;
-		uint32_t num_bytes_per_index = 2;
-		size_t   num_indices         = mesh.getIndexCount( &num_bytes_per_index );
-		size_t   num_bytes_to_write  = num_indices * num_bytes_per_index;
-		if ( encoder.mapBufferMemory( app->gpu_mesh->index_handle, 0, num_bytes_to_write, &gpu_memory ) ) {
-			mesh.readIndexDataInto( gpu_memory, num_bytes_to_write, &num_bytes_per_index, &num_indices, 0 );
-		}
-	}
 }
 
 // ----------------------------------------------------------------------
@@ -203,9 +156,11 @@ static void pass_compute_exec( le_command_buffer_encoder_o* encoder_, void* user
 	// don't really need to set up a separate struct for our uniforms.
 	float t_val = app->anim_t;
 
+	le_buffer_resource_handle vertex_buffer = app->waves_mesh.getBufferForAttribute( le_mesh_attribute_name::ePosition );
+
 	encoder
 	    .bindComputePipeline( psoCompute )
-	    .bindArgumentBuffer( LE_ARGUMENT_NAME( "ParticleBuf" ), app->gpu_mesh->vertex_handle )
+	    .bindArgumentBuffer( LE_ARGUMENT_NAME( "ParticleBuf" ), vertex_buffer )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Uniforms" ), &t_val, sizeof( float ) )
 	    .dispatch( ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ), 1, 1 );
 }
@@ -221,11 +176,11 @@ static bool pass_draw_setup( le_renderpass_o* pRp, void* user_data ) {
 	        .setColorClearValue( { le::ClearColorValue{ { 0, 0, 0, 255 } } } )
 	        .setLoadOp( le::AttachmentLoadOp::eClear )
 	        .build();
-	rp
-	    .addColorAttachment( app->renderer.getSwapchainResource(), attachment_info ) // color attachment
-	    .useBufferResource( app->gpu_mesh->vertex_handle )
-	    .useBufferResource( app->gpu_mesh->index_handle, le::AccessFlagBits2::eIndexRead ) //
-	    ;
+
+	rp.addColorAttachment( app->renderer.getSwapchainResource(), attachment_info ); // color attachment
+
+	// declare that we want to use our mesh with this rendergraph
+	app->waves_mesh.setupRenderPass( rp );
 
 	return true;
 }
@@ -274,20 +229,21 @@ static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 	        .end()
 	        .build();
 
+	// Note that we don't define a binding - this means that
+	// it assumes the binding that is reflected from the shader?
+
 	MvpUbo_t mvp;
 	mvp.model = glm::mat4( 1.f ); // identity matrix
 	app->camera.getViewMatrix( ( float* )( &mvp.view ) );
 	app->camera.getProjectionMatrix( ( float* )( &mvp.projection ) );
 
-	uint64_t bufferOffsets[ 1 ] = { 0 };
-
 	encoder
 	    .setLineWidth( 1 )
 	    .bindGraphicsPipeline( psoDefaultGraphics )
-	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo_t ) )
-	    .bindVertexBuffers( 0, 1, &app->gpu_mesh->vertex_handle, bufferOffsets )
-	    .bindIndexBuffer( app->gpu_mesh->index_handle, 0 )
-	    .drawIndexed( 6 * ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) );
+	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo_t ) );
+
+	uint32_t num_indices = app->waves_mesh.bind( encoder );
+	encoder.drawIndexed( num_indices );
 }
 
 // ----------------------------------------------------------------------
@@ -408,13 +364,22 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 		// This pass will typically only get executed once - it will upload
 		// buffers .
 
-		auto passInitialise =
-		    le::RenderPass( "initialise", le::QueueFlagBits::eTransfer )
-		        .setSetupCallback( self, pass_initialise_setup )
-		        .setExecuteCallback( self, pass_initialise_exec );
+		// Because we use the mesh vertex buffer as a storage buffer when we
+		// access it via the compute shader, we must make sure that the mesh buffer
+		// resource has the correct capability.
+		// 1.) we fetch the buffer handle from the mesh, and its corresponding buffer info
+
+		le_resource_info_t        vertex_buffer_info;
+		le_buffer_resource_handle vertex_buffer = self->waves_mesh.getBufferForAttribute( le_mesh_attribute_name::ePosition, &vertex_buffer_info );
+		// 2.) extend the buffer info with the required capability
+		vertex_buffer_info.buffer.usage |= le::BufferUsageFlagBits::eStorageBuffer;
+
+		// 3) Declare the updated buffer to the rendergraph
+		renderGraph.declareResource( vertex_buffer, vertex_buffer_info );
+
 		auto passCompute =
 		    le::RenderPass( "compute", le::QueueFlagBits::eCompute )
-		        .useBufferResource( self->gpu_mesh->vertex_handle, le::AccessFlagBits2::eShaderStorageRead, le::AccessFlagBits2::eShaderStorageWrite )
+		        .useBufferResource( vertex_buffer, le::AccessFlagBits2::eShaderStorageRead, le::AccessFlagBits2::eShaderStorageWrite )
 		        .setExecuteCallback( self, pass_compute_exec );
 		auto passDraw =
 		    le::RenderPass( "draw", le::QueueFlagBits::eGraphics )
@@ -422,22 +387,19 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 		        .setExecuteCallback( self, pass_draw_exec )
 		        .setSampleCount( le::SampleCountFlagBits::e4 );
 
+		// Upload meshes to rendergraph
+		//
+		// - this happens only once per mesh (unless it is marked as tainted)
+		// - this will also automatically declare mesh buffer resources.
+
+		le_mesh_o* meshes[]{
+		    self->waves_mesh,
+		};
+		le::Mesh::submitMeshesToRendergraph( meshes, 1, renderGraph, self->renderer );
+
 		renderGraph
-		    .addRenderPass( passInitialise )
 		    .addRenderPass( passCompute )
 		    .addRenderPass( passDraw )
-		    .declareResource(
-		        self->gpu_mesh->vertex_handle,
-		        le::BufferInfoBuilder()
-		            .setSize( self->gpu_mesh->vertex_num_bytes )
-		            .addUsageFlags( le::BufferUsageFlagBits::eVertexBuffer | le::BufferUsageFlagBits::eStorageBuffer | le::BufferUsageFlagBits::eTransferDst )
-		            .build() )
-		    .declareResource(
-		        self->gpu_mesh->index_handle,
-		        le::BufferInfoBuilder()
-		            .setSize( self->gpu_mesh->index_num_bytes )
-		            .addUsageFlags( le::BufferUsageFlagBits::eIndexBuffer | le::BufferUsageFlagBits::eTransferDst )
-		            .build() ) //
 		    ;
 	}
 
@@ -452,9 +414,6 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 // ----------------------------------------------------------------------
 
 static void compute_example_app_destroy( compute_example_app_o* self ) {
-	if ( self ) {
-		delete self->gpu_mesh;
-	}
 	delete ( self );
 }
 
