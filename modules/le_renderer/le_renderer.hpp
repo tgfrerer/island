@@ -510,6 +510,10 @@ class RenderPass {
 		le_renderer::renderpass_i.set_sample_count( self, sampleCount );
 		return *this;
 	}
+
+	le::SampleCountFlagBits getSampleCount() {
+		return le_renderer::renderpass_i.get_sample_count( self );
+	}
 };
 
 // ----------------------------------------------------------------------
