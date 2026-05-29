@@ -8,4 +8,3 @@ examples/lut_grading_example:Island-LutGradingExample
 examples/multi_window_example:Island-MultiWindowExample
 examples/asterisks:Island-Asterisks
 examples/bitonic_merge_sort_example:Island-BitonicMergeSortExample
-examples/exr_decode_example:Island-ExrDecodeExample
