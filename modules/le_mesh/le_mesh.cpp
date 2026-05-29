@@ -386,12 +386,10 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_in
 	    .buffer_resource      = optional_renderer
 	                                ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, "", 0, 0 )
 	                                : nullptr,
-	    .buffer_resource_info = optional_renderer
-	                                ? le::BufferInfoBuilder()
-	                                      .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eVertexBuffer )
-	                                      .setSize( num_bytes_per_vertex * self->num_vertices )
-	                                      .build()
-	                                : le::BufferInfoBuilder().build(),
+	    .buffer_resource_info = le::BufferInfoBuilder()
+	                                .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eVertexBuffer )
+	                                .setSize( num_bytes_per_vertex * self->num_vertices )
+	                                .build(),
 	    .num_bytes_per_stride = num_bytes_per_vertex,
 	    .is_tainted           = true,
 	};
