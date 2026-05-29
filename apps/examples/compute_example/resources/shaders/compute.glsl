@@ -81,9 +81,9 @@ void main(){
 		sum_y  += -amplitude[i] * cos(dot(x_zero/1024. , wave_vector[i]) - omega[i] * t + phase[i]);
 	}
 
-	particle[index].pos.xz = (x_zero - sum_xz);
-	particle[index].pos.y  = sum_y;
-    particle[index].pos.w  = 1;
+   particle[index].pos.xz = (x_zero - sum_xz);
+   particle[index].pos.y  = sum_y;
+   particle[index].pos.w  = 1;
 
 }
 
