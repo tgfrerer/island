@@ -969,6 +969,7 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 	// so that these will be available in the draw callback.
 	//
 	struct mesh_draw_capture_t {
+		le::SampleCountFlagBits   sample_count_flag_bits;
 		size_t                    num_items;
 		le_mesh_debug_draw_data_t items[];
 	};
@@ -977,6 +978,8 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 	mesh_draw_capture_t* closure_data = ( mesh_draw_capture_t* )malloc( closure_sz );
 
 	closure_data->num_items = meshes_count;
+	closure_data->sample_count_flag_bits = rp.getSampleCount();
+
 	memcpy( closure_data->items, meshes, sizeof( le_mesh_debug_draw_data_t ) * meshes_count );
 
 	rp.setExecuteCallbackWithLocalUserData( closure_data, closure_sz, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
@@ -1036,12 +1039,15 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 
 			// ---------
 
-			uint64_t binding_hash = le_core_spooky_hash_64( &binding_info, sizeof( binding_info ), 0 );
+			uint64_t hash_seed    = uint64_t( closure->sample_count_flag_bits );
+			uint64_t binding_hash = le_core_spooky_hash_64( &binding_info, sizeof( binding_info ), hash_seed );
 
 			auto& pipeline_handle = pipeline_cache[ binding_hash ];
 
 			if ( pipeline_handle == nullptr ) {
 				// Create a pipeline using these shader modules
+				// -- Note: you must make sure that the
+				// pipeline uses the right sample count.
 				pipeline_handle =
 				    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 				        .addShaderStage( shaderVert )
