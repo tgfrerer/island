@@ -33,12 +33,18 @@ struct window_and_swapchain_t {
 	le::Extent2D        extent;
 };
 
-struct cached_mesh_data_t {
-	std::unordered_map<le_mesh_api::attribute_name_t, std::vector<char>> attributes;
-	std::vector<char>                                                    indices;
-	size_t                                                               indices_count;
-	le::IndexType                                                        index_type;
+struct main_mesh_vertex_t {
+	glm::vec3 pos;
+	glm::vec3 normal;
+	glm::vec4 colour;
+	glm::vec2 uv;
 };
+
+constexpr std::array<le_mesh_attribute_info_t, 3> main_mesh_layout{ {
+    { le_mesh_attribute_name::ePosition, sizeof( glm::vec3 ) },
+    { le_mesh_attribute_name::eNormal, sizeof( glm::vec3 ) },
+    { le_mesh_attribute_name::eColour, sizeof( glm::vec4 ) },
+} };
 
 struct multi_window_example_app_o {
 	std::unordered_map<uint64_t, window_and_swapchain_t> windows;
@@ -46,7 +52,7 @@ struct multi_window_example_app_o {
 	LeCameraController                                   cameraController;
 	LeCamera                                             camera;
 	uint64_t                                             frame_counter = 0;
-	cached_mesh_data_t                                   mesh;
+	le::Mesh                                             mesh;
 	std::vector<uint8_t>                                 test_vec;
 };
 
@@ -123,35 +129,10 @@ static multi_window_example_app_o* app_create() {
 
 	{
 		// Import mesh data into local cache.
-
-		LeMesh meshImporter;
-
 		// Creature model created by user sugamo on poly.google.com: <https://poly.google.com/user/cyypmbztDpj>
 		// Licensed CC-BY.
-		static bool result = meshImporter.loadFromPlyFile( "./local_resources/meshes/sugamo-doraemon.ply" );
+		static bool result = app->mesh.loadFromPlyFile( "./local_resources/meshes/sugamo-doraemon.ply" );
 		assert( result );
-
-		std::vector<le_mesh_api::attribute_info_t> attribute_infos( 5 );
-
-		size_t num_attribute_infos = attribute_infos.size();
-		meshImporter.readAttributeInfosInto( attribute_infos.data(), &num_attribute_infos );
-		attribute_infos.resize( num_attribute_infos );
-
-		size_t num_vertices = meshImporter.getVertexCount();
-
-		for ( auto& a : attribute_infos ) {
-			auto& attribute_data = app->mesh.attributes[ a.name ];
-			attribute_data.resize( a.bytes_per_vertex * num_vertices );
-			meshImporter.readAttributeDataInto( attribute_data.data(), attribute_data.size(), a.name );
-		}
-
-		uint32_t num_bytes_per_index = 0;
-		size_t   num_indices         = meshImporter.getIndexCount( &num_bytes_per_index );
-		app->mesh.index_type         = ( num_bytes_per_index == 2 ) ? le::IndexType::eUint16 : le::IndexType::eUint32;
-		app->mesh.indices_count      = num_indices;
-
-		app->mesh.indices.resize( num_bytes_per_index * num_indices );
-		meshImporter.readIndexDataInto( app->mesh.indices.data(), app->mesh.indices.size() );
 	}
 
 	reset_camera( app, app->windows[ 0 ] ); // set up the camera
@@ -209,32 +190,38 @@ static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_
 
 	// Draw mesh
 
-	static auto pipelineDefault =
-	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage(
-	            LeShaderModuleBuilder( encoder.getPipelineManager() )
-	                .setShaderStage( le::ShaderStage::eVertex )
-	                .setSourceFilePath( "./local_resources/shaders/default.vert" )
-	                .build() )
-	        .addShaderStage(
-	            LeShaderModuleBuilder( encoder.getPipelineManager() )
-	                .setShaderStage( le::ShaderStage::eFragment )
-	                .setSourceFilePath( "./local_resources/shaders/default.frag" )
-	                .build() )
+	static le_gpso_handle pipelineDefault = nullptr;
+	if ( pipelineDefault == nullptr ) {
 
-	        .withRasterizationState()
-	        .setPolygonMode( le::PolygonMode::eFill )
-	        .setCullMode( le::CullModeFlagBits::eBack )
-	        .setFrontFace( le::FrontFace::eCounterClockwise )
-	        .end()
-	        .withInputAssemblyState()
-	        .setTopology( le::PrimitiveTopology::eTriangleList )
-	        .end()
-	        .withDepthStencilState()
-	        .setDepthTestEnable( true )
-	        .end()
-	        .build();
+		LeGraphicsPipelineBuilder builder( encoder.getPipelineManager() );
+		builder
+		    .addShaderStage(
+		        LeShaderModuleBuilder( encoder.getPipelineManager() )
+		            .setShaderStage( le::ShaderStage::eVertex )
+		            .setSourceFilePath( "./local_resources/shaders/default.vert" )
+		            .build() )
+		    .addShaderStage(
+		        LeShaderModuleBuilder( encoder.getPipelineManager() )
+		            .setShaderStage( le::ShaderStage::eFragment )
+		            .setSourceFilePath( "./local_resources/shaders/default.frag" )
+		            .build() )
 
+		    .withRasterizationState()
+		    .setPolygonMode( le::PolygonMode::eFill )
+		    .setCullMode( le::CullModeFlagBits::eBack )
+		    .setFrontFace( le::FrontFace::eCounterClockwise )
+		    .end()
+		    .withInputAssemblyState()
+		    .setTopology( le::PrimitiveTopology::eTriangleList )
+		    .end()
+		    .withDepthStencilState()
+		    .setDepthTestEnable( true )
+		    .end();
+
+		app->mesh.applyVertexInputDescriptions( builder, main_mesh_layout.data(), main_mesh_layout.size() );
+
+		pipelineDefault = builder.build();
+	}
 	uniforms.color = { 1, 1, 1, 1 };
 
 	encoder
@@ -242,23 +229,14 @@ static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_
 	    .setViewports( 0, 1, viewports ) //
 	    ;
 
-	encoder
-	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::ePosition ].data(),
-	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::ePosition ].size(), 0 )
-	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eNormal ].data(),
-	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eNormal ].size(), 1 )
-	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eUv ].data(),
-	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eUv ].size(), 2 )
-	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eColour ].data(),
-	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eColour ].size(), 3 )
-	    .setIndexData( app->mesh.indices.data(), app->mesh.indices.size(), app->mesh.index_type );
+	uint32_t num_indices = app->mesh.bind( encoder, main_mesh_layout.data(), main_mesh_layout.size() );
 
 	encoder
 	    .bindGraphicsPipeline( pipelineDefault )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Uniform_Data" ), &uniforms, sizeof( UniformsUbo_t ) )
-	    .setLineWidth( 1.f )                    //
-	    .drawIndexed( app->mesh.indices_count ) //
+	    .setLineWidth( 1.f )        //
+	    .drawIndexed( num_indices ) //
 	    ;
 }
 
@@ -302,33 +280,39 @@ static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_
 
 	// Draw mesh
 
-	static auto pipelineWireframe =
-	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage(
-	            LeShaderModuleBuilder( encoder.getPipelineManager() )
-	                .setShaderStage( le::ShaderStage::eVertex )
-	                .setSourceFilePath( "./local_resources/shaders/default.vert" )
-	                .build() )
-	        .addShaderStage(
-	            LeShaderModuleBuilder( encoder.getPipelineManager() )
-	                .setShaderStage( le::ShaderStage::eFragment )
-	                .setSourceFilePath( "./local_resources/shaders/default.frag" )
-	                .setSourceDefinesString( "SHOW_MONO_COLOUR" )
-	                .build() )
+	static le_gpso_handle pipeline_wireframe = nullptr;
 
-	        .withRasterizationState()
-	        .setPolygonMode( le::PolygonMode::eLine )
-	        .setCullMode( le::CullModeFlagBits::eBack )
-	        .setFrontFace( le::FrontFace::eCounterClockwise )
-	        .end()
-	        .withInputAssemblyState()
-	        .setTopology( le::PrimitiveTopology::eTriangleList )
-	        .end()
-	        .withDepthStencilState()
-	        .setDepthTestEnable( true )
-	        .end()
-	        .build();
+	if ( nullptr == pipeline_wireframe ) {
+		LeGraphicsPipelineBuilder builder( encoder.getPipelineManager() );
+		builder
+		    .addShaderStage(
+		        LeShaderModuleBuilder( encoder.getPipelineManager() )
+		            .setShaderStage( le::ShaderStage::eVertex )
+		            .setSourceFilePath( "./local_resources/shaders/default.vert" )
+		            .build() )
+		    .addShaderStage(
+		        LeShaderModuleBuilder( encoder.getPipelineManager() )
+		            .setShaderStage( le::ShaderStage::eFragment )
+		            .setSourceFilePath( "./local_resources/shaders/default.frag" )
+		            .setSourceDefinesString( "SHOW_MONO_COLOUR" )
+		            .build() )
 
+		    .withRasterizationState()
+		    .setPolygonMode( le::PolygonMode::eLine )
+		    .setCullMode( le::CullModeFlagBits::eBack )
+		    .setFrontFace( le::FrontFace::eCounterClockwise )
+		    .end()
+		    .withInputAssemblyState()
+		    .setTopology( le::PrimitiveTopology::eTriangleList )
+		    .end()
+		    .withDepthStencilState()
+		    .setDepthTestEnable( true )
+		    .end();
+
+		app->mesh.applyVertexInputDescriptions( builder, main_mesh_layout.data(), main_mesh_layout.size() );
+
+		pipeline_wireframe = builder.build();
+	}
 	uniforms.color = { 1, 1, 1, 1 };
 
 	encoder
@@ -336,23 +320,14 @@ static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_
 	    .setViewports( 0, 1, viewports ) //
 	    ;
 
-	encoder
-	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::ePosition ].data(),
-	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::ePosition ].size(), 0 )
-	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eNormal ].data(),
-	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eNormal ].size(), 1 )
-	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eUv ].data(),
-	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eUv ].size(), 2 )
-	    .setVertexData( app->mesh.attributes[ le_mesh_api::attribute_name_t::eColour ].data(),
-	                    app->mesh.attributes[ le_mesh_api::attribute_name_t::eColour ].size(), 3 )
-	    .setIndexData( app->mesh.indices.data(), app->mesh.indices.size(), app->mesh.index_type );
+	uint32_t num_indices = app->mesh.bind( encoder, main_mesh_layout.data(), main_mesh_layout.size() );
 
 	encoder
-	    .bindGraphicsPipeline( pipelineWireframe )
+	    .bindGraphicsPipeline( pipeline_wireframe )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Uniform_Data" ), &uniforms, sizeof( UniformsUbo_t ) )
-	    .setLineWidth( 1.f )                    //
-	    .drawIndexed( app->mesh.indices_count ) //
+	    .setLineWidth( 1.f )        //
+	    .drawIndexed( num_indices ) //
 	    ;
 }
 
@@ -493,8 +468,13 @@ static bool app_update( multi_window_example_app_o* self ) {
 		IMG_SWAP[ idx ] = self->renderer.getSwapchainResource( window.swapchain );
 	}
 
-	le::RenderGraph renderGraph{};
+	le::RenderGraph rendergraph{};
 	{
+		le_mesh_o* meshes[] = {
+		    self->mesh,
+		};
+
+		le::Mesh::submitMeshesToRendergraph( meshes, 1, rendergraph, self->renderer );
 
 		le_image_attachment_info_t attachmentInfo[ 2 ];
 		attachmentInfo[ 0 ].clearValue.color =
@@ -505,7 +485,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 		// Define a renderpass, which outputs to window_0. Note that it uses
 		// IMG_SWAP_0 as a color attachment.
 
-		auto renderPassMain =
+		auto renderpass_main =
 		    le::RenderPass( "to_window_0", le::QueueFlagBits::eGraphics )
 		        .addColorAttachment( IMG_SWAP[ 0 ], attachmentInfo[ 0 ] ) // IMG_SWAP_0 == swapchain 0 attachment
 		        .addDepthStencilAttachment( DEPTH_BUFFER[ 0 ] )
@@ -513,14 +493,16 @@ static bool app_update( multi_window_example_app_o* self ) {
 		        .setExecuteCallback( self, pass_to_window_0 )  //
 		    ;
 
-		renderGraph
-		    .addRenderPass( renderPassMain )
+		self->mesh.useWithRenderpass( renderpass_main );
+
+		rendergraph
+		    .addRenderPass( renderpass_main )
 		    .declareResource( DEPTH_BUFFER[ 0 ], le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 
 		// Define a renderpass, which outputs to window_1. Note that it uses
 		// IMG_SWAP_1 as a color attachment.
-		auto renderPassSecond =
+		auto renderpass_second =
 		    le::RenderPass( "to_window_1" )
 		        .addColorAttachment( IMG_SWAP[ 1 ], attachmentInfo[ 1 ] ) // IMG_SWAP_1 == swapchain 1 attachment
 		        .addDepthStencilAttachment( DEPTH_BUFFER[ 1 ] )
@@ -528,13 +510,15 @@ static bool app_update( multi_window_example_app_o* self ) {
 		        .setExecuteCallback( self, pass_to_window_1 )  //
 		    ;
 
-		renderGraph
-		    .addRenderPass( renderPassSecond )
+		self->mesh.useWithRenderpass( renderpass_second );
+
+		rendergraph
+		    .addRenderPass( renderpass_second )
 		    .declareResource( DEPTH_BUFFER[ 1 ], le::ImageInfoBuilder().addUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 	}
 
-	self->renderer.update( renderGraph );
+	self->renderer.update( rendergraph );
 	++self->frame_counter;
 
 	return true; // keep app alive
