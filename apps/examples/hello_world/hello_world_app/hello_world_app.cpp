@@ -34,19 +34,19 @@
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-struct WorldGeometry {
-	le_buffer_resource_handle vertex_buffer_handle = nullptr;
-	le_resource_info_t        vertex_buffer_info   = {};
-	std::array<uint64_t, 4>   buffer_offsets       = {};
-	size_t                    vertexBytesCount     = {}; // total byte count of vertex data
-	size_t                    vertexCount          = 0;  // number of Vertices
-	le_buffer_resource_handle index_buffer_handle  = nullptr;
-	le_resource_info_t        index_buffer_info    = {};
-	size_t                    indexDataByteCount   = {};
-	size_t                    indexCount           = {}; // number of indices
-	bool                      wasLoaded            = false;
+struct world_geometry_vertex_t {
+	glm::vec3 pos;
+	glm::vec3 normal;
+	glm::vec2 uv;
+	glm::vec3 tangent;
 };
 
+static constexpr std::array<le_mesh_attribute_info_t, 4> world_geometry_layout{ {
+    { le_mesh_attribute_name::ePosition, sizeof( glm::vec3 ) },
+    { le_mesh_attribute_name::eNormal, sizeof( glm::vec3 ) },
+    { le_mesh_attribute_name::eUv, sizeof( glm::vec2 ) },
+    { le_mesh_attribute_name::eTangent, sizeof( glm::vec3 ) },
+} };
 
 struct hello_world_app_o {
 	le::Window   window;
@@ -56,7 +56,6 @@ struct hello_world_app_o {
 
 	LeCameraController cameraController;
 	LeCamera           camera;
-	LeMesh             sphereMesh;
 
 	le_image_resource_handle imgEarthAlbedo  = nullptr;
 	le_image_resource_handle imgEarthNight   = nullptr;
@@ -72,7 +71,7 @@ struct hello_world_app_o {
 
 	LeResourceManager resource_manager{ renderer };
 
-	WorldGeometry worldGeometry;
+	le::Mesh      worldGeometry;
 	NanoTime      timeStamp{};
 	double        timeDelta{};       // time since last frame, in s
 	double        earthRotation = 0; // day/night cycle
@@ -111,8 +110,6 @@ static void reset_camera( hello_world_app_o* self );                      // ffd
 static hello_world_app_o* hello_world_app_create() {
 	auto app = new ( hello_world_app_o );
 
-	app->worldGeometry.index_buffer_handle  = app->renderer.createBufferResourceHandle( "world_indices" );
-	app->worldGeometry.vertex_buffer_handle = app->renderer.createBufferResourceHandle( "world_vertices" );
 
 	app->imgEarthAlbedo  = app->renderer.createImageResourceHandle( "imgEarthAlbedo" );
 	app->imgEarthNight   = app->renderer.createImageResourceHandle( "imgEarthNight" );
@@ -139,29 +136,26 @@ static hello_world_app_o* hello_world_app_create() {
 	reset_camera( app );
 
 	{
+		le::Mesh sphereMesh;
 		// Generate geometry for earth sphere
-		LeMeshGenerator::generateSphere( app->sphereMesh, 6360, 120, 120 ); // earth radius given in km.
+		LeMeshGenerator::generateSphere( sphereMesh, 6360, 120, 120 ); // earth radius given in km.
 
-		size_t   vertexCount     = app->sphereMesh.getVertexCount();
+		size_t   vertex_count    = sphereMesh.getVertexCount();
 		uint32_t bytes_per_index = 2;
-		size_t   indexCount      = app->sphereMesh.getIndexCount( &bytes_per_index );
+		size_t   index_count     = sphereMesh.getIndexCount( &bytes_per_index );
 
-		app->worldGeometry.vertexBytesCount = vertexCount *
-		                                      ( sizeof( glm::vec3 ) + // position
-		                                        sizeof( glm::vec3 ) + // normal
-		                                        sizeof( glm::vec2 ) + // uv
-		                                        sizeof( glm::vec3 )   // tangent
-		                                      );
-		app->worldGeometry.vertexCount       = vertexCount;
-		app->worldGeometry.indexCount        = indexCount;
-		app->worldGeometry.index_buffer_info = le::BufferInfoBuilder()
-		                                           .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eIndexBuffer | le::BufferUsageFlagBits::eTransferDst ) )
-		                                           .setSize( uint32_t( indexCount * bytes_per_index ) )
-		                                           .build();
-		app->worldGeometry.vertex_buffer_info = le::BufferInfoBuilder()
-		                                            .addUsageFlags( le::BufferUsageFlags( le::BufferUsageFlagBits::eVertexBuffer | le::BufferUsageFlagBits::eTransferDst ) )
-		                                            .setSize( uint32_t( app->worldGeometry.vertexBytesCount ) )
-		                                            .build();
+		app->worldGeometry.setVertexCount( vertex_count );
+
+		// Assign sphere mesh data to world geometry mesh
+		{
+			void* data = app->worldGeometry.allocateVertexData( world_geometry_layout.data(), world_geometry_layout.size(), app->renderer );
+			sphereMesh.readVertexDataIntoBuffer( data, vertex_count * sizeof( world_geometry_vertex_t ), world_geometry_layout.data(), world_geometry_layout.size() );
+		}
+
+		{
+			void* data = app->worldGeometry.allocateIndexData( index_count, &bytes_per_index, app->renderer );
+			sphereMesh.readIndexDataInto( data, index_count * bytes_per_index );
+		}
 	}
 
 	// load pixels for earth albedo
@@ -266,79 +260,6 @@ static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o* self, 
 
 typedef bool ( *renderpass_setup )( le_renderpass_o* pRp, void* user_data );
 
-static bool pass_resource_setup( le_renderpass_o* pRp, void* user_data ) {
-	auto rp  = le::RenderPass{ pRp };
-	auto app = static_cast<hello_world_app_o*>( user_data );
-
-	rp
-	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, le::AccessFlagBits2::eTransferWrite )
-	    .useBufferResource( app->worldGeometry.index_buffer_handle, le::AccessFlagBits2::eTransferWrite ) //
-	    ;
-
-	return !app->worldGeometry.wasLoaded;
-}
-
-// ----------------------------------------------------------------------
-
-static void pass_resource_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	auto                app = static_cast<hello_world_app_o*>( user_data );
-	le::TransferEncoder encoder{ encoder_ };
-
-	if ( false == app->worldGeometry.wasLoaded ) {
-
-		// fetch sphere geometry
-		auto& geom = app->worldGeometry;
-
-		uint32_t num_bytes_per_index = 0;
-		size_t   num_indices         = app->sphereMesh.getIndexCount( &num_bytes_per_index );
-		size_t   num_vertices        = app->sphereMesh.getVertexCount();
-
-		void* gpu_memory = nullptr;
-		if ( encoder.mapBufferMemory( geom.vertex_buffer_handle, 0, app->worldGeometry.vertexBytesCount, &gpu_memory ) ) {
-
-			// successfully mapped buffer memory
-
-			size_t offset = 0;
-
-			{ // upload vertex positions
-				size_t num_bytes_to_read = num_vertices * sizeof( glm::vec3 );
-				geom.buffer_offsets[ 0 ] = 0;
-				app->sphereMesh.readAttributeDataInto( ( char* )( gpu_memory ) + offset, num_bytes_to_read, le_mesh_api::ePosition );
-				offset += num_bytes_to_read;
-			}
-
-			{ // upload vertex normals
-				size_t num_bytes_to_read = num_vertices * sizeof( glm::vec3 );
-				geom.buffer_offsets[ 1 ] = offset;
-				app->sphereMesh.readAttributeDataInto( ( char* )( gpu_memory ) + offset, num_bytes_to_read, le_mesh_api::eNormal );
-				offset += num_bytes_to_read;
-			}
-
-			{ // upload vertex uvs
-				size_t num_bytes_to_read = num_vertices * sizeof( glm::vec2 );
-				geom.buffer_offsets[ 2 ] = offset;
-				app->sphereMesh.readAttributeDataInto( ( char* )( gpu_memory ) + offset, num_bytes_to_read, le_mesh_api::eUv );
-				offset += num_bytes_to_read;
-			}
-
-			{ // upload vertex tangents
-				size_t num_bytes_to_read = num_vertices * sizeof( glm::vec3 );
-				geom.buffer_offsets[ 3 ] = offset;
-				app->sphereMesh.readAttributeDataInto( ( char* )( gpu_memory ) + offset, num_bytes_to_read, le_mesh_api::eTangent );
-				offset += num_bytes_to_read;
-			}
-		};
-
-		// upload indices
-
-		if ( encoder.mapBufferMemory( geom.index_buffer_handle, 0, num_indices * num_bytes_per_index, &gpu_memory ) ) {
-			app->sphereMesh.readIndexDataInto( gpu_memory, num_indices * num_bytes_per_index );
-		};
-
-		geom.wasLoaded = true;
-	}
-}
-
 // ----------------------------------------------------------------------
 
 static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
@@ -395,15 +316,15 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 
 	static le_image_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = app->renderer.getSwapchainResource();
 
+	app->worldGeometry.setupRenderPass( rp );
+
 	rp
 	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eClear ).build() ) // color attachment
 	    .addDepthStencilAttachment( app->depth_buffer )
 	    .sampleTexture( app->texEarthAlbedo, texInfoAlbedo )
 	    .sampleTexture( app->texEarthNight, texInfoNight )
 	    .sampleTexture( app->texEarthNormals, texInfoNormals )
-	    .sampleTexture( app->texEarthClouds, texInfoClouds )
-	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, le::AccessFlagBits2::eVertexAttributeRead )
-	    .useBufferResource( app->worldGeometry.index_buffer_handle, le::AccessFlagBits2::eIndexRead );
+	    .sampleTexture( app->texEarthClouds, texInfoClouds );
 
 	return true;
 }
@@ -465,49 +386,46 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 		earthParams.sunInEyeSpace         = sourceInCameraSpace;
 		earthParams.worldCentreInEyeSpace = worldCentreInEyeSpace;
 
-		// draw mesh
+		// draw surface
 
-		static auto pipelineEarthAlbedo =
-		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage(
-		            LeShaderModuleBuilder( encoder.getPipelineManager() )
-		                .setShaderStage( le::ShaderStage::eVertex )
-		                .setSourceFilePath( "./local_resources/shaders/earth_albedo.vert" )
-		                .build() )
-		        .addShaderStage(
-		            LeShaderModuleBuilder( encoder.getPipelineManager() )
-		                .setShaderStage( le::ShaderStage::eFragment )
-		                .setSourceFilePath( "./local_resources/shaders/earth_albedo.frag" )
-		                .build() )
+		static le_gpso_handle pipelineEarthAlbedo = nullptr;
+		if ( pipelineEarthAlbedo == nullptr ) {
+			LeGraphicsPipelineBuilder builder( encoder.getPipelineManager() );
+			builder
+			    .addShaderStage(
+			        LeShaderModuleBuilder( encoder.getPipelineManager() )
+			            .setShaderStage( le::ShaderStage::eVertex )
+			            .setSourceFilePath( "./local_resources/shaders/earth_albedo.vert" )
+			            .build() )
+			    .addShaderStage(
+			        LeShaderModuleBuilder( encoder.getPipelineManager() )
+			            .setShaderStage( le::ShaderStage::eFragment )
+			            .setSourceFilePath( "./local_resources/shaders/earth_albedo.frag" )
+			            .build() )
 
-		        .withRasterizationState()
-		        .setPolygonMode( le::PolygonMode::eFill )
-		        .setCullMode( le::CullModeFlagBits::eBack )
-		        .setFrontFace( le::FrontFace::eCounterClockwise )
-		        .end()
-		        .withInputAssemblyState()
-		        .setTopology( le::PrimitiveTopology::eTriangleList )
-		        .end()
-		        .withDepthStencilState()
-		        .setDepthTestEnable( true )
-		        .end()
-		        .build();
+			    .withRasterizationState()
+			    .setPolygonMode( le::PolygonMode::eFill )
+			    .setCullMode( le::CullModeFlagBits::eBack )
+			    .setFrontFace( le::FrontFace::eCounterClockwise )
+			    .end()
+			    .withInputAssemblyState()
+			    .setTopology( le::PrimitiveTopology::eTriangleList )
+			    .end()
+			    .withDepthStencilState()
+			    .setDepthTestEnable( true )
+			    .end();
 
-		// We use the same buffer for the whole mesh, but at different offsets.
-		// offsets are held by app->worldGeometry.buffer_offsets
-		le_buffer_resource_handle buffers[ 4 ] = {
-		    app->worldGeometry.vertex_buffer_handle, // position
-		    app->worldGeometry.vertex_buffer_handle, // normal
-		    app->worldGeometry.vertex_buffer_handle, // uv
-		    app->worldGeometry.vertex_buffer_handle, // tangents
-		};
+			app->worldGeometry.applyVertexInputDescriptions( builder, world_geometry_layout.data(), world_geometry_layout.size() );
+
+			pipelineEarthAlbedo = builder.build();
+		}
 
 		encoder
 		    .setScissors( 0, 1, scissors )
 		    .setViewports( 0, 1, viewports )
-		    .bindGraphicsPipeline( pipelineEarthAlbedo )
-		    .bindVertexBuffers( 0, 4, buffers, app->worldGeometry.buffer_offsets.data() )
-		    .bindIndexBuffer( app->worldGeometry.index_buffer_handle, 0 );
+		    .bindGraphicsPipeline( pipelineEarthAlbedo );
+
+		uint32_t num_indices = app->worldGeometry.bind( encoder );
 
 		encoder
 		    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) )
@@ -516,50 +434,58 @@ static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_1" ), app->texEarthNormals )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_2" ), app->texEarthNight )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_clouds" ), app->texEarthClouds )
-		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) //
+		    .drawIndexed( num_indices ) //
 		    ;
 
 		// draw atmosphere
 
-		static auto pipelineEarthAtmosphere =
-		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage(
-		            LeShaderModuleBuilder( encoder.getPipelineManager() )
-		                .setShaderStage( le::ShaderStage::eVertex )
-		                .setSourceFilePath( "./local_resources/shaders/earth_atmosphere.vert" )
-		                .build() )
-		        .addShaderStage(
-		            LeShaderModuleBuilder( encoder.getPipelineManager() )
-		                .setShaderStage( le::ShaderStage::eFragment )
-		                .setSourceFilePath( "./local_resources/shaders/earth_atmosphere.frag" )
-		                .build() )
+		static le_gpso_handle pipelineEarthAtmosphere = nullptr;
+		if ( pipelineEarthAtmosphere == nullptr ) {
+			LeGraphicsPipelineBuilder builder( encoder.getPipelineManager() );
+			builder.addShaderStage(
+			           LeShaderModuleBuilder( encoder.getPipelineManager() )
+			               .setShaderStage( le::ShaderStage::eVertex )
+			               .setSourceFilePath( "./local_resources/shaders/earth_atmosphere.vert" )
+			               .build() )
+			    .addShaderStage(
+			        LeShaderModuleBuilder( encoder.getPipelineManager() )
+			            .setShaderStage( le::ShaderStage::eFragment )
+			            .setSourceFilePath( "./local_resources/shaders/earth_atmosphere.frag" )
+			            .build() )
 
-		        .withRasterizationState()
-		        .setPolygonMode( le::PolygonMode::eFill )
-		        .setCullMode( le::CullModeFlagBits::eBack )
-		        .setFrontFace( le::FrontFace::eCounterClockwise )
-		        .end()
-		        .withAttachmentBlendState()
-		        .usePreset( le::AttachmentBlendPreset::eAdd )
-		        .end()
-		        .withDepthStencilState()
-		        .setDepthTestEnable( true )
-		        .setDepthWriteEnable( false )
-		        .end()
-		        .withMultiSampleState()
-		        .setSampleShadingEnable( true )
-		        .end()
-		        .build();
+			    .withRasterizationState()
+			    .setPolygonMode( le::PolygonMode::eFill )
+			    .setCullMode( le::CullModeFlagBits::eBack )
+			    .setFrontFace( le::FrontFace::eCounterClockwise )
+			    .end()
+			    .withAttachmentBlendState()
+			    .usePreset( le::AttachmentBlendPreset::eAdd )
+			    .end()
+			    .withDepthStencilState()
+			    .setDepthTestEnable( true )
+			    .setDepthWriteEnable( false )
+			    .end()
+			    .withMultiSampleState()
+			    .setSampleShadingEnable( true )
+			    .end();
+
+			// Note that we only use the 3 first attributes
+			app->worldGeometry.applyVertexInputDescriptions( builder, world_geometry_layout.data(), 3 );
+
+			pipelineEarthAtmosphere = builder.build();
+		}
 
 		earthParams.model = glm::scale( earthParams.model, glm::vec3{ 1.025f } );
 
 		encoder
 		    .bindGraphicsPipeline( pipelineEarthAtmosphere )
 		    .setArgumentData( LE_ARGUMENT_NAME( "ModelParams" ), &earthParams, sizeof( ModelParams ) )
-		    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) )
-		    .bindVertexBuffers( 0, 3, buffers, app->worldGeometry.buffer_offsets.data() )
-		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) // index buffers should still be bound.
-		    ;
+		    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) );
+
+		// note: we are only binding the first 3 attributes
+		num_indices = app->worldGeometry.bind( encoder, world_geometry_layout.data(), 3 );
+
+		encoder.drawIndexed( num_indices );
 
 		// let's check if sun is in clip space
 
@@ -674,11 +600,11 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 
 		self->resource_manager.update( renderGraph );
 
-		le::RenderPass resourcePass( "resources", le::QueueFlagBits::eTransfer );
-		resourcePass
-		    .setSetupCallback( self, pass_resource_setup )
-		    .setExecuteCallback( self, pass_resource_exec ) //
-		    ;
+		le_mesh_o* meshes[] = {
+		    self->worldGeometry,
+		};
+
+		le::Mesh::submitMeshesToRendergraph( meshes, 1, renderGraph, self->renderer );
 
 		le::RenderPass renderPassFinal( "mainPass", le::QueueFlagBits::eGraphics );
 		renderPassFinal
@@ -688,12 +614,9 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 		    ;
 
 		renderGraph
-		    .addRenderPass( resourcePass )
 		    .addRenderPass( renderPassFinal );
 
 		renderGraph
-		    .declareResource( self->worldGeometry.index_buffer_handle, self->worldGeometry.index_buffer_info )
-		    .declareResource( self->worldGeometry.vertex_buffer_handle, self->worldGeometry.vertex_buffer_info )
 		    .declareResource( self->depth_buffer, le::ImageInfoBuilder().setUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eDepthStencilAttachment ) ).build() ) //
 		    ;
 	}
