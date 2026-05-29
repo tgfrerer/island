@@ -22,17 +22,14 @@
 
 #include <cassert>
 
-struct GpuMeshData {
-	le_buffer_resource_handle pos_handle;
-	le_buffer_resource_handle uv_handle;
-	le_buffer_resource_handle index_handle;
-	size_t                 pos_count;
-	size_t                 uv_count;
-	size_t                 indices_count;
-	size_t                 pos_num_bytes;
-	size_t                 uv_num_bytes;
-	size_t                 indices_num_bytes;
-	le::IndexType          index_type;
+struct mesh_vertex_t {
+	glm::vec3 pos;
+	glm::vec2 uv;
+};
+
+static constexpr le_mesh_attribute_info_t mesh_layout[]{
+    { le_mesh_attribute_name::ePosition, sizeof( glm::vec3 ) },
+    { le_mesh_attribute_name::eUv, sizeof( glm::vec2 ) },
 };
 
 struct exr_decode_example_app_o {
@@ -41,7 +38,7 @@ struct exr_decode_example_app_o {
 
 	uint64_t frame_counter = 0;
 
-	GpuMeshData* gpu_mesh = nullptr; // owning
+	le::Mesh gpu_mesh;
 
 	LeCamera                 camera;
 	LeCameraController       cameraController;
@@ -88,42 +85,25 @@ static exr_decode_example_app_o* exr_decode_example_app_create() {
 	app->renderer.setup( app->window );
 
 	{
-		LeMeshGenerator::generatePlane( app->mesh, 1024, 1024, 256, 256 );
+		le::Mesh tmp_mesh;
+		le::MeshGenerator::generatePlane( tmp_mesh, 1024, 1024, 256, 256 );
 
-		uint32_t index_num_bytes_per_index = 0;
-		size_t   index_count               = 0;
+		uint32_t num_bytes_per_index = 0;
+		size_t   index_count         = tmp_mesh.getIndexCount( &num_bytes_per_index );
+		size_t   vertex_count        = tmp_mesh.getVertexCount();
 
-		index_count = le_mesh::le_mesh_i.get_index_count( app->mesh, &index_num_bytes_per_index );
+		app->mesh.setVertexCount( vertex_count );
 
-		size_t vertex_count = le_mesh::le_mesh_i.get_vertex_count( app->mesh );
-
-		le_mesh_api::attribute_info_t attribute_info[ 4 ] = {};
-		size_t                        num_attributes      = sizeof( attribute_info ) / sizeof( attribute_info[ 0 ] );
-
-		le_mesh::le_mesh_i.read_attribute_infos_into( app->mesh, attribute_info, &num_attributes );
-
-		auto get_num_bytes = [ & ]( le_mesh_api::attribute_name_t name ) -> size_t {
-			for ( auto& e : attribute_info ) {
-				if ( e.name == name ) {
-					return e.bytes_per_vertex;
-				}
-			}
-			return 0;
-		};
-
-		// Initialize handles, and size infos for gpu mesh data:
-		app->gpu_mesh = new GpuMeshData{
-		    app->renderer.createBufferResourceHandle( "vertex_buffer" ),
-		    app->renderer.createBufferResourceHandle( "uv_buffer" ),
-		    app->renderer.createBufferResourceHandle( "index_buffer" ),
-		    vertex_count,
-		    vertex_count,
-		    index_count,
-		    vertex_count * get_num_bytes( le_mesh_api::ePosition ),
-		    vertex_count * get_num_bytes( le_mesh_api::eUv ),
-		    index_count * index_num_bytes_per_index,
-		    index_num_bytes_per_index == 2 ? le::IndexType::eUint16 : le::IndexType::eUint32,
-		};
+		{
+			// write index data to mesh
+			void* data = app->mesh.allocateIndexData( index_count, &num_bytes_per_index );
+			tmp_mesh.readIndexDataInto( data, index_count * num_bytes_per_index );
+		}
+		{
+			// write vertex data to mesh
+			void* data = app->mesh.allocateVertexData( mesh_layout, 2, app->renderer );
+			tmp_mesh.readVertexDataIntoBuffer( data, vertex_count * sizeof( mesh_vertex_t ), mesh_layout, 2 );
+		}
 	}
 
 	auto window_extents = app->renderer.getSwapchainExtent();
@@ -155,69 +135,6 @@ static exr_decode_example_app_o* exr_decode_example_app_create() {
 
 // ----------------------------------------------------------------------
 
-static bool pass_upload_mesh_data_setup( le_renderpass_o* pRp, void* user_data ) {
-
-	auto app = static_cast<exr_decode_example_app_o*>( user_data );
-
-	if ( app->was_mesh_uploaded ) {
-		return false;
-	}
-
-	// ----------| Invariant: Mesh data was not yet uploaded
-
-	le::RenderPass rp( pRp );
-
-	rp
-	    .useBufferResource( app->gpu_mesh->pos_handle, le::AccessFlagBits2::eTransferWrite )   //
-	    .useBufferResource( app->gpu_mesh->uv_handle, le::AccessFlagBits2::eTransferWrite )    //
-	    .useBufferResource( app->gpu_mesh->index_handle, le::AccessFlagBits2::eTransferWrite ) //
-	    ;
-
-	app->was_mesh_uploaded = true;
-
-	return true;
-}
-
-// ----------------------------------------------------------------------
-
-static void pass_upload_mesh_data_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-
-	auto                app = static_cast<exr_decode_example_app_o*>( user_data );
-	le::TransferEncoder encoder( encoder_ );
-
-	// Upload mesh data
-	{
-
-		void*  gpu_buffer_data = nullptr;
-		size_t num_vertices    = app->gpu_mesh->pos_count;
-		size_t num_bytes       = 0;
-
-		// Upload attribute data
-
-		// Get a pointer to gpu mapped memory that will be uploaded to pos_handle at offset 0.
-		// Then read the data from our mesh into that memory address.
-
-		num_bytes = app->gpu_mesh->pos_num_bytes;
-		if ( encoder.mapBufferMemory( app->gpu_mesh->pos_handle, 0, num_bytes, &gpu_buffer_data ) ) {
-			app->mesh.readAttributeDataInto( gpu_buffer_data, num_bytes, le_mesh_api::attribute_name_t::ePosition );
-		}
-
-		num_bytes = app->gpu_mesh->uv_num_bytes;
-		if ( encoder.mapBufferMemory( app->gpu_mesh->uv_handle, 0, num_bytes, &gpu_buffer_data ) ) {
-			app->mesh.readAttributeDataInto( gpu_buffer_data, num_bytes, le_mesh_api::attribute_name_t::eUv );
-		}
-
-		// upload index data
-
-		num_bytes = app->gpu_mesh->indices_num_bytes;
-		if ( encoder.mapBufferMemory( app->gpu_mesh->index_handle, 0, num_bytes, &gpu_buffer_data ) ) {
-			app->mesh.readIndexDataInto( gpu_buffer_data, num_bytes );
-		}
-	}
-}
-
-// ----------------------------------------------------------------------
-
 static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 	auto                app = static_cast<exr_decode_example_app_o*>( user_data );
 	le::GraphicsEncoder encoder{ encoder_ };
@@ -240,52 +157,49 @@ static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 
 	// Draw main scene
 
-	static auto psoDefaultGraphics =
-	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage(
-	            LeShaderModuleBuilder( encoder.getPipelineManager() )
-	                .setShaderStage( le::ShaderStage::eVertex )
-	                .setSourceFilePath( "./local_resources/shaders/isolines.vert" )
-	                .build() )
-	        .addShaderStage(
-	            LeShaderModuleBuilder( encoder.getPipelineManager() )
-	                .setShaderStage( le::ShaderStage::eFragment )
-	                .setSourceFilePath( "./local_resources/shaders/isolines.frag" )
-	                .build() )
-	        .withInputAssemblyState()
+	static le_gpso_handle psoDefaultGraphics = nullptr;
 
-	        .setTopology( le::PrimitiveTopology::eTriangleList )
+	if ( psoDefaultGraphics == nullptr ) {
+		LeGraphicsPipelineBuilder builder( encoder.getPipelineManager() );
+		builder
+		    .addShaderStage(
+		        LeShaderModuleBuilder( encoder.getPipelineManager() )
+		            .setShaderStage( le::ShaderStage::eVertex )
+		            .setSourceFilePath( "./local_resources/shaders/isolines.vert" )
+		            .build() )
+		    .addShaderStage(
+		        LeShaderModuleBuilder( encoder.getPipelineManager() )
+		            .setShaderStage( le::ShaderStage::eFragment )
+		            .setSourceFilePath( "./local_resources/shaders/isolines.frag" )
+		            .build() )
+		    .withInputAssemblyState()
+		    /**/.setTopology( le::PrimitiveTopology::eTriangleList )
+		    .end()
+		    .withRasterizationState()
+		    /**/.setPolygonMode( le::PolygonMode::eLine )
+		    .end();
 
-	        .end()
-	        .withRasterizationState()
-	        // .setPolygonMode( le::PolygonMode::eLine )
-	        .end()
-	        .build();
+		app->mesh.applyVertexInputDescriptions( builder );
 
-	MvpUbo_t mvp;
+		psoDefaultGraphics = builder.build();
+	}
+
+	MvpUbo_t mvp{};
+
 	mvp.model = glm::mat4( 1.f ); // identity matrix
 	mvp.model = glm::rotate( mvp.model, glm::two_pi<float>() * -0.25f, glm::vec3( 1, 0, 0 ) );
 	app->camera.getViewMatrix( ( float* )( &mvp.view ) );
 	app->camera.getProjectionMatrix( ( float* )( &mvp.projection ) );
 
-	uint64_t bufferOffsets[ 2 ] = {
-	    0,
-	    0,
-	};
-
-	le_buffer_resource_handle buffers[] = {
-	    app->gpu_mesh->pos_handle,
-	    app->gpu_mesh->uv_handle,
-	};
-
 	encoder
 	    .setLineWidth( 1 )
 	    .bindGraphicsPipeline( psoDefaultGraphics )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo_t ) )
-	    .bindVertexBuffers( 0, 2, buffers, bufferOffsets )
-	    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), app->tex_unit_0 )
-	    .bindIndexBuffer( app->gpu_mesh->index_handle, 0, app->gpu_mesh->index_type )
-	    .drawIndexed( app->gpu_mesh->indices_count );
+	    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), app->tex_unit_0 );
+
+	uint32_t num_indices = app->mesh.bind( encoder );
+
+	encoder.drawIndexed( num_indices );
 }
 
 // ----------------------------------------------------------------------
@@ -387,10 +301,11 @@ static bool exr_decode_example_app_update( exr_decode_example_app_o* self ) {
 	{
 		self->resource_manager.update( rg );
 
-		auto passUploadMeshData =
-		    le::RenderPass( "upload_mesh_data", le::QueueFlagBits::eTransfer )
-		        .setSetupCallback( self, pass_upload_mesh_data_setup )
-		        .setExecuteCallback( self, pass_upload_mesh_data_exec );
+		le_mesh_o* meshes[]{
+		    self->mesh,
+		};
+
+		le::Mesh::submitMeshesToRendergraph( meshes, 1, rg, self->renderer );
 
 		auto heightmap_sampler_info =
 		    le::ImageSamplerInfoBuilder()
@@ -410,44 +325,16 @@ static bool exr_decode_example_app_update( exr_decode_example_app_o* self ) {
 		    le::RenderPass( "draw", le::QueueFlagBits::eGraphics )
 		        .addColorAttachment( swapchain_image )
 		        .addDepthStencilAttachment( depth_buffer_image )
-		        .useBufferResource( self->gpu_mesh->uv_handle )
-		        .useBufferResource( self->gpu_mesh->pos_handle )
-		        .useBufferResource( self->gpu_mesh->index_handle, le::AccessFlagBits2::eIndexRead )
 		        .sampleTexture( self->tex_unit_0, heightmap_sampler_info )
 		        .setSampleCount( le::SampleCountFlagBits::e4 )
 		        .setExecuteCallback( self, pass_draw_exec ) //
 		    ;
 
+		self->mesh.useWithRenderpass( passDraw );
+
 		// Build rendergraph using the passes that we have declared above:
 
-		rg
-		    .addRenderPass( passUploadMeshData )
-		    .addRenderPass( passDraw );
-
-		// Declare buffer resources that will be used in the rendergraph
-		// so that the backend knows how to allocate them once they are
-		// actually used for the first time:
-
-		rg
-		    .declareResource(
-		        self->gpu_mesh->pos_handle,
-		        le::BufferInfoBuilder()
-		            .setSize( self->gpu_mesh->pos_num_bytes )
-		            .addUsageFlags( le::BufferUsageFlagBits::eVertexBuffer | le::BufferUsageFlagBits::eTransferDst )
-		            .build() )
-		    .declareResource(
-		        self->gpu_mesh->uv_handle,
-		        le::BufferInfoBuilder()
-		            .setSize( self->gpu_mesh->uv_num_bytes )
-		            .addUsageFlags( le::BufferUsageFlagBits::eVertexBuffer | le::BufferUsageFlagBits::eTransferDst )
-		            .build() )
-		    .declareResource(
-		        self->gpu_mesh->index_handle,
-		        le::BufferInfoBuilder()
-		            .setSize( self->gpu_mesh->indices_num_bytes )
-		            .addUsageFlags( le::BufferUsageFlagBits::eIndexBuffer | le::BufferUsageFlagBits::eTransferDst )
-		            .build() ) //
-		    ;
+		rg.addRenderPass( passDraw );
 	}
 
 	self->renderer.update( rg );
@@ -487,9 +374,6 @@ static void reset_camera( exr_decode_example_app_o* self ) {
 // ----------------------------------------------------------------------
 
 static void exr_decode_example_app_destroy( exr_decode_example_app_o* self ) {
-	if ( self ) {
-		delete self->gpu_mesh;
-	}
 	delete ( self );
 }
 
