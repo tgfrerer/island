@@ -48,19 +48,19 @@ static void le_mesh_generator_generate_plane( le_mesh_o* mesh,
 		glm::vec2 uv;
 	};
 
-	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 3 );
+	size_t stride = sizeof( vertex_t );
 
-	auto position = &data->position;
-	auto normal   = &data->normal;
-	auto uv       = &data->uv;
+	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 3, nullptr );
 
 	// Build up vertices
 
 	for ( iz = 0; iz <= numHeightSegments; ++iz ) {
 		for ( ix = 0; ix <= numWidthSegments; ++ix ) {
-			*position++ = { width * ( ix * deltaX - 0.5f ), 0, height * ( iz * deltaZ - 0.5f ) };
-			*normal++   = { 0, 1, 0 };
-			*uv++       = { ix * deltaX, iz * deltaZ };
+			*data++ = {
+			    { width * ( ix * deltaX - 0.5f ), 0, height * ( iz * deltaZ - 0.5f ) },
+			    { 0, 1, 0 },
+			    { ix * deltaX, iz * deltaZ },
+			};
 		}
 	}
 
@@ -146,12 +146,7 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
 		glm::vec2 uv;
 	};
 
-	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 4 );
-
-	auto mesh_position = &data->position;
-	auto mesh_normal   = &data->normal;
-	auto mesh_tangent  = &data->tangent;
-	auto mesh_uv       = &data->uv;
+	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 4, nullptr );
 
 	// Generate vertices, normals and uvs
 	for ( iy = 0; iy <= heightSegments; iy++ ) {
@@ -185,10 +180,13 @@ static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
 			tangent = glm::normalize( glm::cross( { 0, 1, 0 }, vertex ) );
 
 			// Store vertex data
-			*mesh_uv++       = { u, 1 - v };
-			*mesh_position++ = vertex;
-			*mesh_normal++   = normal;
-			*mesh_tangent++  = tangent;
+
+			*data++ = {
+			    vertex,
+			    normal,
+			    tangent,
+			    { u, 1 - v },
+			};
 
 			verticesRow.push_back( index++ );
 		}
@@ -292,11 +290,7 @@ static void le_mesh_generator_generate_box( le_mesh_o* mesh, float width, float 
 		glm::vec2 uv;
 	};
 
-	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 3 );
-
-	auto mesh_position = &data->position;
-	auto mesh_normal   = &data->normal;
-	auto mesh_uv       = &data->uv;
+	vertex_t* data = ( vertex_t* )le_mesh::le_mesh_i.allocate_vertex_data( mesh, attribute_infos, 3, nullptr );
 
 	// clang-format off
 	vertex_t unit_cube[] ={
@@ -330,9 +324,11 @@ static void le_mesh_generator_generate_box( le_mesh_o* mesh, float width, float 
 	glm::vec3 scale_factor{ width * 0.5f, height * 0.5f, depth * 0.5f };
 
 	for ( auto const& v : unit_cube ) {
-		*mesh_position++ = ( v.position * scale_factor );
-		*mesh_normal++   = v.normal;
-		*mesh_uv++       = v.uv;
+		*data++ = {
+		    ( v.position * scale_factor ),
+		    v.normal,
+		    v.uv,
+		};
 	}
 
 	// Set indices for box

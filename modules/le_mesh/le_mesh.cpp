@@ -124,7 +124,7 @@ static void le_mesh_clear( le_mesh_o* self ) {
 //
 
 static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes,
-                                                  le_mesh_attribute_info_t* dst_attribute_info,
+                                                  le_mesh_attribute_info_t const* dst_attribute_info,
                                                   size_t dst_attribute_info_count, size_t first_vertex ) {
 
 	struct it_t {
@@ -184,11 +184,11 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 		return;
 	}
 
-	// optimization: if we have a single iterator,
+	// TODO: Optimization: If we have a single iterator,
 	// and this iterator has .src_stride == .n_bytes
 	// then we can do a block memcpy.
 
-	// we go over all iterators - first, then iterate down the line
+	// For each iterator, we iterate down the line --
 	// the hope is that this will lead to greater cache locality.
 	for ( it_t it : iterators ) {
 		it.src += it.src_stride * first_vertex;
@@ -364,8 +364,15 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_in
 	buffer_data_t data_entry{
 	    .attribute_infos      = { attribute_infos, attribute_infos + num_attribute_infos },
 	    .cpu_data             = std::vector<uint8_t>( num_bytes_per_vertex * self->num_vertices ),
-	    .buffer_resource      = optional_renderer ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, "", 0, 0 ) : nullptr,
-	    .buffer_resource_info = le::BufferInfoBuilder().build(),
+	    .buffer_resource      = optional_renderer
+	                                ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, "", 0, 0 )
+	                                : nullptr,
+	    .buffer_resource_info = optional_renderer
+	                                ? le::BufferInfoBuilder()
+	                                      .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eVertexBuffer )
+	                                      .setSize( num_bytes_per_vertex * self->num_vertices )
+	                                      .build()
+	                                : le::BufferInfoBuilder().build(),
 	    .num_bytes_per_stride = num_bytes_per_vertex,
 	    .is_tainted           = true,
 	};
@@ -454,12 +461,8 @@ static bool le_mesh_get_attribute_infos_for_binding( le_mesh_o* self, size_t con
 	auto const& attr_infos      = self->data[ binding_number ].attribute_infos;
 	size_t      attr_info_count = attr_infos.size();
 
-	if ( *out_attr_info_count < attr_info_count ) {
+	if ( nullptr == out_attr_info || *out_attr_info_count < attr_info_count ) {
 		*out_attr_info_count = attr_info_count;
-		return false;
-	}
-
-	if ( nullptr == out_attr_info ) {
 		return false;
 	}
 
@@ -491,12 +494,10 @@ static void* le_mesh_get_attribute_data( le_mesh_o* self, le_mesh_attribute_name
 
 	size_t required_stride = it->second.bytes_per_vertex;
 
-	if ( required_stride ) {
-		if ( nullptr == out_stride ) {
-			return nullptr;
-		} else {
-			*out_stride = required_stride;
-		}
+	if ( nullptr == out_stride ) {
+		return nullptr;
+	} else {
+		*out_stride = required_stride;
 	}
 
 	self->data[ it->second.data_idx ].is_tainted = true;
@@ -675,7 +676,7 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_mesh_get_vertex_input_descriptions(
+static bool le_mesh_get_vertex_input_descriptions(
     le_mesh_o*                             self,
     le_mesh_attribute_info_t const*        attribute_infos,
     size_t                                 attribute_infos_count,
@@ -684,12 +685,27 @@ static uint32_t le_mesh_get_vertex_input_descriptions(
     le_vertex_input_binding_description*   out_binding_descriptions,
     size_t*                                out_binding_descriptions_count ) {
 
-	if ( attribute_infos == nullptr || attribute_infos_count == 0 || self->num_vertices == 0 ) {
-		return 0;
+	// if ( self->num_vertices == 0 ) {
+	// 	return false;
+	// }
+
+	std::vector<le_mesh_attribute_info_t> attribute_info_vec{ attribute_infos, attribute_infos + attribute_infos_count };
+
+	if ( attribute_infos == nullptr || attribute_infos_count == 0 ) {
+		// of no attributes were given, when we use all available attributes
+		for ( auto& d : self->data ) {
+			for ( auto& a : d.attribute_infos ) {
+				attribute_info_vec.push_back( a );
+			}
+		}
 	}
 
 	if ( nullptr == out_attribute_descriptions ) {
-		return 0;
+		return false;
+	}
+
+	if ( nullptr == out_binding_descriptions ) {
+		return false;
 	}
 
 	std::map<uint8_t, le_vertex_input_binding_description> binding_descriptors;
@@ -706,19 +722,19 @@ static uint32_t le_mesh_get_vertex_input_descriptions(
 		uint8_t location                              = 0;
 		size_t  used_out_attribute_descriptions_count = 0;
 
-		for ( auto a = attribute_infos; a != attribute_infos + attribute_infos_count; a++ ) {
+		for ( auto const& a : attribute_info_vec ) {
 
 			if ( out_description == out_descriptions_end ) {
 				logger.error( "not enough out attribute descriptors provided." );
 				return false;
 			}
 
-			auto it = self->data_descriptors.find( a->name );
+			auto it = self->data_descriptors.find( a.name );
 			if ( it != self->data_descriptors.end() ) {
 
 				auto const& [ key, buffer_data ] = *it;
 
-				if ( buffer_data.bytes_per_vertex != a->bytes_per_vertex ) {
+				if ( buffer_data.bytes_per_vertex != a.bytes_per_vertex ) {
 					logger.error( "attribute has incorrect number of bytes per vertex" );
 					return false;
 				}
@@ -739,7 +755,7 @@ static uint32_t le_mesh_get_vertex_input_descriptions(
 				out_description++;
 			} else {
 				// Is it possible to leave a binding unoccupied?
-				logger.error( "Could not find attribute info. Attribute %d does not exist in this mesh.", a->name );
+				logger.error( "Could not find attribute info. Attribute %d does not exist in this mesh.", a.name );
 				return false;
 			}
 			location++;
@@ -769,23 +785,56 @@ static uint32_t le_mesh_get_vertex_input_descriptions(
 
 // ----------------------------------------------------------------------
 
-bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* encoder_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count ) {
+static bool le_mesh_apply_vertex_input_descriptions( le_mesh_o* self, le_graphics_pipeline_builder_o* pipeline_builder, le_mesh_attribute_info_t const* optional_attribute_infos, size_t optional_attribute_infos_count ) {
+
+	if ( pipeline_builder == nullptr ) {
+		return false;
+	}
+
+	size_t count = optional_attribute_infos_count;
+
+	if ( count == 0 ) {
+		for ( auto& d : self->data ) {
+			count += d.attribute_infos.size();
+		}
+	}
+
+	std::vector<le_vertex_input_attribute_description> viad( count );
+	size_t                                             n_viad = count;
+	std::vector<le_vertex_input_binding_description>   vibd( count );
+	size_t                                             n_vibd = count;
+
+	bool result = le_mesh_get_vertex_input_descriptions(
+	    self,
+	    optional_attribute_infos, optional_attribute_infos_count,
+	    viad.data(), &n_viad,
+	    vibd.data(), &n_vibd );
+
+	le_pipeline_builder_api_i->le_graphics_pipeline_builder_i
+	    .set_vertex_input_attribute_descriptions( pipeline_builder, viad.data(), n_viad );
+
+	le_pipeline_builder_api_i->le_graphics_pipeline_builder_i
+	    .set_vertex_input_binding_descriptions( pipeline_builder, vibd.data(), n_vibd );
+
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* encoder_, le_mesh_attribute_info_t const* optional_attribute_infos, size_t optional_attribute_infos_count, bool should_ignore_indices = false ) {
 
 	// consolidate all bindings for the attributes in question
 	le::GraphicsEncoder encoder{ encoder_ };
 
 	std::set<uint32_t> used_buffers; // unique, automatically sorted
 
-	if ( attribute_infos == nullptr ) {
-		// If no attribute infos are specified, we read this as the requirement to bind all
-		// buffers to this encoder.
-		//
+	if ( optional_attribute_infos == nullptr ) {
+		// If no attribute infos are specified, we read this as the requirement to bind all buffers to this encoder.
 		for ( int i = 0; i != self->data.size(); i++ ) {
 			used_buffers.insert( i );
 		}
 	} else {
-
-		for ( auto a = attribute_infos; a != attribute_infos + attribute_infos_count; a++ ) {
+		for ( auto a = optional_attribute_infos; a != optional_attribute_infos + optional_attribute_infos_count; a++ ) {
 			auto it = self->data_descriptors.find( a->name );
 			if ( it != self->data_descriptors.end() ) {
 				used_buffers.emplace( it->second.data_idx );
@@ -794,7 +843,7 @@ bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* enco
 	}
 
 	if ( used_buffers.empty() && self->indices_data == nullptr ) {
-		return false;
+		return 0;
 	}
 
 	std::vector<le_buffer_resource_handle> buffers;
@@ -822,7 +871,9 @@ bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* enco
 		buffers.clear();
 	}
 
-	if ( self->indices_data ) {
+	uint32_t num_drawable_entities = self->num_vertices;
+
+	if ( self->indices_data && false == should_ignore_indices ) {
 		// In case there this mesh has index data
 		// we first try if we can set it from gpu index buffer data
 		// otherwise we set it via cpu index buffer data.
@@ -832,9 +883,10 @@ bool le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_encoder_o* enco
 		} else if ( !self->indices_data->cpu_data.empty() ) {
 			encoder.setIndexData( self->indices_data->cpu_data.data(), self->indices_data->cpu_data.size(), bytes_per_index == 2 ? le::IndexType::eUint16 : le::IndexType::eUint32 );
 		}
+		num_drawable_entities = le_mesh_get_index_count( self, nullptr );
 	}
 
-	return true;
+	return num_drawable_entities;
 }
 
 // ----------------------------------------------------------------------
@@ -1051,7 +1103,10 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 
 	le_mesh_i.submit_meshes_to_rendergraph  = le_mesh_submit_meshes_to_rendergraph;
 	le_mesh_i.get_vertex_input_descriptions = le_mesh_get_vertex_input_descriptions;
-	le_mesh_i.debug_draw_meshes             = le_mesh_debug_draw_meshes;
+
+	le_mesh_i.apply_vertex_input_descriptions = le_mesh_apply_vertex_input_descriptions;
+
+	le_mesh_i.debug_draw_meshes = le_mesh_debug_draw_meshes;
 
 	le_mesh_i.clear   = le_mesh_clear;
 	le_mesh_i.create  = le_mesh_create;
