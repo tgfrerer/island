@@ -2610,6 +2610,7 @@ static void backend_create_rendering_attachment_infos( BackendFrameData& frame, 
 			        : VK_RESOLVE_MODE_NONE;
 
 			{
+				static bool is_stencil_did_warn = false;
 				// store format so that it can be more easily gathered when creating pipelines.
 				bool is_depth, is_stencil;
 
@@ -2617,10 +2618,11 @@ static void backend_create_rendering_attachment_infos( BackendFrameData& frame, 
 
 				if ( is_depth || is_stencil ) {
 					pass.depth_format = VkFormat( attachment->format );
-					if ( is_stencil ) {
+					if ( is_stencil && false == is_stencil_did_warn ) {
 						resolve_mode = VK_RESOLVE_MODE_MAX_BIT;
 						logger().warn( "Renderpass: '%s'", pass.debugName );
 						logger().warn( "Stencil testing is not implemented currently." );
+						is_stencil_did_warn = true; // we only want to warn once.
 					}
 				} else {
 					pass.color_formats.push_back( VkFormat( attachment->format ) );
