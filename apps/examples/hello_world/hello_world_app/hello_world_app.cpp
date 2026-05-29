@@ -316,7 +316,7 @@ static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 
 	static le_image_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = app->renderer.getSwapchainResource();
 
-	app->worldGeometry.setupRenderPass( rp );
+	app->worldGeometry.useWithRenderpass( rp );
 
 	rp
 	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eClear ).build() ) // color attachment

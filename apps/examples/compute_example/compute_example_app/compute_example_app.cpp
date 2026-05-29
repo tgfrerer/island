@@ -180,7 +180,7 @@ static bool pass_draw_setup( le_renderpass_o* pRp, void* user_data ) {
 	rp.addColorAttachment( app->renderer.getSwapchainResource(), attachment_info ); // color attachment
 
 	// declare that we want to use our mesh with this rendergraph
-	app->waves_mesh.setupRenderPass( rp );
+	app->waves_mesh.useWithRenderpass( rp );
 
 	return true;
 }
