@@ -960,6 +960,10 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		mAttachmentBlendState.index = attachmentIndex;
 		return mAttachmentBlendState;
 	}
+
+	operator le_graphics_pipeline_builder_o*() {
+		return self;
+	}
 };
 
 #endif // __cplusplus
