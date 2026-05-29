@@ -142,6 +142,7 @@ struct le_mesh_api {
 		/// \note  if renderer is given, then associate a new le_buffer_resource with the data backing.
 		void *(*allocate_vertex_data)( le_mesh_o * self, le_mesh_attribute_info_t const * attribute_infos, size_t attribute_infos_count, le_renderer_o* optional_renderer);
 
+
 		void (*read_vertex_data_into_buffer)( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, le_mesh_attribute_info_t const * dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex );
 
 		/// \brief Read attribute data into `target`

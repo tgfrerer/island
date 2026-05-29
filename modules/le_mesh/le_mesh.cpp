@@ -309,9 +309,8 @@ static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, u
 
 		// Go for the lowest number of bytes per index that you can get away with,
 		// but respect the client's request if they want a higher number of indices.
-		*num_bytes_per_index                     = std::min( std::max( required_num_bytes_per_index, *num_bytes_per_index ), uint32_t( 4 ) );
-		self->indices_data->num_bytes_per_stride = *num_bytes_per_index;
-		num_bytes_required                       = self->indices_data->num_bytes_per_stride * num_indices;
+		*num_bytes_per_index = std::min( std::max( required_num_bytes_per_index, *num_bytes_per_index ), uint32_t( 4 ) );
+		num_bytes_required   = *num_bytes_per_index * num_indices;
 	}
 
 	// If this mesh has not had indices before, then we must create index data.
@@ -321,18 +320,15 @@ static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, u
 
 		self->indices_data->buffer_resource =
 		    optional_renderer
-		        ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, "", 0, 0 )
+		        ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, nullptr, 0, 0 )
 		        : nullptr,
 		self->indices_data->buffer_resource_info =
 		    le::BufferInfoBuilder()
 		        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eIndexBuffer )
-		        .setSize( num_bytes_required )
 		        .build();
-	} else {
-		// Update the buffer info to the latest required buffer size
-		// just in case indices were already present.
-		self->indices_data->buffer_resource_info.buffer.size = num_bytes_required;
 	}
+	self->indices_data->buffer_resource_info.buffer.size = num_bytes_required;
+	self->indices_data->num_bytes_per_stride             = *num_bytes_per_index;
 
 	// This potentially re-allocates indices, and it invalidates any previous pointers to index data
 	self->indices_data->cpu_data.resize( num_bytes_required );
@@ -347,6 +343,7 @@ static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, u
 static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_info_t const* attribute_infos, size_t num_attribute_infos, le_renderer_o* optional_renderer ) {
 
 	if ( attribute_infos == nullptr || num_attribute_infos == 0 || self->num_vertices == 0 ) {
+		logger.warn( "Cannot allocate vertex data. `num_vertices`: %d", self->num_vertices );
 		return nullptr;
 	}
 
