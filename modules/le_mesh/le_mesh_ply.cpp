@@ -611,7 +611,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_,
 
 			uint32_t num_bytes_per_index = sizeof( uint16_t ); // hint for 16bit indices, might be updated mesh-side if it detects that it has more than 65535 vertices.
 			size_t   num_indices         = element_archetype->num_elements * 3;
-			void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( self, num_indices, &num_bytes_per_index );
+			void*    index_data          = le_mesh::le_mesh_i.allocate_index_data( self, num_indices, &num_bytes_per_index, nullptr );
 
 			// In case the mesh has more than 65535 vertices, index type will automatically have
 			// been assigned to be uint32_t, in which case the bytes per index will be 4.
