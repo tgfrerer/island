@@ -128,9 +128,9 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 
 	struct it_t {
 		uint8_t const* src;        // source data pointer (these may be into different source data buffers)
+		uint8_t*       dst;        // dst data pointer - stride it the same for all dst data pointers.
 		uint8_t        src_stride; // increment to source data pointer on every iteration
 		uint16_t       n_bytes;    // number of bytes that need to be copied for every iteration
-		uint8_t*       dst;        // dst data pointer - stride it the same for all dst data pointers.
 	};
 
 	std::vector<it_t> iterators;
@@ -178,9 +178,9 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 
 				it_t iterator{
 				    .src        = self->data[ desc.data_idx ].cpu_data.data() + desc.interleave_offset,
-				    .src_stride = uint8_t( self->data[ desc.data_idx ].cpu_data.size() / self->num_vertices ),
-				    .n_bytes    = std::min<uint16_t>( desc.bytes_per_vertex, d.bytes_per_vertex ), // note: if dst < src this means that there may be garbage data in dst if dst if not zeroed out before copy
 				    .dst        = target_head + dst_offset_sum,
+				    .src_stride = uint8_t( self->data[ desc.data_idx ].cpu_data.size() / self->num_vertices ),
+				    .n_bytes    = std::min<uint16_t>( desc.bytes_per_vertex, d.bytes_per_vertex ), // Note: If dst < src this means that there may be garbage data in dst if dst if not zeroed out before copy
 				};
 
 				iterators.emplace_back( std::move( iterator ) );
@@ -192,26 +192,77 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 		dst_stride = dst_offset_sum;
 	}
 
-	// we want to stop when either one of our source iterators runs out - that's bounded by number of vertices
+	// We want to stop when either one of our source iterators runs out - that's bounded by number of vertices
 	// or the target capacity runs out.
 
 	size_t target_capacity_in_vertices = target_capacity_num_bytes / dst_stride;
 	size_t num_max_iterations          = std::min<size_t>( target_capacity_in_vertices, self->num_vertices );
+	size_t num_vertices_to_copy        = first_vertex >= num_max_iterations ? 0 : num_max_iterations - first_vertex;
 
-	if ( first_vertex >= num_max_iterations ) {
+	if ( num_vertices_to_copy == 0 ) {
 		// nothing to do.
 		return;
 	}
 
-	// TODO: Optimization: If we have a single iterator,
-	// and this iterator has .src_stride == .n_bytes
-	// then we can do a block memcpy.
+	// OPTIMIZATION: If we have a single iterator, and this iterator has .src_stride == .n_bytes
+	// then we can do a block memcpy, as vertices are tightly packed in both source and dst.
+	//
+	if ( iterators.size() == 1 ) {
+		auto& it = iterators.front();
+		if ( it.n_bytes == dst_stride && dst_stride == it.src_stride ) {
+			memcpy( it.dst, it.src + dst_stride * first_vertex, dst_stride * num_vertices_to_copy );
+			return;
+		}
+	}
 
-	// For each iterator, we iterate down the line --
-	// the hope is that this will lead to greater cache locality.
-	for ( it_t it : iterators ) {
+	// Optimization:
+	// If all iterators use the same input buffer, and the
+	// input buffer is tightly packed, and in the same order
+	// as the output, then we can copy everything in bulk.
+	// we can copy
+
+	{
+
+		// Conditions:
+		// - src_stride needs to match dst_stride, which is unique, and pre-calculated above.
+		//   - implicitly covered by this: src_stride needs to be identical over all iterators
+		// - for each attribute_info:
+		// 		- .src and .dst need to be the same, relative to their start value
+		// 		- .src and .dst need to start at 0, relative to start value
+		// - both last .src and last .dst + n_bytes needs to match dst_stride
+
+		uint8_t const* prev_p       = self->data.front().cpu_data.data(); // source data pointer (these may be into different source data buffers)
+		ptrdiff_t      next_diff    = 0;
+		size_t         total_stride = dst_stride;
+
+		for ( auto const& it : iterators ) {
+
+			ptrdiff_t diff = it.src - prev_p;
+
+			if ( next_diff != diff || it.src_stride != dst_stride ) {
+				// inconsistency detected.
+				break;
+			}
+
+			prev_p    = it.src;
+			next_diff = it.n_bytes;
+			total_stride -= it.n_bytes;
+		}
+
+		// if total_stride = 0 this means that the loop has completed successfully, which means that iterators are consistent
+		if ( total_stride == 0 ) {
+			// we can copy in bulk.
+			memcpy( iterators.front().dst, iterators.front().src, dst_stride * num_vertices_to_copy );
+			return;
+		}
+	}
+
+	// ---------| Invariant: Vertices are not tightly packed in src and dst.
+
+	// Process one iterator at a time.
+	// The hope is that this will lead to greater cache locality.
+	for ( it_t& it : iterators ) {
 		it.src += it.src_stride * first_vertex;
-		// it.dst += dst_stride * first_vertex; // if we do this
 		for ( size_t i = first_vertex; i != num_max_iterations; i++ ) {
 			memcpy( it.dst, it.src, it.n_bytes );
 			it.src += it.src_stride;
