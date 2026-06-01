@@ -137,7 +137,27 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 	size_t            dst_stride = 0;
 
 	{
-		std::vector<le_mesh_attribute_info_t> dst_info{ dst_attribute_info, dst_attribute_info + dst_attribute_info_count };
+		std::vector<le_mesh_attribute_info_t> dst_info;
+
+		if ( dst_attribute_info == nullptr ) {
+
+			// If no dst_attribute_info was specified, interpret this as all attributes being selected
+			if ( dst_attribute_info_count == 0 ) {
+				dst_attribute_info_count = self->data_descriptors.size();
+			}
+			size_t num_descriptors = 0;
+			for ( auto const& [ key, data ] : self->data_descriptors ) {
+				if ( num_descriptors >= dst_attribute_info_count ) {
+					break;
+				}
+
+				dst_info.emplace_back( key, data.bytes_per_vertex );
+
+				num_descriptors++;
+			}
+		} else {
+			dst_info.insert( dst_info.begin(), dst_attribute_info, dst_attribute_info + dst_attribute_info_count );
+		}
 
 		uint8_t* target_head = reinterpret_cast<uint8_t*>( target );
 
