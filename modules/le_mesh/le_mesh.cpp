@@ -85,42 +85,6 @@ static void le_mesh_clear( le_mesh_o* self ) {
 }
 
 // ----------------------------------------------------------------------
-// write contents of our internal data out to gpu memory - or to other kind
-// of memory, really.
-
-// Now, this method can get quite complicated
-// because we cannot assume that our source data is continuous.
-//
-// how about we create something like an iterator for each attribute
-// if our source data is not continuous?
-//
-// we also need to take into account that the output data might
-// be interleaved, but in a different way.
-//
-// we want this to be fast, but it should not be optimized to the point
-// where it becomes unreadable -- data is usually only written out
-// rarely.
-//
-// but because the data can be quite substantial, we want this to be
-// as contiguous as possible.
-//
-// in case we want to interleave our output, we want to
-// change the signature for this function so that it supports
-// requesting interleaved data via a vector of `attribute_info`
-//
-// if the attribute info array that we get perfectly aligns
-// with the attribute info array for an existing buffer, we can
-// copy out the buffer in one go -- that's the fast path.
-//
-// if the out attribute info array does not match the current attribute info array
-// we need to build some iterators, i think; perhaps we can use an output_iterator
-// and hope that the compiler does the work for us?
-//
-//
-// Another thing that we might want to have is a reformat() function for mesh
-// which allows us to re-arrange our data and make it interleave or do some other
-// things with it. there's also zeux' meshopt that could come in handy.
-//
 
 static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes,
                                                   le_mesh_attribute_info_t const* dst_attribute_info,
@@ -215,13 +179,12 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 		}
 	}
 
-	// Optimization:
-	// If all iterators use the same input buffer, and the
-	// input buffer is tightly packed, and in the same order
-	// as the output, then we can copy everything in bulk.
-	// we can copy
-
 	{
+		// OPTIMIZATION:
+		//
+		// If all iterators use the same input buffer, and the
+		// input buffer is tightly packed, and in the same order
+		// as the output, then we can copy everything in bulk.
 
 		// Conditions:
 		// - src_stride needs to match dst_stride, which is unique, and pre-calculated above.
@@ -231,7 +194,7 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 		// 		- .src and .dst need to start at 0, relative to start value
 		// - both last .src and last .dst + n_bytes needs to match dst_stride
 
-		uint8_t const* prev_p       = self->data.front().cpu_data.data(); // source data pointer (these may be into different source data buffers)
+		uint8_t const* prev_p       = self->data.front().cpu_data.data();
 		ptrdiff_t      next_diff    = 0;
 		size_t         total_stride = dst_stride;
 
@@ -240,7 +203,7 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 			ptrdiff_t diff = it.src - prev_p;
 
 			if ( next_diff != diff || it.src_stride != dst_stride ) {
-				// inconsistency detected.
+				// inconsistency detected
 				break;
 			}
 
@@ -259,8 +222,9 @@ static void le_mesh_read_vertex_data_into_buffer( le_mesh_o const* self, void* t
 
 	// ---------| Invariant: Vertices are not tightly packed in src and dst.
 
-	// Process one iterator at a time.
-	// The hope is that this will lead to greater cache locality.
+	// Process one iterator at a time, because we hope
+	// that this will lead to better cache locality as
+	// it means less hopping between buffers.
 	for ( it_t& it : iterators ) {
 		it.src += it.src_stride * first_vertex;
 		for ( size_t i = first_vertex; i != num_max_iterations; i++ ) {
