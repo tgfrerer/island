@@ -143,6 +143,10 @@ struct le_mesh_api {
 		void *(*allocate_vertex_data)( le_mesh_o * self, le_mesh_attribute_info_t const * attribute_infos, size_t attribute_infos_count, le_renderer_o* optional_renderer);
 
 
+		/// \brief Read vertex data for selected attributes into pre-allocated buffer. 
+		/// \note  The order in which attributes are listed within `dst_attribute_info` is meaningful; you can use this to re-order (or filter) buffer data.
+		/// \note  If `dst_attribute_info` is nullptr, all available attributes are considered selected.
+		/// \note  You must make sure that there is enough space allocated at `target`
 		void (*read_vertex_data_into_buffer)( le_mesh_o const* self, void* target, size_t target_capacity_num_bytes, le_mesh_attribute_info_t const * dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex );
 
 		/// \brief Read attribute data into `target`
@@ -315,6 +319,10 @@ class LeMesh : NoCopy, NoMove {
 		return this_i.get_attribute_infos_for_binding( self, binding_number, out_attr_info, out_attr_info_count );
 	}
 
+	/// \brief Read vertex data for selected attributes into pre-allocated buffer.
+	/// \note  The order in which attributes are listed within `dst_attribute_info` is meaningful; you can use this to re-order (or filter) buffer data.
+	/// \note  If `dst_attribute_info` is nullptr, all available attributes are considered selected.
+	/// \note  You must make sure that there is enough space allocated at `target`
 	void readVertexDataIntoBuffer( void* target, size_t target_capacity_num_bytes, le_mesh_attribute_info_t const* dst_attribute_info, size_t dst_attribute_info_count, size_t first_vertex = 0 ) {
 		this_i.read_vertex_data_into_buffer( self, target, target_capacity_num_bytes, dst_attribute_info, dst_attribute_info_count, first_vertex );
 	}
@@ -346,7 +354,8 @@ class LeMesh : NoCopy, NoMove {
 		return this_i.get_vertex_input_descriptions( self, attribute_infos, attribute_infos_count, out_attribute_descriptions, out_attribute_descriptions_count, out_binding_descriptions, out_binding_descriptions_count );
 	}
 
-	/// \brief Set VertexInputDescriptions
+	/// \brief Apply vertex input descriptions for given attributes to a given graphics pipeline buider
+	/// \note  If you don't specify attributes, all attributes are considered selected.
 	bool applyVertexInputDescriptions( le_graphics_pipeline_builder_o* pipeline_builder, le_mesh_attribute_info_t const* optional_attribute_infos = nullptr, size_t optional_attribute_infos_count = 0 ) {
 		return this_i.apply_vertex_input_descriptions( self, pipeline_builder, optional_attribute_infos, optional_attribute_infos_count );
 	}
