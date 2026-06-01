@@ -978,6 +978,9 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 	mesh_draw_capture_t* closure_data = ( mesh_draw_capture_t* )malloc( closure_sz );
 
 	closure_data->num_items = meshes_count;
+
+	// We need to capture the sample count for the current renderpass,
+	// as this has a direct effect on the graphics pipeline;
 	closure_data->sample_count_flag_bits = rp.getSampleCount();
 
 	memcpy( closure_data->items, meshes, sizeof( le_mesh_debug_draw_data_t ) * meshes_count );
