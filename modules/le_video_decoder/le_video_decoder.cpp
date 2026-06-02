@@ -2744,7 +2744,7 @@ static void le_video_decoder_update( le_video_decoder_o* self, le_rendergraph_o*
 			auto&       mem_frame = self->memory_frames[ self->memory_frame_idx_recording ];
 
 			le_on_frame_clear_callback_data_t callback_data{
-			    .cb_fun    = le_video_decoder::le_video_decoder_i.on_backend_frame_clear_cb,
+			    .cb_fun    = &le_video_decoder::le_video_decoder_i.on_backend_frame_clear_cb,
 			    .user_data = &mem_frame,
 			};
 

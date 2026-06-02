@@ -912,7 +912,7 @@ static void backend_destroy( le_backend_o* self ) {
 		{
 			// Call on_clear_callbacks with tear_down flag set
 			for ( auto& c : frameData.on_clear_callbacks ) {
-				c.cb_fun( c.user_data );
+				( *c.cb_fun )( c.user_data );
 			}
 			frameData.on_clear_callbacks.clear();
 		}
@@ -2321,7 +2321,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 			 * we do this so that we are protected from the final callback address
 			 * having changed via hot-reloading.
 			 */
-			( *c.cb_fun )( c.user_data );
+			( **c.cb_fun )( c.user_data );
 		}
 		/* We can use these clear callbacks to decrement an intrusive pointer counter
 		 * in video decoder, for example, so that we can make sure that the lifetime
