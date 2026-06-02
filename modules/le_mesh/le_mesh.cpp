@@ -270,6 +270,10 @@ static void le_mesh_read_attribute_data_into(
 		return;
 	}
 
+	if ( stride == 0 ) {
+		stride = d_it->second.bytes_per_vertex + initial_stride_offset;
+	}
+
 	le_mesh_attribute_info_t attribute_infos[] = {
 	    {
 	        .name             = le_mesh_attribute_name::ePadding,
