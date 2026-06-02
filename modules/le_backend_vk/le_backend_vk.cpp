@@ -6352,7 +6352,6 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			// -- Translate intermediary command stream data to api-native instructions
 
 			size_t   commandIndex  = 0;
-			uint32_t subpassIndex  = 0;
 
 			VkPipelineLayout currentPipelineLayout                          = nullptr;
 			VkDescriptorSet  descriptorSets[ LE_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
@@ -6412,7 +6411,7 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							using namespace le_backend_vk;
 							// -- potentially compile and create pipeline here, based on current pass and subpass
-							auto requestedPipeline = le_pipeline_manager_i.produce_graphics_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
+							auto requestedPipeline = le_pipeline_manager_i.produce_graphics_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass );
 
 							if ( /* DISABLES CODE */ ( false ) ) {
 								// Print pipeline debug info when a new pipeline gets bound.
