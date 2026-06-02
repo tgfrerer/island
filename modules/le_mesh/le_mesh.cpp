@@ -1014,8 +1014,14 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 
 	le::RenderPass rp( rp_ );
 
+	std::set<le_mesh_o*> unique_meshes;
+
 	for ( auto m = meshes; m != meshes + meshes_count; m++ ) {
-		le_mesh_use_with_renderpass( m->mesh, rp_, attributes, 1 );
+		unique_meshes.insert( m->mesh );
+	}
+
+	for ( auto& m : unique_meshes ) {
+		le_mesh_use_with_renderpass( m, rp_, attributes, 1 );
 	}
 
 	// ---------- Draw Meshes into given renderpass
