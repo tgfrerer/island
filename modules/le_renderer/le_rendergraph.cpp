@@ -1400,7 +1400,6 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.get_framebuffer_settings     = renderpass_get_framebuffer_settings;
 	le_renderpass_i.set_width                    = renderpass_set_width;
 	le_renderpass_i.set_sample_count                          = renderpass_set_sample_count;
-	le_renderpass_i.get_sample_count                          = renderpass_get_sample_count;
 	le_renderpass_i.set_height                   = renderpass_set_height;
 	le_renderpass_i.set_setup_callback           = renderpass_set_setup_callback;
 	le_renderpass_i.has_setup_callback           = renderpass_has_setup_callback;

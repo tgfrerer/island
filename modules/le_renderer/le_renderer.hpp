@@ -511,9 +511,6 @@ class RenderPass {
 		return *this;
 	}
 
-	le::SampleCountFlagBits getSampleCount() {
-		return le_renderer::renderpass_i.get_sample_count( self );
-	}
 };
 
 // ----------------------------------------------------------------------
