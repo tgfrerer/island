@@ -107,7 +107,7 @@ struct le_mesh_api {
 
 	struct le_mesh_interface_t {
 
-		le_mesh_o *    ( * create                   ) ();
+		le_mesh_o *    ( * create                   ) (char const * optional_debug_name);
 		void           ( * destroy                  ) ( le_mesh_o* self );
 
 		/// \brief Submits mesh(es) to rendergraph; 
@@ -244,8 +244,8 @@ class LeMesh : NoCopy, NoMove {
 	le_mesh_o* self;
 
   public:
-	LeMesh()
-	    : self( this_i.create() ) {
+	LeMesh( char const* optional_debug_name = nullptr )
+	    : self( this_i.create( optional_debug_name ) ) {
 	}
 
 	~LeMesh() {

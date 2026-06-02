@@ -12,6 +12,7 @@
 #include <set>
 #include <cassert>
 #include <unordered_map>
+#include <string>
 
 #include "shaders/default_vert.h"
 #include "shaders/default_frag.h"
@@ -50,7 +51,8 @@ struct buffer_data_t {
 };
 
 struct le_mesh_o {
-	size_t num_vertices = 0; // number of vertices - all attribute_data must have this count
+	const std::string debug_name;
+	size_t            num_vertices = 0; // number of vertices - all attribute_data must have this count
 
 	std::vector<buffer_data_t>                                      data;
 	std::map<le_mesh_attribute_name, buffer_data_descriptor>        data_descriptors;
@@ -62,8 +64,8 @@ struct le_mesh_o {
 
 // ----------------------------------------------------------------------
 
-static le_mesh_o* le_mesh_create() {
-	auto self = new le_mesh_o{};
+static le_mesh_o* le_mesh_create( char const* debug_name = nullptr ) {
+	auto self = new le_mesh_o{ .debug_name = std::string( debug_name != nullptr ? debug_name : "" ) };
 	return self;
 }
 
@@ -324,6 +326,27 @@ static void le_mesh_read_index_data_into( le_mesh_o const* self, void* target, s
 	}
 }
 
+// ----------------------------------------------------------------------
+
+static le_buffer_resource_handle le_mesh_create_index_buffer( le_mesh_o* self, le_renderer_o* renderer ) {
+	if ( nullptr == renderer ) {
+		return nullptr;
+	}
+	char label[ 64 ] = {};
+	snprintf( label, sizeof( label ), "%s-indices", self->debug_name.c_str() );
+	return le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, self->debug_name.empty() ? "" : label, 0, 0 );
+}
+
+// ----------------------------------------------------------------------
+
+static le_buffer_resource_handle le_mesh_create_vertex_buffer_resource( le_mesh_o* mesh, le_renderer_o* renderer, uint32_t buf_idx ) {
+	if ( nullptr == renderer ) {
+		return nullptr;
+	}
+	char label[ 64 ] = {};
+	snprintf( label, sizeof( label ), "%s-vtx_%d", mesh->debug_name.c_str(), buf_idx );
+	return le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, label, 0, 0 );
+}
 
 // ----------------------------------------------------------------------
 
@@ -350,17 +373,14 @@ static void* le_mesh_allocate_index_data( le_mesh_o* self, size_t num_indices, u
 	// If this mesh has not had indices before, then we must create index data.
 
 	if ( nullptr == self->indices_data ) {
-		self->indices_data = new buffer_data_t{};
-
-		self->indices_data->buffer_resource =
-		    optional_renderer
-		        ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, nullptr, 0, 0 )
-		        : nullptr,
+		self->indices_data                  = new buffer_data_t{};
+		self->indices_data->buffer_resource = le_mesh_create_index_buffer( self, optional_renderer );
 		self->indices_data->buffer_resource_info =
 		    le::BufferInfoBuilder()
 		        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eIndexBuffer )
 		        .build();
 	}
+
 	self->indices_data->buffer_resource_info.buffer.size = num_bytes_required;
 	self->indices_data->num_bytes_per_stride             = *num_bytes_per_index;
 
@@ -414,9 +434,7 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_in
 	buffer_data_t data_entry{
 	    .attribute_infos      = { attribute_infos, attribute_infos + num_attribute_infos },
 	    .cpu_data             = std::vector<uint8_t>( num_bytes_per_vertex * self->num_vertices ),
-	    .buffer_resource      = optional_renderer
-	                                ? le_renderer_api_i->le_renderer_i.create_buf_resource_handle( optional_renderer, "", 0, 0 )
-	                                : nullptr,
+	    .buffer_resource      = le_mesh_create_vertex_buffer_resource( self, optional_renderer, self->data.size() ),
 	    .buffer_resource_info = le::BufferInfoBuilder()
 	                                .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eVertexBuffer )
 	                                .setSize( num_bytes_per_vertex * self->num_vertices )
@@ -628,13 +646,14 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 	for ( size_t i = 0; i != meshes_count; i++ ) {
 		le_mesh_o* mesh = meshes[ i ];
 
+		uint32_t buf_count = 0;
 		for ( auto& buf_data : mesh->data ) {
 
 			// declare resource to rendergraph
 
 			if ( nullptr == buf_data.buffer_resource ) {
 				// we need to allocate the buffer resource first
-				buf_data.buffer_resource = le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, "", 0, 0 );
+				buf_data.buffer_resource = le_mesh_create_vertex_buffer_resource( mesh, renderer, buf_count );
 			}
 
 			if ( buf_data.is_tainted ) {
@@ -650,12 +669,13 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 			}
 
 			le_renderer_api_i->le_rendergraph_i.declare_resource( rg, buf_data.buffer_resource, buf_data.buffer_resource_info );
+			buf_count++;
 		}
 
 		if ( mesh->indices_data ) {
 
 			if ( nullptr == mesh->indices_data->buffer_resource ) {
-				mesh->indices_data->buffer_resource = le_renderer_api_i->le_renderer_i.create_buf_resource_handle( renderer, "", 0, 0 );
+				mesh->indices_data->buffer_resource = le_mesh_create_index_buffer( mesh, renderer );
 			}
 
 			if ( mesh->indices_data->is_tainted ) {
