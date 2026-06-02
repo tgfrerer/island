@@ -2360,6 +2360,28 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 	                                                  &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
 	// -- 2. get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
+	uint64_t renderpass_hash = 0;
+
+	{
+		// Calculate hash over any parameters that make the character of a renderpass...
+		//
+		// - Format and order of attachments must match
+		// - multisample state must match.
+
+		struct pass_qualia_t {
+			le::Format              format;
+			le::SampleCountFlagBits numSamples;
+		};
+
+		std::vector<pass_qualia_t> pass_qualia;
+		pass_qualia.reserve( pass.attachments.size() );
+
+		for ( auto& a : pass.attachments ) {
+			pass_qualia.emplace_back( a.format, a.numSamples );
+		}
+
+		renderpass_hash = SpookyHash::Hash64( pass_qualia.data(), sizeof( pass_qualia_t ) * pass_qualia.size(), renderpass_hash );
+	}
 
 	uint64_t pipeline_hash = 0;
 	{
@@ -2369,7 +2391,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 		uint64_t pso_renderpass_hash_data_num_entries = 0;  // number of entries in pso_renderpass_hash_data
 
 		pso_renderpass_hash_data[ 0 ]        = reinterpret_cast<uint64_t>( gpso_handle ); // Hash associated with `pso`
-		pso_renderpass_hash_data[ 1 ]        = pass.renderpassHash;                       // Hash for *compatible* renderpass
+		pso_renderpass_hash_data[ 1 ]        = renderpass_hash;                           // Hash for *compatible* renderpass
 		pso_renderpass_hash_data_num_entries = 2;
 
 		for ( auto const& s : pso->shaderModules ) {

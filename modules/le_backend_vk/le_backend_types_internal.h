@@ -142,9 +142,22 @@ struct AttachmentInfo {
 	le::ClearValue           clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
 	le::SampleCountFlagBits  numSamples;         /// < number of samples, default 1
 	uint32_t                 sync_chain_offset;  ///< sync chain idx of resource on entering the renderpass (offset is into resource specific sync chain )
+	uint32_t                 viewMask;           ///< non-zero means multiview
 	Type                     type;
-	uint32_t                 viewMask; ///< non-zero means multiview
 };
+
+static_assert(
+    sizeof( AttachmentInfo ) ==
+        sizeof( decltype( AttachmentInfo::resource ) ) +
+            sizeof( decltype( AttachmentInfo::format ) ) +
+            sizeof( decltype( AttachmentInfo::loadOp ) ) +
+            sizeof( decltype( AttachmentInfo::storeOp ) ) +
+            sizeof( decltype( AttachmentInfo::clearValue ) ) +
+            sizeof( decltype( AttachmentInfo::numSamples ) ) +
+            sizeof( decltype( AttachmentInfo::sync_chain_offset ) ) +
+            sizeof( decltype( AttachmentInfo::type ) ) +
+            sizeof( decltype( AttachmentInfo::viewMask ) ),
+    "AttachmentInfo must be tightly packed so that we can hash it directly" );
 
 struct ExplicitSyncOp {
 	le_resource_handle resource;                  // image used as texture, or buffer resource used in this pass
@@ -177,7 +190,6 @@ struct BackendRenderPass {
 	uint32_t                width;
 	uint32_t                height;
 	le::SampleCountFlagBits sampleCount;    // We store this with renderpass, as sampleCount must be same for all color/depth attachments
-	uint64_t                renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	std::vector<le_resource_handle> resources; // resources used with this renderpass
 
