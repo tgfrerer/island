@@ -910,9 +910,9 @@ static void backend_destroy( le_backend_o* self ) {
 		using namespace le_backend_vk;
 
 		{
-			// Call on_clear_callbacks with tear_down flag set
+			// Call any leftover on_clear_callbacks
 			for ( auto& c : frameData.on_clear_callbacks ) {
-				( *c.cb_fun )( c.user_data );
+				( **c.cb_fun )( c.user_data );
 			}
 			frameData.on_clear_callbacks.clear();
 		}
