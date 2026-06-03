@@ -2051,10 +2051,8 @@ static void le_2d_update( le_2d_o* self, le_rendergraph_o* rg, le_2d_encoder_o* 
 	    .addRenderPass( rp_xfer_bump )
 	    .groupRenderPassWith( rp_xfer_bump, rp_rasterize );
 
-	auto t = &le_2d_api_i->le_2d_backend_callback_i.on_backend_frame_clear_cb;
-
 	le_on_frame_clear_callback_data_t cb_data{
-	    .cb_fun    = le_2d_api_i->le_2d_backend_callback_i.on_backend_frame_clear_cb,
+	    .cb_fun    = &le_2d_api_i->le_2d_backend_callback_i.on_backend_frame_clear_cb,
 	    .user_data = &self->on_clear_callback_data[ self->current_data_frame_idx ],
 	};
 
