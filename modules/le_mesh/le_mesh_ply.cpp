@@ -503,6 +503,8 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_,
 					case le_mesh_attribute_name::eTangent:
 						assert( false && "tangent import not yet implemented" );
 						break;
+					default:
+						break;
 					}
 
 					per_vertex_stride += item.bytes_per_vertex;
@@ -533,6 +535,8 @@ static bool le_mesh_load_from_ply_file( le_mesh_o* self, char const* file_path_,
 						break;
 					case le_mesh_attribute_name::eTangent:
 						assert( false && "tangent import not yet implemented" );
+						break;
+					default:
 						break;
 					}
 				}
