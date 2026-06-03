@@ -699,7 +699,7 @@ static void le_mesh_update_rendergraph( le_mesh_o** meshes, size_t meshes_count,
 				        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eIndexBuffer )
 				        .setSize( num_bytes )
 				        .build();
-				upload_items.emplace_back( mesh->indices_data->buffer_resource, &mesh->indices_data->cpu_data );
+				upload_items.emplace_back( mesh->indices_data->buffer_resource, &mesh->indices_data->cpu_data, &mesh->indices_data->did_upload );
 				mesh->indices_data->wants_upload = false;
 				mesh->indices_data->did_upload   = false;
 			}
