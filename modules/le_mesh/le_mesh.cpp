@@ -34,7 +34,7 @@ struct draw_data_t {
 };
 
 struct le_mesh_singleton_o {
-	draw_data_t* current_draw_batch = nullptr;
+	draw_data_t* debug_draw_batch = nullptr;
 };
 
 struct buffer_data_descriptor {
@@ -1185,11 +1185,11 @@ static void le_mesh_debug_draw( le_mesh_o* mesh, float mvp[ 16 ], float colour[ 
 	auto& controller = le_mesh_api_i->le_mesh_singleton;
 	// TODO: we should proabably protect the controller state vector via a mutex
 	// and this should be per-frame.
-	if ( controller->current_draw_batch == nullptr ) {
-		controller->current_draw_batch = new draw_data_t{};
+	if ( controller->debug_draw_batch == nullptr ) {
+		controller->debug_draw_batch = new draw_data_t{};
 	}
 
-	controller->current_draw_batch->draw_data.emplace_back( std::move( data ) );
+	controller->debug_draw_batch->draw_data.emplace_back( std::move( data ) );
 }
 
 // ----------------------------------------------------------------------
@@ -1205,11 +1205,11 @@ static void debug_cb_on_frame_clear_callback( void* data ) {
 static void debug_batch_draw( le_renderpass_o* rp, le_rendergraph_o* rg, bool should_keep_data ) {
 	auto& controller = le_mesh_api_i->le_mesh_singleton;
 
-	if ( nullptr == controller->current_draw_batch ) {
+	if ( nullptr == controller->debug_draw_batch ) {
 		return;
 	}
 
-	le_mesh_debug_draw_meshes( controller->current_draw_batch->draw_data.data(), controller->current_draw_batch->draw_data.size(), rp );
+	le_mesh_debug_draw_meshes( controller->debug_draw_batch->draw_data.data(), controller->debug_draw_batch->draw_data.size(), rp );
 
 	if ( false == should_keep_data ) {
 
@@ -1217,11 +1217,11 @@ static void debug_batch_draw( le_renderpass_o* rp, le_rendergraph_o* rg, bool sh
 
 		le_on_frame_clear_callback_data_t cb{
 		    .cb_fun    = &le_mesh_api_i->le_mesh_debug_helpers_i.on_frame_clear_cb,
-		    .user_data = controller->current_draw_batch, // takes ownership
+		    .user_data = controller->debug_draw_batch, // takes ownership
 		};
 
 		le_renderer_api_i->le_rendergraph_i.add_on_frame_clear_callbacks( rg, &cb, 1 );
-		controller->current_draw_batch = nullptr;
+		controller->debug_draw_batch = nullptr;
 	}
 }
 
@@ -1287,7 +1287,7 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 LE_MODULE_UNREGISTER_IMPL( le_mesh, api ) {
 	auto const& api_i = static_cast<le_mesh_api*>( api );
 	if ( nullptr != api_i->le_mesh_singleton ) {
-		delete api_i->le_mesh_singleton->current_draw_batch;
+		delete api_i->le_mesh_singleton->debug_draw_batch;
 		delete api_i->le_mesh_singleton;
 	}
 }
