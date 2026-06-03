@@ -347,14 +347,14 @@ struct LeResourceUsageFlags {
  *
  */
 struct le_on_frame_clear_callback_data_t {
-	typedef void ( *cb_fun_t )( void* user_data );
+	typedef void ( *cb_fun_t )( void* user_data ); // function pointer
 	/* NOTE: We use a pointer-to-function-pointer for cb_fun, so that we can be sure that
 	 * the callback function has not become stale via hot-reloading. To provide a callback
 	 * you point at the function address in a private or public le_interface. This gives us
 	 * hot-reloading safety at the cost of an extra indirection.
 	 */
-	cb_fun_t const* cb_fun;    // function to call upon frame clear
-	void*     user_data; // user data to pass into function
+	cb_fun_t const* cb_fun;    // const pointer to function pointer to call upon frame clear
+	void*           user_data; // user data to pass into function
 };
 
 namespace le {
