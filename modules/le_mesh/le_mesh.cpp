@@ -647,8 +647,11 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 
 	std::vector<upload_data_item_t> upload_items; // upload data items
 
-	for ( size_t i = 0; i != meshes_count; i++ ) {
-		le_mesh_o* mesh = meshes[ i ];
+	// First, decant meshes into a set so that we can be sure
+	// that we only submit each mesh once.
+	std::set<le_mesh_o*> unique_meshes{ meshes, meshes + meshes_count };
+
+	for ( le_mesh_o* mesh : unique_meshes ) {
 
 		uint32_t buf_count = 0;
 		for ( auto& buf_data : mesh->data ) {
