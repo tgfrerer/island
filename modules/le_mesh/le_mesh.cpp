@@ -51,7 +51,8 @@ struct buffer_data_t {
 	le_resource_info_t        buffer_resource_info = {};
 	//
 	uint32_t num_bytes_per_stride = 0;    // bytes per index or bytes per vertex on this buffer
-	bool     is_tainted           = true; // whether the resource needs to be uploaded or not
+	bool     wants_upload         = true; // whether the resource needs to be uploaded or not
+	bool     did_upload           = false; // whether this resource was uploaded (set by the upload callback)
 };
 
 struct le_mesh_o {
@@ -448,7 +449,7 @@ static void* le_mesh_allocate_vertex_data( le_mesh_o* self, le_mesh_attribute_in
 	                                .setSize( num_bytes_per_vertex * self->num_vertices )
 	                                .build(),
 	    .num_bytes_per_stride = num_bytes_per_vertex,
-	    .is_tainted           = true,
+	    .wants_upload         = true,
 	};
 
 	self->data.emplace_back( std::move( data_entry ) );
@@ -482,7 +483,7 @@ static void le_mesh_set_vertex_count( le_mesh_o* self, size_t num_vertices, bool
 		// fill with zeroes, if necessary.
 
 		if ( ( buffers.cpu_data.size() / buffers.num_bytes_per_stride ) < num_vertices ) {
-			buffers.is_tainted = true;
+			buffers.wants_upload = true;
 			buffers.cpu_data.resize( num_vertices * buffers.num_bytes_per_stride, {} );
 			did_realloc = true;
 		}
@@ -574,7 +575,7 @@ static void* le_mesh_get_attribute_data( le_mesh_o* self, le_mesh_attribute_name
 		*out_stride = required_stride;
 	}
 
-	self->data[ it->second.data_idx ].is_tainted = true;
+	self->data[ it->second.data_idx ].wants_upload = true;
 
 	return self->data[ it->second.data_idx ].cpu_data.data() + it->second.interleave_offset;
 }
@@ -598,7 +599,7 @@ static void* le_mesh_get_index_data( le_mesh_o* self, size_t* out_stride, size_t
 		*num_indices = self->indices_data->cpu_data.size() / stride;
 	}
 
-	self->indices_data->is_tainted = true;
+	self->indices_data->wants_upload = true;
 
 	return self->indices_data->cpu_data.data();
 }
@@ -646,7 +647,8 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 
 	struct upload_data_item_t {
 		le_buffer_resource_handle buffer;
-		std::vector<uint8_t>*     p_attribute_data;
+		std::vector<uint8_t>*     p_attribute_data; // Note that this is a pointer to vector and NOT vector.data() - this means that the vector may be resized
+		bool*                     did_upload;
 	};
 
 	std::vector<upload_data_item_t> upload_items; // upload data items
@@ -667,8 +669,8 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 				buf_data.buffer_resource = le_mesh_create_vertex_buffer_resource( mesh, renderer, buf_count );
 			}
 
-			if ( buf_data.is_tainted ) {
-				upload_items.emplace_back( buf_data.buffer_resource, &buf_data.cpu_data );
+			if ( buf_data.wants_upload ) {
+				upload_items.emplace_back( buf_data.buffer_resource, &buf_data.cpu_data, &buf_data.did_upload );
 				size_t num_bytes                          = mesh->num_vertices * buf_data.num_bytes_per_stride;
 				buf_data.buffer_resource_info.buffer.size = num_bytes;
 				buf_data.buffer_resource_info =
@@ -676,7 +678,8 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 				        .addUsageFlags( le::BufferUsageFlagBits::eTransferDst | le::BufferUsageFlagBits::eVertexBuffer )
 				        .setSize( num_bytes )
 				        .build();
-				buf_data.is_tainted = false;
+				buf_data.wants_upload = false;
+				buf_data.did_upload   = false; // if we set this to the number of the frame that started it
 			}
 
 			le_renderer_api_i->le_rendergraph_i.declare_resource( rg, buf_data.buffer_resource, buf_data.buffer_resource_info );
@@ -689,7 +692,7 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 				mesh->indices_data->buffer_resource = le_mesh_create_index_buffer( mesh, renderer );
 			}
 
-			if ( mesh->indices_data->is_tainted ) {
+			if ( mesh->indices_data->wants_upload ) {
 				size_t num_bytes = mesh->indices_data->cpu_data.size();
 				mesh->indices_data->buffer_resource_info =
 				    le::BufferInfoBuilder()
@@ -697,7 +700,8 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 				        .setSize( num_bytes )
 				        .build();
 				upload_items.emplace_back( mesh->indices_data->buffer_resource, &mesh->indices_data->cpu_data );
-				mesh->indices_data->is_tainted = false;
+				mesh->indices_data->wants_upload = false;
+				mesh->indices_data->did_upload   = false;
 			}
 
 			// set index buffer info so that is has index read
@@ -732,6 +736,7 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 
 		rp.setExecuteCallbackWithLocalUserData( mesh_closure_data, mesh_closure_data_num_bytes, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 			le::TransferEncoder encoder( encoder_ );
+
 			// extract closure data from callback local data
 			auto mesh_data = ( mesh_closure_t* )( user_data );
 
@@ -740,9 +745,10 @@ static void le_mesh_submit_meshes_to_rendergraph( le_mesh_o** meshes, size_t mes
 				// now we allocate memory and upload the data items here
 				void* gpu_memory = nullptr;
 				// this copies the mesh data from cpu memory into the gpu buffer
-				if ( encoder.mapBufferMemory( it->buffer, 0, it->p_attribute_data->size(), &gpu_memory ) ) {
+				if ( *it->did_upload == false && encoder.mapBufferMemory( it->buffer, 0, it->p_attribute_data->size(), &gpu_memory ) ) {
 					// Then write into mapped memory which is directly managed by the GPU
 					memcpy( gpu_memory, it->p_attribute_data->data(), it->p_attribute_data->size() );
+					*it->did_upload = true;
 				}
 			}
 		} );
@@ -932,7 +938,7 @@ static uint32_t le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_enco
 	for ( auto const& b_idx : used_buffers ) {
 		auto& b = self->data[ b_idx ];
 
-		if ( b.buffer_resource ) {
+		if ( b.did_upload && b.buffer_resource ) {
 			buffers.push_back( b.buffer_resource );
 		} else {
 			// we need to flush in case not all buffers have been uploaded to gpu yet.
@@ -957,7 +963,7 @@ static uint32_t le_mesh_bind_to_encoder( le_mesh_o* self, le_command_buffer_enco
 		// we first try if we can set it from gpu index buffer data
 		// otherwise we set it via cpu index buffer data.
 		size_t bytes_per_index = self->indices_data->num_bytes_per_stride;
-		if ( self->indices_data->buffer_resource ) {
+		if ( self->indices_data->did_upload && self->indices_data->buffer_resource ) {
 			encoder.bindIndexBuffer( self->indices_data->buffer_resource, 0, bytes_per_index == 2 ? le::IndexType::eUint16 : le::IndexType::eUint32 );
 		} else if ( !self->indices_data->cpu_data.empty() ) {
 			encoder.setIndexData( self->indices_data->cpu_data.data(), self->indices_data->cpu_data.size(), bytes_per_index == 2 ? le::IndexType::eUint16 : le::IndexType::eUint32 );
