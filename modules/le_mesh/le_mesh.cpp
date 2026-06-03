@@ -23,17 +23,6 @@ static auto logger = le::Log( "le_mesh" );
 // ffdecl.
 static void le_mesh_use_with_renderpass( le_mesh_o* self, le_renderpass_o* rp_, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count );
 
-/*
-
-  TODO: We want a way to convert our mesh from SOA to AOS, so that we may interleave
-  attributes. this only makes sense if we know which attributes we will need when drawing.
-
-    - maybe we can even generate bindings from the current attribute setup
-    - a mesh should be able to convert to a different layout
-    - a mesh should know when to re-submit itself
-
-*/
-
 struct le_mesh_debug_draw_data_t {
 	le_mesh_o* mesh;        // the mesh object itself
 	float      mvp[ 16 ];   // model view projection per mesh
