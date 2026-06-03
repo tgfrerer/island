@@ -1092,6 +1092,7 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 
 		auto   closure               = ( mesh_draw_capture_t* )user_data;
 		size_t previous_binding_hash = 0;
+		le_mesh_o* previous_mesh         = nullptr;
 		encoder.setLineWidth( 1 );
 		for ( auto m = closure->items; m != closure->items + closure->num_items; m++ ) {
 
@@ -1135,12 +1136,17 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 			memcpy( mvp.colour, m->colour, sizeof( mvp.colour ) );
 
 			if ( previous_binding_hash != binding_hash ) {
+				// Only bind pipeline if the pipeline has changed
 				encoder.bindGraphicsPipeline( pipeline_handle );
 			}
 
 			encoder.setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) );
 
-			le_mesh_bind_to_encoder( m->mesh, encoder, attributes, C_ATTR_COUNT );
+			if ( previous_mesh != m->mesh ) {
+				// Only bind mesh if the mesh has changed
+				le_mesh_bind_to_encoder( m->mesh, encoder, attributes, C_ATTR_COUNT );
+				previous_mesh = m->mesh;
+			}
 
 			if ( m->mesh->indices_data ) {
 				encoder.drawIndexed( m->mesh->indices_data->cpu_data.size() / m->mesh->indices_data->num_bytes_per_stride );
