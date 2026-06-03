@@ -413,9 +413,8 @@ class LeMesh : NoCopy, NoMove {
 	/// \note  This is a batch method. You are supposed to call this *once* for all meshes
 	///        in the rendergraph. Add this before any renderpasses make use of GPU mesh data.
 	///
-	static void submitToRendergraph( le_rendergraph_o* rg, le_renderer_o* renderer, le_mesh_o** meshes, size_t meshes_count ) {
+	static void setupRendergraph( le_rendergraph_o* rg, le_renderer_o* renderer, le_mesh_o** meshes, size_t meshes_count ) {
 		this_i.setup_rendergraph( meshes, meshes_count, rg, renderer );
-	};
 	};
 
 #		undef this_i
