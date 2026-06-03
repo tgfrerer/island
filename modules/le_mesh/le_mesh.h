@@ -54,6 +54,9 @@
  *     + we want a mesh to be able to optimize itself
  *     + add adapters for loading meshes from other formats (gltf?)
  *
+ *	- a method to accumulate any debug draws over the frame, and to execute these in batch at a given position in the rendergraph
+ *	- a method to accumulate any meshes that are used with the frame, and to add them in batch to the rendergraph at a given position
+ *
  */
 
 struct le_mesh_o;
@@ -66,12 +69,8 @@ struct le_renderpass_o;
 struct le_buffer_resource_handle_t;
 struct le_resource_info_t;
 struct le_graphics_pipeline_builder_o;
+struct le_mesh_singleton_o;
 
-struct le_mesh_debug_draw_data_t {
-	le_mesh_o* mesh;        // the mesh object itself
-	float      mvp[ 16 ];   // model view projection per mesh
-	float      colour[ 4 ]; // vertex colour for this mesh
-};
 
 // TODO: it's best if this is not flags, but regular enum
 enum class le_mesh_attribute_name : uint32_t {
@@ -116,9 +115,8 @@ struct le_mesh_api {
 		///        mesh data can be submitted to the gpu before it is used.
 		void ( * submit_meshes_to_rendergraph ) (le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer);
 
-		/// \brief Draw meshes using an internal debug pipeline; only positions will be drawn; the mesh will show as wireframe
-        void ( * debug_draw_meshes )( le_mesh_debug_draw_data_t* meshes, size_t meshes_count, le_renderpass_o* rp_);
-  
+  		void ( * debug_draw )(le_mesh_o* mesh, float mvp[16], float colour[4]);
+
 		void ( * clear)(le_mesh_o* self);
 
 		// If attributes were already set, this means that these attributes will have their pointers invalidated - did_reallocate will tell you.
@@ -222,9 +220,22 @@ struct le_mesh_api {
 		/// \note  `attribute_infos` is optional, if `nullptr`, all buffers of this mesh will be declared as being used.
 		/// \note  If an index buffer exists, it will automatically be declared as being used by this renderpass.
 		void (*use_with_renderpass)(le_mesh_o* self, le_renderpass_o* rp, le_mesh_attribute_info_t const* attribute_infos, size_t attribute_infos_count);
+
+
+	};
+
+	// internal helpers
+	struct le_mesh_debug_helpers_t {
+  	    void (* on_frame_clear_cb)(void *user_data);
+		/// \param `should_keep_data` whether to not flip the current data after this operation (default = false)
+		void ( * debug_batch_draw)( le_renderpass_o* rp, le_rendergraph_o* rg, bool should_keep_data);
 	};
 
 	le_mesh_interface_t       le_mesh_i;
+	le_mesh_debug_helpers_t le_mesh_debug_helpers_i;
+
+	le_mesh_singleton_o* le_mesh_singleton;
+
 };
 // clang-format on
 LE_MODULE( le_mesh );
@@ -236,6 +247,8 @@ namespace le_mesh {
 const auto         api       = le_mesh_api_i;
 static const auto& le_mesh_i = api->le_mesh_i;
 } // namespace le_mesh
+
+#	include "glm/fwd.hpp"
 
 class LeMesh : NoCopy, NoMove {
 #	ifndef this_i
@@ -377,10 +390,24 @@ class LeMesh : NoCopy, NoMove {
 
 	// ------------ RENDERGRAPH HELPERS -------------------------------------
 
-	/// \brief Draw wireframe of given meshes into renderpass.
-	static void debugDrawMeshes( le_mesh_debug_draw_data_t* debug_meshes, size_t meshes_count, le_renderpass_o* rp ) {
-		this_i.debug_draw_meshes( debug_meshes, meshes_count, rp );
-	};
+	/// \brief Enqueue this mesh for debug draw using given matrix and colour.
+	/// \note  All debug meshes only get drawn if you call `debugBatchDraw`
+	/// \param mvp : model view projection matrix
+	/// \param colour : colour for drawing the mesh wireframe.
+	void debugDraw( glm::mat4 const& mvp, glm::vec4 const& colour ) {
+		this_i.debug_draw( self, ( float* )&mvp, ( float* )&colour );
+	}
+
+	void debugDraw( float mvp[ 16 ], float colour[ 4 ] ) {
+		this_i.debug_draw( self, mvp, colour );
+	}
+
+	/// \brief Draw all meshes that have been batched for debug draw into the given renderpass and rendergraph.
+	/// \note  `should_keep_data` controls whether this method clears the internal batch state after completion;
+	///        set to true to keep the batch state. You must however make sure to clear the batch state once a frame.
+	static void debugBatchDraw( le_renderpass_o* rp, le_rendergraph_o* rg, bool should_keep_data = false ) {
+		le_mesh_api_i->le_mesh_debug_helpers_i.debug_batch_draw( rp, rg, should_keep_data );
+	}
 
 	/// \brief Upload any tainted cpu data to gpu. If necessary, allocate new GPU buffers.
 	/// \note  This is a batch method. You are supposed to call this *once* for all meshes
