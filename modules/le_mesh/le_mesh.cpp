@@ -643,7 +643,7 @@ static le_buffer_resource_handle le_mesh_get_index_buffer( le_mesh_o* self, le_r
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_update_rendergraph( le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer ) {
+static void le_mesh_setup_rendergraph( le_mesh_o* const* meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer ) {
 
 	struct upload_data_item_t {
 		le_buffer_resource_handle buffer;
@@ -1261,7 +1261,7 @@ LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	le_mesh_i.bind_to_encoder     = le_mesh_bind_to_encoder;
 	le_mesh_i.use_with_renderpass = le_mesh_use_with_renderpass;
 
-	le_mesh_i.update_rendergraph = le_mesh_update_rendergraph;
+	le_mesh_i.setup_rendergraph = le_mesh_setup_rendergraph;
 
 	le_mesh_i.get_vertex_input_descriptions   = le_mesh_get_vertex_input_descriptions;
 	le_mesh_i.apply_vertex_input_descriptions = le_mesh_apply_vertex_input_descriptions;

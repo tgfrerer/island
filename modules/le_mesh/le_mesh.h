@@ -113,7 +113,7 @@ struct le_mesh_api {
 		/// \note  Introduces le_buffer_resource each for each buffer to rendergraph; 
 		/// \note  you are supposed to call this early, and only once per frame, so that all 
 		///        mesh data can be submitted to the gpu before it is used.
-		void ( * update_rendergraph ) (le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer);
+		void ( * setup_rendergraph ) (le_mesh_o* const* meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer);
 
   		void ( * debug_draw )(le_mesh_o* mesh, float mvp[16], float colour[4]);
 
@@ -413,8 +413,9 @@ class LeMesh : NoCopy, NoMove {
 	/// \note  This is a batch method. You are supposed to call this *once* for all meshes
 	///        in the rendergraph. Add this before any renderpasses make use of GPU mesh data.
 	///
-	static void updateRendergraph( le_rendergraph_o* rg, le_renderer_o* renderer, le_mesh_o** meshes, size_t meshes_count ) {
-		this_i.update_rendergraph( meshes, meshes_count, rg, renderer );
+	static void submitToRendergraph( le_rendergraph_o* rg, le_renderer_o* renderer, le_mesh_o** meshes, size_t meshes_count ) {
+		this_i.setup_rendergraph( meshes, meshes_count, rg, renderer );
+	};
 	};
 
 #		undef this_i
