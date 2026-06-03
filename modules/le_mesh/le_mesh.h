@@ -414,7 +414,7 @@ class LeMesh : NoCopy, NoMove {
 	///        in the rendergraph. Add this before any renderpasses make use of GPU mesh data.
 	///
 	static void updateRendergraph( le_rendergraph_o* rg, le_renderer_o* renderer, le_mesh_o** meshes, size_t meshes_count ) {
-		this_i.update_rendergraph( rg, renderer, meshes, meshes_count );
+		this_i.update_rendergraph( meshes, meshes_count, rg, renderer );
 	};
 
 #		undef this_i
