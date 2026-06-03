@@ -40,7 +40,7 @@
  * USAGE (DRAWING):
  * ----------------------------------------------------------------------
  * - (optional) submit meshes to rendergraph (this will upload mesh data to gpu and allocate gpu buffers)
- *     - this will also declare all buffers used for given mesh array
+ *     - this will also declare all buffers used for any meshes given
  * - setup renderpass: declare that you want to draw a mesh using a renderpass (this will declare the mesh resources to the renderpass)
  * - when executing this renderpass:
  *     - get_vertex_input_descriptions: fetch binding and attribute descriptions for given attributes array so that
@@ -113,7 +113,7 @@ struct le_mesh_api {
 		/// \note  Introduces le_buffer_resource each for each buffer to rendergraph; 
 		/// \note  you are supposed to call this early, and only once per frame, so that all 
 		///        mesh data can be submitted to the gpu before it is used.
-		void ( * submit_meshes_to_rendergraph ) (le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer);
+		void ( * update_rendergraph ) (le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer);
 
   		void ( * debug_draw )(le_mesh_o* mesh, float mvp[16], float colour[4]);
 
@@ -413,8 +413,8 @@ class LeMesh : NoCopy, NoMove {
 	/// \note  This is a batch method. You are supposed to call this *once* for all meshes
 	///        in the rendergraph. Add this before any renderpasses make use of GPU mesh data.
 	///
-	static void submitMeshesToRendergraph( le_mesh_o** meshes, size_t meshes_count, le_rendergraph_o* rg, le_renderer_o* renderer ) {
-		this_i.submit_meshes_to_rendergraph( meshes, meshes_count, rg, renderer );
+	static void updateRendergraph( le_rendergraph_o* rg, le_renderer_o* renderer, le_mesh_o** meshes, size_t meshes_count ) {
+		this_i.update_rendergraph( rg, renderer, meshes, meshes_count );
 	};
 
 #		undef this_i
