@@ -474,7 +474,7 @@ static bool app_update( multi_window_example_app_o* self ) {
 		    self->mesh,
 		};
 
-		le::Mesh::submitMeshesToRendergraph( meshes, 1, rendergraph, self->renderer );
+		le::Mesh::setupRendergraph( rendergraph, self->renderer, meshes, 1 );
 
 		le_image_attachment_info_t attachmentInfo[ 2 ];
 		attachmentInfo[ 0 ].clearValue.color =

@@ -604,7 +604,7 @@ static bool hello_world_app_update( hello_world_app_o* self ) {
 		    self->worldGeometry,
 		};
 
-		le::Mesh::submitMeshesToRendergraph( meshes, 1, renderGraph, self->renderer );
+		le::Mesh::setupRendergraph( renderGraph, self->renderer, meshes, 1 );
 
 		le::RenderPass renderPassFinal( "mainPass", le::QueueFlagBits::eGraphics );
 		renderPassFinal

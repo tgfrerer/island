@@ -395,7 +395,7 @@ static bool compute_example_app_update( compute_example_app_o* self ) {
 		le_mesh_o* meshes[]{
 		    self->waves_mesh,
 		};
-		le::Mesh::submitMeshesToRendergraph( meshes, 1, renderGraph, self->renderer );
+		le::Mesh::setupRendergraph( renderGraph, self->renderer, meshes, 1 );
 
 		renderGraph
 		    .addRenderPass( passCompute )
