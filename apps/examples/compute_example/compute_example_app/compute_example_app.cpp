@@ -37,7 +37,7 @@ struct compute_example_app_o {
 	float    anim_t        = 0;
 	int32_t  anim_speed    = 1.f;
 
-	le::Mesh waves_mesh; // owning
+	le::Mesh waves_mesh{ "waves_mesh" };
 
 	le::Camera                camera;
 	le::CameraController      cameraController;
