@@ -1250,6 +1250,9 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 			// setup encoder default viewport and scissor to extent
 			encoder_graphics_i.set_scissor( encoder, 0, 1, default_scissor );
 			encoder_graphics_i.set_viewport( encoder, 0, 1, default_viewport );
+
+			// set default line width, as line width is dynamic
+			encoder_graphics_i.set_line_width( encoder, 1.f );
 		}
 
 		renderpass_run_execute_callbacks( pass, encoder ); // record draw commands into encoder
