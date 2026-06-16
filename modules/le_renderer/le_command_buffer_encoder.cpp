@@ -125,6 +125,7 @@ static void cbe_get_extent( le_command_buffer_encoder_o* self, le::Extent2D* ext
 
 // ----------------------------------------------------------------------
 
+// TODO: this should be deprecated
 static void cbe_set_line_width( le_command_buffer_encoder_o* self, float lineWidth ) {
 
 	auto cmd        = self->mCommandStream->emplace_cmd<le::CommandSetLineWidth>(); // placement new into data array

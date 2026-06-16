@@ -760,6 +760,7 @@ class GraphicsEncoder {
 		return *this;
 	}
 
+	[[deprecated( "Dynamic LineWidth should not be used" )]]
 	GraphicsEncoder& setLineWidth( float const& lineWidth ) {
 		le_renderer::encoder_graphics_i.set_line_width( self, lineWidth );
 		return *this;
