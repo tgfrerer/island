@@ -417,10 +417,10 @@ static le_device_o* device_create( le_backend_vk_instance_o* backend_instance, c
 	    find_first_supported_format(
 	        self,
 	        {
-	            VK_FORMAT_D32_SFLOAT_S8_UINT,
 	            VK_FORMAT_D32_SFLOAT,
-	            VK_FORMAT_D24_UNORM_S8_UINT,
 	            VK_FORMAT_D16_UNORM,
+	            VK_FORMAT_D32_SFLOAT_S8_UINT,
+	            VK_FORMAT_D24_UNORM_S8_UINT,
 	            VK_FORMAT_D16_UNORM_S8_UINT,
 	        },
 	        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT );
