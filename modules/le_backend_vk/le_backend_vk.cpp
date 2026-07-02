@@ -584,6 +584,7 @@ struct BackendFrameData {
 	struct Texture {
 		VkSampler   sampler   = nullptr;
 		VkImageView imageView = nullptr;
+		le_image_resource_handle debug_parent_image_handle; // only used for debug, so that we can tell which image this texture refers to
 	};
 
 	using texture_map_t = std::unordered_map<le_texture_handle, Texture>;
@@ -4021,11 +4022,12 @@ static void backend_allocate_resources( le_backend_o* self, BackendFrameData& fr
 				               r.second.as.buffer );
 				break;
 			case ( LeResourceType::eImage ):
-				logger().info( "%10s : %36s@%d : %30p",
+				logger().info( "%10s : %36s@%d : %30p : %s",
 				               "Image",
 				               r.first->get_debug_name(),
 				               1 << static_cast<le_image_resource_handle>( r.first )->get_num_samples(),
-				               r.second.as.buffer );
+				               r.second.as.image,
+				               to_str_vk_image_layout( r.second.state.layout ) );
 				break;
 			case ( LeResourceType::eRtxBlas ):
 				logger().info( "%10s : %36s@%d",
@@ -4195,7 +4197,10 @@ static void frame_allocate_transient_resources( BackendFrameData& frame, VkDevic
 				auto& texInfo = textureInfos[ i ];
 
 				// -- Store Texture with frame so that decoder can find references
-				BackendFrameData::Texture tex;
+				BackendFrameData::Texture tex = {};
+
+				// used for debug only
+				tex.debug_parent_image_handle = texInfo.imageView.imageId;
 
 				auto const& imageFormat = le::Format( frame_data_get_image_format_from_image_view_info( &frame, &texInfo.imageView ) );
 				{
@@ -7183,6 +7188,22 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 							bindingData->imageInfo.sampler     = foundTex->second.sampler;
 							bindingData->imageInfo.imageView   = foundTex->second.imageView;
+
+							// print binding debug info about image here.
+							if constexpr ( LE_PRINT_DEBUG_MESSAGES ) {
+
+								char const* const tex_name = le_get_argument_name_from_hash( argument_name_id );
+								char const* const img_name = foundTex->second.debug_parent_image_handle->get_debug_name();
+
+								logger().info( "    Bind image '% -30s' to texture '% -30s', at %d:%d[%d]; layout: %s",
+								               img_name,
+								               tex_name,
+								               b->setIndex,
+								               b->binding,
+								               arrayIndex,
+								               to_str_vk_image_layout( VkImageLayout( bindingData->imageInfo.imageLayout ) ) );
+							}
+
 						} else {
 							logger().error( "Could not find texture binding at set: %d, binding: %d, array index: %d.", b->setIndex, b->binding, arrayIndex );
 							assert( bindingData && "could not find specified binding." );
