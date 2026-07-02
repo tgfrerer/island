@@ -182,6 +182,10 @@ struct le_renderer_api {
 
 		le_pipeline_manager_o*		 ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self);
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
+	
+		// insert a debug message into the command stream - message gets processed in the backend when command buffer is processed.
+        void                         ( *insert_debug_message   )( le_command_buffer_encoder_o* self, char const *message, uint64_t numBytes, uint32_t priority);
+		
 	};
 
 	struct command_buffer_graphics_encoder_interface_t{

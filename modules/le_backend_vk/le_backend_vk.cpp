@@ -7952,6 +7952,30 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 
 						break;
 					}
+					case le::CommandType::eDebugMessage: {
+						// Debug messages are only evaluated if the application is running in debug mode,
+						// Otherwise they are silently ignored.
+#ifndef NDEBUG
+						auto*       le_cmd = static_cast<le::CommandDebugMessage*>( dataIt );
+						std::string message{ ( char* )( le_cmd + 1 ), ( char* )( le_cmd + 1 ) + le_cmd->info.num_bytes };
+						switch ( le_cmd->info.priority ) {
+						case 0:
+							logger().debug( message.c_str() );
+							break;
+						case 1:
+							logger().info( message.c_str() );
+							break;
+						case 2:
+							logger().warn( message.c_str() );
+							break;
+						case 3: // deliberate fall-through
+						default:
+							logger().error( message.c_str() );
+							break;
+						}
+#endif
+						break;
+					}
 					default: {
 						assert( false && "command not handled" );
 					}

@@ -1075,6 +1075,7 @@ enum class CommandType : uint32_t {
 	eWriteToBuffer,
 	eWriteToImage,
 	eVideoDecoderExecuteCallback,
+	eDebugMessage,
 };
 
 struct CommandHeader {
@@ -1191,6 +1192,14 @@ struct CommandSetPushConstantData {
 	CommandHeader header = { { { CommandType::eSetPushConstantData, sizeof( CommandSetPushConstantData ) } } };
 	struct {
 		uint64_t num_bytes;
+	} info;
+};
+
+struct CommandDebugMessage {
+	CommandHeader header = { { { CommandType::eDebugMessage, sizeof( CommandDebugMessage ) } } };
+	struct {
+		uint64_t num_bytes;
+		uint32_t priority;
 	} info;
 };
 

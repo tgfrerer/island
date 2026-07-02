@@ -973,6 +973,23 @@ static void cbe_map_image( le_command_buffer_encoder_o*        self,
 		return;
 	}
 }
+
+// ----------------------------------------------------------------------
+static void cbe_insert_debug_message( le_command_buffer_encoder_o* self, char const* debug_message, uint64_t num_bytes, uint32_t priority ) {
+
+	auto cmd = self->mCommandStream->emplace_cmd<le::CommandDebugMessage>( num_bytes ); // placement new!
+
+	// We point data to the next available position in the data stream
+	// so that we can store the data for push constants inline.
+	void* data = ( cmd + 1 ); // one after size of command struct
+
+	cmd->info = { num_bytes, priority };
+	cmd->header.info.size += uint32_t( num_bytes ); // we must increase the size of this command by its payload size
+
+	// copy data into command stream
+	memcpy( data, debug_message, num_bytes );
+}
+
 // ----------------------------------------------------------------------
 static void cbe_set_push_constant_data( le_command_buffer_encoder_o* self, void const* src_data, uint64_t num_bytes ) {
 
@@ -1147,6 +1164,7 @@ void register_le_command_buffer_encoder_api( void* api_ ) {
 	    .destroy              = cbe_destroy,
 	    .get_pipeline_manager = cbe_get_pipeline_manager,
 	    .get_encoded_data     = cbe_get_encoded_data,
+	    .insert_debug_message = cbe_insert_debug_message,
 	};
 
 	cbe_graphics_i = {

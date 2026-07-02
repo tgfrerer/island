@@ -678,6 +678,16 @@ class GraphicsEncoder {
 		return le_renderer::encoder_graphics_i.get_pipeline_manager( self );
 	}
 
+	GraphicsEncoder& insertDebugMessage( char const message[] = "", uint32_t priority = 3 ) {
+		size_t num_bytes = 0;
+		// count chars that are not null
+		for ( auto m = message; *m != '\0'; m++ ) {
+			num_bytes++;
+		};
+		le_renderer::encoder_i.insert_debug_message( self, message, num_bytes, priority );
+		return *this;
+	}
+
 	GraphicsEncoder& setPushConstantData( void const* data, uint64_t const& numBytes ) {
 		le_renderer::encoder_graphics_i.set_push_constant_data( self, data, numBytes );
 		return *this;
@@ -837,6 +847,11 @@ class ComputeEncoder {
 		return le_renderer::encoder_compute_i.get_pipeline_manager( self );
 	}
 
+	ComputeEncoder& insertDebugMessage( char const* message, uint64_t const& numBytes, uint32_t priority ) {
+		le_renderer::encoder_i.insert_debug_message( self, message, numBytes, priority );
+		return *this;
+	}
+
 	ComputeEncoder& bindComputePipeline( le_cpso_handle pipelineHandle ) {
 		le_renderer::encoder_compute_i.bind_compute_pipeline( self, pipelineHandle );
 		return *this;
@@ -930,6 +945,11 @@ class TransferEncoder {
 		return self;
 	}
 
+	TransferEncoder& insertDebugMessage( char const* message, uint64_t const& numBytes, uint32_t priority ) {
+		le_renderer::encoder_i.insert_debug_message( self, message, numBytes, priority );
+		return *this;
+	}
+
 	TransferEncoder& copyToBuffer( le_buffer_resource_handle const& dst_buffer, size_t const& byte_offset_dst, le_buffer_resource_handle const& src_buffer, size_t const& byte_offset_src, size_t const& numBytes ) {
 		le_renderer::encoder_transfer_i.copy_to_buffer( self, dst_buffer, byte_offset_dst, src_buffer, byte_offset_src, numBytes );
 		return *this;
@@ -986,6 +1006,11 @@ class RtxEncoder {
 
 	operator auto() {
 		return self;
+	}
+
+	RtxEncoder& insertDebugMessage( char const* message, uint64_t const& numBytes, uint32_t priority ) {
+		le_renderer::encoder_i.insert_debug_message( self, message, numBytes, priority );
+		return *this;
 	}
 
 	RtxEncoder& setArgumentTlas( uint64_t const& argumentName, le_tlas_resource_handle const& tlasId, uint64_t const& arrayIndex = 0 ) {
