@@ -2089,7 +2089,9 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 					// we can also assume that a barrier will not be needed.
 					//
 					//
-					if ( previous_sync_state.layout == requestedState.layout && previous_sync_state.stage == VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT && previous_sync_state.visible_access == VkAccessFlagBits2( 0 ) ) {
+					if ( previous_sync_state.layout == requestedState.layout &&
+					     previous_sync_state.stage == VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT &&
+					     previous_sync_state.visible_access == VkAccessFlagBits2( 0 ) ) {
 						continue;
 					}
 				}
@@ -2143,15 +2145,23 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 
 		syncOp.sync_chain_offset_final = uint32_t( syncChain.size() - 1 );
 
-		// -- we must add an explicit sync op so that the change happens before the pass - this applies to
-		// passes which don't do implicit syncing, such as compute or transfer passes.
-
-		// let's only add the sync op if this is the first transition for this element
+		// -- Add an explicit sync op so that the change happens before the pass
+		//
+		// Let's only add the sync op if this is the first transition for this element
+		// NOTE: Because we add an explicit sync op if this is the first transition
+		//       for a resource, this means that we must make sure not to transition
+		//       the same resources again at the end of a renderpass; At the end of the
+		//       renderpass we therefore only add an explicit sync op if that is NOT
+		//       the first transition for this resource.
+		//
 		if ( syncOp.sync_chain_offset_initial == 0 ) {
+			// logger().info( "resource: %s: %p", resource->get_debug_name(), resource->get_idx() );
 			currentPass.sync_ops_before_pass.emplace_back( syncOp );
 		}
 	}
 }
+
+// ----------------------------------------------------------------------
 
 static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o** pp_passes, size_t num_renderpasses, const std::vector<le_image_resource_handle>& swapchain_images, le_renderer_o* renderer ) {
 
@@ -2218,11 +2228,22 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 		le_renderpass_add_attachments( pass, currentPass, frame, currentPass.sampleCount, renderer );
 
 		for ( auto const& r : currentPass.resources ) {
+
+			uint32_t const sync_pos = syncChainTable.at( r ).size() - 1;
+
+			// Only add an explicit sync op at the end of the renderpass if for this resource
+			// there exists more than one sync op.
+			//
+			// If there exists only a single sync op, an explicit sync op will have been added
+			// at the start of the next renderpass.
+			//
+			// if ( sync_pos > 0 ) {
 			currentPass.sync_ops_after_pass.push_back( {
 			    r,
-			    uint32_t( syncChainTable.at( r ).size() ) - 1, // last current
-			    uint32_t( syncChainTable.at( r ).size() ),     // speculative: next state
+			    sync_pos,     // last current
+			    sync_pos + 1, // speculative: next state
 			} );
+			// }
 		}
 
 		frame.passes.emplace_back( std::move( currentPass ) );
@@ -2404,6 +2425,7 @@ static bool backend_clear_frame( le_backend_o* self, size_t frameIndex ) {
 	frame.queue_submission_data.clear();
 
 	frame.physicalResources.clear();
+
 	frame.syncChainTable.clear();
 
 	frame.passes.clear();
@@ -6317,7 +6339,12 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 			if ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger().info( "*** Frame %d *** Queue %d *** / Begin Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 			}
+
 			cmd_insert_pipeline_barriers( cmd, frame, submission, pass.sync_ops_before_pass );
+
+			if constexpr ( LE_PRINT_DEBUG_MESSAGES ) {
+				logger().info( "--- / End Sync before pass " );
+			}
 
 			// Draw passes must begin by opening a Renderpass context.
 			if ( pass.type == le::QueueFlagBits::eGraphics ) {
@@ -7943,13 +7970,13 @@ static void backend_process_frame( le_backend_o* self, size_t frameIndex ) {
 				vkCmdEndRendering( cmd );
 			}
 
-			if ( LE_PRINT_DEBUG_MESSAGES ) {
+			if constexpr ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger().info( "*** Frame %d *** Queue %d *** \\ End   Renderpass '%s'", frame.frameNumber, submission.queue_idx, pass.debugName );
 			}
 
 			cmd_insert_pipeline_barriers( cmd, frame, submission, pass.sync_ops_after_pass );
 
-			if ( LE_PRINT_DEBUG_MESSAGES ) {
+			if constexpr ( LE_PRINT_DEBUG_MESSAGES ) {
 				logger().info( "--- / End Sync after pass " );
 			}
 
