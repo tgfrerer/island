@@ -2056,7 +2056,6 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 		ExplicitSyncOp syncOp{};
 
 		syncOp.resource                  = resource;
-		syncOp.active                    = true;
 		syncOp.sync_chain_offset_initial = uint32_t( syncChain.size() - 1 );
 
 		ResourceState requestedState{}; // State we want our image to be in when pass begins.
@@ -2223,7 +2222,6 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 			    r,
 			    uint32_t( syncChainTable.at( r ).size() ) - 1, // last current
 			    uint32_t( syncChainTable.at( r ).size() ),     // speculative: next state
-			    true,
 			} );
 		}
 
@@ -5816,12 +5814,6 @@ static void cmd_insert_pipeline_barriers( VkCommandBuffer& cmd, BackendFrameData
 
 	for ( auto const& op : explicit_sync_ops ) {
 		// fill in sync op
-
-		if ( op.active == false ) {
-			continue;
-		}
-
-		// ---------| invariant: barrier is active.
 
 		auto const& syncChain = frame.syncChainTable.at( op.resource );
 

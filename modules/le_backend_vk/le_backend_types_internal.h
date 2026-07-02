@@ -163,7 +163,6 @@ struct ExplicitSyncOp {
 	le_resource_handle resource;                  // image used as texture, or buffer resource used in this pass
 	uint32_t           sync_chain_offset_initial; // offset when entering this pass
 	uint32_t           sync_chain_offset_final;   // offset when this pass has completed
-	uint32_t           active;
 };
 
 struct BackendQueueInfo {
