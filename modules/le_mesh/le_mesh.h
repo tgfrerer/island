@@ -36,6 +36,12 @@
  * - (optional) allocate index data
  *     - memcpy index data into index buffer
  *
+ *
+ * 1) create mesh object
+ * 2) upload mesh objects to rendergraph
+ * 3) use mesh objects with renderpass
+ * 4) bind mesh objects to encoder
+ *
  * ----------------------------------------------------------------------
  * USAGE (DRAWING):
  * ----------------------------------------------------------------------
@@ -382,7 +388,7 @@ class LeMesh : NoCopy, NoMove {
 	}
 
 	/// \brief Declare buffers used by mesh to the renderpass
-	/// \param attribute_infos [optional] attributes for which buffers declared,
+	/// \param attribute_infos [optional] attributes for which buffers declared. If you want to only use selected attributes of this mesh, fill this parameter.
 	/// \note  Keep `attribute_infos` to `nullptr` to declare all buffers owned by this mesh to the renderpass
 	void useWithRenderpass( le_renderpass_o* rp, le_mesh_attribute_info_t const* attribute_infos = nullptr, size_t attribute_infos_count = 0 ) {
 		this_i.use_with_renderpass( self, rp, attribute_infos, attribute_infos_count );
