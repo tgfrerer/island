@@ -879,13 +879,13 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 		for ( size_t i = 0; i != self->grouped_passes_per_pass.size(); i++ ) {
 			auto const& g = self->grouped_passes_per_pass[ i ];
 
-			if ( !g.empty() && self->nodes[ i ].is_contributing ) {
+			if ( !g.empty() && nodes[ i ].is_contributing ) {
 
 				// All nodes belonging to a group owner node need to
 				// contribute if the group owner is contributing.
 
 				for ( auto const& e : g ) {
-					self->nodes[ e ].is_contributing |= true;
+					nodes[ e ].is_contributing |= true;
 				}
 			}
 		}
