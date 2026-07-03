@@ -5055,8 +5055,8 @@ static bool backend_acquire_physical_resources( le_backend_o*             self,
 		    DEFAULT_RENDERPASS_HEIGHT );
 	}
 
-	// Note: this consumes frame.declared_resources
-	// Note: this will taint any bindless (sub)resources that are affected by resources that are allocated or re-allocated.
+	// Note: This consumes frame.declared_resources
+	// Note: This will taint any bindless (sub)resources that are affected by resources that are allocated or re-allocated.
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
 	{
