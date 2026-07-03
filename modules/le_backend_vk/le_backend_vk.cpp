@@ -2028,6 +2028,7 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 	le_resource_handle const* resources        = nullptr;
 	le::AccessFlags2 const*   resources_access = nullptr;
 	size_t                    resources_count  = 0;
+
 	renderpass_i.get_used_resources( pass, &resources, &resources_access, nullptr, &resources_count );
 
 	currentPass.resources.assign( resources, resources + resources_count );
@@ -2109,9 +2110,59 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.stage          = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
 				requestedState.layout         = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 			} else if ( resources_access[ i ] & ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ) ) {
-				requestedState.visible_access = resources_access[ i ];
-				requestedState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-				requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				// if pass is multisampling then the 1-sample resource needs to be the resolve resource
+				// and the resource with the n-samples will be the render resource.
+				if ( currentPass.sampleCount == le::SampleCountFlagBits::e1 ) {
+					requestedState.visible_access = resources_access[ i ];
+					requestedState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+					requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				} else {
+
+					// In case we have a multisample attachment, we must prepare to issue two sync
+					// commands: one for the main texture (which is used as a resolve attachment)
+					// and one for the multisampled texture (which is used as the color attachment).
+
+					requestedState.visible_access = VK_ACCESS_2_MEMORY_READ_BIT;
+					requestedState.stage          = VK_PIPELINE_STAGE_2_RESOLVE_BIT;
+					requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+					{
+
+						ResourceState resolve_requestedState{};    // State we want our image to be in when pass begins.
+						resolve_requestedState.visible_access = 0; // the color attachment does not need to make anything visible - it is write-only
+						resolve_requestedState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+						resolve_requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+						uint32_t numSamplesLog2 = get_sample_count_log_2( uint32_t( currentPass.sampleCount ) );
+
+						auto resolve_resource = ( ( le_image_resource_handle )resource )->clone_with_num_samples( numSamplesLog2 );
+
+						auto& rsc = syncChainTable[ resolve_resource ];
+						assert( !rsc.empty() ); // must not be empty - this resource must exist, and have an initial sync state
+
+						ExplicitSyncOp so{
+						    .resource                  = resolve_resource,
+						    .sync_chain_offset_initial = uint32_t( rsc.size() - 1 ),
+						    .sync_chain_offset_final   = uint32_t( rsc.size() ),
+						};
+
+						rsc.emplace_back( resolve_requestedState );
+
+						// -- Add an explicit sync op so that the change happens before the pass
+						//
+						// Let's only add the sync op if this is the first transition for this element
+						// NOTE: Because we add an explicit sync op if this is the first transition
+						//       for a resource, this means that we must make sure not to transition
+						//       the same resources again at the end of a renderpass; At the end of the
+						//       renderpass we therefore only add an explicit sync op if that is NOT
+						//       the first transition for this resource.
+						//
+						if ( so.sync_chain_offset_initial == 0 ) {
+							currentPass.sync_ops_before_pass.emplace_back( so );
+						}
+					}
+				}
+
 			} else if ( resources_access[ i ] & ( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT ) ) {
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
@@ -2141,6 +2192,11 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 			logger().warn( "Unknown resource type: %d", resource->get_type() );
 		}
 
+		// if the resource is a multisampling image attachment, we must
+		// use the single sampled image as a resolve attachment
+		// and add a multisampling image sync op, so that the multisampling image
+		// is correctly transitioned *before* the renderpass begins.
+
 		// -- we must add an entry to the sync chain to signal the state after change
 		syncChain.emplace_back( requestedState );
 
@@ -2156,7 +2212,6 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 		//       the first transition for this resource.
 		//
 		if ( syncOp.sync_chain_offset_initial == 0 ) {
-			// logger().info( "resource: %s: %p", resource->get_debug_name(), resource->get_idx() );
 			currentPass.sync_ops_before_pass.emplace_back( syncOp );
 		}
 	}
@@ -2216,35 +2271,55 @@ static void frame_track_resource_state( BackendFrameData& frame, le_renderpass_o
 
 		renderpass_i.get_framebuffer_settings( pass, &currentPass.width, &currentPass.height, &currentPass.sampleCount );
 
-		// Find explicit sync ops needed for resources which are not attachments
+		// Insert sync ops for before starting the renderpass
 		//
 		le_renderpass_add_explicit_sync( pass, currentPass, syncChainTable );
 
-		// After a pass we must transfer the resource so that it is ready for the next pass.
-		// How do we know what is needed from the next pass? At this point we don't - but we
-		// know the index of the sync chain table element for the next pass - it it the current
-		// pass index + 1
 
 		// Iterate over all image attachments
 		le_renderpass_add_attachments( pass, currentPass, frame, currentPass.sampleCount, renderer );
 
-		for ( auto const& r : currentPass.resources ) {
-
-			uint32_t const sync_pos = syncChainTable.at( r ).size() - 1;
-
-			// Only add an explicit sync op at the end of the renderpass if for this resource
-			// there exists more than one sync op.
+		{
+			// Insert sync ops after ending the renderpass
 			//
-			// If there exists only a single sync op, an explicit sync op will have been added
-			// at the start of the next renderpass.
-			//
-			// if ( sync_pos > 0 ) {
-			currentPass.sync_ops_after_pass.push_back( {
-			    r,
-			    sync_pos,     // last current
-			    sync_pos + 1, // speculative: next state
-			} );
-			// }
+			// After a pass we must transfer the resource so that it is ready for the next pass.
+			// How do we know what is needed from the next pass? At this point we don't - but we
+			// know the index of the sync chain table element for the next pass - it it the current
+			// pass index + 1
+
+			std::vector<le_resource_handle> resources;
+			{
+				resources.reserve( currentPass.resources.size() + currentPass.numResolveAttachments );
+				resources.insert( resources.end(), currentPass.resources.begin(), currentPass.resources.end() );
+
+				// If a pass has resolve attachments, then the primary colour and depth attachments
+				// will be temporary multisample images, (the "official" 1-sample images being used
+				// as resolve attachments). The multisample images need to be added to the list of
+				// resources that need to be synced with this renderpass.
+				//
+				for ( size_t i = 0; i != currentPass.numResolveAttachments; i++ ) {
+					resources.emplace_back( currentPass.attachments[ i ].resource );
+				}
+			}
+
+			for ( le_resource_handle r : resources ) {
+
+				uint32_t const sync_pos = syncChainTable.at( r ).size() - 1;
+
+				// Only add an explicit sync op at the end of the renderpass if for this resource
+				// there exists more than one sync op.
+				//
+				// If there exists a single sync op only, then an explicit sync op will have been added
+				// at the start of the next renderpass and we MUST NOT add one here.
+				//
+				if ( sync_pos > 0 ) {
+					currentPass.sync_ops_after_pass.push_back( {
+					    r,
+					    sync_pos,     // last current
+					    sync_pos + 1, // speculative: next state
+					} );
+				}
+			}
 		}
 
 		frame.passes.emplace_back( std::move( currentPass ) );
