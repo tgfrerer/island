@@ -200,29 +200,7 @@ static void renderpass_use_resource( le_renderpass_o* self, const le_resource_ha
 		}
 	}
 
-	// le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debug_name.c_str(), resource_id->data->debug_name, to_string_le_access_flags2( access_flags ).c_str() );
-
-	// bool detectRead  = bool( access_flags & LE_ALL_READ_ACCESS_FLAGS );
-	bool detectWrite = bool( access_flags & LE_ALL_WRITE_ACCESS_FLAGS );
-
-	// In case we have an IMAGE resource, we might have to do an image layout transform, which is a read/write operation -
-	// this means that some reads to image resources are implicit read/writes.
-	// we can only get rid of this if we can prove that resources will not undergo a layout transform.
-	//
-	if ( resource_id->get_type() == LeResourceType::eImage ) {
-		detectWrite |= bool( access_flags & LE_ALL_IMAGE_IMPLIED_WRITE_ACCESS_FLAGS );
-	}
-
-	// update access flags
-
-	if ( detectWrite ) {
-
-		if ( resource_id->get_type() == LeResourceType::eImage &&
-		     resource_is_a_swapchain_handle( static_cast<le_image_resource_handle>( resource_id ) ) ) {
-			// A request to write to swapchain image automatically turns a pass into a root pass.
-			self->is_root = true;
-		}
-	}
+	// le::Log( LOGGER_LABEL ).info( "pass: [ %20s ] use resource: %40s, access { %-60s }", self->debug_name.c_str(), resource_id->get_debug_name(), to_string_le_access_flags2( access_flags ).c_str() );
 }
 
 
@@ -785,32 +763,47 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	static auto RENDERGRAPH_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES = LE_SETTING( bool, LE_SETTING_IDENTIFIER_SHOULD_PRINT_EXTENDED_DEBUG_MESSAGES, false );
+
 	// We must express our list of passes as a list of nodes.
 	// A node holds two bitfields, the bitfield names are: `read` and `write`.
 	// Each bit in the bitfield represents a possible resource.
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
 
-	self->nodes.clear();
-
 	self->root_passes_affinity_masks.clear();
 	self->root_debug_names.clear();
 	self->unique_resources.clear();
 
-	auto& nodes                = self->nodes; // There is exactly one Node per `pass` - their indices correspond
+	size_t const num_passes = self->passes.size();
+
+	auto& nodes = self->nodes;
+	nodes.resize( num_passes, {} ); // There is exactly one Node per `pass` - their indices correspond
+
 	auto& known_unique_handles = self->unique_resources;
 
 	self->unique_resources.reserve( LE_MAX_NUM_GRAPH_RESOURCES );
 
 	// Translate all passes into a node
-	//   Get list of resources per pass and build node from this
+	//   Get list of resources per pass and build nodes from this
 
-	uint64_t node_unique_id = 0;
-
-	for ( auto const& p : self->passes ) {
-
-		Node node{};
-		node.unique_id = ++node_unique_id;
+	// ----------------------------------------------------------------------
+	// Note that we iterate BACK-TO-FRONT:
+	//
+	// This allows us to tag the node that LAST uses any swapchain resource
+	// as a root node.
+	//
+	// How does it work? Because we are going BACK-TO-FRONT the
+	// (chronologically) last use of an image resource becomes the first time we
+	// encounter the image resource when going back-to-front. Anytime we encounter
+	// a new image resource, we test it against being a swapchain resource. If it
+	// is, then we mark the container node as a root node, as this is the last
+	// (chronological) use of this swapchain resource.
+	// ----------------------------------------------------------------------
+	//
+	for ( int n_idx = num_passes - 1; n_idx >= 0; n_idx-- ) {
+		auto const& p    = self->passes.at( n_idx );
+		auto&       node = nodes.at( n_idx );
+		node.unique_id   = n_idx;
 
 		const size_t resources_per_pass_count = p->resources.size();
 
@@ -843,6 +836,15 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				if ( res_idx == known_unique_handles.size() ) {
 					// resource was not found, we must add a new resource
 					known_unique_handles.push_back( resource_handle );
+
+					if ( resource_handle->get_type() == le::ResourceType::eImage ) {
+						auto const img_h = ( le_image_resource_handle& )resource_handle;
+						if ( img_h->get_is_root() ) {
+							// last use for this swapchain image : test what happens if you write and read, then read again
+							node.is_root = true;
+						}
+					}
+
 					assert( known_unique_handles.size() < LE_MAX_NUM_GRAPH_RESOURCES && "bitfield must be large enough to provide one field for each unique resource" );
 				}
 
@@ -853,12 +855,12 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 				node.explicit_writes.set( res_idx, detect_explicit_write );
 			}
 
+			// if the pass was explicitly declared a root pass, we unconditionally set this root
 			if ( p->is_root ) {
 				node.is_root = true;
 			}
 		}
 		node.debug_name = p->debug_name;
-		nodes.emplace_back( std::move( node ) );
 	}
 
 	// Tag all nodes which contribute to any root node.
