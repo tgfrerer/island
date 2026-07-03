@@ -125,7 +125,6 @@ static inline bool vector_contains( const std::vector<T>& haystack, const T& nee
 
 static inline bool resource_is_a_swapchain_handle( const le_image_resource_handle& handle ) {
 	return handle->get_is_root();
-	// return handle->data->flags == le_img_resource_usage_flags_t::eIsRoot;
 }
 
 // ----------------------------------------------------------------------
@@ -864,13 +863,12 @@ static void rendergraph_build( le_rendergraph_o* self, size_t frame_number ) {
 
 	// Tag all nodes which contribute to any root node.
 	//
-	// Tasks which don't contribute to any root node
+	// Nodes which don't contribute to any root node
 	// can be disposed, as their products will never be used.
 	uint32_t root_count = 0; // gets set to number of found root nodes as a side-effect of node_tag_contributing
 	node_tag_contributing( nodes.data(), nodes.size(), &root_count );
 
 	// table from pass idx (owner) to owned passes
-	// std::vector<std::vector<uint32_t>> const & grouped_passes_per_pass = self->grouped_passses_per_pass;
 	{
 
 		// If a node is owned by a group owner node that is contributing,
