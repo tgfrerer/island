@@ -128,7 +128,7 @@ struct le_resource_handle_t {
 
 		// ---- high bits
 
-		// in case we have an image, we want to store the number of samles
+		// in case we have an image, we want to store the number of samples
 
 		if ( type == LeResourceType::eImage ) {
 			handle |= ( uint64_t( num_samples ) & 0x3 ) << 32; // 2 bits = 34
@@ -169,8 +169,6 @@ struct le_resource_handle_t {
 		uint32_t    type_id = uint32_t( ( reinterpret_cast<uint64_t const&>( p ) >> 8 ) & 0xf ); // 4 bits
 		return LeResourceType( type_id );
 	}
-
-	// 2 bits for either num_samples or buffer usage flags
 
 	inline uint32_t get_version() {
 		void const* p = this;
