@@ -4,6 +4,7 @@
 
 #include "le_backend_vk.h"                             // for GPU allocators
 #include "private/le_backend_vk/le_command_stream_t.h" // for le_command_stream_t
+#include "le_log.h"
 
 #include <cstring>
 #include <iostream>
@@ -23,6 +24,11 @@
 #if ( LE_MT > 0 )
 #	include "le_jobs.h"
 #endif
+
+static auto& logger() {
+	static le::Log log( "command_buffer_encoder" );
+	return log;
+}
 
 // ----------------------------------------------------------------------
 // return allocator offset based on current worker thread index.
@@ -591,6 +597,10 @@ static void cbe_set_argument_tlas( le_command_buffer_encoder_o* self, le_tlas_re
 
 static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o* self, le_gpso_handle gpsoHandle ) {
 
+	if ( gpsoHandle == nullptr ) {
+		logger().error( "Pipeline handle is null" );
+		return;
+	}
 	// -- insert graphics PSO pointer into command stream
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandBindGraphicsPipeline>();
 
@@ -795,6 +805,11 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o* self, le_shader_
 // ----------------------------------------------------------------------
 
 static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o* self, le_cpso_handle cpsoHandle ) {
+
+	if ( cpsoHandle == nullptr ) {
+		logger().error( "Pipeline handle is null" );
+		return;
+	}
 
 	// -- insert compute PSO pointer into command stream
 	auto cmd = self->mCommandStream->emplace_cmd<le::CommandBindComputePipeline>();
