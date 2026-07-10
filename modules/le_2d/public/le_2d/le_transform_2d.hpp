@@ -3,7 +3,19 @@
 
 /// Structure representing Affine Transform
 ///
-/// Think of this as "first translate, then rotate(transform)"
+/// Read these operations right-to-left (starting at model space, transforming to canvas space)
+/// For example, just rotating a point at 0,0 will not do anything
+/// as this will return the rotated point.
+///
+/// Here is how you can read a transform multiplication: (read right-to-left:)
+///
+/// p_dash = tr * r_2 * t * r * p
+///
+/// "rotate p around model origin" (as p is given relative to model space origin) -- note if p is at{0,0}, then the rotation has no effect
+/// "translate by t", then
+/// "rotate by r_2 around (t*r*p) space", then
+/// "translate by tr", and we're in canvas space
+///
 ///
 struct LeTransform2D {
 
