@@ -21,8 +21,8 @@
 #include <chrono> // for sleeping a certain time
 
 constexpr le_swapchain_windowed_settings_t swapchain_default_hints{
-    .format_hint      = le::Format::eR16G16B16A16Sfloat,
-    .color_space_hint = le::ColorSpaceKHR::eBt2020LinearExt,
+    .format_hint      = le::Format::eR16G16B16A16Sfloat,     // HDR requires a compatible format for images - most likely rgb8 is not enough
+    .color_space_hint = le::ColorSpaceKHR::eBt2020LinearExt, // bt2020, that's HDR colour space
 };
 struct WindowData {
 	le::Window                       window;
@@ -189,9 +189,9 @@ static void app_process_ui_events( app_o* self ) {
 		// If the window was resized, we must resize the swapchain.
 		// There are two methods for doing this :
 
-		static bool CREATE_NEW_SWAPCHAIN = true;
+		static constexpr bool CREATE_NEW_SWAPCHAIN = true;
 
-		if ( CREATE_NEW_SWAPCHAIN ) {
+		if constexpr ( CREATE_NEW_SWAPCHAIN ) {
 
 			// We can either remove the current and create a new swapchain
 			// but this will result in a swapchain with a different handle
