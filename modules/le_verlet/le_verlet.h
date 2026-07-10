@@ -40,11 +40,11 @@ struct le_verlet_api {
 	struct SpringConstraint {
 		uint32_t a;        // index into particle system
 		uint32_t b;        // index into particle system
-		float    distance; // resting distance
-		SpringConstraint( uint32_t const& a, uint32_t const& b )
+		float    distance = 0.f; // resting distance
+		SpringConstraint( uint32_t const& a, uint32_t const& b, float const distance = 0.f )
 		    : a( a )
 		    , b( b )
-		    , distance( 0 ) {
+		    , distance( distance ) {
 		}
 	};
 

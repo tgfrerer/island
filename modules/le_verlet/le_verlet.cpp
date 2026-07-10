@@ -88,10 +88,14 @@ static void le_verlet_add_constraint( le_verlet_particle_system_o* self, Constra
 	switch ( c.type ) {
 	case ( Constraint::eFollow ): {
 		c.follow.distance = glm::length( pos[ c.follow.a ] - pos[ c.follow.b ] );
-	} break;
+		break;
+	}
 	case ( Constraint::eSpring ): {
-		c.spring.distance = glm::length( pos[ c.spring.b ] - pos[ c.spring.a ] );
-	} break;
+		if ( c.spring.distance == 0 ) {
+			c.spring.distance = glm::length( pos[ c.spring.b ] - pos[ c.spring.a ] );
+		}
+		break;
+	}
 	default:
 		assert( false );
 		break;
@@ -132,7 +136,7 @@ static void le_verlet_update( le_verlet_particle_system_o* self, size_t num_step
 		pp = p;
 
 		// Apply friction
-		velocity *= 0.995;
+		velocity *= 0.95;
 
 		// Apply inertia
 		p += velocity;
