@@ -2109,10 +2109,62 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
 				requestedState.layout         = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-			} else if ( resources_access[ i ] & ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ) ) {
-				// if pass is multisampling then the 1-sample resource needs to be the resolve resource
-				// and the resource with the n-samples will be the render resource.
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT ) ) {
 				if ( currentPass.sampleCount == le::SampleCountFlagBits::e1 ) {
+					// simple case - the pass is not multisampling
+					requestedState.visible_access = resources_access[ i ];
+					requestedState.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+					requestedState.layout         = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+				} else {
+
+					// In case we have a multisample attachment, we must prepare to issue two sync
+					// commands: one for the main texture (which is used as a resolve attachment)
+					// and one for the multisampled texture (which is used as the color attachment).
+
+					requestedState.visible_access = VK_ACCESS_2_MEMORY_READ_BIT;
+					requestedState.stage          = VK_PIPELINE_STAGE_2_RESOLVE_BIT;
+					requestedState.layout         = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+
+					{
+
+						ResourceState resolve_requestedState{};    // State we want our image to be in when pass begins.
+						resolve_requestedState.visible_access = 0; // the color attachment does not need to make anything visible - it is write-only
+						resolve_requestedState.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+						resolve_requestedState.layout         = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+
+						uint32_t numSamplesLog2 = get_sample_count_log_2( uint32_t( currentPass.sampleCount ) );
+
+						auto resolve_resource = ( ( le_image_resource_handle )resource )->clone_with_num_samples( numSamplesLog2 );
+
+						auto& rsc = syncChainTable[ resolve_resource ];
+						assert( !rsc.empty() ); // must not be empty - this resource must exist, and have an initial sync state
+
+						ExplicitSyncOp so{
+						    .resource                  = resolve_resource,
+						    .sync_chain_offset_initial = uint32_t( rsc.size() - 1 ),
+						    .sync_chain_offset_final   = uint32_t( rsc.size() ),
+						};
+
+						rsc.emplace_back( resolve_requestedState );
+
+						// -- Add an explicit sync op so that the change happens before the pass
+						//
+						// Let's only add the sync op if this is the first transition for this element
+						// NOTE: Because we add an explicit sync op if this is the first transition
+						//       for a resource, this means that we must make sure not to transition
+						//       the same resources again at the end of a renderpass; At the end of the
+						//       renderpass we therefore only add an explicit sync op if that is NOT
+						//       the first transition for this resource.
+						//
+						if ( so.sync_chain_offset_initial == 0 ) {
+							currentPass.sync_ops_before_pass.emplace_back( so );
+						}
+					}
+				}
+
+			} else if ( resources_access[ i ] & ( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ) ) {
+				if ( currentPass.sampleCount == le::SampleCountFlagBits::e1 ) {
+					// simple case: the pass is not multisampling
 					requestedState.visible_access = resources_access[ i ];
 					requestedState.stage          = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 					requestedState.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -2163,10 +2215,6 @@ static void le_renderpass_add_explicit_sync( le_renderpass_o const* pass, Backen
 					}
 				}
 
-			} else if ( resources_access[ i ] & ( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT ) ) {
-				requestedState.visible_access = resources_access[ i ];
-				requestedState.stage          = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
-				requestedState.layout         = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 			} else {
 				requestedState.visible_access = resources_access[ i ];
 				requestedState.stage          = get_stage_flags_based_on_renderpass_type( currentPass.type );
