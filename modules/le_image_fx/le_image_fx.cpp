@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+#include <atomic>
 #include <unordered_map>
 
 #include "private/le_image_fx/inl/blit_frag.inl"
@@ -272,41 +273,49 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 
 struct le_image_fx_blit_o {
 	// members
-	le_renderer_o* const             renderer;
+	le_renderer_o* const             renderer         = nullptr;
 	le_pipeline_manager_o*           pipeline_manager = nullptr; // non-owning
-	le_texture_handle                tex_blit_source;            // owning
-	le_gpso_handle                   pipeline_handle;            //
-	le_image_fx_api::BlitBlendPreset blend_preset;
+	le_texture_handle                tex_blit_source  = nullptr; // owning
+	le_gpso_handle                   pipeline_handle  = nullptr; //
+	le_image_fx_api::BlitBlendPreset blend_preset     = {};
+	bool                             was_setup        = false;
+	std::atomic<uint32_t>            reference_count  = 0;
 };
 
-static le_image_fx_blit_o* le_fx_blit_create( le_renderer_o* renderer, le_image_fx_api::BlitBlendPreset blend_preset ) {
-	auto self = new le_image_fx_blit_o{ renderer };
+// ----------------------------------------------------------------------
 
-	self->tex_blit_source  = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "image_fx_blit_src" );
-	self->pipeline_manager = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
-	self->blend_preset     = blend_preset;
+static bool le_fx_setup_blit( le_image_fx_blit_o* self ) {
 
-	le::AttachmentBlendPreset selected_preset{};
-
-	switch ( blend_preset ) {
-	case le_image_fx_api::BLIT_BLEND_COPY:
-		selected_preset = le::AttachmentBlendPreset::eCopy;
-		break;
-	case le_image_fx_api::BLIT_BLEND_ALPHA_PREMUL:
-		selected_preset = le::AttachmentBlendPreset::ePremultipliedAlpha;
-		break;
-	case le_image_fx_api::BLIT_BLEND_ADD:
-		selected_preset = le::AttachmentBlendPreset::eAdd;
-		break;
-	case le_image_fx_api::BLIT_BLEND_MULTIPLY:
-		selected_preset = le::AttachmentBlendPreset::eMultiply;
-		break;
-	default:
-		assert( false ); // unreachable
+	if ( self->renderer == nullptr ) {
+		get_logger().error( "Cannot initialize blit without valid renderer -- Was renderer set up?" );
+		return false;
 	}
+
+	self->tex_blit_source  = le_renderer_api_i->le_renderer_i.produce_texture_handle( self->renderer, "image_fx_blit_src" );
+	self->pipeline_manager = le_renderer_api_i->le_renderer_i.get_pipeline_manager( self->renderer );
 
 	if ( self->pipeline_manager == nullptr ) {
 		get_logger().error( "Cannot initialize blit without valid pipeline manager -- Was renderer set up?" );
+		return false;
+	}
+
+	le::AttachmentBlendPreset selected_blend_preset{};
+
+	switch ( self->blend_preset ) {
+	case le_image_fx_api::BLIT_BLEND_COPY:
+		selected_blend_preset = le::AttachmentBlendPreset::eCopy;
+		break;
+	case le_image_fx_api::BLIT_BLEND_ALPHA_PREMUL:
+		selected_blend_preset = le::AttachmentBlendPreset::ePremultipliedAlpha;
+		break;
+	case le_image_fx_api::BLIT_BLEND_ADD:
+		selected_blend_preset = le::AttachmentBlendPreset::eAdd;
+		break;
+	case le_image_fx_api::BLIT_BLEND_MULTIPLY:
+		selected_blend_preset = le::AttachmentBlendPreset::eMultiply;
+		break;
+	default:
+		assert( false ); // unreachable
 	}
 
 	self->pipeline_handle =
@@ -314,21 +323,51 @@ static le_image_fx_blit_o* le_fx_blit_create( le_renderer_o* renderer, le_image_
 	        .addShaderStage( get_shader_vert( self->pipeline_manager ) )
 	        .addShaderStage( get_shader_frag_blit( self->pipeline_manager ) )
 	        .withAttachmentBlendState()
-	        .usePreset( selected_preset )
+	        .usePreset( selected_blend_preset )
 	        .end()
 	        .build();
+
+	self->was_setup = true;
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+static le_image_fx_blit_o* le_fx_blit_create( le_renderer_o* renderer, le_image_fx_api::BlitBlendPreset blend_preset ) {
+	auto self = new le_image_fx_blit_o{
+	    .renderer        = renderer,
+	    .blend_preset    = blend_preset,
+	    .reference_count = 1,
+	};
 
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
+static void le_fx_blit_dec_owners_count( le_image_fx_blit_o* self ) {
+	if ( --self->reference_count == 0 ) {
+		delete self;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void le_fx_blit_destroy( le_image_fx_blit_o* self ) {
-	delete self;
+	// Decrement reference count. In case there is no callback
+	// in flight, this will trigger deleting the object as there
+	// will be no more owners of the object.
+	le_fx_blit_dec_owners_count( self );
 }
 
 // ----------------------------------------------------------------------
 static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst ) {
+
+	[[unlikely]] if ( false == self->was_setup ) {
+		// setup on first use
+		le_fx_setup_blit( self );
+	}
 
 	auto blit_pass =
 	    le::RenderPass( "blit" )
@@ -359,12 +398,22 @@ static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le
 		            .bindGraphicsPipeline( fx->pipeline_handle )
 		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blit_source )
 		            .draw( 4 );
+
+		        // Decrement the reference count to the object as this callback
+		        // has finished and therefore releases its reference to the object.
+		        le_fx_blit_dec_owners_count( fx );
 	        } );
 
-	auto rendergraph = le::RenderGraph( rg );
-	rendergraph
-	    .addRenderPass( blit_pass ) //
-	    ;
+	// Increase the reference count since we add a callback that refers to
+	// the object for the duration the callback's lifetime.
+	// At the end of the callback the
+	if ( self->reference_count++ > 0 ) {
+
+		auto rendergraph = le::RenderGraph( rg );
+		rendergraph
+		    .addRenderPass( blit_pass ) //
+		    ;
+	}
 }
 
 // ----------------------------------------------------------------------
