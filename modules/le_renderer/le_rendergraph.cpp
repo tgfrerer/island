@@ -85,6 +85,12 @@ static void renderpass_set_setup_callback( le_renderpass_o* self, void* user_dat
 	self->setup_callback_user_data = user_data;
 	self->callbackSetup            = callback;
 }
+// ----------------------------------------------------------------------
+
+static void renderpass_set_cleanup_callback( le_renderpass_o* self, void* user_data, le_renderer_api::pfn_renderpass_cleanup_t callback ) {
+	self->cleanup_callback_user_data = user_data;
+	self->callbackCleanup            = callback;
+}
 
 // ----------------------------------------------------------------------
 
@@ -115,6 +121,15 @@ static bool renderpass_run_setup_callback( le_renderpass_o* self ) {
 	bool result         = self->callbackSetup( self, self->setup_callback_user_data );
 	self->callbackSetup = nullptr; // remove setup callback so that it cannot be called again
 	return result;
+}
+
+// ----------------------------------------------------------------------
+static inline void renderpass_run_cleanup_callback( le_renderpass_o* self ) {
+	ZoneScoped;
+	if ( self->callbackCleanup ) {
+		self->callbackCleanup( self->cleanup_callback_user_data );
+		self->callbackCleanup = nullptr; // remove cleanup callback so that it cannot be called again
+	};
 }
 
 // ----------------------------------------------------------------------
@@ -1206,6 +1221,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 		pass->has_commands = !pass->executeCallbacks.empty();
 
 		if ( !pass->has_commands || !pass->is_contributing ) {
+			renderpass_run_cleanup_callback( pass );
 			continue;
 		}
 
@@ -1262,6 +1278,7 @@ static void rendergraph_execute( le_rendergraph_o* self, size_t frameIndex, le_b
 		//
 		encoder_i.destroy( encoder );
 		encoder = nullptr;
+		renderpass_run_cleanup_callback( pass );
 	}
 
 	// TODO: consolidate pipeline caches
@@ -1404,7 +1421,8 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_renderpass_i.set_width                    = renderpass_set_width;
 	le_renderpass_i.set_sample_count                          = renderpass_set_sample_count;
 	le_renderpass_i.set_height                   = renderpass_set_height;
-	le_renderpass_i.set_setup_callback           = renderpass_set_setup_callback;
+	le_renderpass_i.set_setup_callback                        = renderpass_set_setup_callback;
+	le_renderpass_i.set_cleanup_callback                      = renderpass_set_cleanup_callback;
 	le_renderpass_i.has_setup_callback           = renderpass_has_setup_callback;
 	le_renderpass_i.set_execute_callback                      = renderpass_set_execute_callback;
 	le_renderpass_i.set_execute_callback_with_local_user_data = renderpass_set_execute_callback_with_local_user_data;

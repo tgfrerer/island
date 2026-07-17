@@ -99,6 +99,7 @@ struct le_renderer_api {
 	};
 
 	typedef bool ( *pfn_renderpass_setup_t )( le_renderpass_o *obj, void* user_data );
+	typedef void ( *pfn_renderpass_cleanup_t )( void* user_data );
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
@@ -113,6 +114,7 @@ struct le_renderer_api {
 		le_renderpass_o *               ( *clone                )( const le_renderpass_o *obj );
         void                            ( *set_setup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_setup_t setup_fun );
 		bool                            ( *has_setup_callback   )( const le_renderpass_o* obj);
+        void                            ( *set_cleanup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_cleanup_t setup_fun );
 		void                            ( *add_color_attachment )( le_renderpass_o *obj, le_image_resource_handle resource_id, le_image_attachment_info_t const *info );
 		void                            ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_image_resource_handle resource_id, le_image_attachment_info_t const *info );
 		void                            ( *set_width            )( le_renderpass_o* obj, uint32_t width);

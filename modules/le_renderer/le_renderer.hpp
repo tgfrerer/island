@@ -421,6 +421,16 @@ class RenderPass {
 		return *this;
 	}
 
+	/// \brief   Cleanup gets executed after the renderpass exec callback has executed.
+	/// \details In case the renderpass does not contribute, it gets executed instead of executing the renderpass.
+	/// Cleanup is useful for ref tracking of objects that you refer to within the rendergraph -
+	/// if you increase their count before you add them to the rendergraph, and
+	/// decrease their count in cleanup, you can enforce that they are alife while the rendergraph is in-flight.
+	RenderPass& setCleanupCallback( void* user_data, le_renderer_api::pfn_renderpass_cleanup_t fun ) {
+		le_renderer::renderpass_i.set_cleanup_callback( self, user_data, fun );
+		return *this;
+	}
+
 	// ----
 
 	/// \brief Adds a resource as an image attachment to the renderpass.

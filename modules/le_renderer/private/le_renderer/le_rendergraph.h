@@ -120,6 +120,9 @@ struct le_renderpass_o {
 	le_renderer_api::pfn_renderpass_setup_t callbackSetup            = nullptr;
 	void*                                   setup_callback_user_data = nullptr;
 
+	le_renderer_api::pfn_renderpass_cleanup_t callbackCleanup            = nullptr;
+	void*                                     cleanup_callback_user_data = nullptr;
+
 	std::vector<ExecuteCallbackInfo> executeCallbacks;
 
 	// TODO: keep track of how many commands were encoded - if no commands were encoded, that is still valid in case this
