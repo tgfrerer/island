@@ -346,7 +346,7 @@ static le_image_fx_blit_o* le_fx_blit_create( le_renderer_o* renderer, le_image_
 
 // ----------------------------------------------------------------------
 
-static void le_fx_blit_dec_owners_count( le_image_fx_blit_o* self ) {
+static void le_fx_blit_dec_ref_count( le_image_fx_blit_o* self ) {
 	if ( --self->reference_count == 0 ) {
 		delete self;
 	}
@@ -358,7 +358,7 @@ static void le_fx_blit_destroy( le_image_fx_blit_o* self ) {
 	// Decrement reference count. In case there is no callback
 	// in flight, this will trigger deleting the object as there
 	// will be no more owners of the object.
-	le_fx_blit_dec_owners_count( self );
+	le_fx_blit_dec_ref_count( self );
 }
 
 // ----------------------------------------------------------------------
@@ -398,16 +398,22 @@ static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le
 		            .bindGraphicsPipeline( fx->pipeline_handle )
 		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blit_source )
 		            .draw( 4 );
-
+	        } )
+	        .setCleanupCallback( self, []( void* user_data ) {
+		        auto fx = static_cast<le_image_fx_blit_o*>( user_data );
 		        // Decrement the reference count to the object as this callback
 		        // has finished and therefore releases its reference to the object.
-		        le_fx_blit_dec_owners_count( fx );
+		        // this gets executed regardless of whether the main renderpass has executed or not.
+		        le_fx_blit_dec_ref_count( fx );
 	        } );
 
 	// Increase the reference count since we add a callback that refers to
 	// the object for the duration the callback's lifetime.
-	// At the end of the callback the
 	if ( self->reference_count++ > 0 ) {
+
+		// Careful : what do we do if the renderpass gets removed by rendergraph
+		// as it's artifacts are not used? Then the reference counter would only
+		// increase.
 
 		auto rendergraph = le::RenderGraph( rg );
 		rendergraph
