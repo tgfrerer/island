@@ -391,8 +391,9 @@ static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le
 	            auto                fx = static_cast<le_image_fx_blit_o*>( user_data );
 	            le::GraphicsEncoder encoder{ encoder_ };
 
-		        // we want to make sure that the current attachment blend preset exists - if id does not exist in our cache, then
-		        // we must create a new one and add it to the cache.
+		        // we want to make sure that the current attachment blend preset exists
+		        // - if it does not exist in our cache, then we must create a new one
+		        // and add it to the cache.
 
 		        encoder
 		            .bindGraphicsPipeline( fx->pipeline_handle )
@@ -403,23 +404,25 @@ static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le
 		        auto fx = static_cast<le_image_fx_blit_o*>( user_data );
 		        // Decrement the reference count to the object as this callback
 		        // has finished and therefore releases its reference to the object.
-		        // this gets executed regardless of whether the main renderpass has executed or not.
+		        // this gets executed regardless of whether the `blit_pass`
+		        // renderpass is executed or not.
 		        le_fx_blit_dec_ref_count( fx );
 	        } );
 
 	// Increase the reference count since we add a callback that refers to
 	// the object for the duration the callback's lifetime.
-	if ( self->reference_count++ > 0 ) {
+	self->reference_count++;
 
-		// Careful : what do we do if the renderpass gets removed by rendergraph
-		// as it's artifacts are not used? Then the reference counter would only
-		// increase.
+	// Add the renderpass to the rendergraph.
+	//
+	// The rendergraph will `on_cleanup` of this renderpass decrement the reference count
+	// to the blit object contained in `self`; This guarantees that the object stays alive
+	// while it is in-flight.
 
-		auto rendergraph = le::RenderGraph( rg );
-		rendergraph
-		    .addRenderPass( blit_pass ) //
-		    ;
-	}
+	auto rendergraph = le::RenderGraph( rg );
+	rendergraph
+	    .addRenderPass( blit_pass ) //
+	    ;
 }
 
 // ----------------------------------------------------------------------
