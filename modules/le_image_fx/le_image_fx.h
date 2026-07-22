@@ -76,6 +76,11 @@ class Blur : NoCopy, NoMove {
 		le_image_fx::le_image_fx_i.blur_apply( self, rg, image_a, img_info );
 	}
 
+	// sugar so that we can directly call Blur()
+	void operator()( le_rendergraph_o* rg, le_image_resource_handle_t* image_a, le_resource_info_t* img_info ) {
+		apply( rg, image_a, img_info );
+	}
+
 	operator auto() {
 		return self;
 	}
@@ -98,6 +103,11 @@ class Blit : NoCopy, NoMove {
 
 	void apply( le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst ) {
 		le_image_fx::le_image_fx_i.blit_apply( self, rg, image_src, image_dst );
+	}
+
+	// sugar so that we can directly call blit()
+	void operator()( le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst ) {
+		apply( rg, image_src, image_dst );
 	}
 
 	operator auto() {
