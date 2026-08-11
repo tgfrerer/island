@@ -176,7 +176,7 @@ static void pass_draw_exec( le_command_buffer_encoder_o* encoder_, void* user_da
 		    /**/.setTopology( le::PrimitiveTopology::eTriangleList )
 		    .end()
 		    .withRasterizationState()
-		    /**/.setPolygonMode( le::PolygonMode::eLine )
+		    // /**/.setPolygonMode( le::PolygonMode::eLine )
 		    .end();
 
 		app->mesh.applyVertexInputDescriptions( builder );
@@ -305,7 +305,7 @@ static bool exr_decode_example_app_update( exr_decode_example_app_o* self ) {
 		    self->mesh,
 		};
 
-		le::Mesh::submitMeshesToRendergraph( meshes, 1, rg, self->renderer );
+		le::Mesh::setupRendergraph( rg, self->renderer, meshes, 1 );
 
 		auto heightmap_sampler_info =
 		    le::ImageSamplerInfoBuilder()
