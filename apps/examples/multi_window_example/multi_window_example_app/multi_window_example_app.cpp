@@ -19,6 +19,7 @@
 #include <sstream>
 #include <vector>
 #include <unordered_map>
+#include <array>
 
 typedef multi_window_example_app_o app_o;
 
@@ -235,7 +236,6 @@ static void pass_to_window_0( le_command_buffer_encoder_o* encoder_, void* user_
 	    .bindGraphicsPipeline( pipelineDefault )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Uniform_Data" ), &uniforms, sizeof( UniformsUbo_t ) )
-	    .setLineWidth( 1.f )        //
 	    .drawIndexed( num_indices ) //
 	    ;
 }
@@ -326,7 +326,6 @@ static void pass_to_window_1( le_command_buffer_encoder_o* encoder_, void* user_
 	    .bindGraphicsPipeline( pipeline_wireframe )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Uniform_Data" ), &uniforms, sizeof( UniformsUbo_t ) )
-	    .setLineWidth( 1.f )        //
 	    .drawIndexed( num_indices ) //
 	    ;
 }
