@@ -16,7 +16,7 @@ with the *hello world* example.
 > # say, you keep your projects in `apps/my_projects`
 > cd island/apps/my_projects/
 >
-> # this will create a new project based on `compute_example`
+> # this will create a new project based on `screenshot_example`
 > ../../scripts/create_project.py -T ../examples/ -t screenshot_example my_new_project_name
 > ```
 >
