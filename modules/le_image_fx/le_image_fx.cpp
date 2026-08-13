@@ -95,51 +95,9 @@ static le_shader_module_handle get_shader_frag_blit( le_pipeline_manager_o* pm )
 	auto spv = decode_and_decompress_spv_str( blit_frag_compressed_data_base85 );
 
 	s = LeShaderModuleBuilder( pm )
-	        //.setSourceFilePath( "./local_resources/shaders/blit.frag" )
+	        //.setSourceFilePath( "./local_resources/le_image_fx_dev/shaders/glsl/blit.frag" )
 	        .setSpirvCode( spv.data(), spv.size() )
 	        .setShaderStage( le::ShaderStage::eFragment )
-	        .build();
-
-	return s;
-}
-
-// ----------------------------------------------------------------------
-
-static le_shader_module_handle get_shader_frag_blur_h( le_pipeline_manager_o* pm ) {
-	static le_shader_module_handle s = nullptr;
-
-	if ( s ) {
-		return s;
-	}
-
-	auto spv = decode_and_decompress_spv_str( blur_frag_compressed_data_base85 );
-
-	s = LeShaderModuleBuilder( pm )
-	        // .setSourceFilePath( "./local_resources/shaders/blur.frag" )
-	        .setSpirvCode( spv.data(), spv.size() )
-	        .setShaderStage( le::ShaderStage::eFragment )
-	        .setSpecializationConstant( 0, 1.f )
-	        .build();
-
-	return s;
-}
-
-// ----------------------------------------------------------------------
-
-static le_shader_module_handle get_shader_frag_blur_v( le_pipeline_manager_o* pm ) {
-	static le_shader_module_handle s = nullptr;
-
-	if ( s ) {
-		return s;
-	}
-
-	auto spv = decode_and_decompress_spv_str( blur_frag_compressed_data_base85 );
-
-	s = LeShaderModuleBuilder( pm )
-	        // .setSourceFilePath( "./local_resources/shaders/blur.frag" )
-	        .setSpirvCode( spv.data(), spv.size() )
-	        .setShaderStage( le::ShaderStage::eFragment )
-	        .setSpecializationConstant( 1, 1.f )
 	        .build();
 
 	return s;
@@ -150,59 +108,149 @@ static le_shader_module_handle get_shader_frag_blur_v( le_pipeline_manager_o* pm
 // ----------------------------------------------------------------------
 struct le_image_fx_blur_o {
 	// members
-	le_pipeline_manager_o*   pipeline_manager = nullptr; // non-owning
-	le_image_resource_handle image_b          = nullptr; // non-owning
-	le_texture_handle      tex_blur_source;            // non-owning
+	le_renderer_o*           renderer         = nullptr; // non-owning
+	le_image_resource_handle image_b          = nullptr; // owning
+	le_texture_handle        tex_blur_source;            // owning
+
+	bool                  was_setup            = false;
+	le_gpso_handle        pipeline_handle[ 2 ] = { nullptr, nullptr }; // blur_h, blur_v
+
+	le_image_fx_api::blur_preset settings = le_image_fx_api::blur_preset();
+
+	std::atomic<uint32_t> reference_count = 0;
 };
 
-static le_image_fx_blur_o* le_fx_blur_create( le_renderer_o* renderer ) {
-	auto self = new le_image_fx_blur_o{};
-
-	self->pipeline_manager = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
-	self->image_b          = le_renderer_api_i->le_renderer_i.create_img_resource_handle( renderer, nullptr, 0, 0 );
-	self->tex_blur_source  = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "fx_blur_source" );
-
+static le_image_fx_blur_o* le_fx_blur_create( le_renderer_o* renderer, le_image_fx_api::blur_preset preset ) {
+	auto self = new le_image_fx_blur_o{
+	    .renderer        = renderer,
+	    .image_b         = le_renderer_api_i->le_renderer_i.create_img_resource_handle( renderer, nullptr, 0, 0 ),
+	    .tex_blur_source = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "fx_blur_source" ),
+	    .was_setup       = false,
+	    .pipeline_handle = { nullptr, nullptr },
+	    .settings        = preset,
+	    .reference_count = 1,
+	};
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_fx_blur_destroy( le_image_fx_blur_o* self ) {
-	delete self;
+static le_shader_module_handle get_shader_frag_blur_h( le_image_fx_blur_o* self, le_pipeline_manager_o* pm ) {
+	le_shader_module_handle s = nullptr;
+
+	static auto spv = decode_and_decompress_spv_str( blur_frag_compressed_data_base85 );
+
+	s = LeShaderModuleBuilder( pm )
+	        .setSourceFilePath( "./local_resources/le_image_fx_dev/shaders/glsl/blur.frag" )
+	        // .setSpirvCode( spv.data(), spv.size() )
+	        .setShaderStage( le::ShaderStage::eFragment )
+	        .setSpecializationConstant( 0, 1.f )
+	        .setSpecializationConstant( 2, self->settings.kernel_radius )
+	        .setSpecializationConstant( 3, self->settings.sigma )
+	        .build();
+
+	return s;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le_image_resource_handle image_a, le_resource_info_t* img_info ) {
+static le_shader_module_handle get_shader_frag_blur_v( le_image_fx_blur_o* self, le_pipeline_manager_o* pm ) {
+	le_shader_module_handle s = nullptr;
 
-	static auto pipelineBlurH =
-	    LeGraphicsPipelineBuilder( self->pipeline_manager )
-	        .withAttachmentBlendState()
-	        .setColorBlendOp( le::BlendOp::eAdd )
-	        .setSrcColorBlendFactor( le::BlendFactor::eOne )
-	        .setDstColorBlendFactor( le::BlendFactor::eZero )
-	        .setAlphaBlendOp( le::BlendOp::eAdd )
-	        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
-	        .setDstAlphaBlendFactor( le::BlendFactor::eZero )
-	        .end()
-	        .addShaderStage( get_shader_vert( self->pipeline_manager ) )
-	        .addShaderStage( get_shader_frag_blur_h( self->pipeline_manager ) )
+	static auto spv = decode_and_decompress_spv_str( blur_frag_compressed_data_base85 );
 
+	s = LeShaderModuleBuilder( pm )
+	        .setSourceFilePath( "./local_resources/le_image_fx_dev/shaders/glsl/blur.frag" )
+	        // .setSpirvCode( spv.data(), spv.size() )
+	        .setShaderStage( le::ShaderStage::eFragment )
+	        .setSpecializationConstant( 1, 1.f )
+	        .setSpecializationConstant( 2, self->settings.kernel_radius )
+	        .setSpecializationConstant( 3, self->settings.sigma )
 	        .build();
 
-	static auto pipelineBlurV =
-	    LeGraphicsPipelineBuilder( self->pipeline_manager )
-	        .withAttachmentBlendState()
-	        .setColorBlendOp( le::BlendOp::eAdd )
-	        .setSrcColorBlendFactor( le::BlendFactor::eOne )
-	        .setDstColorBlendFactor( le::BlendFactor::eZero )
-	        .setAlphaBlendOp( le::BlendOp::eAdd )
-	        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
-	        .setDstAlphaBlendFactor( le::BlendFactor::eZero )
-	        .end()
-	        .addShaderStage( get_shader_vert( self->pipeline_manager ) )
-	        .addShaderStage( get_shader_frag_blur_v( self->pipeline_manager ) )
-	        .build();
+	return s;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_fx_blur_dec_ref_count( le_image_fx_blur_o* self ) {
+	if ( --self->reference_count == 0 ) {
+		delete self;
+	}
+}
+
+static void le_fx_blur_destroy( le_image_fx_blur_o* self ) {
+	le_fx_blur_dec_ref_count( self );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le_image_resource_handle image_a, le_resource_info_t* img_info, le_image_fx_api::blur_preset const* preset ) {
+
+	[[unlikely]] if ( false == self->was_setup ) {
+
+		le_pipeline_manager_o* pipeline_manager = le_renderer_api_i->le_renderer_i.get_pipeline_manager( self->renderer );
+
+		self->pipeline_handle[ 0 ] =
+		    LeGraphicsPipelineBuilder( pipeline_manager )
+		        .withAttachmentBlendState()
+		        .setColorBlendOp( le::BlendOp::eAdd )
+		        .setSrcColorBlendFactor( le::BlendFactor::eOne )
+		        .setDstColorBlendFactor( le::BlendFactor::eZero )
+		        .setAlphaBlendOp( le::BlendOp::eAdd )
+		        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
+		        .setDstAlphaBlendFactor( le::BlendFactor::eZero )
+		        .end()
+		        .addShaderStage( get_shader_vert( pipeline_manager ) )
+		        .addShaderStage( get_shader_frag_blur_h( self, pipeline_manager ) )
+
+		        .build();
+
+		self->pipeline_handle[ 1 ] =
+		    LeGraphicsPipelineBuilder( pipeline_manager )
+		        .withAttachmentBlendState()
+		        .setColorBlendOp( le::BlendOp::eAdd )
+		        .setSrcColorBlendFactor( le::BlendFactor::eOne )
+		        .setDstColorBlendFactor( le::BlendFactor::eZero )
+		        .setAlphaBlendOp( le::BlendOp::eAdd )
+		        .setSrcAlphaBlendFactor( le::BlendFactor::eOne )
+		        .setDstAlphaBlendFactor( le::BlendFactor::eZero )
+		        .end()
+		        .addShaderStage( get_shader_vert( pipeline_manager ) )
+		        .addShaderStage( get_shader_frag_blur_v( self, pipeline_manager ) )
+		        .build();
+		self->was_setup = true;
+	}
+
+	// We store user data with the callback, so that we can pass
+	// all relevant state of the current object as lambda data to
+	// the callback, and the callback does not have to recur to the
+	// actual object anymore.
+
+	struct user_data_t {
+		le_image_fx_api::blur_preset preset;
+		le_gpso_handle               pipeline;
+		le_texture_handle            src_tex;
+	};
+
+	user_data_t user_data{
+	    .preset   = preset ? *preset : self->settings,
+	    .pipeline = self->pipeline_handle[ 0 ],
+	    .src_tex  = self->tex_blur_source,
+	};
+
+	auto blur_exec_cb = []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+		auto data = static_cast<user_data_t*>( user_data );
+
+		le::GraphicsEncoder encoder{ encoder_ };
+		// note that this will upload settings at the time the blur pass executes,
+		// and not at the time the command is recorded - you might want to
+		encoder
+		    .bindGraphicsPipeline( data->pipeline )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), data->src_tex )
+		    .setPushConstantData( &data->preset, sizeof( self->settings ) )
+		    .draw( 4 );
+	};
 
 	auto blur_h =
 	    le::RenderPass( "blur_h" )
@@ -222,14 +270,10 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 	                .setAddressModeV( le::SamplerAddressMode::eRepeat )
 	                .end()
 	                .build() )
-	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	            auto                fx = static_cast<le_image_fx_blur_o*>( user_data );
-	            le::GraphicsEncoder encoder{ encoder_ };
-		        encoder
-		            .bindGraphicsPipeline( pipelineBlurH )
-		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blur_source )
-		            .draw( 4 );
-            } );
+	        .setExecuteCallbackWithLocalUserData( &user_data, sizeof( user_data_t ), blur_exec_cb );
+
+	// update pipeline contained in user data for pass 2
+	user_data.pipeline = self->pipeline_handle[ 1 ];
 
 	auto blur_v =
 	    le::RenderPass( "blur_v" )
@@ -249,16 +293,19 @@ static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le
 	                .setAddressModeV( le::SamplerAddressMode::eRepeat )
 	                .end()
 	                .build() )
-	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
-	            auto                fx = static_cast<le_image_fx_blur_o*>( user_data );
-	            le::GraphicsEncoder encoder{ encoder_ };
-		        encoder
+	        .setExecuteCallbackWithLocalUserData( &user_data, sizeof( user_data_t ), blur_exec_cb )
+	        .setCleanupCallback( self, []( void* user_data ) {
+		        auto fx = static_cast<le_image_fx_blur_o*>( user_data );
+		        // Decrement the reference count to the object as this callback
+		        // has finished and therefore releases its reference to the object.
+		        // this gets executed regardless of whether `blur_v` is executed or not.
+		        le_fx_blur_dec_ref_count( fx );
+	        } );
+	;
 
-		            .bindGraphicsPipeline( pipelineBlurV )
-
-		            .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), fx->tex_blur_source )
-		            .draw( 4 );
-            } );
+	// increase reference count for this object
+	// as it is enqueued with the current frame
+	self->reference_count++;
 
 	auto rendergraph = le::RenderGraph( rg );
 	rendergraph

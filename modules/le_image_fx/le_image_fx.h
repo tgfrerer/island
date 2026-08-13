@@ -30,11 +30,16 @@ struct le_image_fx_api {
 		BLIT_BLEND_MULTIPLY,
 	};
 
+	struct blur_preset {
+		uint32_t kernel_radius = 11;  ///< gaussian blur influence radius -- use odd number since fast blur will sample two pixels at a time
+		float sigma = 3;    		  ///< width of one standard deviation - given in pixels; 1/3 of kernel radius gives good results usually 
+	};
+
 	struct le_image_fx_interface_t {
 
-		le_image_fx_blur_o * ( * create_blur    ) ( le_renderer_o* renderer );
+		le_image_fx_blur_o * ( * create_blur    ) ( le_renderer_o* renderer , blur_preset preset);
 		void            	 ( * destroy_blur   ) ( le_image_fx_blur_o* self );
-		void                 ( * blur_apply     ) ( le_image_fx_blur_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_a, le_resource_info_t* img_info );
+		void                 ( * blur_apply     ) ( le_image_fx_blur_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_a, le_resource_info_t* img_info , blur_preset const * preset);
 
 		le_image_fx_blit_o * ( * create_blit    ) ( le_renderer_o* renderer , BlitBlendPreset blend_preset);
 		void            	 ( * destroy_blit   ) ( le_image_fx_blit_o* self );
@@ -64,21 +69,21 @@ class Blur : NoCopy, NoMove {
     le_image_fx_blur_o* self;
 
   public:
-    Blur( le_renderer_o* renderer )
-        : self( le_image_fx::le_image_fx_i.create_blur( renderer ) ) {
+	Blur( le_renderer_o* renderer, le_image_fx_api::blur_preset preset = le_image_fx_api::blur_preset() )
+	    : self( le_image_fx::le_image_fx_i.create_blur( renderer, preset ) ) {
 	}
 
 	~Blur() {
 		le_image_fx::le_image_fx_i.destroy_blur( self );
 	}
 
-	void apply( le_rendergraph_o* rg, le_image_resource_handle_t* image_a, le_resource_info_t* img_info ) {
-		le_image_fx::le_image_fx_i.blur_apply( self, rg, image_a, img_info );
+	void apply( le_rendergraph_o* rg, le_image_resource_handle_t* image_a, le_resource_info_t* img_info, le_image_fx_api::blur_preset const* preset = nullptr ) {
+		le_image_fx::le_image_fx_i.blur_apply( self, rg, image_a, img_info, preset );
 	}
 
 	// sugar so that we can directly call Blur()
-	void operator()( le_rendergraph_o* rg, le_image_resource_handle_t* image_a, le_resource_info_t* img_info ) {
-		apply( rg, image_a, img_info );
+	void operator()( le_rendergraph_o* rg, le_image_resource_handle_t* image_a, le_resource_info_t* img_info, le_image_fx_api::blur_preset const* preset = nullptr ) {
+		apply( rg, image_a, img_info, preset );
 	}
 
 	operator auto() {

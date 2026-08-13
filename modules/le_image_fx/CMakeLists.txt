@@ -17,5 +17,9 @@ else()
     add_static_lib( ${TARGET} )
 endif()
 
+
+# allow the rendergraph visualizer to bring his own local resources
+link_resources("${CMAKE_CURRENT_SOURCE_DIR}/private/le_image_fx/resources" "${PROJECT_SOURCE_DIR}/resources/le_image_fx_dev")
+
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 source_group(${TARGET} FILES ${SOURCES})
