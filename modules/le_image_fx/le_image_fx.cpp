@@ -141,8 +141,11 @@ static le_shader_module_handle get_shader_frag_blur_h( le_image_fx_blur_o* self,
 	static auto spv = decode_and_decompress_spv_str( blur_frag_compressed_data_base85 );
 
 	s = LeShaderModuleBuilder( pm )
-	        .setSourceFilePath( "./local_resources/le_image_fx_dev/shaders/glsl/blur.frag" )
-	        // .setSpirvCode( spv.data(), spv.size() )
+#if LE_IMAGE_FX_SHADERS_FROM_SOURCE
+	        .setSourceFilePath( "./local_resources/le_image_fx/shaders/glsl/blur.frag" )
+#else
+	        .setSpirvCode( spv.data(), spv.size() )
+#endif
 	        .setShaderStage( le::ShaderStage::eFragment )
 	        .setSpecializationConstant( 0, 1.f )
 	        .setSpecializationConstant( 2, self->settings.kernel_radius )
@@ -160,8 +163,11 @@ static le_shader_module_handle get_shader_frag_blur_v( le_image_fx_blur_o* self,
 	static auto spv = decode_and_decompress_spv_str( blur_frag_compressed_data_base85 );
 
 	s = LeShaderModuleBuilder( pm )
-	        .setSourceFilePath( "./local_resources/le_image_fx_dev/shaders/glsl/blur.frag" )
-	        // .setSpirvCode( spv.data(), spv.size() )
+#if LE_IMAGE_FX_SHADERS_FROM_SOURCE
+	        .setSourceFilePath( "./local_resources/le_image_fx/shaders/glsl/blur.frag" )
+#else
+	        .setSpirvCode( spv.data(), spv.size() )
+#endif
 	        .setShaderStage( le::ShaderStage::eFragment )
 	        .setSpecializationConstant( 1, 1.f )
 	        .setSpecializationConstant( 2, self->settings.kernel_radius )

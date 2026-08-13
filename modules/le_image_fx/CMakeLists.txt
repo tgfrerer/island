@@ -17,9 +17,14 @@ else()
     add_static_lib( ${TARGET} )
 endif()
 
+option(LE_IMAGE_FX_SHADER_DEVELOPMENT off "Copy shaders into local resource directory for development.")
 
-# allow the rendergraph visualizer to bring his own local resources
-link_resources("${CMAKE_CURRENT_SOURCE_DIR}/private/le_image_fx/resources" "${PROJECT_SOURCE_DIR}/resources/le_image_fx_dev")
+if (${LE_IMAGE_FX_SHADER_DEVELOPMENT})
+    # allow the rendergraph visualizer to bring his own local resources
+    # This is only useful when developing shaders - you
+    target_compile_definitions(${TARGET} PUBLIC "LE_IMAGE_FX_SHADERS_FROM_SOURCE=1")
+    link_resources("${CMAKE_CURRENT_SOURCE_DIR}/private/le_image_fx/resources" "${PROJECT_SOURCE_DIR}/resources/le_image_fx")
+endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 source_group(${TARGET} FILES ${SOURCES})
