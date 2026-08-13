@@ -28,7 +28,12 @@ endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
-# allow the rendergraph visualizer to bring his own local resources
-link_resources("${CMAKE_CURRENT_SOURCE_DIR}/resources" "${PROJECT_SOURCE_DIR}/resources/rendergraph_visualizer")
+option(LE_RENDERGRAPH_VISUALIZER_SHADER_DEVELOPMENT off "Copy shaders into local resource directory for development.")
+if (${LE_RENDERGRAPH_VISUALIZER_SHADER_DEVELOPMENT})
+    target_compile_definitions(${TARGET} PUBLIC "LE_RENDERGRAPH_VISUALIZER_SHADERS_FROM_SOURCE=1")
+    # link resources from module resource directory into app resource directory
+    # this is mainly useful working on the shaders
+    link_resources("${CMAKE_CURRENT_SOURCE_DIR}/private/le_rendergraph_visualizer/resources/glsl" "${PROJECT_SOURCE_DIR}/resources/rendergraph_visualizer_dev")
+endif()
 
 source_group(${TARGET} FILES ${SOURCES})

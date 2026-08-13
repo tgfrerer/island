@@ -30,6 +30,9 @@ static constexpr auto C_KEY_SELECT_NEXT_FRAME     = LeUiEvent::NamedKey::eRight;
 static constexpr auto C_KEY_TOGGLE_ACTIVE         = LeUiEvent::NamedKey::eF10;
 
 #include "private/le_rendergraph_visualizer/shared_constants.inl"
+#include "private/le_rendergraph_visualizer/inl/visualizer_blit_vert.inl"
+#include "private/le_rendergraph_visualizer/inl/visualizer_blit_frag.inl"
+#include "private/le_rendergraph_visualizer/inl/decompression_helpers.inl"
 
 static auto& logger() {
 	static le::Log logger = le::Log( "rendergraph_visualizer" );
@@ -886,18 +889,37 @@ static void draw_visualizer( le_rendergraph_visualizer_o* self, le_rendergraph_o
 
 		        // Blit visualization onto the background image.
 
+		        le_shader_module_handle shader_vert = nullptr;
+		        le_shader_module_handle shader_frag = nullptr;
+
+		        if ( nullptr == shader_vert ) {
+			        LeShaderModuleBuilder b( encoder.getPipelineManager() );
+			        b.setShaderStage( le::ShaderStage::eVertex );
+#if LE_RENDERGRAPH_VISUALIZER_SHADERS_FROM_SOURCE
+			        b.setSourceFilePath( "./local_resources/rendergraph_visualizer_dev/visualizer_blit.vert" );
+#else
+			        auto spv_vert = decode_and_decompress_spv_str( visualizer_blit_vert_compressed_data_base85 );
+			        b.setSpirvCode( spv_vert.data(), spv_vert.size() );
+#endif
+			        shader_vert = b.build();
+		        }
+
+		        if ( nullptr == shader_frag ) {
+			        LeShaderModuleBuilder b( encoder.getPipelineManager() );
+			        b.setShaderStage( le::ShaderStage::eFragment );
+#if LE_RENDERGRAPH_VISUALIZER_SHADERS_FROM_SOURCE
+			        b.setSourceFilePath( "./local_resources/rendergraph_visualizer_dev/visualizer_blit.frag" );
+#else
+			        auto spv_frag = decode_and_decompress_spv_str( visualizer_blit_frag_compressed_data_base85 );
+			        b.setSpirvCode( spv_frag.data(), spv_frag.size() );
+#endif
+			        shader_frag = b.build();
+		        }
+
 		        static auto pipeline_draw_brush =
 		            LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		                .addShaderStage(
-		                    LeShaderModuleBuilder( encoder.getPipelineManager() )
-		                        .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.vert" )
-		                        .setShaderStage( le::ShaderStage::eVertex )
-		                        .build() )
-		                .addShaderStage(
-		                    LeShaderModuleBuilder( encoder.getPipelineManager() )
-		                        .setSourceFilePath( "./local_resources/rendergraph_visualizer/visualizer_blit.frag" )
-		                        .setShaderStage( le::ShaderStage::eFragment )
-		                        .build() )
+		                .addShaderStage( shader_vert )
+		                .addShaderStage( shader_frag )
 		                .withAttachmentBlendState()
 		                .usePreset( le::AttachmentBlendPreset::ePremultipliedAlpha )
 		                .end()
