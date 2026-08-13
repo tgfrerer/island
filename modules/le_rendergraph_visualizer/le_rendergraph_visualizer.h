@@ -33,7 +33,7 @@
     2) In the app's update method, just before updating the rendergraph, call:
 
     ```
-    app->rendergraph_visualizer.upate(rendergraph);
+    app->rendergraph_visualizer.update(rendergraph);
     ```
 
     3) Add to the ui event loop:
