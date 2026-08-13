@@ -1383,6 +1383,16 @@ static void rendergraph_declare_resource( le_rendergraph_o* self, le_resource_ha
 }
 
 // ----------------------------------------------------------------------
+static le_renderpass_o* rendergraph_get_last_renderpass( le_rendergraph_o* self ) {
+	if ( self->passes.empty() ) {
+		return nullptr;
+	}
+
+	// ----------| invariant: passes is not empty
+	return self->passes.back();
+}
+
+// ----------------------------------------------------------------------
 static void rendergraph_add_on_frame_clear_callbacks( le_rendergraph_o* self, le_on_frame_clear_callback_data_t* callbacks, uint32_t callbacks_count ) {
 	self->on_frame_clear_callbacks.insert( self->on_frame_clear_callbacks.end(), callbacks, callbacks + callbacks_count );
 }
@@ -1400,6 +1410,7 @@ void register_le_rendergraph_api( void* api_ ) {
 	le_rendergraph_i.add_renderpass               = rendergraph_add_renderpass;
 	le_rendergraph_i.group_pass_with              = rendergraph_group_pass_with;
 	le_rendergraph_i.declare_resource             = rendergraph_declare_resource;
+	le_rendergraph_i.get_last_renderpass          = rendergraph_get_last_renderpass;
 	le_rendergraph_i.add_on_frame_clear_callbacks = rendergraph_add_on_frame_clear_callbacks;
 
 	auto& le_rendergraph_private_i                = le_renderer_api_i->le_rendergraph_private_i;

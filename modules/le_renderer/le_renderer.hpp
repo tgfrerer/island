@@ -565,6 +565,13 @@ class RenderGraph : NoCopy, NoMove {
 		le_renderer::rendergraph_i.declare_resource( self, resource_id, info );
 		return *this;
 	}
+
+	// Return last renderpass that was added to the rendergraph; nullptr if no renderpasses in the rendergraph.
+	// This is useful if you want to add something to the last renderpass, but don't directly have access to it.
+	// like when you blit an image and want to draw imgui at the same time.
+	le_renderpass_o* get_last_renderpass() {
+		return le_renderer::rendergraph_i.get_last_renderpass( self );
+	}
 };
 
 // ----------------------------------------------------------------------
