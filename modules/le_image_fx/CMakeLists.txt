@@ -20,9 +20,9 @@ endif()
 option(LE_IMAGE_FX_SHADER_DEVELOPMENT off "Copy shaders into local resource directory for development.")
 
 if (${LE_IMAGE_FX_SHADER_DEVELOPMENT})
-    # allow the rendergraph visualizer to bring his own local resources
-    # This is only useful when developing shaders - you
     target_compile_definitions(${TARGET} PUBLIC "LE_IMAGE_FX_SHADERS_FROM_SOURCE=1")
+    # link resources from module resource directory into app resource directory
+    # this is mainly useful working on the shaders
     link_resources("${CMAKE_CURRENT_SOURCE_DIR}/private/le_image_fx/resources" "${PROJECT_SOURCE_DIR}/resources/le_image_fx")
 endif()
 
