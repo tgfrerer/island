@@ -182,6 +182,11 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 
 static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 
+	if ( p_rp == nullptr ) {
+		assert( p_rp != nullptr );
+		return;
+	}
+
 	auto rp = le::RenderPass{ p_rp };
 
 	// TODO: We must implement a safeguard in renderpass which checks
