@@ -146,7 +146,7 @@ static void le_fx_blur_destroy( le_image_fx_blur_o* self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le_image_resource_handle image_a, le_resource_info_t* img_info, le_image_fx_api::blur_preset const* preset ) {
+static void le_fx_blur_apply( le_image_fx_blur_o* self, le_rendergraph_o* rg, le_image_resource_handle image_a, le_resource_info_t const* img_info, le_image_fx_api::blur_preset const* preset ) {
 
 	[[unlikely]] if ( false == self->was_setup ) {
 
