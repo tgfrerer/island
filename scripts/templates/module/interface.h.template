@@ -30,7 +30,7 @@ namespace @module_name@ {
 	static const auto &@module_name@_i = api->@module_name@_i;
 } // namespace
 
-class @module_name_camelcase_capitalised@ : NoCopy, NoMove {
+class @module_name_camelcase_capitalised@ : NoCopy {
 
 	@module_name@_o *self;
 
@@ -39,8 +39,28 @@ class @module_name_camelcase_capitalised@ : NoCopy, NoMove {
 	    : self( @module_name@::@module_name@_i.create() ) {
 	}
 
+	// destructor
 	~@module_name_camelcase_capitalised@() {
-		@module_name@::@module_name@_i.destroy( self );
+		if( self ){
+			@module_name@::@module_name@_i.destroy( self );
+		}
+	}
+
+	// move constructor 
+	@module_name_camelcase_capitalised@(@module_name_camelcase_capitalised@&& rhs)
+		:self( rhs.self ) {
+			// note that this may leave an empty shell in place of rhs
+			rhs.self = nullptr;
+	}
+
+	// move assignment
+	@module_name_camelcase_capitalised@& operator=(@module_name_camelcase_capitalised@&& rhs){
+		if( this->self ){
+			@module_name@::@module_name@_i.destroy( this->self );
+		}
+		this->self = rhs.self;
+		rhs.self   = nullptr;
+		return *this;
 	}
 
 	void update() {
