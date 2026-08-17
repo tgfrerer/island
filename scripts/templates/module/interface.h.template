@@ -5,7 +5,6 @@
 
 struct @module_name@_o;
 
-// clang-format off
 struct @module_name@_api {
 
 	struct @module_name@_interface_t {
@@ -18,7 +17,6 @@ struct @module_name@_api {
 
 	@module_name@_interface_t       @module_name@_i;
 };
-// clang-format on
 
 LE_MODULE( @module_name@ );
 LE_MODULE_LOAD_DEFAULT( @module_name@ );
@@ -39,21 +37,21 @@ class @module_name_camelcase_capitalised@ : NoCopy {
 	    : self( @module_name@::@module_name@_i.create() ) {
 	}
 
-	// destructor
+	// Destructor
 	~@module_name_camelcase_capitalised@() {
 		if( self ){
 			@module_name@::@module_name@_i.destroy( self );
 		}
 	}
 
-	// move constructor 
+	// Move constructor 
 	@module_name_camelcase_capitalised@(@module_name_camelcase_capitalised@&& rhs)
 		:self( rhs.self ) {
 			// note that this may leave an empty shell in place of rhs
 			rhs.self = nullptr;
 	}
 
-	// move assignment
+	// Move assignment
 	@module_name_camelcase_capitalised@& operator=(@module_name_camelcase_capitalised@&& rhs){
 		if( this->self ){
 			@module_name@::@module_name@_i.destroy( this->self );
@@ -63,11 +61,13 @@ class @module_name_camelcase_capitalised@ : NoCopy {
 		return *this;
 	}
 
+	// ----------------------------------------------------------------------
+
 	void update() {
 		@module_name@::@module_name@_i.update( self );
 	}
 
-	operator auto () {
+	operator @module_name@_o* () {
 		return self;
 	}
 

@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 from os import path
 from os import makedirs
 from os import rename
+import subprocess
 
 #Arguments 
 
@@ -60,3 +61,6 @@ else:
 	process_file("%s/CMakeLists.txt.template" % source_dir    , "%s/CMakeLists.txt" % (module_dir             ), replacements)
 	process_file("%s/implementation.cpp.template" % source_dir, "%s/%s.cpp"         % (module_dir, module_name), replacements)
 	process_file("%s/interface.h.template" % source_dir       , "%s/%s.h"           % (module_dir, module_name), replacements)
+	# format generated files using clang-format so that they look cleaner
+	subprocess.run([ "clang-format", "-i", "%s/%s.cpp" % (module_dir, module_name) ])
+	subprocess.run([ "clang-format", "-i", "%s/%s.h" % (module_dir, module_name) ])
