@@ -247,6 +247,7 @@ macro(include_island_module MODULE_NAME SHOULD_ADD)
 
     else()
         message( SEND_ERROR "Module not found  : ${MODULE_NAME}")
+        message( SEND_ERROR "Module search directories: '${MODULE_LOCATIONS_LIST}'")
     endif()
 
 endmacro()
