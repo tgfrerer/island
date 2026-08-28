@@ -14,6 +14,16 @@ static @module_name@_o * @module_name@_create() {
 }
 
 // ----------------------------------------------------------------------
+static @module_name@_o * @module_name@_clone( @module_name@_o *rhs ) {
+	auto other = new @module_name@_o();
+
+	// Todo: you may need to further specialize how you copy `*rhs`:
+	*other = *rhs;
+	
+	return other;
+}
+
+// ----------------------------------------------------------------------
 
 static void @module_name@_destroy( @module_name@_o *self ) {
 	delete self;
@@ -31,7 +41,9 @@ static void @module_name@_update( @module_name@_o *self ) {
 LE_MODULE_REGISTER_IMPL( @module_name@, api ) {
 	auto &@module_name@_i = static_cast<@module_name@_api *>( api )->@module_name@_i;
 
-	@module_name@_i.create               = @module_name@_create;
-	@module_name@_i.destroy              = @module_name@_destroy;
-	@module_name@_i.update               = @module_name@_update;
+	@module_name@_i.create  = @module_name@_create;
+	@module_name@_i.clone   = @module_name@_clone;
+	@module_name@_i.destroy = @module_name@_destroy;
+
+	@module_name@_i.update  = @module_name@_update;
 }

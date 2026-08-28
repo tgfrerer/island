@@ -10,7 +10,9 @@ struct @module_name@_api {
 	struct @module_name@_interface_t {
 
 		@module_name@_o *    ( * create                   ) ( );
+		@module_name@_o *    ( * clone                    ) ( @module_name@_o* rhs);
 		void                 ( * destroy                  ) ( @module_name@_o* self );
+
 		void                 ( * update                   ) ( @module_name@_o* self );
 
 	};
@@ -28,11 +30,17 @@ namespace @module_name@ {
 	static const auto &@module_name@_i = api->@module_name@_i;
 } // namespace
 
-class @module_name_camelcase_capitalised@ : NoCopy {
+class @module_name_camelcase_capitalised@ {
 
-	@module_name@_o *self;
+	@module_name@_o *self = nullptr;
 
   public:
+
+	// --- SCAFFOLDING ------------------------------------------------------
+
+	operator @module_name@_o* ()  { return self; }
+	operator const @module_name@_o* () const { return self; }
+
 	@module_name_camelcase_capitalised@()
 	    : self( @module_name@::@module_name@_i.create() ) {
 	}
@@ -61,15 +69,27 @@ class @module_name_camelcase_capitalised@ : NoCopy {
 		return *this;
 	}
 
-	// ----------------------------------------------------------------------
+	// Copy constructor 
+	@module_name_camelcase_capitalised@(@module_name_camelcase_capitalised@ const & rhs)
+		:self( @module_name@::@module_name@_i.clone( rhs.self )) {
+	}
+
+	// Copy assignment
+	@module_name_camelcase_capitalised@& operator=(@module_name_camelcase_capitalised@ const & rhs){
+		if( this->self ){
+			@module_name@::@module_name@_i.destroy( this->self );
+		}
+		this->self = @module_name@::@module_name@_i.clone( rhs.self );
+		return *this;
+	}
+
+
+	// --- USER-DEFINED METHODS ---------------------------------------------
 
 	void update() {
 		@module_name@::@module_name@_i.update( self );
 	}
 
-	operator @module_name@_o* () {
-		return self;
-	}
 
 };
 
