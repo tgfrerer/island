@@ -79,10 +79,10 @@ struct le_path_api {
 		void ( *iterate)(le_path_o* self, void* user_data, le_path_operations_interface_t const* cb);
 
 		// ----------------------------------------------------------------------
-		// Traces the path with all its subpaths into a list of polylines.
-		// Each subpath will be translated into one polyline.
+		// Traces the path with all its contours into a list of polylines.
+		// Each contour will be translated into one polyline.
 		// A polyline is a list of vertices which may be thought of being
-		// connected by lines.
+		// connected by straight lines.
 		//
 		// resolution controls into how many straight lines a curve instruction should be translated
 		void ( *trace    )( le_path_o* self, size_t resolution );
@@ -178,8 +178,12 @@ class Path {
 
 	// -- rule of 5
 
-	Path( const Path& rhs ) { // copy constructor
-		this->self = le_path::le_path_i.clone( rhs.self );
+	Path( Path const& rhs ) // copy constructor
+	    : self( le_path::le_path_i.clone( rhs.self ) ) {
+	}
+
+	Path( le_path_o const* rhs ) // copy constructor
+	    : self( le_path::le_path_i.clone( rhs ) ) {
 	}
 
 	Path& operator=( Path const& rhs ) { // copy assignment constructor
@@ -317,7 +321,11 @@ class Path {
 		le_path::le_path_i.clear( self );
 	}
 
-	operator auto() {
+	operator le_path_o const*() const {
+		return self;
+	}
+
+	operator le_path_o*() {
 		return self;
 	}
 };
