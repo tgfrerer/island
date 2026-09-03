@@ -43,7 +43,7 @@ struct le_image_fx_api {
 
 		le_image_fx_blit_o * ( * create_blit    ) ( le_renderer_o* renderer , BlitBlendPreset blend_preset);
 		void            	 ( * destroy_blit   ) ( le_image_fx_blit_o* self );
-		void                 ( * blit_apply     ) ( le_image_fx_blit_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst);
+		void                 ( * blit_apply     ) ( le_image_fx_blit_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst, uint32_t dst_width, uint32_t dst_height );
 
 	};
 
@@ -106,13 +106,13 @@ class Blit : NoCopy, NoMove {
 		le_image_fx::le_image_fx_i.destroy_blit( self );
 	}
 
-	void apply( le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst ) {
-		le_image_fx::le_image_fx_i.blit_apply( self, rg, image_src, image_dst );
+	void apply( le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst, uint32_t const& dst_width = 0, uint32_t const& dst_height = 0 ) {
+		le_image_fx::le_image_fx_i.blit_apply( self, rg, image_src, image_dst, dst_width, dst_height );
 	}
 
 	// sugar so that we can directly call blit()
-	void operator()( le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst ) {
-		apply( rg, image_src, image_dst );
+	void operator()( le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst, uint32_t const& dst_width = 0, uint32_t const& dst_height = 0 ) {
+		apply( rg, image_src, image_dst, dst_width, dst_height );
 	}
 
 	operator auto() {
@@ -120,6 +120,15 @@ class Blit : NoCopy, NoMove {
 	}
 };
 } // namespace le_image_fx
+
+namespace le {
+
+namespace ImageFx {
+using Blit = le_image_fx::Blit;
+using Blur = le_image_fx::Blur;
+} // namespace ImageFx
+
+} // namespace le
 
 #endif // __cplusplus
 

@@ -370,7 +370,7 @@ static void le_fx_blit_destroy( le_image_fx_blit_o* self ) {
 }
 
 // ----------------------------------------------------------------------
-static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst ) {
+static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le_image_resource_handle_t* image_src, le_image_resource_handle_t* image_dst, uint32_t dst_width, uint32_t dst_height ) {
 
 	[[unlikely]] if ( false == self->was_setup ) {
 		// setup on first use
@@ -426,6 +426,14 @@ static void le_fx_blit_apply( le_image_fx_blit_o* self, le_rendergraph_o* rg, le
 	// The rendergraph will `on_cleanup` of this renderpass decrement the reference count
 	// to the blit object contained in `self`; This guarantees that the object stays alive
 	// while it is in-flight.
+
+	if ( dst_height ) {
+		blit_pass.setHeight( dst_height );
+	}
+
+	if ( dst_width ) {
+		blit_pass.setWidth( dst_width );
+	}
 
 	auto rendergraph = le::RenderGraph( rg );
 	rendergraph
