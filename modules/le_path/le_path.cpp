@@ -3258,17 +3258,21 @@ static bool is_comma_or_whitespace( char const* c, int* local_offset ) {
 	       is_whitespace( c, local_offset );
 }
 
-constexpr uint32_t PATH_PARSER_STATE_FLAG_IS_REPEATED = 0x1 << 0;
-constexpr uint32_t PATH_PARSER_STATE_FLAG_IS_ABSOLUTE = 0x1 << 1;
+constexpr uint32_t PATH_PARSER_STATE_FLAG_WAS_COMMAND_SEEN = 0x1 << 0; // whether a command char was seen
+constexpr uint32_t PATH_PARSER_STATE_FLAG_IS_ABSOLUTE      = 0x1 << 1; // whether the current command is absolute or relative
+constexpr uint32_t PATH_PARSER_STATE_FLAG_IS_REPEAT        = 0x1 << 2; // whether the current command is repeated (additional coordinates given for the current command char as a shortform)
 
+//
 static bool is_repeat_or_command_char( char const needle, char const* c, int* local_offset, uint32_t* state_flags ) {
 	bool is_absolute = false;
-	bool is_repeated = *state_flags & PATH_PARSER_STATE_FLAG_IS_REPEATED;
+	bool was_command = *state_flags & ( PATH_PARSER_STATE_FLAG_WAS_COMMAND_SEEN );
 
-	// Set flag for is_repeated no matter what so that subsequent queries get it
-	*state_flags |= PATH_PARSER_STATE_FLAG_IS_REPEATED;
+	// optimistically set the flag for having encountered a command
+	*state_flags |= PATH_PARSER_STATE_FLAG_WAS_COMMAND_SEEN;
 
-	if ( is_repeated ) {
+	if ( was_command ) {
+		// make sure to signal that the flag for repeat is set
+		*state_flags |= PATH_PARSER_STATE_FLAG_IS_REPEAT;
 		return true;
 	} else {
 		// Find if this is an absolute instruction
@@ -3582,7 +3586,14 @@ static void le_path_parse_simplified_svg( void* user_data, le_path_operations_in
 
 		state_flags = 0;
 		while ( is_m_instruction( c + offset, &offset, &p, &state_flags ) ) {
-			cb->move_to( user_data, ( float2* )( &p ) );
+			if ( ( state_flags & PATH_PARSER_STATE_FLAG_IS_REPEAT ) ) {
+				// If a moveto repeats coordinates, any coordinate pair following the first designates
+				// an implicit line_to operation. See:
+				// <https://w3c.github.io/svgwg/svg2-draft/paths.html#PathDataMovetoCommands>
+				cb->line_to( user_data, ( float2* )( &p ) );
+			} else {
+				cb->move_to( user_data, ( float2* )( &p ) );
+			}
 		}
 		if ( offset ) {
 			continue;
