@@ -23,6 +23,9 @@ struct le_imgui_api {
 		void            ( * setup_resources   ) ( le_imgui_o *self, le_rendergraph_o *p_rendergraph, float display_width, float display_height );
 		void            ( * draw              ) ( le_imgui_o* self, le_renderpass_o* renderpass);
 
+		///	draw into renderpass (if available)
+		void            ( * draw_into_last_renderpass              ) ( le_imgui_o* self, le_rendergraph_o* rendergraph);
+
 		void            ( * process_events    ) ( le_imgui_o* self, LeUiEvent const * events, uint32_t num_events);
         
         /// Process events, and filter out any events which have been captured by imgui
@@ -74,6 +77,10 @@ class ImGui : NoCopy, NoMove {
 
 	void setupResources( le_rendergraph_o* p_rendergraph, float display_width, float display_height ) {
 		le_imgui_api_i->le_imgui_i.setup_resources( self, p_rendergraph, display_width, display_height );
+	}
+
+	void draw( le_rendergraph_o* rendergraph ) {
+		le_imgui_api_i->le_imgui_i.draw_into_last_renderpass( self, rendergraph );
 	}
 
 	void draw( le_renderpass_o* renderpass ) {

@@ -3,6 +3,7 @@ set (TARGET le_imgui)
 depends_on_island_module(le_pipeline_builder)
 depends_on_island_module(le_renderer)
 depends_on_island_module(le_ui_event)
+depends_on_island_module(le_log)
 
 # n.b. configure_file will replace any cmake variables it finds in the file with their values.    
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/imgui/LICENSE.txt")

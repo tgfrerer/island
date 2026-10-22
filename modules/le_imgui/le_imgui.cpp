@@ -6,6 +6,7 @@
 #include "le_renderer.hpp"
 #include "le_pipeline_builder.h"
 #include "le_ui_event.h"
+#include "le_log.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -324,6 +325,20 @@ static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 	} );
 }
 
+// ----------------------------------------------------------------------
+
+static void le_imgui_draw_gui_into_last_renderpass( le_imgui_o* self, le_rendergraph_o* p_rg ) {
+	auto rp = le_renderer_api_i->le_rendergraph_i.get_last_renderpass( p_rg );
+	if ( rp ) {
+		le_imgui_draw_gui( self, rp );
+	} else {
+		static auto logger = le::Log( "le_imgui" );
+		logger.error( "Can't render gui: could not find last renderpass for rendergraph : %x.", p_rg );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 // clang-format off
 static ImGuiKey to_imgui_key( LeUiEvent::NamedKey const& k ) {
 	switch ( k ) {
@@ -582,6 +597,7 @@ LE_MODULE_REGISTER_IMPL( le_imgui, api ) {
 	le_imgui_i.process_and_filter_events        = le_imgui_process_and_filter_events;
 	le_imgui_i.setup_resources                  = le_imgui_setup_gui_resources;
 	le_imgui_i.draw                             = le_imgui_draw_gui;
+	le_imgui_i.draw_into_last_renderpass        = le_imgui_draw_gui_into_last_renderpass;
 	le_imgui_i.register_get_clipboard_string_cb = le_imgui_register_get_clipboard_string_cb;
 	le_imgui_i.register_set_clipboard_string_cb = le_imgui_register_set_clipboard_string_cb;
 
