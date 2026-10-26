@@ -251,6 +251,8 @@ struct LeUiEvent {
 		}
 	};
 
+	Type event;
+
 	union {
 		KeyEvent            key;
 		CharacterEvent      character;
@@ -263,7 +265,6 @@ struct LeUiEvent {
 		WindowExtentEvent   windowExtent;
 	};
 
-	Type event;
 };
 
 namespace le {
