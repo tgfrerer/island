@@ -4,6 +4,36 @@ set( GLFW_BUILD_DOCS      OFF CACHE INTERNAL "" )
 set( GLFW_INSTALL         OFF CACHE INTERNAL "" )
 set( GLFW_VULKAN_STATIC   OFF CACHE INTERNAL "" )
 
+if (${GLFW_BUILD_WAYLAND})
+    message("Using Wayland.")
+    # since we're building wayland we may as well add tablet support
+    find_package(PkgConfig REQUIRED)
+
+    pkg_check_modules(WAYLAND REQUIRED wayland-client wayland-cursor wayland-egl xkbcommon)
+
+    # Tablet (Wacom) support: generate the tablet-v2 protocol code with wayland-scanner.
+    find_program(WAYLAND_SCANNER_EXECUTABLE NAMES wayland-scanner REQUIRED)
+    execute_process(COMMAND pkg-config --variable=pkgdatadir wayland-protocols
+                    OUTPUT_VARIABLE WAYLAND_PROTOCOLS_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(TABLET_XML "${WAYLAND_PROTOCOLS_DIR}/stable/tablet/tablet-v2.xml")
+    if (NOT EXISTS ${TABLET_XML})
+        message(FATAL_ERROR "tablet-v2.xml not found in ${WAYLAND_PROTOCOLS_DIR} (install wayland-protocols)")
+    endif()
+
+    set (GEN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/generated")
+    file (MAKE_DIRECTORY ${GEN_SRC_DIR})
+
+    add_custom_command(
+        OUTPUT ${GEN_SRC_DIR}/tablet-protocol.h ${GEN_SRC_DIR}/tablet-protocol.c
+        COMMAND ${WAYLAND_SCANNER_EXECUTABLE} client-header ${TABLET_XML} ${GEN_SRC_DIR}/tablet-protocol.h
+        COMMAND ${WAYLAND_SCANNER_EXECUTABLE} private-code ${TABLET_XML} ${GEN_SRC_DIR}/tablet-protocol.c
+        COMMENT "Generating tablet-v2 protocol code"
+    )
+
+    set(TABLET_GEN_SRCS ${GEN_SRC_DIR}/tablet-protocol.h ${GEN_SRC_DIR}/tablet-protocol.c)
+
+endif()
+
 if (${PLUGINS_DYNAMIC})
     set( BUILD_SHARED_LIBS ON)
 endif()
@@ -18,8 +48,20 @@ depends_on_island_module(le_ui_event)
 depends_on_island_module(le_log)
 depends_on_island_module(le_backend_vk)
 
-set (SOURCES "le_window.cpp")
-set (SOURCES ${SOURCES} "le_window.h")
+set (SOURCES
+    "le_window.cpp"
+    "le_window.h"
+    "le_window_tablet_wayland.cpp"
+)
+
+if (DEFINED TABLET_GEN_SRCS)
+    set (SOURCES
+        ${SOURCES}
+        ${TABLET_GEN_SRCS}
+    )
+    message("Adding sources: ${TABLET_GEN_SRCS}")
+
+endif()
 
 if (${PLUGINS_DYNAMIC})
     add_library( ${TARGET} SHARED ${SOURCES} )
@@ -45,7 +87,7 @@ endif()
 if (WIN32)
      set (LINKER_FLAGS ${LINKER_FLAGS} glfw)
 else()
-    set (LINKER_FLAGS -Wl,--whole-archive glfw -Wl,--no-whole-archive)
+    set (LINKER_FLAGS -Wl,--whole-archive glfw ${WAYLAND_LIBRARIES} -Wl,--no-whole-archive)
 endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})

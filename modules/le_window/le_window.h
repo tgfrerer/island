@@ -73,6 +73,7 @@ struct le_window_api {
 		void * glfw_joystick_connection_callback_addr;
     };
 
+
 	int           ( *init                       ) ();
 	void          ( *terminate                  ) ();
 	void          ( *pollEvents                 ) ();
@@ -81,10 +82,47 @@ struct le_window_api {
 
 	const char ** ( *get_required_vk_instance_extensions ) ( uint32_t *count );
 
+	struct wl_tablet_interface_t {
+		bool (*init ) (); // initialize tablet pointer logic globally - this gets called via int
+		void (*after_window_create)(le_window_o * created_window); // just after a window gets created
+		void (*before_window_destroy)(le_window_o * doomed_window); // just before a window gets destroyed
+	};
 
+	// --------- wl tablet interface
+
+	struct wl_seat_listener_interface_t {
+		void *fn[3]; // space for 3 function pointers (on_tablet_added, on_tool_added, on_pad_added)
+	};
+
+	struct wl_registry_listener_interface_t {
+		void *fn;// registry listener function pointer
+ 	};
+
+	struct wl_tablet_listener_interface_t {
+		void *fn[6]; // space for 6 function pointers (on_name, onId, onPath, onDone, onRemoved, onBusEvent)
+	};
+
+	struct wl_tool_listener_interface_t {
+		void *fn[19]; // space for 6 function pointers (on_name, onId, onPath, onDone, onRemoved, onBusEvent)
+	};
+
+ 	// All these are private
+	wl_seat_listener_interface_t  	 wl_seat_listener_i;
+	wl_registry_listener_interface_t wl_registry_listener_i;
+	wl_tablet_listener_interface_t   wl_tablet_listener_i;
+	wl_tool_listener_interface_t     wl_tool_listener_i;
+	wl_tablet_interface_t            wl_tablet_i;	 
+
+	// ---------
+
+	// Public interface
 	window_interface_t           window_i;
 	window_settings_interface_t  window_settings_i;
     window_callbacks_interface_t window_callbacks_i;
+
+
+ 	// ----------
+
 };
 // clang-format on
 

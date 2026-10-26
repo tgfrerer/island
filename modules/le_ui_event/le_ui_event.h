@@ -180,6 +180,13 @@ struct LeUiEvent {
 		eDrop,
 		eGamepad,
 		eWindowExtent,
+		//
+		eTabletAttached,
+		eTabletTool,
+		eTabletProximity,
+		eTabletMotion,
+		eTabletButton,
+		eTabletTip,
 	};
 
 	struct KeyEvent {
@@ -251,6 +258,44 @@ struct LeUiEvent {
 		}
 	};
 
+	// Tablet events (experimental)
+
+	struct TabletAttachedEvent {
+		uint32_t id;
+	};
+
+	struct TabletToolEvent {
+		uint32_t id;
+		int      type;
+		uint64_t serial;
+	};
+
+	struct TabletProximityEvent {
+		uint32_t toolId;
+		int      state;
+	};
+
+	struct TabletMotionEvent {
+		uint32_t toolId;
+		float    x, y;
+		uint32_t pressure;
+		int      tiltX, tiltY;
+		uint32_t distance;
+	};
+
+	struct TabletButtonEvent {
+		uint32_t toolId;
+		uint32_t button;
+		int      state;
+	};
+
+	struct TabletTipEvent {
+		uint32_t toolId;
+		int      state;
+	};
+
+	// ---
+
 	Type event;
 
 	union {
@@ -263,8 +308,14 @@ struct LeUiEvent {
 		DropEvent           drop;
 		GamepadEvent        gamepad;
 		WindowExtentEvent   windowExtent;
+		//  ---- tablet events
+		TabletAttachedEvent  tabletAttached;
+		TabletToolEvent      tabletTool;
+		TabletProximityEvent tabletProximity;
+		TabletMotionEvent    tabletMotion;
+		TabletButtonEvent    tabletButton;
+		TabletTipEvent       tabletTip; // whether tip is up (0) or down (1)
 	};
-
 };
 
 namespace le {

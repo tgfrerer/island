@@ -19,7 +19,7 @@
 
 #if defined( __linux__ )
 // #	define GLFW_EXPOSE_NATIVE_X11
-#	define GLFW_EXPOSE_NATIVE_WAYLAND
+#	define GLFW_EXPOSE_NATIVE_WAYLAND // todo: we should only expose this if we're actually building against wayland
 #elif defined( _WIN32 )
 #	define GLFW_EXPOSE_NATIVE_WIN32
 #endif
@@ -863,6 +863,11 @@ static int init() {
 		glfw_joystick_connection_callback( GLFW_JOYSTICK_1, GLFW_CONNECTED );
 	}
 
+#if defined( GLFW_EXPOSE_NATIVE_WAYLAND )
+	// TODO: let's call the init_tablet function via the api, and not as a free function
+	le_window_api_i->wl_tablet_i.init();
+#endif
+
 	return result;
 }
 
@@ -921,7 +926,7 @@ static void pollEvents() {
 					gamepad_index++;
 				}
 
-				// we must propagate to the window the gamepad state at
+				// We must propagate to the window the gamepad state at
 				// gamepad index
 
 				le_window_gamepad_callback( w, gamepad_data[ gamepad_index ] );
@@ -961,6 +966,10 @@ static const char* get_clipboard_string() {
 static void set_clipboard_string( char const* str ) {
 	glfwSetClipboardString( nullptr, str );
 }
+
+#ifdef GLFW_EXPOSE_NATIVE_WAYLAND
+extern void le_window_tablet_wayland_register_api( void* api );
+#endif
 
 // ----------------------------------------------------------------------
 
@@ -1013,6 +1022,10 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	callbacks_i.glfw_framebuffer_size_callback_addr    = ( void* )glfw_framebuffer_resize_callback;
 	callbacks_i.glfw_drop_callback_addr                = ( void* )glfw_window_drop_callback;
 	callbacks_i.glfw_joystick_connection_callback_addr = ( void* )glfw_joystick_connection_callback;
+
+#ifdef GLFW_EXPOSE_NATIVE_WAYLAND
+	le_window_tablet_wayland_register_api( api );
+#endif
 
 #if defined PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "./modules/libglfw.so" );
