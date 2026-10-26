@@ -27,14 +27,7 @@
 
 constexpr size_t EVENT_QUEUE_SIZE                 = ( 4096 * 4 ) / sizeof( LeUiEvent ); // Allocate a few pages for events
 constexpr auto   GAMEPAD_SUBSCRIBERS_SINGLETON_ID = hash_64_fnv1a_const( "le_window_gamepad_subscribers" );
-
-constexpr auto LOGGER_LABEL = "le_window";
-
-static le::Log& logger() {
-	// Enforce lazy initialization for logger().object
-	static auto logger = le::Log( LOGGER_LABEL );
-	return logger;
-};
+constexpr auto   LOGGER_LABEL                     = "le_window";
 
 struct le_window_settings_o {
 	int          width           = 640;
@@ -78,6 +71,12 @@ struct le_window_o {
 struct gamepad_events_subscriber_windows_t {
 	std::vector<le_window_o*> windows;
 	std::mutex                mtx;
+};
+
+static le::Log& logger() {
+	// Enforce lazy initialization for logger().object
+	static auto logger = le::Log( LOGGER_LABEL );
+	return logger;
 };
 
 static gamepad_events_subscriber_windows_t* gamepad_events_subscribers_singleton_get() {
