@@ -792,12 +792,14 @@ static GLFWwindow* window_get_glfw_window( le_window_o* self ) {
 // + Wayland wl_surface*,
 // + or Android ANativeWindow*.
 static void* window_get_os_native_window_handle( le_window_o* self ) {
-
-	// TODO: we must check whether we use Wayland or X11 -
-	//       use the correct function.
 #if defined( __linux__ )
-	//	void *window = ( void * )glfwGetWaylandWindow( self->window );
+#	if defined( GLFW_EXPOSE_NATIVE_WAYLAND )
+	void* window = ( void* )glfwGetWaylandWindow( self->window );
+#	elif defined( GLFW_EXPOSE_NATIVE_X11 )
 	void* window = ( void* )glfwGetX11Window( self->window );
+#	else
+	void* window = nullptr;
+#	endif
 	return window;
 #elif defined( _WIN32 )
 	return ( void* )glfwGetWin32Window( self->window );
