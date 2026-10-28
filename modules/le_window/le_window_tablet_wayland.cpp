@@ -88,15 +88,13 @@ static void tool_on_tool_type( void* data, struct zwp_tablet_tool_v2* tool, uint
 	static_cast<ToolInfo*>( data )->event = static_cast<int>( toolType );
 }
 
-static void tool_on_hardware_serial( void* data, struct zwp_tablet_tool_v2* tool,
-                                     uint32_t hi, uint32_t lo ) {
+static void tool_on_hardware_serial( void* data, struct zwp_tablet_tool_v2* tool, uint32_t hi, uint32_t lo ) {
 	( void )tool;
 	ToolInfo* t = static_cast<ToolInfo*>( data );
 	t->serial   = ( static_cast<uint64_t>( hi ) << 32 ) | lo;
 }
 
-static void tool_on_hardware_id_wacom( void* data, struct zwp_tablet_tool_v2* tool,
-                                       uint32_t hi, uint32_t lo ) {
+static void tool_on_hardware_id_wacom( void* data, struct zwp_tablet_tool_v2* tool, uint32_t hi, uint32_t lo ) {
 	( void )data;
 	( void )tool;
 	( void )hi;
@@ -149,15 +147,13 @@ static void tool_on_up( void* data, struct zwp_tablet_tool_v2* tool ) {
 	// postLeUiEvent( e );
 }
 
-static void tool_on_motion( void* data, struct zwp_tablet_tool_v2* tool,
-                            wl_fixed_t x, wl_fixed_t y ) {
+static void tool_on_motion( void* data, struct zwp_tablet_tool_v2* tool, wl_fixed_t x, wl_fixed_t y ) {
 	( void )tool;
 	ToolInfo* t = static_cast<ToolInfo*>( data );
 	t->x        = static_cast<float>( wl_fixed_to_double( x ) ); // surface-local logical pixels
 	t->y        = static_cast<float>( wl_fixed_to_double( y ) );
 }
-static void tool_on_proximity_in( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial,
-                                  struct zwp_tablet_v2* tablet, struct wl_surface* surface ) {
+static void tool_on_proximity_in( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial, struct zwp_tablet_v2* tablet, struct wl_surface* surface ) {
 	( void )tool;
 	( void )serial;
 	( void )tablet;
@@ -182,8 +178,7 @@ static void tool_on_distance( void* data, struct zwp_tablet_tool_v2* tool, uint3
 	static_cast<ToolInfo*>( data )->distance = distance;
 }
 
-static void tool_on_tilt( void* data, struct zwp_tablet_tool_v2* tool,
-                          wl_fixed_t tiltX, wl_fixed_t tiltY ) {
+static void tool_on_tilt( void* data, struct zwp_tablet_tool_v2* tool, wl_fixed_t tiltX, wl_fixed_t tiltY ) {
 	( void )tool;
 	ToolInfo* t = static_cast<ToolInfo*>( data );
 	t->tilt_x   = static_cast<float>( wl_fixed_to_double( tiltX ) );
