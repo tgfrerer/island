@@ -19,11 +19,15 @@
 
 #if defined( __linux__ )
 // #	define GLFW_EXPOSE_NATIVE_X11
-// #	define GLFW_EXPOSE_NATIVE_WAYLAND // todo: we should only expose this if we're actually building against wayland
+#	define GLFW_EXPOSE_NATIVE_WAYLAND // todo: we should only expose this if we're actually building against wayland
 #elif defined( _WIN32 )
 #	define GLFW_EXPOSE_NATIVE_WIN32
 #endif
 #include "GLFW/glfw3native.h"
+
+#if defined( LE_BUILD_OPTION_WAYLAND_TABLET )
+#	include "private/le_window/le_window_tablet_wayland.h"
+#endif
 
 constexpr size_t EVENT_QUEUE_SIZE                 = ( 4096 * 4 ) / sizeof( LeUiEvent ); // Allocate a few pages for events
 constexpr auto   GAMEPAD_SUBSCRIBERS_SINGLETON_ID = hash_64_fnv1a_const( "le_window_gamepad_subscribers" );
@@ -864,7 +868,11 @@ static int init() {
 	}
 
 #if defined( LE_BUILD_OPTION_WAYLAND_TABLET )
-	le_window_api_i->wl_tablet_i.init();
+	// if there is a tablet interface, we would like to init it here
+	auto const& tablet_api = ( wl_tablet_interface_t* )le_window_api_i->private_tablet_i;
+	if ( tablet_api != nullptr ) {
+		tablet_api->init();
+	}
 #endif
 
 	return result;

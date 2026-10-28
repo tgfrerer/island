@@ -1,5 +1,4 @@
 #include "le_window.h"
-
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -21,6 +20,10 @@
 
 constexpr auto LOGGER_LABEL = "le_window_tablet_wayland";
 
+//	Note that this is a private interface --
+//  user interaction should only happen via the LeUiEvent system; consumers
+//  Of UI Events should be oblivious of how events were generated.
+
 struct tablet_manager_o {
 	uint32_t              g_nextTabletId         = 1;
 	uint32_t              g_nextToolId           = 1;
@@ -29,9 +32,15 @@ struct tablet_manager_o {
 	std::vector<uint32_t> g_seatIds;
 };
 
+#include "private/le_window/le_window_tablet_wayland.h"
+
+inline static wl_tablet_interface_t* get_api() {
+	return ( wl_tablet_interface_t* )le_window_api_i->private_tablet_i;
+}
+
 // helper method to return the peristent state
-static tablet_manager_o& get_persistent_state() {
-	return *( ( tablet_manager_o* )le_window_api_i->wl_tablet_i.persistent_state );
+inline static tablet_manager_o& get_persistent_state() {
+	return *( get_api()->persistent_state );
 }
 
 /*
@@ -266,7 +275,7 @@ static void tablet_on_removed( void* data, struct zwp_tablet_v2* tablet ) {
 }
 
 // TODO: fill out
-static void tablet_on_busevent( void* data, struct zwp_tablet_v2* tablet, uint32_t busevent ) {
+static void tablet_on_bustype( void* data, struct zwp_tablet_v2* tablet, uint32_t busevent ) {
 	( void )data;
 	( void )tablet;
 	( void )busevent;
@@ -277,7 +286,7 @@ static void seat_on_tablet_added( void* data, struct zwp_tablet_seat_v2* seat,
 	( void )data;
 	( void )seat;
 	zwp_tablet_v2_add_listener(
-	    tablet, ( zwp_tablet_v2_listener* )( &le_window_api_i->wl_tablet_listener_i ),
+	    tablet, ( zwp_tablet_v2_listener* )( &get_api()->wl_tablet_listener_i ),
 	    reinterpret_cast<void*>( static_cast<uintptr_t>( get_persistent_state().g_nextTabletId++ ) ) );
 }
 
@@ -300,13 +309,20 @@ static void tablet_registry_on_global( void* data, wl_registry* registry, uint32
 	}
 }
 
+static void tablet_registry_on_global_remove( void*               data,
+                                              struct wl_registry* wl_registry,
+                                              uint32_t            name ) {
+	( void )data;
+	( void )wl_registry;
+};
+
 static void seat_on_tool_added( void* data, struct zwp_tablet_seat_v2* seat,
                                 struct zwp_tablet_tool_v2* tool ) {
 	( void )data;
 	( void )seat;
 	ToolInfo* t = new ToolInfo{}; // deleted OnToolRemoved
 	t->id       = get_persistent_state().g_nextToolId++;
-	zwp_tablet_tool_v2_add_listener( tool, ( zwp_tablet_tool_v2_listener* )( &le_window_api_i->wl_tool_listener_i ), t );
+	zwp_tablet_tool_v2_add_listener( tool, &get_api()->wl_tool_listener_i, t );
 }
 
 // ----------
@@ -325,7 +341,7 @@ static bool le_window_init_tablet() {
 
 	struct wl_registry* registry = wl_display_get_registry( display );
 
-	wl_registry_add_listener( registry, ( wl_registry_listener* )( &le_window_api_i->wl_registry_listener_i ), nullptr );
+	wl_registry_add_listener( registry, &get_api()->wl_registry_listener_i, nullptr );
 
 	if ( wl_display_roundtrip( display ) < 0 ) {
 		return false;
@@ -346,7 +362,7 @@ static bool le_window_init_tablet() {
 	for ( uint32_t seatId : state.g_seatIds ) {
 		wl_seat*            seat       = static_cast<wl_seat*>( wl_registry_bind( registry, seatId, &wl_seat_interface, 1 ) );
 		zwp_tablet_seat_v2* tabletSeat = zwp_tablet_manager_v2_get_tablet_seat( manager, seat );
-		zwp_tablet_seat_v2_add_listener( tabletSeat, ( zwp_tablet_seat_v2_listener* )&le_window_api_i->wl_seat_listener_i, nullptr );
+		zwp_tablet_seat_v2_add_listener( tabletSeat, &get_api()->wl_seat_listener_i, nullptr );
 	}
 
 	wl_display_flush( display );
@@ -375,69 +391,78 @@ void le_window_tablet_wayland_register_api( void* api ) {
 	// follow wayland-scanner; every slot must be non-null.
 
 	{
-		auto& seat_listener_api = window_api_i->wl_seat_listener_i;
+		auto& api = window_api_i->private_tablet_i;
 
-		static_assert(
-		    sizeof( seat_listener_api ) == sizeof( zwp_tablet_seat_v2_listener ),
-		    "api must have the same field size" );
+		if ( api == nullptr ) {
+			api = new wl_tablet_interface_t{
+			    .persistent_state = new tablet_manager_o(),
+			};
+		}
 
-		seat_listener_api.fn[ 0 ] = ( void* )seat_on_tablet_added;
-		seat_listener_api.fn[ 1 ] = ( void* )seat_on_tool_added;
-		seat_listener_api.fn[ 2 ] = ( void* )seat_on_pad_added;
-	}
+		{
+			auto api_i                      = ( wl_tablet_interface_t* )api;
+			api_i->on_after_window_create   = on_after_window_create;
+			api_i->on_before_window_destroy = on_before_window_destroy;
+			api_i->init                     = le_window_init_tablet;
+		}
 
-	{
-		auto& registry_listener_api = window_api_i->wl_registry_listener_i;
-		registry_listener_api.fn    = ( void* )tablet_registry_on_global;
-	}
+		{
+			auto  api_i             = ( wl_tablet_interface_t* )api;
+			auto& seat_listener_api = api_i->wl_seat_listener_i;
 
-	{
-		auto& tablet_listener_api = window_api_i->wl_tablet_listener_i;
+			seat_listener_api.tablet_added = seat_on_tablet_added;
+			seat_listener_api.tool_added   = seat_on_tool_added;
+			seat_listener_api.pad_added    = seat_on_pad_added;
+		}
 
-		tablet_listener_api.fn[ 0 ] = ( void* )tablet_on_name;
-		tablet_listener_api.fn[ 1 ] = ( void* )tablet_on_id;
-		tablet_listener_api.fn[ 2 ] = ( void* )tablet_on_path;
-		tablet_listener_api.fn[ 3 ] = ( void* )tablet_on_done;
-		tablet_listener_api.fn[ 4 ] = ( void* )tablet_on_removed;
-		tablet_listener_api.fn[ 5 ] = ( void* )tablet_on_busevent;
-	}
-	{
-		auto& tool_listener_api = window_api_i->wl_tool_listener_i;
+		{
+			auto  api_i                 = ( wl_tablet_interface_t* )api;
 
-		//
-		// We should be able to update these addresses directly when hot-reloading;
-		// as wayland receives the address to the function table (which we keep
-		// constant in our function registry) -- here, we update the table entries
-		//
-		//
-		tool_listener_api.fn[ 0 ]  = ( void* )tool_on_tool_type;
-		tool_listener_api.fn[ 1 ]  = ( void* )tool_on_hardware_serial;
-		tool_listener_api.fn[ 2 ]  = ( void* )tool_on_hardware_id_wacom;
-		tool_listener_api.fn[ 3 ]  = ( void* )tool_on_capability;
-		tool_listener_api.fn[ 4 ]  = ( void* )tool_on_done;
-		tool_listener_api.fn[ 5 ]  = ( void* )tool_on_removed;
-		tool_listener_api.fn[ 6 ]  = ( void* )tool_on_proximity_in;  // this may change the current surface
-		tool_listener_api.fn[ 7 ]  = ( void* )tool_on_proximity_out; // this may change the current surface
-		tool_listener_api.fn[ 8 ]  = ( void* )tool_on_down;
-		tool_listener_api.fn[ 9 ]  = ( void* )tool_on_up;
-		tool_listener_api.fn[ 10 ] = ( void* )tool_on_motion;
-		tool_listener_api.fn[ 11 ] = ( void* )tool_on_pressure;
-		tool_listener_api.fn[ 12 ] = ( void* )tool_on_distance;
-		tool_listener_api.fn[ 13 ] = ( void* )tool_on_tilt;
-		tool_listener_api.fn[ 14 ] = ( void* )tool_on_rotation;
-		tool_listener_api.fn[ 15 ] = ( void* )tool_on_slider;
-		tool_listener_api.fn[ 16 ] = ( void* )tool_on_wheel;
-		tool_listener_api.fn[ 17 ] = ( void* )tool_on_button;
-		tool_listener_api.fn[ 18 ] = ( void* )tool_on_frame;
-	}
-	{
-		auto& api = window_api_i->wl_tablet_i;
-		api.init  = le_window_init_tablet;
-		api.on_after_window_create   = on_after_window_create;
-		api.on_before_window_destroy = on_before_window_destroy;
+			auto& registry_listener_api         = api_i->wl_registry_listener_i;
+			registry_listener_api.global        = tablet_registry_on_global;
+			registry_listener_api.global_remove = tablet_registry_on_global_remove;
+		}
 
-		if ( api.persistent_state == nullptr ) {
-			api.persistent_state = new tablet_manager_o{};
+		{
+			auto  api_i               = ( wl_tablet_interface_t* )api;
+			auto& tablet_listener_api = api_i->wl_tablet_listener_i;
+
+			tablet_listener_api.name    = tablet_on_name;
+			tablet_listener_api.id      = tablet_on_id;
+			tablet_listener_api.path    = tablet_on_path;
+			tablet_listener_api.done    = tablet_on_done;
+			tablet_listener_api.removed = tablet_on_removed;
+			tablet_listener_api.bustype = tablet_on_bustype;
+		}
+		{
+			auto  api_i             = ( wl_tablet_interface_t* )api;
+			auto& tool_listener_api = api_i->wl_tool_listener_i;
+
+			//
+			// We should be able to update these addresses directly when hot-reloading;
+			// as wayland receives the address to the function table (which we keep
+			// constant in our function registry) -- here, we update the table entries
+			//
+			//
+			tool_listener_api.type              = tool_on_tool_type;
+			tool_listener_api.hardware_serial   = tool_on_hardware_serial;
+			tool_listener_api.hardware_id_wacom = tool_on_hardware_id_wacom;
+			tool_listener_api.capability        = tool_on_capability;
+			tool_listener_api.done              = tool_on_done;
+			tool_listener_api.removed           = tool_on_removed;
+			tool_listener_api.proximity_in      = tool_on_proximity_in;  // this may change the current surface
+			tool_listener_api.proximity_out     = tool_on_proximity_out; // this may change the current surface
+			tool_listener_api.down              = tool_on_down;
+			tool_listener_api.up                = tool_on_up;
+			tool_listener_api.motion            = tool_on_motion;
+			tool_listener_api.pressure          = tool_on_pressure;
+			tool_listener_api.distance          = tool_on_distance;
+			tool_listener_api.tilt              = tool_on_tilt;
+			tool_listener_api.rotation          = tool_on_rotation;
+			tool_listener_api.slider            = tool_on_slider;
+			tool_listener_api.wheel             = tool_on_wheel;
+			tool_listener_api.button            = tool_on_button;
+			tool_listener_api.frame             = tool_on_frame;
 		}
 	}
 };

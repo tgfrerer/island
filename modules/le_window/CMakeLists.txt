@@ -40,16 +40,18 @@ if (${LE_BUILD_OPTION_WAYLAND_TABLET})
         COMMENT "Generating tablet-v2 protocol code"
     )
 
+    add_compile_definitions(
+        LE_BUILD_OPTION_WAYLAND_TABLET
+    )
+
     # Tablet sources are generated wl files plus the associated file
     set(TABLET_SRCS
         ${GEN_SRC_DIR}/tablet-protocol.h
         ${GEN_SRC_DIR}/tablet-protocol.c
+        "private/le_window/le_window_tablet_wayland.h"
         "le_window_tablet_wayland.cpp"
     )
 
-    add_compile_definitions(
-        LE_BUILD_OPTION_WAYLAND_TABLET
-    )
 endif()
 
 if (${PLUGINS_DYNAMIC})
