@@ -1,11 +1,19 @@
+
+include(CMakeDependentOption)
+
+cmake_dependent_option(GLFW_BUILD_WAYLAND "Build support for Wayland" ON "UNIX;NOT WIN32" OFF)
+cmake_dependent_option(LE_BUILD_OPTION_WAYLAND_TABLET "Build support for Wayland Tablet" OFF "GLFW_BUILD_WAYLAND" OFF)
+
 set( GLFW_BUILD_EXAMPLES  OFF CACHE INTERNAL "" )
 set( GLFW_BUILD_TESTS     OFF CACHE INTERNAL "" )
 set( GLFW_BUILD_DOCS      OFF CACHE INTERNAL "" )
 set( GLFW_INSTALL         OFF CACHE INTERNAL "" )
 set( GLFW_VULKAN_STATIC   OFF CACHE INTERNAL "" )
 
-if (${GLFW_BUILD_WAYLAND})
-    message("Using Wayland.")
+
+if (${LE_BUILD_OPTION_WAYLAND_TABLET})
+
+    message(STATUS "Using Wayland as target for GLFW.")
     # since we're building wayland we may as well add tablet support
     find_package(PkgConfig REQUIRED)
 
@@ -20,6 +28,8 @@ if (${GLFW_BUILD_WAYLAND})
         message(FATAL_ERROR "tablet-v2.xml not found in ${WAYLAND_PROTOCOLS_DIR} (install wayland-protocols)")
     endif()
 
+    message(STATUS "Generating wayland helper files via wayland-scanner")
+
     set (GEN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/generated")
     file (MAKE_DIRECTORY ${GEN_SRC_DIR})
 
@@ -30,8 +40,16 @@ if (${GLFW_BUILD_WAYLAND})
         COMMENT "Generating tablet-v2 protocol code"
     )
 
-    set(TABLET_GEN_SRCS ${GEN_SRC_DIR}/tablet-protocol.h ${GEN_SRC_DIR}/tablet-protocol.c)
+    # Tablet sources are generated wl files plus the associated file
+    set(TABLET_SRCS
+        ${GEN_SRC_DIR}/tablet-protocol.h
+        ${GEN_SRC_DIR}/tablet-protocol.c
+        "le_window_tablet_wayland.cpp"
+    )
 
+    add_compile_definitions(
+        LE_BUILD_OPTION_WAYLAND_TABLET
+    )
 endif()
 
 if (${PLUGINS_DYNAMIC})
@@ -51,17 +69,8 @@ depends_on_island_module(le_backend_vk)
 set (SOURCES
     "le_window.cpp"
     "le_window.h"
-    "le_window_tablet_wayland.cpp"
+    ${TABLET_SRCS}
 )
-
-if (DEFINED TABLET_GEN_SRCS)
-    set (SOURCES
-        ${SOURCES}
-        ${TABLET_GEN_SRCS}
-    )
-    message("Adding sources: ${TABLET_GEN_SRCS}")
-
-endif()
 
 if (${PLUGINS_DYNAMIC})
     add_library( ${TARGET} SHARED ${SOURCES} )

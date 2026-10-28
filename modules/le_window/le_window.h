@@ -82,6 +82,12 @@ struct le_window_api {
 
 	const char ** ( *get_required_vk_instance_extensions ) ( uint32_t *count );
 
+#ifdef LE_BUILD_OPTION_WAYLAND_TABLET
+
+	//	Note that this is a private interface --
+	//  user interaction should only happen via the LeUiEvent system; consumers
+	//  Of UI Events should be oblivious of how events were generated.
+
 	struct wl_tablet_interface_t {
 		bool (*init ) (); // initialize tablet pointer logic globally - this gets called via int
 		void (*on_after_window_create)(le_window_o * created_window); // just after a window gets created
@@ -112,7 +118,8 @@ struct le_window_api {
 	wl_registry_listener_interface_t wl_registry_listener_i;
 	wl_tablet_listener_interface_t   wl_tablet_listener_i;
 	wl_tool_listener_interface_t     wl_tool_listener_i;
-	wl_tablet_interface_t            wl_tablet_i;	 
+	wl_tablet_interface_t            wl_tablet_i;
+#endif
 
 	// ---------
 

@@ -19,7 +19,7 @@
 
 #if defined( __linux__ )
 // #	define GLFW_EXPOSE_NATIVE_X11
-#	define GLFW_EXPOSE_NATIVE_WAYLAND // todo: we should only expose this if we're actually building against wayland
+// #	define GLFW_EXPOSE_NATIVE_WAYLAND // todo: we should only expose this if we're actually building against wayland
 #elif defined( _WIN32 )
 #	define GLFW_EXPOSE_NATIVE_WIN32
 #endif
@@ -863,7 +863,7 @@ static int init() {
 		glfw_joystick_connection_callback( GLFW_JOYSTICK_1, GLFW_CONNECTED );
 	}
 
-#if defined( GLFW_EXPOSE_NATIVE_WAYLAND )
+#if defined( LE_BUILD_OPTION_WAYLAND_TABLET )
 	le_window_api_i->wl_tablet_i.init();
 #endif
 
@@ -966,7 +966,7 @@ static void set_clipboard_string( char const* str ) {
 	glfwSetClipboardString( nullptr, str );
 }
 
-#ifdef GLFW_EXPOSE_NATIVE_WAYLAND
+#ifdef LE_BUILD_OPTION_WAYLAND_TABLET
 extern void le_window_tablet_wayland_register_api( void* api );
 #endif
 
@@ -1022,7 +1022,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	callbacks_i.glfw_drop_callback_addr                = ( void* )glfw_window_drop_callback;
 	callbacks_i.glfw_joystick_connection_callback_addr = ( void* )glfw_joystick_connection_callback;
 
-#ifdef GLFW_EXPOSE_NATIVE_WAYLAND
+#ifdef LE_BUILD_OPTION_WAYLAND_TABLET
 	le_window_tablet_wayland_register_api( api );
 #endif
 
