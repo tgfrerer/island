@@ -82,8 +82,6 @@ struct le_window_api {
 
 	const char ** ( *get_required_vk_instance_extensions ) ( uint32_t *count );
 
-	void * private_tablet_i; // private tablet interface
-
 
 	// Public interface
 	window_interface_t           window_i;
@@ -91,8 +89,9 @@ struct le_window_api {
     window_callbacks_interface_t window_callbacks_i;
 
 
- 	// ----------
-
+ 	// ---------- private interface for drawing tablet input (deliberately opaque)
+	//
+	void * private_tablet_i; 
 };
 // clang-format on
 
