@@ -196,26 +196,6 @@ static void tool_on_slider( void* data, struct zwp_tablet_tool_v2* tool, int32_t
 	( void )tool;
 	( void )position;
 }
-
-static void tool_on_wheel( void* data, struct zwp_tablet_tool_v2* tool,
-                           wl_fixed_t degrees, int32_t clicks ) {
-	( void )data;
-	( void )tool;
-	( void )degrees;
-	( void )clicks;
-}
-
-static void tool_on_button( void* data, struct zwp_tablet_tool_v2* tool,
-                            uint32_t serial, uint32_t button, uint32_t state ) {
-	( void )tool;
-	( void )serial;
-	const ToolInfo* t = static_cast<ToolInfo*>( data );
-	LeUiEvent       e{};
-	e.event        = LeUiEvent::Type::eTabletButton;
-	e.tabletButton = { t->id, button, static_cast<int>( state ) };
-	// postLeUiEvent( e );
-}
-
 static void tool_on_frame( void* data, struct zwp_tablet_tool_v2* tool, uint32_t time ) {
 	( void )tool;
 	( void )time;
@@ -223,7 +203,7 @@ static void tool_on_frame( void* data, struct zwp_tablet_tool_v2* tool, uint32_t
 	LeUiEvent       e{};
 	e.event        = LeUiEvent::Type::eTabletMotion;
 	e.tabletMotion = {
-	    t->id,
+	    t->id, // tool id
 	    t->x,
 	    t->y,
 	    t->pressure,
@@ -231,7 +211,24 @@ static void tool_on_frame( void* data, struct zwp_tablet_tool_v2* tool, uint32_t
 	    static_cast<int>( t->tilt_y ),
 	    t->distance,
 	};
+	logger().info( "Tablet on frame[% 3d]: %4.2f, %4.2f, %d", t->id, t->x, t->y, t->pressure );
 	//	postLeUiEvent( e );
+}
+static void tool_on_wheel( void* data, struct zwp_tablet_tool_v2* tool, wl_fixed_t degrees, int32_t clicks ) {
+	( void )data;
+	( void )tool;
+	( void )degrees;
+	( void )clicks;
+}
+
+static void tool_on_button( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial, uint32_t button, uint32_t state ) {
+	( void )tool;
+	( void )serial;
+	const ToolInfo* t = static_cast<ToolInfo*>( data );
+	LeUiEvent       e{};
+	e.event        = LeUiEvent::Type::eTabletButton;
+	e.tabletButton = { t->id, button, static_cast<int>( state ) };
+	// postLeUiEvent( e );
 }
 
 static void tablet_on_name( void* data, struct zwp_tablet_v2* tablet, const char* name ) {
@@ -260,40 +257,35 @@ static void tablet_on_done( void* data, struct zwp_tablet_v2* tablet ) {
 	LeUiEvent e{};
 	e.event          = LeUiEvent::Type::eTabletAttached;
 	e.tabletAttached = { static_cast<uint32_t>( reinterpret_cast<uintptr_t>( data ) ) };
-	logger().info( "tablet added: %d", e.tabletAttached.id );
+	logger().info( "Tablet Attached: %d", e.tabletAttached.id );
 }
 
-// TODO: fill out
 static void tablet_on_removed( void* data, struct zwp_tablet_v2* tablet ) {
 	( void )data;
 	( void )tablet;
 }
 
-// TODO: fill out
 static void tablet_on_bustype( void* data, struct zwp_tablet_v2* tablet, uint32_t busevent ) {
 	( void )data;
 	( void )tablet;
 	( void )busevent;
 }
 
-static void seat_on_tablet_added( void* data, struct zwp_tablet_seat_v2* seat,
-                                  struct zwp_tablet_v2* tablet ) {
+static void seat_on_tablet_added( void* data, struct zwp_tablet_seat_v2* seat, struct zwp_tablet_v2* tablet ) {
 	( void )data;
 	( void )seat;
 	zwp_tablet_v2_add_listener(
-	    tablet, ( zwp_tablet_v2_listener* )( &get_api()->wl_tablet_listener_i ),
+	    tablet, &get_api()->wl_tablet_listener_i,
 	    reinterpret_cast<void*>( static_cast<uintptr_t>( get_persistent_state().g_nextTabletId++ ) ) );
 }
 
-static void seat_on_pad_added( void* data, struct zwp_tablet_seat_v2* seat,
-                               struct zwp_tablet_pad_v2* pad ) {
+static void seat_on_pad_added( void* data, struct zwp_tablet_seat_v2* seat, struct zwp_tablet_pad_v2* pad ) {
 	( void )data;
 	( void )seat;
 	( void )pad; // pad scope is an open decision; slot must not be null
 }
 
-static void tablet_registry_on_global( void* data, wl_registry* registry, uint32_t id,
-                                       const char* interface, uint32_t version ) {
+static void tablet_registry_on_global( void* data, wl_registry* registry, uint32_t id, const char* interface, uint32_t version ) {
 	( void )data;
 	if ( std::strcmp( interface, "zwp_tablet_manager_v2" ) == 0 ) {
 		auto& s                  = get_persistent_state();
@@ -304,15 +296,12 @@ static void tablet_registry_on_global( void* data, wl_registry* registry, uint32
 	}
 }
 
-static void tablet_registry_on_global_remove( void*               data,
-                                              struct wl_registry* wl_registry,
-                                              uint32_t            name ) {
+static void tablet_registry_on_global_remove( void* data, struct wl_registry* wl_registry, uint32_t name ) {
 	( void )data;
 	( void )wl_registry;
 };
 
-static void seat_on_tool_added( void* data, struct zwp_tablet_seat_v2* seat,
-                                struct zwp_tablet_tool_v2* tool ) {
+static void seat_on_tool_added( void* data, struct zwp_tablet_seat_v2* seat, struct zwp_tablet_tool_v2* tool ) {
 	( void )data;
 	( void )seat;
 	ToolInfo* t = new ToolInfo{}; // deleted OnToolRemoved
@@ -368,12 +357,14 @@ static bool le_window_init_tablet() {
 // ----------------------------------------------------------------
 
 // once a window has been created, we need to update our map of existing windows
-static void on_after_window_create( le_window_o* window ) {
+static void on_after_window_create( le_window_o* window, void* wayland_surface ) {
+	logger().info( "window create: island window: %p, wayland surface: %p", window, wayland_surface );
 }
 
 // ----------------------------------------------------------------
 // if a window was removed, then we need to remove it from our list of existing windows
 static void on_before_window_destroy( le_window_o* window ) {
+	logger().info( "window destroy %x", window );
 }
 
 // ----------------------------------------------------------------
