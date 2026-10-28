@@ -646,6 +646,32 @@ static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** even
 	*numEvents = self->numEventsForQueue[ eventQueueFront ];
 }
 
+static bool window_enqueue_events( le_window_o* self, LeUiEvent const** events, uint32_t numEvents ) {
+
+	if ( false == self->mSettings.useEventsQueue ) {
+		*events   = nullptr;
+		numEvents = 0;
+		logger().warn( "Querying ui event queue when event queue not in use. Use window.settings to enable events queue." );
+		return false;
+	}
+
+	uint32_t queueIdx = self->eventQueueBack; // atomic fetch
+
+	// atomic fetch add - returns last value, which will be the start address for writing events into
+	int32_t event_idx_start = self->numEventsForQueue[ queueIdx ].fetch_add( numEvents );
+
+	// we must make sure that we will not write outside the pre-allocated space for events
+	if ( event_idx_start > EVENT_QUEUE_SIZE ) {
+		self->numEventsForQueue[ queueIdx ] = event_idx_start;
+		return false;
+	}
+
+	// invariant: we have enough space to insert the number of events at position event_idx_start
+	memcpy( self->eventQueue[ queueIdx ].data() + event_idx_start, events, numEvents * sizeof( LeUiEvent ) );
+
+	return true;
+}
+
 // ----------------------------------------------------------------------
 // Remove the the window from the list of gamepad events subscribers
 // in case it is subscribed to gamepad events.
@@ -1010,6 +1036,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_i.get_window_size    = window_get_window_size;
 	window_i.get_content_scale  = window_get_content_scale;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
+	window_i.enqueue_events     = window_enqueue_events;
 
 	auto& window_settings_i               = window_api_i->window_settings_i;
 	window_settings_i.create              = window_settings_create;

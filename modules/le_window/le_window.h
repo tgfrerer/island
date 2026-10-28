@@ -52,6 +52,9 @@ struct le_window_api {
 
 		void            ( *get_content_scale  ) ( le_window_o* self, float* content_scale_x, float* content_scale_y );
 
+		// manually add events to the queue of this window
+		bool 			(*enqueue_events)(le_window_o* self, LeUiEvent const ** events, uint32_t numEvents);
+
 		// Returns a sorted array of events pending since the last call to this method.
 		// Note that calling this method invalidates any values returned from the previous call to this method.
 		// You must only call this method once per Frame.
