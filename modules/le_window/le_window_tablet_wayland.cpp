@@ -21,7 +21,6 @@
 
 constexpr auto LOGGER_LABEL = "le_window_tablet_wayland";
 
-// TODO: get rid of globals, because they will not survive reloading this module.
 struct tablet_manager_o {
 	uint32_t              g_nextTabletId         = 1;
 	uint32_t              g_nextToolId           = 1;
