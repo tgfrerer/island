@@ -646,6 +646,23 @@ static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** even
 	*numEvents = self->numEventsForQueue[ eventQueueFront ];
 }
 
+// ----------------------------------------------------------------------
+
+static bool window_enqueue_event( le_window_o* self, LeUiEvent const* event ) {
+	uint32_t queueIdx = self->eventQueueBack;
+	uint32_t eventIdx = 0;
+
+	if ( event_queue_idx_available( self->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+		self->eventQueue[ queueIdx ][ eventIdx ] = *event;
+		return true;
+	} else {
+		// we're over the high - watermark for events, we should probably print a warning.
+		return false;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static bool window_enqueue_events( le_window_o* self, LeUiEvent const** events, uint32_t numEvents ) {
 
 	if ( false == self->mSettings.useEventsQueue ) {
@@ -1052,6 +1069,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_i.get_content_scale  = window_get_content_scale;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
 	window_i.enqueue_events     = window_enqueue_events;
+	window_i.enqueue_event      = window_enqueue_event;
 
 	auto& window_settings_i               = window_api_i->window_settings_i;
 	window_settings_i.create              = window_settings_create;

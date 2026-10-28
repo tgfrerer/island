@@ -53,6 +53,7 @@ struct le_window_api {
 		void            ( *get_content_scale  ) ( le_window_o* self, float* content_scale_x, float* content_scale_y );
 
 		// manually add events to the queue of this window
+		bool 			(*enqueue_event)(le_window_o* self, LeUiEvent const * event);
 		bool 			(*enqueue_events)(le_window_o* self, LeUiEvent const ** events, uint32_t numEvents);
 
 		// Returns a sorted array of events pending since the last call to this method.
