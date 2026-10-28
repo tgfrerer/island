@@ -84,8 +84,9 @@ struct le_window_api {
 
 	struct wl_tablet_interface_t {
 		bool (*init ) (); // initialize tablet pointer logic globally - this gets called via int
-		void (*after_window_create)(le_window_o * created_window); // just after a window gets created
-		void (*before_window_destroy)(le_window_o * doomed_window); // just before a window gets destroyed
+		void (*on_after_window_create)(le_window_o * created_window); // just after a window gets created
+		void (*on_before_window_destroy)(le_window_o * doomed_window); // just before a window gets destroyed
+		void * persistent_state;
 	};
 
 	// --------- wl tablet interface

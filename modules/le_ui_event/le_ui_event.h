@@ -265,8 +265,8 @@ struct LeUiEvent {
 	};
 
 	struct TabletToolEvent {
-		uint32_t id;
-		int      type;
+		uint32_t id;   // internal fixed id per-tool
+		int      type; // TODO: this should be an enum telling us what kind of tool we are dealing with
 		uint64_t serial;
 	};
 

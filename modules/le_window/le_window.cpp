@@ -864,7 +864,6 @@ static int init() {
 	}
 
 #if defined( GLFW_EXPOSE_NATIVE_WAYLAND )
-	// TODO: let's call the init_tablet function via the api, and not as a free function
 	le_window_api_i->wl_tablet_i.init();
 #endif
 

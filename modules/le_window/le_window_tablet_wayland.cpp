@@ -22,13 +22,18 @@
 constexpr auto LOGGER_LABEL = "le_window_tablet_wayland";
 
 // TODO: get rid of globals, because they will not survive reloading this module.
+struct tablet_manager_o {
+	uint32_t              g_nextTabletId         = 1;
+	uint32_t              g_nextToolId           = 1;
+	uint32_t              g_tabletManagerId      = 0;
+	uint32_t              g_tabletManagerVersion = 0;
+	std::vector<uint32_t> g_seatIds;
+};
 
-static uint32_t g_nextTabletId         = 1;
-static uint32_t g_nextToolId           = 1;
-static uint32_t g_tabletManagerId      = 0;
-static uint32_t g_tabletManagerVersion = 0;
-
-static std::vector<uint32_t> g_seatIds;
+// helper method to return the peristent state
+static tablet_manager_o& get_persistent_state() {
+	return *( ( tablet_manager_o* )le_window_api_i->wl_tablet_i.persistent_state );
+}
 
 /*
  * A tablet has one or more tools
@@ -39,13 +44,8 @@ static std::vector<uint32_t> g_seatIds;
  * See also the wayland protocol: https://wayland.app/protocols/tablet-v2
  *
  * How do we map tools to windows?
- * we should have a central responder. this responder should keep track of which
- *
- *
- * Event routing: currently, we are routing events to the window that receives them.
- * this means that we need to keep track of which surface currently has the focus
- * and pass pointer events only to the window which is associated with the surface
- * that is in focus.
+ * we should have a central responder. this responder should keep track of which window currently has the focus.
+ * only the window that has the focus should receive the event through its event queue.
  *
  * - we need a map of surface -> window
  * - we need to be careful to make sure that the window is still alive when we want to pass an event to the window
@@ -53,6 +53,7 @@ static std::vector<uint32_t> g_seatIds;
  * - this means that we need to subscribe to window creation events from here, so that we can associate a wayland surface with a le_window
  * - this means that we need to subscribe to window destruction events from here, so that we can remove windows from our map once they have been destroyed.
  *
+ * - how does glfw deal with mouse focus when it uses wayland?
  *
  */
 
@@ -86,21 +87,21 @@ static void tool_on_hardware_serial( void* data, struct zwp_tablet_tool_v2* tool
 	t->serial   = ( static_cast<uint64_t>( hi ) << 32 ) | lo;
 }
 
-static void toolOnHardwareIdWacom( void* data, struct zwp_tablet_tool_v2* tool,
-                                   uint32_t hi, uint32_t lo ) {
+static void tool_on_hardware_id_wacom( void* data, struct zwp_tablet_tool_v2* tool,
+                                       uint32_t hi, uint32_t lo ) {
 	( void )data;
 	( void )tool;
 	( void )hi;
 	( void )lo;
 }
 
-static void toolOnCapability( void* data, struct zwp_tablet_tool_v2* tool, uint32_t capability ) {
+static void tool_on_capability( void* data, struct zwp_tablet_tool_v2* tool, uint32_t capability ) {
 	( void )data;
 	( void )tool;
 	( void )capability;
 }
 
-static void toolOnDone( void* data, struct zwp_tablet_tool_v2* tool ) {
+static void tool_on_done( void* data, struct zwp_tablet_tool_v2* tool ) {
 	( void )tool;
 	const ToolInfo* t = static_cast<ToolInfo*>( data );
 	LeUiEvent       e{};
@@ -110,12 +111,12 @@ static void toolOnDone( void* data, struct zwp_tablet_tool_v2* tool ) {
 	// postLeUiEvent( e );
 }
 
-static void toolOnRemoved( void* data, struct zwp_tablet_tool_v2* tool ) {
+static void tool_on_removed( void* data, struct zwp_tablet_tool_v2* tool ) {
 	( void )tool;
 	delete static_cast<ToolInfo*>( data );
 }
 
-static void toolOnProximityOut( void* data, struct zwp_tablet_tool_v2* tool ) {
+static void tool_on_proximity_out( void* data, struct zwp_tablet_tool_v2* tool ) {
 	( void )tool;
 	LeUiEvent e{};
 	e.event           = LeUiEvent::Type::eTabletProximity;
@@ -123,7 +124,7 @@ static void toolOnProximityOut( void* data, struct zwp_tablet_tool_v2* tool ) {
 	// postLeUiEvent( e );
 }
 
-static void toolOnDown( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial ) {
+static void tool_on_down( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial ) {
 	( void )tool;
 	( void )serial;
 	LeUiEvent e{};
@@ -132,7 +133,7 @@ static void toolOnDown( void* data, struct zwp_tablet_tool_v2* tool, uint32_t se
 	// postLeUiEvent( e );
 }
 
-static void toolOnUp( void* data, struct zwp_tablet_tool_v2* tool ) {
+static void tool_on_up( void* data, struct zwp_tablet_tool_v2* tool ) {
 	( void )tool;
 	LeUiEvent e{};
 	e.event     = LeUiEvent::Type::eTabletTip;
@@ -140,15 +141,15 @@ static void toolOnUp( void* data, struct zwp_tablet_tool_v2* tool ) {
 	// postLeUiEvent( e );
 }
 
-static void toolOnMotion( void* data, struct zwp_tablet_tool_v2* tool,
-                          wl_fixed_t x, wl_fixed_t y ) {
+static void tool_on_motion( void* data, struct zwp_tablet_tool_v2* tool,
+                            wl_fixed_t x, wl_fixed_t y ) {
 	( void )tool;
 	ToolInfo* t = static_cast<ToolInfo*>( data );
 	t->x        = static_cast<float>( wl_fixed_to_double( x ) ); // surface-local logical pixels
 	t->y        = static_cast<float>( wl_fixed_to_double( y ) );
 }
-static void toolOnProximityIn( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial,
-                               struct zwp_tablet_v2* tablet, struct wl_surface* surface ) {
+static void tool_on_proximity_in( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial,
+                                  struct zwp_tablet_v2* tablet, struct wl_surface* surface ) {
 	( void )tool;
 	( void )serial;
 	( void )tablet;
@@ -163,46 +164,46 @@ static void toolOnProximityIn( void* data, struct zwp_tablet_tool_v2* tool, uint
 	// postLeUiEvent( e );
 }
 
-static void toolOnPressure( void* data, struct zwp_tablet_tool_v2* tool, uint32_t pressure ) {
+static void tool_on_pressure( void* data, struct zwp_tablet_tool_v2* tool, uint32_t pressure ) {
 	( void )tool;
 	static_cast<ToolInfo*>( data )->pressure = pressure;
 }
 
-static void toolOnDistance( void* data, struct zwp_tablet_tool_v2* tool, uint32_t distance ) {
+static void tool_on_distance( void* data, struct zwp_tablet_tool_v2* tool, uint32_t distance ) {
 	( void )tool;
 	static_cast<ToolInfo*>( data )->distance = distance;
 }
 
-static void toolOnTilt( void* data, struct zwp_tablet_tool_v2* tool,
-                        wl_fixed_t tiltX, wl_fixed_t tiltY ) {
+static void tool_on_tilt( void* data, struct zwp_tablet_tool_v2* tool,
+                          wl_fixed_t tiltX, wl_fixed_t tiltY ) {
 	( void )tool;
 	ToolInfo* t = static_cast<ToolInfo*>( data );
 	t->tilt_x   = static_cast<float>( wl_fixed_to_double( tiltX ) );
 	t->tilt_y   = static_cast<float>( wl_fixed_to_double( tiltY ) );
 }
 
-static void toolOnRotation( void* data, struct zwp_tablet_tool_v2* tool, wl_fixed_t degrees ) {
+static void tool_on_rotation( void* data, struct zwp_tablet_tool_v2* tool, wl_fixed_t degrees ) {
 	( void )data;
 	( void )tool;
 	( void )degrees;
 }
 
-static void toolOnSlider( void* data, struct zwp_tablet_tool_v2* tool, int32_t position ) {
+static void tool_on_slider( void* data, struct zwp_tablet_tool_v2* tool, int32_t position ) {
 	( void )data;
 	( void )tool;
 	( void )position;
 }
 
-static void toolOnWheel( void* data, struct zwp_tablet_tool_v2* tool,
-                         wl_fixed_t degrees, int32_t clicks ) {
+static void tool_on_wheel( void* data, struct zwp_tablet_tool_v2* tool,
+                           wl_fixed_t degrees, int32_t clicks ) {
 	( void )data;
 	( void )tool;
 	( void )degrees;
 	( void )clicks;
 }
 
-static void toolOnButton( void* data, struct zwp_tablet_tool_v2* tool,
-                          uint32_t serial, uint32_t button, uint32_t state ) {
+static void tool_on_button( void* data, struct zwp_tablet_tool_v2* tool,
+                            uint32_t serial, uint32_t button, uint32_t state ) {
 	( void )tool;
 	( void )serial;
 	const ToolInfo* t = static_cast<ToolInfo*>( data );
@@ -212,7 +213,7 @@ static void toolOnButton( void* data, struct zwp_tablet_tool_v2* tool,
 	// postLeUiEvent( e );
 }
 
-static void toolOnFrame( void* data, struct zwp_tablet_tool_v2* tool, uint32_t time ) {
+static void tool_on_frame( void* data, struct zwp_tablet_tool_v2* tool, uint32_t time ) {
 	( void )tool;
 	( void )time;
 	const ToolInfo* t = static_cast<ToolInfo*>( data );
@@ -230,79 +231,82 @@ static void toolOnFrame( void* data, struct zwp_tablet_tool_v2* tool, uint32_t t
 	//	postLeUiEvent( e );
 }
 
-static void tabletOnName( void* data, struct zwp_tablet_v2* tablet, const char* name ) {
+static void tablet_on_name( void* data, struct zwp_tablet_v2* tablet, const char* name ) {
 	( void )data;
 	( void )tablet;
 	( void )name;
+	logger().info( "Tablet on Name: %s", name );
 }
 
-static void tabletOnId( void* data, struct zwp_tablet_v2* tablet, uint32_t vid, uint32_t pid ) {
+static void tablet_on_id( void* data, struct zwp_tablet_v2* tablet, uint32_t vid, uint32_t pid ) {
 	( void )data;
 	( void )tablet;
 	( void )vid;
 	( void )pid;
+	logger().info( "Tablet on ID: vid: %d | pid: %d", vid, pid );
 }
 
-static void tabletOnPath( void* data, struct zwp_tablet_v2* tablet, const char* path ) {
+static void tablet_on_path( void* data, struct zwp_tablet_v2* tablet, const char* path ) {
 	( void )data;
 	( void )tablet;
 	( void )path;
 }
 
-static void tabletOnDone( void* data, struct zwp_tablet_v2* tablet ) {
+static void tablet_on_done( void* data, struct zwp_tablet_v2* tablet ) {
 	( void )tablet;
 	LeUiEvent e{};
 	e.event          = LeUiEvent::Type::eTabletAttached;
 	e.tabletAttached = { static_cast<uint32_t>( reinterpret_cast<uintptr_t>( data ) ) };
-	// postLeUiEvent( e );
+	logger().info( "tablet added: %d", e.tabletAttached.id );
 }
 
 // TODO: fill out
-static void tabletOnRemoved( void* data, struct zwp_tablet_v2* tablet ) {
+static void tablet_on_removed( void* data, struct zwp_tablet_v2* tablet ) {
 	( void )data;
 	( void )tablet;
 }
 
 // TODO: fill out
-static void tabletOnBusevent( void* data, struct zwp_tablet_v2* tablet, uint32_t busevent ) {
+static void tablet_on_busevent( void* data, struct zwp_tablet_v2* tablet, uint32_t busevent ) {
 	( void )data;
 	( void )tablet;
 	( void )busevent;
 }
 
-static void seatOnTabletAdded( void* data, struct zwp_tablet_seat_v2* seat,
-                               struct zwp_tablet_v2* tablet ) {
+static void seat_on_tablet_added( void* data, struct zwp_tablet_seat_v2* seat,
+                                  struct zwp_tablet_v2* tablet ) {
 	( void )data;
 	( void )seat;
 	zwp_tablet_v2_add_listener(
 	    tablet, ( zwp_tablet_v2_listener* )( &le_window_api_i->wl_tablet_listener_i ),
-	    reinterpret_cast<void*>( static_cast<uintptr_t>( g_nextTabletId++ ) ) );
+	    reinterpret_cast<void*>( static_cast<uintptr_t>( get_persistent_state().g_nextTabletId++ ) ) );
 }
 
-static void seatOnPadAdded( void* data, struct zwp_tablet_seat_v2* seat,
-                            struct zwp_tablet_pad_v2* pad ) {
+static void seat_on_pad_added( void* data, struct zwp_tablet_seat_v2* seat,
+                               struct zwp_tablet_pad_v2* pad ) {
 	( void )data;
 	( void )seat;
 	( void )pad; // pad scope is an open decision; slot must not be null
 }
 
-static void tabletRegistryOnGlobal( void* data, wl_registry* registry, uint32_t id,
-                                    const char* interface, uint32_t version ) {
+static void tablet_registry_on_global( void* data, wl_registry* registry, uint32_t id,
+                                       const char* interface, uint32_t version ) {
 	( void )data;
 	if ( std::strcmp( interface, "zwp_tablet_manager_v2" ) == 0 ) {
-		g_tabletManagerId      = id;
-		g_tabletManagerVersion = version;
+		auto& s                  = get_persistent_state();
+		s.g_tabletManagerId      = id;
+		s.g_tabletManagerVersion = version;
 	} else if ( std::strcmp( interface, "wl_seat" ) == 0 ) {
-		g_seatIds.push_back( id );
+		get_persistent_state().g_seatIds.push_back( id );
 	}
 }
 
-static void seatOnToolAdded( void* data, struct zwp_tablet_seat_v2* seat,
-                             struct zwp_tablet_tool_v2* tool ) {
+static void seat_on_tool_added( void* data, struct zwp_tablet_seat_v2* seat,
+                                struct zwp_tablet_tool_v2* tool ) {
 	( void )data;
 	( void )seat;
 	ToolInfo* t = new ToolInfo{}; // deleted OnToolRemoved
-	t->id       = g_nextToolId++;
+	t->id       = get_persistent_state().g_nextToolId++;
 	zwp_tablet_tool_v2_add_listener( tool, ( zwp_tablet_tool_v2_listener* )( &le_window_api_i->wl_tool_listener_i ), t );
 }
 
@@ -324,26 +328,42 @@ static bool le_window_init_tablet() {
 
 	wl_registry_add_listener( registry, ( wl_registry_listener* )( &le_window_api_i->wl_registry_listener_i ), nullptr );
 
-	if ( wl_display_roundtrip( display ) < 0 )
+	if ( wl_display_roundtrip( display ) < 0 ) {
 		return false;
-	if ( !g_tabletManagerId )
+	}
+
+	auto& state = get_persistent_state();
+
+	if ( !state.g_tabletManagerId ) {
 		return false;
+	}
 
 	zwp_tablet_manager_v2* manager =
 	    static_cast<zwp_tablet_manager_v2*>(
-	        wl_registry_bind( registry, g_tabletManagerId, &zwp_tablet_manager_v2_interface, g_tabletManagerVersion ) );
+	        wl_registry_bind( registry, state.g_tabletManagerId, &zwp_tablet_manager_v2_interface, state.g_tabletManagerVersion ) );
 
-	auto seatListenerApi = ( zwp_tablet_seat_v2_listener* )&le_window_api_i->wl_seat_listener_i;
-
-	for ( uint32_t seatId : g_seatIds ) {
+	// we should probably pass through the window here as the last element in data
+	//
+	for ( uint32_t seatId : state.g_seatIds ) {
 		wl_seat*            seat       = static_cast<wl_seat*>( wl_registry_bind( registry, seatId, &wl_seat_interface, 1 ) );
 		zwp_tablet_seat_v2* tabletSeat = zwp_tablet_manager_v2_get_tablet_seat( manager, seat );
-		zwp_tablet_seat_v2_add_listener( tabletSeat, seatListenerApi, nullptr );
+		zwp_tablet_seat_v2_add_listener( tabletSeat, ( zwp_tablet_seat_v2_listener* )&le_window_api_i->wl_seat_listener_i, nullptr );
 	}
 
 	wl_display_flush( display );
 
 	return true;
+}
+
+// ----------------------------------------------------------------
+
+// once a window has been created, we need to update our map of existing windows
+static void on_after_window_create( le_window_o* window ) {
+}
+
+// ----------------------------------------------------------------
+// if a window was removed, then we need to remove it from our list of existing windows
+static void on_before_window_destroy( le_window_o* window ) {
 }
 
 // ----------------------------------------------------------------
@@ -362,27 +382,26 @@ void le_window_tablet_wayland_register_api( void* api ) {
 		    sizeof( seat_listener_api ) == sizeof( zwp_tablet_seat_v2_listener ),
 		    "api must have the same field size" );
 
-		seat_listener_api.fn[ 0 ] = ( void* )seatOnTabletAdded;
-		seat_listener_api.fn[ 1 ] = ( void* )seatOnToolAdded;
-		seat_listener_api.fn[ 2 ] = ( void* )seatOnPadAdded;
+		seat_listener_api.fn[ 0 ] = ( void* )seat_on_tablet_added;
+		seat_listener_api.fn[ 1 ] = ( void* )seat_on_tool_added;
+		seat_listener_api.fn[ 2 ] = ( void* )seat_on_pad_added;
 	}
 
 	{
 		auto& registry_listener_api = window_api_i->wl_registry_listener_i;
-		registry_listener_api.fn    = ( void* )tabletRegistryOnGlobal;
+		registry_listener_api.fn    = ( void* )tablet_registry_on_global;
 	}
 
 	{
 		auto& tablet_listener_api = window_api_i->wl_tablet_listener_i;
 
-		tablet_listener_api.fn[ 0 ] = ( void* )tabletOnName;
-		tablet_listener_api.fn[ 1 ] = ( void* )tabletOnId;
-		tablet_listener_api.fn[ 2 ] = ( void* )tabletOnPath;
-		tablet_listener_api.fn[ 3 ] = ( void* )tabletOnDone;
-		tablet_listener_api.fn[ 4 ] = ( void* )tabletOnRemoved;
-		tablet_listener_api.fn[ 5 ] = ( void* )tabletOnBusevent;
+		tablet_listener_api.fn[ 0 ] = ( void* )tablet_on_name;
+		tablet_listener_api.fn[ 1 ] = ( void* )tablet_on_id;
+		tablet_listener_api.fn[ 2 ] = ( void* )tablet_on_path;
+		tablet_listener_api.fn[ 3 ] = ( void* )tablet_on_done;
+		tablet_listener_api.fn[ 4 ] = ( void* )tablet_on_removed;
+		tablet_listener_api.fn[ 5 ] = ( void* )tablet_on_busevent;
 	}
-
 	{
 		auto& tool_listener_api = window_api_i->wl_tool_listener_i;
 
@@ -394,26 +413,32 @@ void le_window_tablet_wayland_register_api( void* api ) {
 		//
 		tool_listener_api.fn[ 0 ]  = ( void* )tool_on_tool_type;
 		tool_listener_api.fn[ 1 ]  = ( void* )tool_on_hardware_serial;
-		tool_listener_api.fn[ 2 ]  = ( void* )toolOnHardwareIdWacom;
-		tool_listener_api.fn[ 3 ]  = ( void* )toolOnCapability;
-		tool_listener_api.fn[ 4 ]  = ( void* )toolOnDone;
-		tool_listener_api.fn[ 5 ]  = ( void* )toolOnRemoved;
-		tool_listener_api.fn[ 6 ]  = ( void* )toolOnProximityIn;  // this may change the current surface
-		tool_listener_api.fn[ 7 ]  = ( void* )toolOnProximityOut; // this may change the current surface
-		tool_listener_api.fn[ 8 ]  = ( void* )toolOnDown;
-		tool_listener_api.fn[ 9 ]  = ( void* )toolOnUp;
-		tool_listener_api.fn[ 10 ] = ( void* )toolOnMotion;
-		tool_listener_api.fn[ 11 ] = ( void* )toolOnPressure;
-		tool_listener_api.fn[ 12 ] = ( void* )toolOnDistance;
-		tool_listener_api.fn[ 13 ] = ( void* )toolOnTilt;
-		tool_listener_api.fn[ 14 ] = ( void* )toolOnRotation;
-		tool_listener_api.fn[ 15 ] = ( void* )toolOnSlider;
-		tool_listener_api.fn[ 16 ] = ( void* )toolOnWheel;
-		tool_listener_api.fn[ 17 ] = ( void* )toolOnButton;
-		tool_listener_api.fn[ 18 ] = ( void* )toolOnFrame;
+		tool_listener_api.fn[ 2 ]  = ( void* )tool_on_hardware_id_wacom;
+		tool_listener_api.fn[ 3 ]  = ( void* )tool_on_capability;
+		tool_listener_api.fn[ 4 ]  = ( void* )tool_on_done;
+		tool_listener_api.fn[ 5 ]  = ( void* )tool_on_removed;
+		tool_listener_api.fn[ 6 ]  = ( void* )tool_on_proximity_in;  // this may change the current surface
+		tool_listener_api.fn[ 7 ]  = ( void* )tool_on_proximity_out; // this may change the current surface
+		tool_listener_api.fn[ 8 ]  = ( void* )tool_on_down;
+		tool_listener_api.fn[ 9 ]  = ( void* )tool_on_up;
+		tool_listener_api.fn[ 10 ] = ( void* )tool_on_motion;
+		tool_listener_api.fn[ 11 ] = ( void* )tool_on_pressure;
+		tool_listener_api.fn[ 12 ] = ( void* )tool_on_distance;
+		tool_listener_api.fn[ 13 ] = ( void* )tool_on_tilt;
+		tool_listener_api.fn[ 14 ] = ( void* )tool_on_rotation;
+		tool_listener_api.fn[ 15 ] = ( void* )tool_on_slider;
+		tool_listener_api.fn[ 16 ] = ( void* )tool_on_wheel;
+		tool_listener_api.fn[ 17 ] = ( void* )tool_on_button;
+		tool_listener_api.fn[ 18 ] = ( void* )tool_on_frame;
 	}
 	{
 		auto& api = window_api_i->wl_tablet_i;
 		api.init  = le_window_init_tablet;
+		api.on_after_window_create   = on_after_window_create;
+		api.on_before_window_destroy = on_before_window_destroy;
+
+		if ( api.persistent_state == nullptr ) {
+			api.persistent_state = new tablet_manager_o{};
+		}
 	}
 };
