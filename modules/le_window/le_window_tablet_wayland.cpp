@@ -370,30 +370,29 @@ static void on_before_window_destroy( le_window_o* window ) {
 // ----------------------------------------------------------------
 
 // this function gets called from "le_window.cpp" on api registration
-void le_window_tablet_wayland_register_api( void* api ) {
-	auto window_api_i = static_cast<le_window_api*>( api );
+void le_window_tablet_wayland_register_api( void* p_api ) {
+	le_window_api* window_api = static_cast<le_window_api*>( p_api );
 
 	// Function pointers for wayland callbacks. Field order must
 	// follow wayland-scanner; every slot must be non-null.
 
 	{
-		auto& api = window_api_i->private_tablet_i;
 
-		if ( api == nullptr ) {
-			api = new wl_tablet_interface_t{
+		if ( window_api->private_tablet_i == nullptr ) {
+			window_api->private_tablet_i = new wl_tablet_interface_t{
 			    .persistent_state = new tablet_manager_o(),
 			};
 		}
 
+		auto api_i = ( wl_tablet_interface_t* )window_api->private_tablet_i;
+
 		{
-			auto api_i                      = ( wl_tablet_interface_t* )api;
 			api_i->on_after_window_create   = on_after_window_create;
 			api_i->on_before_window_destroy = on_before_window_destroy;
 			api_i->init                     = le_window_init_tablet;
 		}
 
 		{
-			auto  api_i             = ( wl_tablet_interface_t* )api;
 			auto& seat_listener_api = api_i->wl_seat_listener_i;
 
 			seat_listener_api.tablet_added = seat_on_tablet_added;
@@ -402,7 +401,6 @@ void le_window_tablet_wayland_register_api( void* api ) {
 		}
 
 		{
-			auto  api_i                 = ( wl_tablet_interface_t* )api;
 
 			auto& registry_listener_api         = api_i->wl_registry_listener_i;
 			registry_listener_api.global        = tablet_registry_on_global;
@@ -410,7 +408,6 @@ void le_window_tablet_wayland_register_api( void* api ) {
 		}
 
 		{
-			auto  api_i               = ( wl_tablet_interface_t* )api;
 			auto& tablet_listener_api = api_i->wl_tablet_listener_i;
 
 			tablet_listener_api.name    = tablet_on_name;
@@ -421,7 +418,6 @@ void le_window_tablet_wayland_register_api( void* api ) {
 			tablet_listener_api.bustype = tablet_on_bustype;
 		}
 		{
-			auto  api_i             = ( wl_tablet_interface_t* )api;
 			auto& tool_listener_api = api_i->wl_tool_listener_i;
 
 			//
