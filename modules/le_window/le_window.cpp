@@ -745,6 +745,13 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 
 	self->window = glfwCreateWindow( self->mSettings.width, self->mSettings.height, self->mSettings.title.c_str(), self->mSettings.monitor, nullptr );
 
+#ifdef LE_BUILD_OPTION_WAYLAND_TABLET
+
+	auto tablet_i = ( wl_tablet_interface_t* )le_window_api_i->private_tablet_i;
+	tablet_i->on_after_window_create( self, glfwGetWaylandWindow( self->window ) );
+
+#endif
+
 #ifndef NDEBUG
 
 	int           monitorCount = 0;
@@ -789,9 +796,17 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 
 static void window_destroy( le_window_o* self ) {
 
+
 	if ( self->window ) {
 		window_remove_callbacks( self );
 	}
+
+#ifdef LE_BUILD_OPTION_WAYLAND_TABLET
+
+	auto tablet_i = ( wl_tablet_interface_t* )le_window_api_i->private_tablet_i;
+	tablet_i->on_before_window_destroy( self );
+
+#endif
 
 	if ( self->window ) {
 		glfwDestroyWindow( self->window );
