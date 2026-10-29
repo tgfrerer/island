@@ -8,7 +8,7 @@ struct le_window_o;
 
 // just the public interface for interacting with the tablet window
 
-struct wl_tablet_interface_t {
+struct le_window_tablet_wl_interface_t {
 	bool ( *init )();                                                 // initialize tablet pointer logic globally - this gets called via int
 	void ( *on_after_window_create )( le_window_o* created_window, void* wayland_surface ); // just after a window gets created
 	void ( *on_before_window_destroy )( le_window_o* doomed_window ); // just before a window gets destroyed

@@ -764,7 +764,7 @@ static void window_setup( le_window_o* self, const le_window_settings_o* setting
 
 #ifdef LE_BUILD_OPTION_WAYLAND_TABLET
 
-	auto tablet_i = ( wl_tablet_interface_t* )le_window_api_i->private_tablet_i;
+	auto tablet_i = ( le_window_tablet_wl_interface_t* )le_window_api_i->private_tablet_i;
 	tablet_i->on_after_window_create( self, glfwGetWaylandWindow( self->window ) );
 
 #endif
@@ -820,7 +820,7 @@ static void window_destroy( le_window_o* self ) {
 
 #ifdef LE_BUILD_OPTION_WAYLAND_TABLET
 
-	auto tablet_i = ( wl_tablet_interface_t* )le_window_api_i->private_tablet_i;
+	auto tablet_i = ( le_window_tablet_wl_interface_t* )le_window_api_i->private_tablet_i;
 	tablet_i->on_before_window_destroy( self );
 
 #endif
@@ -927,7 +927,7 @@ static int init() {
 
 #if defined( LE_BUILD_OPTION_WAYLAND_TABLET )
 	// if there is a tablet interface, we would like to init it here
-	auto const& tablet_api = ( wl_tablet_interface_t* )le_window_api_i->private_tablet_i;
+	auto const& tablet_api = ( le_window_tablet_wl_interface_t* )le_window_api_i->private_tablet_i;
 	if ( tablet_api != nullptr ) {
 		tablet_api->init();
 	}

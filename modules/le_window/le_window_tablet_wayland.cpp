@@ -25,17 +25,17 @@ constexpr auto LOGGER_LABEL = "le_window_tablet_wayland";
 //  Of UI Events should be oblivious of how events were generated.
 
 struct tablet_manager_o {
-	uint32_t              g_nextTabletId         = 1;
-	uint32_t              g_nextToolId           = 1;
-	uint32_t              g_tabletManagerId      = 0;
-	uint32_t              g_tabletManagerVersion = 0;
-	std::vector<uint32_t> g_seatIds;
+	uint32_t              next_tablet_id         = 1;
+	uint32_t              next_tool_id           = 1;
+	uint32_t              tablet_manager_id      = 0;
+	uint32_t              tablet_manager_version = 0;
+	std::vector<uint32_t> seat_ids;
 };
 
 #include "private/le_window/le_window_tablet_wayland.h"
 
-inline static wl_tablet_interface_t* get_api() {
-	return ( wl_tablet_interface_t* )le_window_api_i->private_tablet_i;
+inline static le_window_tablet_wl_interface_t* get_api() {
+	return ( le_window_tablet_wl_interface_t* )le_window_api_i->private_tablet_i;
 }
 
 // helper method to return the peristent state
@@ -153,6 +153,7 @@ static void tool_on_motion( void* data, struct zwp_tablet_tool_v2* tool, wl_fixe
 	t->x        = static_cast<float>( wl_fixed_to_double( x ) ); // surface-local logical pixels
 	t->y        = static_cast<float>( wl_fixed_to_double( y ) );
 }
+
 static void tool_on_proximity_in( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial, struct zwp_tablet_v2* tablet, struct wl_surface* surface ) {
 	( void )tool;
 	( void )serial;
@@ -276,7 +277,7 @@ static void seat_on_tablet_added( void* data, struct zwp_tablet_seat_v2* seat, s
 	( void )seat;
 	zwp_tablet_v2_add_listener(
 	    tablet, &get_api()->wl_tablet_listener_i,
-	    reinterpret_cast<void*>( static_cast<uintptr_t>( get_persistent_state().g_nextTabletId++ ) ) );
+	    reinterpret_cast<void*>( static_cast<uintptr_t>( get_persistent_state().next_tablet_id++ ) ) );
 }
 
 static void seat_on_pad_added( void* data, struct zwp_tablet_seat_v2* seat, struct zwp_tablet_pad_v2* pad ) {
@@ -289,10 +290,10 @@ static void tablet_registry_on_global( void* data, wl_registry* registry, uint32
 	( void )data;
 	if ( std::strcmp( interface, "zwp_tablet_manager_v2" ) == 0 ) {
 		auto& s                  = get_persistent_state();
-		s.g_tabletManagerId      = id;
-		s.g_tabletManagerVersion = version;
+		s.tablet_manager_id      = id;
+		s.tablet_manager_version = version;
 	} else if ( std::strcmp( interface, "wl_seat" ) == 0 ) {
-		get_persistent_state().g_seatIds.push_back( id );
+		get_persistent_state().seat_ids.push_back( id );
 	}
 }
 
@@ -305,13 +306,12 @@ static void seat_on_tool_added( void* data, struct zwp_tablet_seat_v2* seat, str
 	( void )data;
 	( void )seat;
 	ToolInfo* t = new ToolInfo{}; // deleted OnToolRemoved
-	t->id       = get_persistent_state().g_nextToolId++;
+	t->id       = get_persistent_state().next_tool_id++;
 	zwp_tablet_tool_v2_add_listener( tool, &get_api()->wl_tool_listener_i, t );
 }
 
 // ----------
 
-// make this a static method
 static bool le_window_init_tablet() {
 
 	// Note: This can only be called once a window has been created.
@@ -333,17 +333,17 @@ static bool le_window_init_tablet() {
 
 	auto& state = get_persistent_state();
 
-	if ( !state.g_tabletManagerId ) {
+	if ( !state.tablet_manager_id ) {
 		return false;
 	}
 
 	zwp_tablet_manager_v2* manager =
 	    static_cast<zwp_tablet_manager_v2*>(
-	        wl_registry_bind( registry, state.g_tabletManagerId, &zwp_tablet_manager_v2_interface, state.g_tabletManagerVersion ) );
+	        wl_registry_bind( registry, state.tablet_manager_id, &zwp_tablet_manager_v2_interface, state.tablet_manager_version ) );
 
 	// we should probably pass through the window here as the last element in data
 	//
-	for ( uint32_t seatId : state.g_seatIds ) {
+	for ( uint32_t seatId : state.seat_ids ) {
 		wl_seat*            seat       = static_cast<wl_seat*>( wl_registry_bind( registry, seatId, &wl_seat_interface, 1 ) );
 		zwp_tablet_seat_v2* tabletSeat = zwp_tablet_manager_v2_get_tablet_seat( manager, seat );
 		zwp_tablet_seat_v2_add_listener( tabletSeat, &get_api()->wl_seat_listener_i, nullptr );
@@ -379,12 +379,12 @@ void le_window_tablet_wayland_register_api( void* p_api ) {
 	{
 
 		if ( window_api->private_tablet_i == nullptr ) {
-			window_api->private_tablet_i = new wl_tablet_interface_t{
+			window_api->private_tablet_i = new le_window_tablet_wl_interface_t{
 			    .persistent_state = new tablet_manager_o(),
 			};
 		}
 
-		auto api_i = ( wl_tablet_interface_t* )window_api->private_tablet_i;
+		auto api_i = ( le_window_tablet_wl_interface_t* )window_api->private_tablet_i;
 
 		{
 			api_i->on_after_window_create   = on_after_window_create;
