@@ -266,32 +266,35 @@ struct LeUiEvent {
 
 	struct TabletToolEvent {
 		uint32_t id;   // internal fixed id per-tool
-		int      type; // TODO: this should be an enum telling us what kind of tool we are dealing with
+		uint32_t type; // TODO: this should be an enum telling us what kind of tool we are dealing with
 		uint64_t serial;
 	};
 
 	struct TabletProximityEvent {
 		uint32_t toolId;
-		int      state;
+		uint32_t state;
 	};
 
 	struct TabletMotionEvent {
 		uint32_t toolId;
-		float    x, y;
-		uint32_t pressure;
-		int      tiltX, tiltY;
-		uint32_t distance;
+		float    x;
+		float    y;
+		float    pressure;
+		float    rotation_deg;
+		int32_t  tiltX;
+		int32_t  tiltY;
+		uint32_t distance_from_surface;
 	};
 
 	struct TabletButtonEvent {
 		uint32_t toolId;
 		uint32_t button;
-		int      state;
+		uint32_t state;
 	};
 
 	struct TabletTipEvent {
 		uint32_t toolId;
-		int      state;
+		uint32_t state;
 	};
 
 	// ---
