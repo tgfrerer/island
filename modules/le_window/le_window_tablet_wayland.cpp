@@ -32,16 +32,10 @@ constexpr auto LOGGER_LABEL = "le_window_tablet_wayland";
  * See also the wayland protocol: https://wayland.app/protocols/tablet-v2
  *
  * How do we map tools to windows?
- * we should have a central responder. this responder should keep track of which window currently has the focus.
- * only the window that has the focus should receive the event through its event queue.
  *
- * - we need a map of surface -> window
- * - we need to be careful to make sure that the window is still alive when we want to pass an event to the window
- *
- * - this means that we need to subscribe to window creation events from here, so that we can associate a wayland surface with a le_window
- * - this means that we need to subscribe to window destruction events from here, so that we can remove windows from our map once they have been destroyed.
- *
- * - how does glfw deal with mouse focus when it uses wayland?
+ * - we have a table of all windows and all surfaces (two vectors, held in sync)
+ * - we keep a pointer to the focused window. this is the window that receives any events that require focus
+ * - when a proximity in event is detected, we set the
  *
  */
 
@@ -188,7 +182,7 @@ static void tool_on_proximity_out( void* data, struct zwp_tablet_tool_v2* tool )
 	// Update focus
 	auto& state          = get_persistent_state();
 	state.focused_window = nullptr;
-	logger().info( "Proximity OUT xxx " );
+	// logger().info( "Proximity OUT xxx " );
 }
 
 static void tool_on_down( void* data, struct zwp_tablet_tool_v2* tool, uint32_t serial ) {
@@ -220,7 +214,7 @@ static void tool_on_proximity_in( void* data, struct zwp_tablet_tool_v2* tool, u
 	LeUiEvent e{};
 	e.event           = LeUiEvent::Type::eTabletProximity;
 	e.tabletProximity = { t->id, 1 };
-	logger().info( "Proximity in **** " );
+	// logger().info( "Proximity in **** " );
 
 	auto& state = get_persistent_state();
 
@@ -260,7 +254,6 @@ static void tool_on_tilt( void* data, struct zwp_tablet_tool_v2* tool, wl_fixed_
 static void tool_on_rotation( void* data, struct zwp_tablet_tool_v2* tool, wl_fixed_t degrees ) {
 	tool_info_t* t  = static_cast<tool_info_t*>( data );
 	t->rotation_deg = static_cast<float>( wl_fixed_to_double( degrees ) );
-	logger().info( "rotation: %d", degrees );
 }
 
 static void tool_on_slider( void* data, struct zwp_tablet_tool_v2* tool, int32_t position ) {
@@ -434,7 +427,7 @@ static bool le_window_init_tablet() {
 
 // once a window has been created, we need to update our map of existing windows
 static void on_after_window_create( le_window_o* window, void* wayland_surface ) {
-	logger().info( "window create: island window: %p, wayland surface: %p", window, wayland_surface );
+	// logger().info( "window create: island window: %p, wayland surface: %p", window, wayland_surface );
 
 	auto& state = get_persistent_state();
 
@@ -450,7 +443,7 @@ static void on_after_window_create( le_window_o* window, void* wayland_surface )
 // if a window was removed, then we need to remove it from our list of existing windows
 // we also remove the associated surface
 static void on_before_window_destroy( le_window_o* window ) {
-	logger().info( "window destroy %x", window );
+	// logger().info( "window destroy %x", window );
 
 	auto& state = get_persistent_state();
 
