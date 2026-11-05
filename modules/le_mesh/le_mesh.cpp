@@ -1106,6 +1106,12 @@ static void le_mesh_debug_draw_meshes( le_mesh_debug_draw_data_t* meshes, size_t
 		encoder.setLineWidth( 1 );
 		for ( auto m = closure->items; m != closure->items + closure->num_items; m++ ) {
 
+			if ( m->mesh == nullptr ) {
+				continue;
+			}
+
+			// invariant: m->mesh is not nullptr
+
 			size_t num_ad = C_ATTR_COUNT;
 			size_t num_bd = C_ATTR_COUNT;
 
