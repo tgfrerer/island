@@ -28,7 +28,7 @@ struct LeTransform2D {
 
 	// ----------
 
-	inline static LeTransform2D make_transform_rotation_rad( float angle_rad ) {
+	constexpr inline static LeTransform2D make_transform_rotation_rad( float angle_rad ) {
 		float       cosa  = cosf( angle_rad );
 		float       sina  = sinf( angle_rad );
 		return {
@@ -41,7 +41,7 @@ struct LeTransform2D {
 	};
 
 	/// pre-multiplication operator
-	inline LeTransform2D operator*( LeTransform2D const& rhs ) const {
+	constexpr inline LeTransform2D operator*( LeTransform2D const& rhs ) const {
 		// Note: this has been checked against vello to
 		// make sure that we're using the same conventions.
 		auto const& t = this->transform;
@@ -52,7 +52,7 @@ struct LeTransform2D {
 	}
 
 	/// apply transform to a vector
-	inline glm::vec2 operator*( glm::vec2 const& rhs ) const {
+	constexpr inline glm::vec2 operator*( glm::vec2 const& rhs ) const {
 		// Note: this has been checked against vello to
 		// make sure that we're using the same conventions.
 		auto const& t = this->transform;
@@ -83,11 +83,11 @@ struct LeTransform2D {
 		return result;
 	};
 
-	const bool operator==( LeTransform2D const& rhs ) const {
+	constexpr bool operator==( LeTransform2D const& rhs ) const {
 		return ( this->transform == rhs.transform && this->translation == rhs.translation );
 	}
 
-	const bool operator!=( LeTransform2D const& rhs ) const {
+	constexpr bool operator!=( LeTransform2D const& rhs ) const {
 		return !( *this == rhs );
 	}
 };
