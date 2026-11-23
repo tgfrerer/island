@@ -34,7 +34,7 @@ struct FontTextureInfo {
 	uint8_t* pixels      = nullptr;
 	int32_t  width       = 0;
 	int32_t  height      = 0;
-	bool     wasUploaded = false;
+	bool     was_uploaded = false;
 };
 
 struct le_mouse_event_data_o {
@@ -48,8 +48,7 @@ struct le_imgui_o {
 	ImGuiContext*            imguiContext            = nullptr;
 	FontTextureInfo          imguiTexture            = {};
 	le_mouse_event_data_o    mouse_state             = {};
-	le_texture_handle        texture_font            = {};
-	bool                     areResourcesInitialised = false; // whether resources were initialised
+	le_texture_handle        texture_font            = LE_TEXTURE( "imgui_font_texture" );
 	bool                     areFontsLoaded          = false; // whether fonts were loaded
 	le_gpso_handle           imgui_pipeline          = nullptr;
 	le_shader_module_handle  shader_frag             = nullptr;
@@ -62,7 +61,6 @@ static le_imgui_o* le_imgui_create( le_renderer_o* renderer ) {
 	auto self = new le_imgui_o{ renderer };
 
 	self->imguiContext = ImGui::CreateContext( nullptr );
-	self->texture_font = le_renderer_api_i->le_renderer_i.produce_texture_handle( renderer, "ImguiDefaultFontTexture" );
 
 	return self;
 }
@@ -101,39 +99,30 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 
 	auto module = le::RenderGraph{ render_graph };
 
-	if ( self->areResourcesInitialised ) {
-
-		// If resources were initialised, the only thing which remains for us to do
-		// is to tell the rendergraph what kind of resource to expect, which means
-		// we must declare the resource.
-
-		static auto fontImgInfo = le::ImageInfoBuilder()
-		                              .setExtent( uint32_t( self->imguiTexture.width ), uint32_t( self->imguiTexture.height ) )
-		                              .setUsageFlags( le::ImageUsageFlags( le::ImageUsageFlagBits::eTransferDst ) )
-		                              .setFormat( le::Format::eR8G8B8A8Unorm )
-		                              .build(); // create resource for imgui font texture if it does not yet exist.
-
-		module.declareResource( self->img_imgui_font, fontImgInfo );
-
-		return;
-	}
-
-	// ---------| invariant: resources are not initialised yet.
-
-	// get imgui font texture handle
-
 	ImGuiIO& io = ImGui::GetIO();
 
-	// test whether we can find font file - if yes, load it, otherwise use in-memory font.
+	// always update the display size as it may have changed since last frame
+	//
+	io.DisplaySize.x = display_width;
+	io.DisplaySize.y = display_height;
 
+	// Cache font loading - only do this once
+	//
 	if ( false == self->areFontsLoaded ) {
+		// test whether we can find font file - if yes, load it, otherwise use in-memory font.
 		io.Fonts->AddFontFromMemoryCompressedBase85TTF( font_ibm_plex_sans_compressed_data_base85, 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &self->imguiTexture.pixels, &self->imguiTexture.width, &self->imguiTexture.height );
+		// get imgui font texture handle
+		io.Fonts->SetTexID( self->texture_font );
 		self->areFontsLoaded = true;
 	}
 
+	// ----------| invariant: self->areFontsLoaded == true
+
+	assert( self->areFontsLoaded == true );
+
 	// Declare font image resource
-	auto fontImgInfo =
+	static auto fontImgInfo =
 	    le::ImageInfoBuilder()
 	        .setExtent( uint32_t( self->imguiTexture.width ), uint32_t( self->imguiTexture.height ) )
 	        .setUsageFlags( le::ImageUsageFlagBits::eTransferDst | le::ImageUsageFlagBits::eSampled )
@@ -142,22 +131,33 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 
 	module.declareResource( self->img_imgui_font, fontImgInfo );
 
-	// Upload resources - note that this pass will only get executed the first time
-	// that the gui is visible, because this will be the first time that the
-	// resource will be used; otherwise the rendergraph will pune this pass...
+	// Upload resources
+	//
+	// NOTE: upload_resources_pass will only get executed if the rendergraph
+	// detects that somebody (the gui) actually requires the resources. This
+	// means that we must submit this pass at least until it has been used
+	// once.
+	// The alternative to this is to declare the upload pass to be
+	// a root pass, in which case it will be executed regardless of whether
+	// the resource is in use.
 
-	le::RenderPass pass{ "imguiSetup", le::QueueFlagBits::eTransfer };
+	le::RenderPass upload_resources_pass{ "imguiSetup", le::QueueFlagBits::eTransfer };
 
-	pass
-	    .useImageResource( self->img_imgui_font, le::AccessFlagBits2::eTransferWrite )
+	upload_resources_pass
+	    .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
+		    auto           imgui = static_cast<le_imgui_o*>( user_data );
+		    le::RenderPass rp( rp_ );
+		    rp.useImageResource( imgui->img_imgui_font, le::AccessFlagBits2::eTransferWrite );
+		    return ( false == imgui->imguiTexture.was_uploaded );
+	    } )
 	    .setExecuteCallback( self, []( le_command_buffer_encoder_o* p_encoder, void* user_data ) {
 		    auto imgui = static_cast<le_imgui_o*>( user_data );
 
 		    // Tell encoder to upload imgui image - but only once
-		    if ( false == imgui->imguiTexture.wasUploaded ) {
-
+		    if ( false == imgui->imguiTexture.was_uploaded ) {
+			    // ---------| invariant: resources are not initialised yet.
 			    le::TransferEncoder encoder{ p_encoder };
-				size_t              numBytes = size_t( imgui->imguiTexture.width ) * size_t( imgui->imguiTexture.height ) * 4;
+			    size_t              numBytes = size_t( imgui->imguiTexture.width ) * size_t( imgui->imguiTexture.height ) * 4;
 
 			    auto writeInfo = le::WriteToImageSettingsBuilder()
 			                         .setImageW( int32_t( imgui->imguiTexture.width ) )
@@ -165,26 +165,15 @@ static void le_imgui_setup_gui_resources( le_imgui_o* self, le_rendergraph_o* re
 			                         .build();
 
 			    encoder.writeToImage( imgui->img_imgui_font, writeInfo, imgui->imguiTexture.pixels, numBytes );
-			    imgui->imguiTexture.wasUploaded = true;
-			    imgui->areResourcesInitialised  = true;
+			    imgui->imguiTexture.was_uploaded = true;
 		    }
 	    } )
-	    // .setIsRoot( true ) // set this pass to be a root pass to upload the font texture even if the gui is never shown
-	    ;
+	    // set this pass to be a root pass to upload the font texture even if the gui is never shown
+	    .setIsRoot( true );
 
 	// Now we must add the transfer pass to the module so that it gets executed.
 
-	module.addRenderPass( pass );
-
-	// We want to save the raw value in the pointer, because if we passed in a
-	// pointer to the name of the texture, the texture may have changed.
-	// for this to work, we first cast to uint64_t, then cast to void*
-
-	io.Fonts->SetTexID( self->texture_font );
-
-	io.DisplaySize.x = display_width;
-	io.DisplaySize.y = display_height;
-
+	module.addRenderPass( upload_resources_pass );
 }
 
 // ----------------------------------------------------------------------
