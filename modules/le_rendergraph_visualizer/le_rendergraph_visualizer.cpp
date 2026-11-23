@@ -1053,7 +1053,7 @@ static void le_rendergraph_visualizer_set_is_active( le_rendergraph_visualizer_o
 
 static void le_rendergraph_visualizer_process_events( le_rendergraph_visualizer_o* self, LeUiEvent const* events, uint32_t numEvents ) {
 
-	// CONSIDER: should this be written a state machine?
+	// CONSIDER: should this be written as a state machine?
 
 	LeUiEvent const*       event      = events;             // first event that we will process
 	LeUiEvent const* const events_end = events + numEvents; // end iterator
